@@ -1,6 +1,8 @@
 #include "game/task_entity_assets.h"
 #include "mem/torirs_mem.h"
 
+#include "app/app_parallel_task.h"
+
 #include "app.h"
 #include "engine/cache_provider.h"
 #include "engine/entity_model_build.h"
@@ -13,6 +15,7 @@
 #include "world/world.h"
 
 #include <assert.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -259,18 +262,37 @@ npc_body_resident(
 
 /* --------------------------------------------------------------- player */
 
+/*
+ * A player's body fetch: ONE parallel task per distinct appearance in flight,
+ * listed in the pending index (ENTITY_ASSETS_KIND_PLAYER_BODY) under a hash
+ * of what it fetches, so a second appearance block naming the same body while
+ * the first is still loading -- every PLAYER_INFO that re-sends a stranger's
+ * appearance, or the design screen's prediction followed by the server's
+ * echo -- finds it and adds nothing (each queued its own fetch before).
+ *
+ * Why the pending index and not an assets-table entry of its own: a table
+ * entry is keyed (kind, id, variant) and its loader is handed nothing but that
+ * key, and twelve slots, a gender and seven stances do not fit in it. A hash
+ * as the id would need a second table beside it to give the slots back to the
+ * loader -- the second tracker this replaces -- and two bodies whose hashes
+ * collided would share one entry and the second would never load. The parts
+ * are already one entry each (CONFIG, MODEL, SEQUENCE) and shared by every
+ * fetch; what needs finding is the fetch itself, and a found task carries its
+ * own data, so a collision is told apart by comparing it and costs at most a
+ * second fetch, never a missing one.
+ */
 struct Task_PlayerBodyLand
 {
     struct ToriRS_Task task;
     struct pt pt;
+    struct RS_ParallelTask par;
     struct App* app;
     int slots[12];
     int gender;
-    int seq_ids[7];
+    int seq_ids[ENTITY_ASSETS_PLAYER_SEQS_MAX];
     int seq_count;
     int model_ids[64];
     int model_count;
-    int pending;
 };
 
 static int
@@ -286,9 +308,12 @@ Task_PlayerBodyLand_Run(
 
     /* The configs name the models, so they land first; the stances need
      * nothing and ride along with them. */
-    fanout_slot_configs(app, self->slots, &self->pending);
-    fanout_seqs(app, self->seq_ids, self->seq_count, &self->pending);
-    PT_TASK_JOIN(pending);
+    fanout_slot_configs(app, self->slots, &self->par.join);
+    fanout_seqs(app, self->seq_ids, self->seq_count, &self->par.join);
+    PT_PARALLEL_AWAIT_ASSETS(app->assets);
+    /* A logout cancelled it: nothing is drawn from it any more. */
+    if( RS_ParallelTask_Cancelled(&self->par) )
+        PT_EXIT(&self->pt);
 
     self->model_count = PlayerModel_CollectAppearanceModelIds(
         app->provider,
@@ -296,8 +321,10 @@ Task_PlayerBodyLand_Run(
         self->gender,
         self->model_ids,
         (int)(sizeof(self->model_ids) / sizeof(self->model_ids[0])));
-    fanout_models(app, self->model_ids, self->model_count, &self->pending);
-    PT_TASK_JOIN(pending);
+    fanout_models(app, self->model_ids, self->model_count, &self->par.join);
+    PT_PARALLEL_AWAIT_ASSETS(app->assets);
+    if( RS_ParallelTask_Cancelled(&self->par) )
+        PT_EXIT(&self->pt);
 
     /* Nothing to apply: every player whose wanted body this completes
      * rebuilds on the next frame's reconcile. */
@@ -310,10 +337,9 @@ static void
 Task_PlayerBodyLand_Free(struct ToriRS_Task* base)
 {
     struct Task_PlayerBodyLand* self = (struct Task_PlayerBodyLand*)base;
-    /* Freed while it awaits (a queue torn down mid-fetch): the table must not
-     * count on a join that is gone. */
-    if( self->pending > 0 )
-        Assets_Unjoin(self->app->assets, &self->pending);
+    /* Unlists it, and forgets a join still counted (a queue torn down
+     * mid-fetch). */
+    App_ParallelTaskRelease(self->app, &self->par);
     ToriMem_Free(ToriMem_Session(), base);
 }
 
@@ -322,35 +348,123 @@ static struct ToriRS_TaskVTable Task_PlayerBodyLand_VTable = {
     .free = Task_PlayerBodyLand_Free,
 };
 
-struct ToriRS_Task*
-CreateTask_PlayerBodyLand(
+/* FNV-1a over what a body fetch reads: the slots, the gender, the stances. */
+static uint32_t
+player_body_hash(
+    int const slots[12],
+    int gender,
+    int const* seq_ids,
+    int seq_count)
+{
+    uint32_t h = 2166136261u;
+    int words[12 + 2 + ENTITY_ASSETS_PLAYER_SEQS_MAX];
+    int n = 0;
+
+    for( int i = 0; i < 12; i++ )
+        words[n++] = slots[i];
+    words[n++] = gender;
+    words[n++] = seq_count;
+    for( int i = 0; i < seq_count; i++ )
+        words[n++] = seq_ids[i];
+    for( int i = 0; i < n; i++ )
+    {
+        uint32_t w = (uint32_t)words[i];
+        for( int b = 0; b < 4; b++ )
+        {
+            h ^= (w >> (8 * b)) & 0xffu;
+            h *= 16777619u;
+        }
+    }
+    return h;
+}
+
+struct RS_PendingKey
+EntityAssets_PlayerBodyKey(
+    int const slots[12],
+    int gender,
+    int const* seq_ids,
+    int seq_count)
+{
+    assert(slots);
+    assert(seq_ids || seq_count == 0);
+    assert(seq_count >= 0);
+    assert(seq_count <= ENTITY_ASSETS_PLAYER_SEQS_MAX);
+    return RS_PendingKey_Id((int)player_body_hash(slots, gender, seq_ids, seq_count), 0);
+}
+
+static int
+player_body_same(
+    struct Task_PlayerBodyLand const* task,
+    int const slots[12],
+    int gender,
+    int const* seq_ids,
+    int seq_count)
+{
+    return task->gender == gender && task->seq_count == seq_count &&
+           memcmp(task->slots, slots, sizeof(task->slots)) == 0 &&
+           (seq_count == 0 || memcmp(task->seq_ids, seq_ids, (size_t)seq_count * sizeof(int)) == 0);
+}
+
+int
+EntityAssets_WantPlayerBody(
     struct App* app,
     int const slots[12],
     int gender,
     int const* seq_ids,
     int seq_count)
 {
+    struct RS_PendingKey key;
+    struct RS_ParallelTask* pending;
     struct Task_PlayerBodyLand* task;
 
     assert(app);
-    assert(slots);
-    assert(seq_ids || seq_count == 0);
-    assert(seq_count >= 0);
+    assert(app->pending);
+    key = EntityAssets_PlayerBodyKey(slots, gender, seq_ids, seq_count);
+    if( EntityAssets_PlayerBodyResident(app, slots, gender, seq_ids, seq_count) )
+        return 0;
+    pending = RS_Pending_Find(app->pending, ENTITY_ASSETS_KIND_PLAYER_BODY, key);
+    if( pending &&
+        player_body_same(
+            (struct Task_PlayerBodyLand const*)((char const*)pending -
+                                                offsetof(struct Task_PlayerBodyLand, par)),
+            slots,
+            gender,
+            seq_ids,
+            seq_count) )
+        return 0;
+
     task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
     assert(task);
-    assert(seq_count <= (int)(sizeof(task->seq_ids) / sizeof(task->seq_ids[0])));
     task->task.vtable = &Task_PlayerBodyLand_VTable;
     strncpy(task->task.name, "PlayerBodyLand", sizeof(task->task.name) - 1);
     task->app = app;
     memcpy(task->slots, slots, sizeof(task->slots));
     task->gender = gender;
-    memcpy(task->seq_ids, seq_ids, (size_t)seq_count * sizeof(int));
+    if( seq_count > 0 )
+        memcpy(task->seq_ids, seq_ids, (size_t)seq_count * sizeof(int));
     task->seq_count = seq_count;
     PT_INIT(&task->pt);
-    return &task->task;
+    /* The parallel queue, as an ordinary task: the body is only drawn, and
+     * the reconcile keeps the last whole one until this is in. */
+    App_ParallelTaskAdd(app, &task->task, &task->par, ENTITY_ASSETS_KIND_PLAYER_BODY, key, -1);
+    return 1;
 }
 
-/* ------------------------------------------------------- player transmog */
+int
+EntityAssets_PlayerBodyPending(struct App const* app)
+{
+    assert(app);
+    return RS_Pending_Count(app->pending, ENTITY_ASSETS_KIND_PLAYER_BODY);
+}
+
+/* ------------------------------------------------------- player transmog
+ *
+ * The transmog and held-item fetches are LOADERS of the assets table
+ * (PLAYER_TRANSMOG, PLAYER_HELD): one entry per key, one load in flight, found
+ * by Assets_InFlight / Assets_State -- the table is their index. They apply
+ * nothing (the per-frame reconcile reads the entity as it is now), so no
+ * packet, scope or test has a target to find them by, and they are not
+ * listed in the pending index. */
 
 struct Task_PlayerTransmogLand
 {

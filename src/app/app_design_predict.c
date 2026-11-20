@@ -84,12 +84,8 @@ App_DesignPredictIfButton(
             lp->idle_animations.walkanim_l, lp->idle_animations.walkanim_r,
             lp->idle_animations.runanim,
         };
-        if( !EntityAssets_PlayerBodyResident(
-                app, lp->appearance.slots, lp->gender, seqs, APP_DESIGN_SEQ_COUNT) )
-            ToriRS_TaskQueue_Add(
-                app->frame_runner.queue,
-                CreateTask_PlayerBodyLand(
-                    app, lp->appearance.slots, lp->gender, seqs, APP_DESIGN_SEQ_COUNT));
+        (void)EntityAssets_WantPlayerBody(
+            app, lp->appearance.slots, lp->gender, seqs, APP_DESIGN_SEQ_COUNT);
     }
 
     RedrawRequest_Raise(&app->redraw_request);

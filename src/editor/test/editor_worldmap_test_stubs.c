@@ -22,8 +22,9 @@
     } while( 0 )
 
 struct RS_WorldMapRender*
-RS_WorldMapRender_New(void)
+RS_WorldMapRender_New(struct Assets* assets)
 {
+    (void)assets;
     STUB("RS_WorldMapRender_New");
 }
 
@@ -68,7 +69,6 @@ RS_WorldMapRender_RegionPixels(
     struct RS_WorldMapRender* render,
     struct CacheProvider* provider,
     struct ToriDraw_Scene* scene,
-    struct ToriRS_TaskQueue* queue,
     struct ToriRS_WorldMapArea const* area,
     int region_x,
     int region_y,
@@ -85,7 +85,6 @@ RS_WorldMapRender_RegionPixels(
     (void)render;
     (void)provider;
     (void)scene;
-    (void)queue;
     (void)area;
     (void)region_x;
     (void)region_y;

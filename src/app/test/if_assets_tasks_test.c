@@ -19,6 +19,15 @@
  *   - Textures: each a built model wants and the provider lacks is one
  *     publish task (app/app_textures.c), not a callback waiter; a repeat
  *     adds none, a failed load ends it and is remembered, a cancel ends it.
+ *   - Sprites (moved from engine/test/cache_trim_test.c with the bridge's
+ *     own pending list): a node bound to a sprite that is not resident gets a
+ *     scene id at once and one fill task (Task_SpriteFill) listed in the
+ *     pending index; the sprite loads once through the assets table, is asked
+ *     for again only after the SPRITE back-off, fills the reserved id when it
+ *     lands; an id the sprites table does not list is never bound, and a
+ *     reservation it stops listing ends its task unasked; a provider with no
+ *     sprite loader reserves nothing; a logout's cancel is followed by the
+ *     reservation being wanted again (the bridge outlives the session).
  *
  * Run: make -C src test-if-assets-tasks
  */
@@ -442,6 +451,183 @@ test_texture_publish_is_a_task(void)
     fixture_free(&fx);
 }
 
+/* ---- sprites: a reservation is one fill task ---------------------------- */
+
+static struct ToriRS_Task*
+no_sprite_task(
+    struct CacheProvider* provider,
+    int sprite_id)
+{
+    (void)provider;
+    (void)sprite_id;
+    assert(0 && "the assets table's loader is the test's: the provider is never asked");
+    return NULL;
+}
+
+static struct ToriRS_Sprite*
+drawable_sprite(void)
+{
+    struct ToriRS_Sprite* sprite = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sprite));
+    assert(sprite);
+    sprite->frames = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sprite->frames));
+    assert(sprite->frames);
+    sprite->frame_count = 1;
+    sprite->frames[0].pixels_argb =
+        ToriMem_Alloc(ToriMem_Assets(), sizeof(*sprite->frames[0].pixels_argb));
+    assert(sprite->frames[0].pixels_argb);
+    sprite->frames[0].pixels_argb[0] = 0xff55aa33u;
+    sprite->frames[0].width = 1;
+    sprite->frames[0].height = 1;
+    sprite->frames[0].crop_width = 1;
+    sprite->frames[0].crop_height = 1;
+    return sprite;
+}
+
+static void
+sprite_fixture_init(struct Fixture* fx)
+{
+    fixture_init(fx);
+    fx->vtable.Task_SpriteLoad = no_sprite_task;
+    App_AssetsSetLoader(&fx->app, ASSET_KIND_SPRITE, fake_start, fake_resident);
+    App_IfAssetsBindBridge(&fx->app);
+}
+
+static void
+cycles(
+    struct Fixture* fx,
+    int n)
+{
+    for( int i = 0; i < n; i++ )
+        FrameClockSerial_NoteLogicCycle(&fx->app.frame_clock.serial);
+    App_CycleClockTick(&fx->app);
+}
+
+static void
+test_sprite_reservation_fills_when_it_lands(void)
+{
+    struct Fixture fx;
+    struct AssetKey const key88 = AssetKey_Make(ASSET_KIND_SPRITE, 88, 0);
+    uint64_t revision;
+    int scene_id;
+
+    printf("TEST: a sprite bound before it is resident is one fill task until it lands\n");
+    sprite_fixture_init(&fx);
+
+    scene_id = UITreeSceneBridge_BindSprite(&fx.app.bridge, 88);
+    TEST_ASSERT(scene_id > 0, "a sprite that is not resident is bound");
+    TEST_ASSERT(!ToriDraw_SceneSpriteHas(fx.app.scene, scene_id), "the reservation holds nothing yet");
+    TEST_ASSERT(UITreeSceneBridge_EnsureSprite(&fx.app.bridge, 88) == scene_id,
+        "a second lookup finds the reservation");
+    TEST_ASSERT(App_SpriteFillPending(&fx.app, 88), "its fill is a pending task");
+    TEST_ASSERT(UITreeSceneBridge_BindSprite(&fx.app.bridge, 88) == scene_id, "a rebind keeps the id");
+    TEST_ASSERT(App_SpriteFillsPending(&fx.app) == 1 && queued(&fx) == 1, "and adds no second fill");
+
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 88, 0) == 1, "the first pump asks once");
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 88, 0) == 1, "and not again while it loads");
+
+    /* The read comes back empty: asked again only after the pause. */
+    Assets_Finished(fx.app.assets, key88, false);
+    pump(&fx);
+    TEST_ASSERT(App_SpriteFillPending(&fx.app, 88), "a load that did not come is not given up");
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 88, 0) == 1, "nor asked for at once");
+    cycles(&fx, 20); /* 400 ms of the 500 */
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 88, 0) == 1, "nor inside the pause");
+    cycles(&fx, 10);
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 88, 0) == 2, "but after it, it asks again");
+
+    /* It lands: the reservation is filled, the revision moves, the task ends. */
+    revision = UITreeSceneBridge_AssetRevision(&fx.app.bridge);
+    CacheProvider_SpriteAdd(&fx.provider, 88, drawable_sprite());
+    Assets_Finished(fx.app.assets, key88, true);
+    pump(&fx);
+    TEST_ASSERT(ToriDraw_SceneSpriteHas(fx.app.scene, scene_id), "the landed sprite fills its scene id");
+    TEST_ASSERT(!App_SpriteFillPending(&fx.app, 88), "and its task has ended");
+    TEST_ASSERT(UITreeSceneBridge_AssetRevision(&fx.app.bridge) != revision,
+        "filling a reservation advances the revision");
+    TEST_ASSERT(UITreeSceneBridge_BindSprite(&fx.app.bridge, 88) == scene_id, "a rebind keeps the id");
+    TEST_ASSERT(App_SpriteFillsPending(&fx.app) == 0, "and asks for nothing");
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 88, 0) == 2, "a filled sprite is not loaded again");
+
+    /* Absent from the sprites table: never bound; and a reservation made
+     * before the table answered ends its task without asking again. */
+    CacheProvider_SpriteMarkAbsent(&fx.provider, 99);
+    TEST_ASSERT(UITreeSceneBridge_BindSprite(&fx.app.bridge, 99) == -1, "an absent sprite is not bound");
+    TEST_ASSERT(!App_SpriteFillPending(&fx.app, 99), "and has no fill");
+    scene_id = UITreeSceneBridge_BindSprite(&fx.app.bridge, 100);
+    TEST_ASSERT(scene_id > 0, "sprite 100 is bound");
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 100, 0) == 1, "and asked for");
+    CacheProvider_SpriteMarkAbsent(&fx.provider, 100);
+    Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_SPRITE, 100, 0), false);
+    pump(&fx);
+    TEST_ASSERT(!App_SpriteFillPending(&fx.app, 100), "an absent sprite's fill ends");
+    cycles(&fx, 400);
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 100, 0) == 1, "and it is never asked for again");
+    TEST_ASSERT(UITreeSceneBridge_BindSprite(&fx.app.bridge, -1) == -1, "-1 is not bound");
+
+    fixture_free(&fx);
+}
+
+static void
+test_sprite_reservation_outlives_a_logout(void)
+{
+    struct Fixture fx;
+    int scene_id;
+
+    printf("TEST: a logout's cancel is followed by the reservation wanted again\n");
+    sprite_fixture_init(&fx);
+    scene_id = UITreeSceneBridge_BindSprite(&fx.app.bridge, 88);
+    TEST_ASSERT(scene_id > 0, "bound");
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 88, 0) == 1, "asked for once");
+
+    /* What App_Logout does: cancel everything, then hand the bridge's
+     * reservations back to the filler. */
+    TEST_ASSERT(RS_Pending_Cancel(fx.app.pending, RS_PendingScope_All()) == 1, "the fill is cancelled");
+    TEST_ASSERT(!App_SpriteFillPending(&fx.app, 88), "and no longer pending");
+    App_IfAssetsAfterLogout(&fx.app);
+    TEST_ASSERT(App_SpriteFillPending(&fx.app, 88), "the reservation has a fill again");
+    App_IfAssetsAfterLogout(&fx.app);
+    TEST_ASSERT(App_SpriteFillsPending(&fx.app) == 1, "and only one");
+    pump(&fx);
+    TEST_ASSERT(queued(&fx) == 1, "the cancelled task has ended");
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 88, 0) == 1, "the load in flight is the one awaited");
+
+    CacheProvider_SpriteAdd(&fx.provider, 88, drawable_sprite());
+    Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_SPRITE, 88, 0), true);
+    pump(&fx);
+    TEST_ASSERT(ToriDraw_SceneSpriteHas(fx.app.scene, scene_id), "the reservation is filled");
+    App_IfAssetsAfterLogout(&fx.app);
+    TEST_ASSERT(App_SpriteFillsPending(&fx.app) == 0, "a filled reservation is not wanted again");
+    fixture_free(&fx);
+}
+
+/* A provider with no numeric sprite loader (a dat1 cache names its sprites),
+ * or a bridge with no filler: nothing would ever fill a reservation, so
+ * nothing is reserved. */
+static void
+test_bind_without_a_loader_is_unbound(void)
+{
+    struct Fixture fx;
+
+    printf("TEST: no sprite loader, or no filler, reserves nothing\n");
+    fixture_init(&fx);
+    App_IfAssetsBindBridge(&fx.app);
+    TEST_ASSERT(UITreeSceneBridge_BindSprite(&fx.app.bridge, 88) == -1, "bound with no loader to fill it");
+    TEST_ASSERT(App_SpriteFillsPending(&fx.app) == 0, "pending with no loader");
+    fx.vtable.Task_SpriteLoad = no_sprite_task;
+    UITreeSceneBridge_SetSpriteFiller(&fx.app.bridge, NULL, NULL);
+    TEST_ASSERT(UITreeSceneBridge_BindSprite(&fx.app.bridge, 88) == -1, "bound with no filler");
+    TEST_ASSERT(App_SpriteFillsPending(&fx.app) == 0, "pending with no filler");
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -450,6 +636,9 @@ main(void)
     test_model_task_checks_its_head();
     test_icons_wanted_on_change();
     test_texture_publish_is_a_task();
+    test_sprite_reservation_fills_when_it_lands();
+    test_sprite_reservation_outlives_a_logout();
+    test_bind_without_a_loader_is_unbound();
     if( g_failures )
     {
         printf("if_assets_tasks: %d failure(s)\n", g_failures);

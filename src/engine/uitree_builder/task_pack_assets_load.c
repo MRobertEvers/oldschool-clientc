@@ -175,7 +175,7 @@ Task_PackAssetsLoad_Run(
     PT_TASK_JOIN(pending);
 
     if( self->needs_player && !self->required_only )
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(self->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(self->provider, NULL));
 
     PT_END(&self->pt);
 }

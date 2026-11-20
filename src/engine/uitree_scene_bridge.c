@@ -278,7 +278,6 @@ UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge)
     bridge_hmap_free(bridge->obj_icon_border_map);
     bridge_hmap_free(bridge->npc_head_map);
     bridge_hmap_free(bridge->obj_model_map);
-    ToriMem_Free(ToriMem_Ui(), bridge->pending_sprites);
     /* The icons' pixels are the scene's, and go with it. */
     ToriDraw_FontSetIcons(NULL, 0);
     memset(bridge, 0, sizeof(*bridge));
@@ -393,12 +392,6 @@ UITreeSceneBridge_EnsureSprite(
     return scene_id;
 }
 
-/* The pause before asking again for a bound sprite that has not landed,
- * doubled per attempt up to the ceiling. The ceiling is what an outage costs
- * after it ends, so it is kept to seconds: an ask is one read. */
-#define BRIDGE_PENDING_SPRITE_FIRST_MS 500u
-#define BRIDGE_PENDING_SPRITE_MAX_MS 4000u
-
 bool
 UITreeSceneBridge_SpriteBound(
     struct UITreeSceneBridge const* bridge,
@@ -408,12 +401,22 @@ UITreeSceneBridge_SpriteBound(
     return bridge_map_get(bridge->sprite_map, cache_graphic_id) > 0;
 }
 
+void
+UITreeSceneBridge_SetSpriteFiller(
+    struct UITreeSceneBridge* bridge,
+    UITreeSceneBridgeSpriteBoundFn bound,
+    void* user)
+{
+    assert(bridge);
+    bridge->sprite_bound = bound;
+    bridge->sprite_bound_user = user;
+}
+
 int
 UITreeSceneBridge_BindSprite(
     struct UITreeSceneBridge* bridge,
     int cache_graphic_id)
 {
-    struct UITreeSceneBridgePendingSprite* pending;
     int scene_id;
 
     assert(bridge);
@@ -426,80 +429,58 @@ UITreeSceneBridge_BindSprite(
         return -1;
     if( !bridge->provider->vtable || !bridge->provider->vtable->Task_SpriteLoad )
         return -1;
-
-    if( bridge->pending_sprite_count >= bridge->pending_sprite_cap )
-    {
-        int cap = bridge->pending_sprite_cap ? bridge->pending_sprite_cap * 2 : 16;
-        struct UITreeSceneBridgePendingSprite* grown = ToriMem_Realloc(
-            ToriMem_Ui(), bridge->pending_sprites, (size_t)cap * sizeof(*grown));
-        assert(grown);
-        bridge->pending_sprites = grown;
-        bridge->pending_sprite_cap = cap;
-    }
+    if( !bridge->sprite_bound )
+        return -1;
 
     scene_id = bridge->next_scene_id++;
     bridge_map_put(bridge, bridge->sprite_map, cache_graphic_id, scene_id);
-    pending = &bridge->pending_sprites[bridge->pending_sprite_count++];
-    pending->cache_id = cache_graphic_id;
-    pending->scene_id = scene_id;
-    /* Ask on the next pump: whatever load ran before this bind has ended. */
-    pending->next_ask_ms = 0;
-    pending->wait_ms = 0;
+    bridge->sprite_bound(bridge->sprite_bound_user, cache_graphic_id, scene_id);
     return scene_id;
 }
 
-void
-UITreeSceneBridge_PumpSprites(
+int
+UITreeSceneBridge_FillSprite(
     struct UITreeSceneBridge* bridge,
-    uint64_t now_ms)
+    int cache_graphic_id,
+    int scene_id)
 {
-    int kept = 0;
+    struct ToriRS_Sprite* rs;
+    struct ToriDraw_Sprite** sprites;
+    int count = 0;
 
     assert(bridge);
-    if( bridge->pending_sprite_count == 0 )
-        return;
     assert(bridge->provider);
-
-    for( int i = 0; i < bridge->pending_sprite_count; i++ )
+    assert(cache_graphic_id >= 0);
+    assert(scene_id > 0);
+    if( !CacheProvider_SpriteHas(bridge->provider, cache_graphic_id) )
+        return 0;
+    rs = CacheProvider_SpriteGet(bridge->provider, cache_graphic_id);
+    sprites = ToriDraw_SpritesFromToriRS(rs, &count);
+    if( sprites && count > 0 )
     {
-        struct UITreeSceneBridgePendingSprite pending = bridge->pending_sprites[i];
-
-        if( CacheProvider_SpriteHas(bridge->provider, pending.cache_id) )
-        {
-            struct ToriRS_Sprite* rs = CacheProvider_SpriteGet(bridge->provider, pending.cache_id);
-            int count = 0;
-            struct ToriDraw_Sprite** sprites = ToriDraw_SpritesFromToriRS(rs, &count);
-            /* A sprite that will not convert is EnsureSprite's -1 too: the id
-             * stays bound to nothing, and asking again would convert it again. */
-            if( sprites && count > 0 )
-            {
-                ToriDraw_SceneSpriteAdd(bridge->scene, pending.scene_id, sprites, count);
-                bridge_assets_changed(bridge);
-            }
-            continue;
-        }
-        /* The table says it will never arrive: the slot stays empty, as an
-         * unlisted graphic always drew. */
-        if( CacheProvider_SpriteAbsent(bridge->provider, pending.cache_id) )
-            continue;
-
-        if( now_ms >= pending.next_ask_ms )
-        {
-            struct ToriRS_Task* task = CreateTask_SpriteLoad(bridge->provider, pending.cache_id);
-            if( task )
-            {
-                assert(bridge->provider->asset_queue);
-                ToriRS_TaskQueue_Add(bridge->provider->asset_queue, task);
-            }
-            pending.wait_ms = pending.wait_ms == 0 ? BRIDGE_PENDING_SPRITE_FIRST_MS
-                              : pending.wait_ms * 2u > BRIDGE_PENDING_SPRITE_MAX_MS
-                                  ? BRIDGE_PENDING_SPRITE_MAX_MS
-                                  : pending.wait_ms * 2u;
-            pending.next_ask_ms = now_ms + pending.wait_ms;
-        }
-        bridge->pending_sprites[kept++] = pending;
+        ToriDraw_SceneSpriteAdd(bridge->scene, scene_id, sprites, count);
+        bridge_assets_changed(bridge);
     }
-    bridge->pending_sprite_count = kept;
+    return 1;
+}
+
+void
+UITreeSceneBridge_RewantSprites(struct UITreeSceneBridge* bridge)
+{
+    struct HMapIter* iter;
+    struct MapEntry_BridgeId* entry;
+
+    assert(bridge);
+    if( !bridge->sprite_bound )
+        return;
+    iter = hmap_iter_new(bridge->sprite_map);
+    while( (entry = (struct MapEntry_BridgeId*)hmap_iter_next(iter)) )
+    {
+        if( entry->scene_id > 0 && !ToriDraw_SceneSpriteHas(bridge->scene, entry->scene_id) &&
+            !CacheProvider_SpriteAbsent(bridge->provider, entry->cache_id) )
+            bridge->sprite_bound(bridge->sprite_bound_user, entry->cache_id, entry->scene_id);
+    }
+    hmap_iter_free(iter);
 }
 
 int

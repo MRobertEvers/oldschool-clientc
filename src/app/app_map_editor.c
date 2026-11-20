@@ -694,18 +694,18 @@ ui_service_worldmap_poll(
     if( !area && !(area_id == EDITOR_UI_MAP_AREA_ALL && app->provider && CacheProvider_WorldMapGet(app->provider)) )
         return -1;
     if( !app_mapeditor_state(app)->wells.worldmap )
-        app_mapeditor_state(app)->wells.worldmap = RS_WorldMapOverview_New();
+        app_mapeditor_state(app)->wells.worldmap = RS_WorldMapOverview_New(app->assets);
     window.square_x0 = square_x0;
     window.square_z0 = square_z0;
     window.squares_w = squares_w;
     window.squares_h = squares_h;
     clock_gettime(CLOCK_MONOTONIC, &poll_t0);
     if( area_id == EDITOR_UI_MAP_AREA_ALL )
-        *out_missing = RS_WorldMapOverview_PollAll(app_mapeditor_state(app)->wells.worldmap, app->provider, app->scene, app->frame_runner.queue,
+        *out_missing = RS_WorldMapOverview_PollAll(app_mapeditor_state(app)->wells.worldmap, app->provider, app->scene,
             UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE),
             CacheProvider_WorldMapGet(app->provider), &window, px_per_square);
     else
-        *out_missing = RS_WorldMapOverview_Poll(app_mapeditor_state(app)->wells.worldmap, app->provider, app->scene, app->frame_runner.queue,
+        *out_missing = RS_WorldMapOverview_Poll(app_mapeditor_state(app)->wells.worldmap, app->provider, app->scene,
             UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE), area, &window,
             px_per_square);
     /* TORIRS_WORLDMAP_STATS=1: how long a window takes to arrive, from its
@@ -754,7 +754,7 @@ ui_service_worldmap_render_tile(
     if( !area && !(area_id == EDITOR_UI_MAP_AREA_ALL && app->provider && CacheProvider_WorldMapGet(app->provider)) )
         return 0;
     if( !app_mapeditor_state(app)->wells.worldmap )
-        app_mapeditor_state(app)->wells.worldmap = RS_WorldMapOverview_New();
+        app_mapeditor_state(app)->wells.worldmap = RS_WorldMapOverview_New(app->assets);
     tile.pixels_per_square = px_per_square;
     tile.pixel_x0 = pixel_x0;
     tile.pixel_y0 = pixel_y0;
@@ -4489,6 +4489,9 @@ app_spawn_preview_load(
     load->is_obj = is_obj;
     load->npc_resolved = APP_SPAWN_PREVIEW_LOADING;
     load->model_requested = -1;
+    /* The map editor's loads (this preview, the ghost, the npc preview, the
+     * player kit) are an editor-only path with its own preview table: not
+     * the assets table's, which the game's packets and scripts use. */
     task = is_obj ? CreateTask_ObjLoad(app->provider, id) : CreateTask_NpcMultiLoad(app, id, &load->npc_resolved);
     assert(task);
     ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
@@ -4925,7 +4928,7 @@ app_player_body_spawn(
     /* The identity kits (every idk config) and the gear's configs and models. */
     if( !app_mapeditor_state(app)->spawns.player_ghost.idk_asked )
     {
-        struct ToriRS_Task* task = CreateTask_PlayerAppearanceLoad(app->provider);
+        struct ToriRS_Task* task = CreateTask_PlayerAppearanceLoad(app->provider, app->assets);
         if( task )
             ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         app_mapeditor_state(app)->spawns.player_ghost.idk_asked = 1;

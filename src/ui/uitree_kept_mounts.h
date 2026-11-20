@@ -18,6 +18,11 @@
  *
  * Nothing here reads a tree or opens anything. The caller hands in the live
  * tree's records, reports what a full table forgot, and reopens what it takes.
+ *
+ * Not pending work, so not in the pending index (game/rs_pending.h): a kept
+ * mount waits on no asset and no task; it is the record of what is mounted
+ * under a top that is not the root, the deob's own table, read by the next
+ * IF_MOVESUB / IF_RESYNC / IF_OPENTOP at packet time on the main queue.
  */
 
 #include "ui/uitree.h"

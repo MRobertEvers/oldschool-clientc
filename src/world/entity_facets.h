@@ -67,7 +67,11 @@ struct WorldEntityFacet_Animation
     /* An action seq that arrived while another was playing and whose priority
      * could not be read yet: the seq loads after its packet is applied, so the
      * gate waits for it (World_ResolvePendingPrimaryAnimation) rather than
-     * judging an unloaded seq by a guessed priority. */
+     * judging an unloaded seq by a guessed priority. Entity state, not a
+     * pending task: the judgement is the World's, made at a world cycle (a
+     * delay counts from the packet), and the seq it waits for is wanted
+     * through the assets table (app_request_entity_seq). One per entity, as
+     * the entity has one action track. */
     uint8_t pending_set;
     uint8_t pending_delay;
     uint16_t pending_anim_id;

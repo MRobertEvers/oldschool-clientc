@@ -1016,7 +1016,7 @@ Task_AppSpawn_Run(
 
     if( self->kind == APP_SPAWN_PLAYER )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider, app->assets));
         app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_SEQUENCE, APP_PLAYER_SEQ_READY, 0));
         TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
         if( !app_spawn_wanted(self) )

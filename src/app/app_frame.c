@@ -1073,7 +1073,7 @@ app_world_left_click(
         .tree = app->tree,
         .ui_host = &app->ui_host,
         .provider = app->provider,
-        .runner = &app->frame_runner,
+        .assets = app->assets,
         .invs = &app->invs,
         .chat = &app->chat_source,
         .events_for_component = app_minimenu_events_for_component,
@@ -1430,10 +1430,6 @@ app_run_once_body(
         app_world_local_load_poll(app);
         FrameStats_Span(FRAME_STATS_PUMP, t_pump);
     }
-    /* Sprites bound before they were resident: filled as they land, asked for
-     * again while they have not. */
-    UITreeSceneBridge_PumpSprites(&app->bridge, now_ms);
-
     /* Before the BOOTING test: the swap puts the session straight back into
      * BOOTING for the title bake, so the frame that saw the warm gameframe
      * bake settle still renders a loading screen, never the gameframe. */
@@ -2007,7 +2003,7 @@ app_run_once_body(
             .tree = app->tree,
             .ui_host = &app->ui_host,
             .provider = app->provider,
-            .runner = &app->frame_runner,
+            .assets = app->assets,
             .invs = &app->invs,
             .chat = &app->chat_source,
             .events_for_component = app_minimenu_events_for_component,

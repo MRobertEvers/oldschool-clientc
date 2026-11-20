@@ -72,6 +72,11 @@ static struct AssetPolicy const g_asset_policy[ASSET_KIND_COUNT] = {
     [ASSET_KIND_SKYBOX] = { "skybox", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_NEWER_REPLACE },
     [ASSET_KIND_REF_TABLE] = { "ref_table", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_NEWER_KEEP_BOTH },
     [ASSET_KIND_CONFIG] = { "config", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_NEWER_KEEP_BOTH },
+    /* A read that came back empty (a dropped JS5 socket, a browser storage
+     * error) is asked for again: its region would bake grey for good. The
+     * world map's own request table re-asked after two seconds. */
+    [ASSET_KIND_WORLDMAP_GEOGRAPHY] = { "worldmap_geography", ASSET_FAIL_BACKOFF, 0, 500, 4000,
+                                        ASSET_NEWER_KEEP_BOTH },
 };
 
 /* A node is one awaiting task's count on an entry's attempt. */

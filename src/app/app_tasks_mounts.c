@@ -229,7 +229,7 @@ Task_MountModel_Run(
     /* 1. The model; or the default appearance's kit models, which no asset
      *    kind names (CreateTask_PlayerAppearanceLoad, joined). */
     if( self->want == INTERFACE_OPEN_WANT_AVATAR )
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider, app->assets));
     else
         PT_PARALLEL_AWAIT_ASSET(app->assets, AssetKey_Make(ASSET_KIND_MODEL, self->model_id, 0));
 

@@ -2,6 +2,7 @@
 #include "mem/torimem_toridraw.h"
 #include "game/rs_worldmap_render.h"
 
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_scene_bridge.h"
@@ -59,48 +60,16 @@
  * requests, which reads as the map freezing with tiles missing in plain sight.
  *
  * Two things keep the queue bounded. This cap, sized to what the runner can
- * actually retire, and worldmap_request_due below, which asks for each asset
- * once per WORLDMAP_REQUEST_RETRY_FRAMES — an asset already in flight is not
- * yet "has", so without it every frame re-queued the same few hundred locs.
+ * actually retire, and the assets table (engine/asset_requests.h), which
+ * holds the one load in flight per asset -- an asset already in flight is not
+ * yet "has", so without it every frame re-queued the same few hundred locs --
+ * and the back-off a load that came back empty waits out before it is asked
+ * again (worldmap_want).
  *
  * The caller asks for regions nearest the view centre first, so the allowance
  * goes to what is being looked at.
  */
 #define WORLDMAP_LOADS_PER_FRAME 24
-
-/*
- * Ids already asked for, and on which frame, so nothing is queued twice while
- * it is in flight: open addressing on (kind, id), kind stored +1 so zero means
- * empty. When it fills past three quarters it is simply cleared — everything
- * in it has either landed (the "has" checks skip it anyway) or is asked again.
- */
-#define WORLDMAP_REQUESTED_SLOTS 8192
-
-/*
- * How long an asked-for id is left to land before it is asked again. Asking
- * exactly once was the rule, and a load whose read came back empty (a dropped
- * JS5 socket, a browser storage error) then never landed: its region baked
- * grey and stayed grey. Two seconds at 60 fps is many round trips on any lane
- * that is working, so a re-ask only ever repeats a load that failed.
- */
-#define WORLDMAP_REQUEST_RETRY_FRAMES 120
-
-enum WorldMapRequestKind
-{
-    WORLDMAP_REQUEST_LOC = 0,
-    WORLDMAP_REQUEST_UNDERLAY,
-    WORLDMAP_REQUEST_FLOTYPE,
-    WORLDMAP_REQUEST_TEXTURE,
-    /* A region's tiles, keyed by CacheProvider_WorldMapGeographyKey. */
-    WORLDMAP_REQUEST_GEOGRAPHY,
-};
-
-struct RS_WorldMapRequested
-{
-    int kind_plus1;
-    int id;
-    unsigned long asked_frame;
-};
 
 /* Icons per region. A dense region (a city) runs to a few dozen; the cap keeps
  * the pool flat rather than growable, and overflow only drops icons that would
@@ -149,10 +118,11 @@ struct RS_WorldMapRender
      * that bakes cheaply set its own (RS_WorldMapRender_SetFrameBudget). */
     int bakes_budget;
     int loads_budget;
-    /* Frames begun (RS_WorldMapRender_BeginFrame): the request table's clock. */
+    /* Frames begun (RS_WorldMapRender_BeginFrame). */
     unsigned long frame;
-    struct RS_WorldMapRequested requested[WORLDMAP_REQUESTED_SLOTS];
-    int requested_count;
+    /* What the floors, locs, textures and tiles are wanted from: one load in
+     * flight per asset, its attempts and its back-off are the table's. */
+    struct Assets* assets;
     int stat_bakes;
     int stat_no_source;
     int stat_no_geography;
@@ -161,10 +131,14 @@ struct RS_WorldMapRender
 };
 
 struct RS_WorldMapRender*
-RS_WorldMapRender_New(void)
+RS_WorldMapRender_New(struct Assets* assets)
 {
-    struct RS_WorldMapRender* render = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*render));
+    struct RS_WorldMapRender* render;
+
+    assert(assets);
+    render = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*render));
     assert(render);
+    render->assets = assets;
     render->mapscene_scene_id = -1;
     render->bakes_budget = WORLDMAP_BAKES_PER_FRAME;
     render->loads_budget = WORLDMAP_LOADS_PER_FRAME;
@@ -191,10 +165,10 @@ RS_WorldMapRender_BeginFrame(struct RS_WorldMapRender* render)
         static int frame = 0;
         if( ++frame % 300 == 0 )
             TORIRS_LOG("worldmap stats: bakes=%d no_source=%d no_geography=%d waiting=%d budget=%d "
-                "bytes=%zu requested=%d\n",
+                "bytes=%zu wanted=%d\n",
                 render->stat_bakes, render->stat_no_source, render->stat_no_geography,
                 render->stat_waiting, render->stat_budget, render->baked_bytes,
-                render->requested_count);
+                Assets_Count(render->assets, ASSET_KIND_COUNT));
     }
 }
 
@@ -956,83 +930,35 @@ worldmap_slot_claim(
  * a black region for as long as it stays in the pool. Queue whatever is missing
  * and report it; the caller retries next frame.
  */
-/** True when an id has never been asked for, or was asked for at least
- *  WORLDMAP_REQUEST_RETRY_FRAMES ago and still has not landed; false while a
- *  request is young enough to be in flight. A true answer restamps it. */
+/**
+ * Want `key` from the assets table if a load of it is due: none in flight, no
+ * back-off running, not remembered failed. True when this started a load.
+ * `budgeted`: it counts against the frame's load allowance and is not asked
+ * for once that is spent (the floors and locs; a region's tiles are not).
+ */
 static bool
-worldmap_request_due(
+worldmap_want(
     struct RS_WorldMapRender* render,
-    enum WorldMapRequestKind kind,
-    int id)
+    struct AssetKey key,
+    bool budgeted)
 {
-    uint32_t slot;
-
-    /* A geography key carries the area id in its top byte, so area 128 and
-     * up read negative; every other kind's ids are non-negative. */
-    if( id < 0 && kind != WORLDMAP_REQUEST_GEOGRAPHY )
+    assert(render);
+    assert(render->assets);
+    if( budgeted && render->loads_this_frame >= render->loads_budget )
         return false;
-
-    if( render->requested_count * 4 >= WORLDMAP_REQUESTED_SLOTS * 3 )
-    {
-        memset(render->requested, 0, sizeof(render->requested));
-        render->requested_count = 0;
-    }
-
-    slot = (((uint32_t)id * 2654435761u) ^ ((uint32_t)kind * 0x9E3779B9u)) %
-           WORLDMAP_REQUESTED_SLOTS;
-    for( int probe = 0; probe < WORLDMAP_REQUESTED_SLOTS; probe++ )
-    {
-        struct RS_WorldMapRequested* entry =
-            &render->requested[(slot + (uint32_t)probe) % WORLDMAP_REQUESTED_SLOTS];
-        if( entry->kind_plus1 == (int)kind + 1 && entry->id == id )
-        {
-            if( render->frame - entry->asked_frame < WORLDMAP_REQUEST_RETRY_FRAMES )
-                return false;
-            entry->asked_frame = render->frame;
-            return true;
-        }
-        if( entry->kind_plus1 == 0 )
-        {
-            entry->kind_plus1 = (int)kind + 1;
-            entry->id = id;
-            entry->asked_frame = render->frame;
-            render->requested_count++;
-            return true;
-        }
-    }
+    if( !Assets_Due(render->assets, key) )
+        return false;
+    if( Assets_Want(render->assets, key) != ASSET_STATE_LOADING )
+        return false;
+    if( budgeted )
+        render->loads_this_frame++;
     return true;
-}
-
-/** A request that landed and was used up (the tiles of a baked region,
- *  released after the bake): the next need asks again at once instead of
- *  waiting out the retry window -- a close-up bake right after the overview's
- *  one-pixel bake stalled two seconds on it. */
-static void
-worldmap_request_forget(
-    struct RS_WorldMapRender* render,
-    enum WorldMapRequestKind kind,
-    int id)
-{
-    uint32_t slot = (((uint32_t)id * 2654435761u) ^ ((uint32_t)kind * 0x9E3779B9u)) % WORLDMAP_REQUESTED_SLOTS;
-    for( int probe = 0; probe < WORLDMAP_REQUESTED_SLOTS; probe++ )
-    {
-        struct RS_WorldMapRequested* entry =
-            &render->requested[(slot + (uint32_t)probe) % WORLDMAP_REQUESTED_SLOTS];
-        if( entry->kind_plus1 == 0 )
-            return;
-        if( entry->kind_plus1 == (int)kind + 1 && entry->id == id )
-        {
-            entry->asked_frame = render->frame - WORLDMAP_REQUEST_RETRY_FRAMES;
-            return;
-        }
-    }
 }
 
 static bool
 worldmap_floors_ready(
     struct RS_WorldMapRender* render,
     struct CacheProvider* provider,
-    struct ToriRS_TaskQueue* queue,
     struct RSCache_WorldMapGeography const* geography)
 {
     bool ready = true;
@@ -1063,16 +989,8 @@ worldmap_floors_ready(
                     continue;
                 }
                 ready = false;
-                if( render->loads_this_frame < render->loads_budget &&
-                    worldmap_request_due(render, WORLDMAP_REQUEST_LOC, loc_id) )
-                {
-                    struct ToriRS_Task* task = CreateTask_LocLoad(provider, loc_id);
-                    if( task && queue )
-                    {
-                        ToriRS_TaskQueue_Add(queue, task);
-                        render->loads_this_frame++;
-                    }
-                }
+                (void)worldmap_want(
+                    render, AssetKey_Make(ASSET_KIND_CONFIG, loc_id, ASSET_CONFIG_LOC), true);
             }
         }
     }
@@ -1088,16 +1006,8 @@ worldmap_floors_ready(
             continue;
         }
         ready = false;
-        if( render->loads_this_frame < render->loads_budget &&
-            worldmap_request_due(render, WORLDMAP_REQUEST_UNDERLAY, underlay_id) )
-        {
-            struct ToriRS_Task* task = CreateTask_UnderlayLoad(provider, underlay_id);
-            if( task && queue )
-            {
-                ToriRS_TaskQueue_Add(queue, task);
-                render->loads_this_frame++;
-            }
-        }
+        (void)worldmap_want(
+            render, AssetKey_Make(ASSET_KIND_CONFIG, underlay_id, ASSET_CONFIG_UNDERLAY), true);
     }
 
     for( int plane = 0; plane < planes; plane++ )
@@ -1111,16 +1021,8 @@ worldmap_floors_ready(
             if( !CacheProvider_FlotypeHas(provider, overlay_id) )
             {
                 ready = false;
-                if( render->loads_this_frame < render->loads_budget &&
-                    worldmap_request_due(render, WORLDMAP_REQUEST_FLOTYPE, overlay_id) )
-                {
-                    struct ToriRS_Task* task = CreateTask_FlotypeLoad(provider, overlay_id);
-                    if( task && queue )
-                    {
-                        ToriRS_TaskQueue_Add(queue, task);
-                        render->loads_this_frame++;
-                    }
-                }
+                (void)worldmap_want(
+                    render, AssetKey_Make(ASSET_KIND_CONFIG, overlay_id, ASSET_CONFIG_FLOTYPE), true);
                 continue;
             }
             /* A textured overlay is coloured from its texture's average, so the
@@ -1133,16 +1035,7 @@ worldmap_floors_ready(
                 continue;
             }
             ready = false;
-            if( render->loads_this_frame < render->loads_budget &&
-                worldmap_request_due(render, WORLDMAP_REQUEST_TEXTURE, overlay->texture) )
-            {
-                struct ToriRS_Task* task = CreateTask_TextureLoad(provider, overlay->texture);
-                if( task && queue )
-                {
-                    ToriRS_TaskQueue_Add(queue, task);
-                    render->loads_this_frame++;
-                }
-            }
+            (void)worldmap_want(render, AssetKey_Make(ASSET_KIND_TEXTURE, overlay->texture, 0), true);
         }
     }
 
@@ -1209,8 +1102,8 @@ worldmap_wait_for_floors(
 }
 
 /** Every compositemap record that lands on this map surface region. */
-static int
-worldmap_region_sources(
+int
+RS_WorldMapRender_RegionSources(
     struct ToriRS_WorldMapArea const* area,
     int region_x,
     int region_y,
@@ -1233,7 +1126,6 @@ RS_WorldMapRender_RegionSprite(
     struct RS_WorldMapRender* render,
     struct CacheProvider* provider,
     struct ToriDraw_Scene* scene,
-    struct ToriRS_TaskQueue* queue,
     struct ToriRS_WorldMapArea const* area,
     int region_x,
     int region_y,
@@ -1299,7 +1191,7 @@ RS_WorldMapRender_RegionSprite(
             render->slots[slot].complete = true;
             return WORLDMAP_REGION_SCENE_BASE | slot;
         }
-        if( !worldmap_floors_ready(render, provider, queue, geography) &&
+        if( !worldmap_floors_ready(render, provider, geography) &&
             worldmap_wait_for_floors(render, key) )
             return WORLDMAP_REGION_SCENE_BASE | slot;
         /* Assets are in (or the wait ran out): bake over the same slot. */
@@ -1307,7 +1199,7 @@ RS_WorldMapRender_RegionSprite(
 
     if( slot < 0 )
     {
-        source_count = worldmap_region_sources(
+        source_count = RS_WorldMapRender_RegionSources(
             area, region_x, region_y, sources, (int)(sizeof(sources) / sizeof(sources[0])));
         if( source_count == 0 )
         {
@@ -1318,20 +1210,15 @@ RS_WorldMapRender_RegionSprite(
         geography = CacheProvider_WorldMapGeographyGet(provider, key);
         if( !geography )
         {
-            /* Once per retry window: a load in flight is not yet "has", and a
-             * load whose read failed publishes nothing, so this asks again. */
-            if( worldmap_request_due(render, WORLDMAP_REQUEST_GEOGRAPHY, key) )
-            {
-                struct ToriRS_Task* task =
-                    CreateTask_WorldMapGeographyLoad(provider, key, sources, source_count);
-                if( task && queue )
-                    ToriRS_TaskQueue_Add(queue, task);
-            }
+            /* Through the table: a load in flight is not yet "has", and a
+             * load whose read failed publishes nothing, so it is asked for
+             * again once its back-off is over. */
+            (void)worldmap_want(render, AssetKey_Make(ASSET_KIND_WORLDMAP_GEOGRAPHY, key, 0), false);
             render->stat_no_geography++;
             return -1;
         }
 
-        complete = worldmap_floors_ready(render, provider, queue, geography);
+        complete = worldmap_floors_ready(render, provider, geography);
         if( !complete && worldmap_wait_for_floors(render, key) )
         {
             render->stat_waiting++;
@@ -1427,7 +1314,6 @@ RS_WorldMapRender_RegionPixels(
     struct RS_WorldMapRender* render,
     struct CacheProvider* provider,
     struct ToriDraw_Scene* scene,
-    struct ToriRS_TaskQueue* queue,
     struct ToriRS_WorldMapArea const* area,
     int region_x,
     int region_y,
@@ -1460,7 +1346,7 @@ RS_WorldMapRender_RegionPixels(
 
     *out_complete = false;
     *out_icon_count = 0;
-    source_count = worldmap_region_sources(
+    source_count = RS_WorldMapRender_RegionSources(
         area, region_x, region_y, sources, (int)(sizeof(sources) / sizeof(sources[0])));
     if( source_count == 0 )
         return -1;
@@ -1469,13 +1355,7 @@ RS_WorldMapRender_RegionPixels(
     geography = CacheProvider_WorldMapGeographyGet(provider, key);
     if( !geography )
     {
-        if( worldmap_request_due(render, WORLDMAP_REQUEST_GEOGRAPHY, key) )
-        {
-            struct ToriRS_Task* task =
-                CreateTask_WorldMapGeographyLoad(provider, key, sources, source_count);
-            if( task && queue )
-                ToriRS_TaskQueue_Add(queue, task);
-        }
+        (void)worldmap_want(render, AssetKey_Make(ASSET_KIND_WORLDMAP_GEOGRAPHY, key, 0), false);
         render->stat_no_geography++;
         return 0;
     }
@@ -1488,7 +1368,7 @@ RS_WorldMapRender_RegionPixels(
         render->stat_budget++;
         return 0;
     }
-    complete = worldmap_floors_ready(render, provider, queue, geography);
+    complete = worldmap_floors_ready(render, provider, geography);
     if( !complete && worldmap_wait_for_floors(render, key) )
     {
         render->stat_waiting++;
@@ -1516,11 +1396,10 @@ RS_WorldMapRender_RegionPixels(
     for( int i = 0; i < slot.icon_count && i < icon_capacity; i++ )
         out_icons[i] = slot.icons[i];
     *out_icon_count = slot.icon_count < icon_capacity ? slot.icon_count : icon_capacity;
+    /* Released once used: the table holds no entry for a landed asset, so
+     * the next need asks for it again at once. */
     if( complete )
-    {
         CacheProvider_WorldMapGeographyRelease(provider, key);
-        worldmap_request_forget(render, WORLDMAP_REQUEST_GEOGRAPHY, key);
-    }
     *out_complete = complete;
     return 1;
 }

@@ -1,11 +1,11 @@
 #ifndef SRC_RS_MINIMENU_BUILD_H
 #define SRC_RS_MINIMENU_BUILD_H
 
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "features/features.h"
 #include "inv/inv_manager.h"
 #include "revconfig/revconfig.h"
-#include "task_runner.h"
 #include "ui/uitree.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_minimenu.h"
@@ -115,7 +115,10 @@ struct RS_MinimenuBuildCtx
     struct UITree* tree;
     struct UITreeHost const* ui_host;
     struct CacheProvider* provider;
-    struct TaskRunner* runner;
+    /* The assets table: a row naming an obj whose config is not resident
+     * wants it there (one load in flight however many frames ask). NULL: no
+     * table (a standalone test), the menu builds from what is resident. */
+    struct Assets* assets;
     struct InvManager* invs;
     struct RS_MinimenuChatSource const* chat; /* NULL = no chat lines yet */
 

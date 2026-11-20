@@ -105,6 +105,10 @@ enum AssetKind
     /* A config record an appearance names: id = the record, variant = which
      * config (enum AssetConfigType). */
     ASSET_KIND_CONFIG,
+    /* One world map surface region's tiles (table 18 by way of table 19's
+     * compositemap): id = CacheProvider_WorldMapGeographyKey, which carries
+     * the area. Released once baked, so "here" is the provider's answer. */
+    ASSET_KIND_WORLDMAP_GEOGRAPHY,
 
     ASSET_KIND_COUNT
 };
@@ -115,6 +119,10 @@ enum AssetConfigType
 {
     ASSET_CONFIG_IDK = 0,
     ASSET_CONFIG_OBJ = 1,
+    /* What a world map bake colours its tiles with (game/rs_worldmap_render.c):
+     * a floor underlay and a floor overlay (flotype). */
+    ASSET_CONFIG_UNDERLAY = 2,
+    ASSET_CONFIG_FLOTYPE = 3,
 
     /* What a client script reads the value of and waits for
      * (game/task_cs2_run.c, the yield table; the loaders are

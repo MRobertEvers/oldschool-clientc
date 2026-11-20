@@ -4,10 +4,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct Assets;
 struct CacheProvider;
 struct ToriDraw_Scene;
-struct ToriRS_TaskQueue;
 struct ToriRS_WorldMapArea;
+struct ToriRS_WorldMapRegionSource;
 
 /*
  * The world map's map surface: one baked image per 64x64 map-surface region,
@@ -25,8 +26,11 @@ struct ToriRS_WorldMapArea;
 /** Baked-region pool. Regions are baked at one zoom; a zoom change rebakes. */
 struct RS_WorldMapRender;
 
+/** A pool that wants what its bakes need from `assets` (engine/asset_requests.h:
+ *  the floors and locs as CONFIG, the overlay textures as TEXTURE, a region's
+ *  tiles as WORLDMAP_GEOGRAPHY), one load in flight per asset. */
 struct RS_WorldMapRender*
-RS_WorldMapRender_New(void);
+RS_WorldMapRender_New(struct Assets* assets);
 
 void
 RS_WorldMapRender_Free(struct RS_WorldMapRender* render);
@@ -61,9 +65,9 @@ RS_WorldMapRender_Clear(
 /**
  * Scene sprite id for one map surface region, baking it if needed.
  *
- * Returns -1 when the region's tiles are not resident yet, having queued the
- * load onto `queue` — the caller draws background for it and asks again next
- * frame. `pixels_per_tile` is clamped to 1..8 as in the reference.
+ * Returns -1 when the region's tiles are not resident yet, having wanted them
+ * from the assets table -- the caller draws background for it and asks again
+ * next frame. `pixels_per_tile` is clamped to 1..8 as in the reference.
  *
  * `out_fallback_scene_id` (optional) receives a bake of the same region at a
  * *different* zoom when this zoom's is not ready. Drawing that one stretched to
@@ -75,7 +79,6 @@ RS_WorldMapRender_RegionSprite(
     struct RS_WorldMapRender* render,
     struct CacheProvider* provider,
     struct ToriDraw_Scene* scene,
-    struct ToriRS_TaskQueue* queue,
     struct ToriRS_WorldMapArea const* area,
     int region_x,
     int region_y,
@@ -112,12 +115,12 @@ RS_WorldMapRender_RegionIcons(
  * picture RegionSprite draws; the map element icons its locs carry (what
  * RegionIcons answers for a pool bake) are copied into `out_icons`, at most
  * `icon_capacity`, their count in `*out_icon_count`. The same loads, waits and frame
- * budget as RegionSprite (one request table), so the region's geography is
- * queued once and asked again only after the retry window.
+ * budget as RegionSprite (one assets table), so the region's geography is
+ * loaded once and asked again only after the table's back-off.
  *
  * Returns 1 when `out_pixels` holds the bake (`*out_complete` false when the
  * floors or locs it waited on never all arrived -- bake it again later for
- * the rest), 0 when it is not ready yet (its loads queued onto `queue`; ask
+ * the rest), 0 when it is not ready yet (its loads wanted from the table; ask
  * again on a later frame), -1 when the area has no such region.
  * `pixels_per_tile` is 1..8 (asserted).
  */
@@ -126,7 +129,6 @@ RS_WorldMapRender_RegionPixels(
     struct RS_WorldMapRender* render,
     struct CacheProvider* provider,
     struct ToriDraw_Scene* scene,
-    struct ToriRS_TaskQueue* queue,
     struct ToriRS_WorldMapArea const* area,
     int region_x,
     int region_y,
@@ -136,5 +138,16 @@ RS_WorldMapRender_RegionPixels(
     struct RS_WorldMapRegionIcon* out_icons,
     int icon_capacity,
     int* out_icon_count);
+
+/** The compositemap records of `area` that land on map surface region
+ *  (`region_x`, `region_y`), at most `out_capacity`: what a region's tiles
+ *  are loaded from (the client's WORLDMAP_GEOGRAPHY loader). */
+int
+RS_WorldMapRender_RegionSources(
+    struct ToriRS_WorldMapArea const* area,
+    int region_x,
+    int region_y,
+    struct ToriRS_WorldMapRegionSource* out,
+    int out_capacity);
 
 #endif /* RS_WORLDMAP_RENDER_H */

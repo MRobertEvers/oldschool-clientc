@@ -282,10 +282,7 @@ host_player_appearance(
      * the assets table. The fetch below still runs for the stances. */
     if( appearance->npc_id >= 0 )
         EntityAssets_WantPlayerTransmog(app, appearance->npc_id);
-    if( !EntityAssets_PlayerBodyResident(app, appearance->slots, appearance->gender, seqs, 7) )
-        ToriRS_TaskQueue_Add(
-            app->frame_runner.queue,
-            CreateTask_PlayerBodyLand(app, appearance->slots, appearance->gender, seqs, 7));
+    (void)EntityAssets_WantPlayerBody(app, appearance->slots, appearance->gender, seqs, 7);
 }
 
 static void

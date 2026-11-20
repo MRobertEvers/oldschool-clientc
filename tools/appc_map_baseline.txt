@@ -315,6 +315,9 @@ src/app/test/music_install_test.c
 # Added 2026-11-19 (lo-faults step): chat lines reaching a plugin, through the
 # packet executor into a PluginHost over a calloc'd App's own engine.
 src/app/test/app_plugin_chat_kinds_test.c
+# Added 2026-11-19 (lo-tables step): the trackers moved onto the assets table
+# and the pending index, run on a stack App's queue, table and index.
+src/app/test/app_trackers_test.c
 src/engine/uitree_builder/task_slot_mount.c
 src/game/task_entity_assets.c
 src/plugin/torirs_plugin_drive.c
@@ -434,4 +437,7 @@ src/replay/replay_world_apply.c
 # hooks in one call, and the client-script hold, which grows now, is freed.
 # Raised to 1430 by the music decode step: the provider is told its compute
 # queue (the background queue) beside its asset queue, and the comment names it.
-app.c-lines: 1430
+# Raised to 1431 by the lo-tables step: the scene bridge's sprite
+# reservations are filled by the interface-assets family's tasks, bound once
+# beside the bridge (App_IfAssetsBindBridge).
+app.c-lines: 1431

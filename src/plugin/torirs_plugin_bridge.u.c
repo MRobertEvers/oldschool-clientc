@@ -4827,7 +4827,7 @@ app_widget_ref(struct UITree const* tree, int32_t index)
 static void app_widget_actions(struct App* app,int32_t node,struct UIMinimenu* menu)
 {
     struct RS_MinimenuBuildCtx ctx={.tree=app->tree,.ui_host=&app->ui_host,
-        .provider=app->provider,.runner=&app->frame_runner,.invs=&app->invs,
+        .provider=app->provider,.assets=app->assets,.invs=&app->invs,
         .events_for_component=app_minimenu_events_for_component,.events_user=app};
     UIMinimenu_Reset(menu);
     RS_Minimenu_AddWidgetRows(&ctx,node,menu);

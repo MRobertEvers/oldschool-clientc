@@ -454,6 +454,7 @@ App_Init(
     app->soft = ToriPlatform_Renderer_Soft3D_New();
     app->chrome_compositor = ChromeCompositor_Create(ToriPlatform_Renderer_Soft3D_New());
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
+    App_IfAssetsBindBridge(app);
     /* The seq the design/local-player previews are posed at. Stated here, once,
      * for both the boot bake and the runtime interface mount — they share the
      * bridge and nothing else. -1 when the profile does not name one, which
@@ -546,7 +547,7 @@ App_Init(
     app->ground_items_dirty.count = 0;
     app->ground_items_dirty.refresh_all = 0;
     RS_GroundItemsSettings_Reset(&app->ground_items_settings);
-    RS_WorldMapSurface_Init(&app->worldmap, RS_WorldMapRender_New());
+    RS_WorldMapSurface_Init(&app->worldmap, RS_WorldMapRender_New(app->assets));
     MinimapView_Reset(&app->minimap);
     /*
      * The plugin host.

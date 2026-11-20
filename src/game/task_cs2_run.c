@@ -256,6 +256,10 @@ struct Task_CS2Run
     char* str_args[TASK_CS2_RUN_STR_ARGS_MAX];
     /* Bit i set = arg position i is the long long_args[i]. NULL with a zero
      * mask for every caller but RUNCLIENTSCRIPT, so a hook pays nothing. */
+    /* Task_CS2Run_SetSubject: written to the client-op register at the
+     * first step. */
+    int has_subject;
+    struct RS_ClientOpContext subject;
     uint64_t long_mask;
     int64_t* long_args;
 
@@ -1505,6 +1509,9 @@ Task_CS2Run_Run(
     assert(self->host);
     assert(self->host->provider);
     self->provider = self->host->provider;
+    if( self->has_subject )
+        RS_ClientOpActiveSet(
+            &self->host->clientop, (enum RS_ClientOpKind)self->subject.kind, &self->subject);
 
     if( !self->script && self->script_id <= 0 )
     {
@@ -1951,8 +1958,12 @@ Task_CS2Run_Run(
                 int next;
                 struct ToriRS_Npctype* npc;
 
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_NpcLoad(self->provider, self->yield_npc_id));
+                /* Each rung's config through the assets table, as the NPC
+                 * yield reads it (a host with no table loads it itself). */
+                if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_NPC, self->yield_npc_id)) )
+                    PT_TASK_AWAITSELF_IF(
+                        CreateTask_NpcLoad(self->provider, self->yield_npc_id));
+                PT_TASK_JOIN(join);
                 npc = CacheProvider_NpctypeGet(
                     self->provider, self->yield_npc_id);
                 if( !npc || npc->transform_count <= 0 || !npc->transforms )
@@ -2240,6 +2251,22 @@ Task_CS2Run_SetLongArgs(
             self->long_args[i] = long_args[i];
     }
     self->long_mask = long_mask;
+}
+
+void
+Task_CS2Run_SetSubject(
+    struct ToriRS_Task* task,
+    struct RS_ClientOpContext const* subject)
+{
+    struct Task_CS2Run* self = (struct Task_CS2Run*)task;
+
+    assert(self);
+    assert(self->task.vtable == &Task_CS2Run_VTable);
+    assert(subject);
+    assert(subject->kind >= 0);
+    assert(!self->has_subject);
+    self->subject = *subject;
+    self->has_subject = 1;
 }
 
 struct ToriRS_Task*

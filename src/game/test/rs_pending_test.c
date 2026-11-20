@@ -6,7 +6,13 @@
  * the key; cancel by key and by every scope, counting only what it cancelled;
  * "an earlier task for this key is pending" ignores other keys, other kinds,
  * later tasks and cancelled ones, and holds across the order counter's wrap;
- * many headers in one bucket unlist cleanly in any order.
+ * many headers in one bucket unlist cleanly in any order. And the shapes the
+ * lo-tables step's kinds lean on: a kind at its family range's LAST id (the
+ * player body fetch, ENTITY_ASSETS_KIND_PLAYER_BODY) next to the family's
+ * first; two tasks under one hash key (two bodies whose hashes meet) both
+ * listed and the newer found; a cancel of everything (a logout) followed by a
+ * fresh listing for the same key (the scene bridge's sprite fill, wanted
+ * again after the logout) that is pending while the cancelled one is not.
  *
  * Run: make -C src test-pending
  */
@@ -213,6 +219,47 @@ test_many(void)
     RS_Pending_Free(index);
 }
 
+static void
+test_lo_tables_kinds(void)
+{
+    struct RS_Pending* index = RS_Pending_New();
+    int const body_kind = RS_PENDING_KINDS_ENTITIES_LAST;
+    int const first_kind = RS_PENDING_KINDS_ENTITIES_FIRST;
+    int const fill_kind = RS_PENDING_KINDS_IF_ASSETS_FIRST + 2;
+    struct RS_PendingKey const hash = RS_PendingKey_Id((int)0x9e3779b9u, 0);
+    struct RS_ParallelTask body_a = { 0 };
+    struct RS_ParallelTask body_b = { 0 };
+    struct RS_ParallelTask npc = { 0 };
+    struct RS_ParallelTask fill_old = { 0 };
+    struct RS_ParallelTask fill_new = { 0 };
+
+    RS_Pending_List(index, &npc, first_kind, hash, -1, 0, 1);
+    RS_Pending_List(index, &body_a, body_kind, hash, -1, 0, 1);
+    RS_Pending_List(index, &body_b, body_kind, hash, -1, 0, 2);
+    TEST_ASSERT(RS_Pending_Count(index, body_kind) == 2, "two bodies under one hash are both pending");
+    TEST_ASSERT(RS_Pending_Find(index, body_kind, hash) == &body_b, "the newer is the one found");
+    TEST_ASSERT(RS_Pending_Find(index, first_kind, hash) == &npc,
+        "the range's first kind is not the last");
+
+    RS_Pending_List(index, &fill_old, fill_kind, RS_PendingKey_Id(88, 0), -1, 0, 3);
+    TEST_ASSERT(RS_Pending_Cancel(index, RS_PendingScope_All()) == 4, "a logout cancels all four");
+    TEST_ASSERT(RS_Pending_Find(index, fill_kind, RS_PendingKey_Id(88, 0)) == NULL,
+        "the cancelled fill is not found");
+    RS_Pending_List(index, &fill_new, fill_kind, RS_PendingKey_Id(88, 0), -1, 0, 4);
+    TEST_ASSERT(RS_Pending_Find(index, fill_kind, RS_PendingKey_Id(88, 0)) == &fill_new,
+        "the fill wanted again after it is");
+    TEST_ASSERT(RS_Pending_Count(index, fill_kind) == 1 && RS_Pending_Listed(index) == 5,
+        "one pending, the cancelled still listed until it exits");
+
+    RS_Pending_Unlist(index, &fill_old);
+    RS_Pending_Unlist(index, &fill_new);
+    RS_Pending_Unlist(index, &body_a);
+    RS_Pending_Unlist(index, &body_b);
+    RS_Pending_Unlist(index, &npc);
+    TEST_ASSERT(RS_Pending_Listed(index) == 0, "all unlisted");
+    RS_Pending_Free(index);
+}
+
 int
 main(void)
 {
@@ -222,6 +269,7 @@ main(void)
     test_earlier_pending();
     test_order_wraps();
     test_many();
+    test_lo_tables_kinds();
     if( g_failures )
     {
         printf("rs_pending_test: %d FAILED\n", g_failures);

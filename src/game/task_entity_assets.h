@@ -2,6 +2,7 @@
 #define SRC_GAME_TASK_ENTITY_ASSETS_H
 
 #include "asyncio.h"
+#include "game/rs_pending.h"
 
 /*
  * The asset loads an entity packet used to await inline, moved off the packet
@@ -64,25 +65,51 @@ EntityAssets_PlayerBodyResident(
 void
 EntityAssets_RegisterLoaders(struct App* app);
 
+/* The pending-index kind of a player's body fetch: the LAST id of the
+ * entities family's range (game/rs_pending.h), so app/app_tasks_entities.c's
+ * kinds, counted up from the first, never meet it. */
+#define ENTITY_ASSETS_KIND_PLAYER_BODY RS_PENDING_KINDS_ENTITIES_LAST
+
+/* The most stances an appearance's fetch names (ready, turn, walk x4, run). */
+#define ENTITY_ASSETS_PLAYER_SEQS_MAX 7
+
 /**
- * Fetch the configs of the appearance `slots`, the models they name for
- * `gender`, and the stance sequences `seq_ids`. The arrays are copied. Every
+ * Want the body of the appearance `slots` (for `gender`) with the stance
+ * sequences `seq_ids`: the configs, the models they name, the stances. Every
  * read goes through the assets table (CONFIG, MODEL, SEQUENCE), so two
- * fetches for bodies that share parts -- or one appearance block after
- * another while the first is still loading -- read each part once.
+ * fetches for bodies that share parts read each part once; and the fetch
+ * itself is ONE parallel task per distinct body in flight, listed in the
+ * pending index (ENTITY_ASSETS_KIND_PLAYER_BODY, EntityAssets_PlayerBodyKey),
+ * so an appearance block naming a body already on its way adds nothing.
+ * Nothing at all when the body is resident. The arrays are copied. Returns 1
+ * when it added a fetch.
  */
-struct ToriRS_Task*
-CreateTask_PlayerBodyLand(
+int
+EntityAssets_WantPlayerBody(
     struct App* app,
     int const slots[12],
     int gender,
     int const* seq_ids,
     int seq_count);
 
+/** The key a body fetch is listed under: a hash of the slots, the gender and
+ *  the stances, generation 0 (a found fetch is compared whole, so two bodies
+ *  whose hashes meet are still told apart). */
+struct RS_PendingKey
+EntityAssets_PlayerBodyKey(
+    int const slots[12],
+    int gender,
+    int const* seq_ids,
+    int seq_count);
+
+/** Body fetches pending (listed, not cancelled). */
+int
+EntityAssets_PlayerBodyPending(struct App const* app);
+
 /**
  * A transmogged player's body (ASSET_KIND_PLAYER_TRANSMOG): npc `npc_id`'s
  * config chain (multinpc rungs included), then the models and stances of the
- * type it selects. A plain fetch like PlayerBodyLand -- the per-frame
+ * type it selects. A plain fetch like a player body -- the per-frame
  * reconcile mounts it. One load per shell in flight however many appearance
  * blocks name it, and none at all once what it selects is resident.
  */

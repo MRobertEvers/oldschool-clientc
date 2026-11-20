@@ -482,144 +482,9 @@ test_map_square_lru_keeps_recently_used(void)
     dat2_buildcache_free(dat2_buildcache);
 }
 
-/* A sprite loader that loads nothing: it counts the asks, and the task it
- * hands back is only ever queued and freed. What the bridge's pending list is
- * tested against -- a read that keeps coming back empty, then a sprite that
- * lands. */
-static int g_sprite_asks;
-
-static void
-counting_task_free(struct ToriRS_Task* task)
-{
-    free(task);
-}
-
-static struct ToriRS_TaskVTable g_counting_task_vtable = {
-    .run = NULL,
-    .free = counting_task_free,
-};
-
-static struct ToriRS_Task*
-counting_sprite_load(
-    struct CacheProvider* provider,
-    int sprite_id)
-{
-    struct ToriRS_Task* task;
-
-    (void)provider;
-    (void)sprite_id;
-    g_sprite_asks++;
-    task = calloc(1, sizeof(*task));
-    assert(task);
-    task->vtable = &g_counting_task_vtable;
-    return task;
-}
-
-static void
-drain_queue(struct ToriRS_TaskQueue* queue)
-{
-    struct ToriRS_Task* task = queue->head;
-    while( task )
-    {
-        struct ToriRS_Task* next = task->next;
-        task->vtable->free(task);
-        task = next;
-    }
-    queue->head = NULL;
-    queue->tail = NULL;
-}
-
-/*
- * A node bound to a sprite that is not resident gets a scene id anyway, and
- * the sprite fills it when it lands. Before, the bind answered -1 and the node
- * kept it: one empty read blanked a mounted interface for the session.
- */
-static void
-test_bound_sprite_fills_when_it_lands(void)
-{
-    static struct CacheProviderVTable vtable = { .Task_SpriteLoad = counting_sprite_load };
-    struct CacheProvider provider = { 0 };
-    struct ToriRS_TaskQueue queue = { 0 };
-    struct UITreeSceneBridge bridge;
-    struct ToriDraw_Scene* scene;
-    uint64_t revision;
-    int scene_id;
-
-    CacheProvider_InitEngineCaches(&provider);
-    provider.vtable = &vtable;
-    provider.asset_queue = &queue;
-    scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
-    assert(scene);
-    UITreeSceneBridge_Init(&bridge, scene, &provider);
-    g_sprite_asks = 0;
-
-    scene_id = UITreeSceneBridge_BindSprite(&bridge, 88);
-    CHECK(scene_id > 0, "a sprite that is not resident was not bound");
-    CHECK(!ToriDraw_SceneSpriteHas(scene, scene_id), "the reservation already holds a sprite");
-    CHECK(UITreeSceneBridge_EnsureSprite(&bridge, 88) == scene_id,
-        "a second lookup did not find the reservation");
-
-    UITreeSceneBridge_PumpSprites(&bridge, 1000);
-    CHECK(g_sprite_asks == 1, "the first pump asked %d times, wanted 1", g_sprite_asks);
-    UITreeSceneBridge_PumpSprites(&bridge, 1100);
-    CHECK(g_sprite_asks == 1, "asked again inside the pause (%d)", g_sprite_asks);
-    UITreeSceneBridge_PumpSprites(&bridge, 1600);
-    CHECK(g_sprite_asks == 2, "did not ask again after the pause (%d)", g_sprite_asks);
-    CHECK(bridge.pending_sprite_count == 1, "pending count %d", bridge.pending_sprite_count);
-
-    revision = UITreeSceneBridge_AssetRevision(&bridge);
-    CacheProvider_SpriteAdd(&provider, 88, fake_drawable_sprite());
-    UITreeSceneBridge_PumpSprites(&bridge, 1700);
-    CHECK(ToriDraw_SceneSpriteHas(scene, scene_id), "the landed sprite did not fill its scene id");
-    CHECK(bridge.pending_sprite_count == 0, "a filled sprite stayed pending");
-    CHECK(UITreeSceneBridge_AssetRevision(&bridge) != revision,
-        "filling a reservation did not advance the revision");
-    CHECK(UITreeSceneBridge_BindSprite(&bridge, 88) == scene_id, "a rebind changed the scene id");
-    UITreeSceneBridge_PumpSprites(&bridge, 99999);
-    CHECK(g_sprite_asks == 2, "asked for a filled sprite (%d)", g_sprite_asks);
-
-    /* Absent from the sprites table: never bound, and a reservation made
-     * before the table answered stops being asked for. */
-    CacheProvider_SpriteMarkAbsent(&provider, 99);
-    CHECK(UITreeSceneBridge_BindSprite(&bridge, 99) == -1, "an absent sprite was bound");
-    scene_id = UITreeSceneBridge_BindSprite(&bridge, 100);
-    CHECK(scene_id > 0, "sprite 100 was not bound");
-    CacheProvider_SpriteMarkAbsent(&provider, 100);
-    g_sprite_asks = 0;
-    UITreeSceneBridge_PumpSprites(&bridge, 200000);
-    CHECK(g_sprite_asks == 0, "asked for an absent sprite (%d)", g_sprite_asks);
-    CHECK(bridge.pending_sprite_count == 0, "an absent sprite stayed pending");
-    CHECK(UITreeSceneBridge_BindSprite(&bridge, -1) == -1, "-1 was bound");
-
-    drain_queue(&queue);
-    UITreeSceneBridge_Free(&bridge);
-    ToriDraw_SceneFree(scene);
-    CacheProvider_FreeEngineCaches(&provider);
-}
-
-/* A provider with no numeric sprite loader (a dat1 cache names its sprites):
- * nothing would ever fill a reservation, so nothing is reserved. */
-static void
-test_bind_without_a_loader_is_unbound(void)
-{
-    static struct CacheProviderVTable vtable = { 0 };
-    struct CacheProvider provider = { 0 };
-    struct UITreeSceneBridge bridge;
-    struct ToriDraw_Scene* scene;
-
-    CacheProvider_InitEngineCaches(&provider);
-    provider.vtable = &vtable;
-    scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
-    assert(scene);
-    UITreeSceneBridge_Init(&bridge, scene, &provider);
-
-    CHECK(UITreeSceneBridge_BindSprite(&bridge, 88) == -1, "bound with no loader to fill it");
-    CHECK(bridge.pending_sprite_count == 0, "pending with no loader");
-
-    UITreeSceneBridge_Free(&bridge);
-    ToriDraw_SceneFree(scene);
-    CacheProvider_FreeEngineCaches(&provider);
-}
+/* The bridge's sprite reservations (UITreeSceneBridge_BindSprite) are filled
+ * by a parallel task each, through the assets table: their cases are
+ * app/test/if_assets_tasks_test.c's (test-if-assets-tasks). */
 
 int
 main(void)
@@ -632,8 +497,6 @@ main(void)
     test_sprite_lru_independent_of_models();
     test_ui_asset_revision_tracks_provider_answers();
     test_ui_asset_revision_tracks_bridge_publication();
-    test_bound_sprite_fills_when_it_lands();
-    test_bind_without_a_loader_is_unbound();
 
     if( g_failures )
     {
