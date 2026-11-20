@@ -14,6 +14,11 @@
  *   - U9: TRIGGER_ONDIALOGABORT's listeners run on the PACKET queue, behind
  *     the RUNCLIENTSCRIPTs the tick held before it, not on the parallel queue
  *     where later packets overtook them.
+ *   - A client script waiting on a required read through the assets table
+ *     that is freed first is forgotten by the table, so the load's end writes
+ *     nothing into the freed task. One whose active component is freed while
+ *     it waits carries on when the read lands, its writes through that
+ *     context going nowhere and its other, live context still written.
  *
  *   make -C src test-tasks-scripts
  */
@@ -21,6 +26,12 @@
 #include "app/app_gameproto_exec.h"
 #include "app.h"
 #include "app/app_internal.h"
+#include "asyncio.h"
+#include "cs2vm2/cs2_opcode.h"
+#include "cs2vm2/cs2vm2.h"
+#include "cs2vm2/cs2vm2_script.h"
+#include "mem/torirs_mem.h"
+#include "game/task_cs2_run.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_server_state.h"
@@ -345,6 +356,104 @@ test_dialog_abort_runs_on_the_packet_queue(void)
     fixture_free(&fx);
 }
 
+/* ---- a script that goes away mid-read is forgotten by the table ---------- */
+
+#define MISSING_CALLEE 99996
+
+static void
+test_a_script_gone_mid_read_is_forgotten(void)
+{
+    struct Fixture fx;
+    struct AssetKey callee = AssetKey_Make(ASSET_KIND_CONFIG, MISSING_CALLEE, ASSET_CONFIG_SCRIPT);
+    struct ToriRS_Task* task;
+    int32_t root;
+    int32_t child;
+    int child_id;
+
+    printf("TEST: a script that goes away while it waits on a required read is forgotten by the table\n");
+
+    /* Freed mid-wait: a gosub to a script the cache has not got. */
+    {
+        uint16_t ops[] = { CS2_OP_GOSUB_WITH_PARAMS, CS2_OP_RETURN };
+        int operands[] = { MISSING_CALLEE, 0 };
+        char* strings[] = { NULL, NULL };
+        struct CS2VM2_Script script = { .script_id = 99995, .op_count = 2, .opcodes = ops,
+                                        .int_operands = operands, .string_operands = strings };
+
+        fixture_init(&fx);
+        fx.app->host.assets = fx.app->assets;
+        task = CreateTask_CS2RunScript(&fx.app->host, &script, -1, -1, NULL, 0);
+        fx.io->task = task;
+        CHECK(task_run(task, fx.io) == PT_YIELDED, "the script did not stop for its callee");
+        CHECK(Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG) == 1,
+            "the script's read is not counted on the table (%d)",
+            Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG));
+        task_free(task);
+        CHECK(Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG) == 0,
+            "the table still counts a load into a freed script");
+        /* The load's end: nothing is counted into the freed task. */
+        Assets_Finished(fx.app->assets, callee, false);
+        fixture_free(&fx);
+    }
+
+    /* Its active component deleted (and its id taken by a new one) while it
+     * waits on its callee through the table: when the callee lands the script
+     * carries on, its writes through the stale context go nowhere, its live
+     * dot context is still written, and the table counts nothing. */
+    {
+        uint16_t ops[] = { CS2_OP_GOSUB_WITH_PARAMS, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_CC_SETCOLOUR,
+                           CS2_OP_PUSH_CONSTANT_INT, CS2_OP_CC_SETCOLOUR, CS2_OP_RETURN };
+        int operands[] = { MISSING_CALLEE, 0x234567, 0, 0x345678, 1, 0 };
+        char* strings[] = { NULL, NULL, NULL, NULL, NULL, NULL };
+        struct CS2VM2_Script script = { .script_id = 99997, .op_count = 6, .opcodes = ops,
+                                        .int_operands = operands, .string_operands = strings,
+                                        .int_stack_depth = 1 };
+        uint16_t callee_ops[] = { CS2_OP_RETURN };
+        int callee_operands[] = { 0 };
+        char* callee_strings[] = { NULL };
+        struct CS2VM2_Script callee_src = { .script_id = MISSING_CALLEE, .op_count = 1,
+                                            .opcodes = callee_ops, .int_operands = callee_operands,
+                                            .string_operands = callee_strings };
+        struct CS2VM2_Script* cached;
+        int32_t dot;
+        int dot_id;
+
+        fixture_init(&fx);
+        fx.app->host.assets = fx.app->assets;
+        root = UITree_FindByComponentId(fx.app->tree, GROUP << 16);
+        child = UITree_CcCreate(fx.app->tree, root, GROUP << 16, 3, 0);
+        dot = UITree_CcCreate(fx.app->tree, root, GROUP << 16, 3, 1);
+        CHECK(child >= 0 && dot >= 0, "no dynamic children");
+        child_id = fx.app->tree->components[child].component_id;
+        dot_id = fx.app->tree->components[dot].component_id;
+        task = CreateTask_CS2RunScript(&fx.app->host, &script, child_id, dot_id, NULL, 0);
+        fx.io->task = task;
+        CHECK(task_run(task, fx.io) == PT_YIELDED, "the script did not stop for its callee");
+        CHECK(Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG) == 1,
+            "the callee read is not counted on the table (%d)",
+            Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG));
+        UITree_CcDelete(fx.app->tree, child);
+        fx.app->tree->next_dynamic_uid = (uint16_t)(child_id & 0xffff);
+        child = UITree_CcCreate(fx.app->tree, root, GROUP << 16, 3, 0);
+        CHECK(fx.app->tree->components[child].component_id == child_id, "the id was not reused");
+        cached = ToriMem_Alloc(ToriMem_Script(), sizeof(*cached));
+        CS2VM2_ScriptInit(cached);
+        CHECK(CS2VM2_ScriptCopy(&callee_src, cached), "copy the callee");
+        CacheProvider_ClientScriptAdd(fx.app->provider, MISSING_CALLEE, cached);
+        Assets_Finished(fx.app->assets, callee, true);
+        CHECK(Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG) == 0,
+            "the landed callee is still counted");
+        ToriRS_IOBatch_Reset(fx.io);
+        CHECK(task_run(task, fx.io) == PT_ENDED, "the script did not carry on through its callee");
+        CHECK(fx.app->tree->components[child].colour == 0,
+            "a write through the stale context reached the component that took its id");
+        CHECK(fx.app->tree->components[dot].colour == 0x345678,
+            "the stale context cancelled the live dot context");
+        task_free(task);
+        fixture_free(&fx);
+    }
+}
+
 int
 main(void)
 {
@@ -354,6 +463,7 @@ main(void)
     test_a_closed_group_drops_the_loc_model();
     test_a_pack_hands_its_models_to_one_task();
     test_dialog_abort_runs_on_the_packet_queue();
+    test_a_script_gone_mid_read_is_forgotten();
 
     if( g_failures )
     {

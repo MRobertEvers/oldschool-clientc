@@ -1257,6 +1257,21 @@ Assets_WaiterCount(
     return count;
 }
 
+int
+Assets_JoinCount(
+    struct Assets const* assets,
+    enum AssetKind kind)
+{
+    int count = 0;
+
+    assert(assets);
+    for( int i = 0; i < assets->node_cap; i++ )
+        if( assets->nodes[i].type == NODE_JOIN && assets->nodes[i].join &&
+            (kind == ASSET_KIND_COUNT || assets->nodes[i].key.kind == (int32_t)kind) )
+            count++;
+    return count;
+}
+
 uint32_t
 Assets_LoadsStarted(
     struct Assets const* assets,

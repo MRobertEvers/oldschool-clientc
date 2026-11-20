@@ -1355,37 +1355,33 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
 }
 
 /*
- * After a wait, is a component the script was pointing at gone?
+ * After a wait, forget a component the script was pointing at that is gone.
  *
  * Its active and dot components (what cc_* ops address) are re-resolved from
- * the references taken when it stopped. One that was a live node then and is
- * not now -- freed, or its slot reused by another component -- ends the
- * script, as a vanished request target does: what it would write next
- * belongs to an interface that has closed under it.
+ * the references taken when it stopped. One that is not the same live node
+ * now -- freed, or its id taken by a new component -- is cleared to -1, so
+ * the script's later cc_* writes through it go nowhere; the script itself
+ * carries on, and its other context, still live, keeps working. A script is
+ * ended only when the target of the request it stopped on is gone
+ * (pending_target_ref, above): that request cannot be finished.
  */
-static bool
-task_cs2_resume_refs_gone(struct Task_CS2Run* self)
+static void
+task_cs2_resume_forget_stale_context(struct Task_CS2Run* self)
 {
     struct CS2VM2_Thread* thread;
-    int32_t idx;
+    int32_t active;
+    int32_t dot;
 
     if( !self->has_resume_context )
-        return false;
+        return;
     assert(self->vm);
     thread = CS2VM2_ThreadMain(self->vm);
-    if( self->resume_active_ref.incarnation )
-    {
-        idx = UITree_ResolveRef(self->host->tree, self->resume_active_ref);
-        if( idx < 0 || self->host->tree->components[idx].component_id != thread->active_component_id )
-            return true;
-    }
-    if( self->resume_dot_ref.incarnation )
-    {
-        idx = UITree_ResolveRef(self->host->tree, self->resume_dot_ref);
-        if( idx < 0 || self->host->tree->components[idx].component_id != thread->dot_component_id )
-            return true;
-    }
-    return false;
+    active = UITree_ResolveRef(self->host->tree, self->resume_active_ref);
+    dot = UITree_ResolveRef(self->host->tree, self->resume_dot_ref);
+    if( active < 0 || self->host->tree->components[active].component_id != thread->active_component_id )
+        thread->active_component_id = -1;
+    if( dot < 0 || self->host->tree->components[dot].component_id != thread->dot_component_id )
+        thread->dot_component_id = -1;
 }
 
 /*
@@ -1474,8 +1470,7 @@ Task_CS2Run_Run(
           (self->dot_component_id >= 0 &&
            UITree_ResolveRef(self->host->tree, self->dot_ref) < 0))) ||
         (self->pending_target_ref.incarnation &&
-         UITree_ResolveRef(self->host->tree, self->pending_target_ref) < 0) ||
-        task_cs2_resume_refs_gone(self) )
+         UITree_ResolveRef(self->host->tree, self->pending_target_ref) < 0) )
     {
         if( !self->cancelled && getenv("TORIRS_TRACE_NATIVE_UI") )
             TORIRS_REPORT("NATIVE_CALLBACK_CANCEL script=%d reason=stale-widget\n", self->script_id);
@@ -1502,6 +1497,8 @@ Task_CS2Run_Run(
         }
         PT_EXIT(&self->pt);
     }
+
+    task_cs2_resume_forget_stale_context(self);
 
     PT_BEGIN(&self->pt);
 

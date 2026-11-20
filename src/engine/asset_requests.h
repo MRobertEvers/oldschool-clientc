@@ -513,6 +513,15 @@ Assets_WaiterCount(
     struct Assets const* assets,
     enum AssetKind kind);
 
+/** Awaiting tasks' counts (Assets_Await, Assets_AwaitOutcome) still linked to
+ *  a load of `kind` (ASSET_KIND_COUNT for all): what a test counts to see a
+ *  task that went away was forgotten (Assets_Unjoin), so the load's end
+ *  writes nothing into its freed memory. */
+int
+Assets_JoinCount(
+    struct Assets const* assets,
+    enum AssetKind kind);
+
 /** Loads started for `kind` since the table was made (ASSET_KIND_COUNT for
  *  all): what a test counts to see a load was not duplicated. */
 uint32_t
