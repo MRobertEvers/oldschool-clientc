@@ -49,6 +49,8 @@
 #define REPLAY_SEEK_STALL_MS 20000
 #define REPLAY_SEEK_WAIT_STALL_MS 180000
 #define REPLAY_SEEK_STALL_POLL_MS 250
+/* Polls a chase holds at a checkpoint boundary once the client is there. */
+#define REPLAY_CHASE_HOLD_POLLS 2
 /* The answers to a chatbox prompt. The recorder's client closed the prompt as
  * it sent one (rs_gameproto_exec.c, exec_control_replay_dialog), and no server
  * packet says so, so the replay passes each one on where it was sent, as a
@@ -127,6 +129,10 @@ struct ReplayScrub
     int ledger_failed;
     /** The chase: the tick whose COORD went last (-1: none this session). */
     int chase_tick;
+    /** A chase held at a boundary the checkpoint store wants (0: none), and
+     *  the polls it has been held there once the client reached it. */
+    int chase_hold_tick;
+    int chase_hold_polls;
     /** The local player's name, for the chase's first tile ("" once sent). */
     char chase_name[32];
     /** The ledger's entity fold kept level with the chase's cursor, for the
@@ -1645,6 +1651,30 @@ ReplayScrub_Next(
                 out->chat_len = line->say ? (int)strlen(line->text) : line->len;
                 return REPLAY_NEXT_CHAT;
             }
+            /* A checkpoint boundary (every REPLAY_CKPT_STORE_SPACING ticks):
+             * hold the next tick's COORD until the client has executed every
+             * tick before it, and for REPLAY_CHASE_HOLD_POLLS polls after,
+             * the window in which a checkpoint is taken
+             * (ReplayScrub_CheckpointWanted). A chase of one cycle a tick
+             * otherwise stages each COORD before the client is idle at the
+             * last, so it never offered one: a backward seek restarted from
+             * the login, and a stalled restore had none to stall on. The hold
+             * runs client cycles, so it is made at every boundary and for a
+             * fixed count whether a checkpoint is wanted or not: what a seek
+             * leaves does not depend on what the store held. */
+            if( f->tick > scrub->chase_tick && f->tick == staged_frontier(scrub) &&
+                f->tick % REPLAY_CKPT_STORE_SPACING == 0 )
+            {
+                if( scrub->chase_hold_tick != f->tick )
+                {
+                    scrub->chase_hold_tick = f->tick;
+                    scrub->chase_hold_polls = 0;
+                }
+                if( ReplayScrub_Reached(scrub) < f->tick )
+                    return REPLAY_NEXT_WAIT;
+                if( scrub->chase_hold_polls++ < REPLAY_CHASE_HOLD_POLLS )
+                    return REPLAY_NEXT_WAIT;
+            }
             if( f->tick > scrub->chase_tick )
             {
                 if( scrub->chase_ticks == 0 )
@@ -1683,7 +1713,16 @@ ReplayScrub_Next(
                 enum ReplayPktClass const cls =
                     ReplayClassify_Packet(name >= 0 ? (enum GameProtoPktName)name : PKT_NAME_NONE);
 
-                if( cls == REPLAY_PKT_WORLD || cls == REPLAY_PKT_TRANSIENT )
+                /* A PACKET_GROUP_START sizes its members' bytes, and a chase
+                 * withholds the world members, so handed out it would leave
+                 * the client's group open (net.c holds a group's packets
+                 * until all its bytes are in): the tick's SERVER_TICK_END,
+                 * the next tick and the keyframe were held behind it until
+                 * unrelated bytes filled its count, and a keyframe waited out
+                 * REPLAY_MAP_WAIT_MS for MAP_BUILD_COMPLETE (since
+                 * ae18aed41). The members handed out are whole packets. */
+                if( cls == REPLAY_PKT_WORLD || cls == REPLAY_PKT_TRANSIENT ||
+                    name == PKT_NAME_PACKET_GROUP_START )
                 {
                     /* Withheld: never enciphered, so both ciphers stay in
                      * step, and nothing to drop on the client side. The fold
