@@ -2232,7 +2232,12 @@ exec_if_setnpchead_active(
         {
             struct WorldEntity_NPC* npc =
                 World_EntityPoolGet(&ctx->app->world->entities.npc, world_idx);
-            if( npc )
+            /* A chathead customisation that mirrors (HEAD_CUSTOM 0x10) shows
+             * the local player's head (deob class308.method7279: model type 6
+             * with field5094 is type 3). */
+            if( npc && npc->head_custom.active && npc->head_custom.mirror )
+                App_SetInterfacePlayerHead(ctx->app, p->component_id);
+            else if( npc )
                 App_SetInterfaceNpcHead(
                     ctx->app,
                     p->component_id,

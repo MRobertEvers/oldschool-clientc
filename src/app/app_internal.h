@@ -3107,6 +3107,11 @@ app_world_build_npc_model(
 
 /* An npc's body under its server customisation `o` (active), cached under the
  * type and the override's serial. NULL while a model is not resident. */
+/* The local player's body changed: every npc whose body customisation mirrors
+ * the local player (0x10) is remounted from it. */
+void
+App_WorldNpcMirrorsRemount(struct App* app);
+
 struct ToriDraw_Model*
 app_world_build_npc_override_model(
     struct App* app,

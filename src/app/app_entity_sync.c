@@ -756,6 +756,53 @@ app_world_sync_entity_spotanims(struct App* app)
     }
 }
 
+/* A player body for an npc (its customisation's mirror or composition): built
+ * once every idk / obj config the appearance names and every model those
+ * name are resident; until then each missing one is wanted through the
+ * assets table, every frame the body waits, as the customised models are.
+ * NULL while waiting. */
+static struct ToriDraw_Model*
+app_world_build_npc_player_body(
+    struct App* app,
+    int const slots[12],
+    int const colors[5],
+    int gender)
+{
+    int ids[64];
+    int n;
+    int missing = 0;
+
+    for( int i = 0; i < 12; i++ )
+    {
+        struct AssetKey key;
+
+        if( Appearance_SlotKind(slots[i]) == APPEARANCE_SLOT_KIT )
+            key = AssetKey_Make(ASSET_KIND_CONFIG, Appearance_SlotKit(slots[i]), ASSET_CONFIG_IDK);
+        else if( Appearance_SlotKind(slots[i]) == APPEARANCE_SLOT_OBJ )
+            key = AssetKey_Make(ASSET_KIND_CONFIG, Appearance_SlotObj(slots[i]), ASSET_CONFIG_OBJ);
+        else
+            continue;
+        if( !App_AssetResident(app, key) )
+        {
+            (void)Assets_Want(app->assets, key);
+            missing = 1;
+        }
+    }
+    if( missing )
+        return NULL;
+    n = PlayerModel_CollectAppearanceModelIds(app->provider, slots, gender, ids, (int)(sizeof(ids) / sizeof(ids[0])));
+    for( int i = 0; i < n; i++ )
+    {
+        if( ids[i] < 0 || CacheProvider_ModelHas(app->provider, ids[i]) )
+            continue;
+        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_MODEL, ids[i], 0));
+        missing = 1;
+    }
+    if( missing || !PlayerModel_AppearanceResident(app->provider, slots, gender) )
+        return NULL;
+    return PlayerModel_BuildFromAppearance(app->provider, slots, colors, gender);
+}
+
 /* The body an npc draws: its server customisation over its type when it has
  * one (app_world_build_npc_override_model: the override's models or the
  * type's, the override's recolours and retextures over the type's), the
@@ -786,6 +833,45 @@ app_world_build_npc_body(
             return NULL; /* NpcBodyLand dresses it */
         return app_world_build_npc_model(app, npc->npc_id, npctype);
     }
+    if( o->mirror )
+    {
+        /* 0x10 (class399.field5094): the npc draws the LOCAL player, its
+         * whole composition, under the npc's own sequences (deob
+         * class86.method2930: Statics.method6652's field532.method7569). No
+         * local player: nothing is drawn. Remounted when the local player's
+         * body changes (App_WorldNpcMirrorsRemount). */
+        struct WorldEntity_Player* lp = app_local_player(app);
+
+        if( !lp )
+        {
+            model = ToriDraw_ModelNew(0, 0, 0);
+            assert(model);
+            ToriDraw_ModelSetBoundsCylinder(model);
+            return model;
+        }
+        return app_world_build_npc_player_body(app, lp->appearance.slots, lp->appearance.colors, lp->gender);
+    }
+    if( o->player )
+    {
+        /* 0x20 (class399.field5090, class86.method2906): a player
+         * composition (class316.method7618) whose worn layer is the block's
+         * identkit list, in the wire's slot form, its colours the first five
+         * recolours and its body type the block's. A list shorter than the
+         * twelve slots leaves the rest empty (the reference would index past
+         * it). */
+        int slots[12] = { 0 };
+        int colors[5] = { 0 };
+
+        /* The wire's slot form (deob class316: >= 512 a worn obj, >= 256 a
+         * kit, both offset) into this client's packing. */
+        for( int i = 0; i < 12 && i < o->identkit_count; i++ )
+            slots[i] = o->identkits[i] >= 512   ? Appearance_PackObj(o->identkits[i] - 512)
+                       : o->identkits[i] >= 256 ? Appearance_PackKit(o->identkits[i] - 256)
+                                                : 0;
+        for( int i = 0; i < 5 && i < o->recolour_count; i++ )
+            colors[i] = o->recolours[i];
+        return app_world_build_npc_player_body(app, slots, colors, o->body_type);
+    }
     ids = o->models_sent ? o->models : npctype->models;
     count = o->models_sent ? o->model_count : npctype->models_count;
     if( count <= 0 )
@@ -810,6 +896,24 @@ app_world_build_npc_body(
             return NULL;
     }
     return app_world_build_npc_override_model(app, npc->npc_id, npctype, o);
+}
+
+void
+App_WorldNpcMirrorsRemount(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    assert(app);
+    assert(app->world);
+    pool = &app->world->entities.npc;
+    /* Only when the local player's body changed: a walk of the npc pool,
+     * never per frame. */
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL; ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        if( npc && npc->body_custom.active && npc->body_custom.mirror )
+            npc->body_serial++;
+    }
 }
 
 void

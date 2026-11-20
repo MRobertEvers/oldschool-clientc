@@ -854,6 +854,9 @@ app_world_reconcile_player_body(
     player->body.npc_id = WORLD_PLAYER_BODY_FROM_SLOTS;
     /* Every obj config of the appearance is resident (checked above). */
     player->team = app_appearance_team(app, player->appearance.slots);
+    /* An npc mirroring the local player draws this body too. */
+    if( player == app_local_player(app) )
+        App_WorldNpcMirrorsRemount(app);
     app_sync_textures(app);
     RedrawRequest_Raise(&app->redraw_request);
 }

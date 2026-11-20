@@ -9,6 +9,7 @@
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 #include "asyncio.h"
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_entity_sync.h"
@@ -1180,6 +1181,62 @@ test_npc_body_custom_recolours_without_models(void)
     fixture_free(&fx);
 }
 
+/* E12, flags 0x10 and 0x20: a body customisation that mirrors the local
+ * player is remounted when the local player's body changes, and one that is
+ * a player composition draws nothing of the npc's type -- it wants the
+ * composition's kit configs, and mounts nothing until they are here. */
+static void
+test_npc_body_custom_mirror_and_player(void)
+{
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct WorldEntity_NPC* npc;
+    int world_idx = -1;
+    int serial;
+    int const kits[2] = { 256 + 7, 0 };
+    int const colours[5] = { 1, 2, 3, 4, 5 };
+
+    printf("TEST: a mirror body follows the local player; a composition wants its kits\n");
+    fixture_init(&fx);
+    fixture_npctype(&fx, 502, -1);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 3);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 502);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+    TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned");
+
+    {
+        struct WorldNpcOverrideIn in = { .mirror = true };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    serial = npc->body_serial;
+    App_WorldNpcMirrorsRemount(&fx.app);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_serial == serial + 1, "the local player's new body remounts a mirror");
+
+    {
+        struct WorldNpcOverrideIn in = {
+            .player = true, .body_type = 0, .identkit_count = 2, .identkits = kits,
+            .recolour_count = 5, .recolours = colours,
+        };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    serial = npc->body_serial;
+    App_WorldNpcMirrorsRemount(&fx.app);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_serial == serial, "a composition does not follow the local player");
+    TEST_ASSERT(Assets_LoadsStarted(fx.app.assets, ASSET_KIND_CONFIG) == 0, "no config is asked for before the sync");
+    app_world_sync_npc_bodies(&fx.app);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(Assets_LoadsStarted(fx.app.assets, ASSET_KIND_CONFIG) == 1,
+        "the composition's one kit config is asked of the assets table");
+    TEST_ASSERT(npc->body_mounted_serial != npc->body_serial, "and nothing is mounted while it loads");
+    fixture_free(&fx);
+}
+
 /* E5: removing a player (or anything else not an npc) is not an npc despawn;
  * an npc's removal is, with its server slot (E10). */
 static void
@@ -1394,6 +1451,7 @@ main(void)
     test_npc_body_landing_keeps_body_custom();
     test_npc_body_custom_keeps_every_wire_model();
     test_npc_body_custom_recolours_without_models();
+    test_npc_body_custom_mirror_and_player();
     test_only_npc_removals_are_npc_despawns();
     test_varp_retype_coalesces_and_keeps_overrides();
     test_player_add_exists_at_once();
