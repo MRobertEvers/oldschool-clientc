@@ -282,6 +282,9 @@ print_keys(
         {
             if( spec->applies && !spec->applies(&ctx) )
                 continue;
+            /* Not every block states it (CP_KEY_OPTIONAL). */
+            if( spec->flags & CP_KEY_OPTIONAL )
+                continue;
             printf("%s %s %s%s%s\n", type->name, spec->key,
                    (spec->flags & CP_KEY_INDEXED) ? "indexed"
                    : (spec->flags & CP_KEY_LIST) ? "list"

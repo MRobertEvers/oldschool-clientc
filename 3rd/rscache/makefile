@@ -143,6 +143,8 @@ test: $(TEST_BINS) $(BUILD)/bzip_interop_helper
 	sh test/test_cachepack_fidelity.sh $(CACHE_ROOT) || status=1; \
 	echo "==> cachepack typed values"; \
 	sh test/test_cachepack_value_text.sh $(CACHE_ROOT) || status=1; \
+	echo "==> cachepack npc recolall"; \
+	sh test/test_cachepack_npc_recolall.sh || status=1; \
 	exit $$status
 
 clean:
