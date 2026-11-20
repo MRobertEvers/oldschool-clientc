@@ -27,6 +27,8 @@
  *                  what landed whenever the tree moves). Keyed on the
  *                  component and the close serial its entry was set under; a
  *                  newer set on the component cancels it.
+ *                  The same task loads a LOOSE head, one no component asked
+ *                  for (app_if_head_enqueue), keyed on what it loads.
  *   Task_InvIcon   one per inventory slot whose item has no icon, raised when
  *                  the slot's container changes. Keyed on the container and
  *                  the slot; a slot that changes again cancels it.
@@ -52,7 +54,12 @@ enum
     APP_TASK_IF_MODEL = RS_PENDING_KINDS_IF_ASSETS_FIRST,
     /* An inventory slot's icon: RS_PendingKey_Id(app_inv_icon_slot_id, 0). */
     APP_TASK_INV_ICON,
+    /* A head no component asked for (app_if_head_enqueue: a plugin's own
+     * MODEL control): RS_PendingKey_Id(the npc, obj or model id -- -1 for the
+     * player's head --, the head kind). */
+    APP_TASK_IF_MODEL_LOOSE,
 };
+_Static_assert((int)APP_TASK_IF_MODEL_LOOSE <= (int)RS_PENDING_KINDS_IF_ASSETS_LAST, "if_assets kinds fit the range");
 
 /* ---- Task_IfModel ------------------------------------------------------- */
 
@@ -104,6 +111,10 @@ static void
 if_model_collect_textures(struct Task_IfModel* self);
 static int
 if_model_compose(struct Task_IfModel* self);
+static void
+if_model_copy_appearance(
+    struct Task_IfModel* task,
+    struct App* app);
 static int
 Task_InvIcon_Run(
     struct ToriRS_Task* base,
@@ -312,11 +323,17 @@ Task_IfModel_Run(
 
     /* 3. Still wanted: the component still holds the head this task was
      *    made for (U2: a load had no check at landing and always
-     *    composited). A replaced or closed head has nothing to apply. */
-    index = app_if_head_current(
-        app, self->component_id, self->kind, self->source_id, self->zoom, self->par.key.gen);
-    if( index < 0 )
-        PT_EXIT(&self->pt);
+     *    composited). A replaced or closed head has nothing to apply. A
+     *    loose head (no component) has no store entry: whoever asked for it
+     *    asks the bridge again, and finds the composite. */
+    index = -1;
+    if( self->component_id >= 0 )
+    {
+        index = app_if_head_current(
+            app, self->component_id, self->kind, self->source_id, self->zoom, self->par.key.gen);
+        if( index < 0 )
+            PT_EXIT(&self->pt);
+    }
 
     /* 4. Apply: publish the textures that came, composite from the cache as
      *    it is now, and land the composite on the head for the bind. A head
@@ -327,7 +344,8 @@ Task_IfModel_Run(
             !UITreeSceneBridge_TextureResident(&app->bridge, self->texture_ids[self->i]) )
             (void)UITreeSceneBridge_PublishTextures(&app->bridge, &self->texture_ids[self->i], 1);
     scene_id = if_model_compose(self);
-    UIIfModels_HeadLanded(&app->if_models, index, scene_id, self->resolved_npc_id);
+    if( index >= 0 )
+        UIIfModels_HeadLanded(&app->if_models, index, scene_id, self->resolved_npc_id);
     RedrawRequest_Raise(&app->redraw_request);
     if( scene_id < 0 && torirs_env_net_debug() )
         TORIRS_LOG(
@@ -378,22 +396,111 @@ App_IfModelWant(
     task->resolved_npc_id = -1;
     task->shown_obj_id = head->npc_id;
     if( task->kind == UI_IFHEAD_PLAYER )
-    {
-        struct WorldEntity_Player* lp = app_local_player(app);
-        task->has_appearance = lp != NULL;
-        if( lp )
-        {
-            memcpy(task->slots, lp->appearance.slots, sizeof(task->slots));
-            memcpy(task->colors, lp->appearance.colors, sizeof(task->colors));
-            task->gender = lp->gender;
-        }
-    }
+        if_model_copy_appearance(task, app);
     PT_INIT(&task->pt);
     /* The parallel queue, as an ordinary task: the request is already stored
      * and the bind shows it on whichever frame it lands, so nothing orders
      * this against the packets, and holding the frame for a chathead's round
      * trip is exactly the pause the store exists to avoid. */
     App_ParallelTaskAdd(app, &task->task, &task->par, APP_TASK_IF_MODEL, if_model_key(head), -1);
+}
+
+/* The appearance a player head is composited from: the local player's now
+ * (`has` 0 when there is none). */
+static void
+if_model_copy_appearance(
+    struct Task_IfModel* task,
+    struct App* app)
+{
+    struct WorldEntity_Player* lp = app_local_player(app);
+
+    task->has_appearance = lp != NULL;
+    if( !lp )
+        return;
+    memcpy(task->slots, lp->appearance.slots, sizeof(task->slots));
+    memcpy(task->colors, lp->appearance.colors, sizeof(task->colors));
+    task->gender = lp->gender;
+}
+
+static struct Task_IfModel*
+if_model_loose_pending(
+    struct App const* app,
+    struct RS_PendingKey key)
+{
+    struct RS_ParallelTask* par = RS_Pending_Find(app->pending, APP_TASK_IF_MODEL_LOOSE, key);
+    return par ? (struct Task_IfModel*)((char*)par - offsetof(struct Task_IfModel, par)) : NULL;
+}
+
+/*
+ * A head no component asked for: load and composite (kind, id) into the
+ * scene, for a caller that binds the composite itself once the bridge has it
+ * (a plugin's owned MODEL control, App_PluginModelScene). The same task as a
+ * component's head (Task_IfModel), on the parallel queue, keyed on what it
+ * loads; a request for a head already on its way adds nothing, and a player
+ * head whose appearance changed since its task was made replaces that task.
+ * A head that came with nothing to show is asked for again by the next
+ * request (the assets table remembers what failed).
+ *
+ * `component_id` is -1: a head a component shows is the store's
+ * (App_IfModelWant), which this is not.
+ */
+void
+app_if_head_enqueue(
+    struct App* app,
+    enum UIIfHeadKind kind,
+    int component_id,
+    int npc_id)
+{
+    struct Task_IfModel* task;
+    struct Task_IfModel* pending;
+    struct RS_PendingKey key;
+    int const source_id = kind == UI_IFHEAD_PLAYER ? -1 : npc_id;
+
+    assert(app);
+    assert(component_id < 0);
+    (void)component_id;
+    key = RS_PendingKey_Id(source_id, (uint32_t)kind);
+
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_IfModel_VTable;
+    strncpy(task->task.name, "IfModelLoose", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->kind = kind;
+    task->component_id = -1;
+    task->source_id = source_id;
+    task->zoom = 0;
+    task->resolved_npc_id = -1;
+    task->shown_obj_id = source_id;
+    if( kind == UI_IFHEAD_PLAYER )
+        if_model_copy_appearance(task, app);
+
+    pending = if_model_loose_pending(app, key);
+    if( pending && (kind != UI_IFHEAD_PLAYER ||
+                    (pending->has_appearance == task->has_appearance &&
+                     memcmp(pending->slots, task->slots, sizeof(task->slots)) == 0 &&
+                     memcmp(pending->colors, task->colors, sizeof(task->colors)) == 0 &&
+                     pending->gender == task->gender)) )
+    {
+        /* Already on its way. */
+        ToriMem_Free(ToriMem_Process(), task);
+        return;
+    }
+    if( pending )
+        (void)RS_Pending_CancelKey(app->pending, APP_TASK_IF_MODEL_LOOSE, key);
+    PT_INIT(&task->pt);
+    App_ParallelTaskAdd(app, &task->task, &task->par, APP_TASK_IF_MODEL_LOOSE, key, -1);
+}
+
+bool
+App_IfModelLoosePending(
+    struct App const* app,
+    enum UIIfHeadKind kind,
+    int id)
+{
+    assert(app);
+    return if_model_loose_pending(
+               app, RS_PendingKey_Id(kind == UI_IFHEAD_PLAYER ? -1 : id, (uint32_t)kind)) != NULL;
 }
 
 void

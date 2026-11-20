@@ -749,6 +749,11 @@ Task_AppBoot_Run(
      * branch produced (TS parity: WidgetManager.setRootInterface(groupId) — any
      * group can be the root, no hardcoded 161 chrome required). */
     PT_TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
+    /* The build waited for what a later packet or script reads (packs,
+     * sprites, fonts, configs); the models it shows, the default avatar and
+     * the seed inventory icons are drawn when they arrive, by parallel tasks
+     * (builder.defer_visual, app_open_tree). */
+    (void)App_RootVisualsAdd(app);
 
     /* Root-build already performs the reference client's initial var-transmit
      * pass after onLoad, so preview varp/varbit seeds reach listeners without a
@@ -985,6 +990,8 @@ app_open_tree(
     /* Display Fixed/Classic/Modern remount: drop the live gameframe before the
      * new root bakes. Without this, InterfaceOpen would add 548/164 beside the
      * old 161 forest, and IF_OPENSUB targets for the new top race the boot. */
+    /* The models the outgoing tree's mounts still wait for go with it. */
+    App_MountsTreeCleared(app);
     if( app->tree && app->tree->root_index >= 0 )
     {
         /* An IF_OPENTOP keeps the groups a script loaded that are not open
@@ -1051,6 +1058,9 @@ app_open_tree(
             sizeof(app->builder.layout_group_exclude) - 1);
     /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
     app->builder.bridge = &app->bridge;
+    /* The bake waits only for what is read; App_RootVisualsAdd binds the
+     * models when they come. */
+    app->builder.defer_visual = 1;
     /* Where a component's `role=` is interned. The table outlives the tree, so
      * a remount re-stamps the same ids onto the new nodes rather than handing
      * out fresh ones. */
@@ -1417,7 +1427,7 @@ Task_OpenSubRefresh_Run(
             self->interface_id = -1;
         }
         else
-            App_MountVisualsAdd(app, self->interface_id);
+            (void)App_MountVisualsAdd(app, self->interface_id);
     }
     else
     {

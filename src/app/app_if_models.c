@@ -40,6 +40,10 @@ struct Task_AppIfPlayerModel
     int component_id;
     int arg0;
     int arg1;
+    /* BODYTYPE: the idk id being scanned, and the load it waits on (the
+     * assets table's count). */
+    int idk_i;
+    int join;
 };
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -357,9 +361,26 @@ Task_AppIfPlayerModel_Run(
 
     /* BODYTYPE scans the complete idk table; OBJ needs its wearpos triplet.
      * Both are REQUIRED: the composition is what the next op starts from, so
-     * this waits on the packet queue, in wire order. */
+     * this waits on the packet queue, in wire order. The idk CONFIGS only:
+     * the default appearance's kit models (what CreateTask_PlayerAppearanceLoad
+     * also fetched) are not what BODYTYPE draws, and what it draws is the
+     * build's (Task_IfPlayerModelBuild, a parallel task). Kit ids are
+     * contiguous from 0, so the first that does not load ends the table. */
     if( self->op == APP_IFPLAYER_BODYTYPE )
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+    {
+        for( self->idk_i = 0; self->idk_i < PLAYER_IDK_SCAN_MAX; self->idk_i++ )
+        {
+            if( CacheProvider_IdkHas(app->provider, self->idk_i) )
+                continue;
+            (void)Assets_Await(
+                app->assets,
+                AssetKey_Make(ASSET_KIND_CONFIG, self->idk_i, ASSET_CONFIG_IDK),
+                &self->join);
+            TASK_AWAIT_ASSETS(&self->task, &self->pt, self->join);
+            if( !CacheProvider_IdkHas(app->provider, self->idk_i) )
+                break;
+        }
+    }
     else
         PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->arg0));
     app_if_player_model_compose(app, self->op, self->component_id, self->arg0, self->arg1);
@@ -370,6 +391,11 @@ Task_AppIfPlayerModel_Run(
 static void
 Task_AppIfPlayerModel_Free(struct ToriRS_Task* base)
 {
+    struct Task_AppIfPlayerModel* self = (struct Task_AppIfPlayerModel*)base;
+    /* Freed while an idk config loads (a queue freed at shutdown): the
+     * table stops counting it on this task. */
+    if( self->join > 0 )
+        Assets_Unjoin(self->app->assets, &self->join);
     ToriMem_Free(ToriMem_Process(), base);
 }
 

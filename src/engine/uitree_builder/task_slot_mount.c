@@ -42,14 +42,17 @@ Task_SlotMount_Run(
 
     assert(self->owner_index >= 0 && (uint32_t)self->owner_index < tree->component_count);
 
+    /* The models the slot's outgoing nodes still wait for go with them. */
+    App_SlotVisualsCancel(self->app, self->owner_index);
     UITree_ClearChildren(tree, self->owner_index);
 
     if( self->iface_id > 0 )
     {
         self->packed_id = uibuilder_pack_component_id(self->iface_id);
         PT_TASK_AWAITSELF_IF(CreateTask_ComponentLoad(self->builder->provider, self->packed_id));
+        /* What a later packet or script reads; the models are not. */
         PT_TASK_AWAITSELF_IF(
-            CreateTask_PackAssetsLoad(self->builder->provider, self->packed_id >> 16));
+            CreateTask_PackAssetsLoadRequired(self->builder->provider, self->packed_id >> 16));
 
         {
             struct ToriRS_ComponentPack* pack =
@@ -62,6 +65,9 @@ Task_SlotMount_Run(
                     pack,
                     self->owner_index,
                     -1 /* no INI inv binding at runtime, see header */);
+                /* The bake bound the models that are here; the rest are
+                 * parallel tasks, and the mount goes on. */
+                (void)App_SlotVisualsAdd(self->app, self->owner_index);
             }
             else
             {

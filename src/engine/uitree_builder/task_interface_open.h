@@ -100,6 +100,72 @@ InterfaceOpen_BindGroupModels(
     struct UITreeSceneBridge* bridge,
     int group);
 
+/** What a model widget still waits for before it can be drawn. */
+enum InterfaceOpenModelWantKind
+{
+    /* Its model (UITreeComponent.u.rs_model.gamecache_model_id). */
+    INTERFACE_OPEN_WANT_MODEL = 0,
+    /* Its active model (u.rs_model.active_model_id). */
+    INTERFACE_OPEN_WANT_ACTIVE_MODEL,
+    /* The default avatar, on a player-preview widget (client code 327/328)
+     * that names no model: the default appearance's kit models. */
+    INTERFACE_OPEN_WANT_AVATAR,
+};
+
+struct InterfaceOpenModelWant
+{
+    enum InterfaceOpenModelWantKind kind;
+    /* The node, by index and generation. */
+    int32_t index;
+    /* Its model's cache id; -1 for the avatar. */
+    int model_id;
+};
+
+/* A node has at most a model and an active model, or the avatar. */
+#define INTERFACE_OPEN_NODE_WANTS_MAX 2
+
+/**
+ * What model node `idx` of `tree` waits for: its model or active model when
+ * it is a cache model `provider` does not hold (a scene composite an
+ * IF_SETNPCHEAD or IF_SETOBJECT bound is its own task's), the avatar when the
+ * bridge has not built it.
+ * Fills up to INTERFACE_OPEN_NODE_WANTS_MAX of `out` and returns how many; 0
+ * for a node that is not a live model widget or has all it needs.
+ */
+int
+InterfaceOpen_NodeModelWants(
+    struct UITree const* tree,
+    struct CacheProvider* provider,
+    struct UITreeSceneBridge const* bridge,
+    int32_t idx,
+    struct InterfaceOpenModelWant* out);
+
+/**
+ * Bind onto model node `idx` what is here of what it shows (the per-node
+ * body of InterfaceOpen_BindGroupModels): its model, its active model, or the
+ * avatar posed at the player's idle. Marks it dirty and returns 1 when it
+ * bound something.
+ */
+int
+InterfaceOpen_BindModelNode(
+    struct UITree* tree,
+    struct UITreeSceneBridge* bridge,
+    int32_t idx);
+
+/**
+ * The model nodes under `owner` (not `owner` itself), depth first, up to
+ * `cap` of them into `out`; returns how many there are (which may exceed
+ * `cap`). A subtree walk: what an old-format slot mount baked under its slot,
+ * whose nodes carry no interface group to find them by (a dat1 component id
+ * is flat, so its high half -- the group a dat2 id carries -- is 0).
+ */
+int
+InterfaceOpen_SubtreeModelNodes(
+    struct UITree const* tree,
+    int32_t owner,
+    int32_t* out,
+    int cap);
+
 /**
  * Record group `group` mounted at component `target_uid` (mount `type`) and
  * move every node of it that is not under another of its own nodes under

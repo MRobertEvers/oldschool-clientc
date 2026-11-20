@@ -417,6 +417,58 @@ InterfaceOpen_BindSeedIcons(
 }
 
 int
+InterfaceOpen_BindModelNode(
+    struct UITree* tree,
+    struct UITreeSceneBridge* bridge,
+    int32_t idx)
+{
+    struct UITreeComponent* c;
+    int bound = 0;
+    int cache_id;
+    int scene_id;
+
+    assert(tree);
+    assert(bridge);
+    assert(idx >= 0);
+    assert((uint32_t)idx < tree->component_count);
+    c = &tree->components[idx];
+    if( c->freed || c->type != UIELEM_RS_MODEL )
+        return 0;
+    if( c->u.rs_model.active_model_id >= 0 &&
+        UITreeSceneBridge_EnsureModel(bridge, c->u.rs_model.active_model_id) >= 0 )
+        bound = 1;
+    cache_id = c->u.rs_model.gamecache_model_id;
+    if( cache_id < 0 )
+    {
+        /* The default avatar, as upload_model_nodes poses it. */
+        if( c->behavior.client_code != 327 && c->behavior.client_code != 328 )
+        {
+            if( bound )
+                UITree_MarkNodeDirty(tree, idx);
+            return bound;
+        }
+        scene_id = UITreeSceneBridge_EnsurePlayerModel(bridge);
+        if( scene_id >= 0 )
+        {
+            (void)UITree_SetModelAt(tree, idx, scene_id);
+            (void)UITree_SetModelAnimationAt(tree, idx,
+                c->u.rs_model.anim_seq_id < 0 ? bridge->player_idle_seq : c->u.rs_model.anim_seq_id,
+                0, 0, 1);
+            bound = 1;
+        }
+    }
+    else if( UITreeSceneBridge_EnsureModel(bridge, cache_id) >= 0 )
+    {
+        /* The node already names the model; it drew nothing while the
+         * model was not here, so its emit is stale. */
+        bound = 1;
+    }
+    if( bound )
+        UITree_MarkNodeDirty(tree, idx);
+    return bound;
+}
+
+int
 InterfaceOpen_BindGroupModels(
     struct UITree* tree,
     struct UITreeSceneBridge* bridge,
@@ -430,48 +482,107 @@ InterfaceOpen_BindGroupModels(
     assert(group > 0);
     gset = UITree_GroupNodes(tree, group);
     for( int gi = 0; gset && gi < gset->count; gi++ )
-    {
-        int32_t i = gset->slots[gi];
-        struct UITreeComponent* c;
-        int cache_id;
-        int scene_id;
-        assert(i >= 0);
-        assert((uint32_t)i < tree->component_count);
-        c = &tree->components[i];
-        if( c->freed || c->type != UIELEM_RS_MODEL )
-            continue;
-        if( c->u.rs_model.active_model_id >= 0 &&
-            UITreeSceneBridge_EnsureModel(bridge, c->u.rs_model.active_model_id) >= 0 )
-        {
-            UITree_MarkNodeDirty(tree, i);
-            bound++;
-        }
-        cache_id = c->u.rs_model.gamecache_model_id;
-        if( cache_id < 0 )
-        {
-            /* The default avatar, as upload_model_nodes poses it. */
-            if( c->behavior.client_code != 327 && c->behavior.client_code != 328 )
-                continue;
-            scene_id = UITreeSceneBridge_EnsurePlayerModel(bridge);
-            if( scene_id < 0 )
-                continue;
-            (void)UITree_SetModelAt(tree, i, scene_id);
-            (void)UITree_SetModelAnimationAt(tree, i,
-                c->u.rs_model.anim_seq_id < 0 ? bridge->player_idle_seq : c->u.rs_model.anim_seq_id,
-                0, 0, 1);
-            UITree_MarkNodeDirty(tree, i);
-            bound++;
-            continue;
-        }
-        if( UITreeSceneBridge_EnsureModel(bridge, cache_id) >= 0 )
-        {
-            /* The node already names the model; it drew nothing while the
-             * model was not here, so its emit is stale. */
-            UITree_MarkNodeDirty(tree, i);
-            bound++;
-        }
-    }
+        bound += InterfaceOpen_BindModelNode(tree, bridge, gset->slots[gi]);
     return bound;
+}
+
+/* A cache model id, not a scene composite a head, an obj or the avatar was
+ * bound as (those are UITREE_SCENE_PLAYER_MODEL_ID and up, out of cache range,
+ * and are their own tasks' to build). */
+static int
+interface_open_cache_model(int id)
+{
+    return id >= 0 && id < UITREE_SCENE_PLAYER_MODEL_ID;
+}
+
+int
+InterfaceOpen_NodeModelWants(
+    struct UITree const* tree,
+    struct CacheProvider* provider,
+    struct UITreeSceneBridge const* bridge,
+    int32_t idx,
+    struct InterfaceOpenModelWant* out)
+{
+    struct UITreeComponent const* c;
+    int n = 0;
+
+    assert(tree);
+    assert(provider);
+    assert(bridge);
+    assert(out);
+    assert(idx >= 0);
+    assert((uint32_t)idx < tree->component_count);
+    c = &tree->components[idx];
+    if( c->freed || c->type != UIELEM_RS_MODEL )
+        return 0;
+    if( interface_open_cache_model(c->u.rs_model.gamecache_model_id) &&
+        !CacheProvider_ModelHas(provider, c->u.rs_model.gamecache_model_id) )
+    {
+        out[n].kind = INTERFACE_OPEN_WANT_MODEL;
+        out[n].index = idx;
+        out[n].model_id = c->u.rs_model.gamecache_model_id;
+        n++;
+    }
+    else if( c->u.rs_model.gamecache_model_id < 0 &&
+             (c->behavior.client_code == 327 || c->behavior.client_code == 328) &&
+             bridge->player_scene_id <= 0 )
+    {
+        out[n].kind = INTERFACE_OPEN_WANT_AVATAR;
+        out[n].index = idx;
+        out[n].model_id = -1;
+        n++;
+    }
+    if( interface_open_cache_model(c->u.rs_model.active_model_id) &&
+        !CacheProvider_ModelHas(provider, c->u.rs_model.active_model_id) )
+    {
+        out[n].kind = INTERFACE_OPEN_WANT_ACTIVE_MODEL;
+        out[n].index = idx;
+        out[n].model_id = c->u.rs_model.active_model_id;
+        n++;
+    }
+    assert(n <= INTERFACE_OPEN_NODE_WANTS_MAX);
+    return n;
+}
+
+int
+InterfaceOpen_SubtreeModelNodes(
+    struct UITree const* tree,
+    int32_t owner,
+    int32_t* out,
+    int cap)
+{
+    int found = 0;
+    int32_t idx;
+
+    assert(tree);
+    assert(owner >= 0);
+    assert((uint32_t)owner < tree->component_count);
+    assert(out || cap == 0);
+    /* Depth first, without a stack: down to a first child, else across to
+     * the next sibling, else up until an ancestor below `owner` has one. */
+    idx = tree->components[owner].first_child;
+    while( idx >= 0 )
+    {
+        struct UITreeComponent const* c = &tree->components[idx];
+
+        if( !c->freed && c->type == UIELEM_RS_MODEL )
+        {
+            if( found < cap )
+                out[found] = idx;
+            found++;
+        }
+        if( c->first_child >= 0 )
+        {
+            idx = c->first_child;
+            continue;
+        }
+        while( idx >= 0 && idx != owner && tree->components[idx].next_sibling < 0 )
+            idx = tree->components[idx].parent;
+        if( idx < 0 || idx == owner )
+            break;
+        idx = tree->components[idx].next_sibling;
+    }
+    return found;
 }
 
 /* U3: the server's stored values for the group, onto the nodes the bake (or

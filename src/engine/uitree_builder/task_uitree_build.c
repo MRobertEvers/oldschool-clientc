@@ -160,8 +160,11 @@ Task_UITreeBuild_Run(
      * the first inv transmit — the interface-open path did this and the
      * config-driven one has to as well. */
     collect_seed_objs(self);
-    PT_TASK_AWAITSELF_IF(CreateTask_ObjModelLoad(
-        self->builder->provider, self->seed_obj_ids, NULL, self->seed_obj_count));
+    /* Deferred, the icons are only drawn: the build binds the ones here and
+     * the owner wants the rest (App_RootVisualsAdd). */
+    if( !self->builder->defer_visual )
+        PT_TASK_AWAITSELF_IF(CreateTask_ObjModelLoad(
+            self->builder->provider, self->seed_obj_ids, NULL, self->seed_obj_count));
     bind_seed_obj_icons(self);
 
     /* 3. Bake the tree (synchronous; provider is fully populated). */

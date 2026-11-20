@@ -94,6 +94,14 @@ struct UITreeBuilder
      *  @see UIBuilderManifestSources::layout_group. */
     char layout_group[32];
     char layout_group_exclude[32];
+    /** Set by an owner that binds the models itself, when they arrive: the
+     *  build then waits only for what a later packet or script reads (the
+     *  packs, their sprites, fonts and npc configs, the inventory objs'
+     *  configs), not for the packs' models, the default avatar's kit models
+     *  or the seed inventory models. The client sets it (App_RootVisualsAdd
+     *  binds the rest); 0, what both constructors leave, waits for all of it,
+     *  as a builder test wants. */
+    int defer_visual;
 
     struct UIBuilderSpriteEntry* sprites;
     int sprite_count;

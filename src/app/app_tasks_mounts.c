@@ -33,6 +33,8 @@
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_builder/task_pack_assets_load.h"
 
+#include <stddef.h>
+
 /* ---- a player-model widget's build ------------------------------------- */
 
 enum
@@ -173,131 +175,302 @@ App_IfPlayerModelBuildAdd(
     App_ParallelTaskAdd(app, &task->task, &task->par, APP_TASK_IF_PLAYER_MODEL_BUILD, key, -1);
 }
 
-/* ---- a mounted group's visual assets ------------------------------------ */
+/* ---- a mounted interface's models ---------------------------------------- *
+ *
+ * One task per model a mounted widget still waits for: its model, its active
+ * model, or the default avatar on a player-preview widget. Made by whatever
+ * mounted it -- a sub mount (App_MountVisualsAdd, the group's nodes), an
+ * old-format slot mount (App_SlotVisualsAdd, the nodes under the slot) or the
+ * root build (App_RootVisualsAdd, every model node of the new tree) -- each
+ * with the node's ref (index and incarnation) copied when it was made.
+ *
+ * One model per task, so a step binds one widget: binding a whole mount's
+ * models in one step cost 5.85 ms on a loaded machine. The seed inventory
+ * icons are the inventory-icon tasks' (App_InvIconsWant), one slot a task.
+ *
+ * Keyed RS_PendingKey_Component(the node's component id, its group's close
+ * serial), one kind per want, so a close of the group cancels the lot
+ * (RS_PendingScope_Group), a slot cleared or remounted cancels the keys of
+ * the nodes it held (App_SlotVisualsCancel: a dat1 component id names no
+ * group), a new root cancels every one (App_MountsTreeCleared), and a logout
+ * cancels everything. A node with no component id (none a mount bakes from a
+ * pack) gets none. */
 
-struct Task_MountVisuals
+struct Task_MountModel
 {
     struct ToriRS_Task task;
     struct pt pt;
     struct RS_ParallelTask par;
     struct App* app;
-    /* The group and its close serial when it was mounted. */
+    /* The widget, and its group's close serial when it was mounted. */
+    struct UITreeNodeRef ref;
     int group;
     uint32_t close_serial;
-    /* Copied from the pack and the containers when it was mounted. */
-    struct PackVisualAssets visual;
-    int seed_obj_ids[INTERFACE_OPEN_SEED_OBJ_MAX];
-    int seed_obj_count;
+    /* What it waits for: the model (-1 for the avatar). */
+    enum InterfaceOpenModelWantKind want;
+    int model_id;
 };
 
 static int
-Task_MountVisuals_Run(
+Task_MountModel_Run(
     struct ToriRS_Task* base,
     struct ToriRS_IOBatch* io)
 {
-    struct Task_MountVisuals* self = (struct Task_MountVisuals*)base;
+    struct Task_MountModel* self = (struct Task_MountModel*)base;
     struct App* app = self->app;
+    int32_t idx;
 
     PT_BEGIN(&self->pt);
 
-    /* 1. The pack's models and the seed inventory models, all at once; then
-     *    the default avatar's kit models when a widget shows it. */
-    for( int i = 0; i < self->visual.model_count; i++ )
-        (void)Assets_Await(
-            app->assets, AssetKey_Make(ASSET_KIND_MODEL, self->visual.model_ids[i], 0), &self->par.join);
-    for( int i = 0; i < self->seed_obj_count; i++ )
-        (void)Assets_Await(
-            app->assets, AssetKey_Make(ASSET_KIND_OBJ_MODEL, self->seed_obj_ids[i], 1), &self->par.join);
-    PT_PARALLEL_AWAIT_ASSETS(app->assets);
+    /* Replaced before it first ran: it asks for nothing. */
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
-    if( self->visual.needs_player )
+
+    /* 1. The model; or the default appearance's kit models, which no asset
+     *    kind names (CreateTask_PlayerAppearanceLoad, joined). */
+    if( self->want == INTERFACE_OPEN_WANT_AVATAR )
         PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+    else
+        PT_PARALLEL_AWAIT_ASSET(app->assets, AssetKey_Make(ASSET_KIND_MODEL, self->model_id, 0));
 
-    /* 2. A remount of the group, its close, or a logout cancelled it. */
+    /* 2. A close of its group, a remount of its slot, a new root or a logout
+     *    cancelled it. */
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
+    if( self->want != INTERFACE_OPEN_WANT_AVATAR && !RS_ParallelTask_AssetHere(&self->par) )
+        PT_EXIT(&self->pt); /* it did not come: the widget stays empty, as it would have */
 
-    /* The icons are the containers', not the group's: bound whatever became
-     * of the group, as the mount bound the ones that were here. */
-    InterfaceOpen_BindSeedIcons(&app->invs, &app->bridge);
-    RedrawRequest_Raise(&app->redraw_request);
-
-    /* 3. Still the opening of the group it was made for. */
+    /* 3. Still the widget it was made for, in the same opening of its
+     *    group. */
     assert(app->tree);
-    if( !UITree_GroupPresent(app->tree, self->group) ||
-        UITree_GroupCloseSerial(app->tree, self->group) != self->close_serial )
+    idx = UITree_ResolveRef(app->tree, self->ref);
+    if( idx < 0 || UITree_GroupCloseSerial(app->tree, self->group) != self->close_serial )
         PT_EXIT(&self->pt);
 
-    /* 4. Bind what is here now onto the group's model widgets. */
-    (void)InterfaceOpen_BindGroupModels(app->tree, &app->bridge, self->group);
+    /* 4. Bind what is here now onto it. */
+    if( InterfaceOpen_BindModelNode(app->tree, &app->bridge, idx) )
+    {
+        RedrawRequest_Raise(&app->redraw_request);
+        /* stderr, as the contract's own trace: TORIRS_LOG is compiled out of
+         * a release build. */
+        if( TaskRunner_ContractTrace() )
+            fprintf(
+                stderr,
+                "queue_contract: trace mounts: model %d bound onto 0x%08x at frame %ld\n",
+                self->model_id,
+                (unsigned)app->tree->components[idx].component_id,
+                g_torirs_frame_no);
+    }
 
     PT_END(&self->pt);
 }
 
 static void
-Task_MountVisuals_Free(struct ToriRS_Task* base)
+Task_MountModel_Free(struct ToriRS_Task* base)
 {
-    struct Task_MountVisuals* self = (struct Task_MountVisuals*)base;
+    struct Task_MountModel* self = (struct Task_MountModel*)base;
     App_ParallelTaskRelease(self->app, &self->par);
-    PackAssets_FreeVisual(ToriMem_Process(), &self->visual);
     ToriMem_Free(ToriMem_Process(), self);
 }
 
-static struct ToriRS_TaskVTable Task_MountVisuals_VTable = {
-    .run = Task_MountVisuals_Run,
-    .free = Task_MountVisuals_Free,
+static struct ToriRS_TaskVTable Task_MountModel_VTable = {
+    .run = Task_MountModel_Run,
+    .free = Task_MountModel_Free,
 };
 
-void
+static int
+mount_model_kind(enum InterfaceOpenModelWantKind want)
+{
+    if( want == INTERFACE_OPEN_WANT_MODEL )
+        return APP_TASK_MOUNT_MODEL;
+    if( want == INTERFACE_OPEN_WANT_ACTIVE_MODEL )
+        return APP_TASK_MOUNT_ACTIVE_MODEL;
+    assert(want == INTERFACE_OPEN_WANT_AVATAR);
+    return APP_TASK_MOUNT_AVATAR;
+}
+
+/* The key of node `idx`'s tasks: its component id and its group's close
+ * serial. */
+static struct RS_PendingKey
+mount_model_key(
+    struct UITree const* tree,
+    int32_t idx)
+{
+    int const cid = tree->components[idx].component_id;
+
+    assert(cid >= 0);
+    return RS_PendingKey_Component(cid, UITree_GroupCloseSerial(tree, (cid >> 16) & 0xffff));
+}
+
+static struct Task_MountModel*
+mount_model_pending(
+    struct App const* app,
+    int kind,
+    struct RS_PendingKey key)
+{
+    struct RS_ParallelTask* par = RS_Pending_Find(app->pending, kind, key);
+    return par ? (struct Task_MountModel*)((char*)par - offsetof(struct Task_MountModel, par)) : NULL;
+}
+
+/* A task for each model node `idx` waits for; returns how many it added. */
+static int
+mount_model_want_node(
+    struct App* app,
+    int32_t idx)
+{
+    struct InterfaceOpenModelWant wants[INTERFACE_OPEN_NODE_WANTS_MAX];
+    int added = 0;
+    int n;
+
+    if( app->tree->components[idx].component_id < 0 )
+        return 0;
+    n = InterfaceOpen_NodeModelWants(app->tree, app->provider, &app->bridge, idx, wants);
+    for( int w = 0; w < n; w++ )
+    {
+        int const kind = mount_model_kind(wants[w].kind);
+        struct RS_PendingKey const key = mount_model_key(app->tree, idx);
+        struct Task_MountModel* pending = mount_model_pending(app, kind, key);
+        struct Task_MountModel* task;
+
+        if( pending && pending->model_id == wants[w].model_id &&
+            pending->ref.incarnation == UITree_RefAt(app->tree, idx).incarnation )
+            continue; /* already on its way */
+        /* Newest wins: the widget now shows something else, or was
+         * rebaked. */
+        if( pending )
+            (void)RS_Pending_CancelKey(app->pending, kind, key);
+        task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
+        assert(task);
+        task->task.vtable = &Task_MountModel_VTable;
+        strncpy(task->task.name, "MountModel", sizeof(task->task.name) - 1);
+        task->app = app;
+        task->ref = UITree_RefAt(app->tree, idx);
+        task->group = (app->tree->components[idx].component_id >> 16) & 0xffff;
+        task->close_serial = key.gen;
+        task->want = wants[w].kind;
+        task->model_id = wants[w].model_id;
+        PT_INIT(&task->pt);
+        App_ParallelTaskAdd(app, &task->task, &task->par, kind, key, -1);
+        added++;
+        if( TaskRunner_ContractTrace() )
+            fprintf(
+                stderr,
+                "queue_contract: trace mounts: 0x%08x waits for model %d at frame %ld\n",
+                (unsigned)app->tree->components[idx].component_id,
+                task->model_id,
+                g_torirs_frame_no);
+    }
+    return added;
+}
+
+/* The worn and backpack icons a mount shows that are not baked yet: one
+ * inventory-icon task a slot (deduped there). */
+static void
+mount_want_seed_icons(struct App* app)
+{
+    static int const containers[] = {
+        INV_MANAGER_CONTAINER_WORN,
+        INV_MANAGER_CONTAINER_BACKPACK,
+    };
+
+    for( size_t i = 0; i < sizeof(containers) / sizeof(containers[0]); i++ )
+        if( InvManager_FindContainer(&app->invs, containers[i]) )
+            App_InvIconsWant(app, containers[i]);
+}
+
+int
 App_MountVisualsAdd(
     struct App* app,
     int group)
 {
-    struct ToriRS_ComponentPack const* pack;
-    struct Task_MountVisuals* task;
-    struct RS_PendingKey key;
-    int missing = 0;
+    struct UITreeNodeSet const* gset;
+    int added = 0;
 
     assert(app);
     assert(app->tree);
     assert(group > 0);
-    pack = CacheProvider_ComponentPackGet(app->provider, group);
-    /* The cache can drop a pack between the mount's bake and here (its load
-     * scripts may have yielded): what the mount bound is all there is. */
-    if( !pack )
-        return;
+    mount_want_seed_icons(app);
+    gset = UITree_GroupNodes(app->tree, group);
+    for( int gi = 0; gset && gi < gset->count; gi++ )
+        added += mount_model_want_node(app, gset->slots[gi]);
+    return added;
+}
 
-    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
-    assert(task);
-    PackAssets_CollectVisual(pack, ToriMem_Process(), &task->visual);
-    task->seed_obj_count =
-        InterfaceOpen_CollectSeedObjs(&app->invs, task->seed_obj_ids, INTERFACE_OPEN_SEED_OBJ_MAX);
+int
+App_SlotVisualsAdd(
+    struct App* app,
+    int32_t owner_index)
+{
+    int32_t nodes[APP_MOUNT_SUBTREE_MODELS_MAX];
+    int count;
+    int added = 0;
 
-    /* Nothing missing: the mount bound it all. */
-    for( int i = 0; !missing && i < task->visual.model_count; i++ )
-        missing = !CacheProvider_ModelHas(app->provider, task->visual.model_ids[i]);
-    for( int i = 0; !missing && i < task->seed_obj_count; i++ )
-        missing = ObjModelLoad_NeedsWork(app->provider, task->seed_obj_ids[i], 1);
-    if( !missing && task->visual.needs_player )
-        missing = app->bridge.player_scene_id <= 0;
-    if( !missing )
+    assert(app);
+    assert(app->tree);
+    mount_want_seed_icons(app);
+    count = InterfaceOpen_SubtreeModelNodes(app->tree, owner_index, nodes, APP_MOUNT_SUBTREE_MODELS_MAX);
+    assert(count <= APP_MOUNT_SUBTREE_MODELS_MAX);
+    for( int i = 0; i < count; i++ )
+        added += mount_model_want_node(app, nodes[i]);
+    return added;
+}
+
+void
+App_SlotVisualsCancel(
+    struct App* app,
+    int32_t owner_index)
+{
+    int32_t nodes[APP_MOUNT_SUBTREE_MODELS_MAX];
+    int count;
+
+    assert(app);
+    assert(app->tree);
+    count = InterfaceOpen_SubtreeModelNodes(app->tree, owner_index, nodes, APP_MOUNT_SUBTREE_MODELS_MAX);
+    assert(count <= APP_MOUNT_SUBTREE_MODELS_MAX);
+    for( int i = 0; i < count; i++ )
     {
-        PackAssets_FreeVisual(ToriMem_Process(), &task->visual);
-        ToriMem_Free(ToriMem_Process(), task);
-        return;
-    }
+        struct RS_PendingKey key;
 
-    key = RS_PendingKey_Component(group << 16, UITree_GroupCloseSerial(app->tree, group));
-    /* Newest wins: a remount of the group binds for both. */
-    (void)RS_Pending_CancelKey(app->pending, APP_TASK_MOUNT_VISUALS, key);
-    task->task.vtable = &Task_MountVisuals_VTable;
-    strncpy(task->task.name, "MountVisuals", sizeof(task->task.name) - 1);
-    task->app = app;
-    task->group = group;
-    task->close_serial = key.gen;
-    PT_INIT(&task->pt);
-    App_ParallelTaskAdd(app, &task->task, &task->par, APP_TASK_MOUNT_VISUALS, key, -1);
+        if( app->tree->components[nodes[i]].component_id < 0 )
+            continue;
+        key = mount_model_key(app->tree, nodes[i]);
+        (void)RS_Pending_CancelKey(app->pending, APP_TASK_MOUNT_MODEL, key);
+        (void)RS_Pending_CancelKey(app->pending, APP_TASK_MOUNT_ACTIVE_MODEL, key);
+        (void)RS_Pending_CancelKey(app->pending, APP_TASK_MOUNT_AVATAR, key);
+    }
+}
+
+int
+App_RootVisualsAdd(struct App* app)
+{
+    struct UITreeNodeSet const* models;
+    int added = 0;
+
+    assert(app);
+    assert(app->tree);
+    mount_want_seed_icons(app);
+    /* The tree's model nodes, not the tree: a candidate list. */
+    models = &app->tree->models;
+    for( int i = 0; i < models->count; i++ )
+        added += mount_model_want_node(app, models->slots[i]);
+    if( TaskRunner_ContractTrace() )
+        fprintf(
+            stderr,
+            "queue_contract: trace mounts: root %d built at frame %ld; %d model(s) left to parallel tasks\n",
+            RS_BootState_InterfaceId(&app->boot),
+            g_torirs_frame_no,
+            added);
+    return added;
+}
+
+void
+App_MountsTreeCleared(struct App* app)
+{
+    assert(app);
+    assert(app->pending);
+    (void)RS_Pending_Cancel(app->pending, RS_PendingScope_Kind(APP_TASK_MOUNT_MODEL));
+    (void)RS_Pending_Cancel(app->pending, RS_PendingScope_Kind(APP_TASK_MOUNT_ACTIVE_MODEL));
+    (void)RS_Pending_Cancel(app->pending, RS_PendingScope_Kind(APP_TASK_MOUNT_AVATAR));
 }
 
 void

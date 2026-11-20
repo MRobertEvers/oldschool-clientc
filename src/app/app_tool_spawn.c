@@ -105,5 +105,5 @@ app_world_spawn_player(
     int level)
 {
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_PLAYER, tile_x, tile_z, level);
-    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
+    app_spawn_task_add(app, task);
 }

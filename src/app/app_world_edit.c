@@ -21,7 +21,7 @@ app_world_spawn_npc(
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_NPC, tile_x, tile_z, level);
     task->npc_id =
         ToriRS_EnvNamedArgOrEnv(args, "id", "TORIRS_SPAWN_NPC", 3106 /* OSRS-era "Man" */);
-    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
+    app_spawn_task_add(app, task);
 }
 
 /* Hotkey 7: ground item on the hovered tile — the same App_WorldObjStackAdd
@@ -38,7 +38,7 @@ app_world_spawn_obj(
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_OBJ, tile_x, tile_z, level);
     task->obj_id = ToriRS_EnvNamedArgOrEnv(
         args, "id", "TORIRS_SPAWN_OBJ", 1265 /* bronze pickaxe: named, with ground ops */);
-    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
+    app_spawn_task_add(app, task);
 }
 
 /* Loc changes and merges are parallel tasks: app/app_tasks_locs.c. */
