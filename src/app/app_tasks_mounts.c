@@ -212,7 +212,7 @@ Task_MountVisuals_Run(
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
     if( self->visual.needs_player )
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider, app->assets));
 
     /* 2. A remount of the group, its close, or a logout cancelled it. */
     if( RS_ParallelTask_Cancelled(&self->par) )

@@ -359,7 +359,7 @@ Task_AppIfPlayerModel_Run(
      * Both are REQUIRED: the composition is what the next op starts from, so
      * this waits on the packet queue, in wire order. */
     if( self->op == APP_IFPLAYER_BODYTYPE )
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider, app->assets));
     else
         PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->arg0));
     app_if_player_model_compose(app, self->op, self->component_id, self->arg0, self->arg1);

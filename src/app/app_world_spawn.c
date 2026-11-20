@@ -1002,7 +1002,7 @@ Task_AppSpawn_Run(
 
     if( self->kind == APP_SPAWN_PLAYER )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider, app->assets));
         PT_TASK_AWAITSELF_IF(
             CreateTask_SequenceLoad(app->provider, app->scene, APP_PLAYER_SEQ_READY));
         app_world_spawn_player_now(app, self->tile_x, self->tile_z, self->level);

@@ -36,12 +36,22 @@ PlayerAppearance_ResolveDefaultMale(
     struct CacheProvider* provider,
     struct PlayerAppearance* out);
 
+struct Assets;
+
 /*
  * Async task: scan/load idk configs to discover the default male body kits, then
  * load every model referenced by those kits, so the synchronous compositor can
  * build the avatar without touching IO. WASM-safe (yields through CacheProvider).
+ *
+ * With `assets` (the client's table, engine/asset_requests.h) every kit config
+ * and model is read through it (CONFIG IDK, MODEL): one load per id in flight
+ * however many scans, player bodies and heads ask at once, and nothing for one
+ * that is resident. NULL: a caller with no table (an interface pack's assets,
+ * engine/uitree_builder/task_pack_assets_load.c) loads them itself.
  */
 struct ToriRS_Task*
-CreateTask_PlayerAppearanceLoad(struct CacheProvider* provider);
+CreateTask_PlayerAppearanceLoad(
+    struct CacheProvider* provider,
+    struct Assets* assets);
 
 #endif

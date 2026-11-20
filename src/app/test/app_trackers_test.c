@@ -16,6 +16,9 @@
  *     Task_ClientTriggerSubject queued in front of it.
  *   - The npc multi-resolve reads each rung's config through the assets table
  *     (ASSET_CONFIG_NPC): two resolves of one type load it once.
+ *   - The default kit scan (CreateTask_PlayerAppearanceLoad) reads every kit
+ *     config and model through the assets table: two scans at once read each
+ *     once, and the first config that does not come ends the scan.
  *   - The world map renderer (game/rs_worldmap_render.c) wants a region's
  *     tiles (ASSET_KIND_WORLDMAP_GEOGRAPHY), its floors (CONFIG UNDERLAY /
  *     FLOTYPE) and its locs (CONFIG LOC) from the assets table: one load per
@@ -32,6 +35,7 @@
 #include "asyncio.h"
 #include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
+#include "engine/player_appearance.h"
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_clientop.h"
 #include "game/task_cs2_run.h"
@@ -268,6 +272,40 @@ test_player_body_resident_wants_nothing(void)
     fixture_free(&fx);
 }
 
+/* ---- the default kit scan --------------------------------------------- */
+
+static void
+test_kit_scan_reads_through_the_table(void)
+{
+    struct Fixture fx;
+    struct ToriRS_Task* a;
+    struct ToriRS_Task* b;
+
+    printf("TEST: two default kit scans read each kit and model once\n");
+    fixture_init(&fx);
+    fx.provider.asset_queue = fx.app.frame_runner.queue;
+    a = CreateTask_PlayerAppearanceLoad(&fx.provider, fx.app.assets);
+    b = CreateTask_PlayerAppearanceLoad(&fx.provider, fx.app.assets);
+    ToriRS_TaskQueue_Add(fx.app.frame_runner.queue, a);
+    ToriRS_TaskQueue_Add(fx.app.frame_runner.queue, b);
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_CONFIG, 0, ASSET_CONFIG_IDK) == 1, "kit 0 is read once for two scans");
+    add_kit(&fx, 0, 70);
+    Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_CONFIG, 0, ASSET_CONFIG_IDK), true);
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_CONFIG, 1, ASSET_CONFIG_IDK) == 1, "then kit 1, once");
+    /* Kit 1 is past the end of the table: the scan ends there. */
+    Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_CONFIG, 1, ASSET_CONFIG_IDK), false);
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_CONFIG, 2, ASSET_CONFIG_IDK) == 0, "the first missing kit ends the scan");
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 70, 0) == 1, "the chosen kit's model is read once");
+    TEST_ASSERT(queued(&fx) == 2, "both scans wait for it");
+    Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 70, 0), true);
+    pump(&fx);
+    TEST_ASSERT(queued(&fx) == 0, "both ended");
+    fixture_free(&fx);
+}
+
 /* ---- the multinpc resolve through the table ---------------------------- */
 
 static void
@@ -477,6 +515,7 @@ main(void)
     test_player_body_is_one_listed_task();
     test_player_body_resident_wants_nothing();
     test_npc_resolve_reads_through_the_table();
+    test_kit_scan_reads_through_the_table();
     test_script_carries_its_subject();
     test_worldmap_wants_through_the_table();
     if( g_failures )

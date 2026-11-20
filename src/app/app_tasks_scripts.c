@@ -488,7 +488,7 @@ Task_ScriptPackModels_Run(
     PT_PARALLEL_AWAIT_ASSETS(app->assets);
     /* A player-design preview widget composes the default kit. */
     if( self->needs_player && !RS_ParallelTask_Cancelled(&self->par) )
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider, app->assets));
 
     /* A newer bake of the group replaced this one, or the group closed. */
     if( RS_ParallelTask_Cancelled(&self->par) )
