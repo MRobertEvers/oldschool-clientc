@@ -9035,7 +9035,7 @@ endif
 .PHONY: test-win32-platform
 ifneq ($(filter $(PLATFORM),win32 win64),)
 WIN32_PLATFORM_TEST_CFLAGS := -std=c11 -O2 -Wall -Wextra -g \
-	-DTORIRS_PERF_DISABLE=1 -I$(SRC_DIR) \
+	-DTORIRS_PERF_DISABLE=1 -I$(SRC_DIR) -I$(REPO_ROOT) -I$(BMP_DIR) \
 	$(PLATFORM_CFLAGS)
 WIN32_PLATFORM_TEST_LDFLAGS := -static -static-libgcc \
 	-lgdi32 -luser32 -lole32 -loleaut32 -luuid -lwinmm -lkernel32
@@ -9053,7 +9053,7 @@ test-win32-platform: $(OBJ_DIR)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) -DTORIRS_WIN32_GDI_TEST_API=1 \
 		-o $(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
 		platform/test/win32_gdi_test.c platform/platform_win32gdi.c \
-		platform/test/win32_browser_backend_fake.c \
+		platform/test/win32_browser_backend_fake.c $(BMP_DIR)/bmp.c \
 		platform/platform_win32_timing.c platform/platform_app_icon.c \
 		cmd/cmdbus.c cmd/cmdring.c \
 		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(WIN32_PLATFORM_TEST_LDFLAGS)
