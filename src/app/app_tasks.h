@@ -15,6 +15,7 @@
  */
 
 #include "app/app_parallel_task.h"
+#include "game/rs_loc_tasks.h"
 
 /* ---- app_tasks_ground.c: ground items and widget icons ------------------- */
 
@@ -120,79 +121,13 @@ App_WorldModelProjectileSpawn(
 /* ---- app_tasks_locs.c: loc changes, loc animations, merges, zone resets,
  *      zone packets for unbuilt views ----------------------------------- */
 
-/* What a loc change places, copied from its packet: the scene tile of its
- * view and the CACHE level (a loc packet's bridge climb, zone_loc_tile_at),
- * the loc (-1: a delete), its shape and angle, and the placement's own menu
- * (LOC_ADD_CHANGE_V2: the 5-bit shown mask, a replacement label per slot,
- * "" = the loctype's). */
-struct AppLocChange
-{
-    int x;
-    int z;
-    int level;
-    int loc_id;
-    int shape;
-    int angle;
-    int op_flags;
-    char ops[5][32];
-};
-
-/*
- * The sequence a PENDING change carries onto the loc it places -- the deob's
- * class69.field666 -- in place of the loctype's own `anim=`, written by a
- * LOC_ANIM for its tile and layer (App_WorldSceneryAnim). Two slots, because
- * the deob's one is written under a condition this client cannot judge until
- * the loc config has loaded: a LOC_ANIM that found nothing standing always
- * writes it, one that found a loc only when the NEW loctype defers
- * (`unfound_*` is the last of the first kind, `any_*` the last of either).
- * `take_*`: a LOC_ANIM read a server tick or more after the change, which the
- * rev-239 client had built by then and animated outright.
- */
-struct AppLocCarry
-{
-    int unfound_seq;
-    int unfound_set;
-    int any_seq;
-    int any_set;
-    int take_seq;
-    int take_set;
-};
-
-/* A loc change (LOC_ADD_CHANGE / LOC_DEL, a varp re-place, an editor edit):
- * one per view, tile, level and layer, the newest replacing the one before.
- * Its run function is app_tasks_locs.c's Task_LocChange_Run. */
-struct Task_LocChange
-{
-    struct ToriRS_Task task;
-    struct pt pt;
-    struct RS_ParallelTask par;
-    struct App* app;
-    struct AppLocChange change;
-    /* Its tile in absolute tiles, for a rebuild's carry-over. */
-    int abs_x;
-    int abs_z;
-    /* RS_ServerTick_Serial(&App.server_tick) when its packet was read. */
-    unsigned tick;
-    /* A change a packet made (LOC_ADD_CHANGE, LOC_DEL, a zone reset's
-     * restore, an editor edit), which the quest driver reads as a row before
-     * the scene shows it -- not a varp's, a merge's or a rebuild's re-place
-     * of what already stood. */
-    int drive_row;
-    /* Carried over a rebuild while it was pending (app_tasks_locs.c). */
-    int carried;
-    /* The chain: the record being loaded, how deep, what the change's own
-     * record says (its `anim=` and deferanimchange), and the sequence the
-     * resolved child plays. */
-    int resolved_id;
-    int resolve_depth;
-    int base_seq;
-    int defers_anim;
-    int seq_id;
-    struct AppLocCarry carry;
-};
+/* The loc change and the loc merge are the tasks both clients run
+ * (game/rs_loc_tasks.h: struct RS_LocChange, struct RS_LocCarry, struct
+ * Task_LocChange); this family unit is this client's host for them. */
 
 /* The change pending for view `view`'s tile, CACHE level and layer -- the
- * deob's pending spawn there (Statics.method5652) -- or NULL. */
+ * deob's pending spawn there (Statics.method5652) -- or NULL (also for a view
+ * that is not live). */
 struct Task_LocChange*
 app_loc_change_pending(
     struct App* app,
@@ -202,30 +137,32 @@ app_loc_change_pending(
     int level,
     int layer);
 
-/* A LOC_ANIM read while `pending` waits: hand it the sequence the way the deob
- * stores it on a pending spawn. `stood`: a loc stood on the layer and took the
- * sequence itself (app_world_scenery_anim_apply). */
-void
+/* The carried sequence (game/rs_loc_tasks.h RS_LocChange_Carry / _Take /
+ * _Carried), under the names this layer reads them by. */
+static inline void
 app_loc_change_carry(
     struct Task_LocChange* pending,
     int seq_id,
-    int stood);
+    int stood)
+{
+    RS_LocChange_Carry(pending, seq_id, stood);
+}
 
-/* A LOC_ANIM aimed at the loc `landed` places, which the deob has already
- * built (read in an earlier server tick): it starts on the sequence whatever
- * its loctype says. */
-void
+static inline void
 app_loc_change_take(
     struct Task_LocChange* landed,
-    int seq_id);
+    int seq_id)
+{
+    RS_LocChange_Take(landed, seq_id);
+}
 
-/* The sequence a change places its loc on instead of the loctype's `anim=`: a
- * taken one, else the carry the loctype's deferanimchange selects; 0 when it
- * has none. */
-int
+static inline int
 app_loc_change_carried(
     struct Task_LocChange const* task,
-    int* out_seq_id);
+    int* out_seq_id)
+{
+    return RS_LocChange_Carried(task, out_seq_id);
+}
 
 /* App_WorldLocChangeOps for a varp's re-place of a standing multiloc: a change
  * already pending for the tile and layer is newer and is kept. */

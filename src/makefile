@@ -997,7 +997,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_cs2_host.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_group_store.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/task_entity_assets.c game/rs_entity_sync.c game/rs_audio.c \
-	game/rs_entity_apply.c \
+	game/rs_entity_apply.c game/rs_loc_tasks.c \
 	game/entity_info_scratch.c \
 	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
 	game/rs_save_debounce.c \
