@@ -25,6 +25,10 @@ struct RSCache_Dat2ConfigDbTable;
 struct RSCache_WorldMapGeography;
 struct ToriRS_WorldMapRegionSource;
 
+/* The most sound renders in flight on the compute queue at once (one per
+ * distinct sound being loaded). */
+#define CACHE_PROVIDER_SOUND_RENDERS_MAX 256
+
 struct CacheProvider
 {
     // This MUST be the very first member of the struct.
@@ -162,6 +166,20 @@ struct CacheProvider
      * (task_dat1_component_pack_load.c, the decode). NULL until named.
      */
     struct ToriRS_TaskQueue* compute_queue;
+
+    /**
+     * The sound renders on `compute_queue`, by sound id, each while it is
+     * queued (CacheProvider_SoundRenderBegin / _End, from the dat1 and dat2
+     * sound loaders): what the owner of an effect's deadline finishes on the
+     * spot (CacheProvider_SoundRenderFinish) rather than let our own
+     * scheduling lose the effect. Full is an assert.
+     */
+    struct
+    {
+        int sound_id;
+        struct ToriRS_Task* task;
+    } sound_renders[CACHE_PROVIDER_SOUND_RENDERS_MAX];
+    int sound_render_count;
 
     /**
      * Told of every archive a CACHE_INVALIDATE evicts (CacheProvider_SetArchiveInvalidateHook):
@@ -1096,6 +1114,31 @@ CacheProvider_SoundHas(
 
 void
 CacheProvider_SoundsCleanup(struct CacheProvider* provider);
+
+/** A render of `sound_id` was queued on the compute queue as `task`. */
+void
+CacheProvider_SoundRenderBegin(
+    struct CacheProvider* provider,
+    int sound_id,
+    struct ToriRS_Task* task);
+
+/** `task` (a sound render) is leaving its queue, ended or freed. */
+void
+CacheProvider_SoundRenderEnd(
+    struct CacheProvider* provider,
+    struct ToriRS_Task* task);
+
+/*
+ * Finish the render of `sound_id` now, if one is queued: run it to its end
+ * outside any slice -- a job with a deadline finished by its owner (the frame
+ * contract, app.h). True when the sound is resident afterwards. For the audio
+ * tick, at the last tick an effect may still be played: its clip's record is
+ * here and only our render of it is late.
+ */
+bool
+CacheProvider_SoundRenderFinish(
+    struct CacheProvider* provider,
+    int sound_id);
 
 void
 CacheProvider_IdkAdd(

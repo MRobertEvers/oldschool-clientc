@@ -334,6 +334,11 @@ ToriRS_Pacer_BeginFrame(struct ToriRS_Pacer* pacer, uint64_t now_ms)
         return now_ms;
     }
 
+    /* A stall (TORIRS_PACER_STALL_MS) starts the estimator afresh. */
+    if( pacer->seeded && now_ms > pacer->last_begin_ms && now_ms - pacer->last_begin_ms > TORIRS_PACER_STALL_MS )
+        pacer->seeded = 0;
+    pacer->last_begin_ms = now_ms;
+
     if( !pacer->seeded )
     {
         /* The reference fills the ring with `now` before entering the loop, so

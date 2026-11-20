@@ -39,6 +39,7 @@
 #include "replay/replay_viewer.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_window.h"
+#include "platform/surface_plan.h"
 #if !defined(TORIRS_PLATFORM_WEB)
 #include "platform/platform_x_io_js5.h"
 #include "platform/platform_x_io_js5_cache.h"
@@ -2180,6 +2181,45 @@ renderer_switch(enum ToriRS_RendererKind kind)
 }
 
 /*
+ * The surface is back after frames that had none, and the running renderer is
+ * retained: it missed the scene's events those frames spent
+ * (ToriRS_SurfacePlan_Frame). Restart it as itself and replay every load the
+ * scene holds into it, as a switch to it would -- before it draws, so the
+ * first frame back draws a scene it is level with. Soft3D if it will not
+ * start again.
+ */
+static void
+renderer_rebake(int frames_without)
+{
+    enum ToriRS_RendererKind const kind = renderer_active;
+    uint64_t const begin_ms = PlatformWindow_Ticks64();
+
+    assert(!renderer_is_software(kind));
+    renderer_stop();
+    ToriDraw_SceneStageBatchForget(app.scene);
+    if( !renderer_bring_up(kind) )
+    {
+        bool const software = renderer_bring_up(TORIRS_RENDERER_KIND_SOFTWARE);
+        assert(software);
+        (void)software;
+        renderer_active = TORIRS_RENDERER_KIND_SOFTWARE;
+    }
+    ToriDraw_SceneFrameEnd(app.scene);
+    if( !renderer_is_software(renderer_active) )
+        ToriDraw_SceneReemitRendererLoads(app.scene);
+    TORIRS_REPORT(
+        "renderer: %d re-baked as %d after %d frame(s) with no surface, in %llu ms\n",
+        (int)kind,
+        (int)renderer_active,
+        frames_without,
+        (unsigned long long)(PlatformWindow_Ticks64() - begin_ms));
+}
+
+/* What each frame does with no surface, and the re-bake owed when it returns
+ * (platform/surface_plan.h). */
+static struct ToriRS_SurfacePlan main_surface_plan;
+
+/*
  * Between two frames: start the renderer Client Settings asks for, if it is
  * not the one running.
  */
@@ -4218,10 +4258,10 @@ main_hidden_skip_draw(
  * recreated). Called once a frame, before the draw decision spends anything.
  * TORIRS_QUEUE_CONTRACT_TRACE prints, when the surface comes back, how many
  * frames ran without one, how many of them spent the scene's queue as a
- * skipped Soft3D frame does, and the most scene events the queue held: on a
- * retained (GLES) lane nothing spends it, so that number is how close the
- * queue came to its cap (TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE), past which
- * td_scene_emit drops events.
+ * skipped frame does (all of them, on every lane: platform/surface_plan.h),
+ * and the most scene events the queue held: how close the queue came to its
+ * cap (TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE), past which td_scene_emit drops
+ * events.
  */
 static void
 main_surfaceless_trace(
@@ -6649,18 +6689,26 @@ frame_loop_step(void)
         if( hidden_skip )
             app_redraw = 0;
         /*
-         * No surface, on Soft3D: spend the scene's load-event queue and the
-         * models held for this frame's poses (ToriDraw_SceneFrameEnd below),
-         * exactly as a skipped frame does. Without it nothing spends them
-         * until a surface returns: the queue fills to its cap and every event
-         * after it is dropped -- among them the sound loads audio reads from
-         * it on the tick. Soft3D reads the scene itself, so nothing it would
-         * draw is lost, and a frame with a surface never reaches this. A
-         * retained lane (GLES2/GLES3) keeps its queue: those events are the
-         * only way it learns the scene (left for the owner, see
-         * main_surfaceless_trace).
+         * No surface: nothing is drawn, and the scene's load-event queue and
+         * the models held for this frame's poses are spent
+         * (ToriDraw_SceneFrameEnd below), exactly as a skipped frame does, on
+         * every lane. Without it nothing spent them until a surface returned:
+         * the queue filled to its cap and every event after it was dropped --
+         * among them the sound loads audio reads from it on the tick. A
+         * retained lane (GLES2/GLES3) learns the scene only from those
+         * events, so it is re-baked when the surface comes back, before it
+         * draws (platform/surface_plan.h, renderer_rebake).
          */
-        surfaceless_spend = surfaceless && !retained && !app_redraw;
+        /* Read before the frame's decision, which restarts the count. */
+        int const frames_without = main_surface_plan.frames_without;
+        struct ToriRS_SurfaceFrame const surface_frame =
+            ToriRS_SurfacePlan_Frame(&main_surface_plan, !surfaceless, retained, app_redraw);
+
+        if( !surface_frame.draw )
+            app_redraw = 0;
+        surfaceless_spend = surface_frame.spend;
+        if( surface_frame.rebake )
+            renderer_rebake(frames_without);
     }
     main_surfaceless_trace(surfaceless, surfaceless_spend);
     /* The runner camera split: the offscreen runner frame a driver push owed

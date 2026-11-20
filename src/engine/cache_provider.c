@@ -1,5 +1,6 @@
 #include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
+#include "asyncio.h"
 
 #include "cs2vm2/cs2vm2_script.h"
 #include "engine/torirs_db.h"
@@ -2993,6 +2994,62 @@ CacheProvider_SoundHas(
     int sound_id)
 {
     return CacheProvider_SoundGet(provider, sound_id) != NULL;
+}
+
+void
+CacheProvider_SoundRenderBegin(
+    struct CacheProvider* provider,
+    int sound_id,
+    struct ToriRS_Task* task)
+{
+    assert(provider);
+    assert(task);
+    assert(provider->sound_render_count < CACHE_PROVIDER_SOUND_RENDERS_MAX);
+    provider->sound_renders[provider->sound_render_count].sound_id = sound_id;
+    provider->sound_renders[provider->sound_render_count].task = task;
+    provider->sound_render_count++;
+}
+
+void
+CacheProvider_SoundRenderEnd(
+    struct CacheProvider* provider,
+    struct ToriRS_Task* task)
+{
+    assert(provider);
+    assert(task);
+    for( int i = 0; i < provider->sound_render_count; i++ )
+    {
+        if( provider->sound_renders[i].task != task )
+            continue;
+        provider->sound_renders[i] = provider->sound_renders[--provider->sound_render_count];
+        return;
+    }
+}
+
+bool
+CacheProvider_SoundRenderFinish(
+    struct CacheProvider* provider,
+    int sound_id)
+{
+    struct ToriRS_Task* task = NULL;
+    struct ToriRS_IOBatch* io;
+
+    assert(provider);
+    for( int i = 0; i < provider->sound_render_count && !task; i++ )
+        if( provider->sound_renders[i].sound_id == sound_id )
+            task = provider->sound_renders[i].task;
+    if( !task )
+        return CacheProvider_SoundHas(provider, sound_id);
+    assert(provider->compute_queue);
+    assert(!task->parked);
+    /* A batch of its own with no slice: TASK_YIELD_IF_SPENT never stops it,
+     * so one run is the whole render, its end included (the queue frees it,
+     * and its loader's join wakes the loader). */
+    io = ToriRS_IOBatch_New();
+    while( ToriRS_TaskQueue_RunTask(provider->compute_queue, io, task) != TORIRS_ASYNCIO_STAT_DONE )
+        ToriRS_IOBatch_Reset(io);
+    ToriRS_IOBatch_Free(io);
+    return CacheProvider_SoundHas(provider, sound_id);
 }
 
 void

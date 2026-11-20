@@ -1,4 +1,5 @@
 #include "platform/platform_win32_timing.h"
+#include "platform/sleep_plan.h"
 
 #include <windows.h>
 #include <mmsystem.h>
@@ -185,36 +186,81 @@ request_fine_timer_period(void)
     }
 }
 
+/*
+ * The high-resolution waitable timer (platform/sleep_plan.h): resolved at run
+ * time, because CreateWaitableTimerExW is Vista and later and its
+ * high-resolution flag Windows 10 1803 and later -- an older system refuses
+ * the flag and the lane keeps the Sleep plan. One timer, made on the first
+ * sleep and kept for the process (the loop sleeps every frame).
+ */
+typedef HANDLE(WINAPI* Win32CreateWaitableTimerExWFn)(LPSECURITY_ATTRIBUTES, LPCWSTR, DWORD, DWORD);
+#define WIN32_TIMING_TIMER_HIGH_RESOLUTION 0x00000002u
+#define WIN32_TIMING_TIMER_ALL_ACCESS 0x001F0003u
+
+static struct
+{
+    int resolved;
+    HANDLE timer;
+} precise;
+
+static void
+precise_timer_resolve(void)
+{
+    HMODULE kernel;
+    Win32CreateWaitableTimerExWFn create;
+
+    precise.resolved = 1;
+    kernel = GetModuleHandleA("kernel32.dll");
+    if( !kernel )
+        return;
+    create = (Win32CreateWaitableTimerExWFn)(void (*)(void))GetProcAddress(kernel, "CreateWaitableTimerExW");
+    if( !create )
+        return;
+    precise.timer = create(NULL, NULL, WIN32_TIMING_TIMER_HIGH_RESOLUTION, WIN32_TIMING_TIMER_ALL_ACCESS);
+}
+
+/* Wait `us` microseconds on the precise timer. False if the wait could not
+ * be armed (the caller falls back to the Sleep plan for good). */
+static int
+precise_timer_wait(uint64_t us)
+{
+    LARGE_INTEGER due;
+
+    /* Negative: relative, in 100 ns units. */
+    due.QuadPart = -(LONGLONG)(us * 10u);
+    if( !SetWaitableTimer(precise.timer, &due, 0, NULL, NULL, FALSE) )
+        return 0;
+    return WaitForSingleObject(precise.timer, INFINITE) == WAIT_OBJECT_0;
+}
+
 void
 PlatformWin32Timing_SleepUntilMs(uint64_t deadline_ms)
 {
     if( timing.references == 0 )
         PlatformWin32Timing_Init();
     request_fine_timer_period();
+    if( !precise.resolved )
+        precise_timer_resolve();
     for( ;; )
     {
-        uint64_t now = PlatformWin32Timing_NowMs();
-        uint64_t remaining;
-        DWORD delay;
+        struct ToriRS_SleepStep const step =
+            ToriRS_SleepPlan_Next(PlatformWin32Timing_NowUs(), deadline_ms, precise.timer != NULL);
 
-        if( now >= deadline_ms )
+        if( step.kind == TORIRS_SLEEP_STEP_DONE )
             return;
-        remaining = deadline_ms - now;
-        /* Leave the final millisecond to a zero-duration yield/recheck. Even
-         * with timeBeginPeriod(1), Sleep(N) commonly returns around N+1 ms;
-         * sleeping the full residual turns a 50 fps deadline into ~46 fps. */
-        if( remaining > 1 )
+        if( step.kind == TORIRS_SLEEP_STEP_TIMER_US )
         {
-            remaining--;
-            delay = remaining >= (uint64_t)INFINITE ? INFINITE - 1u : (DWORD)remaining;
+            if( precise_timer_wait(step.amount) )
+                continue;
+            CloseHandle(precise.timer);
+            precise.timer = NULL;
+            continue;
         }
-        else
-        {
-            delay = 0;
-        }
-        Sleep(delay);
         /* Sleep may return early. Re-read the monotonic clock rather than
          * letting a short wait make the client run above its 50 fps cap. */
+        Sleep(step.kind == TORIRS_SLEEP_STEP_SLEEP_MS
+                  ? (step.amount >= (uint64_t)INFINITE ? INFINITE - 1u : (DWORD)step.amount)
+                  : 0u);
     }
 }
 

@@ -14,6 +14,11 @@
  *   - U9: TRIGGER_ONDIALOGABORT's listeners run on the PACKET queue, behind
  *     the RUNCLIENTSCRIPTs the tick held before it, not on the parallel queue
  *     where later packets overtook them.
+ *   - G1: a burst of keys typed in one frame queues one onKey script per key,
+ *     and the first of them waits on a read the line's script calls into.
+ *     Each script must see the line the one before it wrote, as the
+ *     reference runs them -- one at a time, in order -- so the line holds
+ *     every key, not only the last.
  *   - A client script waiting on a required read through the assets table
  *     that is freed first is forgotten by the table, so the load's end writes
  *     nothing into the freed task. One whose active component is freed while
@@ -39,6 +44,7 @@
 #include "net/rev/revpacket.h"
 #include "ui/uitree.h"
 #include "ui/uitree_hook.h"
+#include "varc/varc_manager.h"
 #include "world/world.h"
 
 #include <stdio.h>
@@ -578,6 +584,119 @@ test_a_script_gone_mid_read_is_forgotten(void)
     }
 }
 
+
+/* ---- G1: a typed burst's scripts run one at a time, in order ------------- */
+
+#define LINE_VARC 335
+#define LINE_CALLEE 99980
+
+/* One pass of the parallel queue as TaskRunner_Step walks it: every task that
+ * is not waiting on a read or parked gets one step. */
+static int
+parallel_pass(
+    struct ToriRS_TaskQueue* queue,
+    struct ToriRS_IOBatch* io)
+{
+    struct ToriRS_Task* task;
+    struct ToriRS_Task* next;
+    int ran = 0;
+
+    for( task = queue->head; task; task = next )
+    {
+        next = task->next;
+        if( task->io.pending || task->parked )
+            continue;
+        ToriRS_IOBatch_Reset(io);
+        (void)ToriRS_TaskQueue_RunTask(queue, io, task);
+        ran++;
+    }
+    return ran;
+}
+
+static void
+test_a_typed_burst_keeps_every_key(void)
+{
+    /* chatdefault_onkey's shape (clientscript 73): read the line, call a
+     * proc, write the line plus the key. The proc is not resident the first
+     * time anything is typed, so the first key's script waits for it with
+     * the line it read already on its stack. */
+    static char const keys[] = "abcd";
+    uint16_t ops[] = { CS2_OP_PUSH_VARC_STRING, CS2_OP_GOSUB_WITH_PARAMS, CS2_OP_PUSH_CONSTANT_STRING,
+                       CS2_OP_JOIN_STRING, CS2_OP_POP_VARC_STRING, CS2_OP_RETURN };
+    struct AssetKey callee = AssetKey_Make(ASSET_KIND_CONFIG, LINE_CALLEE, ASSET_CONFIG_SCRIPT);
+    uint16_t callee_ops[] = { CS2_OP_RETURN };
+    int callee_operands[] = { 0 };
+    char* callee_strings[] = { NULL };
+    struct CS2VM2_Script callee_src = { .script_id = LINE_CALLEE, .op_count = 1,
+                                        .opcodes = callee_ops, .int_operands = callee_operands,
+                                        .string_operands = callee_strings };
+    struct CS2VM2_Script* cached;
+    struct VarCManager varcs;
+    struct Fixture fx;
+    char key_text[sizeof(keys)][2];
+    int operands[sizeof(keys)][6];
+    char* strings[sizeof(keys)][6];
+    struct CS2VM2_Script scripts[sizeof(keys)];
+    int passes = 0;
+
+    printf("TEST: a burst of keys typed in one frame keeps every key (G1)\n");
+    fixture_init(&fx);
+    fx.app->host.assets = fx.app->assets;
+    fx.app->frame_runner.parallel = 1;
+    VarCManager_Init(&varcs);
+    fx.app->host.varcs = &varcs;
+
+    for( int k = 0; k < (int)sizeof(keys) - 1; k++ )
+    {
+        struct ToriRS_Task* task;
+
+        key_text[k][0] = keys[k];
+        key_text[k][1] = '\0';
+        operands[k][0] = LINE_VARC;
+        operands[k][1] = LINE_CALLEE;
+        operands[k][2] = 0;
+        operands[k][3] = 2;
+        operands[k][4] = LINE_VARC;
+        operands[k][5] = 0;
+        for( int i = 0; i < 6; i++ )
+            strings[k][i] = NULL;
+        strings[k][2] = key_text[k];
+        memset(&scripts[k], 0, sizeof(scripts[k]));
+        scripts[k].script_id = 99981 + k;
+        scripts[k].op_count = 6;
+        scripts[k].opcodes = ops;
+        scripts[k].int_operands = operands[k];
+        scripts[k].string_operands = strings[k];
+        scripts[k].str_stack_depth = 2;
+        task = CreateTask_CS2RunScript(&fx.app->host, &scripts[k], -1, -1, NULL, 0);
+        /* How the key broadcast queues each one (RS_CS2_DispatchHook). */
+        TaskRunner_AddRenderBlockingSerialTask(&fx.app->frame_runner, task);
+    }
+
+    /* The frame's pump: the first script stops for the proc. */
+    (void)parallel_pass(fx.app->frame_runner.queue, fx.io);
+    CHECK(Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG) >= 1, "nothing waits on the proc");
+
+    /* The proc lands. */
+    cached = ToriMem_Alloc(ToriMem_Script(), sizeof(*cached));
+    CS2VM2_ScriptInit(cached);
+    CHECK(CS2VM2_ScriptCopy(&callee_src, cached), "copy the proc");
+    CacheProvider_ClientScriptAdd(fx.app->provider, LINE_CALLEE, cached);
+    Assets_Finished(fx.app->assets, callee, true);
+
+    while( fx.app->frame_runner.queue->head && passes++ < 32 )
+        (void)parallel_pass(fx.app->frame_runner.queue, fx.io);
+
+    CHECK(!fx.app->frame_runner.queue->head, "scripts left after %d passes", passes);
+    CHECK(strcmp(VarCManager_GetString(&varcs, LINE_VARC), "abcd") == 0,
+        "the typed line is \"%s\", not \"abcd\": a later key's script ran while an earlier one "
+        "waited and wrote over it",
+        VarCManager_GetString(&varcs, LINE_VARC));
+    fx.app->host.varcs = NULL;
+    VarCManager_Free(&varcs);
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -590,6 +709,7 @@ main(void)
     test_dialog_abort_runs_on_the_packet_queue();
     test_a_script_gone_mid_read_is_forgotten();
     test_a_clear_outlives_an_obj_model();
+    test_a_typed_burst_keeps_every_key();
 
     if( g_failures )
     {

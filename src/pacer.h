@@ -41,6 +41,19 @@ enum
 {
     /* GameShell's ring length. Its rate estimate therefore lags ten frames. */
     TORIRS_PACER_OTIM_COUNT = 10,
+    /*
+     * A loop that was not called for this long (a modal resize or move on
+     * Windows, a frozen app, a debugger) has STALLED; it was not running
+     * slowly. The GameShell estimator, which measures the last ten
+     * iterations, would read the stall as a rate of ten iterations that ran
+     * behind and pay it back at its catch-up ceiling for ten iterations --
+     * forty cycles of a two-second stall replayed at five a frame. The App
+     * already drops a stall past its catch-up bound (FrameClockStep_Pay: "a
+     * stall costs the movers and the cycles the same"; at most 5 cycles paid);
+     * the pacer re-seeds, as the reference does when its loop starts, so the
+     * stall is not paid again over the frames after it.
+     */
+    TORIRS_PACER_STALL_MS = 1000,
 
     /*
      * The draw budget to fall back to when the base one cannot be met: 33 ms,
@@ -99,6 +112,9 @@ struct ToriRS_Pacer
     int count;
     uint64_t logic_ms;
     int seeded;
+    /** When the last iteration began (BeginFrame): a gap past
+     *  TORIRS_PACER_STALL_MS since it is a stall, not a rate. */
+    uint64_t last_begin_ms;
 
     int last_logic_ticks;
 

@@ -50,6 +50,14 @@ PlatformWindow_ThreadCpuUs(void);
  * loop moves it with no change of its own. */
 #define APP_BACKGROUND_FLOOR_US 2000u
 
+/* The background unit limit (TaskRunner::unit_limit_us) as a multiple of the
+ * floor slice: a task may do at most this many floors' worth of processor
+ * time between two asks of "is the slice over?", because that is how far it
+ * can carry the floor's guaranteed step past its deadline. Two floors: 4 ms,
+ * the parallel compute check's threshold, so neither queue may hide more than
+ * a fifth of a 20 ms frame in one piece of work. */
+#define APP_BACKGROUND_UNIT_FACTOR 2u
+
 /* What the floor spends freeing a swapped-out scene's models per frame. */
 #define APP_GRAVEYARD_SLICE_US 500u
 
@@ -271,6 +279,9 @@ app_background_runner_init(struct App* app)
     /* What a parallel step costs is read on the stepping thread's processor
      * clock (the lane table above). */
     TaskRunner_SetCostClock(&app->frame_runner, PlatformWindow_ThreadCpuUs);
+    /* And what a background unit costs, on the same clock. */
+    TaskRunner_SetCostClock(&app->background_runner, PlatformWindow_ThreadCpuUs);
+    app->background_runner.unit_limit_us = APP_BACKGROUND_UNIT_FACTOR * APP_BACKGROUND_FLOOR_US;
     RebuildPace_Reset(&app->pace);
     WorldRebuildJob_Reset(&app->world_job);
     RebuildFrameStats_Reset(&app->rebuild_frames);
@@ -1370,16 +1381,32 @@ static void
 app_background_step_report(struct App* app)
 {
     static uint64_t reported_us;
+    static uint64_t reported_unit_us;
 
     assert(app);
-    if( !TaskRunner_ContractTrace() || app->background_runner.longest_step_us <= reported_us )
+    if( !TaskRunner_ContractTrace() )
         return;
-    reported_us = app->background_runner.longest_step_us;
-    fprintf(
-        stderr,
-        "queue_contract: trace background longest step %.2f ms (%s)\n",
-        (double)reported_us / 1000.0,
-        app->background_runner.longest_step_name[0] ? app->background_runner.longest_step_name : "(unnamed)");
+    if( app->background_runner.longest_step_us > reported_us )
+    {
+        reported_us = app->background_runner.longest_step_us;
+        fprintf(
+            stderr,
+            "queue_contract: trace background longest step %.2f ms (%s)\n",
+            (double)reported_us / 1000.0,
+            app->background_runner.longest_step_name[0] ? app->background_runner.longest_step_name : "(unnamed)");
+    }
+    /* A step runs until its slice is over -- the floor's, or the loop's whole
+     * slack -- so its length is the slice's. The UNIT is what can overrun a
+     * slice: the work between two asks (TaskRunner::unit_limit_us). */
+    if( app->background_runner.longest_unit_us > reported_unit_us )
+    {
+        reported_unit_us = app->background_runner.longest_unit_us;
+        fprintf(
+            stderr,
+            "queue_contract: trace background longest unit %.2f ms (%s)\n",
+            (double)reported_unit_us / 1000.0,
+            app->background_runner.longest_unit_name[0] ? app->background_runner.longest_unit_name : "(unnamed)");
+    }
 }
 
 void

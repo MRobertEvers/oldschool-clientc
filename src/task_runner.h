@@ -121,6 +121,20 @@ struct TaskRunner
     char longest_step_name[32];
     char compute_named[16][32];
     int compute_named_count;
+    /** The background queue's unit limit: the most processor time a task
+     *  may spend between two asks of "is the slice over?"
+     *  (TASK_YIELD_IF_SPENT), which is the most a sliced pass can overrun
+     *  its deadline by. A unit over it is named once per name, and aborts
+     *  under TORIRS_QUEUE_CONTRACT_STRICT, as the parallel compute check
+     *  does. Read on `cost_now_us` (TaskRunner_SetCostClock: a runner
+     *  without one is not metered), on sliced passes only; 0: off.
+     *  TORIRS_QUEUE_CONTRACT_UNIT_MS overrides it (0: off). */
+    uint64_t unit_limit_us;
+    /** The longest unit run on this queue so far, and whose. */
+    uint64_t longest_unit_us;
+    char longest_unit_name[32];
+    char unit_named[16][32];
+    int unit_named_count;
 };
 
 /* Which queue a runner is. 0 (none) is a runner of a test or a private
@@ -188,6 +202,26 @@ TaskRunner_ContractStrict(void)
         strict = (env && env[0] && env[0] != '0') ? 1 : 0;
     }
     return strict;
+}
+
+/* TORIRS_QUEUE_CONTRACT_UNIT_MS: the background unit limit in force for a
+ * runner whose own is `runner_us` (TaskRunner::unit_limit_us). Unset: the
+ * runner's; set: that many milliseconds for every runner, 0 turning the check
+ * off. */
+static inline uint64_t
+TaskRunner_ContractUnitUs(uint64_t runner_us)
+{
+    static int read;
+    static int set;
+    static uint64_t env_us;
+    if( !read )
+    {
+        char const* env = getenv("TORIRS_QUEUE_CONTRACT_UNIT_MS");
+        read = 1;
+        set = env && env[0];
+        env_us = set ? (uint64_t)(atof(env) * 1000.0) : 0;
+    }
+    return set ? env_us : runner_us;
 }
 
 static inline int
@@ -462,17 +496,40 @@ ToriRS_TaskJob_Done(struct ToriRS_TaskJob const* job)
  * On the asset runner that is every script, hook and transmit painter
  * (game/rs_cs2_dispatch.c). On the packet queue it is every packet: an
  * ordered application IS a transaction, so app_net.c adds with this too.
+ *
+ * SERIAL among themselves, on the parallel queue too: a script waits its turn
+ * behind the script queued before it (parked on that task's `ended`, a TURN
+ * wait) and is not stepped until it has ended. The reference runs client
+ * scripts one at a time, to their end, in the order they were raised; here a
+ * script may stop for a required read, and on an overlapping queue the ones
+ * behind it then ran from what it had read and not yet written. A burst of
+ * keys typed in one frame queues one onKey script per key, the first of
+ * which stops for the chat line's procs the first time anything is typed:
+ * each read the empty line, and the line kept only the last key (G1, web and
+ * native alike). Ordinary tasks still overlap with the scripts and with each
+ * other: only render-blocking tasks form this lane.
  */
 static inline void
 TaskRunner_AddRenderBlockingSerialTask(
     struct TaskRunner* runner,
     struct ToriRS_Task* task)
 {
+    struct ToriRS_Task* ahead;
+
     assert(runner);
     assert(task);
     task->render_blocking = 1;
+    ahead = runner->queue->serial_tail;
     ToriRS_TaskQueue_Add(runner->queue, task);
+    runner->queue->serial_tail = task;
     runner->frame_settle_pending = 1;
+    /* A strict-FIFO queue never steps past its head, so only an overlapping
+     * one needs the wait made. */
+    if( runner->parallel && ahead )
+    {
+        ToriRS_TaskAskTrigger(task, TORIRS_TASK_WAIT_TURN, &ahead->ended);
+        ToriRS_TaskPark(task);
+    }
 }
 
 /* Has a task on this queue asked for a frame that has not been shown yet?
@@ -676,6 +733,61 @@ TaskRunner_PumpBegin(struct TaskRunner* runner)
  * is every pass of the main and the parallel queue, reads no clock for any
  * of this.
  */
+/*
+ * The step just run on a metered (background, sliced) pass: its longest
+ * unit, the work between two asks of "is the slice over?", against the limit.
+ * A unit is what a sliced pass can overrun its deadline by -- the guaranteed
+ * turn of a pass whose slice is already over (the floor's special case: the
+ * step runs whatever the clock says) runs one unit, and asks; a pass with
+ * time left runs units until an ask finds it over. So a unit over the limit
+ * is a task that cannot keep to a slice, however short the slice is made.
+ */
+static inline void
+TaskRunner_UnitCheck(
+    struct TaskRunner* runner,
+    char const* name)
+{
+    uint64_t unit;
+    uint64_t limit_us;
+    char line[256];
+    int seen = 0;
+
+    assert(runner);
+    assert(name);
+    assert(runner->io->slice.unit_cost_us);
+    ToriRS_SliceUnitEnd(&runner->io->slice);
+    unit = runner->io->slice.unit_longest;
+    if( unit > runner->longest_unit_us )
+    {
+        runner->longest_unit_us = unit;
+        memcpy(runner->longest_unit_name, name, sizeof(runner->longest_unit_name));
+        runner->longest_unit_name[sizeof(runner->longest_unit_name) - 1] = '\0';
+    }
+    limit_us = TaskRunner_ContractUnitUs(runner->unit_limit_us);
+    if( limit_us == 0 || unit <= limit_us )
+        return;
+    for( int i = 0; i < runner->unit_named_count; i++ )
+        if( strcmp(runner->unit_named[i], name) == 0 )
+            seen = 1;
+    if( seen )
+        return;
+    if( runner->unit_named_count < (int)(sizeof(runner->unit_named) / sizeof(runner->unit_named[0])) )
+    {
+        memcpy(runner->unit_named[runner->unit_named_count], name, sizeof(runner->unit_named[0]));
+        runner->unit_named[runner->unit_named_count][sizeof(runner->unit_named[0]) - 1] = '\0';
+        runner->unit_named_count++;
+    }
+    snprintf(
+        line,
+        sizeof(line),
+        "background task %s ran %.2f ms between two slice checks (its cost clock; limit %.2f ms): it "
+        "overruns any slice by that much, so its work must be cut into smaller steps",
+        name[0] ? name : "(unnamed)",
+        (double)unit / 1000.0,
+        (double)limit_us / 1000.0);
+    TaskRunner_ContractBreach(line);
+}
+
 static inline enum TaskRunnerStat
 TaskRunner_Step(struct TaskRunner* runner)
 {
@@ -688,6 +800,8 @@ TaskRunner_Step(struct TaskRunner* runner)
     int spent = 0;
     int timed;
     int measure;
+    int metered;
+    char unit_name[sizeof(((struct ToriRS_Task*)0)->name)];
 
     assert(runner);
     assert(runner->queue);
@@ -696,6 +810,11 @@ TaskRunner_Step(struct TaskRunner* runner)
     timed = runner->io->slice.deadline_us != 0;
     measure = runner->io->slice.now_us &&
               (runner->slow_task_us || runner->compute_step_us || runner->role == TASK_RUNNER_ROLE_BACKGROUND);
+    /* The unit meter: on the background queue's sliced passes only. A pass
+     * with no deadline is an owner running a job to its end, which no slice
+     * bounds. */
+    metered = runner->role == TASK_RUNNER_ROLE_BACKGROUND && timed && runner->io->slice.sliced &&
+              runner->cost_now_us && TaskRunner_ContractUnitUs(runner->unit_limit_us) != 0;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_STEPS, 1);
     TaskRunnerTelemetry_Pass(&runner->telemetry);
 
@@ -767,6 +886,13 @@ TaskRunner_Step(struct TaskRunner* runner)
             runs++;
             task->turn = runner->pump;
             runner->io->slice.grace = timed && runner->parallel && !had_turn;
+            if( metered )
+            {
+                memcpy(unit_name, task->name, sizeof(unit_name));
+                runner->io->slice.unit_cost_us = runner->cost_now_us;
+                runner->io->slice.unit_mark = runner->io->slice.unit_cost_us();
+                runner->io->slice.unit_longest = 0;
+            }
             if( measure )
             {
                 /* The name is copied first: a task that ends is freed by its run. */
@@ -819,6 +945,8 @@ TaskRunner_Step(struct TaskRunner* runner)
             else
                 stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
             runner->io->slice.grace = 0;
+            if( metered )
+                TaskRunner_UnitCheck(runner, unit_name);
             if( stat == TORIRS_ASYNCIO_STAT_DONE )
             {
                 /* Freed; the successor taken before it ran stands. */
@@ -865,6 +993,7 @@ TaskRunner_Step(struct TaskRunner* runner)
         }
     }
     runner->stepping--;
+    runner->io->slice.unit_cost_us = NULL;
 
     TaskRunnerTelemetry_PassEnd(&runner->telemetry, runner->io->active_count, ran, waiting);
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
