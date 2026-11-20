@@ -101,8 +101,14 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
             ToriMem_Calloc(ToriMem_ServerPlayers(), 1, rev->player_info_state_size());
         assert(core->player_decoder_state);
     }
-    core->shadow = ScriptrunShadow_New(
-        getenv("TORIRS_SCRIPTRUN_SHADOW"), rev->number, &core->world->cycle, core_pkt_name);
+    {
+        /* Unset or empty: no shadow. */
+        char const* shadow_path = getenv("TORIRS_SCRIPTRUN_SHADOW");
+
+        if( shadow_path && shadow_path[0] )
+            core->shadow = ScriptrunShadow_New(
+                shadow_path, rev->number, &core->world->cycle, core_pkt_name);
+    }
     return core;
 }
 

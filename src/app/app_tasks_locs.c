@@ -587,7 +587,8 @@ app_loc_change_pending(
     struct Task_LocChange* task;
 
     assert(app);
-    if( !app->pending || !WorldviewRegistry_IsLive(&app->worldviews, view) )
+    assert(app->pending);
+    if( !WorldviewRegistry_IsLive(&app->worldviews, view) )
         return NULL;
     par = RS_Pending_Find(
         app->pending,

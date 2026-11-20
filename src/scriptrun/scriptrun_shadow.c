@@ -495,8 +495,10 @@ ScriptrunShadow_New(
     struct ScriptrunShadow* sh;
     struct RS_EventSink sink;
 
-    if( !path || !path[0] )
-        return NULL;
+    /* Whether there is a shadow is the caller's (TORIRS_SCRIPTRUN_SHADOW
+     * set and not empty, scriptrun_core.c). */
+    assert(path);
+    assert(path[0] != '\0');
     assert(cycle);
     sh = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*sh));
     assert(sh);
@@ -705,17 +707,16 @@ event_cell(
     char* buf,
     size_t cap)
 {
-    if( !ev )
-        snprintf(buf, cap, "-");
-    else
-        snprintf(buf,
-            cap,
-            "%s %d,%d,%d,%d",
-            RS_EventKindName(ev->kind),
-            (int)ev->a,
-            (int)ev->b,
-            (int)ev->c,
-            (int)ev->d);
+    assert(ev);
+    assert(buf);
+    snprintf(buf,
+        cap,
+        "%s %d,%d,%d,%d",
+        RS_EventKindName(ev->kind),
+        (int)ev->a,
+        (int)ev->b,
+        (int)ev->c,
+        (int)ev->d);
 }
 
 /* One step of an alignment: both sides hold the element (match), or only the
@@ -839,8 +840,15 @@ event_emit(
     char ob[96];
     char sb[96];
 
-    event_cell(o, ob, sizeof(ob));
-    event_cell(s, sb, sizeof(sb));
+    /* A side with no event at this row reads "-". */
+    if( o )
+        event_cell(o, ob, sizeof(ob));
+    else
+        snprintf(ob, sizeof(ob), "-");
+    if( s )
+        event_cell(s, sb, sizeof(sb));
+    else
+        snprintf(sb, sizeof(sb), "-");
     shadow_packet_diff(e->sh,
         e->core,
         SCRIPTRUN_SHADOW_EVENTS,

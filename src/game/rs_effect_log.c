@@ -95,8 +95,10 @@ RS_EffectLog_NoteProjectile(
     assert(ring);
     assert(entries);
     assert(p);
-    assert(p->start_delay >= 0 && p->start_delay <= 0xffff);
-    assert(p->end_delay >= 0 && p->end_delay <= 0xffff);
+    assert(p->start_delay >= 0);
+    assert(p->start_delay <= 0xffff);
+    assert(p->end_delay >= 0);
+    assert(p->end_delay <= 0xffff);
     /* Every projectile a client would still draw is listed; more than the
      * cap in flight at once is a contract violation, not a drop. */
     assert(

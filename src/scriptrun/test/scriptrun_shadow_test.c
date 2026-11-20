@@ -268,17 +268,6 @@ find_row(
 }
 
 static void
-test_unset_is_no_shadow(void)
-{
-    int cycle = 0;
-
-    CHECK(ScriptrunShadow_New(NULL, 242, &cycle, test_pkt_name) == NULL,
-        "the variable unset: no shadow");
-    CHECK(ScriptrunShadow_New("", 242, &cycle, test_pkt_name) == NULL,
-        "the variable empty: no shadow");
-}
-
-static void
 test_rules(void)
 {
     struct ScriptrunCore* core = core_new();
@@ -534,7 +523,6 @@ main(void)
         "%s/scriptrun_shadow_test_%d.tsv",
         tmp && tmp[0] ? tmp : "/tmp",
         (int)getpid());
-    test_unset_is_no_shadow();
     test_rules();
     remove(s_path);
     test_zone_families();

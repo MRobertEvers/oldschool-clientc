@@ -526,9 +526,7 @@ widget_icon_apply(struct Task_WidgetIcon* self)
     int32_t idx;
     int scene_id;
 
-    /* The tree is torn down at logout, which also cancels this task. */
-    if( !app->tree )
-        return 1;
+    assert(app->tree);
     if( UITree_GroupCloseSerial(app->tree, (self->component_id >> 16) & 0xffff) !=
         self->par.key.gen )
         return 1;
