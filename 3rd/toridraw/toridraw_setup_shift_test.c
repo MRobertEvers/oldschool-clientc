@@ -109,6 +109,18 @@ static const struct Tri g_tris[] = {
     { "right-of-screen", { 500, 700, 600 }, { 20, 40, 140 }, 0 },
     { "above-screen", { 40, 190, 90 }, { -500, -400, -300 }, 0 },
     { "below-screen", { 40, 190, 90 }, { 300, 400, 500 }, 0 },
+#ifdef SETUP_SHIFT_NEAR_PLANE
+    /* What the near-plane clip hands the kernels (tri.clip.u.c): a vertex
+     * pulled onto the near plane projects at x * scale / near, tens of
+     * thousands of pixels out. x << 16 then leaves int, and the edge and
+     * shade setup must wrap as the reference's Java int does, not be a
+     * signed multiply the compiler may assume never overflows
+     * (toridraw_wrap_shl). Not in check-ubsan-units yet: past the setup,
+     * the barycentric hsl products and the per-row edge sums of these
+     * triangles leave int too (20 sites, fx4-build O4). */
+    { "near-plane-wide", { -40000, 40000, 120 }, { 10, 30, 150 }, 0 },
+    { "near-plane-tall", { 20, 220, 100 }, { -40000, 40, 40000 }, 0 },
+#endif
 };
 #define TRI_COUNT ((int)(sizeof(g_tris) / sizeof(g_tris[0])))
 
