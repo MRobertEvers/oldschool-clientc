@@ -599,6 +599,35 @@ test_social(void)
     apply(fx, &p);
     CHECK(fx->social.ignore_count == 2, "the ignore list is replaced");
 
+    /* A private message from an ignored name is not shown, and its id is
+     * not remembered (deob client.java class243.field2953: the ignore test,
+     * Statics.field818.method1168, sets the same `seen` flag the id ring does,
+     * for any crown). Off the list, the same message is a line. */
+    {
+        char pm_text[] = "psst";
+        int const count = fx->chat.message_count;
+
+        p = packet(PKT_NAME_MESSAGE_PRIVATE);
+        p._message_private.from = strtobase37("dave");
+        p._message_private.message_id = 91;
+        p._message_private.text = pm_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "an ignored sender's private line is dropped");
+        CHECK(fx->chat.message_count == count, "nothing reached the store");
+        p = packet(PKT_NAME_UPDATE_IGNORELIST);
+        p._update_ignorelist.count = 1;
+        p._update_ignorelist.names37 = names;
+        apply(fx, &p);
+        p = packet(PKT_NAME_MESSAGE_PRIVATE);
+        p._message_private.from = strtobase37("dave");
+        p._message_private.message_id = 91;
+        p._message_private.text = pm_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "unignored, the same message is shown: its id was not kept");
+        p = packet(PKT_NAME_UPDATE_IGNORELIST);
+        p._update_ignorelist.count = 2;
+        p._update_ignorelist.names37 = names;
+        apply(fx, &p);
+    }
+
     p = packet(PKT_NAME_FRIENDLIST_LOADED);
     p._friendlist_loaded.status = 1;
     apply(fx, &p);

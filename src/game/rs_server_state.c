@@ -765,13 +765,17 @@ state_message_private(
 
     /* deob client.java class243.field2953: the line is shown, and its id
      * remembered, only while the local player is off Tutorial Island
-     * (field765 == 0). Then dedupe by message id (reference messageIds
-     * ring). */
+     * (field765 == 0), when the id is not in the ring (reference messageIds
+     * ring) and the sender is not ignored (Statics.field818.method1168, for
+     * any crown: unlike a friend-channel line's, no crown exempts it). */
     if( state_local_player_in_tutorial_area(state) )
         return RS_SERVER_STATE_UNCHANGED;
-    if( RS_Social_MessageSeenOrRemember(state->social, p->message_id) )
+    if( RS_Social_MessageSeen(state->social, p->message_id) )
         return RS_SERVER_STATE_UNCHANGED;
     base37tostr((uint64_t)p->from, name, sizeof(name));
+    if( RS_Social_IsIgnored(state->social, name) )
+        return RS_SERVER_STATE_UNCHANGED;
+    RS_Social_MessageRemember(state->social, p->message_id);
     state_chat_add(
         state,
         p->staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
