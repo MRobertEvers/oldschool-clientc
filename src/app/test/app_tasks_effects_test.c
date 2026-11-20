@@ -132,6 +132,10 @@ fixture_init(struct Fixture* fx)
         8,
         WORLDVIEW_ROOT);
 
+    /* The executor's context asserts a tree (app_exec_ctx): every App has
+     * one from boot. */
+    fx->app->tree = UITree_New(16);
+    assert(fx->app->tree);
     App_ServerStateBind(fx->app, &fx->state);
 }
 
@@ -147,6 +151,7 @@ fixture_free(struct Fixture* fx)
     ToriRS_IOBatch_Free(fx->io);
     World_Free(fx->root);
     World_Free(fx->deck);
+    UITree_Free(fx->app->tree);
     free(fx->app);
 }
 
