@@ -531,8 +531,7 @@ Task_PlayerTransmogLand_Free(struct ToriRS_Task* base)
         Assets_Abandoned(
             self->app->assets, AssetKey_Make(ASSET_KIND_PLAYER_TRANSMOG, self->npc_id, 0));
     }
-    if( self->pt.user )
-        task_free((struct ToriRS_Task*)self->pt.user);
+    /* A child it was awaiting is freed by task_free (inline_child). */
     ToriMem_Free(ToriMem_Session(), base);
 }
 

@@ -1256,6 +1256,134 @@ test_a_childs_park_is_the_parents(void)
     runner_free(&runner);
 }
 
+/* A child run inline that the queue never sees: when its parent is freed
+ * mid-await -- a queue freed whole at client exit, with the parent parked on
+ * the child's behalf -- the child is freed with it, or every block it holds is
+ * left for ToriMem's end report (and its owner's triggers never end). */
+static int g_inline_child_frees;
+
+static void
+inline_child_free(struct ToriRS_Task* task)
+{
+    g_inline_child_frees++;
+    free(task);
+}
+
+static struct ToriRS_TaskVTable k_inline_child_vtable = { .run = Sub_Run, .free = inline_child_free };
+
+struct InlineParent
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct ToriRS_Trigger* trigger;
+    int nested;
+};
+
+static int InlineParent_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io);
+
+static struct ToriRS_TaskVTable k_inline_parent_vtable = { .run = InlineParent_Run, .free = task_free_libc };
+
+static struct ToriRS_Task*
+new_inline_child(struct ToriRS_Trigger* trigger, int nested)
+{
+    if( nested )
+    {
+        /* A parent that is itself awaited inline: the chain is freed whole. */
+        struct InlineParent* p = calloc(1, sizeof(*p));
+
+        assert(p);
+        p->task.vtable = &k_inline_parent_vtable;
+        strcpy(p->task.name, "inline middle");
+        p->trigger = trigger;
+        PT_INIT(&p->pt);
+        return &p->task;
+    }
+    {
+        struct Sub* child = calloc(1, sizeof(*child));
+
+        assert(child);
+        sub_init(child, "inline child", trigger);
+        child->task.vtable = &k_inline_child_vtable;
+        return &child->task;
+    }
+}
+
+static int
+InlineParent_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct InlineParent* self = (struct InlineParent*)base;
+    PT_BEGIN(&self->pt);
+    PT_TASK_AWAITSELF(new_inline_child(self->trigger, self->nested));
+    PT_END(&self->pt);
+}
+
+static void
+test_a_freed_parent_frees_its_inline_child(void)
+{
+    printf("TEST: a parent freed mid-await (a queue freed whole) frees the child it ran inline, nested "
+           "ones too\n");
+    for( int nested = 0; nested < 2; nested++ )
+    {
+        struct TaskRunner runner;
+        struct PlatformX_IO px = { 0 };
+        struct ToriRS_Trigger trigger = { 0 };
+        struct ToriRS_TriggerOwner owner = { 0 };
+        struct InlineParent* parent = calloc(1, sizeof(*parent));
+
+        assert(parent);
+        g_inline_child_frees = 0;
+        runner_init(&runner, &px, TASK_RUNNER_ROLE_MAIN);
+        ToriRS_Trigger_Init(&trigger, "what the child waits on");
+        ToriRS_TriggerOwner_Init(&owner, TORIRS_OWNER_EXTERNAL, "the outside");
+        ToriRS_Trigger_Prime(&trigger, &owner);
+        parent->task.vtable = &k_inline_parent_vtable;
+        strcpy(parent->task.name, "inline parent");
+        parent->trigger = &trigger;
+        parent->nested = nested;
+        PT_INIT(&parent->pt);
+        ToriRS_TaskQueue_Add(runner.queue, &parent->task);
+        CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_PROGRESSED);
+        CHECK(parent->task.parked);
+        CHECK(g_inline_child_frees == 0);
+        /* The client exits with the parent still waiting. */
+        runner_free(&runner);
+        if( g_inline_child_frees != 1 )
+            fprintf(stderr, "FAIL: nested=%d: the inline child was freed %d time(s)\n", nested,
+                    g_inline_child_frees);
+        CHECK(g_inline_child_frees == 1);
+        /* Nothing is left parked on what the child waited on. */
+        CHECK(ToriRS_Trigger_Subscribers(&trigger) == 0);
+        ToriRS_TriggerOwner_End(&owner, 0);
+    }
+    /* An await that ends frees its child once, as before. */
+    {
+        struct TaskRunner runner;
+        struct PlatformX_IO px = { 0 };
+        struct ToriRS_Trigger trigger = { 0 };
+        struct ToriRS_TriggerOwner owner = { 0 };
+        struct InlineParent* parent = calloc(1, sizeof(*parent));
+
+        assert(parent);
+        g_inline_child_frees = 0;
+        runner_init(&runner, &px, TASK_RUNNER_ROLE_MAIN);
+        ToriRS_Trigger_Init(&trigger, "what the child waits on");
+        ToriRS_TriggerOwner_Init(&owner, TORIRS_OWNER_EXTERNAL, "the outside");
+        ToriRS_Trigger_Prime(&trigger, &owner);
+        parent->task.vtable = &k_inline_parent_vtable;
+        strcpy(parent->task.name, "inline parent");
+        parent->trigger = &trigger;
+        PT_INIT(&parent->pt);
+        ToriRS_TaskQueue_Add(runner.queue, &parent->task);
+        CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_PROGRESSED);
+        ToriRS_Trigger_Fire(&trigger);
+        CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_IDLE);
+        CHECK(g_inline_child_frees == 1);
+        runner_free(&runner);
+        CHECK(g_inline_child_frees == 1);
+        ToriRS_TriggerOwner_End(&owner, 0);
+    }
+}
+
 /* --- 12. the chain bottoms out ----------------------------------------------- */
 
 struct Reader
@@ -1652,6 +1780,7 @@ main(void)
     test_cycle_waits();
     test_the_rebuild_trigger();
     test_a_childs_park_is_the_parents();
+    test_a_freed_parent_frees_its_inline_child();
     test_the_chain_bottoms_out_in_a_read();
     test_a_long_chain_is_not_a_loop();
     test_a_loop_through_a_count_asserts();

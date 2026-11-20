@@ -391,6 +391,13 @@ struct ToriRS_Task
 
     struct ToriRS_Task* next;
     struct ToriRS_Task* prev;
+
+    /* The child this task is running inline (TASK_AWAITEX: the one in its
+     * pt's `user`), from the await that made it to the step it ends in. No
+     * queue holds such a child, so a task freed mid-await -- a queue freed
+     * whole at client exit, the task parked on the child's behalf -- frees it
+     * here (task_free), with whatever it holds. */
+    struct ToriRS_Task* inline_child;
 };
 
 /*
@@ -533,6 +540,14 @@ task_free(struct ToriRS_Task* task)
      * struct these live in.
      */
     ToriRS_TaskUnparkForFree(task);
+    /* Inside it, so first: a child it was running inline, never queued. */
+    if( task->inline_child )
+    {
+        struct ToriRS_Task* child = task->inline_child;
+
+        task->inline_child = NULL;
+        task_free(child);
+    }
     if( ToriRS_Trigger_Primed(&task->ended) )
         ToriRS_Trigger_Fire(&task->ended);
     ToriRS_TriggerOwner_End(&task->owner, task->completed);
@@ -1293,6 +1308,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         (pt)->lc = __LINE__;                                                                       \
         if( !(pt)->user )                                                                          \
             (pt)->user = (child_expr);                                                             \
+        (task)->inline_child = (pt)->user;                                                         \
         __attribute__((fallthrough));                                                              \
     case __LINE__:                                                                                 \
     {                                                                                              \
@@ -1314,6 +1330,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
             return _await_res;                                                                     \
         }                                                                                          \
         _child->completed = 1;                                                                     \
+        (task)->inline_child = NULL;                                                               \
         task_free(_child);                                                                         \
         (pt)->user = NULL;                                                                         \
     }                                                                                              \
@@ -1329,6 +1346,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         (pt)->lc = __LINE__;                                                                       \
         if( !(pt)->user )                                                                          \
             (pt)->user = (expr);                                                                   \
+        (task)->inline_child = (pt)->user;                                                         \
         __attribute__((fallthrough));                                                              \
     case __LINE__:                                                                                 \
     {                                                                                              \
@@ -1352,6 +1370,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
                 return _await_res;                                                                 \
             }                                                                                      \
             _child->completed = 1;                                                                 \
+            (task)->inline_child = NULL;                                                           \
             task_free(_child);                                                                     \
         }                                                                                          \
         (pt)->user = NULL;                                                                         \
