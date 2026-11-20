@@ -649,12 +649,13 @@ TORIDRAW_CFLAGS += -DNEON_DISABLED=1 -DAVX2_DISABLED=1 -DSSE41_DISABLED=1 \
 endif
 
 ifeq ($(ENABLE_UBSAN),1)
-# Deliberately not `shift`: ToriDraw's fixed-point code left-shifts negative
-# values in several places (toridraw_lighting.c:170 among them), which is UB by
-# the letter of the standard but wraps as intended on every target here. Those
-# reports fire first and hide the arithmetic ones. UBSAN_CHECKS is overridable
-# on the command line when that class is what is being investigated.
-UBSAN_CHECKS ?= signed-integer-overflow
+# `shift` too: a left shift of a negative value, or into or past the sign bit,
+# is as undefined as an overflowing add, and an optimiser may assume neither
+# happens. ToriDraw's fixed-point code does both on purpose (Java's int wraps);
+# it says so with the wrap helpers in graphics/int_wrap.h or in unsigned, so
+# a report here is a site that does not (fx-ub, fx3-toolchain L3, fx4-build
+# O4/O5). UBSAN_CHECKS is overridable on the command line.
+UBSAN_CHECKS ?= signed-integer-overflow,shift
 TORIDRAW_CFLAGS += -fsanitize=$(UBSAN_CHECKS) -fno-sanitize-recover=$(UBSAN_CHECKS)
 # Only ToriDraw is instrumented, but the runtime still has to be linked in.
 LDFLAGS += -fsanitize=undefined
@@ -4684,7 +4685,7 @@ test-cs1: $(OBJ_DIR)
 		ui/uitree_scroll.c ui/uitree_emit.c ui/uitree_inv_view.c \
 		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c ui/torirs_chrome_inkwell.c \
 		perf/torirs_perf.c \
-		cs1vm/test/cs1_integration_test.c -lm
+		cs1vm/test/cs1_integration_test.c $(PLATFORM_STRIP_LDFLAGS) -lm
 	./$(OBJ_DIR)/cs1_integration_test
 
 # -UNDEBUG because assert() is how this suite checks: OPT=1 puts -DNDEBUG in
@@ -4922,6 +4923,27 @@ replay-group-check: $(OBJ_DIR) $(OBJS)
 		replay/test/replay_group_check.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/replay_group_check $(RECORDINGS)
 
+# The real client replays a real recording headless for REPLAY_EXIT_FRAMES
+# frames and exits through App_Shutdown under TORIRS_MEM_STRICT=1, where a
+# block any group still holds at exit is fatal: every table the replay lane
+# fills (recording 96 boots the encrypted osrs227 cache, so the map keys too)
+# has an owner that frees it. Not a suite test -- it needs a recording:
+#   make -C src OPT=1 PLATFORM_OBJ_BASE=<b> PLATFORM_TARGET=<b>_opt/torirs <b>_opt/torirs
+#   make -C src OPT=1 PLATFORM_OBJ_BASE=<b> replay-exit-check REPLAY_EXIT_BINARY=<b>_opt/torirs
+REPLAY_EXIT_BINARY ?= $(TARGET)
+REPLAY_EXIT_RECORDING ?= $(HOME)/.rsprox/binary/archive/96.bin
+REPLAY_EXIT_FRAMES ?= 300
+.PHONY: replay-exit-check
+replay-exit-check: $(OBJ_DIR)
+	cd $(REPO_ROOT) && env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy TORIRS_PLUGINS=0 \
+		TORIRS_PREFS="$(CURDIR)/$(OBJ_DIR)/replay_exit_prefs.ini" \
+		TORIRS_EDITOR_LAYOUT="$(CURDIR)/$(OBJ_DIR)/replay_exit_layout.ini" \
+		TORIRS_MAX_FRAMES=$(REPLAY_EXIT_FRAMES) TORIRS_MEM_STRICT=1 \
+		"$(CURDIR)/$(REPLAY_EXIT_BINARY)" --manifest manifests/manifest_osrs242_replay.ini \
+		--replay "$(REPLAY_EXIT_RECORDING)" --soft3d > "$(CURDIR)/$(OBJ_DIR)/replay_exit.log" 2>&1 \
+		|| { grep "torimem" "$(CURDIR)/$(OBJ_DIR)/replay_exit.log"; echo "replay-exit-check FAILED"; exit 1; }
+	@echo "replay-exit-check: $(REPLAY_EXIT_FRAMES) frames, nothing held at exit"
+
 # A fast seek against linear play on a real recording: the private client
 # runs each tick twice (TORIRS_REPLAY_SEEK=fullsim, then fast) and every
 # --replay-digest domain is compared at the tick and 64 ticks later
@@ -5038,6 +5060,19 @@ test-wev-deck-objstack: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 		features/features.c perf/torirs_perf.c \
 		$(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/wev_deck_objstack_test
+
+.PHONY: test-world-player-hidden
+test-world-player-hidden: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/world_player_hidden_test $(TORIMEM_SRCS) \
+		world/test/world_player_hidden_test.c \
+		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
+		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		world/worldview.c world/wev.c \
+		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
+		features/features.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/world_player_hidden_test
 
 .PHONY: test-wev-population
 test-wev-population: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
@@ -5659,6 +5694,19 @@ check-ubsan-units:
 # binding (rscache_band.h), never a header.
 check-rscache-isolation:
 	@python3 $(REPO_ROOT)/tools/check_rscache_isolation.py
+
+# Every test-* target compiled and linked at OPT=0, none of them run
+# (tools/test_build/sweep.py; make runs each recipe through a SHELL that keeps
+# the build commands and drops the run). Most test rules build and run in one
+# recipe, so a test whose sources stopped compiling, or a link that only
+# worked because OPT=1's thin LTO dropped the code naming a missing symbol,
+# was found by whoever next ran that one test (fx4-build O1, 2026-11-20: 25
+# targets). Its own object directory; about 7 minutes from empty at -j4.
+TEST_BUILD_OBJ_BASE ?= build_testbuild
+.PHONY: check-test-builds
+check-test-builds:
+	python3 -I $(REPO_ROOT)/tools/test_build/sweep.py --src $(SRC_DIR) \
+		--objbase $(TEST_BUILD_OBJ_BASE) --jobs 4
 
 # The CS2 interpreter saves nothing for a yield: an opcode that can yield
 # takes a mark before it touches anything (CS2VM2_PrepareYield) and asks the
@@ -6498,6 +6546,14 @@ test-minimap-dots: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/minimap_dots_test
 
+# A player's overheads against deob Statics.method6709's player branch: what a
+# hidden player keeps, the names "show names" draws and where.
+test-player-overheads: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -o $(OBJ_DIR)/player_overheads_test \
+		app/test/player_overheads_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/player_overheads_test
+
 # RS_CS2_PumpTransmits' early-return guard, one dirty flag at a time. The guard
 # was a hand-written condition list that had drifted from the clear-down in the
 # same function: `stat_transmit_dirty` was cleared but was never a guard key, so
@@ -6609,7 +6665,7 @@ TORIRSSERVER_ACCOUNT_SRCS = torirsserver/torirs_server_hiscoreslink.c \
 # client files below and of scriptrun_stubs.c's link stand-ins. Its bots perceive
 # through the CLIENT's own parser, entity decoders and world model, listed here.
 SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core.c \
-	game/rs_event_ring.c \
+	game/rs_event_ring.c render/cam_script.c \
 	scriptrun/scriptrun_stubs.c ui/uitree_if_events.c \
 	net/rev/revpacket.c net/proto/proto_adapt.c $(REV_EXEC_SRCS) \
 	net/login/login_osrs.c net/pow_sha256.c net/sha256.c \
@@ -6869,10 +6925,12 @@ endif
 # stack the suites run with elsewhere ('ulimit -s unlimited'; Windows gives
 # a process 1 MB and test-editor-panels-accounts overflowed it, 0xC00000FD).
 # A 64-bit reservation costs address space only until it is touched.
+# Elsewhere: dead-code stripping, so an OPT=0 link (no LTO to drop them) does not
+# need the definitions of what only unreached code names (check-test-builds).
 ifeq ($(OS),Windows_NT)
 MAPED_TEST_LDFLAGS := -lws2_32 -Wl,--stack,268435456
 else
-MAPED_TEST_LDFLAGS :=
+MAPED_TEST_LDFLAGS := $(PLATFORM_STRIP_LDFLAGS)
 endif
 
 # Phony: `torirsmaped` is also the sources' directory, and with only the
@@ -6919,7 +6977,7 @@ torirsserver-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(PLATFORM_STRIP_LDFLAGS) -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/dev_torirsserver"
 
 # MallocScribble is not a debugging flourish here, it is what makes this
@@ -6971,7 +7029,7 @@ torirsserver-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(PLATFORM_STRIP_LDFLAGS) -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/alt_torirsserver"
 
 test-torirsserver-alt: torirsserver-alt
@@ -6993,7 +7051,7 @@ torirsserver-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tom
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(PLATFORM_STRIP_LDFLAGS) -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/bank_torirsserver"
 
 test-torirsserver-bank: torirsserver-bank
@@ -8009,6 +8067,7 @@ test-summoning-phase4f: torirsserver-cache-summoning torirsserver-scripts-summon
 # this direction of borrowing is the safe one: cachepack still links nothing from
 # src/ (see cp_register.h).
 TORIRSSERVER_PACK_SRCS = torirsserver/torirs_server_pack.c torirsserver/torirs_server_content.c \
+	torirsserver/torirs_server_boot.c torirsserver/torirs_server_structinfo.c \
 	torirsserver/torirs_server_db.c \
 	torirsserver/torirs_server_ids.c \
 	torirsserver/torirs_server_objinfo.c torirsserver/torirs_server_npcinfo.c torirsserver/torirs_server_seqinfo.c \
@@ -8027,7 +8086,7 @@ torirsserver-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 	$(CC) $(CFLAGS) -I$(RSCACHE_DIR)/tools/cachepack \
 		-o $(OBJ_DIR)/ToriRSServer_Pack $(TORIMEM_SRCS) $(TORIRSSERVER_PACK_SRCS) \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
-		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(PLATFORM_STRIP_LDFLAGS) -lm
 	@echo "built $(OBJ_DIR)/ToriRSServer_Pack"
 
 # `ToriRSServer` (capitalised) is DELIBERATELY not the prerequisite here any
@@ -8090,7 +8149,7 @@ test-torirsserver-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DI
 		torirsserver/test/param_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o -lm
+		$(OBJ_DIR)/rsprot_buf.o $(PLATFORM_STRIP_LDFLAGS) -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/param_test
 
 # The server's dbrow store: every lookup (by id, a table's n-th row in load
@@ -8156,9 +8215,10 @@ test-collision-doors: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/collision_doors_test $(TORIMEM_SRCS) \
 		torirsserver/test/collision_doors_test.c \
 		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
+		torirsserver/torirs_server_servpack.c \
 		engine/world_builder/collision_map.c features/features.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
-		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(PLATFORM_STRIP_LDFLAGS) -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/collision_doors_test
 
 # "Is this tile standable, and what is standable near it?" â the geometry
@@ -8208,7 +8268,7 @@ test-torirsserver-squares: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_
 		torirsserver/test/square_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o -lm
+		$(OBJ_DIR)/rsprot_buf.o $(PLATFORM_STRIP_LDFLAGS) -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/square_test
 
 test-torirsserver-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
@@ -8218,7 +8278,7 @@ test-torirsserver-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)
 		torirsserver/test/loc_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o -lm
+		$(OBJ_DIR)/rsprot_buf.o $(PLATFORM_STRIP_LDFLAGS) -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/loc_test
 
 # The `npc_*` / `nc_*` reads and the hunt searches. Same two halves and the same
@@ -8241,7 +8301,7 @@ test-torirsserver-servpack-boot: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o 
 		torirsserver/test/servpack_boot_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o -lm
+		$(OBJ_DIR)/rsprot_buf.o $(PLATFORM_STRIP_LDFLAGS) -lm
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/servpack_boot_test $(TORIRSSERVER_CONTENT_DIR) \
 		$(OBJ_DIR)/servpack_boot_scratch
 
@@ -8253,7 +8313,7 @@ test-torirsserver-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)
 		torirsserver/test/npc_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o -lm
+		$(OBJ_DIR)/rsprot_buf.o $(PLATFORM_STRIP_LDFLAGS) -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/npc_test
 
 # The namespace register: defaults, [namespace:*] overlay, pack-filename
@@ -8463,7 +8523,7 @@ test-servercodec: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 		torirsserver/test/torirs_server_servercodec_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o -lm
+		$(OBJ_DIR)/rsprot_buf.o $(PLATFORM_STRIP_LDFLAGS) -lm
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/servercodec_test $(TORIRSSERVER_CONTENT_DIR)
 
 # LOC_ADD_CHANGE_V2's per-placement right-click menu, server writer against
@@ -8612,14 +8672,14 @@ test-ws-frame: $(OBJ_DIR)
 
 # Boot-manifest loader: parse a fixture, assert field values + relative-path
 # joining + CLI-override composition against a stub AppConfig.
-test-bootmanifest: $(OBJ_DIR)
+test-bootmanifest: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test $(TORIMEM_SRCS) \
 		bootmanifest/bootmanifest.c executor_config.c features/features.c \
 		ui/torirs_chrome_exec_kind.c input/torirs_keymap.c $(INI_SRC) \
 		bootmanifest/test/bootmanifest_test.c \
-		$(RSCACHE_DIR)/build/rscache_unity.o $(RSCACHE_DIR)/build/bzip.o \
-		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \
-		$(RSCACHE_DIR)/build/xteas.o
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	./$(OBJ_DIR)/bootmanifest_test
 
 # Half-shared placements: the seam hide one placement performs must not reach
@@ -8675,9 +8735,17 @@ test-animation-object-step: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 #
 # The --wrap flags are what make the zero-allocation check mean anything: the
 # test counts every malloc/calloc/realloc the library reaches for while
-# drawing, and holds it to zero. Without them the test still runs and says so.
+# drawing, and holds it to zero. Apple's ld64 has no --wrap: there the test
+# counts through the allocator every ToriDraw allocation goes through
+# (toridraw_alloc.h) instead.
+ifeq ($(shell uname -s),Darwin)
+TORIDRAW_MINI_WRAP_LDFLAGS =
+TORIDRAW_MINI_WRAP_CFLAGS =
+else
 TORIDRAW_MINI_WRAP_LDFLAGS = -Wl,--wrap=malloc -Wl,--wrap=calloc \
 	-Wl,--wrap=realloc -Wl,--wrap=free
+TORIDRAW_MINI_WRAP_CFLAGS = -DTORIDRAW_MINI_TEST_WRAP_MALLOC
+endif
 
 # -fno-lto, and the four -fno-builtin-*, are load-bearing rather than tidy.
 #
@@ -8717,7 +8785,7 @@ $(OBJ_DIR)/toridraw_unity_nolto_altfmt.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
 # this lane's sidecar objects need.
 $(OBJ_DIR)/toridraw_mini_test.o: $(TORIDRAW_DIR)/toridraw_mini_test.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(TORIDRAW_MINI_TEST_CFLAGS) \
-		-DTORIDRAW_MINI_TEST_WRAP_MALLOC -I$(TORIDRAW_DIR) -c $< -o $@
+		$(TORIDRAW_MINI_WRAP_CFLAGS) -I$(TORIDRAW_DIR) -c $< -o $@
 
 test-toridraw-mini: $(OBJ_DIR) $(OBJ_DIR)/toridraw_mini_test.o \
 		$(OBJ_DIR)/toridraw_unity_nolto.o $(OBJ_DIR)/toridraw_model_sprite_nolto.o \
@@ -8731,14 +8799,14 @@ test-toridraw-mini: $(OBJ_DIR) $(OBJ_DIR)/toridraw_mini_test.o \
 # The same, at the 16-bit format the small clients actually run. A separate
 # target rather than a variable, because the point is that BOTH are built.
 test-toridraw-mini-16bpp: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity_nolto_altfmt.o \
-		$(OBJ_DIR)/toridraw_model_sprite_nolto_altfmt.o
+		$(OBJ_DIR)/toridraw_model_sprite_nolto_altfmt.o $(TORIDRAW_PROJECTION_ASM_OBJ)
 	$(CC) $(CFLAGS) $(TORIDRAW_MINI_TEST_CFLAGS) \
 		-DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT) \
-		-DTORIDRAW_MINI_TEST_WRAP_MALLOC -I$(TORIDRAW_DIR) \
+		$(TORIDRAW_MINI_WRAP_CFLAGS) -I$(TORIDRAW_DIR) \
 		-o $(OBJ_DIR)/toridraw_mini_test_altfmt \
 		$(TORIDRAW_DIR)/toridraw_mini_test.c \
 		$(OBJ_DIR)/toridraw_unity_nolto_altfmt.o $(OBJ_DIR)/toridraw_model_sprite_nolto_altfmt.o \
-		$(TORIDRAW_MINI_WRAP_LDFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS)
+		$(TORIDRAW_PROJECTION_ASM_OBJ) $(TORIDRAW_MINI_WRAP_LDFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS)
 	./$(OBJ_DIR)/toridraw_mini_test_altfmt
 
 # --- the RSCache adaptor -------------------------------------------------
@@ -9370,6 +9438,7 @@ test-sailing-collision: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o 
 		torirsserver/test/sailing_collision_test.c \
 		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c \
 		torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
+		torirsserver/torirs_server_servpack.c \
 		world/wev.c world/wev_deck.c \
 		$(TORIDRAW_DIR)/graphics/shared_tables.c $(TORIDRAW_DIR)/toridraw_math.c \
 		engine/world_builder/collision_map.c features/features.c \

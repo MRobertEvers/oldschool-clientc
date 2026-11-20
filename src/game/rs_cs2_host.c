@@ -9235,10 +9235,8 @@ social_refuse(
 /* FRIEND_ADD as the rev-239 client's 3605 (class58.method1188): refused with
  * a line when the list is full, the name is the local player's, already a
  * friend, or ignored; otherwise FRIENDLIST_ADD is sent and nothing changes
- * here until the server's UPDATE_FRIENDLIST names the friend. The reference
- * also refuses a free account past 200 (method1180, the login's member
- * byte); this client does not keep that byte, so only the 400 of a full
- * list refuses. */
+ * here until the server's UPDATE_FRIENDLIST names the friend. Full is 400,
+ * or 200 for an account the login did not call a member (method1180). */
 static void
 social_friend_add(
     struct RS_CS2Host* host,
@@ -9248,7 +9246,7 @@ social_friend_add(
     char text[RS_SOCIAL_NAME_LEN + 64];
 
     assert(social);
-    if( social->friend_count >= RS_SOCIAL_FRIEND_MAX )
+    if( RS_Social_FriendListFull(social, host->member) )
         social_refuse(host, "Your friend list is full. Max of 200 for free users, and 400 for members");
     else if( host->local_player_name[0] && RS_Social_SameName(host->local_player_name, name) )
         social_refuse(host, "You can't add yourself to your own friend list");
@@ -9267,7 +9265,7 @@ social_friend_add(
 }
 
 /* IGNORE_ADD as 3607 (class58.method1218): the same shape over the ignore
- * list (a free account's 100 is method1182's, not modelled, as above). */
+ * list, full at 400 or a free account's 100 (method1182). */
 static void
 social_ignore_add(
     struct RS_CS2Host* host,
@@ -9277,7 +9275,7 @@ social_ignore_add(
     char text[RS_SOCIAL_NAME_LEN + 64];
 
     assert(social);
-    if( social->ignore_count >= RS_SOCIAL_IGNORE_MAX )
+    if( RS_Social_IgnoreListFull(social, host->member) )
         social_refuse(host, "Your ignore list is full. Max of 100 for free users, and 400 for members");
     else if( host->local_player_name[0] && RS_Social_SameName(host->local_player_name, name) )
         social_refuse(host, "You can't add yourself to your own ignore list");

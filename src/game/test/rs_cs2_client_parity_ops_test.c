@@ -744,6 +744,21 @@ test_client_state_dispatch(void)
     CHECK(fx.thread->ints_stack_top == 0, "taking its boolean and pushing nothing");
     CHECK(!fx.host.client.render_self, "and the local player no longer draws");
 
+    /* N2: what deadman_spectator_names (proc 2179, from clientscripts 2070 /
+     * 2071) runs: reset, then friends (its argument 1) or others (2). The
+     * mask the overhead names read (app_overlay_player_name_shown). */
+    struct Step const others[] = { OP(CS2_OP_RESETDRAWPLAYERNAMES), INT(1), OP(CS2_OP_SETDRAWPLAYERNAMES_OTHERS) };
+    CHECK(fx.host.client.draw_player_names == 0, "no names by default");
+    CHECK(run(&fx, others, 3) == CS2VM_EXECNO_DONE, "resetdrawplayernames; setdrawplayernames_others(true) runs");
+    CHECK(fx.host.client.draw_player_names == RS_CS2_DRAW_NAMES_OTHERS, "and names everyone else");
+    struct Step const friends[] = { OP(CS2_OP_RESETDRAWPLAYERNAMES), INT(1), OP(CS2_OP_SETDRAWPLAYERNAMES_FRIENDS) };
+    CHECK(run(&fx, friends, 3) == CS2VM_EXECNO_DONE, "the friends form runs");
+    CHECK(fx.host.client.draw_player_names == RS_CS2_DRAW_NAMES_FRIENDS, "and names friends only");
+    struct Step const self[] = { INT(1), OP(CS2_OP_SETDRAWPLAYERNAMES_SELF), INT(0),
+                                 OP(CS2_OP_SETDRAWPLAYERNAMES_FRIENDS) };
+    CHECK(run(&fx, self, 4) == CS2VM_EXECNO_DONE && fx.host.client.draw_player_names == RS_CS2_DRAW_NAMES_SELF,
+        "each bit set and cleared on its own");
+
     struct Step const clear[] = { OP(CS2_OP_TRANSLATIONS_CLEAR) };
     CHECK(run(&fx, clear, 1) == CS2VM_EXECNO_DONE, "translations_clear runs");
     CHECK(fx.thread->ints_stack_top == 0, "pushing nothing");

@@ -641,12 +641,16 @@ w241_friendlist_loaded(struct RsprotBuf* buf, int status)
 
 /* UpdateFriendListDecoder is unchanged at 241: the 239 entry, byte for byte. */
 static void
-w241_friend_entry(struct RsprotBuf* buf, const char* name, int world, int rank)
+w241_friend_entry(struct RsprotBuf* buf, const char* name, const char* previous,
+                 int match_previous, int world, int rank)
 {
     const char* safe = name ? name : "";
-    rsprot_p1(buf, 0);
+    rsprot_p1(buf, match_previous ? 1 : 0);
     rsprot_pjstr(buf, safe);
-    rsprot_pjstr(buf, safe);
+    /* "" when the friend was never renamed: Jagex's rows carry one only
+     * after a rename (RSProx index 236 [3]: 7 of the 94 in the login dump,
+     * e.g. "Tianzhen" after "00sanguine"); the name twice reads as one. */
+    rsprot_pjstr(buf, previous ? previous : "");
     rsprot_p2_12(buf, (uint16_t)world);
     rsprot_p1(buf, rank & 0xff); /* rank */
     rsprot_p1(buf, 0);
@@ -661,11 +665,11 @@ w241_friend_entry(struct RsprotBuf* buf, const char* name, int world, int rank)
 
 /* UpdateIgnoreListDecoder is unchanged at 241. */
 static void
-w241_ignore_entry(struct RsprotBuf* buf, const char* name)
+w241_ignore_entry(struct RsprotBuf* buf, const char* name, const char* previous)
 {
     rsprot_p1(buf, 0x1);
     rsprot_pjstr(buf, name ? name : "");
-    rsprot_pjstr(buf, "");
+    rsprot_pjstr(buf, previous ? previous : "");
     rsprot_pjstr(buf, "");
 }
 

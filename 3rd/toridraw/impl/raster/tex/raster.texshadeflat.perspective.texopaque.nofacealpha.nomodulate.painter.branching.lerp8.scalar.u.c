@@ -106,7 +106,7 @@ raster_texshadeflat_persp_texopaque_branching_lerp8_ordered(
     vUVPlane_normal_xhat = texture_plane.term[2].x;
     vUVPlane_normal_yhat = texture_plane.term[2].y;
 
-    int shade8bit = shade7bit << 1;
+    int shade8bit = toridraw_wrap_shl(shade7bit, 1);
 
     int au = 0;
     int bv = 0;

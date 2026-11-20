@@ -188,7 +188,7 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
     if( dy_AC > 0 )
     {
         // step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
-        step_edge_x_AC_ish16 = (dx_AC * 65536) / dy_AC;
+        step_edge_x_AC_ish16 = toridraw_wrap_shl(dx_AC, 16) / dy_AC;
     }
     else
         step_edge_x_AC_ish16 = 0;
@@ -196,7 +196,7 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
     if( dy_AB > 0 )
     {
         // step_edge_x_AB_ish16 = (dx_AB)*g_reciprocal16[dy_AB];
-        step_edge_x_AB_ish16 = (dx_AB * 65536) / dy_AB;
+        step_edge_x_AB_ish16 = toridraw_wrap_shl(dx_AB, 16) / dy_AB;
     }
     else
         step_edge_x_AB_ish16 = 0;
@@ -204,7 +204,7 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
     if( y2 != y1 )
     {
         // step_edge_x_BC_ish16 = ((x2 - x1)) * g_reciprocal16[y2 - y1];
-        step_edge_x_BC_ish16 = ((x2 - x1) * 65536) / (y2 - y1);
+        step_edge_x_BC_ish16 = toridraw_wrap_shl(x2 - x1, 16) / (y2 - y1);
     }
     else
         step_edge_x_BC_ish16 = 0;
@@ -216,9 +216,9 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
      *       /   /
      *      / /  y2 (C) (second_half = false)
      */
-    int edge_x_AC_ish16 = x0 * 65536;
-    int edge_x_AB_ish16 = x0 * 65536;
-    int edge_x_BC_ish16 = x1 * 65536;
+    int edge_x_AC_ish16 = toridraw_wrap_shl(x0, 16);
+    int edge_x_AB_ish16 = toridraw_wrap_shl(x0, 16);
+    int edge_x_BC_ish16 = toridraw_wrap_shl(x1, 16);
 
     int hsl_ish8 = toridraw_wrap_sub(
         toridraw_wrap_add(step_x_hsl_ish8, color0_hsl16 << 8),

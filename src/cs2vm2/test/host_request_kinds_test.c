@@ -39,8 +39,8 @@ enum
 };
 
 _Static_assert(
-    HOST_REQUEST_MANIFEST_COUNT == 902,
-    "the CS2VM host-request manifest must contain all 902 host opcodes");
+    HOST_REQUEST_MANIFEST_COUNT == 912,
+    "the CS2VM host-request manifest must contain all 912 host opcodes");
 
 struct HostRequestKindEntry
 {

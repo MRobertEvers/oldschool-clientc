@@ -125,6 +125,13 @@ struct CP_Ctx;
 /** The key is a numbered family (`recol1s`, `recol2d`, ...): its lines are the
  *  stem followed by a digit, its markers are written on the bare stem. */
 #define CP_KEY_INDEXED 0x2
+/** The one exception to "every block states every key": the key is written only
+ *  by a record that sets the field, and a block without it is that field
+ *  absent. For a field added after the type's text was exported (npc
+ *  `recolall`, opcode 42 from rev 241, which no shipped record states), so that
+ *  every record without it keeps exactly the text it had. Not listed by
+ *  `cachepack keys`, never added by `missing`. */
+#define CP_KEY_OPTIONAL 0x4
 
 /**
  * One text key of a config type.

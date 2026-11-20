@@ -146,7 +146,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8_ordered(
         /* Modular: the reference client relies on int wraparound here, and an edge-on
          * triangle reaches the overflow. See graphics/int_wrap.h. */
         int shade_start = toridraw_wrap_add(
-            toridraw_wrap_sub(shade0 << 9, toridraw_wrap_mul(x0, shade_step_x_ish9)),
+            toridraw_wrap_sub(toridraw_wrap_shl(shade0, 9), toridraw_wrap_mul(x0, shade_step_x_ish9)),
             shade_step_x_ish9);
 
         int x_left_ish16;

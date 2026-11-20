@@ -314,6 +314,8 @@ src/app/test/if_assets_tasks_test.c
 src/app/test/app_tasks_scripts_test.c
 # Added 2026-11-19 (lo-mounts step): the visual waits moved off the main queue, run on a stack App.
 src/app/test/app_tasks_mounts_test.c
+# Added 2026-11-20 (fx4-client): a player's overheads (hidden, names) built on a stack App.
+src/app/test/player_overheads_test.c
 # Added 2026-11-19 (lo-music step): the music install task runs on a stack App.
 src/app/test/music_install_test.c
 # Added 2026-11-19 (lo-faults step): chat lines reaching a plugin, through the
@@ -452,4 +454,6 @@ src/replay/replay_world_apply.c
 # pending index once (App_PendingTrace, at exit).
 # Raised to 1441 by the merge of v3 into the packet model: v3's seven lines
 # for the plugin host (the load memo and the open-url flag) on top of 1434.
-app.c-lines: 1441
+# Raised to 1444 by the merge of fx4-build O2: App_Shutdown frees the map keys
+# App loaded (three lines on top of 1441).
+app.c-lines: 1444

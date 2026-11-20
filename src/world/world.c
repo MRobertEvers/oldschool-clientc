@@ -1183,6 +1183,7 @@ World_PlayerSpawn(
     struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
     *player = (struct WorldEntity_Player){
         .element_id = element_id,
+        .drawn_scene_cycle = -1,
         .grid_position = { .x = scene_x, .z = scene_z, .level = level },
         .draw_position = { .x = (uint32_t)(scene_x * 128 + 64),
                            .z = (uint32_t)(scene_z * 128 + 64),

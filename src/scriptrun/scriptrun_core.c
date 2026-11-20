@@ -210,6 +210,110 @@ core_base_z(struct ScriptrunCore const* core)
     return (core->rebuild_zone_z - 6) * 8;
 }
 
+/*
+ * One camera packet into the read side, in the real client's arithmetic
+ * (app_gameproto_exec.c exec_cam_*): the same record (world tiles, the same
+ * fields per op) and the same "a script holds the eye" state, so
+ * t.cutscene.await reads one sequence on both clients. The eye itself is not
+ * walked: a headless client draws nothing. A smooth reset ends at once, the
+ * glide home being frames this client does not have.
+ */
+static void
+core_camera(
+    struct ScriptrunCore* core,
+    int pkt_name,
+    struct RevPacket const* p)
+{
+    int bx = core_base_x(core);
+    int bz = core_base_z(core);
+    int tick = core->tick;
+
+    if( pkt_name == PKT_NAME_CAM_MOVETO || pkt_name == PKT_NAME_CAM_LOOKAT )
+    {
+        struct PktCamMoveTo const* m = &p->_cam_moveto;
+        struct PktCamLookAt const* l = &p->_cam_lookat;
+        int moveto = pkt_name == PKT_NAME_CAM_MOVETO;
+        int lx = moveto ? m->local_x : l->local_x;
+        int lz = moveto ? m->local_z : l->local_z;
+        int height = moveto ? m->height : l->height;
+        int rate = moveto ? m->rate : l->rate;
+        int rate2 = moveto ? m->rate2 : l->rate2;
+
+        if( moveto ? m->absolute : l->absolute )
+        {
+            lx -= bx;
+            lz -= bz;
+        }
+        if( moveto )
+            (void)CamScript_MoveTo(&core->cam, lx, lz, height, rate, rate2);
+        else
+            (void)CamScript_LookAt(&core->cam, lx, lz, height, rate, rate2);
+        CamScript_Record(&core->cam, moveto ? CAM_SCRIPT_OP_MOVETO : CAM_SCRIPT_OP_LOOKAT,
+                         lx + bx, lz + bz, height, rate, rate2, tick);
+    }
+    else if( pkt_name == PKT_NAME_CAM_MOVETO_CYCLES )
+    {
+        struct PktCamMoveToCycles const* c = &p->_cam_moveto_cycles;
+
+        CamScript_Record(&core->cam, CAM_SCRIPT_OP_MOVETO_CYCLES, c->x - (c->absolute ? 0 : -bx),
+                         c->z - (c->absolute ? 0 : -bz), c->height, c->cycles, c->easing, tick);
+    }
+    else if( pkt_name == PKT_NAME_CAM_ROTATEBY || pkt_name == PKT_NAME_CAM_ROTATETO )
+    {
+        struct PktCamRotate const* r = &p->_cam_rotate;
+
+        CamScript_Record(&core->cam,
+                         pkt_name == PKT_NAME_CAM_ROTATEBY ? CAM_SCRIPT_OP_ROTATEBY
+                                                          : CAM_SCRIPT_OP_ROTATETO,
+                         -1, -1, r->yaw, r->pitch, r->cycles, tick);
+    }
+    else if( pkt_name == PKT_NAME_CAM_LOOKAT_CYCLES )
+    {
+        struct PktCamLookAtCycles const* l = &p->_cam_lookat_cycles;
+
+        CamScript_Record(&core->cam, CAM_SCRIPT_OP_LOOKAT_CYCLES, l->x, l->z, l->height,
+                         l->cycles, l->easing, tick);
+    }
+    else if( pkt_name == PKT_NAME_CAM_MOVETO_ARC )
+    {
+        struct PktCamMoveToArc const* a = &p->_cam_moveto_arc;
+        int base_x = a->absolute ? bx : 0;
+        int base_z = a->absolute ? bz : 0;
+
+        CamScript_Record(&core->cam, CAM_SCRIPT_OP_MOVETO_ARC, a->x - base_x + bx,
+                         a->z - base_z + bz, a->height, a->cycles, a->easing, tick);
+    }
+    else if( pkt_name == PKT_NAME_CAM_ROTATETO_COORDINATE )
+    {
+        struct PktCamRotateToCoordinate const* c = &p->_cam_rotateto_coordinate;
+
+        CamScript_Record(&core->cam, CAM_SCRIPT_OP_ROTATETO_COORDINATE,
+                         c->x - (c->absolute ? 0 : -bx), c->z - (c->absolute ? 0 : -bz),
+                         c->height, c->cycles, c->easing, tick);
+    }
+    else if( pkt_name == PKT_NAME_CAM_SHAKE )
+    {
+        struct PktCamShake const* s = &p->_cam_shake;
+
+        CamScript_Record(&core->cam, CAM_SCRIPT_OP_SHAKE, -1, -1, s->frequency, s->axis,
+                         s->speed, tick);
+    }
+    else if( pkt_name == PKT_NAME_CAM_RESET )
+    {
+        CamScript_Reset(&core->cam);
+        CamScript_Record(&core->cam, CAM_SCRIPT_OP_RESET, -1, -1, 0, 0, 0, tick);
+    }
+    else if( pkt_name == PKT_NAME_CAM_SMOOTHRESET )
+    {
+        struct PktCamSmoothReset const* s = &p->_cam_smoothreset;
+
+        if( CamScript_IsScripted(&core->cam) )
+            CamScript_Reset(&core->cam);
+        CamScript_Record(&core->cam, CAM_SCRIPT_OP_SMOOTHRESET, -1, -1, 0,
+                         s->move_constant_speed, s->move_proportional_speed, tick);
+    }
+}
+
 /* WorldviewRegistry_HomeViewForAbsTile: the live view whose staging
  * rectangle holds an absolute tile (a rider on a deck), or 0. A view not yet
  * rebuilt has base 0,0 and claims nothing. */
@@ -2418,6 +2522,12 @@ core_packet(
     ScriptrunCore_ZoneFamilies(core, &core->zone, &packet, 0);
     if( rebuilt )
         core_replace_standing(core);
+    /* The camera after the scene: a rebuild ends a script's hold on the eye
+     * (app_world_rebuild.c, CamScript_Rebase), and a camera packet's scene
+     * tiles are this scene's. */
+    if( rebuilt )
+        CamScript_Rebase(&core->cam);
+    core_camera(core, pkt_name, &packet);
     /* The parallel queue, until every task is done or parked: the loc
      * changes this packet made are placed here. At the tick's end nothing
      * may be left but a wait for a cycle. */

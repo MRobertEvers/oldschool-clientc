@@ -263,27 +263,27 @@ TMAP_FN(
     int dblend_ab = sh[1] - sh[0];
     int dblend_ac = sh[2] - sh[0];
 
-    int shade8bit_yhat_ish8 = ((dx_AC * dblend_ab - dx_AB * dblend_ac) * 512) / sarea;
-    int shade8bit_xhat_ish8 = ((dy_AB * dblend_ac - dy_AC * dblend_ab) * 512) / sarea;
+    int shade8bit_yhat_ish8 = toridraw_wrap_shl(dx_AC * dblend_ab - dx_AB * dblend_ac, 9) / sarea;
+    int shade8bit_xhat_ish8 = toridraw_wrap_shl(dy_AB * dblend_ac - dy_AC * dblend_ab, 9) / sarea;
     /* Modular: the reference client relies on int wraparound here, and an edge-on
      * triangle reaches the overflow. See graphics/int_wrap.h. */
     int shade8bit_edge_ish8 = toridraw_wrap_add(
-        toridraw_wrap_sub(sh[0] << 9, toridraw_wrap_mul(shade8bit_xhat_ish8, sx[0])),
+        toridraw_wrap_sub(toridraw_wrap_shl(sh[0], 9), toridraw_wrap_mul(shade8bit_xhat_ish8, sx[0])),
         shade8bit_xhat_ish8);
 
     int step_edge_x_AC_ish16 = 0;
     int step_edge_x_AB_ish16 = 0;
     int step_edge_x_BC_ish16 = 0;
     if( dy_AC > 0 )
-        step_edge_x_AC_ish16 = (dx_AC * 65536) / dy_AC;
+        step_edge_x_AC_ish16 = toridraw_wrap_shl(dx_AC, 16) / dy_AC;
     if( dy_AB > 0 )
-        step_edge_x_AB_ish16 = (dx_AB * 65536) / dy_AB;
+        step_edge_x_AB_ish16 = toridraw_wrap_shl(dx_AB, 16) / dy_AB;
     if( sy[2] != sy[1] )
-        step_edge_x_BC_ish16 = ((sx[2] - sx[1]) * 65536) / (sy[2] - sy[1]);
+        step_edge_x_BC_ish16 = toridraw_wrap_shl(sx[2] - sx[1], 16) / (sy[2] - sy[1]);
 
-    int edge_x_AC_ish16 = sx[0] * 65536;
-    int edge_x_AB_ish16 = sx[0] * 65536;
-    int edge_x_BC_ish16 = sx[1] * 65536;
+    int edge_x_AC_ish16 = toridraw_wrap_shl(sx[0], 16);
+    int edge_x_AB_ish16 = toridraw_wrap_shl(sx[0], 16);
+    int edge_x_BC_ish16 = toridraw_wrap_shl(sx[1], 16);
 
     int ry0 = sy[0];
     int ry1 = sy[1];

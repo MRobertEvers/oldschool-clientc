@@ -482,15 +482,14 @@ test_cs1_under_frame_ownership(void)
                                     .width = 200, .height = 120 };
     int32_t world_node = UITree_Push(tree, -1, &world);
     UITree_LayoutResolve(tree, 0, 0, 765, 503);
-    /* A plugin provides the frame: the engine takes the chrome, the provider
-     * moves the chat surface over the scene with retained widget edits. */
-    UITree_FrameProvide(tree, 0, provider);
+    /* A plugin moves the chat surface over the scene with retained widget
+     * edits. (The frame-provider API went with the chrome-changing plugins,
+     * f41111f0c; the retained edits by owner stay.) */
     TEST_ASSERT(UITree_WidgetSetPosition(tree, UITree_RefAt(tree, text), provider, 20, 30) &&
                     UITree_WidgetSetSize(tree, UITree_RefAt(tree, text), provider, 120, 20) &&
                     UITree_WidgetSetAnchor(tree, UITree_RefAt(tree, text), provider, UITree_RefAt(tree, world_node),
                                            UITREE_WIDGET_RELATION_OVER) == UITREE_WIDGET_ANCHOR_OK,
                 "the provider moves the chat surface over the scene");
-    UITree_FrameProvide(tree, 0, provider);
     UITree_EmitBufferInit(&buffer);
     int values[] = { 0, 7, 9 };
     for( int n = 0; n < 3; n++ )
@@ -515,7 +514,6 @@ test_cs1_under_frame_ownership(void)
     VarPManager_SetVarpOptimistic(&varps, 42, 7);
     cs1_test_eval_tree(&host, tree);
     UITree_WidgetResetOwner(tree, provider);
-    UITree_FrameRelease(tree);
     buffer.count = 0;
     UITree_EmitWalk(tree, &ui_host, &buffer, 100);
     int visible = 0;

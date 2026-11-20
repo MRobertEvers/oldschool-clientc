@@ -2,6 +2,7 @@
  * Run: make -C src test-sailing-collision */
 #include "torirs_server.h"
 #include "torirs_server_scene.h"
+#include "torirs_server_servpack.h"
 #include "torirs_server_mapinstance.h"
 #include "torirs_server_vessel.h"
 #include "world/wev.h"
@@ -31,6 +32,11 @@ void ToriRSServer_WorldSetActive(struct ToriRSServer* srv, struct ToriRSServerPl
 void ToriRSServer_WorldTeleport(struct ToriRSServer* srv, int level, int x, int z)
 { assert(srv->active_player); srv->active_player->level = level;
   srv->active_player->x = x; srv->active_player->z = z; }
+/* A hull that crosses a zone queues the crossing on its riders; this test seats
+ * none (player_count 0), so the script engine is never reached. */
+int ToriRSServer_ScriptsQueueTriggerAt(struct ToriRSServer* srv, int trigger, int level, int x, int z)
+{ (void)srv; (void)trigger; (void)level; (void)x; (void)z;
+  assert(!"the sailing collision test seats no rider"); return TORIRSSERVER_TRIGGER_NONE; }
 
 static struct ToriRSServerVessel*
 fixture(struct ToriRSServer* srv, int width, int length, int angle)
@@ -65,6 +71,19 @@ boat_obstacle(int dx, int dz, int blocked)
     ToriRSServer_SceneCollisionCommit(0, 1, ocean_x + dx, ocean_z + dz, ocean_x + dx, ocean_z + dz);
 }
 
+/* The scene decodes locs from the server pack's records, loaded once at boot
+ * (ToriRSServer_SceneLocConfigsLoad), the way the server does it. */
+static void load_loc_configs(void)
+{
+    struct RSCache_ServerPack pack;
+    char pack_dir[1024];
+    ToriRSServer_ServPackDir("OSRS-Content/osrs-content", cache_dir, pack_dir, sizeof(pack_dir));
+    if( !ToriRSServer_ServPackOpen(&pack, pack_dir) ) exit(1);
+    if( ToriRSServer_SceneLocConfigsLoad(&pack) <= 0 )
+    { fprintf(stderr, "sailing_collision_test: no loc configs in %s\n", pack_dir); exit(1); }
+    RSCache_ServerPackClose(&pack);
+}
+
 int main(int argc, char** argv)
 {
     struct ToriRSServer* srv = calloc(1, sizeof(*srv));
@@ -72,6 +91,7 @@ int main(int argc, char** argv)
     assert(srv);
     ToriDraw_InitMath();
     if( argc > 1 ) cache_dir = argv[1];
+    load_loc_configs();
     CHECK(ToriRSServer_SceneBuild(cache_dir, ocean_x >> 3, ocean_z >> 3), "ocean cache scene builds");
     if( !ToriRSServer_SceneBoatCollision(0) ) return 1;
     CHECK(ToriRSServer_SceneBoatCollision(0) != ToriRSServer_SceneCollision(0),

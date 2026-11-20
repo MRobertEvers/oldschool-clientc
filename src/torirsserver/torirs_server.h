@@ -2603,6 +2603,18 @@ struct ToriRSServerInteraction
     int ap_range_called;
 
     /**
+     * Latched by a script (`p_opnpc`): a fight's re-arm after a swing, the
+     * ranged loop, auto-retaliation. Such an interaction waits while a chat box
+     * is up and fires once it closes: index 4555, Torag's hammers swing every 4
+     * ticks ([3371], [3375], [3379]), a level-up box [3381], no swing [3383],
+     * the next swing [3387] on the tick the box closed; across the 689 boxes
+     * recorded none stayed up over a tick the recorder swung on
+     * (docs/rsprox-analysis/levelup/README.md, "In a fight"). 0 for a client's
+     * own click (ToriRSServer_WorldInteractionSet).
+     */
+    int scripted;
+
+    /**
      * "Use <this item> on it" rather than "do op <n> to it".
      *
      * A use-on click is an interaction like any other — it latches, it walks,
@@ -4182,6 +4194,13 @@ struct ToriRSServerPlayer
      *  themselves"), and the damage funnel has no other way to tell a swing
      *  from a sip. Set by the `damage()` opcode, cleared by the funnel. */
     int hit_self_inflicted;
+    /** A hit somebody else dealt this player since its last turn: the turn
+     *  closes the chat box after its queues (phase_player). Jagex closes a
+     *  level-up box on the tick a hit lands, and no chat modal of any kind
+     *  stays up across a later tick the recorder is hit on (RSProx: 689
+     *  level-up boxes and ~27,000 chat modals; index 4517 [3992], 4555
+     *  [3387]). */
+    int hit_closes_chat;
     /** Debug invulnerability (`::god`). Gates the one player damage funnel,
      *  `ToriRSServer_CombatHitPlayer`, so every source — npc melee, the Inferno's
      *  queued projectile damage, poison, content's own `damage()` — lands as a
@@ -10238,11 +10257,12 @@ ToriRSServer_PacketGroupEnd(struct ToriRSServerPlayer* player);
  * either.
  */
 
-/** One friend-list entry: p8 name37, p1 world. Both the login dump (one packet
- *  per friend) and every delta afterwards use this. `rank` is the friend's
- *  friends-chat rank in the viewer's channel (0 a plain friend, 1 Recruit ..
- *  6 General: RSProx index 759 [3198], `rank=2` beside Normo), which the
- *  chat-channel setup panel's list draws (torirs_server_friendchat.h). */
+/** One friend-list entry: p8 name37, p1 world (the rs wires), or the display
+ *  name, its previous spelling and the world (rev 239+). Both the login dump
+ *  (one packet per friend) and every delta afterwards use this. `rank` is the
+ *  friend's friends-chat rank in the viewer's channel (0 a plain friend, 1
+ *  Recruit .. 6 General: RSProx index 759 [3198], `rank=2` beside Normo), which
+ *  the chat-channel setup panel's list draws (torirs_server_friendchat.h). */
 void
 ToriRSServer_SendUpdateFriendlist(
     struct ToriRSServerPlayer* player,
@@ -10302,6 +10322,15 @@ ToriRSServer_SendMessageFriendchannel(
     int32_t counter,
     int crown,
     const char* text);
+
+/** The same entry for a friend who was just renamed: the rev 239+ client finds
+ *  the row by the previous name and renames it rather than adding a second. */
+void
+ToriRSServer_SendUpdateFriendlistRenamed(
+    struct ToriRSServerPlayer* player,
+    int64_t name37,
+    int world,
+    int rank);
 
 /** Empty UPDATE_FRIENDLIST: required to promote rev-239's social store from
  * FRIENDLIST_LOADED's "loading" state when the account has no entries. */

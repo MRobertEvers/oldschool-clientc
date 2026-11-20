@@ -63,6 +63,7 @@
  */
 
 #include "torirs_server_scene.h"
+#include "torirs_server_servpack.h"
 #include <assert.h>
 
 #include "engine/world_builder/collision_map.h"
@@ -532,6 +533,25 @@ static const int k_spots[][2] = {
     { 1502, 3573 }, { 1516, 3231 },
 };
 
+/* The scene decodes locs from the server pack's records, loaded once at boot
+ * (ToriRSServer_SceneLocConfigsLoad), the way the server does it. */
+static void
+load_loc_configs(const char* cache_dir)
+{
+    struct RSCache_ServerPack pack;
+    char pack_dir[1024];
+
+    ToriRSServer_ServPackDir("OSRS-Content/osrs-content", cache_dir, pack_dir, sizeof(pack_dir));
+    if( !ToriRSServer_ServPackOpen(&pack, pack_dir) )
+        exit(1);
+    if( ToriRSServer_SceneLocConfigsLoad(&pack) <= 0 )
+    {
+        fprintf(stderr, "collision_doors_test: no loc configs in %s\n", pack_dir);
+        exit(1);
+    }
+    RSCache_ServerPackClose(&pack);
+}
+
 int
 main(int argc, char** argv)
 {
@@ -541,6 +561,7 @@ main(int argc, char** argv)
     memset(&t, 0, sizeof(t));
 
     printf("collision_doors_test: cache %s\n", cache_dir);
+    load_loc_configs(cache_dir);
     if( getenv("TORIRS_COLLISION_DOORS_FULL") )
     {
         /* The whole overworld on a 96-tile stride — the scene is 104 wide, so

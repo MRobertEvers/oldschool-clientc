@@ -100,8 +100,15 @@ struct Peer
      *  section written in the wrong order swaps two appearances that are
      *  otherwise byte-identical, and nothing else here would notice. */
     char saw_name[16];
-    /** Walk/run direction ops decoded for another player, over every tick. */
+    /** Steps decoded for another player, over every tick: a walk/run
+     *  direction op, or (the OSRS slot-table stream, revisions 227-241) an
+     *  absolute position whose move is a walk or a run. */
     int saw_steps;
+    /** Teleports decoded for another player: the OSRS stream's high-resolution
+     *  move type 3, an absolute position with RSPROT_PLAYER_MOVE_TELEPORT. The
+     *  pid and tile of the most recent one. */
+    int saw_teleports;
+    int saw_teleport_pid, saw_teleport_x, saw_teleport_z;
     /** Set if an op targeted a slot this client was never told about, which is
      *  the shape a mis-ordered extended section takes. */
     int saw_unknown_target;
@@ -137,6 +144,11 @@ struct Peer
     int saw_friend_count;
     int64_t saw_friend_name37;
     int saw_friend_world;
+    /** The same entry's text: its display name, its previous one, and its
+     *  leading "find the row by the previous name" byte (a rename). */
+    char saw_friend_name[64];
+    char saw_friend_previous[64];
+    int saw_friend_match_previous;
     /** FRIENDLIST_LOADED's status byte, or -1 if none has arrived. */
     int saw_friendlist_loaded;
     /** UPDATE_IGNORELIST: how many packets, and the entry count of the last. */
@@ -218,6 +230,10 @@ struct Peer
      */
     int saw_synth_count;
     int saw_synth_id, saw_synth_loops, saw_synth_delay;
+    /** Every SYNTH_SOUND id since the last reset of the count, in order: a hit
+     *  brings more than one sound (the flinch, then the npc's own swing), so
+     *  "the last one" is not a measure of whether a given one arrived. */
+    int saw_synth_ids[32];
 
     /** Same idea, for MIDI_JINGLE -- decoded by the client's real
      *  executor (src/net/rev/<rev>/<rev>_exec.c), not asserted against a
@@ -249,6 +265,22 @@ peer_saw_npc(
 {
     for( int i = 0; i < peer->npc_tracked_count; i++ )
         if( peer->npc_tracked[i] == slot )
+            return 1;
+    return 0;
+}
+
+/** Did this client receive SYNTH_SOUND `id` since its count was reset? */
+static int
+peer_saw_synth(
+    const struct Peer* peer,
+    int id)
+{
+    int n = peer->saw_synth_count;
+
+    if( n > (int)(sizeof(peer->saw_synth_ids) / sizeof(peer->saw_synth_ids[0])) )
+        n = (int)(sizeof(peer->saw_synth_ids) / sizeof(peer->saw_synth_ids[0]));
+    for( int i = 0; i < n; i++ )
+        if( peer->saw_synth_ids[i] == id )
             return 1;
     return 0;
 }
@@ -420,6 +452,25 @@ absorb_player_info(
         case RSPROT_OP_RUNDIR:
             if( !local && target >= 0 )
                 peer->saw_steps++;
+            break;
+        case RSPROT_OP_ABS_XZLEVEL:
+            /* The OSRS stream (rsprot_info_player.c `moved`): every slot that
+             * moved is re-placed absolutely, and the move says how -- a step
+             * is a walk or a run, a teleport is its own type, and neither is a
+             * remove and re-add. */
+            if( !local && target >= 0 )
+            {
+                if( op->xz_level.move == RSPROT_PLAYER_MOVE_WALK ||
+                    op->xz_level.move == RSPROT_PLAYER_MOVE_RUN )
+                    peer->saw_steps++;
+                else if( op->xz_level.move == RSPROT_PLAYER_MOVE_TELEPORT )
+                {
+                    peer->saw_teleports++;
+                    peer->saw_teleport_pid = ToriRSServer_WirePlayerPid(target);
+                    peer->saw_teleport_x = op->xz_level.x;
+                    peer->saw_teleport_z = op->xz_level.z;
+                }
+            }
             break;
         case RSPROT_OP_APPEARANCE:
             if( !local && target >= 0 )
@@ -622,6 +673,14 @@ absorb_social(
         peer->saw_friend_world = packet->_update_friendlist.count > 0
                                      ? packet->_update_friendlist.entries[0].world
                                      : 0;
+        if( packet->_update_friendlist.count > 0 )
+        {
+            snprintf(peer->saw_friend_name, sizeof(peer->saw_friend_name), "%s",
+                     packet->_update_friendlist.entries[0].name);
+            snprintf(peer->saw_friend_previous, sizeof(peer->saw_friend_previous), "%s",
+                     packet->_update_friendlist.entries[0].previous_name);
+            peer->saw_friend_match_previous = packet->_update_friendlist.entries[0].match_previous;
+        }
         return 1;
     case PKT_NAME_FRIENDLIST_LOADED:
         peer->saw_friendlist_loaded = packet->_friendlist_loaded.status;
@@ -770,6 +829,9 @@ pump(
                 peer->my_pid = ToriRSServer_WirePlayerPid(packet._update_pid.local_player_index);
             else if( packet.packet_type == PKT_NAME_SYNTH_SOUND )
             {
+                if( peer->saw_synth_count <
+                    (int)(sizeof(peer->saw_synth_ids) / sizeof(peer->saw_synth_ids[0])) )
+                    peer->saw_synth_ids[peer->saw_synth_count] = packet._synth_sound.id;
                 peer->saw_synth_count++;
                 peer->saw_synth_id = packet._synth_sound.id;
                 peer->saw_synth_loops = packet._synth_sound.loops;
@@ -1004,6 +1066,15 @@ main(void)
      * lines to make impossible.
      */
     setenv("TORIRSSERVER_SAVES", "build/embed_test_saves", 1);
+    /*
+     * And the world's own home as its new characters' first tile. A character
+     * is created on Tutorial Island unless the world says otherwise
+     * (newplayer.rs2; DEFAULT_TUTORIAL_HOME_X), and every section below is
+     * about Lumbridge: the castle door, the courtyard fences, the kitchen
+     * range, the npcs round the home tile. A world without the tutorial states
+     * its home here, and its characters start with nothing.
+     */
+    setenv("TORIRSSERVER_TUTORIAL_HOME", "3222,3218", 1);
     remove("build/embed_test_saves/alice.ini");
     remove("build/embed_test_saves/bob.ini");
     remove("build/embed_test_saves/carol.ini");
@@ -1376,13 +1447,14 @@ main(void)
     /*
      * The opening fixture, over a real login rather than a direct call.
      *
-     * `ToriRSServer_WorldInit` used to deal the kit, stock the bank and set the
-     * stats; all three are content now, in `[proc,newplayer_setup]`, which
-     * `[login,_]` calls in phase 7. That makes this the end-to-end check the
-     * move needs: a client that handshakes, logs in and ticks should end up
-     * holding exactly what the C used to hand it — and *both* clients should,
-     * which is also the check that a second login runs [login] for the newcomer
-     * rather than a second time for whoever was already here.
+     * `ToriRSServer_WorldInit` used to deal a kit, stock the bank and set the
+     * stats; what is left of that is content's, in `[proc,newplayer_setup]`,
+     * which `[login,_]` calls in phase 7. There is no start kit (newplayer.rs2:
+     * "There is no other kit"; the reference's game begins with nothing), so a
+     * character created off the island holds nothing and banks nothing, and
+     * every section below that spends an item gives it first. *Both* clients
+     * are asked, which is also the check that a second login runs [login] for
+     * the newcomer rather than a second time for whoever was already here.
      */
     for( int p = 0; p < 2; p++ )
     {
@@ -1392,11 +1464,11 @@ main(void)
         for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
             if( player->inv[i].obj_id >= 0 )
                 kit++;
-        check(kit == 14, p == 0 ? "[login] dealt alice the 14-item opening kit"
-                                : "and dealt bob the same kit");
-        check(ToriRSServer_BankCountPlayer(player, 995) == 250000,
-              p == 0 ? "[login] stocked alice's bank with 250000 coins"
-                     : "and bob's, in his own container");
+        check(kit == 0, p == 0 ? "[login] dealt alice no opening kit: her backpack is empty"
+                               : "and bob none either");
+        check(ToriRSServer_BankCountPlayer(player, 995) == 0,
+              p == 0 ? "[login] and put no coins in alice's bank"
+                     : "and none in bob's, in his own container");
         check(player->stat_level[TORIRSSERVER_STAT_HITPOINTS] == 10,
               p == 0 ? "[login] put alice's hitpoints at level 10" : "and bob's");
         check(player->hitpoints == 10 && player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] == 10 &&
@@ -1508,9 +1580,16 @@ main(void)
         struct CollisionApproach approach;
         struct CollisionNearestOpts nearest;
 
-        check(door >= 0 && cm != NULL && base_x >= 0,
-              "embed has a castle door and a level-0 collision map");
-        if( door >= 0 && cm != NULL && base_x >= 0 )
+        /* `cm` is the bound window's 104x104 and is indexed with the door's
+         * tile less its origin below, so the door must be inside that view, not
+         * merely loaded somewhere (a square a window holds as its ring). */
+        int door_in_view = door >= 0 && base_x >= 0 &&
+                           ToriRSServer_SceneWindowContains(ToriRSServer_SceneBoundWindow(),
+                                                            3226, 3223);
+
+        check(door >= 0 && cm != NULL && door_in_view,
+              "embed has a castle door inside its level-0 collision view");
+        if( door >= 0 && cm != NULL && door_in_view )
         {
             struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(door);
 
@@ -1702,17 +1781,15 @@ main(void)
     /*
      * ── And when one of them teleports? ──────────────────────────────
      *
-     * The tracked section's four movement ops are "nothing", one step, two
-     * steps and remove; none of them is a placement, so a teleport has to be
-     * spelled as remove-then-re-add. The observable end of that is a second
-     * new-player record for a pid the client already had — which is also a fresh
-     * appearance, so the name check below is what proves the re-add happened
-     * rather than the packet simply having gone quiet.
+     * Revision 239's high-resolution update has a move type for it (3, the
+     * reference's teleport: an absolute or relative re-placement), so a
+     * teleport is not spelled as remove-then-re-add and carries no fresh
+     * appearance. The observable end is that move, for alice's pid, landing on
+     * the tile she was put on.
      */
     {
-        int appearances_before = peers[1].saw_appearance;
+        int teleports_before = peers[1].saw_teleports;
 
-        peers[1].saw_name[0] = '\0';
         /* A host saying whose turn it is, which is what the seam is for: this
          * stands in for the `::tele` cheat or a world-map click arriving on
          * alice's session. */
@@ -1721,10 +1798,12 @@ main(void)
         for( int round = 0; round < 6; round++ )
             pump(peers, 2, embed, 1, 64);
 
-        check(peers[1].saw_appearance > appearances_before,
-              "bob's client was re-told about alice after she teleported");
-        check(strcmp(peers[1].saw_name, "alice") == 0, "and it was still alice");
-        check(!peers[1].saw_unknown_target, "with the remove and the re-add in step");
+        check(peers[1].saw_teleports > teleports_before,
+              "bob's client was told alice teleported");
+        check(peers[1].saw_teleport_pid == alice->pid && peers[1].saw_teleport_x == alice->x &&
+                  peers[1].saw_teleport_z == alice->z,
+              "and it was alice, on the tile she was put on");
+        check(!peers[1].saw_unknown_target, "with every op aimed at a player the client holds");
     }
 
     /*
@@ -1813,22 +1892,26 @@ main(void)
              */
             ToriRSServer_WorldSetActive(world, alice);
             ToriRSServer_CombatHitNpc(world, npc_slot, 0, 0);
+            /* Each client names the npc by its OWN slot (struct
+             * ToriRSServerPlayerSlotMap): the world slot is the server's, and
+             * the two clients' names for one npc need not agree. */
             for( int round = 0; round < 4; round++ )
             {
                 pump(peers, 2, embed, 1, 64);
-                if( peer_npc_face(&peers[0], npc_slot) >= 0 &&
-                    peer_npc_face(&peers[1], npc_slot) >= 0 )
+                if( peer_npc_face(&peers[0], ToriRSServer_SlotMapClient(alice, npc_slot)) >= 0 &&
+                    peer_npc_face(&peers[1], ToriRSServer_SlotMapClient(bob, npc_slot)) >= 0 )
                     break;
             }
 
-            alice_face = peer_npc_face(&peers[0], npc_slot);
-            bob_face = peer_npc_face(&peers[1], npc_slot);
+            alice_face = peer_npc_face(&peers[0], ToriRSServer_SlotMapClient(alice, npc_slot));
+            bob_face = peer_npc_face(&peers[1], ToriRSServer_SlotMapClient(bob, npc_slot));
 
             check(peers[0].my_pid == alice->pid && peers[1].my_pid == bob->pid,
                   "each client was told its own real pid, not the 2047 sentinel");
             check(peers[0].my_pid != peers[1].my_pid,
                   "so alice and bob were told different pids");
-            check(peer_saw_npc(&peers[0], npc_slot) && peer_saw_npc(&peers[1], npc_slot),
+            check(peer_saw_npc(&peers[0], ToriRSServer_SlotMapClient(alice, npc_slot)) &&
+                      peer_saw_npc(&peers[1], ToriRSServer_SlotMapClient(bob, npc_slot)),
                   "both clients are tracking the npc alice hit");
             check(alice_face >= 32768,
                   "the npc's face target is a player, not an npc slot");
@@ -1896,12 +1979,14 @@ main(void)
              * indistinguishable from the feature being broken.
              *
              * Bob is what makes this worth writing. He is three tiles away and
-             * has not touched the npc, and he must hear it anyway: LostCity
-             * spells this as `~sound_within_distance`, a per-player proc that
-             * only ever runs for whoever triggered it, and porting that shape
-             * literally would have sent the noise to alice alone. The engine
-             * broadcasts from the emitter instead (`npc_sound_nearby`), and
-             * bob's stream is the only place that difference is visible.
+             * has not touched the npc, and he does NOT hear it: Jagex sends an
+             * npc's defend sound to the player whose hit it was and nobody
+             * else (RSProx 820: the recorder hears the stone guardian's 978 for
+             * each of their own hits and never for another raider's splat on
+             * the same npc in the same tick; ToriRSServer_CombatHitNpc). An
+             * npc whose record states a defend range is the other case, one
+             * SOUND_AREA for everyone in range; this one has none. Bob's
+             * stream is the only place the difference is visible.
              */
             {
                 const int flinch_synth = 472; /* goblin_hit */
@@ -1919,13 +2004,13 @@ main(void)
                 for( int round = 0; round < 4; round++ )
                     pump(peers, 2, embed, 1, 64);
 
-                alice_flinch = peers[0].saw_synth_count;
-                bob_flinch = peers[1].saw_synth_count;
-                check(alice_flinch > 0 && peers[0].saw_synth_id == flinch_synth,
+                alice_flinch = peer_saw_synth(&peers[0], flinch_synth);
+                bob_flinch = peer_saw_synth(&peers[1], flinch_synth);
+                check(alice_flinch,
                       "the npc's flinch sound reached the player who hit it");
-                check(bob_flinch > 0 && peers[1].saw_synth_id == flinch_synth,
-                      "and the bystander three tiles away heard it too — the "
-                      "emitter broadcasts, it is not a per-player proc");
+                check(!bob_flinch,
+                      "and not the bystander three tiles away: a defend sound is "
+                      "the dealer's (RSProx 820)");
                 check(peers[0].saw_synth_loops == 1,
                       "with loops=1: RS_Audio_QueueEffect refuses loops=0, so a "
                       "literal port of ~sound_within_distance would be silent");
@@ -1949,8 +2034,7 @@ main(void)
                       "combat-target latch");
                 for( int round = 0; round < 4; round++ )
                     pump(peers, 2, embed, 1, 64);
-                check(peers[0].saw_synth_count > 0 &&
-                          peers[0].saw_synth_id == death_synth,
+                check(peer_saw_synth(&peers[0], death_synth),
                       "and its death sound went out once the death script ran, "
                       "after the flinch rather than instead of it");
 
@@ -2087,7 +2171,9 @@ main(void)
      * client encoded". Only the client's own `net_out_*` can answer that.
      *
      * `mock_quest_progress` is the varp the selftest content writes: 1 for
-     * `[opheldu,knife]` and 10 for `[oplocu,cooksquestrange]`.
+     * `[opheldu,knife]` and 11 for `[oplocu,cooksquestrange]` -- 11, not 10,
+     * since that script reads `loc_coord` first: 11 says the active loc came
+     * with the use-on (selftest_useon.rs2), 18 that it did not.
      */
     {
         int progress = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7_mock_quest_progress");
@@ -2124,8 +2210,8 @@ main(void)
             peer_oplocu(&peers[0], 3212, 3215, range, bucket, 1, 0);
             for( int round = 0; round < 40; round++ )
                 pump(peers, 2, embed, 1, 64);
-            check(ToriRSServer_Varp(alice, progress) == 10,
-                  "and a real OPLOCU reaches [oplocu,cooksquestrange]");
+            check(ToriRSServer_Varp(alice, progress) == 11,
+                  "and a real OPLOCU reaches [oplocu,cooksquestrange], with its loc");
         }
     }
 
@@ -2237,6 +2323,33 @@ main(void)
         check(peers[0].saw_friend_world != 0, "with a non-zero world, because bob is online");
         check(peers[1].saw_friend_count == 0,
               "bob heard nothing — he does not have alice in his list");
+
+        /*
+         * ── a refused add ──
+         *
+         * A name that base 37 cannot hold names no player. Jagex answers such
+         * an add with one friend notification and no list update (RSProx
+         * index 786 [6023] -> [6031] and [6040] -> [6047], index 1702 [334]:
+         * MESSAGE_GAME type=friendnotification "Unable to add friend - unknown
+         * player.", no UPDATE_FRIENDLIST). The rev-239 client adds a friend
+         * only when the update arrives, so an update sent anyway would put the
+         * refused name in the list.
+         */
+        {
+            const char* nobody = "nobody_can_have_this_name";
+
+            peers[0].saw_friend_count = 0;
+            peer_reset_game(&peers[0]);
+            peer_social_name37(&peers[0], PKTOUT_NAME_FRIENDLIST_ADD, nobody);
+            for( int round = 0; round < 6; round++ )
+                pump(peers, 2, embed, 1, 64);
+            check(!ToriRSServer_FriendsIsFriend(alice37, (int64_t)strtobase37(nobody)),
+                  "an add of a name no player can have is refused by the service");
+            check(peers[0].saw_friend_count == 0,
+                  "and alice's client is sent no list update for it");
+            check(peer_saw_game(&peers[0], "Unable to add friend - unknown player."),
+                  "but Jagex's answer: \"Unable to add friend - unknown player.\"");
+        }
 
         /* ── the private message ── */
         peers[0].saw_pm_count = 0;
@@ -2416,9 +2529,49 @@ main(void)
                 /* Nobody is told about their own login, which is the one branch
                  * in social_notify_followers that is not the reference's — a
                  * player may list themselves and nothing refuses it. */
-                check(peers[1].saw_game_count > 0, "bob's own login burst still reached him");
+                /* Live, measured by what the engine's login burst always
+                 * carries (the friend list's loaded marker), not by a game
+                 * message content may or may not say at login. */
+                check(peers[1].saw_friendlist_loaded >= 1, "bob's own login burst still reached him");
                 check(!peer_saw_game(&peers[1], "bob has logged in."),
                       "and bob was not told about his own login");
+
+                /*
+                 * ── a friend's name is its spelling, and follows a rename ──
+                 *
+                 * Jagex's rows carry the display name, capitals and spaces
+                 * kept, and the previous name only after a rename (RSProx
+                 * index 236 [3]: "Eden Cosine", "iGud PK"; "Tianzhen" with
+                 * previous name "00sanguine"; 87 of 94 rows with none). Base
+                 * 37 is the key: it spells "Bob Smith" as "bob_smith".
+                 */
+                check(strcmp(peers[0].saw_friend_name, "bob") == 0 &&
+                          peers[0].saw_friend_previous[0] == '\0' &&
+                          !peers[0].saw_friend_match_previous,
+                      "alice's row for bob carries his name and no previous one");
+                {
+                    struct ToriRSServerPlayer* bob_again = ToriRSServer_EmbedPlayer(embed, rejoin);
+
+                    check(bob_again != NULL, "bob is a player again");
+                    if( bob_again )
+                    {
+                        peers[0].saw_friend_count = 0;
+                        ToriRSServer_WorldSetActive(world, bob_again);
+                        check(ToriRSServer_WorldChangeDisplayName(world, "Bob Smith"),
+                              "bob renames himself Bob Smith");
+                        for( int round = 0; round < 4; round++ )
+                            pump(peers, 2, embed, 1, 64);
+                        check(ToriRSServer_FriendsIsFriend(alice37, (int64_t)strtobase37("Bob Smith")),
+                              "alice's list follows him to the new name");
+                        check(peers[0].saw_friend_count > 0 &&
+                                  strcmp(peers[0].saw_friend_name, "Bob Smith") == 0,
+                              "and her client is told \"Bob Smith\", capitals and space kept");
+                        check(strcmp(peers[0].saw_friend_previous, "bob") == 0 &&
+                                  peers[0].saw_friend_match_previous,
+                              "with \"bob\" as the previous name, so her row is renamed in place");
+                        check(peers[0].saw_friend_world != 0, "and still online");
+                    }
+                }
             }
         }
     }

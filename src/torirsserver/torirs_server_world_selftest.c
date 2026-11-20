@@ -1274,15 +1274,22 @@ selftest_lane_present(
 #define SELFTEST_LANE_RS2012_TD_PROBE "[proc,rs2012_td_init]"
 
 /* A stanza that is done with a secondary player drops it here rather than by
- * clearing `active`: the slot's bank is heap memory, and a later
- * ToriRSServer_WorldAddPlayer into the slot memsets the struct -- which is how
- * eight banks were still live at the suite's exit. (WorldRemovePlayer also
- * saves to disk, which a stanza must not do.) */
+ * clearing `active`: the slot's bank, containers, varp map and input queue are
+ * heap memory, and a later ToriRSServer_WorldAddPlayer into the slot memsets
+ * the struct -- which is how eight banks were still live at the suite's exit.
+ * world_seat_player asserts the varp map and the input queue are gone, so a
+ * drop that released only the bank aborted the next seat at OPT=0 ('two
+ * far-apart players each hold their own window'). The same four releases
+ * ToriRSServer_WorldPlayerInit makes before its own memset. (WorldRemovePlayer
+ * also saves to disk, which a stanza must not do.) */
 static void
 selftest_drop_player(struct ToriRSServerPlayer* player)
 {
     assert(player);
     ToriRSServer_BankShutdownPlayer(player);
+    ToriRSServer_ContainerShutdownPlayer(player);
+    ToriRSServer_VarpsFree(&player->varps);
+    ToriRSServer_WorldInputFree(player);
     player->active = 0;
 }
 
@@ -28994,6 +29001,119 @@ ToriRSServer_WorldSelftest(void)
                                    ToriRSServer_SceneLocPlacementOp(home_slot, hut_door, 1) != NULL,
                                "and offers Open again");
             }
+        }
+        selftest_park_player(srv, 3222, 3218);
+    }
+
+    /*
+     * A door's timed revert lands while no window's VIEW holds the door, and
+     * the door it puts back is there to click when the player returns.
+     *
+     * The Wizards' Tower's north door (imp's quest walks through it): opened,
+     * then the player goes back to Lumbridge, whose window holds the door's map
+     * square (48,49) only as part of its outer ring -- loaded, but outside the
+     * 104x104 view. 500 ticks later `[proc,door_open_active]`'s two reverts
+     * fire. The clients are told the door is shut again; the collision store
+     * has to agree, or the next Open finds no loc on the tile (imp's test client
+     * run: '<- OPLOC1 23972 at 3109,3167 lvl=0 slot=-1') and the click does
+     * nothing.
+     */
+    fprintf(stderr, "ToriRSServer selftest: a door revert nobody watches reaches the store\n");
+    {
+        const int shut_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "fai_wiztower_poor_door");
+        const int open_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "fai_wiztower_poor_door_open");
+        const int door_x = 3109;
+        const int door_z = 3167;
+        int shape = -1;
+        int open_x = -1;
+        int open_z = -1;
+        uint8_t payload[6] = { (uint8_t)(door_x >> 8), (uint8_t)door_x,
+                               (uint8_t)(door_z >> 8), (uint8_t)door_z,
+                               (uint8_t)(shut_id >> 8), (uint8_t)shut_id };
+
+        SELFTEST_CHECK(shut_id > 0 && open_id > 0,
+                       "revert: the pack names both halves of the tower door: %d/%d", shut_id,
+                       open_id);
+        selftest_park_player(srv, door_x, door_z + 1);
+        {
+            struct ToriRSServerSceneLoc* door =
+                ToriRSServer_SceneLoc(ToriRSServer_SceneFindLoc(door_x, door_z, 0, shut_id));
+
+            SELFTEST_CHECK(door && door->active && door->loc_id == shut_id,
+                           "revert: the map has the tower door shut at %d,%d", door_x, door_z);
+            if( door )
+                shape = door->shape;
+        }
+        selftest_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+        SELFTEST_CHECK(selftest_settle(srv, 20) >= 0, "revert: the Open click settles");
+        for( int dx = -1; dx <= 1 && open_x < 0; dx++ )
+            for( int dz = -1; dz <= 1 && open_x < 0; dz++ )
+                if( ToriRSServer_SceneFindLocId(door_x + dx, door_z + dz, 0, open_id) >= 0 )
+                {
+                    open_x = door_x + dx;
+                    open_z = door_z + dz;
+                }
+        SELFTEST_CHECK(open_x >= 0, "revert: opening hangs the open leaf beside the doorway");
+
+        /* Away to Lumbridge: no view holds the doorway, a ring still holds its
+         * square. Both are the fixture, so both are asserted. */
+        selftest_park_player(srv, 3222, 3218);
+        SELFTEST_CHECK(ToriRSServer_SceneWindowFind(door_x, door_z) == NULL,
+                       "revert: no window's view holds the doorway any more");
+        SELFTEST_CHECK(ToriRSServer_SceneContains(door_x, door_z),
+                       "revert: but its map square is still loaded");
+        for( int t = 0; t < 505; t++ )
+            selftest_tick(srv);
+        {
+            struct ToriRSServerZoneLoc* record =
+                ToriRSServer_ZoneLocFind(srv, door_x, door_z, 0, shape);
+
+            SELFTEST_CHECK(!record || record->loc_id == shut_id,
+                           "revert: the world's record has the door shut again, got %d",
+                           record ? record->loc_id : -2);
+        }
+
+        selftest_park_player(srv, door_x, door_z + 1);
+        {
+            int slot = ToriRSServer_SceneFindLoc(door_x, door_z, 0, shut_id);
+            struct ToriRSServerSceneLoc* door = ToriRSServer_SceneLoc(slot);
+
+            SELFTEST_CHECK(door && door->active && door->loc_id == shut_id,
+                           "revert: back at the tower the shut door is in the store (slot %d, "
+                           "got %d)",
+                           slot, door ? door->loc_id : -1);
+            SELFTEST_CHECK(open_x < 0 ||
+                               ToriRSServer_SceneFindLocId(open_x, open_z, 0, open_id) < 0,
+                           "revert: and the open leaf is gone from %d,%d", open_x, open_z);
+        }
+        selftest_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+        SELFTEST_CHECK(selftest_settle(srv, 20) >= 0, "revert: the second Open click settles");
+        {
+            struct ToriRSServerSceneLoc* was = ToriRSServer_SceneLoc(
+                ToriRSServer_SceneFindLocExact(door_x, door_z, 0, shape));
+
+            SELFTEST_CHECK(!was || !was->active, "revert: and it opens the door again");
+            SELFTEST_CHECK(open_x < 0 ||
+                               ToriRSServer_SceneFindLocId(open_x, open_z, 0, open_id) >= 0,
+                           "revert: onto the same open leaf");
+        }
+        if( open_x >= 0 )
+        {
+            payload[0] = (uint8_t)(open_x >> 8);
+            payload[1] = (uint8_t)open_x;
+            payload[2] = (uint8_t)(open_z >> 8);
+            payload[3] = (uint8_t)open_z;
+            payload[4] = (uint8_t)(open_id >> 8);
+            payload[5] = (uint8_t)open_id;
+            selftest_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+            SELFTEST_CHECK(selftest_settle(srv, 20) >= 0, "revert: the Close click settles");
+        }
+        {
+            struct ToriRSServerSceneLoc* door =
+                ToriRSServer_SceneLoc(ToriRSServer_SceneFindLoc(door_x, door_z, 0, shut_id));
+
+            SELFTEST_CHECK(door && door->active && door->loc_id == shut_id,
+                           "revert: and closing it leaves the tower as the map has it");
         }
         selftest_park_player(srv, 3222, 3218);
     }

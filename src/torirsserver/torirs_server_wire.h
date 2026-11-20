@@ -269,9 +269,13 @@ struct ToriRSServerWirePayload
     void (*message_private)(struct RsprotBuf* buf, const char* from, int world, int counter,
                             int crown, uint8_t const* text, int text_len);
     /** One UPDATE_FRIENDLIST row. Rev 239 is a name/string record rather than
-     *  the classic p8 base37 + p1 world tuple; `rank` is the friend's
-     *  friends-chat rank (RSProt's `friend.rank`, the byte after the world). */
-    void (*friend_entry)(struct RsprotBuf* buf, const char* name, int world, int rank);
+     *  the classic p8 base37 + p1 world tuple: the display name, the previous
+     *  display name ("" for none), and `match_previous`, the leading byte the
+     *  client reads as "find the row by the previous name too" (a rename;
+     *  Statics.method10091 var4); `rank` is the friend's friends-chat rank
+     *  (RSProt's `friend.rank`, the byte after the world). */
+    void (*friend_entry)(struct RsprotBuf* buf, const char* name, const char* previous,
+                         int match_previous, int world, int rank);
     /**
      * UPDATE_FRIENDCHAT_CHANNEL_FULL_V2's body for a channel (the empty body,
      * "no channel", is the caller's: it writes nothing). RSProt states one
@@ -318,8 +322,9 @@ struct ToriRSServerWirePayload
         int argc);
 
     /** One ignore-list entry. The list is name-based at this revision rather
-     *  than a flat array of base-37 longs. */
-    void (*ignore_entry)(struct RsprotBuf* buf, const char* name);
+     *  than a flat array of base-37 longs: the display name and the previous
+     *  display name ("" for none). */
+    void (*ignore_entry)(struct RsprotBuf* buf, const char* name, const char* previous);
 
     /** The whole REBUILD_REGION: header, the distinct source-square count and
      *  the descriptor grid. `zones` is level-major, then x, then z, with -1

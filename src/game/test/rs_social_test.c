@@ -792,6 +792,69 @@ test_host_ops(void)
             RS_Social_DelIgnore(&social, "eve");
         }
 
+        /*
+         * A free account's lists are full at 200 friends and 100 ignores, a
+         * member's at 400 (deob Statics.method1180 / class58.method1182 on
+         * the login's member byte, client.field770): refused with the
+         * reference's line, and nothing sent.
+         */
+        {
+            char dave[] = "Dave";
+            char added[RS_SOCIAL_NAME_LEN];
+            struct RS_ChatNode const* line;
+            int had_friends = social.friend_count;
+            int had_ignores = social.ignore_count;
+
+            for( int i = social.friend_count; i < RS_SOCIAL_FRIEND_FREE_MAX; i++ )
+            {
+                snprintf(added, sizeof(added), "pal%d", i);
+                RS_Social_AddFriend(&social, added, 0);
+            }
+            for( int i = social.ignore_count; i < RS_SOCIAL_IGNORE_FREE_MAX; i++ )
+            {
+                snprintf(added, sizeof(added), "pest%d", i);
+                RS_Social_AddIgnore(&social, added);
+            }
+            CHECK(social.friend_count == 200 && social.ignore_count == 100, "200 friends and 100 ignores");
+
+            host.member = 0;
+            call_social(t, CS2_OP_FRIEND_ADD, 0, dave);
+            line = RS_Chat_NodeByTypeAndLine(&chat, 30, 0);
+            CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "a free account's 201st friend is not sent");
+            CHECK(line && strcmp(line->text,
+                                 "Your friend list is full. Max of 200 for free users, and 400 for members") == 0,
+                "and the list is full, got \"%s\"", line ? line->text : "(none)");
+            call_social(t, CS2_OP_IGNORE_ADD, 0, dave);
+            line = RS_Chat_NodeByTypeAndLine(&chat, 30, 0);
+            CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "nor its 101st ignore");
+            CHECK(line && strcmp(line->text,
+                                 "Your ignore list is full. Max of 100 for free users, and 400 for members") == 0,
+                "got \"%s\"", line ? line->text : "(none)");
+
+            host.member = 1;
+            call_social(t, CS2_OP_FRIEND_ADD, 0, dave);
+            CHECK(RS_CS2Host_TakeSocialSend(&host, &send) && send.kind == RS_CS2_SOCIAL_SEND_FRIEND_ADD,
+                "a member's 201st friend is asked for");
+            call_social(t, CS2_OP_IGNORE_ADD, 0, dave);
+            CHECK(RS_CS2Host_TakeSocialSend(&host, &send) && send.kind == RS_CS2_SOCIAL_SEND_IGNORE_ADD,
+                "and its 101st ignore");
+            CHECK(!RS_Social_FriendListFull(&social, 1) && !RS_Social_IgnoreListFull(&social, 1),
+                "a member's lists are not full below 400");
+            CHECK(RS_Social_FriendListFull(&social, 2), "only the byte 1 is a member (`field770 == 1`)");
+
+            for( int i = had_friends; i < RS_SOCIAL_FRIEND_FREE_MAX; i++ )
+            {
+                snprintf(added, sizeof(added), "pal%d", i);
+                RS_Social_DelFriend(&social, added);
+            }
+            for( int i = had_ignores; i < RS_SOCIAL_IGNORE_FREE_MAX; i++ )
+            {
+                snprintf(added, sizeof(added), "pest%d", i);
+                RS_Social_DelIgnore(&social, added);
+            }
+            host.member = 0;
+        }
+
         /* Deletes stay local and are sent. */
         RS_Social_AddFriend(&social, "carol", 0);
         call_social(t, CS2_OP_FRIEND_DEL, 0, name);

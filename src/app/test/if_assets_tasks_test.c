@@ -43,6 +43,8 @@
 #include "game/rs_entity_sync.h"
 #include "mem/torirs_mem.h"
 #include "toridraw_scene.h"
+#include "render/overlay_stage.h"
+#include "game/rs_healthbar.h"
 
 #include <signal.h>
 #include <stdio.h>
@@ -867,6 +869,127 @@ test_player_headicon_lifts(void)
     TEST_ASSERT(n == 0 && app_overlay_player_hint_lift(25, lift) == 30, "a hint arrow over no icon at 30");
 }
 
+/* A w x h sprite with every pixel set, as a healthbar half. */
+static struct ToriRS_Sprite*
+sized_sprite(
+    int w,
+    int h)
+{
+    struct ToriRS_Sprite* sprite = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sprite));
+    assert(sprite);
+    sprite->frames = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sprite->frames));
+    assert(sprite->frames);
+    sprite->frame_count = 1;
+    sprite->frames[0].pixels_argb =
+        ToriMem_Alloc(ToriMem_Assets(), (size_t)(w * h) * sizeof(*sprite->frames[0].pixels_argb));
+    assert(sprite->frames[0].pixels_argb);
+    for( int i = 0; i < w * h; i++ )
+        sprite->frames[0].pixels_argb[i] = 0xff00ff00u;
+    sprite->frames[0].width = w;
+    sprite->frames[0].height = h;
+    sprite->frames[0].crop_width = w;
+    sprite->frames[0].crop_height = h;
+    return sprite;
+}
+
+/* Draws one full bar of `type` above `lift` at anchor (200, 100); answers the
+ * first item's top and what the bar added to the lift. */
+static int
+healthbar_top(
+    struct Fixture* fx,
+    int type,
+    int lift,
+    int* out_added)
+{
+    struct WorldEntityFacet_Combat combat;
+    int const width = fx->app.healthbars.types[type].width;
+
+    memset(&combat, 0, sizeof(combat));
+    combat.healthbar_type = type;
+    combat.healthbar_start_cycle = 0;
+    combat.healthbar_duration = 0;
+    combat.healthbar_start_fill = width;
+    combat.healthbar_end_fill = width;
+    combat.healthbar_end_cycle = fx->app.world->cycle + 100;
+    combat.healthbar_held_fill = -1;
+    OverlayStage_Reset(&fx->app.overlays);
+    *out_added = app_overlay_build_healthbar(&fx->app, &combat, 200, 100, lift);
+    TEST_ASSERT(fx->app.overlays.world_count > 0, "the bar drew");
+    return fx->app.overlays.world_count > 0 ? fx->app.overlays.world[0].y : 0;
+}
+
+/*
+ * N1: where a health bar goes (deob Statics.method6709's bar loop: var27 = -2,
+ * 12 for a chat line, then per bar `var27 += h` (a sprite bar's h is its back
+ * sprite's field6911, a rectangle's 5), drawn with its top at sy - var27,
+ * `var27 += 2`). Tops, as lifts above the anchor sy:
+ *   rectangle                 3
+ *   5-px sprite bar           3   (98a50bfdd: 2, centred at sy - h/2)
+ *   8-px sprite bar           6   (98a50bfdd: 4)
+ *   5 then 8 stacked          3, 13
+ *   8 then 5 stacked          6, 13
+ *   5-px under a chat line    15  (98a50bfdd: 2, the chat line ignored)
+ * cache.osrs242's healthbar_standard_30 (id 0, the bar our server sends for
+ * every size-1 npc, an imp among them) is the 5-px pair 2176/2177, 30 x 5.
+ */
+static void
+test_healthbar_tops(void)
+{
+    struct Fixture fx;
+    struct RS_HealthbarType* types;
+    int added = 0;
+    int second = 0;
+
+    printf("TEST: health bars stack as the reference's var27\n");
+    fixture_init(&fx);
+    CacheProvider_SpriteAdd(&fx.provider, 2176, sized_sprite(30, 5));
+    CacheProvider_SpriteAdd(&fx.provider, 2177, sized_sprite(30, 5));
+    CacheProvider_SpriteAdd(&fx.provider, 3001, sized_sprite(50, 8));
+    CacheProvider_SpriteAdd(&fx.provider, 3002, sized_sprite(50, 8));
+    types = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*types));
+    assert(types);
+    for( int i = 0; i < 3; i++ )
+        RS_Healthbars_Defaults(&types[i]);
+    types[1].front_sprite = 2176;
+    types[1].back_sprite = 2177;
+    types[1].width = 30;
+    types[2].front_sprite = 3001;
+    types[2].back_sprite = 3002;
+    types[2].width = 50;
+    fx.app.healthbars.types = types;
+    fx.app.healthbars.count = 3;
+    fx.app.world = World_New();
+    fx.app.world->cycle = 1000;
+
+    TEST_ASSERT(app_overlay_bars_base_lift(false) == -2, "the stack starts at -2");
+    TEST_ASSERT(app_overlay_bars_base_lift(true) == 10, "and at 10 above a chat line");
+
+    TEST_ASSERT(healthbar_top(&fx, 0, -2, &added) == 100 - 3 && added == 7, "a rectangle bar's top at sy - 3, adding 7");
+    TEST_ASSERT(fx.app.overlays.world[0].h == 5, "five rows tall");
+    TEST_ASSERT(healthbar_top(&fx, 1, -2, &added) == 100 - 3 && added == 7, "a 5-px sprite bar's top at sy - 3, adding 7");
+    TEST_ASSERT(fx.app.overlays.world[0].x == 200 - 15, "centred on its 30-px span");
+    TEST_ASSERT(healthbar_top(&fx, 2, -2, &added) == 100 - 6 && added == 10, "an 8-px sprite bar's top at sy - 6, adding 10");
+
+    (void)healthbar_top(&fx, 1, -2, &added);
+    second = healthbar_top(&fx, 2, -2 + added, &added);
+    TEST_ASSERT(second == 100 - 13, "an 8-px bar over a 5-px bar at sy - 13");
+    (void)healthbar_top(&fx, 2, -2, &added);
+    second = healthbar_top(&fx, 1, -2 + added, &added);
+    TEST_ASSERT(second == 100 - 13, "a 5-px bar over an 8-px bar at sy - 13");
+
+    TEST_ASSERT(healthbar_top(&fx, 1, app_overlay_bars_base_lift(true), &added) == 100 - 15,
+        "a 5-px sprite bar under a chat line at sy - 15");
+    TEST_ASSERT(healthbar_top(&fx, 0, app_overlay_bars_base_lift(true), &added) == 100 - 15,
+        "and a rectangle the same");
+
+    fx.app.healthbars.types = NULL;
+    fx.app.healthbars.count = 0;
+    ToriMem_Free(ToriMem_Assets(), types);
+    World_Free(fx.app.world);
+    fx.app.world = NULL;
+    fixture_free(&fx);
+}
+
 /* E12 HEAD_CUSTOM: an IF_SETNPCHEAD_ACTIVE head of an npc carrying a
  * chathead customisation loads the override's models, not the type's heads,
  * keyed by the override (a second override is a second head). */
@@ -1473,6 +1596,7 @@ main(void)
     test_npc_headicon_placement();
     test_npc_type_headicon_slots();
     test_player_headicon_lifts();
+    test_healthbar_tops();
     test_npc_head_custom_loads_its_models();
     test_a_close_seen_after_the_last_pump_publishes();
     test_npc_head_custom_empty_list_shows_nothing();
