@@ -21499,10 +21499,25 @@ static void
 phase_cleanup_player(struct ToriRSServerPlayer* player)
 {
     player->sent_masks = player->masks;
-    player->stat_dirty = 0;
-    player->inv_dirty = 0;
-    player->worn_dirty = 0;
-    player->clear_map_flag = 0;
+    /*
+     * What phase_client_out flushes at its END is kept on the tick a rebuild
+     * barrier is armed. That tick's client-out stops after the rebuild prefix
+     * (PLAYER_INFO, NPC_INFO, the zones: maybe_rebuild's early return), so the
+     * backpack, the worn set, the stats and the map-flag clear it would have
+     * sent are still owed, and the barrier's own held ticks skip this cleanup
+     * until MAP_BUILD_COMPLETE lets the next client-out send them. Cleared
+     * here, they were lost: a POH room bought with coins left the client
+     * showing the coins the server had taken (makeover_tour's house.free,
+     * `Your new Bedroom is ready.` and no UPDATE_INV for the 10000 coins, the
+     * save holding 89000 and the client 99000).
+     */
+    if( !player->rebuild_scene_pending )
+    {
+        player->stat_dirty = 0;
+        player->inv_dirty = 0;
+        player->worn_dirty = 0;
+        player->clear_map_flag = 0;
+    }
     /* One social packet per tick, spent by whichever of the six arrived first.
      * The reference clears it in `resetEntity`, which is this phase. */
     player->social_protect = 0;
