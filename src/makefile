@@ -4696,8 +4696,12 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o \
 	$(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/rsprot_unity.o $(PROTO_OBJS)
 # The info streams' readers and the list they write (3rd/rsprot/streams, in the
-# codec unity), for a test that links an entity reader without net.o.
-RSPROT_INFO_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_unity.o
+# codec unity), for a test that links an entity reader without net.o. The codec
+# unity's packet functions call the executor (rsprot_branch, rsprot_exec_fail,
+# ...), so pkt_exec.o comes too: an OPT=1 link only got away without it because
+# LTO drops the unreferenced codecs, and at OPT=0 every one is linked.
+RSPROT_INFO_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_unity.o \
+	$(OBJ_DIR)/pkt_exec.o
 # PLAYER_INFO v5 round-trip: rsprot's writer (3rd/rsprot/streams/
 # player_info_write*.c) against its reader for the same revision; the tests live
 # in 3rd/rsprot/test and also run under `make -C 3rd/rsprot test`. Catches the
