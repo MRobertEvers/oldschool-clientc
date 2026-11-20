@@ -684,6 +684,58 @@ test_terrain_is_never_clipped(struct ToriDraw_Scene* scene)
         count_rgb(&frame, rgb(HSL_BACK)));
 }
 
+/**
+ * A model the rszbuf projection drew picks under the cursor.
+ *
+ * Every model pick is two tests: a face under the cursor AND the cursor's ray
+ * through the model's box. The ray reads the camera and model position the
+ * projection leaves on the scene (pick_camera / pick_position). The rszbuf
+ * stage 1 replaces the whole default projection, so it has to leave them too;
+ * when it did not, the ray tested against whatever the last other projection
+ * left there, and nothing in the world could be clicked on this renderer.
+ *
+ * The scene's pick state is made stale first, as a previous draw (a 2D model
+ * widget through another table, or an earlier frame) leaves it.
+ */
+static void
+test_projection_leaves_the_pick_state(struct ToriDraw_Scene* scene)
+{
+    struct Mesh box;
+    const struct ToriDraw_Kernel* const opaque =
+        ToriDraw_KernelTake(scene, ToriDraw_KernelGetSoftwareRsZBufferedOpaque());
+    struct ToriDraw_ViewPort vp = viewport();
+    struct ToriDraw_Camera cam = camera();
+    struct ToriDraw_Position pos = { .x = 300, .y = 100, .z = 1200 };
+
+    mesh_init(&box);
+    mesh_square(&box, 80, 0, HSL_BACK, 0);
+
+    memset(&scene->pick_position, 0, sizeof(scene->pick_position));
+    scene->pick_position.x = -4000;
+    scene->pick_position.z = 9000;
+    memset(&scene->pick_camera, 0, sizeof(scene->pick_camera));
+    scene->pick_camera = cam;
+    scene->pick_camera.yaw = 1024;
+
+    int const cull =
+        ToriDraw_RenderModel1ProjectWithTable(box.hnd, scene, &pos, &vp, &cam, opaque);
+    CHECK(cull == TORIDRAW_CULL_VISIBLE, "the off-centre square culled (%d)", cull);
+    if( cull != TORIDRAW_CULL_VISIBLE )
+        return;
+
+    int const mx = (scene->aabb.min_screen_x + scene->aabb.max_screen_x) / 2;
+    int const my = (scene->aabb.min_screen_y + scene->aabb.max_screen_y) / 2;
+    CHECK(
+        ToriDraw_ProjectedModelMouseHitTest(scene, box.hnd, &vp, mx, my),
+        "a click at the square's own screen centre (%d,%d) missed it", mx, my);
+    CHECK(
+        ToriDraw_ProjectedModelBoxHitTest(scene, box.hnd, &vp, mx, my),
+        "a box pick at the square's own screen centre (%d,%d) missed it", mx, my);
+    CHECK(
+        !ToriDraw_ProjectedModelMouseHitTest(scene, box.hnd, &vp, 4, 4),
+        "control: a click in the far corner picked the square");
+}
+
 int
 main(void)
 {
@@ -710,6 +762,7 @@ main(void)
     test_depth_bias_breaks_ties(scene);
     test_near_clip_draws_the_part_in_front(scene);
     test_terrain_is_never_clipped(scene);
+    test_projection_leaves_the_pick_state(scene);
     ToriDraw_SceneFree(scene);
 
     if( failures )

@@ -314,14 +314,12 @@ toridraw_project_rszbuf(
     if( (model->flags & TORIDRAW_MODEL_FLAG_TERRAIN) && rz->any_behind_near )
         return TORIDRAW_CULL_FAST;
 
-    scene->projected_vertex.x = 0;
-    scene->projected_vertex.y = 0;
-    scene->projected_vertex.z = center_depth;
-    scene->near_clipped = rz->any_behind_near;
+    /* What every projection leaves for its consumers -- the pick's pose among
+     * them -- written where the default projection writes it. */
+    struct ProjectedVertex const center = { .x = 0, .y = 0, .z = center_depth };
     scene->projection_bound_vertices = 0;
-    toridraw_projected_bound(scene, view_port, model->vertex_count);
-
-    return ToriDraw_AabbCull(&scene->aabb, view_port, camera);
+    return toridraw_projection_publish(
+        scene, position, view_port, camera, center, rz->any_behind_near, model->vertex_count);
 }
 
 #endif
