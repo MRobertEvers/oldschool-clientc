@@ -324,7 +324,7 @@ host_present(
                 (int32_t)(app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES), 0);
         /* Wanted, not loaded here: one load however many ask. */
         if( n->seq >= 0 )
-            (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, n->seq, 0), NULL);
+            (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, n->seq, 0));
         break;
     case RS_ENTITY_NOTE_NPC_FACE:
         /* DRIVE_STAMP: npc_face -- a=server slot b=tile x c=tile z d=tick.

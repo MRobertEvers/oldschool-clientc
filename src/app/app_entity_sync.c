@@ -55,7 +55,7 @@ app_entity_spotanim_want(
     struct App* app,
     int spotanim_id)
 {
-    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SPOTANIM, spotanim_id, 0), NULL);
+    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SPOTANIM, spotanim_id, 0));
 }
 
 void
@@ -93,7 +93,7 @@ app_request_entity_seq(
 {
     if( seq_id < 0 || ToriDraw_SceneAnimationHas(app->scene, seq_id) )
         return;
-    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0), NULL);
+    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0));
 }
 
 /* World_SeqSource.want: a track of some entity was just set to `seq_id`. */
@@ -793,7 +793,7 @@ app_world_build_npc_body(
                 CacheProvider_ModelHas(app->provider, npc->body_models[i]) )
                 continue;
             (void)Assets_Want(
-                app->assets, AssetKey_Make(ASSET_KIND_MODEL, npc->body_models[i], 0), NULL);
+                app->assets, AssetKey_Make(ASSET_KIND_MODEL, npc->body_models[i], 0));
             missing = 1;
         }
         if( missing )

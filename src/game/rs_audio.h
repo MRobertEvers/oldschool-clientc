@@ -51,6 +51,7 @@ struct CacheProvider;
 struct Assets;
 struct ToriRS_FeatureTable;
 struct ToriDraw_Scene;
+struct ToriDraw_EventQueue;
 struct World;
 struct RS_Soundscapes;
 
@@ -78,7 +79,9 @@ struct RS_Soundscapes;
  * costs too (its archive reads are synchronous and in-memory, so it simply never
  * hits the window).
  */
-#define RS_AUDIO_LATE_LIMIT_TICKS (ASSETS_SOUND_LATE_LIMIT_MS / 20)
+/* The reference's `delays[i] >= -10`: ten client ticks. The queue's own rule,
+ * counted on its own countdown (the assets table has no late policy). */
+#define RS_AUDIO_LATE_LIMIT_TICKS 10
 
 /**
  * Reference default (Client.waveVolume = 128 on its 0..128 scale), on the
@@ -281,10 +284,15 @@ struct RS_Audio
     /** The world's area-sound generation this layer last synchronised with. */
     int area_generation;
 
-    /** Cursor into the scene's event queue for the asset drain. Reset whenever
-     *  the queue shrinks, which is how a frame boundary is detected without the
-     *  scene having to tell us. */
+    /** Cursor into the scene's event queue for the asset drain, valid for the
+     *  queue it was taken on and that queue's `spent` count: a frame end
+     *  (ToriDraw_SceneFrameEnd) empties the queue and bumps the count, and the
+     *  cursor restarts. (Restarting only when the queue was SHORTER than the
+     *  cursor skipped the first `cursor` events of a queue refilled past it
+     *  before the next tick: a sound UNLOAD or LOAD made between frames.) */
     int scene_event_cursor;
+    struct ToriDraw_EventQueue const* scene_event_queue;
+    uint32_t scene_event_spent;
 
     /* Counters, for tests and TORIRS_AUDIO_DEBUG. */
     int played;

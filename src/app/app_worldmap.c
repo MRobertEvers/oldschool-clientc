@@ -132,7 +132,7 @@ app_mapfunction_scene_id(
     {
         /* One read in flight however many frames draw the icon. */
         (void)Assets_Want(
-            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, element_id, ASSET_CONFIG_MAPELEMENT), NULL);
+            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, element_id, ASSET_CONFIG_MAPELEMENT));
         return 0;
     }
     if( out_element )
@@ -209,7 +209,7 @@ app_worldmap_push_icon(
     if( !element )
     {
         (void)Assets_Want(
-            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, element_id, ASSET_CONFIG_MAPELEMENT), NULL);
+            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, element_id, ASSET_CONFIG_MAPELEMENT));
         return false;
     }
     /* The one seam both icon sources funnel through, so it is where the map's

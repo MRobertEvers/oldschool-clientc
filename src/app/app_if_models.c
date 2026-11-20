@@ -946,7 +946,7 @@ App_SetInterfaceModelAnim(
     /* The sequence is only drawn: its load starts now, and the widget shows
      * its rest pose until it is here (uitree_anim.h). */
     if( anim_id >= 0 )
-        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, anim_id, 0), NULL);
+        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, anim_id, 0));
     if( UIIfModels_SetHeadAnim(&app->if_models, component_id, anim_id) )
         RedrawRequest_Raise(&app->redraw_request);
     if( UIIfModels_SetPlayerModelAnim(&app->if_models, component_id, anim_id) )

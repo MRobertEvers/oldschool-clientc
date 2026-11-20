@@ -844,6 +844,11 @@ struct ToriDraw_EventQueue
     struct ToriDraw_Event* events;
     int count;
     int cap;
+    /* Bumped each time the queue is emptied (ToriDraw_SceneFrameEnd). A
+     * second consumer that keeps its own cursor (rs_audio.c's drain) compares
+     * it to know its cursor points into a queue that has since been emptied:
+     * the count alone cannot say so once the queue has refilled past it. */
+    uint32_t spent;
 };
 
 struct ToriDraw_TextureState

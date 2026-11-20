@@ -22,7 +22,7 @@
  * kind's `resident` function, because the cache can evict between scenes and
  * an entry claiming "here" would lie.
  *
- * Two ways to ask:
+ * Two ways to ask, and no third: there is no callback.
  *
  *  - Assets_Await(key, &join): the calling task counts the load on one of
  *    its join fields and waits with PT_TASK_JOIN. The count drops when the
@@ -34,21 +34,16 @@
  *    is what makes the wait REQUIRED (the packet queue, a client script) or
  *    VISUAL (a parallel task on the parallel queue, app/app_parallel_task.h);
  *    the call is the same.
- *  - Assets_Want(key, NULL): start loading; nobody waits (a prefetch, or an
- *    owner that polls residency itself).
+ *  - Assets_Want(key): start loading; nobody waits (a prefetch, or an owner
+ *    that asks residency itself when it next looks).
  *
- * BEING REMOVED: the CALLBACK WAITER -- Assets_Want(key, waiter) with a
- * landing function called from Assets_Land (struct AssetWaiter, AssetLandFn,
- * struct AssetWaiterHandle, Assets_Land, Assets_DropWaiters,
- * Assets_WaiterCount, and the late and landed policies, which exist only for
- * waiters). The one caller still using it is the music install
- * (app/app_tick.c): a REPLACE kind, whose superseded wants land DROPPED at
- * once while an awaiter of a superseded loading entry is kept to the end, and
- * a want honours the back-off where an await restarts at once -- so it
- * becomes a parallel task only once the await has those two rules. The
- * ground-stack model, the npc body, the deferred sequence bind and the
- * texture publish (app/app_textures.c) are parallel tasks that await;
- * nothing new may register a waiter.
+ * What happens when an asset arrives is written in the body of the task that
+ * awaited it, never in a function the table calls: the ground-stack model,
+ * the npc body, the deferred sequence bind, the texture publish
+ * (app/app_textures.c) and the music install (app/app_tick.c) are each a
+ * parallel task that awaits. (The callback waiter this replaced -- a landing
+ * function per want, called from a landing pass, with late and landed
+ * policies only it read -- is gone, with its last user, the music install.)
  *
  * Either way a loader is started only if none is in flight for the entry. The
  * client supplies one loader per kind (Assets_SetLoader): `start` puts a load
@@ -58,24 +53,15 @@
  *
  * WHAT DIFFERS PER KIND IS POLICY, stated once in the table in
  * asset_requests.c (Assets_Policy):
- *   - fail:   give up after N attempts / retry with back-off forever /
- *             remember the failure;
- *   - late:   land anyway / land with the delay shortened (the waiter is told
- *             how late it is) / drop after a deadline; BEING REMOVED with
- *             the waiters (a parallel task asks how late it is itself);
+ *   - fail:   give up / retry with back-off forever / remember the failure;
  *   - newer:  keep both / a newer request of the kind replaces the older (one
- *             loader of the kind in flight, the older's waiters dropped);
- *   - landed: the one entry (every waiter is landed) / every entry waiting on
- *             the asset (waiters with the same landing function and context
- *             collapse into one call, which finds every target itself);
- *             BEING REMOVED with the waiters.
+ *             loader of the kind in flight; the older's awaiters are released
+ *             DROPPED -- at once, or, while its loader runs, when it ends).
+ * How late an arrival may still apply is the awaiting task's own `if` (it
+ * knows when its packet came: App_ParallelTaskLate), not the table's.
  *
  * Capacities grow explicitly up to a fixed ceiling; reaching it is an assert,
  * never a silent stop of dedupe.
- *
- * A waiter (being removed) lands only in Assets_Land, which the client calls
- * at the points where each kind lands. A landing function may call back into
- * the table.
  */
 
 #include <stdbool.h>
@@ -175,61 +161,39 @@ AssetKey_Make(
 
 enum AssetFailPolicy
 {
-    /* `fail_attempts` loads in a row came back without the asset: every
-     * waiter lands FAILED and the entry is forgotten. A later want starts a
-     * fresh count. */
+    /* An attempt that comes back without the asset releases its awaiters
+     * FAILED and the entry is forgotten. An owner that goes back for it
+     * awaits again, counting its own attempts up to `fail_attempts`. */
     ASSET_FAIL_GIVE_UP = 0,
     /* Retry after a wait that doubles from `backoff_first_ms` up to
-     * `backoff_max_ms`, for as long as anyone wants it. Never gives up. */
+     * `backoff_max_ms`, for as long as anyone wants it. Never gives up. A
+     * want honours the wait; an await does not (a task is waiting). */
     ASSET_FAIL_BACKOFF,
-    /* The first failure is final for the session: the waiters land FAILED and
-     * every later want answers FAILED at once. */
+    /* The first failure is final for the session: its awaiters are released
+     * FAILED and every later want or await answers FAILED at once. */
     ASSET_FAIL_REMEMBER,
-};
-
-/* BEING REMOVED with the callback waiters: only a waiter is landed late. */
-enum AssetLatePolicy
-{
-    /* Land whenever it arrives. */
-    ASSET_LATE_LAND = 0,
-    /* Land, and tell the waiter how long after its want it is landing, so a
-     * delay counted from arrival is shortened by the load. */
-    ASSET_LATE_LAND_SHORTENED,
-    /* Land if it arrives within `late_limit_ms` of the want; drop after. */
-    ASSET_LATE_DROP_AFTER,
 };
 
 enum AssetNewerPolicy
 {
     /* Requests of the kind are independent. */
     ASSET_NEWER_KEEP_BOTH = 0,
-    /* A want for another asset of the kind replaces every older one: their
-     * waiters land DROPPED, and the newer load starts when the older loader
-     * (which cannot be stopped mid-read) has ended. */
+    /* A want or an await for another asset of the kind replaces every older
+     * one: their awaiters are released DROPPED, and the newer load starts
+     * when the older loader (which cannot be stopped mid-read) has ended.
+     * Asking again for one that was replaced while its loader still runs
+     * makes it the newest once more. */
     ASSET_NEWER_REPLACE,
-};
-
-/* BEING REMOVED with the callback waiters. */
-enum AssetLandedPolicy
-{
-    /* Every waiter is landed with its own call. */
-    ASSET_LANDED_ONE = 0,
-    /* The landing function finds every target itself: waiters with the same
-     * function and context are one call. */
-    ASSET_LANDED_ALL,
 };
 
 struct AssetPolicy
 {
     char const* name;
     enum AssetFailPolicy fail;
-    int fail_attempts;        /* ASSET_FAIL_GIVE_UP */
+    int fail_attempts;        /* ASSET_FAIL_GIVE_UP: the owner's count */
     uint32_t backoff_first_ms; /* ASSET_FAIL_BACKOFF */
     uint32_t backoff_max_ms;
-    enum AssetLatePolicy late;
-    uint32_t late_limit_ms; /* ASSET_LATE_DROP_AFTER */
     enum AssetNewerPolicy newer;
-    enum AssetLandedPolicy landed;
 };
 
 /** The kind's row of the one policy table. */
@@ -243,7 +207,7 @@ Assets_BackoffNext(
     struct AssetPolicy const* policy,
     uint32_t wait_ms);
 
-/* ---- loaders and waiters ------------------------------------------------- */
+/* ---- loaders ------------------------------------------------------------- */
 
 struct Assets;
 
@@ -272,43 +236,17 @@ struct AssetLoader
     void* data;
 };
 
-/** BEING REMOVED (the callback waiter; see the unit comment). Opaque to the
- *  table: whatever the waiter's owner needs to find its target again. Never a
- *  pointer to something that can be freed while it waits. */
-struct AssetWaiterHandle
-{
-    int32_t v[4];
-};
-
-/* How a load ended, for a waiter and for Assets_AwaitOutcome. */
+/* How an attempt ended, for Assets_AwaitOutcome. */
 enum AssetOutcome
 {
     /* Here. */
     ASSET_OUTCOME_LANDED = 0,
-    /* A waiter: the policy gave up on it, or remembered it failed. An
-     * awaiter: this attempt failed (Assets_State: FAILED remembered, NONE
-     * given up, WANTED to be retried after its back-off). */
+    /* This attempt failed (Assets_State: FAILED remembered, NONE given up,
+     * WANTED to be retried after its back-off). */
     ASSET_OUTCOME_FAILED,
-    /* A waiter: too late under ASSET_LATE_DROP_AFTER, or replaced by a newer
-     * request. An awaiter: the attempt was abandoned (its loader freed) or
-     * replaced; the asset is not here. */
+    /* The attempt was abandoned (its loader freed) or replaced by a newer
+     * request of a REPLACE kind; the asset is not here. */
     ASSET_OUTCOME_DROPPED,
-};
-
-/* BEING REMOVED (the callback waiter). */
-typedef void (*AssetLandFn)(
-    void* ctx,
-    struct AssetKey key,
-    struct AssetWaiterHandle handle,
-    enum AssetOutcome outcome,
-    uint32_t late_ms);
-
-/* BEING REMOVED (the callback waiter). */
-struct AssetWaiter
-{
-    AssetLandFn land;
-    void* ctx;
-    struct AssetWaiterHandle handle;
 };
 
 enum AssetState
@@ -328,11 +266,12 @@ enum AssetState
 
 /* ---- the table ----------------------------------------------------------- */
 
-/** An empty table with no loaders. Entries and waiters grow from small. */
+/** An empty table with no loaders. Entries and joins grow from small. */
 struct Assets*
 Assets_New(void);
 
-/** NULL is accepted. Waiters still registered are dropped uncalled. */
+/** NULL is accepted. Joins still counted are dropped untouched (the tasks
+ *  that held them were freed with their queues first). */
 void
 Assets_Free(struct Assets* assets);
 
@@ -352,7 +291,7 @@ Assets_SetLoader(
     enum AssetKind kind,
     struct AssetLoader const* loader);
 
-/** The clock the back-off and the late policies read, in milliseconds. */
+/** The clock the back-off reads, in milliseconds. */
 void
 Assets_SetClock(
     struct Assets* assets,
@@ -362,18 +301,19 @@ uint64_t
 Assets_Clock(struct Assets const* assets);
 
 /**
- * Start a load if none is in flight; with a `waiter` (BEING REMOVED: pass
- * NULL in new code), register it to be landed. Answers what was found:
- *   HERE    resident; nothing registered, the caller lands it now;
- *   FAILED  remembered failure; nothing registered;
- *   LOADING / WANTED  registered (or collapsed under ASSET_LANDED_ALL).
+ * Start a load if none is in flight; nobody waits for it. Answers what was
+ * found:
+ *   HERE    resident; nothing to load;
+ *   FAILED  remembered failure;
+ *   LOADING / WANTED  an entry is loading, or waiting out a back-off or an
+ *           older loader of a REPLACE kind;
+ *   NONE    a load that ended at once (its start answered).
  * A want for an entry waiting out a back-off restarts it if the wait is over.
  */
 enum AssetState
 Assets_Want(
     struct Assets* assets,
-    struct AssetKey key,
-    struct AssetWaiter const* waiter);
+    struct AssetKey key);
 
 /**
  * Count the load on `*join` and start one if none is in flight (an entry
@@ -426,16 +366,12 @@ Assets_Abandoned(
 
 /** For a kind that remembers failures: `key` turned out not to be usable
  *  after its load landed (a texture whose pixels would not convert). It is
- *  failed from now on; a waiter still registered lands FAILED. Not for a key
- *  whose loader is running. */
+ *  failed from now on; an awaiter still counted is released FAILED. Not for a
+ *  key whose loader is running. */
 void
 Assets_Fail(
     struct Assets* assets,
     struct AssetKey key);
-
-/** Restart every loader whose back-off is over and that still has a waiter. */
-void
-Assets_Pump(struct Assets* assets);
 
 /** Retry `key` at once, keeping its back-off wait for the next failure. No-op
  *  when it has no entry. */
@@ -443,30 +379,6 @@ void
 Assets_Lift(
     struct Assets* assets,
     struct AssetKey key);
-
-/**
- * BEING REMOVED (the callback waiter). Land every arrival of the kinds in
- * `kind_mask`, in the order the waiters registered. Arrivals made by the
- * landings themselves wait for the next call. Returns how many landing calls
- * were made.
- */
-int
-Assets_Land(
-    struct Assets* assets,
-    uint32_t kind_mask);
-
-/** BEING REMOVED (the callback waiter). Forget every want waiter with `land` and `ctx` for which `match` answers
- *  true (pending or arrived), uncalled. Returns how many. */
-int
-Assets_DropWaiters(
-    struct Assets* assets,
-    AssetLandFn land,
-    void* ctx,
-    bool (*match)(
-        struct AssetWaiterHandle handle,
-        struct AssetKey key,
-        void* arg),
-    void* arg);
 
 enum AssetState
 Assets_State(
@@ -505,14 +417,6 @@ Assets_Count(
     struct Assets const* assets,
     enum AssetKind kind);
 
-/** BEING REMOVED (the callback waiter). Want waiters registered or arrived
- *  and not landed, of `kind`
- *  (ASSET_KIND_COUNT for all). */
-int
-Assets_WaiterCount(
-    struct Assets const* assets,
-    enum AssetKind kind);
-
 /** Awaiting tasks' counts (Assets_Await, Assets_AwaitOutcome) still linked to
  *  a load of `kind` (ASSET_KIND_COUNT for all): what a test counts to see a
  *  task that went away was forgotten (Assets_Unjoin), so the load's end
@@ -529,12 +433,8 @@ Assets_LoadsStarted(
     struct Assets const* assets,
     enum AssetKind kind);
 
-/** ASSET_KIND_SOUND's deadline: a sound more than ten client cycles of 20 ms
- *  late is dropped (the reference's delays[i] >= -10). */
-#define ASSETS_SOUND_LATE_LIMIT_MS 200
-
 /** The ceilings: reaching either is an assert. */
 #define ASSETS_ENTRIES_MAX 65536
-#define ASSETS_WAITERS_MAX 65536
+#define ASSETS_JOINS_MAX 65536
 
 #endif /* SRC_ENGINE_ASSET_REQUESTS_H */

@@ -1,6 +1,7 @@
 #include "sound_render.h"
 #include "../rscache_alloc.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -505,42 +506,67 @@ ms_to_samples(int milliseconds)
     return (int)(((int64_t)milliseconds * RSCACHE_SOUND_SAMPLE_RATE) / 1000);
 }
 
-bool
-RSCache_SoundEffectRender(
-    const struct RSCache* cache,
-    const struct RSCache_SoundEffect* effect,
-    struct RSCache_SoundPcm* out)
+/*
+ * An effect's render in steps (RSCache_SoundRenderNew): what the one-call
+ * render keeps in locals across its tone loop, kept here between steps.
+ */
+struct RSCache_SoundRender
 {
-    int codec = RSCache_SoundCodecVersion(cache);
-    int duration;
+    const struct RSCache_SoundEffect* effect; /* borrowed */
+    int codec;
     int sample_count;
     int reported_count;
     int allocated_count;
     int loop_start;
     int loop_end;
     bool loop_valid;
-    int max_tone_samples = 0;
     int32_t* tone_samples;
     uint8_t* pcm;
     struct filter_ctx filter_scratch;
+    /* The next tone slot to render. */
+    int slot;
+    bool finished;
+};
 
-    if( !out )
-        return false;
-    memset(out, 0, sizeof(*out));
-    out->loop_start = -1;
-    out->loop_end = -1;
-    if( !effect )
-        return false;
+void
+RSCache_SoundRenderFree(struct RSCache_SoundRender* render)
+{
+    if( !render )
+        return;
+    RSCACHE_FREE(render->pcm);
+    RSCACHE_FREE(render->tone_samples);
+    RSCACHE_FREE(render);
+}
+
+struct RSCache_SoundRender*
+RSCache_SoundRenderNew(
+    const struct RSCache* cache,
+    const struct RSCache_SoundEffect* effect)
+{
+    struct RSCache_SoundRender* render;
+    int duration;
+    int max_tone_samples = 0;
+
+    assert(effect);
+    render = RSCACHE_CALLOC(1, sizeof(*render));
+    if( !render )
+        return NULL;
+    render->effect = effect;
+    render->codec = RSCache_SoundCodecVersion(cache);
 
     duration = RSCache_SoundEffectDurationMs(effect);
-    sample_count = ms_to_samples(duration);
-    if( duration <= 0 || sample_count <= 0 )
-        return false;
+    render->sample_count = ms_to_samples(duration);
+    if( duration <= 0 || render->sample_count <= 0 )
+    {
+        RSCache_SoundRenderFree(render);
+        return NULL;
+    }
 
-    loop_start = ms_to_samples(effect->loop_begin);
-    loop_end = ms_to_samples(effect->loop_end);
-    loop_valid =
-        loop_start >= 0 && loop_end >= 0 && loop_end <= sample_count && loop_start < loop_end;
+    render->loop_start = ms_to_samples(effect->loop_begin);
+    render->loop_end = ms_to_samples(effect->loop_end);
+    render->loop_valid = render->loop_start >= 0 && render->loop_end >= 0 &&
+                         render->loop_end <= render->sample_count &&
+                         render->loop_start < render->loop_end;
 
     /*
      * The WAVE generation's output is not always the natural length.
@@ -557,12 +583,17 @@ RSCache_SoundEffectRender(
      * The modern generation has no equivalent — it hands its loop points to the
      * mixer and always returns the natural length.
      */
-    reported_count = sample_count;
-    if( codec == RSCACHE_CODEC_SOUND_WAVE && !loop_valid )
-        reported_count = sample_count - (loop_end - loop_start);
-    if( reported_count <= 0 )
-        return false;
-    allocated_count = reported_count > sample_count ? reported_count : sample_count;
+    render->reported_count = render->sample_count;
+    if( render->codec == RSCACHE_CODEC_SOUND_WAVE && !render->loop_valid )
+        render->reported_count = render->sample_count - (render->loop_end - render->loop_start);
+    if( render->reported_count <= 0 )
+    {
+        RSCache_SoundRenderFree(render);
+        return NULL;
+    }
+    render->allocated_count = render->reported_count > render->sample_count
+                                  ? render->reported_count
+                                  : render->sample_count;
 
     sound_tables_init();
 
@@ -576,24 +607,41 @@ RSCache_SoundEffectRender(
             max_tone_samples = need;
     }
 
-    pcm = RSCACHE_MALLOC((size_t)allocated_count);
-    tone_samples =
+    render->pcm = RSCACHE_MALLOC((size_t)render->allocated_count);
+    render->tone_samples =
         max_tone_samples > 0 ? RSCACHE_MALLOC((size_t)max_tone_samples * sizeof(int32_t)) : NULL;
-    if( !pcm || (max_tone_samples > 0 && !tone_samples) )
+    if( !render->pcm || (max_tone_samples > 0 && !render->tone_samples) )
     {
-        RSCACHE_FREE(pcm);
-        RSCACHE_FREE(tone_samples);
-        return false;
+        RSCache_SoundRenderFree(render);
+        return NULL;
     }
 
     /* Silence differs between the generations: WAVE mixes in a u8 buffer biased
      * by 128, SYNTH in a signed one. Both are normalised to u8 on the way out. */
-    memset(pcm, codec == RSCACHE_CODEC_SOUND_WAVE ? 0x80 : 0x00, (size_t)allocated_count);
-    memset(&filter_scratch, 0, sizeof(filter_scratch));
+    memset(
+        render->pcm,
+        render->codec == RSCACHE_CODEC_SOUND_WAVE ? 0x80 : 0x00,
+        (size_t)render->allocated_count);
+    memset(&render->filter_scratch, 0, sizeof(render->filter_scratch));
+    return render;
+}
 
-    for( int slot = 0; slot < RSCACHE_SOUND_TONES; slot++ )
+bool
+RSCache_SoundRenderStep(struct RSCache_SoundRender* render)
+{
+    const struct RSCache_SoundEffect* effect;
+    uint8_t* pcm;
+
+    assert(render);
+    if( render->finished )
+        return true;
+    effect = render->effect;
+    pcm = render->pcm;
+
+    /* One tone a step: the next slot that renders anything. */
+    while( render->slot < RSCACHE_SOUND_TONES )
     {
-        const struct RSCache_SoundTone* tone = effect->tones[slot];
+        const struct RSCache_SoundTone* tone = effect->tones[render->slot++];
         int tone_sample_count;
         int start;
         if( !tone )
@@ -602,19 +650,20 @@ RSCache_SoundEffectRender(
         start = ms_to_samples(tone->start);
         if( tone_sample_count <= 0 )
             continue;
-        if( start + tone_sample_count > sample_count )
-            tone_sample_count = sample_count - start;
+        if( start + tone_sample_count > render->sample_count )
+            tone_sample_count = render->sample_count - start;
         if( tone_sample_count <= 0 )
             continue;
 
-        tone_render(tone, tone_sample_count, tone->length, tone_samples, &filter_scratch);
+        tone_render(
+            tone, tone_sample_count, tone->length, render->tone_samples, &render->filter_scratch);
 
-        if( codec == RSCACHE_CODEC_SOUND_WAVE )
+        if( render->codec == RSCACHE_CODEC_SOUND_WAVE )
         {
             /* Wrapping 8-bit add, as Client-TS's Uint8Array += does. */
             for( int sample = 0; sample < tone_sample_count; sample++ )
                 pcm[sample + start] =
-                    (uint8_t)(pcm[sample + start] + (uint8_t)(tone_samples[sample] >> 8));
+                    (uint8_t)(pcm[sample + start] + (uint8_t)(render->tone_samples[sample] >> 8));
         }
         else
         {
@@ -622,7 +671,7 @@ RSCache_SoundEffectRender(
              * the bias is applied below. */
             for( int sample = 0; sample < tone_sample_count; sample++ )
             {
-                int mixed = (int8_t)pcm[sample + start] + (tone_samples[sample] >> 8);
+                int mixed = (int8_t)pcm[sample + start] + (render->tone_samples[sample] >> 8);
                 if( mixed < -128 )
                     mixed = -128;
                 else if( mixed > 127 )
@@ -630,22 +679,62 @@ RSCache_SoundEffectRender(
                 pcm[sample + start] = (uint8_t)(int8_t)mixed;
             }
         }
+        break;
     }
+    if( render->slot < RSCACHE_SOUND_TONES )
+        return false;
 
-    if( codec != RSCACHE_CODEC_SOUND_WAVE )
-        for( int sample = 0; sample < allocated_count; sample++ )
+    if( render->codec != RSCACHE_CODEC_SOUND_WAVE )
+        for( int sample = 0; sample < render->allocated_count; sample++ )
             pcm[sample] = (uint8_t)(pcm[sample] ^ 0x80); /* signed -> unsigned bias */
+    render->finished = true;
+    return true;
+}
 
-    RSCACHE_FREE(tone_samples);
-
-    out->samples = pcm;
-    out->sample_count = reported_count;
+void
+RSCache_SoundRenderTake(
+    struct RSCache_SoundRender* render,
+    struct RSCache_SoundPcm* out)
+{
+    assert(render);
+    assert(render->finished);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->loop_start = -1;
+    out->loop_end = -1;
+    out->samples = render->pcm;
+    render->pcm = NULL;
+    out->sample_count = render->reported_count;
     out->sample_rate = RSCACHE_SOUND_SAMPLE_RATE;
-    if( loop_valid )
+    if( render->loop_valid )
     {
-        out->loop_start = loop_start;
-        out->loop_end = loop_end;
+        out->loop_start = render->loop_start;
+        out->loop_end = render->loop_end;
     }
+}
+
+bool
+RSCache_SoundEffectRender(
+    const struct RSCache* cache,
+    const struct RSCache_SoundEffect* effect,
+    struct RSCache_SoundPcm* out)
+{
+    struct RSCache_SoundRender* render;
+
+    if( !out )
+        return false;
+    memset(out, 0, sizeof(*out));
+    out->loop_start = -1;
+    out->loop_end = -1;
+    if( !effect )
+        return false;
+    render = RSCache_SoundRenderNew(cache, effect);
+    if( !render )
+        return false;
+    while( !RSCache_SoundRenderStep(render) )
+        ;
+    RSCache_SoundRenderTake(render, out);
+    RSCache_SoundRenderFree(render);
     return true;
 }
 

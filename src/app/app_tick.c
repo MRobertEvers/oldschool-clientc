@@ -9,26 +9,157 @@
 #include "app/app_internal.h"
 #include "game/rs_server_state.h"
 
-/* ASSET_KIND_MUSIC's landing. The loader installs a song itself (or reports
- * its own failure); what lands here is the table's answer when no loader could
- * be made at all, which the player is told so the request does not wait
- * forever. A replaced request lands DROPPED: the newer one is the player's. */
-static void
-app_music_load_landed(
-    void* ctx,
-    struct AssetKey key,
-    struct AssetWaiterHandle handle,
-    enum AssetOutcome outcome,
-    uint32_t late_ms)
+/* ---- Task_MusicInstall --------------------------------------------------- *
+ *
+ * The song the player asks for, as a parallel task that awaits it. The
+ * loader (ASSET_KIND_MUSIC, engine/dat2/task_dat2_music_load.c) reads the
+ * track, its instruments and their samples on this queue, decodes them on the
+ * background queue, and installs the song into the player at its end, with
+ * every sample ready -- so a song starts only when it can be played whole.
+ * The player refuses that install if a newer request came meanwhile
+ * (ToriRS_Music_Installed).
+ *
+ * One song at a time: every install task is listed under one key, and a
+ * newer request cancels the older task and adds its own. The table holds
+ * one loader of the kind (ASSET_NEWER_REPLACE): the older loader runs to its
+ * end (it cannot be stopped mid-read), and the newer starts after it, so two
+ * loaders never grow the shared soundbank at once.
+ *
+ * What the task itself decides is what the loader cannot: a load the table
+ * answers FAILED (no loader could be made at all) is told to the player, so
+ * the request does not wait forever. A loader that was freed mid-read (the
+ * outcome DROPPED) ends the task with the request still held: the next tick
+ * finds no task for it and adds one, which starts the load again. */
+enum
 {
-    struct App* app = ctx;
+    APP_TASK_MUSIC_INSTALL = RS_PENDING_KINDS_ASSETS_FIRST + 1,
+};
+_Static_assert(
+    APP_TASK_MUSIC_INSTALL <= RS_PENDING_KINDS_ASSETS_LAST,
+    "the music install is in the App's assets range");
 
-    (void)handle;
-    (void)late_ms;
-    if( outcome == ASSET_OUTCOME_FAILED )
-        ToriRS_Music_LoadFailed(&app->audio.music, key.id);
+struct Task_MusicInstall
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct RS_ParallelTask par;
+    struct App* app;
+    int song_id;
+    enum ToriRS_MusicSource source;
+};
+
+/* The one song slot: every install task's key. */
+static struct RS_PendingKey
+app_music_install_key(void)
+{
+    return RS_PendingKey_Id(0, 0);
 }
 
+static int
+Task_MusicInstall_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_MusicInstall* self = (struct Task_MusicInstall*)base;
+    struct App* app = self->app;
+    (void)io;
+
+    PT_BEGIN(&self->pt);
+
+    /* 1. Wait for the song: read, decoded, and installed by its loader. */
+    PT_PARALLEL_AWAIT_ASSET(
+        app->assets, AssetKey_Make(ASSET_KIND_MUSIC, self->song_id, (int)self->source));
+
+    /* 2. A newer song replaced it, or a logout. */
+    if( RS_ParallelTask_Cancelled(&self->par) )
+        PT_EXIT(&self->pt);
+
+    /* 3. No loader could be made: the player stops asking for it (it ignores
+     *    a song that is no longer the one requested). */
+    if( self->par.outcome == ASSET_OUTCOME_FAILED )
+        ToriRS_Music_LoadFailed(&app->audio.music, self->song_id);
+
+    PT_END(&self->pt);
+}
+
+static void
+Task_MusicInstall_Free(struct ToriRS_Task* base)
+{
+    struct Task_MusicInstall* self = (struct Task_MusicInstall*)base;
+    App_ParallelTaskRelease(self->app, &self->par);
+    ToriMem_Free(ToriMem_Process(), self);
+}
+
+static struct ToriRS_TaskVTable Task_MusicInstall_VTable = {
+    .run = Task_MusicInstall_Run,
+    .free = Task_MusicInstall_Free,
+};
+
+/* The player holds a request for `song_id` from `source`: unless a task is
+ * already installing that song, replace whatever task is installing another
+ * with one for it. */
+static void
+app_music_want(
+    struct App* app,
+    int song_id,
+    enum ToriRS_MusicSource source)
+{
+    struct RS_ParallelTask* pending =
+        RS_Pending_Find(app->pending, APP_TASK_MUSIC_INSTALL, app_music_install_key());
+    struct Task_MusicInstall* task;
+
+    assert(song_id >= 0);
+    if( pending )
+    {
+        struct Task_MusicInstall const* older = (struct Task_MusicInstall const*)pending->task;
+        assert(older);
+        if( older->song_id == song_id && older->source == source )
+            return;
+        RS_Pending_CancelKey(app->pending, APP_TASK_MUSIC_INSTALL, app_music_install_key());
+    }
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_MusicInstall_VTable;
+    strncpy(task->task.name, "MusicInstall", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->song_id = song_id;
+    task->source = source;
+    PT_INIT(&task->pt);
+    App_ParallelTaskAdd(
+        app, &task->task, &task->par, APP_TASK_MUSIC_INSTALL, app_music_install_key(), -1);
+}
+
+void
+app_music_tick(struct App* app)
+{
+    int song_id = -1;
+    enum ToriRS_MusicSource source = TORIRS_MUSIC_SOURCE_TRACK;
+
+    assert(app);
+    /* Not while there is no device (a replay seek takes it away): the
+     * request waits, and the track in force when the device returns is the
+     * one fetched. */
+    if( !app->provider || !app->audio.device_present )
+        return;
+    if( ToriRS_Music_TakeLoadRequest(&app->audio.music, &song_id, &source) )
+        app_music_want(app, song_id, source);
+}
+
+int
+app_music_install_pending(
+    struct App const* app,
+    int* out_song_id)
+{
+    struct RS_ParallelTask const* pending;
+
+    assert(app);
+    pending = RS_Pending_Find(app->pending, APP_TASK_MUSIC_INSTALL, app_music_install_key());
+    if( !pending )
+        return 0;
+    if( out_song_id )
+        *out_song_id = ((struct Task_MusicInstall const*)pending->task)->song_id;
+    return 1;
+}
 
 /*
  * The 20 ms client tick.
@@ -324,35 +455,13 @@ app_logic_tick(struct App* app)
             &app->audio_feedback,
             &app->audio_out);
 
-        /* A music request the player holds is wanted through the assets
-         * table (ASSET_KIND_MUSIC, variant = the source), which holds the one
-         * loader of the kind: a newer song replaces an older one still
-         * loading -- that loader runs to its end (it cannot be stopped mid-
-         * read), the player refuses its install, and the newer one starts
-         * after it, so two loaders never grow the shared soundbank at once.
-         * (The guard this replaces, `music_loading`, was never written, and
-         * the player's own flag was cleared by a new request under a running
-         * load, so a second loader started beside it.) Not while there is no
-         * device (a replay seek takes it away): the request waits, and the
-         * track in force when the device returns is the one fetched. */
-        if( app->provider && app->audio.device_present )
-        {
-            int song_id = -1;
-            enum ToriRS_MusicSource source = TORIRS_MUSIC_SOURCE_TRACK;
-            if( ToriRS_Music_TakeLoadRequest(&app->audio.music, &song_id, &source) )
-            {
-                struct AssetKey const key = AssetKey_Make(ASSET_KIND_MUSIC, song_id, (int)source);
-                if( Assets_State(app->assets, key) == ASSET_STATE_NONE )
-                {
-                    struct AssetWaiter waiter;
-                    memset(&waiter, 0, sizeof(waiter));
-                    waiter.land = app_music_load_landed;
-                    waiter.ctx = app;
-                    (void)Assets_Want(app->assets, key, &waiter);
-                }
-            }
-            Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_MUSIC));
-        }
+        /* A music request the player holds is installed by a parallel task
+         * that awaits it (Task_MusicInstall, above): a newer song replaces an
+         * older one still loading. (The guard this replaces, `music_loading`,
+         * was never written, and the player's own flag was cleared by a new
+         * request under a running load, so a second loader started beside
+         * it.) */
+        app_music_tick(app);
     }
 
     /* Where the player is standing, for the scripts that branch on it. Packed

@@ -18,7 +18,7 @@
  *  SPRITE       as MODEL.
  *  SEQUENCE     a failed decode registers an empty sentinel, so the cache
  *               itself remembers; the bind catches its frames up from the
- *               cycle the sequence started on, which is what "shortened" is.
+ *               cycle the sequence started on.
  *  SPOTANIM     one load per graphic however many entities wear it (was a
  *               flag per slot, and a prefetch per packet that never asked
  *               whether one was in flight); a load that ends without it is
@@ -29,18 +29,21 @@
  *  PLAYER_TRANSMOG  as NPC_BODY.
  *  OBJ_MODEL    a ground stack goes back four times for a model the loader
  *               says is still missing, then draws nothing, as the reference
- *               does (was APP_PLACEHOLDER_ATTEMPT_MAX).
+ *               does (was APP_PLACEHOLDER_ATTEMPT_MAX): `fail_attempts`, which
+ *               its task counts as it awaits again (app/app_tasks_ground.c).
  *  INV_ICONS    an icon whose chain did not come waits 500 ms doubling to
  *               4 s and asks again, never giving up (was InvIconRetry; the
  *               kind has no entries, only this row).
  *  IF_GROUP     a missing pack is reported by the open; asked again next open.
  *  SOUND        asked once while in flight (was load_requested, and the
- *               ambient bed asked every tick); a sound more than ten client
- *               cycles of 20 ms late is dropped (the reference's delays[i] >=
- *               -10).
- *  MUSIC        a second song cancels the first: one loader of the kind, and
- *               a song that finishes loading after a newer request is not
- *               installed (was request_loading, cleared under a running load).
+ *               ambient bed asked every tick); how late a sound may still
+ *               play is the audio queue's own rule (game/rs_audio.c, the
+ *               reference's delays[i] >= -10), not the table's.
+ *  MUSIC        a second song replaces the first: one loader of the kind, the
+ *               newer starting when the older's ends, and a song that finishes
+ *               loading after a newer request is not installed (was
+ *               request_loading, cleared under a running load). The install
+ *               task that awaits it is app/app_tick.c's Task_MusicInstall.
  *  SKYBOX       a new skybox replaces the old; a failed load is retried with
  *               back-off (was asked once per want and never again).
  *  REF_TABLE    loaded once while every map square waits on it (was
@@ -52,49 +55,32 @@
  *               again by the next fetch that names it.
  */
 static struct AssetPolicy const g_asset_policy[ASSET_KIND_COUNT] = {
-    [ASSET_KIND_MODEL] = { "model", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_LATE_LAND, 0,
-                           ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
-    [ASSET_KIND_TEXTURE] = { "texture", ASSET_FAIL_REMEMBER, 0, 0, 0, ASSET_LATE_LAND, 0,
-                             ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
-    [ASSET_KIND_SPRITE] = { "sprite", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_LATE_LAND, 0,
-                            ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
-    [ASSET_KIND_SEQUENCE] = { "sequence", ASSET_FAIL_REMEMBER, 0, 0, 0, ASSET_LATE_LAND_SHORTENED,
-                              0, ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
-    [ASSET_KIND_SPOTANIM] = { "spotanim", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_LATE_LAND, 0,
-                              ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
-    [ASSET_KIND_NPC_BODY] = { "npc_body", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
-                              ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ALL },
-    [ASSET_KIND_PLAYER_HELD] = { "player_held", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
-                                 ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ALL },
+    [ASSET_KIND_MODEL] = { "model", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_TEXTURE] = { "texture", ASSET_FAIL_REMEMBER, 0, 0, 0, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_SPRITE] = { "sprite", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_SEQUENCE] = { "sequence", ASSET_FAIL_REMEMBER, 0, 0, 0, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_SPOTANIM] = { "spotanim", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_NPC_BODY] = { "npc_body", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_PLAYER_HELD] = { "player_held", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_NEWER_KEEP_BOTH },
     [ASSET_KIND_PLAYER_TRANSMOG] = { "player_transmog", ASSET_FAIL_GIVE_UP, 1, 0, 0,
-                                     ASSET_LATE_LAND, 0, ASSET_NEWER_KEEP_BOTH,
-                                     ASSET_LANDED_ALL },
-    [ASSET_KIND_OBJ_MODEL] = { "obj_model", ASSET_FAIL_GIVE_UP, 4, 0, 0, ASSET_LATE_LAND, 0,
-                               ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
-    [ASSET_KIND_INV_ICONS] = { "inv_icons", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_LATE_LAND, 0,
-                               ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ALL },
-    [ASSET_KIND_IF_GROUP] = { "if_group", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
-                              ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
-    [ASSET_KIND_SOUND] = { "sound", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_LATE_DROP_AFTER,
-                           ASSETS_SOUND_LATE_LIMIT_MS,
-                           ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
-    [ASSET_KIND_MUSIC] = { "music", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
-                           ASSET_NEWER_REPLACE, ASSET_LANDED_ONE },
-    [ASSET_KIND_SKYBOX] = { "skybox", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_LATE_LAND, 0,
-                            ASSET_NEWER_REPLACE, ASSET_LANDED_ONE },
-    [ASSET_KIND_REF_TABLE] = { "ref_table", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
-                               ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ALL },
-    [ASSET_KIND_CONFIG] = { "config", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
-                            ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
+                                     ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_OBJ_MODEL] = { "obj_model", ASSET_FAIL_GIVE_UP, 4, 0, 0, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_INV_ICONS] = { "inv_icons", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_IF_GROUP] = { "if_group", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_SOUND] = { "sound", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_MUSIC] = { "music", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_NEWER_REPLACE },
+    [ASSET_KIND_SKYBOX] = { "skybox", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_NEWER_REPLACE },
+    [ASSET_KIND_REF_TABLE] = { "ref_table", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_CONFIG] = { "config", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_NEWER_KEEP_BOTH },
 };
 
+/* A node is one awaiting task's count on an entry's attempt. */
 enum
 {
     NODE_FREE = 0,
-    NODE_WANT,
     NODE_JOIN,
-    /* A want dropped by Assets_DropWaiters, or a join released by
-     * Assets_Unjoin: still linked, skipped, freed where it is next met. */
+    /* A join released by Assets_Unjoin: still linked, skipped, freed where it
+     * is next met. */
     NODE_DEAD,
 };
 
@@ -102,13 +88,10 @@ struct AssetNode
 {
     int32_t next;
     uint8_t type;
-    uint8_t outcome;
     struct AssetKey key;
     int* join;
     /* NODE_JOIN from Assets_AwaitOutcome: written when the attempt ends. */
     enum AssetOutcome* result;
-    struct AssetWaiter waiter;
-    uint64_t wanted_at;
 };
 
 struct AssetEntry
@@ -136,10 +119,6 @@ struct Assets
     int node_cap;
     int32_t node_free;
 
-    /* Arrived want waiters, oldest first. */
-    int32_t arrived_head;
-    int32_t arrived_tail;
-
     struct AssetLoader loaders[ASSET_KIND_COUNT];
     int kind_loading[ASSET_KIND_COUNT];
     uint32_t loads_started[ASSET_KIND_COUNT];
@@ -148,9 +127,6 @@ struct Assets
     uint32_t serial;
     /* Assets_Close: shutting down, ends are ignored. */
     int closed;
-
-    struct AssetKey* scratch;
-    int scratch_cap;
 };
 
 #define NIL (-1)
@@ -315,7 +291,7 @@ entry_remove_at(
     assets->entry_count--;
 }
 
-/* ---- waiter nodes ------------------------------------------------------- */
+/* ---- join nodes --------------------------------------------------------- */
 
 static void
 nodes_grow(struct Assets* assets)
@@ -323,7 +299,7 @@ nodes_grow(struct Assets* assets)
     int old_cap = assets->node_cap;
     int new_cap = old_cap ? old_cap * 2 : 64;
 
-    assert(new_cap <= ASSETS_WAITERS_MAX * 2 && "assets waiters full");
+    assert(new_cap <= ASSETS_JOINS_MAX * 2 && "assets joins full");
     assets->nodes = ToriMem_Realloc(
         ToriMem_Process(), assets->nodes, (size_t)new_cap * sizeof(*assets->nodes));
     assert(assets->nodes);
@@ -377,35 +353,9 @@ entry_append(
     e->tail = n;
 }
 
-static void
-arrived_append(
-    struct Assets* assets,
-    int32_t n,
-    enum AssetOutcome outcome)
-{
-    assets->nodes[n].outcome = (uint8_t)outcome;
-    assets->nodes[n].next = NIL;
-    if( assets->arrived_tail == NIL )
-        assets->arrived_head = n;
-    else
-        assets->nodes[assets->arrived_tail].next = n;
-    assets->arrived_tail = n;
-}
-
-static bool
-entry_has_want(
-    struct Assets const* assets,
-    int idx)
-{
-    for( int32_t n = assets->entries[idx].head; n != NIL; n = assets->nodes[n].next )
-        if( assets->nodes[n].type == NODE_WANT )
-            return true;
-    return false;
-}
-
 /* Release every join counting this entry's attempt: the attempt ended, with
- * `outcome` (written to an awaiter that asked for it). Wants stay. Dead nodes
- * are freed on the way. */
+ * `outcome` (written to an awaiter that asked for it). Dead nodes are freed on
+ * the way; the entry's list is empty afterwards. */
 static void
 entry_release_joins(
     struct Assets* assets,
@@ -414,62 +364,23 @@ entry_release_joins(
 {
     struct AssetEntry* e = &assets->entries[idx];
     int32_t n = e->head;
-    int32_t keep_head = NIL;
-    int32_t keep_tail = NIL;
 
     while( n != NIL )
     {
         int32_t next = assets->nodes[n].next;
-        uint8_t type = assets->nodes[n].type;
 
-        if( type == NODE_JOIN || type == NODE_DEAD )
+        assert(assets->nodes[n].type == NODE_JOIN || assets->nodes[n].type == NODE_DEAD);
+        if( assets->nodes[n].type == NODE_JOIN && assets->nodes[n].join )
         {
-            if( type == NODE_JOIN && assets->nodes[n].join )
-            {
-                assert(*assets->nodes[n].join > 0);
-                (*assets->nodes[n].join)--;
-                if( assets->nodes[n].result )
-                    *assets->nodes[n].result = outcome;
-                /* The task parked on the join wakes when this takes it to
-                 * 0 (task_trigger.h); nothing runs here. */
-                ToriRS_CountDropped(assets->nodes[n].join);
-            }
-            node_release(assets, n);
+            assert(*assets->nodes[n].join > 0);
+            (*assets->nodes[n].join)--;
+            if( assets->nodes[n].result )
+                *assets->nodes[n].result = outcome;
+            /* The task parked on the join wakes when this takes it to 0
+             * (task_trigger.h); nothing runs here. */
+            ToriRS_CountDropped(assets->nodes[n].join);
         }
-        else
-        {
-            assets->nodes[n].next = NIL;
-            if( keep_tail == NIL )
-                keep_head = n;
-            else
-                assets->nodes[keep_tail].next = n;
-            keep_tail = n;
-        }
-        n = next;
-    }
-    e->head = keep_head;
-    e->tail = keep_tail;
-}
-
-/* Move every want of the entry to the arrived list with `outcome`; joins are
- * released. The entry's list is empty afterwards. */
-static void
-entry_arrive_all(
-    struct Assets* assets,
-    int idx,
-    enum AssetOutcome outcome)
-{
-    struct AssetEntry* e;
-    int32_t n;
-
-    entry_release_joins(assets, idx, outcome);
-    e = &assets->entries[idx];
-    n = e->head;
-    while( n != NIL )
-    {
-        int32_t next = assets->nodes[n].next;
-        assert(assets->nodes[n].type == NODE_WANT);
-        arrived_append(assets, n, outcome);
+        node_release(assets, n);
         n = next;
     }
     e->head = NIL;
@@ -536,8 +447,10 @@ start_load(
         assert(started == ASSET_START_LOADING);
 }
 
-/* A newer request of a REPLACE kind: every other entry of the kind loses its
- * waiters (DROPPED); one whose loader runs is kept until it ends, the rest go. */
+/* A newer request of a REPLACE kind: every other entry of the kind is
+ * replaced. One whose loader runs (it cannot be stopped mid-read) is marked
+ * and kept until it ends, its awaiters released DROPPED then; the rest go now,
+ * their awaiters released DROPPED at once. */
 static void
 supersede_others(
     struct Assets* assets,
@@ -553,29 +466,6 @@ supersede_others(
             continue;
         if( e->state == ASSET_STATE_LOADING )
         {
-            /* Its awaiters are released when the loader ends; its wants are
-             * replaced now. */
-            int32_t n = e->head;
-            int32_t keep_head = NIL;
-            int32_t keep_tail = NIL;
-            while( n != NIL )
-            {
-                int32_t next = assets->nodes[n].next;
-                if( assets->nodes[n].type == NODE_WANT )
-                    arrived_append(assets, n, ASSET_OUTCOME_DROPPED);
-                else
-                {
-                    assets->nodes[n].next = NIL;
-                    if( keep_tail == NIL )
-                        keep_head = n;
-                    else
-                        assets->nodes[keep_tail].next = n;
-                    keep_tail = n;
-                }
-                n = next;
-            }
-            e->head = keep_head;
-            e->tail = keep_tail;
             e->superseded = 1;
             continue;
         }
@@ -586,7 +476,7 @@ supersede_others(
     {
         int idx = entry_find(assets, gone[g]);
         assert(idx >= 0);
-        entry_arrive_all(assets, idx, ASSET_OUTCOME_DROPPED);
+        entry_release_joins(assets, idx, ASSET_OUTCOME_DROPPED);
         entry_remove_at(assets, idx);
     }
 }
@@ -616,7 +506,7 @@ Assets_Finished(
 
     if( e->superseded )
     {
-        entry_arrive_all(assets, idx, ASSET_OUTCOME_DROPPED);
+        entry_release_joins(assets, idx, ASSET_OUTCOME_DROPPED);
         entry_remove_at(assets, idx);
         start_next_of_kind(assets, (enum AssetKind)key.kind);
         return;
@@ -624,7 +514,7 @@ Assets_Finished(
 
     if( ok )
     {
-        entry_arrive_all(assets, idx, ASSET_OUTCOME_LANDED);
+        entry_release_joins(assets, idx, ASSET_OUTCOME_LANDED);
         entry_remove_at(assets, idx);
         start_next_of_kind(assets, (enum AssetKind)key.kind);
         return;
@@ -633,7 +523,7 @@ Assets_Finished(
     e->attempts++;
     if( policy->fail == ASSET_FAIL_REMEMBER )
     {
-        entry_arrive_all(assets, idx, ASSET_OUTCOME_FAILED);
+        entry_release_joins(assets, idx, ASSET_OUTCOME_FAILED);
         assets->entries[idx].state = ASSET_STATE_FAILED;
     }
     else if( policy->fail == ASSET_FAIL_BACKOFF )
@@ -648,16 +538,9 @@ Assets_Finished(
     {
         assert(policy->fail == ASSET_FAIL_GIVE_UP);
         assert(policy->fail_attempts >= 1);
+        /* The attempt's awaiters are told; one that wants another attempt
+         * awaits again, counting its own (`fail_attempts`). */
         entry_release_joins(assets, idx, ASSET_OUTCOME_FAILED);
-        e = &assets->entries[idx];
-        if( e->attempts < policy->fail_attempts && e->head != NIL )
-        {
-            /* Go back for it at once: someone is still waiting. */
-            e->state = ASSET_STATE_WANTED;
-            start_load(assets, key);
-            return;
-        }
-        entry_arrive_all(assets, idx, ASSET_OUTCOME_FAILED);
         entry_remove_at(assets, idx);
     }
     start_next_of_kind(assets, (enum AssetKind)key.kind);
@@ -684,8 +567,8 @@ Assets_Abandoned(
     e = &assets->entries[idx];
     if( e->superseded )
     {
-        entry_arrive_all(assets, idx, ASSET_OUTCOME_DROPPED);
         entry_remove_at(assets, idx);
+        start_next_of_kind(assets, (enum AssetKind)key.kind);
         return;
     }
     e->state = ASSET_STATE_WANTED;
@@ -708,7 +591,7 @@ Assets_Fail(
     assert(assets->entries[idx].state != ASSET_STATE_LOADING);
     if( assets->entries[idx].state == ASSET_STATE_FAILED )
         return;
-    entry_arrive_all(assets, idx, ASSET_OUTCOME_FAILED);
+    entry_release_joins(assets, idx, ASSET_OUTCOME_FAILED);
     assets->entries[idx].attempts++;
     assets->entries[idx].state = ASSET_STATE_FAILED;
 }
@@ -726,8 +609,6 @@ Assets_New(void)
         ToriMem_Calloc(ToriMem_Process(), (size_t)assets->entry_cap, sizeof(*assets->entries));
     assert(assets->entries);
     assets->node_free = NIL;
-    assets->arrived_head = NIL;
-    assets->arrived_tail = NIL;
     return assets;
 }
 
@@ -738,7 +619,6 @@ Assets_Free(struct Assets* assets)
         return;
     ToriMem_Free(ToriMem_Process(), assets->entries);
     ToriMem_Free(ToriMem_Process(), assets->nodes);
-    ToriMem_Free(ToriMem_Process(), assets->scratch);
     ToriMem_Free(ToriMem_Process(), assets);
 }
 
@@ -798,37 +678,9 @@ entry_land_if_resident(
 
     if( assets->entries[idx].state != ASSET_STATE_WANTED || !key_resident(assets, key) )
         return false;
-    entry_arrive_all(assets, idx, ASSET_OUTCOME_LANDED);
+    entry_release_joins(assets, idx, ASSET_OUTCOME_LANDED);
     entry_remove_at(assets, idx);
     return true;
-}
-
-static void
-add_want(
-    struct Assets* assets,
-    int idx,
-    struct AssetWaiter const* waiter)
-{
-    struct AssetPolicy const* policy;
-    int32_t n;
-
-    assert(waiter->land);
-    policy = Assets_Policy((enum AssetKind)assets->entries[idx].key.kind);
-    if( policy->landed == ASSET_LANDED_ALL )
-    {
-        /* One call lands every target: a second want from the same owner is
-         * already covered. */
-        for( int32_t m = assets->entries[idx].head; m != NIL; m = assets->nodes[m].next )
-            if( assets->nodes[m].type == NODE_WANT && assets->nodes[m].waiter.land == waiter->land &&
-                assets->nodes[m].waiter.ctx == waiter->ctx )
-                return;
-    }
-    n = node_alloc(assets);
-    assets->nodes[n].type = NODE_WANT;
-    assets->nodes[n].key = assets->entries[idx].key;
-    assets->nodes[n].waiter = *waiter;
-    assets->nodes[n].wanted_at = assets->now_ms;
-    entry_append(assets, idx, n);
 }
 
 static void
@@ -872,11 +724,28 @@ maybe_start(
     start_load(assets, key);
 }
 
+/* REPLACE kinds: `idx` (an entry of `key`) is the newest request -- wanted
+ * or awaited again before a replaced loader of it ended, it is the newest
+ * once more -- and every other entry of the kind is replaced. Returns the
+ * entry's index afresh (a replaced entry's removal moves entries). */
+static int
+make_newest(
+    struct Assets* assets,
+    struct AssetKey key,
+    int idx)
+{
+    assert(Assets_Policy((enum AssetKind)key.kind)->newer == ASSET_NEWER_REPLACE);
+    assets->entries[idx].superseded = 0;
+    supersede_others(assets, key);
+    idx = entry_find(assets, key);
+    assert(idx >= 0);
+    return idx;
+}
+
 enum AssetState
 Assets_Want(
     struct Assets* assets,
-    struct AssetKey key,
-    struct AssetWaiter const* waiter)
+    struct AssetKey key)
 {
     struct AssetPolicy const* policy;
     int idx;
@@ -900,21 +769,12 @@ Assets_Want(
         if( assets->entries[idx].state == ASSET_STATE_FAILED )
             return ASSET_STATE_FAILED;
         if( policy->newer == ASSET_NEWER_REPLACE )
-        {
-            /* Wanted again before its replaced loader ended: it is the newest
-             * request once more. */
-            assets->entries[idx].superseded = 0;
-            supersede_others(assets, key);
-            idx = entry_find(assets, key);
-            assert(idx >= 0);
-        }
+            idx = make_newest(assets, key, idx);
     }
-    if( waiter )
-        add_want(assets, idx, waiter);
     maybe_start(assets, key, false);
     idx = entry_find(assets, key);
     if( idx < 0 )
-        return waiter ? ASSET_STATE_LOADING : ASSET_STATE_NONE;
+        return ASSET_STATE_NONE;
     return (enum AssetState)assets->entries[idx].state;
 }
 
@@ -954,6 +814,8 @@ await_key(
             *result = ASSET_OUTCOME_FAILED;
         return 0;
     }
+    else if( Assets_Policy((enum AssetKind)key.kind)->newer == ASSET_NEWER_REPLACE )
+        idx = make_newest(assets, key, idx);
     /* Until the attempt ends: not here. */
     if( result )
         *result = ASSET_OUTCOME_DROPPED;
@@ -1011,52 +873,6 @@ Assets_Unjoin(
     ToriRS_CountDropped(join);
 }
 
-static struct AssetKey*
-scratch_keys(
-    struct Assets* assets,
-    int count)
-{
-    if( count > assets->scratch_cap )
-    {
-        assets->scratch_cap = count;
-        assets->scratch = ToriMem_Realloc(
-            ToriMem_Process(), assets->scratch, (size_t)count * sizeof(*assets->scratch));
-        assert(assets->scratch);
-    }
-    return assets->scratch;
-}
-
-void
-Assets_Pump(struct Assets* assets)
-{
-    struct AssetKey* due;
-    int due_count = 0;
-
-    assert(assets);
-    if( assets->entry_count == 0 )
-        return;
-    due = scratch_keys(assets, assets->entry_count);
-    for( int i = 0; i < assets->entry_cap; i++ )
-    {
-        struct AssetEntry const* e = &assets->entries[i];
-        if( !e->used || e->state != ASSET_STATE_WANTED || e->superseded ||
-            e->retry_at > assets->now_ms )
-            continue;
-        if( !entry_has_want(assets, i) )
-            continue;
-        due[due_count++] = e->key;
-    }
-    /* Started after the walk: a start can end at once and move entries. */
-    for( int d = 0; d < due_count; d++ )
-    {
-        struct AssetKey key = assets->scratch[d];
-        int idx = entry_find(assets, key);
-        if( idx < 0 || entry_land_if_resident(assets, idx) )
-            continue;
-        maybe_start(assets, key, false);
-    }
-}
-
 void
 Assets_Lift(
     struct Assets* assets,
@@ -1070,99 +886,6 @@ Assets_Lift(
     if( idx < 0 )
         return;
     assets->entries[idx].retry_at = 0;
-}
-
-/* BEING REMOVED with the callback waiters (see the header). A dropped
- * waiter's node is released here. */
-int
-Assets_Land(
-    struct Assets* assets,
-    uint32_t kind_mask)
-{
-    int32_t take_head = NIL;
-    int32_t take_tail = NIL;
-    int32_t keep_head = NIL;
-    int32_t keep_tail = NIL;
-    int32_t n;
-    int landed = 0;
-
-    assert(assets);
-    /* Take this call's arrivals out first: a landing that wants again, and
-     * lands at once, waits for the next call. */
-    n = assets->arrived_head;
-    while( n != NIL )
-    {
-        int32_t next = assets->nodes[n].next;
-        bool take = (kind_mask & ASSET_KIND_BIT(assets->nodes[n].key.kind)) != 0;
-        int32_t* head = take ? &take_head : &keep_head;
-        int32_t* tail = take ? &take_tail : &keep_tail;
-
-        assets->nodes[n].next = NIL;
-        if( *tail == NIL )
-            *head = n;
-        else
-            assets->nodes[*tail].next = n;
-        *tail = n;
-        n = next;
-    }
-    assets->arrived_head = keep_head;
-    assets->arrived_tail = keep_tail;
-
-    n = take_head;
-    while( n != NIL )
-    {
-        struct AssetNode node = assets->nodes[n];
-        int32_t next = node.next;
-        struct AssetPolicy const* policy = Assets_Policy((enum AssetKind)node.key.kind);
-        enum AssetOutcome outcome = (enum AssetOutcome)node.outcome;
-        uint64_t late = assets->now_ms > node.wanted_at ? assets->now_ms - node.wanted_at : 0;
-
-        /* Freed before the call: the landing may want again. */
-        node_release(assets, n);
-        n = next;
-        if( node.type != NODE_WANT )
-            continue;
-        if( outcome == ASSET_OUTCOME_LANDED && policy->late == ASSET_LATE_DROP_AFTER &&
-            late > policy->late_limit_ms )
-            outcome = ASSET_OUTCOME_DROPPED;
-        node.waiter.land(
-            node.waiter.ctx,
-            node.key,
-            node.waiter.handle,
-            outcome,
-            late > UINT32_MAX ? UINT32_MAX : (uint32_t)late);
-        landed++;
-    }
-    return landed;
-}
-
-int
-Assets_DropWaiters(
-    struct Assets* assets,
-    AssetLandFn land,
-    void* ctx,
-    bool (*match)(
-        struct AssetWaiterHandle handle,
-        struct AssetKey key,
-        void* arg),
-    void* arg)
-{
-    int dropped = 0;
-
-    assert(assets);
-    assert(land);
-    assert(match);
-    for( int i = 0; i < assets->node_cap; i++ )
-    {
-        struct AssetNode* node = &assets->nodes[i];
-        if( node->type != NODE_WANT || node->waiter.land != land || node->waiter.ctx != ctx )
-            continue;
-        if( !match(node->waiter.handle, node->key, arg) )
-            continue;
-        node->type = NODE_DEAD;
-        dropped++;
-    }
-    return dropped;
 }
 
 enum AssetState
@@ -1238,21 +961,6 @@ Assets_Count(
         return assets->entry_count;
     for( int i = 0; i < assets->entry_cap; i++ )
         if( assets->entries[i].used && assets->entries[i].key.kind == (int32_t)kind )
-            count++;
-    return count;
-}
-
-int
-Assets_WaiterCount(
-    struct Assets const* assets,
-    enum AssetKind kind)
-{
-    int count = 0;
-
-    assert(assets);
-    for( int i = 0; i < assets->node_cap; i++ )
-        if( assets->nodes[i].type == NODE_WANT &&
-            (kind == ASSET_KIND_COUNT || assets->nodes[i].key.kind == (int32_t)kind) )
             count++;
     return count;
 }

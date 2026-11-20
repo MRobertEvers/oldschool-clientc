@@ -210,9 +210,9 @@ app_assets_frame(struct App* app)
 {
     assert(app);
     assert(app->assets);
+    /* The clock a want's back-off is measured on. Nothing is landed or
+     * restarted here: what follows an arrival is the body of the task that
+     * awaited it, and a want waiting out a back-off starts when it is next
+     * made after the wait. */
     Assets_SetClock(app->assets, (uint64_t)app->host.client.now_ms);
-    Assets_Pump(app->assets);
-    /* No kind is landed here any more: the ground stacks' OBJ_MODEL and the
-     * npc bodies' NPC_BODY waiters are parallel tasks that await
-     * (app/app_tasks_ground.c, app/app_tasks_entities.c). */
 }

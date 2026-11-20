@@ -86,7 +86,7 @@ app_hitsplat_font_scene_id(struct App* app)
      * (it was a new FontLoad queued per frame until one landed). */
     if( scene_id < 0 )
         (void)Assets_Want(
-            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, font_cache_id, ASSET_CONFIG_FONT), NULL);
+            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, font_cache_id, ASSET_CONFIG_FONT));
     return scene_id;
 }
 
@@ -103,7 +103,7 @@ app_minimenu_font_scene_id(struct App* app)
          * just falls through to the text-node scan below until it lands).
          * One read in flight however many frames ask. */
         (void)Assets_Want(
-            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, font_cache_id, ASSET_CONFIG_FONT), NULL);
+            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, font_cache_id, ASSET_CONFIG_FONT));
     }
     if( scene_id <= 0 )
     {

@@ -2347,6 +2347,18 @@ App_TexturePublishPending(
 int
 app_logic_tick(struct App* app);
 
+/* The tick's music step: a request the player holds is installed by a
+ * parallel task that awaits it (Task_MusicInstall), a newer song cancelling
+ * the older task. */
+void
+app_music_tick(struct App* app);
+
+/* Is a music install task pending? Its song in *out_song_id. (tests) */
+int
+app_music_install_pending(
+    struct App const* app,
+    int* out_song_id);
+
 
 /* ---- app_title.c ---- */
 char const*
