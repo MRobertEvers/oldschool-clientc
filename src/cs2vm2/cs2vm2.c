@@ -8,6 +8,7 @@
 #include "mem/torirs_mem.h"
 
 #include "cs2_opcode.h"
+#include "cs2vm2_no_yield.gen.h"
 #include "cs2_opcode_meta.h"
 #include "cs2vm2_opcode_stack.gen.h"
 #include "perf/torirs_perf.h"
@@ -15780,6 +15781,10 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
 
     int result;
     int cycles = 0;
+    /* Whether this run is observed (the profile histogram, a trace): an
+     * observed run takes every instruction down the full path below. Read
+     * again after each instruction that could have changed it. */
+    int observed = g_cs2_profile_on > 0 || CS2VM2_TRACE_ARMED();
     while( cycles++ < CS2VM_MAX_CYCLES )
     {
         if( vm->frame_sp <= 0 )
@@ -15799,6 +15804,115 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
 
         int opcode = frame->script->opcodes[frame->pc];
         int operand = frame->script->int_operands[frame->pc];
+
+        /*
+         * THE NINE THAT ARE MOST OF A SCRIPT. Pushing a constant or a local,
+         * storing a local, add / subtract / multiply and the int branches are
+         * 81% of the instructions the bank's build scripts execute, and each
+         * is one or two moves. Run here they take no call into
+         * CS2VM2_RunOp (whose frame carries every inlined handler's host
+         * request and is stack-probed on entry), no yield checkpoint and no
+         * undo-log reset: none of them can reach the host
+         * (cs2vm2_no_yield.gen.h), so none can yield.
+         *
+         * Each arm is its handler's own arithmetic. A stack that is too
+         * shallow or too deep falls out of the switch untouched, and the full
+         * path below reports it exactly as it always did. Not for an
+         * observed run, nor for a script in the RS2 dialect, whose overlay
+         * may give one of these ids another meaning.
+         */
+        if( !observed && !(frame->script->dialect && frame->script->dialect->rs2_commands) )
+        {
+            int const top = vm->ints_stack_top;
+
+            switch( opcode )
+            {
+            case CS2_OP_PUSH_CONSTANT_INT:
+                if( top >= CS2VM_STACK_MAX )
+                    break;
+                vm->ints_stack[top] = operand;
+                vm->ints_stack_top = top + 1;
+                frame->pc += 1;
+                continue;
+            case CS2_OP_PUSH_INT_LOCAL:
+                if( top >= CS2VM_STACK_MAX || operand < 0 || operand >= CS2VM_MAX_LOCALS )
+                    break;
+                vm->ints_stack[top] = cs2vm2_frame_int_local(frame, operand);
+                vm->ints_stack_top = top + 1;
+                frame->pc += 1;
+                continue;
+            case CS2_OP_POP_INT_LOCAL:
+                if( top <= 0 || operand < 0 || operand >= CS2VM_MAX_LOCALS )
+                    break;
+                *cs2vm2_frame_int_local_ref(frame, operand) = vm->ints_stack[top - 1];
+                vm->ints_stack_top = top - 1;
+                frame->pc += 1;
+                continue;
+            case CS2_OP_ADD:
+                if( top < 2 )
+                    break;
+                vm->ints_stack[top - 2] = vm->ints_stack[top - 2] + vm->ints_stack[top - 1];
+                vm->ints_stack_top = top - 1;
+                frame->pc += 1;
+                continue;
+            case CS2_OP_SUB:
+                if( top < 2 )
+                    break;
+                vm->ints_stack[top - 2] = vm->ints_stack[top - 2] - vm->ints_stack[top - 1];
+                vm->ints_stack_top = top - 1;
+                frame->pc += 1;
+                continue;
+            case CS2_OP_MULTIPLY:
+                if( top < 2 )
+                    break;
+                vm->ints_stack[top - 2] = vm->ints_stack[top - 2] * vm->ints_stack[top - 1];
+                vm->ints_stack_top = top - 1;
+                frame->pc += 1;
+                continue;
+            case CS2_OP_BRANCH:
+                frame->pc += 1 + operand;
+                continue;
+            case CS2_OP_BRANCH_EQUALS:
+                if( top < 2 )
+                    break;
+                vm->ints_stack_top = top - 2;
+                frame->pc += 1 + (vm->ints_stack[top - 2] == vm->ints_stack[top - 1] ? operand : 0);
+                continue;
+            case CS2_OP_BRANCH_NOT:
+                if( top < 2 )
+                    break;
+                vm->ints_stack_top = top - 2;
+                frame->pc += 1 + (vm->ints_stack[top - 2] != vm->ints_stack[top - 1] ? operand : 0);
+                continue;
+            case CS2_OP_BRANCH_LESS_THAN:
+                if( top < 2 )
+                    break;
+                vm->ints_stack_top = top - 2;
+                frame->pc += 1 + (vm->ints_stack[top - 2] < vm->ints_stack[top - 1] ? operand : 0);
+                continue;
+            case CS2_OP_BRANCH_GREATER_THAN:
+                if( top < 2 )
+                    break;
+                vm->ints_stack_top = top - 2;
+                frame->pc += 1 + (vm->ints_stack[top - 2] > vm->ints_stack[top - 1] ? operand : 0);
+                continue;
+            case CS2_OP_BRANCH_LESS_THAN_OR_EQUALS:
+                if( top < 2 )
+                    break;
+                vm->ints_stack_top = top - 2;
+                frame->pc += 1 + (vm->ints_stack[top - 2] <= vm->ints_stack[top - 1] ? operand : 0);
+                continue;
+            case CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS:
+                if( top < 2 )
+                    break;
+                vm->ints_stack_top = top - 2;
+                frame->pc += 1 + (vm->ints_stack[top - 2] >= vm->ints_stack[top - 1] ? operand : 0);
+                continue;
+            default:
+                break;
+            }
+        }
+
         char const* str_operand_str = NULL;
         if( frame->script->string_operands )
             str_operand_str = frame->script->string_operands[frame->pc];
@@ -15831,12 +15945,26 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
         /* The undo log only tracks the in-flight op: reset it here so a yield
          * rolls back exactly this op's tracked mutations, and committed prior
          * mutations are never touched. */
-        vm->undo_log_len = 0;
-
+        /*
+         * A YIELD CHECKPOINT ONLY WHERE A YIELD CAN COME FROM. A yield is the
+         * host's answer to `host_exec`, and an opcode whose handler cannot
+         * reach that call cannot yield (cs2vm2_no_yield.gen.h, read off this
+         * file by tools/cs2_yield_audit.py and held to it by `make
+         * check-cs2-yield`). Such an instruction saves nothing and leaves the
+         * undo log alone: only a yielding op's rollback reads either.
+         */
+        int const may_yield =
+            opcode < 0 || opcode > CS2_OPCODE_MAX || !g_cs2vm2_no_yield[opcode];
         struct CS2VM2_YieldCheckpoint yield_cp;
-        CS2VM2_SaveYieldCheckpoint(vm, &yield_cp);
+
+        if( may_yield )
+        {
+            vm->undo_log_len = 0;
+            CS2VM2_SaveYieldCheckpoint(vm, &yield_cp);
+        }
 
         result = CS2VM2_RunOp(vm, frame, opcode, operand, str_operand_str);
+        observed = g_cs2_profile_on > 0 || CS2VM2_TRACE_ARMED();
 
         /*
          * Gated inline: this was the only unconditional call left in the
@@ -15868,6 +15996,18 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                 CS2VM2_ClearYieldHalt(vm);
             break;
         case CS2VM_EXECNO_YIELD:
+            /* The table said this opcode cannot reach the host, and it has
+             * yielded: there is no checkpoint to roll back to. The table is
+             * wrong; stop here, where the opcode can be named. */
+            if( !may_yield )
+            {
+                TORIRS_ERR("CS2VM2: opcode %d (script %d, pc %d) yielded but is listed as unable to "
+                           "(cs2vm2_no_yield.gen.h): run tools/cs2_yield_audit.py --write\n",
+                    opcode,
+                    frame->script->script_id,
+                    op_pc);
+                abort();
+            }
             if( !CS2VM2_CheckYieldHalt(vm, frame, op_pc, opcode) )
             {
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);

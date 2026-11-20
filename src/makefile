@@ -5660,6 +5660,14 @@ check-ubsan-units:
 check-rscache-isolation:
 	@python3 $(REPO_ROOT)/tools/check_rscache_isolation.py
 
+# The opcodes the CS2 interpreter saves no yield checkpoint for
+# (cs2vm2/cs2vm2_no_yield.gen.h) are read off cs2vm2.c: a handler that cannot
+# reach `host_exec` cannot yield. A handler that gains a host call must leave
+# the list, or its yield has nothing to roll back to and the loop aborts.
+.PHONY: check-cs2-yield
+check-cs2-yield:
+	@python3 $(REPO_ROOT)/tools/cs2_yield_audit.py --check
+
 check-pt-switch:
 	@python3 $(REPO_ROOT)/tools/pt_switch_audit.py . | tail -1 | grep -q "^total 0$$" \
 		&& echo "check-pt-switch: PASS (no switch inside a protothread)" \
