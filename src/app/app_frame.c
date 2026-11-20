@@ -3063,6 +3063,10 @@ app_run_once_body(
      * for the next frame's pump. */
     if( RS_ClientTriggerRefire_Take(&app->client_trigger_refire) )
         app_client_triggers_refire(app);
+    /* The heads the tree needs and that have no task are asked for here,
+     * ahead of the last pump, not by the bind after it (app_if_head_poll),
+     * whose task would be published ready. */
+    app_if_head_wants(app);
     {
         int steps = 0;
 

@@ -58,6 +58,7 @@ struct UIIfHead
     int zoom;             /* IF_SETOBJECT third field: IF1 zoom, IF3 quantity */
     int anim_id;          /* IF_SETANIM seq for this head, or -1 (reference modelAnim) */
     uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
+    uint32_t wanted_gen;  /* tree generation its want was last raised at (app_if_head_wants) */
     uint32_t close_serial; /* tree->group_close_serial when set: a later close of
                             * the group unloads it (UITree_GroupCloseSerial) */
     /* What the head's parallel task landed (Task_IfModel, app/

@@ -765,6 +765,60 @@ test_npc_head_custom_loads_its_models(void)
     fixture_free(&fx);
 }
 
+/*
+ * The heads' bind (app_if_head_poll) runs AFTER the frame's last parallel
+ * pump, just before the publish; a task it added there was ready at the
+ * publish, and the strict contract aborted ("the game frame published a frame
+ * over a ready parallel task IfModel: the parallel queue was not pumped to a
+ * standstill", dragon on the test client with reads 16 frames slow and the
+ * race clock: Oziach's head task cancelled with its dialogue, the head asked
+ * for again by the bind). The want is raised before the last pump
+ * (app_if_head_wants); the bind only binds.
+ */
+static void
+test_head_bind_adds_no_task(void)
+{
+    struct Fixture fx;
+    struct ToriRS_Npctype* npc;
+    int const com = 0x00e70002;
+
+    printf("TEST: the heads' bind after the last pump adds no task; the want before it does\n");
+    fixture_init(&fx);
+    fx.app.tree = UITree_New(2);
+    npc = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*npc));
+    assert(npc);
+    npc->transform_varbit = -1;
+    npc->transform_varp = -1;
+    npc->heads_count = 1;
+    npc->heads = ToriMem_Alloc(ToriMem_Assets(), sizeof(*npc->heads));
+    assert(npc->heads);
+    npc->heads[0] = 71;
+    CacheProvider_NpctypeAdd(&fx.provider, 501, npc);
+
+    App_SetInterfaceNpcHead(&fx.app, com, 501);
+    TEST_ASSERT(App_IfModelPending(&fx.app, com), "the head has its task");
+    /* Its task goes before it lands (a scope cancel, as a slow read meets
+     * one), and the tree moves on. */
+    (void)RS_Pending_Cancel(fx.app.pending, RS_PendingScope_Group(com >> 16));
+    pump(&fx);
+    TEST_ASSERT(!App_IfModelPending(&fx.app, com), "the cancelled task is gone");
+    TEST_ASSERT(head_of(&fx, com) && !head_of(&fx, com)->landed, "and the head never landed");
+    fx.app.tree->generation++;
+
+    app_if_head_poll(&fx.app);
+    TEST_ASSERT(!App_IfModelPending(&fx.app, com), "the bind, after the frame's last pump, adds no task");
+    app_if_head_wants(&fx.app);
+    TEST_ASSERT(App_IfModelPending(&fx.app, com), "the want, before the last pump, asks for it again");
+    app_if_head_wants(&fx.app);
+    TEST_ASSERT(RS_Pending_Count(fx.app.pending, 0) == 1, "once per tree generation");
+
+    (void)RS_Pending_Cancel(fx.app.pending, RS_PendingScope_All());
+    pump(&fx);
+    UITree_Free(fx.app.tree);
+    fx.app.tree = NULL;
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -778,6 +832,7 @@ main(void)
     test_bind_without_a_loader_is_unbound();
     test_npc_headicon_groups_load();
     test_npc_head_custom_loads_its_models();
+    test_head_bind_adds_no_task();
     if( g_failures )
     {
         printf("if_assets_tasks: %d failure(s)\n", g_failures);
