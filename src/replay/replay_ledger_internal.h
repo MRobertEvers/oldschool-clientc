@@ -81,6 +81,24 @@ struct ReplayLedgerPlayerOp
     int8_t blob_order;
 };
 
+/* One answer the build gave a typed customisation block's question
+ * (GameProtoNpcTypeLengths): its counts, and whether it answered at all. */
+struct ReplayLedgerTypeAnswer
+{
+    int32_t recolours;
+    int32_t retextures;
+    int32_t answered;
+};
+
+/* The answers one NPC_INFO frame was given, in the order asked:
+ * answers[first .. first + count). */
+struct ReplayLedgerTypeFrame
+{
+    uint32_t frame;
+    int first;
+    int count;
+};
+
 struct ReplayLedgerZoneClear
 {
     uint32_t frame;
@@ -133,6 +151,25 @@ struct ReplayLedger
     uint8_t* blobs;
     size_t blob_used;
     size_t blob_cap;
+
+    /*
+     * A typed BODY/HEAD customisation carries as many colours as its npc's
+     * type has, so reading one asks the type in force (GameProtoNpcTypeLengths).
+     * `npc_types` answers by type (called with `old` -1), NULL for none: then
+     * the read stops at such a block, as before. The npc behind an `old`
+     * index is the build's own list. Every answer the build gave is kept,
+     * frame by frame: a re-read of a frame for a keyframe, and a fold from a
+     * key, are handed the same answers, which a frame re-read without the npc
+     * list before it could not work out.
+     */
+    GameProtoNpcTypeLengths npc_types;
+    void* npc_types_ctx;
+    struct ReplayLedgerTypeAnswer* answers;
+    int answer_count;
+    int answer_cap;
+    struct ReplayLedgerTypeFrame* answer_frames;
+    int answer_frame_count;
+    int answer_frame_cap;
 
     struct ReplayLedgerStats stats;
 };

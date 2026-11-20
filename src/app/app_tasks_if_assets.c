@@ -126,6 +126,9 @@ struct Task_IfModel
     int custom_recolour_count;
     int* custom_retextures;
     int custom_retexture_count;
+    /* The override's recolour-all, as UITreeSceneBridge_EnsureNpcHeadCustom
+     * takes it (UITREE_NPC_HEAD_RECOLOUR_ALL_TYPE: it sent none). */
+    int custom_recolour_all;
 };
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -244,7 +247,8 @@ if_model_compose(struct Task_IfModel* self)
                          self->custom_recolours,
                          self->custom_recolour_count,
                          self->custom_retextures,
-                         self->custom_retexture_count);
+                         self->custom_retexture_count,
+                         self->custom_recolour_all);
     if( self->kind == UI_IFHEAD_NPC )
         return self->resolved_npc_id < 0
                    ? -1
@@ -478,6 +482,8 @@ if_model_copy_custom(
     task->custom_recolours = if_model_ints(npc->head_custom.recolours, npc->head_custom.recolour_count);
     task->custom_retexture_count = npc->head_custom.retexture_count;
     task->custom_retextures = if_model_ints(npc->head_custom.retextures, npc->head_custom.retexture_count);
+    task->custom_recolour_all = npc->head_custom.has_recolour_all ? World_NpcOverrideRecolourAll(&npc->head_custom)
+                                                                  : UITREE_NPC_HEAD_RECOLOUR_ALL_TYPE;
 }
 
 void

@@ -78,6 +78,7 @@
  */
 #include "replay/replay_ledger_internal.h"
 
+#include "mem/torirs_mem.h"
 #include "net/rev/pktnames.h"
 #include "rsprot_rev.h"
 
@@ -1186,7 +1187,9 @@ ReplayLedger_ZoneOpDecode(
 struct ReplayLedger*
 ReplayLedger_Build(
     struct RsproxRecording const* rec,
-    struct GameProtoRevTable const* rev)
+    struct GameProtoRevTable const* rev,
+    GameProtoNpcTypeLengths npc_types,
+    void* npc_types_ctx)
 {
     struct ReplayLedger* ledger;
     struct ReplayEntityState* state;
@@ -1210,6 +1213,8 @@ ReplayLedger_Build(
     assert(ledger);
     ledger->rec = rec;
     ledger->rev = rev;
+    ledger->npc_types = npc_types;
+    ledger->npc_types_ctx = npc_types_ctx;
     rr = rsprot_rev_parse(rev->name);
     ledger->player_read =
         rsprot_rev_family(rr) == RSPROT_FAMILY_OSRSM ? player_info_osrsm(rr) : player_info_osrs(rr);
@@ -1332,6 +1337,8 @@ ReplayLedger_Free(struct ReplayLedger* ledger)
     free(ledger->first_frame);
     free(ledger->local_tile);
     free(ledger->world_entity);
+    ToriMem_Free(ToriMem_Net(), ledger->answers);
+    ToriMem_Free(ToriMem_Net(), ledger->answer_frames);
     free(ledger);
 }
 

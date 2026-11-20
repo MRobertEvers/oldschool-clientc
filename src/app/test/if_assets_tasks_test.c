@@ -654,10 +654,10 @@ test_npc_headicon_groups_load(void)
     sprite_fixture_init(&fx);
     memset(&npc, 0, sizeof(npc));
     memset(&type, 0, sizeof(type));
-    type.head_icon_group = -1;
-    type.head_icon_index = -1;
     for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
     {
+        type.head_icon_group[i] = -1;
+        type.head_icon_index[i] = -1;
         npc.headicon_group[i] = -1;
         npc.headicon_index[i] = -1;
     }
@@ -694,7 +694,7 @@ test_npc_headicon_groups_load(void)
     /* No customisation: the type's one icon, an older cache's frame-only
      * icon from the prayer pack. */
     npc.headicon_custom = false;
-    type.head_icon_index = 4;
+    type.head_icon_index[0] = 4;
     n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
     TEST_ASSERT(n == 1 && icons[0].scene_id == prayer_scene && icons[0].frame == 4, "the type's icon");
     fixture_free(&fx);
@@ -739,6 +739,132 @@ test_npc_headicon_placement(void)
     TEST_ASSERT(y == 102, "slot 2, fixed: 23 above slot 1");
     app_overlay_npc_headicon_place(300, 200, 0, 0, 30, 21, &x, &y);
     TEST_ASSERT(x == 285 && y == 152, "a 30 x 21 icon is centred and lifted by its own size");
+}
+
+/*
+ * I1: a TYPE with several headicon slots draws every one, each at its own
+ * slot (deob Statics.method6709's npc branch walks the type's arrays,
+ * class405.method9179 / method9181, when the server set none). No record in
+ * cache.osrs239 or cache.osrs242 states more than slot 0, so the type is
+ * stated here: slot 0 (prayer pack, frame 1) and slot 2 (frame 2). Placed by
+ * A2's formula, a 25 x 25 icon over the anchor (300, 200) of a resizable
+ * viewport: slot 0 at (288, 144), slot 2 at (288, 90) -- two steps of 27
+ * above, not the next one up. A HEADICON_CUSTOM block then replaces all
+ * eight slots (deob Statics ~47373, class86.method2903: the block's arrays,
+ * -1 where its mask has no bit), so slot 2 is gone while it stands, and a
+ * mask of 0 (method2904) gives the type's back.
+ */
+static void
+test_npc_type_headicon_slots(void)
+{
+    struct Fixture fx;
+    struct WorldEntity_NPC npc;
+    struct ToriRS_Npctype type;
+    struct AppNpcHeadicon icons[WORLD_NPC_HEADICON_SLOTS];
+    int const prayer_scene = 4321;
+    int x;
+    int y;
+    int n;
+
+    printf("TEST: a type with several headicon slots draws each at its own slot\n");
+    sprite_fixture_init(&fx);
+    memset(&npc, 0, sizeof(npc));
+    memset(&type, 0, sizeof(type));
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        type.head_icon_group[i] = -1;
+        type.head_icon_index[i] = -1;
+        npc.headicon_group[i] = -1;
+        npc.headicon_index[i] = -1;
+    }
+    type.head_icon_group[0] = APP_HEADICONS_PRAYER_GROUP;
+    type.head_icon_index[0] = 1;
+    type.head_icon_group[2] = APP_HEADICONS_PRAYER_GROUP;
+    type.head_icon_index[2] = 2;
+
+    n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
+    TEST_ASSERT(n == 2, "both of the type's slots are drawn");
+    TEST_ASSERT(n >= 1 && icons[0].slot == 0 && icons[0].frame == 1 && icons[0].scene_id == prayer_scene,
+        "slot 0, frame 1");
+    TEST_ASSERT(n >= 2 && icons[1].slot == 2 && icons[1].frame == 2 && icons[1].scene_id == prayer_scene,
+        "slot 2, frame 2");
+    if( n >= 2 )
+    {
+        app_overlay_npc_headicon_place(300, 200, 0, icons[0].slot, 25, 25, &x, &y);
+        TEST_ASSERT(x == 288 && y == 144, "slot 0 at (288, 144)");
+        app_overlay_npc_headicon_place(300, 200, 0, icons[1].slot, 25, 25, &x, &y);
+        TEST_ASSERT(x == 288 && y == 90, "slot 2 at (288, 90): placed by its slot");
+    }
+
+    /* HEADICON_CUSTOM with slot 1 only: the block's eight slots stand. */
+    npc.headicon_custom = true;
+    npc.headicon_group[1] = APP_HEADICONS_PRAYER_GROUP;
+    npc.headicon_index[1] = 0;
+    n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
+    TEST_ASSERT(n == 1 && icons[0].slot == 1 && icons[0].frame == 0, "the block's slot 1 alone");
+    npc.headicon_custom = false;
+    n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
+    TEST_ASSERT(n == 2 && icons[0].slot == 0 && icons[1].slot == 2, "a cleared block gives the type's back");
+    fixture_free(&fx);
+}
+
+/*
+ * I2: a player's overhead icons (deob Statics.method6709, the player branch;
+ * javap of injected-client-1.12.33-deob.jar agrees). var27 starts at -2; the
+ * overhead chat line, when up, takes 12; each health bar its height and 2;
+ * a var27 still at -2 then becomes 5. The skull (field530) and the prayer
+ * icon (field533) each do `var27 += 25` and draw at (x - 12, y - var27); the
+ * hint arrow on that player draws frame 1 at y - (its art height + var27),
+ * and that art is 25 tall (cache.osrs242 headicons_hint frame 1, 23 x 25).
+ * Numbers, as lifts above the anchor (y = anchor y - lift):
+ *   one prayer icon: 30;  skull and prayer: the skull 30, the prayer 55
+ *   (above it; 85fbd0d4f drew no skull, and a second mask icon at 5, below);
+ *   one icon under an overhead chat line: 35 (85fbd0d4f: 30, over the text);
+ *   a default (5-pixel) health bar: 30; chat and that bar: 42;
+ *   the hint arrow: 30 with no icon, 55 over one, 80 over two
+ *   (85fbd0d4f: 25, 50, 75).
+ */
+static void
+test_player_headicon_lifts(void)
+{
+    struct AppPlayerHeadicon icons[32];
+    int lift;
+    int n;
+
+    printf("TEST: a player's overhead icons stack as the reference's var27\n");
+    lift = app_overlay_overhead_lift(false, 0);
+    TEST_ASSERT(lift == 5, "nothing above the head: the stack starts at 5");
+    n = app_overlay_player_headicon_stack(-1, 1 << 2, &lift, icons);
+    TEST_ASSERT(n == 1 && !icons[0].pk && icons[0].frame == 2 && icons[0].lift == 30, "one prayer icon at 30");
+    TEST_ASSERT(app_overlay_player_hint_lift(25, lift) == 55, "the hint arrow over it at 55");
+
+    lift = app_overlay_overhead_lift(false, 0);
+    n = app_overlay_player_headicon_stack(0, 1 << 1, &lift, icons);
+    TEST_ASSERT(n == 2, "skull and prayer: two icons");
+    TEST_ASSERT(n >= 1 && icons[0].pk && icons[0].frame == 0 && icons[0].lift == 30, "the skull first, at 30");
+    TEST_ASSERT(n >= 2 && !icons[1].pk && icons[1].frame == 1 && icons[1].lift == 55,
+        "the prayer icon above it, at 55");
+    TEST_ASSERT(app_overlay_player_hint_lift(25, lift) == 80, "the hint arrow over both at 80");
+
+    lift = app_overlay_overhead_lift(false, 0);
+    n = app_overlay_player_headicon_stack(-1, (1 << 0) | (1 << 2), &lift, icons);
+    TEST_ASSERT(n == 2 && icons[0].lift == 30 && icons[1].lift == 55, "a mask's second icon stacks above, at 55");
+
+    lift = app_overlay_overhead_lift(true, 0);
+    TEST_ASSERT(lift == 10, "an overhead chat line takes 12 from -2");
+    n = app_overlay_player_headicon_stack(-1, 1 << 2, &lift, icons);
+    TEST_ASSERT(n == 1 && icons[0].lift == 35, "an icon under chat at 35");
+
+    lift = app_overlay_overhead_lift(false, 5 + 2);
+    n = app_overlay_player_headicon_stack(-1, 1 << 2, &lift, icons);
+    TEST_ASSERT(n == 1 && icons[0].lift == 30, "over a 5-pixel health bar at 30");
+    lift = app_overlay_overhead_lift(true, 5 + 2);
+    n = app_overlay_player_headicon_stack(-1, 1 << 2, &lift, icons);
+    TEST_ASSERT(n == 1 && icons[0].lift == 42, "over chat and that bar at 42");
+
+    lift = app_overlay_overhead_lift(false, 0);
+    n = app_overlay_player_headicon_stack(-1, 0, &lift, icons);
+    TEST_ASSERT(n == 0 && app_overlay_player_hint_lift(25, lift) == 30, "a hint arrow over no icon at 30");
 }
 
 /* E12 HEAD_CUSTOM: an IF_SETNPCHEAD_ACTIVE head of an npc carrying a
@@ -1345,6 +1471,8 @@ main(void)
     test_bind_without_a_loader_is_unbound();
     test_npc_headicon_groups_load();
     test_npc_headicon_placement();
+    test_npc_type_headicon_slots();
+    test_player_headicon_lifts();
     test_npc_head_custom_loads_its_models();
     test_a_close_seen_after_the_last_pump_publishes();
     test_npc_head_custom_empty_list_shows_nothing();

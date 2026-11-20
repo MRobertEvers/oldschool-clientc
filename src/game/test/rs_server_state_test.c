@@ -946,6 +946,28 @@ test_active_world_and_fence(void)
     printf("ok - SET_ACTIVE_WORLD, interaction modes and the tick fence\n");
 }
 
+/* I1: a type with icons in slots 0 and 2 (the headless client's answer). */
+static int
+i1_type_head_icons(
+    void* ctx,
+    int npc_id,
+    int* out_group,
+    int* out_index)
+{
+    (void)ctx;
+    CHECK(npc_id == 500, "asked of the npc's type");
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        out_group[i] = -1;
+        out_index[i] = -1;
+    }
+    out_group[0] = 440;
+    out_index[0] = 1;
+    out_group[2] = 440;
+    out_index[2] = 2;
+    return 1;
+}
+
 static void
 test_entity_setters(void)
 {
@@ -997,6 +1019,22 @@ test_entity_setters(void)
     p._entity_spotanim_specific.index = 99;
     p._entity_spotanim_specific.id = 85;
     CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "an untracked player is skipped");
+
+    /* I1: the first write copies EVERY slot of the type's icons (deob
+     * class86.method2936 -> new class629(type)), then sets its own. */
+    fx->state.npc_head_icon = i1_type_head_icons;
+    p = packet(PKT_NAME_NPC_HEADICON_SPECIFIC);
+    p._npc_headicon_specific.npc_index = 17;
+    p._npc_headicon_specific.slot = 1;
+    p._npc_headicon_specific.group = 777;
+    p._npc_headicon_specific.index = 3;
+    CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "a first NPC_HEADICON_SPECIFIC applied");
+    CHECK(npc->headicon_custom, "the npc now carries its own icons");
+    CHECK(npc->headicon_group[0] == 440 && npc->headicon_index[0] == 1, "the type's slot 0 copied");
+    CHECK(npc->headicon_group[1] == 777 && npc->headicon_index[1] == 3, "slot 1 the packet's");
+    CHECK(npc->headicon_group[2] == 440 && npc->headicon_index[2] == 2, "the type's slot 2 copied too");
+    CHECK(npc->headicon_group[3] == -1 && npc->headicon_index[3] == -1, "past the type's slots: none");
+    fx->state.npc_head_icon = NULL;
 
     /* A head icon slot written over icons the npc already carries keeps the
      * others (the type's icons are copied in only on the first write). */

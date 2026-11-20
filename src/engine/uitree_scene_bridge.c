@@ -1674,8 +1674,13 @@ UITreeSceneBridge_EnsureNpcHead(
     if( !merged )
         return -1;
 
-    for( int r = 0; r < npc->recolor_count; r++ )
-        ToriDraw_ModelRecolor(merged, npc->recolors_from[r], npc->recolors_to[r]);
+    /* The type's recolour-all (npc config opcode 42) in place of the
+     * per-colour list (rev-242 deob class454.method10217). */
+    if( npc->has_recolor_all )
+        ToriDraw_ModelSetAllFaceColors(merged, (hsl16_t)npc->recolor_all);
+    else
+        for( int r = 0; r < npc->recolor_count; r++ )
+            ToriDraw_ModelRecolor(merged, npc->recolors_from[r], npc->recolors_to[r]);
     /* OSRS deob getHead (class195.method3617): recol then retex before light. */
     for( int r = 0; r < npc->retexture_count; r++ )
         ToriDraw_ModelRetexture(merged, npc->retextures_from[r], npc->retextures_to[r]);
@@ -1711,7 +1716,8 @@ UITreeSceneBridge_EnsureNpcHeadCustom(
     int const* recolours,
     int recolour_count,
     int const* retextures,
-    int retexture_count)
+    int retexture_count,
+    int recolour_all)
 {
     struct ToriRS_Npctype* npc;
     struct ToriDraw_Model** parts;
@@ -1728,6 +1734,7 @@ UITreeSceneBridge_EnsureNpcHeadCustom(
     assert(model_count >= 0);
     assert(recolour_count >= 0);
     assert(retexture_count >= 0);
+    assert(recolour_all >= UITREE_NPC_HEAD_RECOLOUR_ALL_TYPE);
     if( npc_id < 0 )
         return -1;
     scene_id = bridge_map_get(bridge->npc_head_map, key);
@@ -1770,11 +1777,18 @@ UITreeSceneBridge_EnsureNpcHeadCustom(
     ToriMem_Free(ToriMem_Frame(), parts);
     if( !merged )
         return -1;
-    /* Statics.method9224: the type's source colours, each to the override's
+    /* A recolour-all, the override's or else the type's, in place of the
+     * per-colour list (rev-242 deob class454.method10217); without one,
+     * Statics.method9224: the type's source colours, each to the override's
      * value at that index where it sent one, else the type's own. */
-    for( int r = 0; r < npc->recolor_count; r++ )
-        ToriDraw_ModelRecolor(
-            merged, npc->recolors_from[r], r < recolour_count ? recolours[r] : npc->recolors_to[r]);
+    if( recolour_all == UITREE_NPC_HEAD_RECOLOUR_ALL_TYPE )
+        recolour_all = npc->has_recolor_all ? npc->recolor_all : -1;
+    if( recolour_all >= 0 )
+        ToriDraw_ModelSetAllFaceColors(merged, (hsl16_t)recolour_all);
+    else
+        for( int r = 0; r < npc->recolor_count; r++ )
+            ToriDraw_ModelRecolor(
+                merged, npc->recolors_from[r], r < recolour_count ? recolours[r] : npc->recolors_to[r]);
     for( int r = 0; r < npc->retexture_count; r++ )
         ToriDraw_ModelRetexture(
             merged, npc->retextures_from[r], r < retexture_count ? retextures[r] : npc->retextures_to[r]);

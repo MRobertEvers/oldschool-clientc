@@ -1567,6 +1567,108 @@ test_npc_body_custom_v4_recolour_all(void)
     fixture_free(&fx);
 }
 
+/*
+ * I3: the rev-242 npc TYPE's own recolour-all (npc config opcode 42,
+ * class454.field5610). class454.method10217 takes the override's when it sent
+ * one (field5557; 65535 there is none, and its list applies), else the
+ * type's: so a type with one paints its plain body, and an override that
+ * sends none, that colour in place of the per-colour list; an override that
+ * sends its own wins, and one that sends 65535 applies its list.
+ */
+static void
+test_npc_type_recolour_all(void)
+{
+    static uint8_t packet[64];
+    static struct ToriRS_Network net242;
+    struct EntityFixture fx;
+    struct ToriRS_Npctype* type;
+    struct WorldEntity_NPC* npc;
+    struct ToriDraw_Model* model;
+    struct WorldNpcOverride none;
+    int len;
+
+    printf("TEST: a type's recolour-all (opcode 42) paints its body unless a customisation sends one\n");
+    net242.rev = GameProtoRev_OSRS242();
+    fixture_init(&fx);
+    fx.app.net = &net242;
+    type = fixture_npctype(&fx, 520, 9000);
+    a1_npctype_lists(type, 1, 0);
+    type->recolors_from[0] = 500;
+    type->recolors_to[0] = 600;
+    a6_triangle(&fx);
+    register_npc(&fx.app, 301, 520, 6, 30, 30);
+    TEST_ASSERT(TorirsModelInstCache_Init(&fx.app.model_inst_cache), "the built bodies' cache");
+
+    model = app_world_build_npc_model(&fx.app, 520, type);
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 600,
+        "without one, the type's per-colour list");
+    if( model )
+        ToriDraw_ModelFree(model);
+    TorirsModelInstCache_Free(&fx.app.model_inst_cache);
+    TEST_ASSERT(TorirsModelInstCache_Init(&fx.app.model_inst_cache), "the built bodies' cache, again");
+
+    type->has_recolor_all = true;
+    type->recolor_all = 777;
+    model = app_world_build_npc_model(&fx.app, 520, type);
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 777,
+        "the plain body: every face the type's recolour-all, not its list");
+    if( model )
+        ToriDraw_ModelFree(model);
+
+    memset(&none, 0, sizeof(none));
+    TEST_ASSERT(World_NpcRecolourAll(&none, 777) == 777, "no override: the type's");
+
+    len = a6_npc_info_v4(packet, (int)sizeof(packet), 1234);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && World_NpcRecolourAll(&npc->body_custom, 777) == 1234, "an override's own wins");
+    model = npc ? app_world_build_npc_override_model(&fx.app, 520, type, &npc->body_custom) : NULL;
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 1234, "painted the override's colour");
+    if( model )
+        ToriDraw_ModelFree(model);
+
+    len = a6_npc_info_v4(packet, (int)sizeof(packet), 65535);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && World_NpcRecolourAll(&npc->body_custom, 777) == -1,
+        "an override's 65535 is none, over the type's");
+    model = npc ? app_world_build_npc_override_model(&fx.app, 520, type, &npc->body_custom) : NULL;
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 4321, "its list applies");
+    if( model )
+        ToriDraw_ModelFree(model);
+
+    /* A V4 block without the recolour-all: 0x4 (colours) is sent but the
+     * flag byte is 0, so the type's recolour-all applies. */
+    {
+        RsprotBuf b;
+
+        rsprot_buf_wrap(&b, packet, (int)sizeof(packet));
+        rsprot_p1(&b, 0x01);
+        rsprot_p1(&b, 0x9F);
+        rsprot_p1(&b, 0xFF);
+        rsprot_p1(&b, 0xE0);
+        rsprot_p1(&b, 0x04);
+        rsprot_p1(&b, 0x20);
+        rsprot_p1_add128(&b, 0x4);
+        rsprot_p1_add128(&b, 0); /* no recolour-all: the list follows */
+        rsprot_p1_add128(&b, 1);
+        rsprot_p2_21(&b, 4321);
+        TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+        len = b.wpos;
+    }
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->body_custom.active && !npc->body_custom.has_recolour_all,
+        "an override that sends no recolour-all");
+    model = npc ? app_world_build_npc_override_model(&fx.app, 520, type, &npc->body_custom) : NULL;
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 777,
+        "draws the type's recolour-all, not its own list");
+    if( model )
+        ToriDraw_ModelFree(model);
+    TorirsModelInstCache_Free(&fx.app.model_inst_cache);
+    fixture_free(&fx);
+}
+
 /* E12, flags 0x10 and 0x20: a body customisation that mirrors the local
  * player is remounted when the local player's body changes, and one that is
  * a player composition draws nothing of the npc's type and does not follow
@@ -2036,6 +2138,7 @@ main(void)
     test_npc_typed_custom_reads_the_rest_of_the_packet();
     test_npc_typed_custom_waits_for_its_type();
     test_npc_body_custom_v4_recolour_all();
+    test_npc_type_recolour_all();
     test_npc_body_custom_mirror_and_player();
     test_npc_body_custom_player_draws_its_models();
     test_npc_freeze_reaches_the_world();

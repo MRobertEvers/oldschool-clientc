@@ -1205,6 +1205,8 @@ World_PlayerSpawn(
         .spawn_serial = ++world->entity_spawn_serial,
         /* npc id 0 is a real npc type, so "no transmog" is spelled. */
         .transmog_npc_id = -1,
+        /* Skull 0 is a real frame, so "no skull" is spelled too. */
+        .skull_icon = -1,
         .transmog_size = 1,
         .body = { .npc_id = WORLD_PLAYER_BODY_FROM_SLOTS },
         .loc_merge_id = -1,
@@ -3939,6 +3941,17 @@ World_NpcOverrideRecolourAll(struct WorldNpcOverride const* o)
     if( (o->recolour_all & 0xffff) == 0xffff )
         return -1;
     return o->recolour_all & 0xffff;
+}
+
+int
+World_NpcRecolourAll(
+    struct WorldNpcOverride const* o,
+    int type_recolour_all)
+{
+    assert(o);
+    if( o->active && o->has_recolour_all )
+        return World_NpcOverrideRecolourAll(o);
+    return type_recolour_all;
 }
 
 int64_t

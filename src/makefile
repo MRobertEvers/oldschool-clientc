@@ -1065,6 +1065,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	platform/net_transport_replay.c net/rsprox_recording.c \
 	replay/replay_timeline.c replay/replay_scrub.c \
 	replay/replay_ledger.c replay/replay_ledger_entity.c replay/replay_ledger_verify.c \
+	replay/replay_npc_types.c \
 	replay/replay_classify.c replay/replay_world.c replay/replay_world_apply.c \
 	replay/replay_chase.c \
 	replay/replay_digest.c \
@@ -4875,11 +4876,14 @@ test-replay-ledger: $(OBJ_DIR) $(NET_CORE_OBJS)
 
 # The same equalities on real recordings, with a size and timing report:
 # `RECORDINGS="a.bin b.bin.gz"`. Not a suite test -- it needs recordings.
+# `NPC_CACHE=<dat2 dir>` (the recordings' revision's cache) answers the typed
+# npc customisation blocks from its npc configs (replay/replay_npc_types.c).
 .PHONY: replay-ledger-check
 replay-ledger-check: $(OBJ_DIR) $(NET_CORE_OBJS)
 	$(CC) $(CFLAGS) -UNDEBUG $(RSPROT_INCLUDES) -o $(OBJ_DIR)/replay_ledger_check $(TORIMEM_SRCS) \
-		replay/test/replay_ledger_check.c $(REPLAY_LEDGER_ONLY_SRCS) $(NET_CORE_OBJS) -lm
-	./$(OBJ_DIR)/replay_ledger_check $(RECORDINGS)
+		replay/test/replay_ledger_check.c $(REPLAY_LEDGER_ONLY_SRCS) replay/replay_npc_types.c \
+		$(NET_CORE_OBJS) -lm
+	NPC_CACHE="$(NPC_CACHE)" ./$(OBJ_DIR)/replay_ledger_check $(RECORDINGS)
 
 # The replay scrubber's timeline (replay/replay_timeline.c) over a synthetic
 # rev-241 recording: the tick table, the time maps across a stall, the lanes,

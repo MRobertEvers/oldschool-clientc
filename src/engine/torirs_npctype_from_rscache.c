@@ -209,10 +209,15 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->interactable = true;
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
+    /* No dat1 cache has opcode 42 (a rev-241 OldSchool opcode). */
+    npctype->has_recolor_all = false;
     /* The dat1 decoder does not surface opcode 102. Stated rather than left at
      * the calloc zeroes: sprite group 0 and frame 0 are both real. */
-    npctype->head_icon_group = -1;
-    npctype->head_icon_index = -1;
+    for( int i = 0; i < TORIRS_NPCTYPE_HEADICON_SLOTS; i++ )
+    {
+        npctype->head_icon_group[i] = -1;
+        npctype->head_icon_index[i] = -1;
+    }
     /*
      * dat1 has no movement-sound opcode. Say so explicitly rather than leaving
      * the calloc zeroes: 0 is a real sound-effect id, so a zeroed field would
@@ -313,6 +318,11 @@ ToriRS_NpctypeFromRSCacheDat2(
                 npctype->ambient_sound_volume);
     }
 
+    /* Opcode 42 when the record stated it, read as the reference's short:
+     * 65535 is none. */
+    npctype->has_recolor_all =
+        RSCache_PresenceHas(&src->present, RSCACHE_NPC_FIELD_RECOLOR_ALL) && src->recolor_all != 0xffff;
+    npctype->recolor_all = npctype->has_recolor_all ? src->recolor_all : -1;
     torirs_npctype_copy_pairs_int(
         &npctype->recolors_from,
         &npctype->recolors_to,
@@ -380,19 +390,25 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
     /*
-     * Overhead prayer icon (opcode 102). The decoder keeps a list; the client
-     * plots one, so the first entry is the one carried. Pre-210 caches store a
-     * bare sprite index with no archive — `npc_copy_head_icons` in cachepack
-     * documents that shape — so a record with an index and no group is read as
-     * "the prayer pack", which is what the group would have named anyway.
+     * Overhead icons (opcode 102): every slot the record states, each its own
+     * group and frame (deob class405.method9179 / method9181). Pre-210 caches
+     * store one bare sprite index with no archive — `npc_copy_head_icons` in
+     * cachepack documents that shape — so a slot with an index and no group is
+     * read as "the prayer pack", which is what the group would have named
+     * anyway (the overlay does that).
      */
-    npctype->head_icon_group = -1;
-    npctype->head_icon_index = -1;
-    if( src->head_icon_count > 0 && src->head_icon_sprite_index )
+    assert(src->head_icon_count <= TORIRS_NPCTYPE_HEADICON_SLOTS);
+    for( int i = 0; i < TORIRS_NPCTYPE_HEADICON_SLOTS; i++ )
     {
-        npctype->head_icon_index = src->head_icon_sprite_index[0];
+        npctype->head_icon_group[i] = -1;
+        npctype->head_icon_index[i] = -1;
+    }
+    for( int i = 0; i < src->head_icon_count; i++ )
+    {
+        assert(src->head_icon_sprite_index);
+        npctype->head_icon_index[i] = src->head_icon_sprite_index[i];
         if( src->head_icon_archive_ids )
-            npctype->head_icon_group = src->head_icon_archive_ids[0];
+            npctype->head_icon_group[i] = src->head_icon_archive_ids[i];
     }
 
     /*

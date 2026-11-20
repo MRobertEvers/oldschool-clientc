@@ -759,6 +759,11 @@ UITreeSceneBridge_CollectPlayerDesignModelIds(
  * the type's. Keyed and memoized by the override's `serial` (> 0). Every part
  * resident, or -1.
  */
+/** `recolour_all`: what the override says of the recolour-all -- a colour,
+ *  -1 none (it sent 65535: the per-colour list applies), or
+ *  UITREE_NPC_HEAD_RECOLOUR_ALL_TYPE when it sent none and the type's (npc
+ *  config opcode 42) applies (rev-242 deob class454.method10217). */
+#define UITREE_NPC_HEAD_RECOLOUR_ALL_TYPE (-2)
 int
 UITreeSceneBridge_EnsureNpcHeadCustom(
     struct UITreeSceneBridge* bridge,
@@ -769,7 +774,8 @@ UITreeSceneBridge_EnsureNpcHeadCustom(
     int const* recolours,
     int recolour_count,
     int const* retextures,
-    int retexture_count);
+    int retexture_count,
+    int recolour_all);
 
 /** One composited customised chathead: its override's serial and scene id.
  *  `doomed`: the last sweep found it unused. */

@@ -1898,6 +1898,11 @@ app_world_tile_mark_end(struct App* app);
 void
 app_world_tile_marks_place(struct App* app);
 
+/* Whether an actor's overhead chat line is up (what app_overlay_build_chat
+ * draws, and what lifts the overhead stack above it). */
+bool
+app_overlay_chat_shown(struct WorldEntityFacet_Chat const* chat);
+
 void
 app_overlay_build_chat(
     struct App* app,
@@ -1909,19 +1914,77 @@ app_overlay_build_chat(
     int actor_level,
     int font_id);
 
-void
+/*
+ * The overhead stack's lift: how far above an actor's overhead anchor the
+ * next thing goes (deob Statics.method6709's var27). It starts at -2; the
+ * overhead chat line, when shown, takes 12 (the line is drawn at the lift
+ * before it); each health bar drawn takes its height and 2 more
+ * (`bars_lift`, their sum); and a lift still at -2 then (nothing above the
+ * head) becomes 5. The skull and each prayer icon add 25 and are drawn at
+ * the lift that leaves; a player's hint arrow sits its frame's height above
+ * the last.
+ */
+int
+app_overlay_overhead_lift(
+    bool chat_shown,
+    int bars_lift);
+
+/* One overhead icon a player draws: from the PK pack (the skull) or the
+ * prayer pack, the frame, and the lift it is drawn at (canvas y = anchor y
+ * minus it, x = anchor x - 12). */
+struct AppPlayerHeadicon
+{
+    bool pk;
+    int frame;
+    int lift;
+};
+
+/*
+ * A player's overhead icons, bottom up (deob Statics.method6709's player
+ * branch): the skull (`skull` >= 0, field530) and then the prayer icons (each
+ * set bit of `prayer_mask`, field533's index as a mask), each 25 above the
+ * one before, starting from the lift `*io_lift` (app_overlay_overhead_lift).
+ * Fills `out` and returns how many; `*io_lift` becomes the lift after them,
+ * which the hint arrow stacks on.
+ */
+int
+app_overlay_player_headicon_stack(
+    int skull,
+    int prayer_mask,
+    int* io_lift,
+    struct AppPlayerHeadicon out[32]);
+
+/* Draws a player's overhead icons above `lift` (app_overlay_overhead_lift)
+ * and returns the lift after them. */
+int
 app_overlay_build_player_headicons(
     struct App* app,
     int anchor_height,
     int footprint,
+    int skull,
     int headicons,
+    int lift,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
     int actor_level,
-    int headicons_scene);
+    int headicons_scene,
+    int pk_scene);
 
+/* How far above its anchor a hint arrow on a player goes: its frame's art
+ * height above the lift the player's icons left (`field1034[1].field6911 +
+ * var27`). */
+int
+app_overlay_player_hint_lift(
+    int art_height,
+    int player_lift);
+
+/* `player_lift`: for a hint arrow on a player, the lift after that player's
+ * overhead icons (app_overlay_build_player_headicons); unused for the other
+ * subjects. */
 void
-app_overlay_build_hint_arrow(struct App* app);
+app_overlay_build_hint_arrow(
+    struct App* app,
+    int player_lift);
 
 /* One overhead icon an npc draws: the sprite group's scene id, the frame and
  * the slot (0..7) it is in, which places it. */

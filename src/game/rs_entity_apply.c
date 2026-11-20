@@ -261,6 +261,7 @@ RS_EntityApply_PlayerAppearance(
         /* Overhead prayer/skull headicon bitmask (reference
          * ClientPlayer.headicons, appearance g1). */
         ent->headicon = appearance->headicon;
+        ent->skull_icon = appearance->skull_icon;
         /* The 0xffff first equipment entry's npc: every appearance restates
          * it (LostCity ClientPlayer.ts setAppearance). */
         ent->transmog_npc_id = appearance->npc_id;

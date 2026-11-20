@@ -354,8 +354,8 @@ test_npc(void)
     CHECK(npc->width_scale == 140 && npc->height_scale == 128, "resizeh stated, resizev default (%d, %d)",
         npc->width_scale, npc->height_scale);
     CHECK(npc->turn_speed == 0, "turnspeed=0 is a value, not a default (%d)", npc->turn_speed);
-    CHECK(npc->head_icon_group == 440 && npc->head_icon_index == 3, "head icon (%d, %d)", npc->head_icon_group,
-        npc->head_icon_index);
+    CHECK(npc->head_icon_group[0] == 440 && npc->head_icon_index[0] == 3 && npc->head_icon_group[1] == -1,
+        "head icon (%d, %d)", npc->head_icon_group[0], npc->head_icon_index[0]);
     CHECK(npc->interactable && npc->transform_varbit == -1 && npc->runanim == -1, "unstated fields keep defaults");
     {
         struct ToriRS_Npctype* again = Editor_RecDefNpc(&ctx, 27407, block, strlen(block), NULL);

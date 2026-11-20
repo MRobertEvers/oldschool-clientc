@@ -50,6 +50,11 @@ struct WorldEntity_Player
      *  client hides for it is the client's rule (the public-chat answer,
      *  RS_ServerState_PublicChatShown). 0 until an appearance says so. */
     int hidden;
+    /** The PK skull (rev-239 appearance's skull byte, deob class60.field530:
+     *  a frame of `headicons_pk`), -1 for none; drawn below the prayer icon
+     *  (app_overlay_build_player_headicons). A classic lane's skull rides in
+     *  `headicon`'s mask instead. */
+    int skull_icon;
     /** Team-cape id folded out of the worn equipment when the appearance was
      *  applied (reference ClientPlayer.team, ObjType.team opcode 115). 0 = no
      *  team. Read only by the "Attack" minimenu row. */

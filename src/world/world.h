@@ -1786,6 +1786,16 @@ World_NpcOverrideRecolour(
 int
 World_NpcOverrideRecolourAll(struct WorldNpcOverride const* o);
 
+/* The colour every face of an npc's body or chathead takes, the override `o`
+ * over its type (rev-242 deob class454.method10217: the override's
+ * recolour-all when it sent one -- 65535 there is none, and its per-colour
+ * list applies -- else the type's, npc config opcode 42). -1: none, the
+ * per-colour list applies. */
+int
+World_NpcRecolourAll(
+    struct WorldNpcOverride const* o,
+    int type_recolour_all);
+
 /* The key a built npc body is cached under (deob Statics.method9204: the type
  * id, and an override's serial above it): the type's own body is `npc_id`, a
  * customised one is distinct per override, so a cached body never answers for

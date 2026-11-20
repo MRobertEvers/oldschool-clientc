@@ -1927,8 +1927,8 @@ core_model_feeds(int pkt_name)
     return pkt_name != PKT_NAME_UPDATE_UID192;
 }
 
-/* The npc type's own head icon, for NPC_HEADICON_SPECIFIC's first write
- * (RS_ServerState.npc_head_icon): the server's record of it. */
+/* The npc type's own head icons, every slot, for NPC_HEADICON_SPECIFIC's
+ * first write (RS_ServerState.npc_head_icon): the server's record of them. */
 static int
 core_npc_head_icon(
     void* ctx,
@@ -1943,8 +1943,12 @@ core_npc_head_icon(
     assert(out_index);
     if( !info )
         return 0;
-    *out_group = info->head_icon_group;
-    *out_index = info->head_icon_index;
+    _Static_assert(TORIRSSERVER_NPC_HEADICON_SLOTS == WORLD_NPC_HEADICON_SLOTS, "one slot count");
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        out_group[i] = info->head_icon_group[i];
+        out_index[i] = info->head_icon_index[i];
+    }
     return 1;
 }
 
