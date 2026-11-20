@@ -945,11 +945,31 @@ player_record_resets(
  * The RESET block (PLAYER_INFO 0x2 at rev 239, `player_reset`): the actor
  * reset, deob class95.method3110, which the reference runs BEFORE any other
  * block of the record (class109.method3804 tests 0x2 first and reads the
- * block's byte later, in wire order). Of what it clears, this client holds
- * the name decorations (Arrays.fill(field1355, "")) and the sequence
- * (Statics.method7179(actor, -1, 0) on each instance); the persistent
- * traversal (field1344 = walk) is the decoder's (rsprot_info_reset). The
- * value itself is read and dropped.
+ * block's byte later, in wire order). The value itself is read and dropped.
+ * What it clears, and where this client holds it:
+ *
+ *   field1353 = null, instance field1467 = null   transparency: `transparency`
+ *                                                 unset (opaque)
+ *   field1351 / 1352 = -1, field1340.method5133,  tint: `tint`, cycles -1 and
+ *   Statics.method3526(instance, -1, -1, ..)      weight 0 (never active)
+ *   field1349.method873, instance method3538      the facing block's state
+ *                                                 (class44): `facing` back to
+ *                                                 no target, mode 0
+ *   field1344 = walk, instance field1530[0]       the persistent traversal
+ *                                                 (the decoder's,
+ *                                                 rsprot_info_reset) and the
+ *                                                 newest route step's
+ *                                                 (`route_step[0]`)
+ *   Arrays.fill(field1355, ""), field553          the name decorations
+ *   Statics.method7179(instance, -1, 0)           the sequence
+ *   field1345 = null                              the stored appearance BLOB
+ *                                                 the reference keeps to
+ *                                                 build a later instance;
+ *                                                 this client keeps only the
+ *                                                 decoded appearance on the
+ *                                                 entity, which the reference
+ *                                                 does not clear either: no
+ *                                                 such state.
  */
 static void
 player_reset(
@@ -962,6 +982,10 @@ player_reset(
         return;
     for( int i = 0; i < 3; i++ )
         player->name_extras[i][0] = '\0';
+    player->transparency = (struct WorldEntityTransparency){ 0 };
+    player->tint = (struct WorldEntityTint){ .start_cycle = -1, .end_cycle = -1 };
+    World_PlayerBeginModernFacing(in->world, idx, 0);
+    player->pathing.route_step[0] = WORLD_PATHSTEP_WALK;
     World_PlayerSetPrimaryAnimation(in->world, idx, -1, 0);
 }
 

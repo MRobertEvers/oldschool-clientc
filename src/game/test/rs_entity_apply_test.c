@@ -9,6 +9,7 @@
 #include "net/rev/gameproto_revisions.h"
 #include "streams/rsprot_info.h"
 #include "world/entity_npc.h"
+#include "world/entity_pathing.h"
 #include "world/entity_player.h"
 #include "world/world.h"
 
@@ -713,6 +714,55 @@ test_npc_body_and_head_custom(void)
     fixture_free(&f);
 }
 
+/* The rest of RESET (deob class95.method3110): the tint, the transparency,
+ * the facing block's target and the newest route step's traversal go back to
+ * their defaults, before the record's own blocks. */
+static void
+test_player_reset_clears_tint_transparency_facing(void)
+{
+    struct Fixture f;
+    struct RsprotInfoOp first[4];
+    struct RsprotInfoOp second[2];
+    struct WorldEntity_Player* player;
+    int idx = -1;
+
+    fixture_init(&f);
+    first[0] = op_value(RSPROT_OP_ADD_NEW, 9);
+    first[1] = op_value(RSPROT_OP_TINT, 0);
+    first[1].tint.start_cycle_delta = 0;
+    first[1].tint.end_cycle_delta = 500;
+    first[1].tint.hue = 10;
+    first[1].tint.saturation = 20;
+    first[1].tint.lightness = 30;
+    first[1].tint.weight = 64;
+    first[2] = op_value(RSPROT_OP_TRANSPARENCY, 0);
+    first[2].transparency.start_cycle_delta = 0;
+    first[2].transparency.end_cycle_delta = 100;
+    first[2].transparency.from = 0;
+    first[2].transparency.to = 200;
+    first[3] = op_value(RSPROT_OP_FACE_ENTITY, 0);
+    first[3].face_entity.entity_id = 12;
+    RS_EntityApply_PlayerInfo(&f.in, first, 4);
+    RS_EntitySync_FindPlayer(&f.esync, 9, &idx, NULL);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(player && WorldEntityTint_Active(&player->tint, f.world->cycle), "the tint is on");
+    CHECK(player && player->transparency.set, "the transparency is set");
+    CHECK(player && player->facing.entity_id == 12, "the face target is set");
+    player->pathing.route_step[0] = WORLD_PATHSTEP_RUN;
+
+    second[0] = op_value(RSPROT_OP_ADD_OLD, 0);
+    second[1] = op_value(RSPROT_OP_RESET, 0);
+    RS_EntityApply_PlayerInfo(&f.in, second, 2);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(!WorldEntityTint_Active(&player->tint, f.world->cycle), "a reset clears the tint");
+    CHECK(!player->transparency.set, "and the transparency");
+    CHECK(player->facing.entity_id == WORLD_FACING_ENTITY_NONE && player->facing.square_x == 0 &&
+              player->facing.fallback_angle == -1,
+        "and the face target");
+    CHECK(player->pathing.route_step[0] == WORLD_PATHSTEP_WALK, "and the newest step walks");
+    fixture_free(&f);
+}
+
 int
 main(void)
 {
@@ -726,6 +776,7 @@ main(void)
     test_wants_raised_on_change();
     test_player_name_extras_and_reset();
     test_npc_body_and_head_custom();
+    test_player_reset_clears_tint_transparency_facing();
     printf("rs_entity_apply_test: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }
