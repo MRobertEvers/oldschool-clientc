@@ -19,6 +19,12 @@
  * may legally send. The caller maps the id to a slot, refuses what it cannot
  * accept, and passes slots and modes already checked; a world id is kept as
  * it is only for a view the caller does not have yet (RS_InteractionMode_Hold).
+ *
+ * A held pair is model state, not pending work, so it is not a task in the
+ * pending index (game/rs_pending.h): the reference keeps both maps by world id
+ * whether the world exists or not, nothing waits on an asset or a task for
+ * it, and both clients apply it at packet time (game/rs_server_state.c). The
+ * view takes it when it is created; a session end resets it.
  */
 
 #include "world/worldview.h"

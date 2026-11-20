@@ -458,6 +458,11 @@ Task_AppBoot_Run(
      * nothing else, so without this table 218 loc scripts and 23 npc scripts
      * in cache.osrs239 are unreachable. See game/rs_client_trigger.h.
      */
+    /* The boot's loads (this table, the varbits, the prefs, the boot font, the
+     * boot bake's manifest and static sprites) are awaited inline by the boot
+     * on the main queue: each is required, named once, asked for by nothing
+     * else, and the boot is their index (app->triggers.boot_built). Not the
+     * assets table's. */
     if( !RS_BootState_ConfigReady(&app->boot) )
         PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptTableLoad(app->provider));
 

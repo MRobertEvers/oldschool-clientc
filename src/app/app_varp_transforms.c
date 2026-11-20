@@ -430,6 +430,14 @@ static struct ToriRS_TaskVTable Task_AppNpcTransform_VTable = {
  * their view (view_placement.home_view) -- so this one walk covers every live
  * view. A transmogged player's new rung is wanted here too: the per-frame
  * reconcile draws it once it is in (it was never fetched).
+ *
+ * The mark (WorldEntity_NPC.retype_wanted, World.npc_retype_wanted) is not a
+ * task in the pending index: it is a coalescing of var writes applied on the
+ * MAIN queue at a fixed point (App_EntityNpcRetypeBeforePacket, the frame),
+ * because the type is required -- size, ops and stances a later packet reads
+ * -- so it may not wait on the parallel queue. It lives on the npc and goes
+ * with it, and the configs it may need are read through the assets table
+ * (Task_NpcMultiResolve); the body is the npc's body task's.
  */
 static void
 app_varp_refresh_npc_transforms(

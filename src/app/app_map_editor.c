@@ -4489,6 +4489,9 @@ app_spawn_preview_load(
     load->is_obj = is_obj;
     load->npc_resolved = APP_SPAWN_PREVIEW_LOADING;
     load->model_requested = -1;
+    /* The map editor's loads (this preview, the ghost, the npc preview, the
+     * player kit) are an editor-only path with its own preview table: not
+     * the assets table's, which the game's packets and scripts use. */
     task = is_obj ? CreateTask_ObjLoad(app->provider, id) : CreateTask_NpcMultiLoad(app, id, &load->npc_resolved);
     assert(task);
     ToriRS_TaskQueue_Add(app->frame_runner.queue, task);

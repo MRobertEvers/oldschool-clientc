@@ -457,7 +457,14 @@ EntityAssets_PlayerBodyPending(struct App const* app)
     return RS_Pending_Count(app->pending, ENTITY_ASSETS_KIND_PLAYER_BODY);
 }
 
-/* ------------------------------------------------------- player transmog */
+/* ------------------------------------------------------- player transmog
+ *
+ * The transmog and held-item fetches are LOADERS of the assets table
+ * (PLAYER_TRANSMOG, PLAYER_HELD): one entry per key, one load in flight, found
+ * by Assets_InFlight / Assets_State -- the table is their index. They apply
+ * nothing (the per-frame reconcile reads the entity as it is now), so no
+ * packet, scope or test has a target to find them by, and they are not
+ * listed in the pending index. */
 
 struct Task_PlayerTransmogLand
 {
