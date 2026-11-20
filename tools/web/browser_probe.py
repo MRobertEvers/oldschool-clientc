@@ -67,6 +67,31 @@ FLUSH_JS = r"""(function () {
 })()"""
 
 
+def take_frame(buf: bytes):
+    """One server-to-client WebSocket frame off the front of `buf`: (payload,
+    rest), or (None, buf) while the frame -- its extended length included --
+    has not all arrived. A recv can end anywhere, including between the
+    two-byte header and the extended length that follows it, which is where
+    a busy page (a screencast, a console in full flow) cuts it."""
+    if len(buf) < 2:
+        return None, buf
+    ln = buf[1] & 0x7F
+    off = 2
+    if ln == 126:
+        off = 4
+        if len(buf) < off:
+            return None, buf
+        ln = struct.unpack(">H", buf[2:4])[0]
+    elif ln == 127:
+        off = 10
+        if len(buf) < off:
+            return None, buf
+        ln = struct.unpack(">Q", buf[2:10])[0]
+    if len(buf) < off + ln:
+        return None, buf
+    return buf[off:off + ln], buf[off + ln:]
+
+
 class Cdp:
     """The smallest DevTools client that works: one page, request/response."""
 
@@ -98,19 +123,9 @@ class Cdp:
 
     def _frame(self):
         while True:
-            if len(self.buf) >= 2:
-                ln = self.buf[1] & 0x7F
-                off = 2
-                if ln == 126:
-                    ln = struct.unpack(">H", self.buf[2:4])[0]
-                    off = 4
-                elif ln == 127:
-                    ln = struct.unpack(">Q", self.buf[2:10])[0]
-                    off = 10
-                if len(self.buf) >= off + ln:
-                    payload = self.buf[off:off + ln]
-                    self.buf = self.buf[off + ln:]
-                    return json.loads(payload.decode("utf-8", "replace"))
+            payload, self.buf = take_frame(self.buf)
+            if payload is not None:
+                return json.loads(payload.decode("utf-8", "replace"))
             chunk = self.sock.recv(1 << 16)
             if not chunk:
                 raise EOFError("DevTools socket closed")
