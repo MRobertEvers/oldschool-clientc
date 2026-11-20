@@ -5839,7 +5839,8 @@ test-toridraw-setup-shift-x86: $(OBJ_DIR)
 # -Werror=incompatible-pointer-types is the point of the compile: a kernel that
 # has not been converted cannot silently accept a native buffer.
 TORIDRAW_PIXEL_FORMATS = \
-	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7 \n	RGB565_BE:8
+	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7 \
+	RGB565_BE:8
 
 .PHONY: test-scanline-formats
 test-scanline-formats: $(OBJ_DIR)
