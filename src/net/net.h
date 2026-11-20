@@ -158,6 +158,11 @@ struct ToriRS_Network
      * moderator. What CS2 STAFFMODLEVEL answers, and what the chatbox's staff
      * paths key on. Kept across a reconnect like `local_index`. */
     int staff_mod_level;
+    /** The login response's member byte (deob client.field770): 1 is a
+     *  members account. The friend and ignore lists' free limits (200 and
+     *  100, RS_Social_FriendListFull) key on it. Kept across a reconnect like
+     *  `staff_mod_level`. */
+    int member;
 
     /**
      * A previous session's seed and slot were handed in from outside this

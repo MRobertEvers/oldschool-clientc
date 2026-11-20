@@ -482,6 +482,60 @@ test_a_flattened_hull_hides_its_crew(void)
     fixture_free(&fx);
 }
 
+/* The local player's 3x3 white square: scene-less, 3 x 3, white. */
+static int
+count_local_squares(
+    struct UITreeMinimapDot const* dots,
+    int count)
+{
+    int n = 0;
+    for( int i = 0; i < count; i++ )
+        if( dots[i].scene_id == 0 && dots[i].w == 3 && dots[i].h == 3 && dots[i].color == 0xFFFFFFFFu )
+            n++;
+    return n;
+}
+
+/*
+ * N3: a player whose appearance carries the hidden flag (deob class60
+ * .field551) has no minimap dot (Statics.method11782: `method1296() &&
+ * !field551`), and when the hidden one is the local player the map's own
+ * white square goes too (Statics ~9707: `var66 != null && !var66.field551`).
+ * No exception for anyone looking: the staff exception is the chat's alone.
+ */
+static void
+test_a_hidden_player_has_no_dot(void)
+{
+    struct DotFixture fx;
+    struct UITreeMinimapDot const* dots = NULL;
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct WorldEntity_Player* other;
+    struct WorldEntity_Player* local;
+    int count;
+
+    printf("TEST: a hidden player has no minimap dot, the local player's square included\n");
+    fixture_init(&fx);
+    other = World_EntityPoolGet(&fx.app.world->entities.player, World_PlayerSpawn(fx.app.world, 2, 0, 26, 25, idle));
+    (void)World_PlayerSpawn(fx.app.world, 3, 0, 24, 25, idle);
+    local = World_EntityPoolGet(&fx.app.world->entities.player, World_EntityPoolHead(&fx.app.world->entities.player));
+    TEST_ASSERT(local && local->server_pid == 7, "the fixture's local player is the pool's first");
+
+    count = App_MinimapBuildDots(&fx.app, &dots);
+    TEST_ASSERT(count_dots(dots, count, fx.dots_scene, 2) == 2, "two other players, two dots");
+    TEST_ASSERT(count_local_squares(dots, count) == 1, "and the local square");
+
+    other->hidden = 1;
+    count = App_MinimapBuildDots(&fx.app, &dots);
+    TEST_ASSERT(count_dots(dots, count, fx.dots_scene, 2) == 1, "a hidden player draws no dot");
+    TEST_ASSERT(count_local_squares(dots, count) == 1, "the local square stays");
+
+    local->hidden = 1;
+    count = App_MinimapBuildDots(&fx.app, &dots);
+    TEST_ASSERT(count_local_squares(dots, count) == 0, "a hidden local player has no square");
+    TEST_ASSERT(count_dots(dots, count, fx.dots_scene, 2) == 1, "the visible player keeps its dot");
+
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -494,6 +548,7 @@ main(void)
     test_a_hint_off_the_map_points_from_the_rim();
     test_a_coord_hint_marks_the_tile_it_names();
     test_a_flattened_hull_hides_its_crew();
+    test_a_hidden_player_has_no_dot();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

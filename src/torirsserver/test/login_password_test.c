@@ -1288,6 +1288,9 @@ main(void)
         check(player && player->staff_level == 2, "an admin account logs in at staff level 2");
         check(staff.net.staff_mod_level == 2,
               "and the client reads staffModLevel 2 off the login response (the crown)");
+        /* The byte after the index (deob client.field770), which the free
+         * account's friend and ignore limits key on; this server sends 1. */
+        check(staff.net.member == 1, "and keeps the response's member byte, 1");
         check(player && player->account_admin, "as an admin account (no Tutorial Island)");
         check(player && ToriRSServer_PlayerMayCheat(world, player), "and may cheat");
     }

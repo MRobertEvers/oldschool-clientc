@@ -98,6 +98,13 @@ npc_applies_rev237_ops(const struct CP_Ctx* ctx)
     return (npc_flags(ctx) & RSCACHE_CONFIG_NPC_DECODE_REV237_ENTITY_OPS) != 0;
 }
 
+/* 42 from rev 241: the type's recolour-all. */
+static int
+npc_applies_rev241(const struct CP_Ctx* ctx)
+{
+    return (npc_flags(ctx) & RSCACHE_CONFIG_NPC_DECODE_REV241_RECOLOR_ALL) != 0;
+}
+
 /* In the order they are written; the comment names the RSCACHE_NPC_FIELD_*. */
 const struct CP_KeySpec cp_npc_keys[] = {
     { "name", 0, NULL, NULL },                                  /* NAME */
@@ -130,6 +137,7 @@ const struct CP_KeySpec cp_npc_keys[] = {
     { "condsubop", CP_KEY_LIST, npc_applies_rev237_ops, NULL }, /* COND_SUB_OPS */
     { "recol", CP_KEY_INDEXED, NULL, NULL },                    /* RECOLOR */
     { "retex", CP_KEY_INDEXED, NULL, NULL },                    /* RETEXTURE */
+    { "recolall", CP_KEY_OPTIONAL, npc_applies_rev241, NULL },  /* RECOLOR_ALL */
     { "minimap", 0, NULL, NULL },                               /* MINIMAP_HIDDEN */
     { "vislevel", 0, NULL, NULL },                              /* COMBAT_LEVEL */
     { "resizeh", 0, NULL, NULL },                               /* WIDTH_SCALE */
@@ -404,6 +412,11 @@ emit_npc(
                entry->recolor_count);
     emit_pairs(out, "retex", NPC_HAS(RETEXTURE), entry->retexture_to_find,
                entry->retexture_to_replace, entry->retexture_count);
+    /* Opcode 42, the colour every face takes (an HSL word, 0..65535). Written
+     * only by a record that states it (CP_KEY_OPTIONAL): no shipped record
+     * does, and every other record's text stays as it was. */
+    if( npc_applies_rev241(ctx) && NPC_HAS(RECOLOR_ALL) )
+        cp_lines_addf(out, "recolall=%d", entry->recolor_all);
 
     emit_flag(out, "minimap", NPC_HAS(MINIMAP_HIDDEN), "no");
     emit_int(out, "vislevel", NPC_HAS(COMBAT_LEVEL), entry->combat_level);
@@ -682,6 +695,13 @@ cp_pack_npc(
                 ok = cp_resolve_ref(ctx, CP_TYPE_NPC, value, &tmp);
                 cp_intlist_set(&transforms, index, tmp);
             }
+        }
+        else if( strcmp(key, "recolall") == 0 )
+        {
+            /* Before the `recol` pair family below, which would take it. */
+            NPC_SET(RECOLOR_ALL);
+            ok = cp_parse_int(value, &entry->recolor_all) && entry->recolor_all >= 0 &&
+                 entry->recolor_all <= 0xFFFF;
         }
         else if( strncmp(key, "recol", 5) == 0 )
         {

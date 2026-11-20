@@ -464,7 +464,9 @@ App_MinimapBuildDots(
              i = World_EntityPoolNext(pool, i) )
         {
             struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
-            if( !player || player == local ||
+            /* A hidden player (deob class60.field551) has no dot
+             * (Statics.method11782: `method1296() && !field551`). */
+            if( !player || player == local || player->hidden ||
                 app_minimap_view_flattened(app, player->view_placement.view_id) )
                 continue;
             {
@@ -516,7 +518,10 @@ App_MinimapBuildDots(
             marker_scene,
             MINIMAP_MARKER_FRAME_FLAG);
 
-    /* Local player: white 3x3 square at the widget center (fillRect 97,78). */
+    /* Local player: white 3x3 square at the widget center (fillRect 97,78),
+     * unless the local player is hidden too (deob Statics ~9707:
+     * `var66 != null && !var66.field551`). */
+    if( !local->hidden )
     {
         struct UITreeMinimapDot* dot = MinimapDots_Push(&app->minimap_dots);
         if( dot )

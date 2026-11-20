@@ -1583,7 +1583,9 @@ app_wev_register_deck_actors(
                 struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
                 int is_local;
 
-                if( !player || player->element_id < 0 )
+                /* A hidden player is not drawn, aboard or not
+                 * (world_dyn_register_players). */
+                if( !player || player->element_id < 0 || player->hidden )
                     continue;
                 if( player->view_placement.view_id != view_id )
                     continue;

@@ -1941,6 +1941,27 @@ app_overlay_overhead_lift(
     bool chat_shown,
     int bars_lift);
 
+/* The lift the first health bar stacks on: -2, or 10 above a chat line
+ * (var27 before the bars, app_overlay_overhead_lift's start). */
+int
+app_overlay_bars_base_lift(bool chat_shown);
+
+/*
+ * One overhead health bar (deob Statics.method6709's bar loop), drawn above
+ * `lift`, the stack's lift before it (app_overlay_bars_base_lift, then each
+ * earlier bar's return): `var27 += height`, drawn with its top at
+ * screen_y - var27, `var27 += 2`. A sprite bar's height is its back sprite's
+ * (var32.field6911), a rectangle's 5. Returns what it added to the lift
+ * (height + 2), 0 when nothing was drawn.
+ */
+int
+app_overlay_build_healthbar(
+    struct App* app,
+    struct WorldEntityFacet_Combat const* combat,
+    int screen_x,
+    int screen_y,
+    int lift);
+
 /* One overhead icon a player draws: from the PK pack (the skull) or the
  * prayer pack, the frame, and the lift it is drawn at (canvas y = anchor y
  * minus it, x = anchor x - 12). */
@@ -1981,6 +2002,64 @@ app_overlay_build_player_headicons(
     int actor_level,
     int headicons_scene,
     int pk_scene);
+
+/* The per-frame assets a player's overheads draw with. */
+struct AppOverheadAssets
+{
+    int font_id;         /* the hitsplat font's scene id, -1 none */
+    int hitmarks_scene;  /* the dat1 hitmarks archive, 0 none */
+    int headicons_scene; /* the prayer icons */
+    int pk_scene;        /* headicons_pk: the skull */
+    int name_font;       /* p12_full, for the names; -1 none or not resident */
+};
+
+/*
+ * Whether a player's name is drawn over its head (deob Statics.method6709,
+ * the mask client.field777 that CS2 3120..3124 SETDRAWPLAYERNAMES_* set, kept
+ * as RS_CS2ClientState.draw_player_names): none at mask 0; the local player
+ * by RS_CS2_DRAW_NAMES_SELF; anyone else by _OTHERS, or by _FRIENDS when on
+ * the friend list and on a world (method1321), or by _CLAN when in the
+ * friends chat channel (method1363). Only the deadman spectator scripts set
+ * the mask (clientscripts 2070/2071, deadman_spectator_enable / _update,
+ * through proc 2179 deadman_spectator_names: 1 friends, 2 others).
+ */
+bool
+app_overlay_player_name_shown(
+    int mask,
+    bool is_local,
+    bool friend_online,
+    bool in_friends_chat);
+
+/* A name's place in the overhead stack: `var27 += 4`, the text's baseline
+ * at the anchor minus that, `var27 += 18`. Returns the baseline's lift;
+ * `*io_lift` becomes the lift after the name. */
+int
+app_overlay_player_name_lift(int* io_lift);
+
+/* Whether the player was put in the scene by the last dynamics pass (deob
+ * field1463 == the cycle): not hidden, and for a root player stamped by
+ * this pass (WorldEntity_Player.drawn_scene_cycle) -- one stacked on a tile
+ * another claimed is not. A rider on a deck is drawn by the deck's pass,
+ * which claims no tiles. */
+bool
+app_overlay_player_drawn(
+    struct App* app,
+    struct WorldEntity_Player const* player);
+
+/*
+ * One player's overheads, as deob Statics.method6709's player branch: its
+ * health bars over its chat line, its splats, its name when names are shown
+ * (app_overlay_player_name_shown) and it was drawn, its skull and prayer
+ * icons stacked above them. A hidden player (WorldEntity_Player.hidden, class60
+ * .field551) keeps its bars and chat line and draws nothing after them.
+ * Returns the stack's lift after the last icon, which a hint arrow on the
+ * player stacks on.
+ */
+int
+app_overlay_build_player(
+    struct App* app,
+    struct WorldEntity_Player const* player,
+    struct AppOverheadAssets const* assets);
 
 /* How far above its anchor a hint arrow on a player goes: its frame's art
  * height above the lift the player's icons left (`field1034[1].field6911 +

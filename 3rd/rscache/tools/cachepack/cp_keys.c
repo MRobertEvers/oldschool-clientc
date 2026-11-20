@@ -341,6 +341,8 @@ check_block(
 
         if( !spec_applies(ctx, spec) )
             continue;
+        if( matched[index] == 0 && (spec->flags & CP_KEY_OPTIONAL) )
+            continue;
         if( matched[index] == 0 )
         {
             fprintf(stderr,
@@ -555,6 +557,9 @@ cp_keys_missing(
         int matched = 0;
 
         if( !spec_applies(ctx, spec) )
+            continue;
+        /* Absence is a statement for an optional key: nothing to add. */
+        if( spec->flags & CP_KEY_OPTIONAL )
             continue;
         for( int i = 0; i < config->count && !matched; i++ )
             matched = spec_matches(spec, config->lines[i].key);

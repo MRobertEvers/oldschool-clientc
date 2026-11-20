@@ -46,12 +46,76 @@ entity_debug_log(char const* fmt, int a, int b)
     (void)b;
 }
 
+#ifndef NDEBUG
+/*
+ * Under asserts a note's strings are lent from here and poisoned the moment
+ * the host returns (rs_entity_apply.h, struct RS_EntityNote): a host that kept
+ * a pointer reads RS_ENTITY_NOTE_POISON instead of a dead stack frame that
+ * still happens to hold the line. A test host did exactly that and passed
+ * until a sanitizer laid the frame out differently.
+ */
+static struct
+{
+    char sender[RS_CHAT_SENDER_LEN];
+    char sender_key[RS_CHAT_SENDER_LEN];
+    /* A SAY op's text is the packet's own and as long as the packet lets it
+     * be: a var-short frame's whole payload fits. */
+    char text[65536];
+    bool lent;
+} g_note_strings;
+
+static char const*
+note_lend(
+    char* buf,
+    size_t cap,
+    char const* s)
+{
+    size_t len;
+
+    if( !s )
+        return NULL;
+    len = strlen(s);
+    /* A sender is the apply's own RS_CHAT_SENDER_LEN buffer or a player's
+     * name, and a text no longer than its packet: never cut here. */
+    assert(len < cap);
+    memcpy(buf, s, len + 1);
+    return buf;
+}
+
+static void
+note_poison(
+    char* buf,
+    size_t cap)
+{
+    assert(cap >= sizeof(RS_ENTITY_NOTE_POISON));
+    memcpy(buf, RS_ENTITY_NOTE_POISON, sizeof(RS_ENTITY_NOTE_POISON));
+}
+#endif
+
 static void
 note(
     struct RS_EntityApplyIn const* in,
     struct RS_EntityNote const* n)
 {
+#ifndef NDEBUG
+    struct RS_EntityNote lent = *n;
+
+    /* One note at a time: a host that applied another packet from inside
+     * `present` would overwrite the strings it was handed. */
+    assert(!g_note_strings.lent);
+    g_note_strings.lent = true;
+    lent.sender = note_lend(g_note_strings.sender, sizeof(g_note_strings.sender), n->sender);
+    lent.sender_key =
+        note_lend(g_note_strings.sender_key, sizeof(g_note_strings.sender_key), n->sender_key);
+    lent.text = note_lend(g_note_strings.text, sizeof(g_note_strings.text), n->text);
+    in->host->present(in->host->ctx, &lent);
+    note_poison(g_note_strings.sender, sizeof(g_note_strings.sender));
+    note_poison(g_note_strings.sender_key, sizeof(g_note_strings.sender_key));
+    note_poison(g_note_strings.text, sizeof(g_note_strings.text));
+    g_note_strings.lent = false;
+#else
     in->host->present(in->host->ctx, n);
+#endif
 }
 
 /* ------------------------------------------------------------------ */

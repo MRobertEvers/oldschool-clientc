@@ -638,6 +638,28 @@ RS_Social_IgnoreCount(struct RS_Social const* social)
     return social->ignore_count;
 }
 
+bool
+RS_Social_FriendListFull(
+    struct RS_Social const* social,
+    int member)
+{
+    assert(social);
+    if( social->friend_count >= RS_SOCIAL_FRIEND_MAX )
+        return true;
+    return social->friend_count >= RS_SOCIAL_FRIEND_FREE_MAX && member != 1;
+}
+
+bool
+RS_Social_IgnoreListFull(
+    struct RS_Social const* social,
+    int member)
+{
+    assert(social);
+    if( social->ignore_count >= RS_SOCIAL_IGNORE_MAX )
+        return true;
+    return social->ignore_count >= RS_SOCIAL_IGNORE_FREE_MAX && member != 1;
+}
+
 void
 RS_Social_FriendName(
     struct RS_Social const* social,
