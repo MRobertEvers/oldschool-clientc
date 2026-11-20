@@ -5593,7 +5593,7 @@ test-task-trigger: $(OBJ_DIR)
 # CS2 visual transactions: ready work drains past the old per-frame caps, while
 # genuine external waits retain the last complete display list until settlement.
 test-cs2-frame-settle: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_frame_settle_test $(TORIMEM_SRCS) game/test/cs2_frame_settle_test.c perf/torirs_perf.c -lm
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/cs2_frame_settle_test $(TORIMEM_SRCS) game/test/cs2_frame_settle_test.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/cs2_frame_settle_test
 
 # No blocking IO outside tests: TaskRunner_Drain must appear only under */test/.
