@@ -59,6 +59,18 @@ torirs_trace_drag(void)
     return cached;
 }
 
+/* TORIRS_OBJICON_DEBUG, resolved once for the same reason: cc_setobject asks
+ * twice a call, and the bank's build script sets all 1,410 of its slots on
+ * every run. Unresolved, the two lookups were 1.8 ms of a bank-open frame. */
+static int
+torirs_objicon_debug(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+        cached = getenv("TORIRS_OBJICON_DEBUG") != NULL;
+    return cached;
+}
+
 /* Resolved once: getenv locks and scans the whole environment, and this gate sits
  * on cc_create, which a container rebuild issues once per row. */
 static int
@@ -5141,10 +5153,7 @@ exec_set_graphic(
     struct UITree* tree = rs_cs2_tree(host);
     (void)thread;
 
-    static int objicon_debug = -1;
-    if( objicon_debug < 0 )
-        objicon_debug = getenv("TORIRS_OBJICON_DEBUG") != NULL;
-    if( objicon_debug )
+    if( torirs_objicon_debug() )
         TORIRS_LOG("GFXDBG: com=0x%08x gfx=%d\n",
             (unsigned)component_id,
             graphic_id);
@@ -5319,7 +5328,7 @@ rs_cs2_set_object_resident(
         count,
         scene_id);
 #endif
-    if( getenv("TORIRS_OBJICON_DEBUG") )
+    if( torirs_objicon_debug() )
     {
         int32_t dbg = UITree_FindByComponentId(tree, component_id);
         TORIRS_LOG("OBJICON: apply com=0x%08x obj=%d scene=%d idx=%d type=%d\n",
@@ -5358,7 +5367,7 @@ exec_set_object(
     struct UITree* tree = rs_cs2_tree(host);
     struct CacheProvider* provider = rs_cs2_provider(host);
     (void)thread;
-    if( getenv("TORIRS_OBJICON_DEBUG") )
+    if( torirs_objicon_debug() )
         TORIRS_LOG("OBJICON: enter com=0x%08x obj=%d count=%d needs=%d\n",
             (unsigned)component_id,
             obj_id,
