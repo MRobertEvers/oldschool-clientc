@@ -1275,6 +1275,82 @@ test_a_frame_is_published_at_a_standstill(void)
     runner_free(&g_publish_runner);
 }
 
+/* --- a cancel made after the frame's last pump --------------------------------
+ *
+ * Between the last pump and the publish the client still cancels: the frame's
+ * interface rebind (app_if_head_poll -> app_if_forget_closed ->
+ * App_IfModelCancel, app/app_frame.c) cancels the head task of an interface
+ * that closed. A cancel wakes a parked task (rs_pending.c cancel_one), so at
+ * the publish that task is ready, with a turn behind it. All it will do is
+ * exit: nothing a frame shows is late, and the publish check must not call it
+ * a breach -- strict mode aborts on one. A task woken any other way there is
+ * still one. */
+static struct NamedFx g_cancel_fx;
+
+static void
+publish_over_the_cancelled_waiter(void)
+{
+    TaskRunner_CheckPublishedAtStandstill(&g_cancel_fx.runner, "the test frame");
+}
+
+static void
+test_a_cancel_after_the_last_pump_is_not_a_breach(void)
+{
+    printf("TEST: a task cancelled after the frame's last pump does not trip the publish check; one "
+           "fired awake there does\n");
+    for( int mode = 0; mode < W_MODES; mode++ )
+    {
+        struct Waiter* waiter;
+        int outcome;
+
+        named_fx_init(&g_cancel_fx);
+        named_arm(&g_cancel_fx, mode);
+        waiter = add_waiter(&g_cancel_fx, mode, 110, &outcome);
+        CHECK(named_pump(&g_cancel_fx) == TASK_RUNNER_WAITING);
+        CHECK(waiter->task.parked);
+        CHECK(waiter->task.turn != 0);
+        (void)RS_Pending_CancelKey(g_cancel_fx.index, KIND_WAITER, waiter_key());
+        CHECK(!waiter->task.parked);
+        if( dies_by_abort(publish_over_the_cancelled_waiter) )
+            fprintf(stderr, "FAIL: the %s wait, cancelled after the last pump, tripped the publish\n",
+                    k_mode_names[mode]);
+        CHECK(!dies_by_abort(publish_over_the_cancelled_waiter));
+        /* The next frame's top pump: it exits. */
+        (void)named_pump(&g_cancel_fx);
+        CHECK(outcome == OUT_CANCELLED);
+        if( mode == W_JOIN )
+        {
+            ToriRS_Clock_Advance(&g_cancel_fx.clock, 110);
+            CHECK(named_pump(&g_cancel_fx) == TASK_RUNNER_IDLE);
+        }
+        if( mode == W_ASSET || mode == W_ASSETS )
+        {
+            named_release(&g_cancel_fx, mode);
+            (void)named_pump(&g_cancel_fx);
+        }
+        TaskRunner_CheckPublishedAtStandstill(&g_cancel_fx.runner, "the test frame");
+        named_fx_free(&g_cancel_fx);
+    }
+    /* Woken by what it waited for, after the last pump: that is a task the
+     * frame left behind, and still the breach. */
+    {
+        struct Waiter* waiter;
+        int outcome;
+
+        named_fx_init(&g_cancel_fx);
+        named_arm(&g_cancel_fx, W_TURN);
+        waiter = add_waiter(&g_cancel_fx, W_TURN, 110, &outcome);
+        CHECK(named_pump(&g_cancel_fx) == TASK_RUNNER_WAITING);
+        named_release(&g_cancel_fx, W_TURN);
+        /* The earlier task is ready now, and had its turn. */
+        CHECK(dies_by_abort(publish_over_the_cancelled_waiter));
+        CHECK(named_pump(&g_cancel_fx) == TASK_RUNNER_IDLE);
+        CHECK(outcome == OUT_RESUMED);
+        (void)waiter;
+        named_fx_free(&g_cancel_fx);
+    }
+}
+
 int
 main(void)
 {
@@ -1290,6 +1366,7 @@ main(void)
     test_the_between_frames_pump();
     test_the_compute_check_reads_the_cost_clock();
     test_a_frame_is_published_at_a_standstill();
+    test_a_cancel_after_the_last_pump_is_not_a_breach();
     if( g_failures )
     {
         printf("queue_contract_test: %d failure(s)\n", g_failures);

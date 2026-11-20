@@ -38,8 +38,7 @@ Task_AssetLoad_Free(struct ToriRS_Task* base)
      * closed and ignores it.) */
     if( !self->ended )
         Assets_Abandoned(self->assets, self->key);
-    if( self->pt.user )
-        task_free((struct ToriRS_Task*)self->pt.user);
+    /* A child it was awaiting inline is freed by task_free (inline_child). */
     if( self->child )
         task_free(self->child);
     ToriMem_Free(ToriMem_Process(), self);

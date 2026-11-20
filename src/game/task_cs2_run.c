@@ -1496,6 +1496,7 @@ Task_CS2Run_Run(
             self->task.render = child->render;
             if( result != PT_ENDED && result != PT_EXITED ) return result;
             child->completed = 1;
+            self->task.inline_child = NULL;
             task_free(child);
             self->pt.user = NULL;
         }

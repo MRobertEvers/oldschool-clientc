@@ -540,11 +540,13 @@ ToriRS_TaskChainFormat(
 static int
 closes_loop(
     struct ToriRS_Task const* waiter,
-    struct ToriRS_Trigger const* trigger)
+    struct ToriRS_Trigger const* trigger,
+    int* at_count)
 {
     struct ToriRS_Task const* hare;
     struct ToriRS_Task const* tortoise;
 
+    *at_count = 0;
     if( !trigger->owner || trigger->owner->kind != TORIRS_OWNER_TASK )
         return 0;
     hare = trigger->owner->task;
@@ -553,15 +555,206 @@ closes_loop(
     {
         for( int i = 0; i < 2; i++ )
         {
+            struct ToriRS_Task const* next;
+
             if( hare == waiter )
                 return 1;
-            hare = chain_next(hare);
-            if( !hare )
+            next = chain_next(hare);
+            if( !next )
+            {
+                /* The walk cannot see past a count (who is counted on it
+                 * is not linked from it): the caller looks from the other
+                 * end (loop_through_counts). */
+                *at_count = hare->parked && hare->park.on == TORIRS_PARK_COUNT;
                 return 0;
+            }
+            hare = next;
         }
         tortoise = chain_next(tortoise);
         if( hare == tortoise )
             return 1;
+    }
+}
+
+/*
+ * A LOOP THROUGH A COUNT. A task parked on a fan-out's join waits on every
+ * task counted on it (ToriRS_Task::join), and nothing links a count to those:
+ * the walk above stops there. So a loop with a count in it is looked for from
+ * the other end -- the tasks that wait, link by link, on the one being
+ * parked -- which every list here does link: the subscribers of each trigger
+ * a task has primed (its own `ended` among them), and whoever is parked on
+ * the count a task is counted on. The wait being made closes a loop when one
+ * of those is what it waits on.
+ *
+ * Counts the assets table keeps (Assets_Await) are not followed: a loader
+ * waits on reads and on other loaders, never on a task that awaits it, so no
+ * loop runs through one.
+ */
+enum
+{
+    /* Held on the stack: what waits on one task is usually nothing. */
+    WAITER_WALK_INLINE = 32,
+};
+
+struct WaiterWalk
+{
+    struct ToriRS_Task const** task;
+    /* The index of the task each one waits on, for printing the loop. */
+    int* via;
+    int len;
+    int cap;
+    struct ToriRS_Task const* task_inline[WAITER_WALK_INLINE];
+    int via_inline[WAITER_WALK_INLINE];
+};
+
+static void
+walk_push(
+    struct WaiterWalk* walk,
+    struct ToriRS_Task const* task,
+    int via)
+{
+    if( !walk->task )
+    {
+        walk->task = walk->task_inline;
+        walk->via = walk->via_inline;
+        walk->cap = WAITER_WALK_INLINE;
+    }
+    if( walk->len == walk->cap )
+    {
+        int const cap = walk->cap * 2;
+        struct ToriRS_Task const** task_grown =
+            ToriMem_Alloc(ToriMem_Process(), (size_t)cap * sizeof(*task_grown));
+        int* via_grown = ToriMem_Alloc(ToriMem_Process(), (size_t)cap * sizeof(*via_grown));
+
+        assert(task_grown);
+        assert(via_grown);
+        memcpy(task_grown, walk->task, (size_t)walk->len * sizeof(*task_grown));
+        memcpy(via_grown, walk->via, (size_t)walk->len * sizeof(*via_grown));
+        if( walk->task != walk->task_inline )
+        {
+            ToriMem_Free(ToriMem_Process(), walk->task);
+            ToriMem_Free(ToriMem_Process(), walk->via);
+        }
+        walk->task = task_grown;
+        walk->via = via_grown;
+        walk->cap = cap;
+    }
+    walk->task[walk->len] = task;
+    walk->via[walk->len] = via;
+    walk->len++;
+}
+
+static int
+walk_has(
+    struct WaiterWalk const* walk,
+    struct ToriRS_Task const* task)
+{
+    for( int i = 0; i < walk->len; i++ )
+        if( walk->task[i] == task )
+            return 1;
+    return 0;
+}
+
+/* Walk what waits on `from`; the index of the first task `is_target` takes,
+ * or -1. A subscriber waits on one trigger, so it is reached once; a task
+ * parked on a count is reached from each task counted on it, so once is
+ * checked for. */
+static int
+walk_waiters(
+    struct WaiterWalk* walk,
+    struct ToriRS_Task const* from,
+    struct ToriRS_Task const* target,
+    int const* target_join)
+{
+    walk_push(walk, from, -1);
+    for( int i = 0; i < walk->len; i++ )
+    {
+        struct ToriRS_Task const* t = walk->task[i];
+
+        if( i > 0 && (t == target || (target_join && t->join == target_join)) )
+            return i;
+        for( struct ToriRS_Trigger const* trig = t->owner.primed; trig; trig = trig->owner_next )
+            for( struct ToriRS_Task const* sub = trig->subs; sub; sub = sub->park_next )
+                walk_push(walk, sub, i);
+        if( t->join )
+            for( struct ToriRS_Task const* p = g_count_bucket[count_bucket(t->join)]; p; p = p->park_next )
+                if( p->park.count == t->join && !walk_has(walk, p) )
+                    walk_push(walk, p, i);
+    }
+    return -1;
+}
+
+/* One link of a loop: what a parked task waits on. */
+static size_t
+loop_link(
+    char* out,
+    size_t out_size,
+    size_t len,
+    struct ToriRS_Task const* task)
+{
+    char piece[192];
+
+    if( task->park.on == TORIRS_PARK_COUNT )
+        snprintf(
+            piece,
+            sizeof(piece),
+            "%s [%s] on a count of %d",
+            task_name(task),
+            ToriRS_TaskWaitName(task->park.kind),
+            *task->park.count);
+    else
+    {
+        assert(task->park.on == TORIRS_PARK_TRIGGER);
+        snprintf(
+            piece,
+            sizeof(piece),
+            "%s [%s] on '%s'",
+            task_name(task),
+            ToriRS_TaskWaitName(task->park.kind),
+            trigger_name(task->park.trigger));
+    }
+    len = chain_put(out, out_size, len, piece);
+    return chain_put(out, out_size, len, " -> ");
+}
+
+/* Would `waiter`, parked as its `park` says, close a loop through a count?
+ * Dies printing the loop if so: the waiter, what it waits on, and on round
+ * to the waiter. `target`: the task owning the trigger it parks on; or, for
+ * a park on a count, NULL and the count. */
+static void
+loop_through_counts(
+    struct ToriRS_Task const* waiter,
+    struct ToriRS_Task const* target,
+    int const* target_join)
+{
+    struct WaiterWalk walk;
+    int at;
+
+    walk.task = NULL;
+    walk.via = NULL;
+    walk.len = 0;
+    walk.cap = 0;
+    at = walk_waiters(&walk, waiter, target, target_join);
+
+    if( at >= 0 )
+    {
+        char line[1024];
+        char chain[768];
+        size_t len = 0;
+
+        chain[0] = '\0';
+        len = loop_link(chain, sizeof(chain), len, waiter);
+        for( int i = at; i > 0; i = walk.via[i] )
+            len = loop_link(chain, sizeof(chain), len, walk.task[i]);
+        len = chain_put(chain, sizeof(chain), len, task_name(waiter));
+        (void)chain_put(chain, sizeof(chain), len, " ... (a loop)");
+        snprintf(line, sizeof(line), "a wait closes a loop: %s", chain);
+        ToriRS_TaskFatal(line);
+    }
+    if( walk.task != walk.task_inline )
+    {
+        ToriMem_Free(ToriMem_Process(), walk.task);
+        ToriMem_Free(ToriMem_Process(), walk.via);
     }
 }
 
@@ -570,6 +763,7 @@ ToriRS_TaskPark(struct ToriRS_Task* task)
 {
     char line[1024];
     char chain[768];
+    int at_count = 0;
 
     assert(task);
     assert(!task->parked);
@@ -591,7 +785,7 @@ ToriRS_TaskPark(struct ToriRS_Task* task)
                 trigger_name(trigger));
             ToriRS_TaskFatal(line);
         }
-        if( closes_loop(task, trigger) )
+        if( closes_loop(task, trigger, &at_count) )
         {
             /* Park it, so the chain prints through it, then die. */
             task->parked = 1;
@@ -600,12 +794,15 @@ ToriRS_TaskPark(struct ToriRS_Task* task)
             snprintf(line, sizeof(line), "a wait closes a loop: %s", chain);
             ToriRS_TaskFatal(line);
         }
+        if( at_count )
+            loop_through_counts(task, trigger->owner->task, NULL);
         park_link_front(&trigger->subs, task);
     }
     else if( task->park.on == TORIRS_PARK_COUNT )
     {
         assert(task->park.count);
         assert(*task->park.count > 0);
+        loop_through_counts(task, NULL, task->park.count);
         park_link_front(&g_count_bucket[count_bucket(task->park.count)], task);
         g_count_parked++;
     }

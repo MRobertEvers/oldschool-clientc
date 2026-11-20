@@ -954,11 +954,10 @@ Task_AppBoot_Free(struct ToriRS_Task* base)
     struct Task_AppBoot* self = (struct Task_AppBoot*)base;
 
     /* A boot freed before it finished (a queue freed at shutdown): the
-     * preload it never started, and the child it was awaiting. */
+     * preload it never started. The child it was awaiting is freed by
+     * task_free (ToriRS_Task::inline_child). */
     if( self->preload )
         task_free(self->preload);
-    if( self->pt.user )
-        task_free((struct ToriRS_Task*)self->pt.user);
     ToriMem_Free(ToriMem_Process(), base);
 }
 

@@ -12,6 +12,8 @@
 #include "world/entity_registry.h"
 #include "world/worldview.h"
 
+#include <stdint.h>
+
 struct World;
 
 #define RS_ENTITY_SYNC_MAX_PLAYERS 2048
@@ -77,6 +79,15 @@ struct RS_EntitySync
      */
     int view_npcs[WORLDVIEW_MAX][RS_ENTITY_SYNC_VIEW_NPCS];
     int view_npc_count[WORLDVIEW_MAX];
+
+    /**
+     * Bumped by every RS_EntitySync_Clear: the session these lists were the
+     * client's half of has ended (App_NetSessionReset). A packet that waits
+     * on the main queue -- an NPC_INFO on its configs, a REBUILD on its
+     * gather -- takes it when it is made and applies nothing once it has
+     * moved: its records address lists that are gone.
+     */
+    uint32_t epoch;
 };
 
 /** The npc list NPC_INFO for `view` addresses: the root's active_npcs for

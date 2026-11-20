@@ -543,6 +543,9 @@ struct Task_ExecNpcInfo
     int type_count;
     int type_i;
 
+    /* The session it was sent in (RS_EntitySync::epoch). */
+    uint32_t epoch;
+
     uint64_t bd_start; /* TORIRS_NPCINFO_BREAKDOWN only */
     uint64_t bd_decode;
     uint64_t bd_await;
@@ -600,6 +603,11 @@ Task_ExecNpcInfo_Run(
             app, self->types[self->type_i], &self->resolved[self->type_i]));
     self->bd_await = BD_T0();
 
+    /* The session ended while this packet waited (App_NetSessionReset
+     * cleared the lists its records are positions in): nothing in it is
+     * this client's to apply any more. */
+    if( self->epoch != app->esync.epoch )
+        PT_EXIT(&self->pt);
     /* A deck view that despawned while this packet waited (a hull freed
      * between SET_ACTIVE_WORLD and here) has no npcs left to describe. */
     if( self->view != WORLDVIEW_ROOT && !WorldviewRegistry_IsLive(&app->worldviews, self->view) )
@@ -670,6 +678,7 @@ CreateTask_ExecNpcInfo(
     task->length = length;
     task->large = large;
     task->view = WorldviewRegistry_Active(&app->worldviews);
+    task->epoch = app->esync.epoch;
     PT_INIT(&task->pt);
     return &task->task;
 }
@@ -693,6 +702,7 @@ CreateTask_ExecNpcInfoOps(
     task->ops = (struct RsprotInfoOp*)ops;
     task->op_count = count;
     task->view = WORLDVIEW_ROOT;
+    task->epoch = app->esync.epoch;
     PT_INIT(&task->pt);
     return &task->task;
 }

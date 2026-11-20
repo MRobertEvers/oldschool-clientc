@@ -560,6 +560,14 @@ TaskRunner_HasReady(struct TaskRunner const* runner)
  * path that cannot pump before its publish: the emit list is already built,
  * and a pump after it would change the scene the platform renders under it.
  * Such a task starts at the next frame's top pump and never holds a frame.
+ *
+ * A task a CANCEL woke is passed over too. The client still cancels after
+ * that pump -- the frame's interface rebind (app_if_head_poll) cancels the
+ * head task of an interface that closed -- and a cancel makes a parked task
+ * ready (rs_pending.c), but all it will do is exit: nothing on the frame is
+ * late. Any other wake there is still work left behind. (A pump to a
+ * standstill runs a task it woke, so one still ready with this wake was woken
+ * after the pump.)
  */
 static inline void
 TaskRunner_CheckPublishedAtStandstill(
@@ -572,7 +580,7 @@ TaskRunner_CheckPublishedAtStandstill(
     assert(parallel_queue->queue);
     assert(site);
     for( task = parallel_queue->queue->head; task; task = task->next )
-        if( !task->io.pending && !task->parked && task->turn != 0 )
+        if( !task->io.pending && !task->parked && task->turn != 0 && task->woke != TORIRS_WAKE_CANCELLED )
             break;
     if( task )
     {

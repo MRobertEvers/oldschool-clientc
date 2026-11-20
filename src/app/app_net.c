@@ -585,6 +585,9 @@ app_pump_net_packets(struct App* app)
     int last_exec_packet_type = -1;
     /* A background rebuild was committed on the last turn of the loop. */
     int committed = 0;
+    /* Passes of the parallel queue run under a parked head since the head
+     * last moved (the settle below). */
+    int parallel_rounds = 0;
 
     for( ;; )
     {
@@ -627,6 +630,8 @@ app_pump_net_packets(struct App* app)
              * each re-placed loc is a parallel task, app/app_tasks_locs.c.) */
             stat = TaskRunner_SettleFrameUntil(
                 &app->packet_runner, committed ? 0 : App_PacedDeadline(app));
+            if( app->packet_runner.progressed )
+                parallel_rounds = 0;
             if( committed )
             {
                 App_PaceArm(app);
@@ -685,7 +690,26 @@ app_pump_net_packets(struct App* app)
                     (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
             }
             if( assets != TASK_RUNNER_RENDER && app->frame_runner.progressed )
+            {
+                /* The runaway backstop every pump of the parallel queue has
+                 * (app_pump_backstop): passes that go on moving while the
+                 * head never does are a task that will not converge, and
+                 * this loop is inside one call, where nothing else would
+                 * stop it. abort(), not assert(): OPT=1 builds -DNDEBUG. */
+                if( ++parallel_rounds > APP_ASYNC_STEP_LIMIT )
+                {
+                    TORIRS_ERR(
+                        "app: the parallel queue ran %d passes under the parked packet %s without "
+                        "the packet moving (limit %d). A task is not converging.\n",
+                        parallel_rounds,
+                        app->packet_runner.queue->head ? app->packet_runner.queue->head->name
+                                                       : "(none)",
+                        (int)APP_ASYNC_STEP_LIMIT);
+                    fflush(stderr);
+                    abort();
+                }
                 continue;
+            }
         }
 
         if( stat != TASK_RUNNER_IDLE )

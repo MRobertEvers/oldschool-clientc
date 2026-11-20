@@ -57,7 +57,46 @@ struct Task_GameProtoExec
      * to after its finish (App_ViewRebuildBegin): what a parallel task
      * waiting out the rebuild of the view waits on, by name. */
     struct RS_ParallelTask rebuild;
+    /* The session this packet arrived in (RS_EntitySync::epoch). */
+    uint32_t epoch;
 };
+
+/*
+ * The session ended while this packet waited on its gather (App_NetSessionReset:
+ * a logout, a lost link, a hop). The scene was the old session's, and so was
+ * the acknowledgement its finish sends; the next session's first REBUILD is
+ * forced and builds its own. Nothing is built: the load is no longer in
+ * flight and owes the server nothing, the view's rebuild is unlisted, and the
+ * built trigger its waiters park on is abandoned (they wake ABANDONED and find
+ * the view as it is).
+ */
+static int
+rebuild_session_ended(
+    struct Task_GameProtoExec* self,
+    int root)
+{
+    struct App* app = self->app;
+
+    if( self->epoch == app->esync.epoch )
+        return 0;
+    TORIRS_LOG(
+        "gameproto: a rebuild of zone %d,%d from a session that has ended is dropped\n",
+        self->zone_x,
+        self->zone_z);
+    if( root )
+        WorldLoadState_Cancel(&app->world_load, 1);
+    /* Abandoned here, not left to the task's end: a task that runs to its end
+     * with a trigger still primed forgot to fire it (task_trigger.h). */
+    if( self->rebuild.listed )
+    {
+        struct ToriRS_Trigger* built = &app->triggers.view_built[self->rebuild.view];
+
+        if( built->owner == ToriRS_TaskOwner(&self->task) )
+            ToriRS_Trigger_Retire(built);
+    }
+    App_ViewRebuildEnd(app, &self->rebuild, 0);
+    return 1;
+}
 
 /* The view a REBUILD_NORMAL / REBUILD_REGION rebuilds: always the root. The
  * deob's static rebuild (Statics.method12016) reads the leading worldArea
@@ -327,6 +366,8 @@ Task_GameProtoExec_Run(
             app->provider, rebuild_view(self)->builder, app->frame_runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, 104,
             self->packet._map_rebuild.zones, &self->gather_report));
+        if( rebuild_session_ended(self, 1) )
+            PT_EXIT(&self->pt);
         /* The same C2 drain rule the boat branch below obeys, for the ROOT
          * world: World_ResetSceneAlloc asserts the queue is empty.
          *
@@ -478,6 +519,8 @@ Task_GameProtoExec_Run(
             app->provider, wev_view(self)->builder, app->frame_runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, self->wev_scene_size,
             self->wev_zones, &self->gather_report));
+        if( rebuild_session_ended(self, 0) )
+            PT_EXIT(&self->pt);
         /* C2 drain rule: the boat's own EntityRemoved queue must be empty
          * before its rebuild resets the scene allocation
          * (World_ResetSceneAlloc asserts exactly that). After the gather,
@@ -596,6 +639,7 @@ CreateTask_GameProtoExec(
     strncpy(task->task.name, "GameProtoExec", sizeof(task->task.name) - 1);
     task->app = app;
     task->packet = *packet; /* ownership of heap fields moves here */
+    task->epoch = app->esync.epoch;
     PT_INIT(&task->pt);
     return &task->task;
 }
