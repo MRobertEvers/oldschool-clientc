@@ -3374,6 +3374,15 @@ test-pacer: $(OBJ_DIR)
 		test/pacer_test.c pacer.c $(LDFLAGS)
 	./$(OBJ_DIR)/pacer_test$(PLATFORM_EXE_SUFFIX)
 
+# The shared frame loop through a fake lane (platform/test/loop_lane_test.c):
+# no surface for N frames on a retained and a software lane against a real
+# scene queue (platform/surface_plan.h).
+test-loop-lane: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/loop_lane_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/loop_lane_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/loop_lane_test$(PLATFORM_EXE_SUFFIX)
+
 .PHONY: test-cs2-host-request-kinds
 test-cs2-host-request-kinds: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_kinds_test \
