@@ -863,6 +863,11 @@ typedef struct RsprotPlayerInfo
 {
     int local_index;
     int seeded;
+    /** The GPI seed placed the local player, and no update has reported its
+     *  position yet. The reference places a new actor from the coordinate its
+     *  record already holds (class95 -> method3529); here that coordinate goes
+     *  out once, on the first update, as an ABS_XZLEVEL. */
+    int local_unplaced;
     uint8_t high_res[RSPROT_INFO_PLAYER_SLOTS];
     uint8_t flags[RSPROT_INFO_PLAYER_SLOTS];
     int32_t coord[RSPROT_INFO_PLAYER_SLOTS];
