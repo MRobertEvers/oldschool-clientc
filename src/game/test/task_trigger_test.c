@@ -1313,6 +1313,119 @@ test_the_chain_bottoms_out_in_a_read(void)
     runner_free(&runner);
 }
 
+/* --- 13. a task woken behind the walk still gets its turn -------------------- */
+
+struct Clocked
+{
+    uint64_t now_us;
+};
+
+static uint64_t
+clocked_now(void* ud)
+{
+    return ((struct Clocked*)ud)->now_us;
+}
+
+/* A sibling that spends the slice: it moves the clock past the deadline. */
+struct Spender
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct Clocked* clock;
+    struct ToriRS_Trigger* gate;
+};
+
+static int
+Spender_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct Spender* self = (struct Spender*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    /* Its load first (a pump later), then the work that spends the slice. */
+    while( ToriRS_Trigger_Primed(self->gate) )
+        TASK_AWAIT_TRIGGER(&self->task, &self->pt, TORIRS_TASK_WAIT_ASSET, self->gate);
+    self->clock->now_us += 5000;
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_spender_vtable = { .run = Spender_Run, .free = task_free_libc };
+
+/* Fans one spender out behind itself and joins it. */
+struct Fanner
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct ToriRS_TaskQueue* queue;
+    struct Clocked* clock;
+    struct ToriRS_Trigger* gate;
+    int pending;
+    int* done;
+};
+
+static int
+Fanner_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct Fanner* self = (struct Fanner*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    {
+        struct Spender* sp = calloc(1, sizeof(*sp));
+        assert(sp);
+        sp->task.vtable = &k_spender_vtable;
+        strcpy(sp->task.name, "spender");
+        sp->clock = self->clock;
+        sp->gate = self->gate;
+        PT_INIT(&sp->pt);
+        ToriRS_TaskQueue_AddParallelPoolSubTask(self->queue, &sp->task, &self->pending);
+    }
+    PT_TASK_JOIN(pending);
+    *self->done = 1;
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_fanner_vtable = { .run = Fanner_Run, .free = task_free_libc };
+
+static void
+test_a_task_woken_behind_the_walk_gets_its_turn(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    struct Clocked clock = { 0 };
+    struct Fanner* f = calloc(1, sizeof(*f));
+    struct ToriRS_Trigger gate = { 0 };
+    struct ToriRS_TriggerOwner loader = { 0 };
+    int done = 0;
+
+    printf("TEST: a task a wake readies after the walk passed it gets its turn in that pump, the slice "
+           "notwithstanding\n");
+    assert(f);
+    runner_init(&runner, &px, TASK_RUNNER_ROLE_BACKGROUND);
+    TaskRunner_SetClock(&runner, clocked_now, &clock);
+    f->task.vtable = &k_fanner_vtable;
+    strcpy(f->task.name, "fanner");
+    f->queue = runner.queue;
+    f->clock = &clock;
+    f->done = &done;
+    f->gate = &gate;
+    PT_INIT(&f->pt);
+    ToriRS_Trigger_Init(&gate, "the spender's load");
+    ToriRS_TriggerOwner_Init(&loader, TORIRS_OWNER_EXTERNAL, "the disk");
+    ToriRS_Trigger_Prime(&gate, &loader);
+    ToriRS_TaskQueue_Add(runner.queue, &f->task);
+    /* Pump 1: the fanner fans out and parks on its join; the spender parks
+     * on its load. */
+    CHECK(TaskRunner_RunUntil(&runner, clock.now_us + 1000) == TASK_RUNNER_WAITING);
+    CHECK(f->task.parked);
+    /* Pump 2: the load lands; the spender runs, spends the slice and ends,
+     * which readies the fanner after the walk has passed it. The pump owes
+     * it its turn (PumpEnd asserts otherwise), and it ends in this pump. */
+    ToriRS_Trigger_Fire(&gate);
+    (void)TaskRunner_RunUntil(&runner, clock.now_us + 1000);
+    CHECK(done == 1);
+    CHECK(runner.queue->head == NULL);
+    runner_free(&runner);
+}
+
 int
 main(void)
 {
@@ -1327,6 +1440,7 @@ main(void)
     test_the_rebuild_trigger();
     test_a_childs_park_is_the_parents();
     test_the_chain_bottoms_out_in_a_read();
+    test_a_task_woken_behind_the_walk_gets_its_turn();
     if( g_failures )
     {
         printf("task_trigger_test: %d failure(s)\n", g_failures);

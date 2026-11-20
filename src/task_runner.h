@@ -479,6 +479,22 @@ TaskRunner_HasReady(struct TaskRunner const* runner)
     return 0;
 }
 
+/** Is a task on this queue ready and still without its turn this pump? A
+ *  task a wake readied after the pump's walk had passed it (a fan-out's last
+ *  sibling ending behind its parent) is one: guarantee 1 is owed to it too. */
+static inline int
+TaskRunner_HasReadyWithoutTurn(struct TaskRunner const* runner)
+{
+    struct ToriRS_Task const* task;
+
+    assert(runner);
+    assert(runner->queue);
+    for( task = runner->queue->head; task; task = task->next )
+        if( !task->io.pending && !task->parked && task->turn != runner->pump )
+            return 1;
+    return 0;
+}
+
 /** How many tasks on this queue have a read on the wire. Diagnostics. */
 static inline int
 TaskRunner_ReadsOutstanding(struct TaskRunner const* runner)
@@ -1019,6 +1035,22 @@ TaskRunner_RunUntil(
         {
             stat = TASK_RUNNER_SPENT;
             break;
+        }
+    }
+    /* The slice is up, but a task a wake readied after the walk had passed
+     * it -- a parent whose last sibling ended behind it -- has not had its
+     * turn this pump: it gets one, whatever the clock says (guarantee 1). A
+     * timed pass runs only the tasks still owed theirs. */
+    if( stat == TASK_RUNNER_SPENT )
+    {
+        while( TaskRunner_HasReadyWithoutTurn(runner) )
+        {
+            enum TaskRunnerStat more = TaskRunner_StepUntil(runner, deadline_us);
+            if( more == TASK_RUNNER_IDLE || more == TASK_RUNNER_WAITING )
+            {
+                stat = more;
+                break;
+            }
         }
     }
     (void)TaskRunner_PumpEnd(runner, TaskRunner_StatName(stat));
