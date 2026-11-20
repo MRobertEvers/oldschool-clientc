@@ -1230,6 +1230,51 @@ test_the_compute_check_reads_the_cost_clock(void)
     runner_free(&runner);
 }
 
+/* --- a frame is published over a parallel queue at a standstill -------------
+ *
+ * The check at the publish (TaskRunner_CheckPublishedAtStandstill): a task a
+ * pump stepped and left ready trips it; a task parked on its read, or one
+ * added after the last pump and never stepped (an asset the emit asked for),
+ * does not. */
+static struct TaskRunner g_publish_runner;
+
+static void
+publish_over_a_stepped_ready_task(void)
+{
+    TaskRunner_CheckPublishedAtStandstill(&g_publish_runner, "the test frame");
+}
+
+static void
+test_a_frame_is_published_at_a_standstill(void)
+{
+    struct PlatformX_IO px = { 0 };
+    int ended = 0;
+
+    runner_init(&g_publish_runner, &px, NULL, TASK_RUNNER_ROLE_PARALLEL);
+    /* Parked on a read that never lands, and one never stepped: neither is
+     * work a pump left behind. */
+    ToriRS_TaskQueue_Add(g_publish_runner.queue, new_stuck());
+    (void)TaskRunner_Step(&g_publish_runner);
+    ToriRS_TaskQueue_Add(g_publish_runner.queue, new_yielder(3, &ended));
+    TaskRunner_CheckPublishedAtStandstill(&g_publish_runner, "the test frame");
+    /* Stepped once inside a pump that then stopped short (what a settle
+     * does: one pass, not a pump to a standstill) and still ready:
+     * publishing over it is the breach. The pump number is what a
+     * TaskRunner_PumpBegin gives the pass; set by hand, so no pump end
+     * judges the short pump first. */
+    g_publish_runner.pump = 1;
+    (void)TaskRunner_Step(&g_publish_runner);
+    CHECK(dies_by_abort(publish_over_a_stepped_ready_task));
+    /* Pumped to a standstill: only the parked read is left. */
+    {
+        int steps = 0;
+        (void)TaskRunner_PumpToStandstill(&g_publish_runner, 64, &steps);
+    }
+    CHECK(ended == 1);
+    TaskRunner_CheckPublishedAtStandstill(&g_publish_runner, "the test frame");
+    runner_free(&g_publish_runner);
+}
+
 int
 main(void)
 {
@@ -1244,6 +1289,7 @@ main(void)
     test_named_waits_resume_and_cancel();
     test_the_between_frames_pump();
     test_the_compute_check_reads_the_cost_clock();
+    test_a_frame_is_published_at_a_standstill();
     if( g_failures )
     {
         printf("queue_contract_test: %d failure(s)\n", g_failures);

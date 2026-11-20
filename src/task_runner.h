@@ -545,6 +545,51 @@ TaskRunner_HasReady(struct TaskRunner const* runner)
     return 0;
 }
 
+/*
+ * The frame contract's "the parallel queue is drained every frame", checked
+ * where a frame is PUBLISHED (`site`): no task a pump has stepped may be
+ * ready then -- every one is done, or parked on its read, a trigger, a count
+ * or a cycle. A ready task that has had a turn is one a pump left behind (a
+ * settle that stops when its scripts are done, a packet pump that readied
+ * it), applied a frame late; the breach line names it and a debug build
+ * asserts.
+ *
+ * A task never stepped (`turn` 0) is passed over: it was added after the
+ * frame's last pump, by the walk that builds what is published (an asset the
+ * emit asked for as it drew: AssetLoad:config, a sprite). That is the one
+ * path that cannot pump before its publish: the emit list is already built,
+ * and a pump after it would change the scene the platform renders under it.
+ * Such a task starts at the next frame's top pump and never holds a frame.
+ */
+static inline void
+TaskRunner_CheckPublishedAtStandstill(
+    struct TaskRunner const* parallel_queue,
+    char const* site)
+{
+    struct ToriRS_Task const* task;
+
+    assert(parallel_queue);
+    assert(parallel_queue->queue);
+    assert(site);
+    for( task = parallel_queue->queue->head; task; task = task->next )
+        if( !task->io.pending && !task->parked && task->turn != 0 )
+            break;
+    if( task )
+    {
+        char line[192];
+
+        snprintf(
+            line,
+            sizeof(line),
+            "%s published a frame over a ready parallel task %s: the parallel queue was not "
+            "pumped to a standstill",
+            site,
+            task->name[0] ? task->name : "(unnamed)");
+        TaskRunner_ContractBreach(line);
+        assert(!task);
+    }
+}
+
 /** Is a task on this queue ready and still without its turn this pump? A
  *  task a wake readied after the pump's walk had passed it (a fan-out's last
  *  sibling ending behind its parent) is one: guarantee 1 is owed to it too. */

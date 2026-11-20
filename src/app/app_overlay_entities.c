@@ -601,10 +601,10 @@ app_entity_overlay_layout(struct App* app)
 
     /* A rebuilt tree took every overlay layer with it (see
      * game/rs_client_trigger.h). The sweep below raises the refire when it
-     * finds an overlay whose layer is gone; it is taken here, before the
-     * sweep, so the refire happens outside the walk it would invalidate. */
-    if( RS_ClientTriggerRefire_Take(&app->client_trigger_refire) )
-        app_client_triggers_refire(app);
+     * finds an overlay whose layer is gone; the next frame takes it before
+     * its last pump (app_frame.c), outside the walk it would invalidate and
+     * ahead of the publication gate, so the scripts it queues settle before
+     * that frame is published. */
 
     /* The parent IS the world rect: it is what clips the overlays (see
      * UITree_ComponentClipsChildren), and the App is the only thing that knows
