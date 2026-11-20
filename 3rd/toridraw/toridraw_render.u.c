@@ -1450,6 +1450,48 @@ toridraw_projection_near_clip_parallel(
 // clang-format on
 
 /*
+ * What every stage-1 projection leaves on the scene once its vertices are
+ * written, for whatever reads the projection after it: the model's camera-space
+ * centre (the rasters' model_mid_z), the pose the pick's ray is cast against
+ * (pick_position / pick_camera, toridraw_pick_ray_hits_box), whether any
+ * vertex is parked behind the near plane, and the model's screen box with the
+ * AABB cull over it. Returns that cull's verdict.
+ *
+ * The one place these are written. A projection that replaces
+ * ToriDraw_ProjectWithVTable whole (the rev-241 one,
+ * projection.perspective.rszbuf.scalar.u.c) ends by calling this, so a field a
+ * later consumer needs is added here once and every projection leaves it. The
+ * rszbuf projection once lacked the pick pose because it was added to the
+ * shell alone, and no world model could be clicked on that renderer.
+ *
+ * After the vertex kernels, not before: none of them reads these fields (the
+ * prepared AArch64 kernel is handed bare arrays), and the bound must see the
+ * final near-clip verdict.
+ */
+static inline int
+toridraw_projection_publish(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    struct ProjectedVertex center,
+    bool near_clipped,
+    int bound_vertex_count)
+{
+    assert(scene);
+    assert(position);
+    assert(view_port);
+    assert(camera);
+
+    scene->projected_vertex = center;
+    scene->pick_position = *position;
+    scene->pick_camera = *camera;
+    scene->near_clipped = near_clipped;
+    toridraw_projected_bound(scene, view_port, bound_vertex_count);
+    return ToriDraw_AabbCull(&scene->aabb, view_port, camera);
+}
+
+/*
  * Project one model, dispatching its vertices through `vtable`.
  *
  * Everything here -- the capacity refusal, the fast cull, the screen box, the
@@ -1528,10 +1570,6 @@ ToriDraw_ProjectWithVTable(
         return cull;
     }
 
-    scene->projected_vertex = center_projection;
-    scene->pick_position = *position;
-    scene->pick_camera = *camera;
-
     /*
      * No screen box is built before the projection. The model is bounded
      * AFTER it, off its own projected vertices (toridraw_projected_bound
@@ -1593,7 +1631,6 @@ ToriDraw_ProjectWithVTable(
 
     TORIDRAW_DBG_NEAR_CLIP_GATE(may_clip);
 
-    scene->near_clipped = may_clip;
     /* Only the prepared kernels (AArch64 assembly, SSE2 fused-yaw) fill the
      * bound block; every other path leaves this zero and the bound is swept
      * from the outputs. */
@@ -1613,16 +1650,15 @@ ToriDraw_ProjectWithVTable(
         center_projection.z);
 
     /*
-     * The model's bound, off the coordinates just written; see
-     * toridraw_projected_bound for why it is exact, dilated, and after the
-     * projection rather than before it.
+     * The pose, the near-clip verdict, and the model's bound off the
+     * coordinates just written (see toridraw_projected_bound for why it is
+     * exact, dilated, and after the projection rather than before it).
      *
      * Placed BEFORE the debug print so a culled model stays as silent as it
      * was when the cull happened earlier.
      */
-    toridraw_projected_bound(scene, view_port, bound_vertex_count);
-
-    cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
+    cull = toridraw_projection_publish(
+        scene, position, view_port, camera, center_projection, may_clip, bound_vertex_count);
     TORIDRAW_PROJECTION_CENSUS_AABB(bound_vertex_count, cull != TORIDRAW_CULL_VISIBLE);
     if( cull != TORIDRAW_CULL_VISIBLE )
     {
