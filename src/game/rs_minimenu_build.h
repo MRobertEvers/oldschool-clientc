@@ -135,9 +135,9 @@ struct RS_MinimenuBuildCtx
     /* Held-item / spell targeting mode (reference useMode/targetMode). */
     struct RS_MinimenuSelection selection;
 
-    /* SET_PLAYER_OP rows for OPPLAYER1..5 text (NULL = no player ops). Points
-     * at RS_PlayerOps text / primary (game/rs_player_ops.h) — five slots,
-     * index 0 = op 1. */
+    /* SET_PLAYER_OP rows for OPPLAYER1..8 text (NULL = no player ops). Points
+     * at RS_PlayerOps text / primary (game/rs_player_ops.h) —
+     * RS_PLAYER_OPS_SLOTS (8) slots, index 0 = op 1. */
     char const (*player_ops)[40];
     int const* player_ops_primary;
 

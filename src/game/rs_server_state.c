@@ -1045,7 +1045,9 @@ state_set_player_op(
 {
     char const* text = p->text ? p->text : "";
 
-    if( p->slot < 1 || p->slot > 5 )
+    /* The reference keeps slots 1..8 and ignores any other (deob client.java
+     * class243.field2940: `var169 >= 1 && var169 <= 8`). */
+    if( p->slot < 1 || p->slot > RS_PLAYER_OPS_SLOTS )
         return RS_SERVER_STATE_UNCHANGED;
     /* The text "null", in any case, is no op (deob client.java
      * class243.field2940: equalsIgnoreCase(class280.field3641) -> null). */
