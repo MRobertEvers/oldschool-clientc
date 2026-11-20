@@ -170,6 +170,56 @@ app_parallel_waits_on_work(struct App const* app)
     return 0;
 }
 
+/* Is `task` waiting on work the client finishes by itself: a read, a join
+ * or count, a trigger a task or a job will fire? See App_ClientBusy. */
+static int
+app_task_waits_on_work(struct ToriRS_Task const* task)
+{
+    assert(task);
+    if( task->io.pending )
+        return 1;
+    if( !task->parked || task->park.on == TORIRS_PARK_CYCLE )
+        return 0;
+    if( task->park.on == TORIRS_PARK_TRIGGER )
+        return task->park.trigger && task->park.trigger->owner &&
+               task->park.trigger->owner->kind != TORIRS_OWNER_EXTERNAL;
+    return 1;
+}
+
+/* `ready_counts`: a ready task is work too, on a queue every frame pumps
+ * (the parallel and background queues); the main queue runs its ready
+ * tasks in a logic cycle, which a held clock does not give it. */
+static int
+app_queue_busy(
+    struct TaskRunner const* runner,
+    int ready_counts)
+{
+    struct ToriRS_Task const* task;
+
+    assert(runner);
+    if( !runner->queue )
+        return 0;
+    for( task = runner->queue->head; task; task = task->next )
+        if( app_task_waits_on_work(task) || (ready_counts && !task->parked) )
+            return 1;
+    return 0;
+}
+
+int
+App_MainQueueWaitsOnWork(const struct App* app)
+{
+    assert(app);
+    return app_queue_busy(&app->packet_runner, 0);
+}
+
+int
+App_ClientBusy(const struct App* app)
+{
+    assert(app);
+    return App_MainQueueWaitsOnWork(app) || app_queue_busy(&app->frame_runner, 1) ||
+           app_queue_busy(&app->background_runner, 1);
+}
+
 /* ...and could some of it run at once, without a read landing or another
  * queue moving? The loop sleeps through work that only waits, never through
  * this (ToriRS_Pacer_LoopWait): a parallel task a fire made ready since the

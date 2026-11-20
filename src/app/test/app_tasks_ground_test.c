@@ -556,10 +556,19 @@ test_widget_icons_released_twelve_a_tick(void)
      * held while it does, and the quest driver's first command moved a tick). */
     CHECK(queued() == ICON_CELLS, "every cell's task is queued");
     CHECK(!app_parallel_waits_on_work(g_fx.app), "a task parked on a cycle is not pending work");
+    /* Nor is it work the client finishes without the clock: the content
+     * test's oracle hold (App_ClientBusy) must step the clock for it, or the
+     * release tick it waits for never comes. */
+    CHECK(!App_ClientBusy(g_fx.app), "a task parked on a cycle is not client work");
     app_tasks_ground_tick(g_fx.app);
     pump();
     CHECK(g_fx.started_count == 12, "a tick releases twelve");
     CHECK(app_parallel_waits_on_work(g_fx.app), "a task waiting on its load is pending work");
+    /* A load out on the parallel queue holds the oracle's clock, read off
+     * the queue whatever the last pump reported (App_AsyncPending reads the
+     * frame-start pump and missed it). */
+    CHECK(App_ClientBusy(g_fx.app), "a task waiting on its load is client work");
+    CHECK(!App_MainQueueWaitsOnWork(g_fx.app), "and none of it is the main queue's");
     for( int i = 0; i < 12; i++ )
         CHECK(starts_of(ASSET_KIND_OBJ_MODEL, 200 + i, 1) == 1, "the first twelve, in line");
     pump();

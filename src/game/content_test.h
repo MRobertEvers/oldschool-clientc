@@ -9,4 +9,8 @@ int ContentTest_Enabled(void);
 int ContentTest_DrawRequested(struct App*);
 uint64_t ContentTest_Begin(struct App*, struct NetTransport*, struct ToriRS_CmdBus*, uint64_t real_now);
 void ContentTest_End(struct App*, struct NetTransport*);
+/* TORIRS_CONTENT_TEST_HOLD / _RACE: this frame's virtual clock is held, and
+ * the quest driver reads and acts only on frames it steps, so a slow read
+ * shows it nothing a fast one would not (content_test.c). 0 by default. */
+int ContentTest_DriverHeld(void);
 #endif

@@ -3498,6 +3498,27 @@ App_DrainAudio(
 int
 App_AsyncPending(const struct App* app);
 
+/**
+ * Has the client work it will finish without the server or the clock, read
+ * off the queues themselves rather than off a pump's report: a task with a
+ * read out, parked on a join or count, or on a trigger primed by a task or a
+ * job; on the parallel and background queues (pumped every frame) a ready
+ * task too. Not: a task parked on a CYCLE (game time), on a trigger an
+ * outside party owns (a view awaiting the server's first
+ * REBUILD_WORLDENTITY), or a ready task on the main queue (it runs in a
+ * logic cycle). App_AsyncPending describes the frame-start
+ * pump, so it misses what the frame's packets queued after it and what the
+ * main queue waits on; the content test's strict hold asks this
+ * (TORIRS_CONTENT_TEST_HOLD, content_test.c).
+ */
+int
+App_ClientBusy(const struct App* app);
+
+/** The main queue's half of App_ClientBusy: a packet task (or the boot)
+ *  waiting on a read, a join, a count or a task's trigger. */
+int
+App_MainQueueWaitsOnWork(const struct App* app);
+
 /** ...and whether some of it can run at once, without a read landing or
  *  another queue moving (the boot asked for its next frame). Work that is
  *  pending but not runnable only waits: a native loop waits for it in naps
