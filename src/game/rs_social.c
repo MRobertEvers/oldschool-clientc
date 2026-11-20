@@ -140,15 +140,14 @@ RS_Social_AddFriend(
     return 1;
 }
 
-int
-RS_Social_DelFriend(
+void
+RS_Social_DelFriendAt(
     struct RS_Social* social,
-    char const* name)
+    int idx)
 {
     assert(social);
-    int idx = find_hash(social->friend_hash, social->friend_name, social->friend_count, name);
-    if( idx < 0 )
-        return 0;
+    assert(idx >= 0);
+    assert(idx < social->friend_count);
     for( int i = idx; i + 1 < social->friend_count; i++ )
     {
         memcpy(social->friend_name[i], social->friend_name[i + 1], RS_SOCIAL_NAME_LEN);
@@ -159,7 +158,109 @@ RS_Social_DelFriend(
         memcpy(social->friend_previous_name[i], social->friend_previous_name[i + 1], RS_SOCIAL_NAME_LEN);
     }
     social->friend_count--;
+}
+
+int
+RS_Social_DelFriend(
+    struct RS_Social* social,
+    char const* name)
+{
+    assert(social);
+    int idx = find_hash(social->friend_hash, social->friend_name, social->friend_count, name);
+    if( idx < 0 )
+        return 0;
+    RS_Social_DelFriendAt(social, idx);
     return 1;
+}
+
+void
+RS_Social_SetFriendNames(
+    struct RS_Social* social,
+    int index,
+    char const* name,
+    char const* previous_name)
+{
+    assert(social);
+    assert(index >= 0);
+    assert(index < social->friend_count);
+    assert(name);
+    assert(previous_name);
+    snprintf(social->friend_name[index], RS_SOCIAL_NAME_LEN, "%s", name);
+    social->friend_hash[index] = name_hash(name);
+    snprintf(social->friend_previous_name[index], RS_SOCIAL_NAME_LEN, "%s", previous_name);
+}
+
+void
+RS_Social_FriendWorldNotice(
+    struct RS_Social* social,
+    char const* name,
+    int world,
+    int clock)
+{
+    struct RS_SocialNotices* q;
+    int64_t hash;
+    bool queue = true;
+    int kept = 0;
+
+    assert(social);
+    assert(name);
+    assert(world >= 0);
+    q = &social->notices;
+    hash = name_hash(name);
+    /* Every queued notice of the other direction for this friend goes, and
+     * then nothing is queued (Statics.method10091's loop over field5447). */
+    for( int i = 0; i < q->count; i++ )
+    {
+        struct RS_SocialNotice const* n = &q->entries[i];
+        bool const same = n->hash != 0 ? n->hash == hash : strcasecmp(n->name, name) == 0;
+
+        if( same && ((world != 0 && n->world == 0) || (world == 0 && n->world != 0)) )
+        {
+            queue = false;
+            continue;
+        }
+        if( kept != i )
+            q->entries[kept] = *n;
+        kept++;
+    }
+    q->count = kept;
+    if( !queue )
+        return;
+    /* Ten seconds at the most (class474 lives ten to eleven), so a full
+     * queue is that many world changes inside eleven seconds. */
+    assert(q->count < RS_SOCIAL_NOTICE_MAX);
+    snprintf(q->entries[q->count].name, RS_SOCIAL_NAME_LEN, "%s", name);
+    q->entries[q->count].hash = hash;
+    q->entries[q->count].world = world;
+    q->entries[q->count].stamp = clock / RS_SOCIAL_CYCLES_PER_SECOND + 5;
+    q->count++;
+}
+
+int
+RS_Social_TakeDueNotice(
+    struct RS_Social* social,
+    int clock,
+    char* text,
+    int cap)
+{
+    struct RS_SocialNotices* q;
+    int const now = clock / RS_SOCIAL_CYCLES_PER_SECOND;
+
+    assert(social);
+    assert(text);
+    assert(cap > 0);
+    q = &social->notices;
+    for( int i = 0; i < q->count; i++ )
+    {
+        if( q->entries[i].stamp >= now - 5 )
+            continue;
+        snprintf(text, (size_t)cap, "%s%s", q->entries[i].name,
+            q->entries[i].world > 0 ? " has logged in." : " has logged out.");
+        memmove(&q->entries[i], &q->entries[i + 1], (size_t)(q->count - i - 1) * sizeof(q->entries[0]));
+        q->count--;
+        return 1;
+    }
+    return 0;
 }
 
 int

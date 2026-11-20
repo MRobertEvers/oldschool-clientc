@@ -181,6 +181,9 @@ ScriptrunCore_BeginTick(
         ScriptrunShadow_BeginTick(core->shadow, server_tick, now);
     /* The cycle clock moves: a loc merge due by now hides or restores. */
     ScriptrunTasks_BeginTick(core->tasks, (uint32_t)now);
+    /* And a friend's login/logout notice due by now is a chatbox line, as
+     * the real client files it (once a cycle there, once a tick here). */
+    RS_ServerState_FriendNotices(&core->model.social, &core->model.chat, now);
 }
 
 /* ------------------------------------------------------------------ helpers */

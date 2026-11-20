@@ -111,6 +111,36 @@ struct RS_SocialMessageRing
     int head;
 };
 
+/*
+ * The friend login and logout notices (deob class447.field5447, a list of
+ * class474). A friend already on the list whose world changes queues one,
+ * "logged in" for a non-zero world and "logged out" for 0; one already
+ * queued for the other direction cancels it and nothing is queued
+ * (Statics.method10091). So a world hop -- out, then in on the next world a
+ * few seconds later -- says nothing. A friend new to the list, which is every
+ * friend in a login's first list (the list is emptied at login), queues
+ * nothing. class58.method1165 prints a notice once its stamp, the second it
+ * was queued plus 5, is below the current second less 5: between ten and
+ * eleven seconds after. The reference counts wall seconds; this store counts
+ * the client clock, RS_SOCIAL_CYCLES_PER_SECOND to a second.
+ */
+#define RS_SOCIAL_NOTICE_MAX 512
+#define RS_SOCIAL_CYCLES_PER_SECOND 50
+
+struct RS_SocialNotice
+{
+    char name[RS_SOCIAL_NAME_LEN]; /* the friend, as the wire spelled them */
+    int64_t hash;                  /* the store's key for `name` */
+    int world;                     /* 0: logged out, else logged in */
+    int stamp;                     /* the second it was queued, plus 5 */
+};
+
+struct RS_SocialNotices
+{
+    struct RS_SocialNotice entries[RS_SOCIAL_NOTICE_MAX]; /* oldest first */
+    int count;
+};
+
 struct RS_Social
 {
     char friend_name[RS_SOCIAL_FRIEND_MAX][RS_SOCIAL_NAME_LEN];
@@ -140,6 +170,8 @@ struct RS_Social
     char ignore_previous_name[RS_SOCIAL_IGNORE_MAX][RS_SOCIAL_NAME_LEN];
     int ignore_count;
     struct RS_SocialSortChain ignore_sort;
+
+    struct RS_SocialNotices notices;
 
     int server_status; /* enum RS_SocialServerStatus */
     /** Our world id, for the green same-world highlight. */
@@ -183,9 +215,45 @@ RS_Social_SetIgnoreNames(
     char const* name,
     char const* previous_name);
 
+/** Friend `name` (already on the list) moved from one world to `world` at
+ *  client clock `clock`: queue or cancel a notice by the reference's rule
+ *  (struct RS_SocialNotices). */
+void
+RS_Social_FriendWorldNotice(
+    struct RS_Social* social,
+    char const* name,
+    int world,
+    int clock);
+
+/** The oldest notice due at client clock `clock`, taken off the queue and
+ *  written as the line the reference prints ("<name> has logged in." /
+ *  "<name> has logged out.", class280.field3630 / field3631) into `text`.
+ *  0 when none is due. The caller files the line as chat type 5
+ *  (Statics.method7544(5, "", text)). */
+int
+RS_Social_TakeDueNotice(
+    struct RS_Social* social,
+    int clock,
+    char* text,
+    int cap);
+
+/** Give friend `index` the name `name` (its key follows) and the previous
+ *  name `previous_name`: a rename keeps the entry (class473.method10601). */
+void
+RS_Social_SetFriendNames(
+    struct RS_Social* social,
+    int index,
+    char const* name,
+    char const* previous_name);
+
+/** Remove friend `index` (0 <= index < friend_count), closing the gap. */
+void
+RS_Social_DelFriendAt(struct RS_Social* social, int index);
+
 /** Empty both lists and set the friend server back to LOADING, as the
  *  reference's game-state reset does at every login (deob Statics.method9200
- *  -> class58.method1166). The message ring and the sort chains stay. */
+ *  -> class58.method1166). The message ring, the sort chains and the queued
+ *  notices stay (class447 does not clear field5447 there). */
 void
 RS_Social_ResetForLogin(struct RS_Social* social);
 

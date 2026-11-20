@@ -178,6 +178,16 @@ RS_ServerState_InvContainerId(
 int
 RS_ServerState_Rs15ToRgb(int colour);
 
+/** File every friend login/logout notice due at client clock `clock` into
+ *  `chat` as a type-5 line (deob class58.method1165). The headless client
+ *  calls it once a tick; the real client drains the same queue every client
+ *  cycle in RS_CS2Host_Tick, through its chat-transmit path. */
+void
+RS_ServerState_FriendNotices(
+    struct RS_Social* social,
+    struct RS_Chat* chat,
+    int clock);
+
 /** Escape a player's text for display (class2.method12): `<` and `>` become
  *  `<lt>` and `<gt>`, truncated to fit `cap`. */
 void

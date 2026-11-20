@@ -2601,6 +2601,16 @@ RS_CS2Host_Tick(struct RS_CS2Host* host)
 {
     assert(host);
     host->client_clock++;
+    /* The friend login/logout notices due by now, every client cycle as the
+     * reference prints them (class58.method1165 from the in-game loop). A
+     * host with no social store or chatbox (a script harness) has none. */
+    if( host->social && host->chat )
+    {
+        char text[RS_CHAT_TEXT_LEN];
+
+        while( RS_Social_TakeDueNotice(host->social, host->client_clock, text, (int)sizeof(text)) )
+            RS_CS2Host_ChatAdd(host, RS_CHAT_TYPE_PRIVATE_SYSTEM, "", NULL, text);
+    }
 }
 
 /* =========================================================================

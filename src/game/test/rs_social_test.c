@@ -818,6 +818,26 @@ test_host_ops(void)
     RS_CS2Host_NotifyFriendChanged(&host);
     CHECK(host.friend_transmit_dirty != 0, "NotifyFriendChanged raises the repaint flag");
 
+    /* The real client's notice drain is the host's cycle tick: a queued
+     * logout notice reaches the chatbox as type 5 between ten and eleven
+     * seconds (500..550 cycles) later (deob class58.method1165). */
+    {
+        int const lines = chat.message_count;
+        int ticks = 0;
+
+        RS_Social_FriendWorldNotice(&social, "bob", 0, host.client_clock);
+        while( chat.message_count == lines && ticks < 1000 )
+        {
+            RS_CS2Host_Tick(&host);
+            ticks++;
+        }
+        CHECK(chat.message_count == lines + 1, "the host's cycle tick files a due notice");
+        CHECK(ticks > 500 && ticks <= 550, "ten to eleven seconds after it was queued, got %d cycles", ticks);
+        CHECK(chat.newest && chat.newest->type == RS_CHAT_TYPE_PRIVATE_SYSTEM &&
+                  strcmp(chat.newest->text, "bob has logged out.") == 0,
+            "as \"bob has logged out.\", typed 5");
+    }
+
     CS2VM2_Free(&vm);
     RS_Chat_Free(&chat);
     UITree_Free(tree);

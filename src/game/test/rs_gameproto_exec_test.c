@@ -101,11 +101,11 @@ test_put_jstr(uint8_t* out, int at, char const* text)
  * Statics.method10091): added, name, previous name, world, rank, properties,
  * the online-only world name, platform and flags, the notes. */
 static int
-test_put_friend(uint8_t* out, int at, char const* name, int world)
+test_put_friend_renamed(uint8_t* out, int at, int lead, char const* name, char const* previous, int world)
 {
-    out[at++] = 0;
+    out[at++] = (uint8_t)lead;
     at = test_put_jstr(out, at, name);
-    at = test_put_jstr(out, at, "");
+    at = test_put_jstr(out, at, previous);
     out[at++] = (uint8_t)(world >> 8);
     out[at++] = (uint8_t)world;
     out[at++] = 0;
@@ -118,6 +118,42 @@ test_put_friend(uint8_t* out, int at, char const* name, int world)
         at += 4;
     }
     return test_put_jstr(out, at, "");
+}
+
+static int
+test_put_friend(uint8_t* out, int at, char const* name, int world)
+{
+    return test_put_friend_renamed(out, at, 0, name, "", world);
+}
+
+/* One UPDATE_FRIENDLIST packet through the rev-242 reader and the model. */
+static void
+test_friend_packet(
+    struct App* app,
+    struct RS_ServerState* state,
+    uint8_t const* wire,
+    int len)
+{
+    struct GameProtoRevTable const* rev = GameProtoRev_Osrs(242);
+    struct RevPacket p;
+
+    memset(&p, 0, sizeof(p));
+    TEST_EXEC_ASSERT(
+        rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_FRIENDLIST), (uint8_t*)wire, len, &p),
+        "an UPDATE_FRIENDLIST parses");
+    App_GameProto_Exec(app, state, &p);
+    gameproto_free(&p);
+}
+
+/* The client cycles from `*clock` to `to`, the notices drained every one. */
+static void
+test_notice_cycles(struct RS_ServerState* state, int* clock, int to)
+{
+    while( *clock < to )
+    {
+        (*clock)++;
+        RS_ServerState_FriendNotices(state->social, state->chat, *clock);
+    }
 }
 
 /* One UPDATE_IGNORELIST entry (rsprot update_ignorelist.h, deob
@@ -788,6 +824,116 @@ main(void)
         free(pm_chat);
         free(pm_social);
         printf("ok - a private message from a crowned friend passes the friends-only filter\n");
+    }
+
+    /* B4: the friend login/logout notices and the rename rule, on recording
+     * 96's own sequence (index 236, rev 227). Its login list holds every
+     * friend and the client says nothing about any of them. Later updates
+     * are single entries: "Bills Late" goes offline at [439] and nothing
+     * follows (a logout: "Bills Late has logged out." ten to eleven seconds
+     * on); "Xarpos" goes offline at [995] and is back on world 442 at [1007],
+     * twelve ticks (7.2 s) later (a world hop: the logout notice is still
+     * queued, the login cancels it, nothing is said); "Eden Cosine" comes
+     * online on 435 at [7960] (logged in). The rules are deob
+     * Statics.method10091 (queue or cancel; only an entry already on the
+     * list) and class58.method1165 (print once stamp+5 < now-5, in seconds). */
+    {
+        struct RS_ServerState fs = bare_state;
+        struct RS_Social* fsoc = calloc(1, sizeof(*fsoc));
+        struct RS_Chat* fchat = calloc(1, sizeof(*fchat));
+        uint8_t wire[512];
+        int clock = 0;
+        int len;
+
+        assert(fsoc);
+        assert(fchat);
+        RS_Social_Init(fsoc);
+        RS_Chat_Init(fchat, "Player");
+        fs.social = fsoc;
+        fs.chat = fchat;
+        fs.chat_clock = &clock;
+
+        len = test_put_friend(wire, 0, "Bills\xa0" "Late", 443);
+        len = test_put_friend(wire, len, "Xarpos", 457);
+        len = test_put_friend(wire, len, "Eden\xa0" "Cosine", 0);
+        test_friend_packet(base_app, &fs, wire, len);
+        TEST_EXEC_ASSERT(fsoc->friend_count == 3, "the login list is the friend list");
+        test_notice_cycles(&fs, &clock, 1000);
+        TEST_EXEC_ASSERT(fchat->message_count == 0, "the first list after login says nothing");
+
+        /* [439] Bills Late logs out, at clock 1000 (second 20, stamp 25). */
+        len = test_put_friend(wire, 0, "Bills\xa0" "Late", 0);
+        test_friend_packet(base_app, &fs, wire, len);
+        test_notice_cycles(&fs, &clock, 1549);
+        TEST_EXEC_ASSERT(fchat->message_count == 0, "nothing ten seconds on (second 30: 25 < 25 is false)");
+        test_notice_cycles(&fs, &clock, 1550);
+        TEST_EXEC_ASSERT(fchat->message_count == 1, "the logout notice at second 31");
+        TEST_EXEC_ASSERT(fchat->newest->type == RS_CHAT_TYPE_PRIVATE_SYSTEM, "typed 5");
+        TEST_EXEC_ASSERT(fchat->newest->name[0] == '\0', "with no name");
+        TEST_EXEC_ASSERT(strcmp(fchat->newest->text, "Bills\xa0" "Late has logged out.") == 0,
+            "\"Bills Late has logged out.\", as the wire spells him");
+
+        /* [995] .. [1007] Xarpos hops: out, then in on 442 7.2 s later. */
+        len = test_put_friend(wire, 0, "Xarpos", 0);
+        test_friend_packet(base_app, &fs, wire, len);
+        test_notice_cycles(&fs, &clock, clock + 360);
+        len = test_put_friend(wire, 0, "Xarpos", 442);
+        test_friend_packet(base_app, &fs, wire, len);
+        test_notice_cycles(&fs, &clock, clock + 1500);
+        TEST_EXEC_ASSERT(fchat->message_count == 1, "a world hop says nothing");
+        TEST_EXEC_ASSERT(RS_Social_FriendWorld(fsoc, RS_Social_FriendIndex(fsoc, "xarpos")) == 442,
+            "and the friend is on the new world");
+
+        /* [7960] Eden Cosine logs in on 435. */
+        len = test_put_friend(wire, 0, "Eden\xa0" "Cosine", 435);
+        test_friend_packet(base_app, &fs, wire, len);
+        test_notice_cycles(&fs, &clock, clock + 600);
+        TEST_EXEC_ASSERT(fchat->message_count == 2, "a login is said");
+        TEST_EXEC_ASSERT(strcmp(fchat->newest->text, "Eden\xa0" "Cosine has logged in.") == 0,
+            "\"Eden Cosine has logged in.\"");
+
+        /* A rename: the leading byte 1 finds the friend by the previous name;
+         * the entry keeps its place and world and takes the new names. */
+        len = test_put_friend_renamed(wire, 0, 1, "Eden\xa0" "Sine", "Eden\xa0" "Cosine", 435);
+        test_friend_packet(base_app, &fs, wire, len);
+        TEST_EXEC_ASSERT(fsoc->friend_count == 3, "a rename is the same friend, not a new one");
+        TEST_EXEC_ASSERT(!RS_Social_IsFriend(fsoc, "Eden Cosine") && RS_Social_IsFriend(fsoc, "Eden Sine"),
+            "under the new name");
+        {
+            char prev[RS_SOCIAL_NAME_LEN];
+            int const i = RS_Social_FriendIndex(fsoc, "eden_sine");
+
+            RS_Social_FriendPreviousName(fsoc, i, prev, (int)sizeof(prev));
+            TEST_EXEC_ASSERT(strcmp(prev, "Eden\xa0" "Cosine") == 0, "remembering the old one");
+        }
+        /* Both names on the list as two entries: the previous one goes. */
+        len = test_put_friend(wire, 0, "Old\xa0" "Pal", 0);
+        len = test_put_friend(wire, len, "New\xa0" "Pal", 0);
+        test_friend_packet(base_app, &fs, wire, len);
+        len = test_put_friend_renamed(wire, 0, 1, "New\xa0" "Pal", "Old\xa0" "Pal", 0);
+        test_friend_packet(base_app, &fs, wire, len);
+        TEST_EXEC_ASSERT(fsoc->friend_count == 4 && !RS_Social_IsFriend(fsoc, "Old Pal"),
+            "a rename onto a name already listed drops the previous entry");
+
+        /* A relog: the session reset empties the list, and the new login's
+         * list, every world different, says nothing. */
+        {
+            int const lines = fchat->message_count;
+
+            RS_Social_ResetForLogin(fsoc);
+            TEST_EXEC_ASSERT(RS_Social_FriendCount(fsoc) < 0, "loading again after the reset");
+            len = test_put_friend(wire, 0, "Bills\xa0" "Late", 301);
+            len = test_put_friend(wire, len, "Xarpos", 0);
+            test_friend_packet(base_app, &fs, wire, len);
+            test_notice_cycles(&fs, &clock, clock + 1500);
+            TEST_EXEC_ASSERT(fchat->message_count == lines, "the first list after a relog says nothing");
+            TEST_EXEC_ASSERT(fsoc->friend_count == 2, "and is the whole list");
+        }
+
+        RS_Chat_Free(fchat);
+        free(fchat);
+        free(fsoc);
+        printf("ok - friend login/logout notices and renames follow the reference\n");
     }
 
     /* B2: the ignore list, as recording 96 (index 236, rev 227) sends it at

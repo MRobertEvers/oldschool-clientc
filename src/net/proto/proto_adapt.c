@@ -380,6 +380,7 @@ adapt_update_friendlist(MsgUpdateFriendList const* m, struct RevPacket* out)
         snprintf(e->name, sizeof(e->name), "%s", m->entries[i].name);
         snprintf(e->previous_name, sizeof(e->previous_name), "%s",
             m->entries[i].previous_name ? m->entries[i].previous_name : "");
+        e->match_previous = m->entries[i].added == 1;
         e->world = m->entries[i].world_id;
         e->rank = m->entries[i].rank;
     }

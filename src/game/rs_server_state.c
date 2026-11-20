@@ -322,8 +322,13 @@ state_message_friendchannel(
 /* ---- social ---------------------------------------------------------------- */
 
 /* deob Statics.method10091: each entry finds its friend by name (the
- * Username, so case and space/underscore/NBSP do not tell two apart), takes
- * the wire's spelling of it, and its world, rank and previous name. */
+ * Username, so case and space/underscore/NBSP do not tell two apart) and,
+ * when its leading byte is 1, by its previous name too: found under both as
+ * two entries, the previous one goes (Statics.method10612); found under
+ * either, the entry takes the wire's names (a rename, class473.method10601).
+ * Found under neither, it is added, and a new friend says nothing. An entry
+ * already on the list whose world changes queues the login or logout notice
+ * (RS_Social_FriendWorldNotice), stamped with the client clock. */
 static void
 state_update_friendlist(
     struct RS_ServerState const* state,
@@ -332,6 +337,7 @@ state_update_friendlist(
     struct RS_Social* social = state->social;
 
     assert(social);
+    assert(state->chat_clock);
     social->server_status = 2;
     if( p->count == 0 )
         return;
@@ -341,22 +347,59 @@ state_update_friendlist(
         struct PktUpdateFriendListEntry const* entry = &p->entries[e];
         int index = RS_Social_FriendIndex(social, entry->name);
 
+        if( entry->match_previous && entry->previous_name[0] )
+        {
+            int const previous = RS_Social_FriendIndex(social, entry->previous_name);
+
+            if( previous >= 0 && previous != index )
+            {
+                if( index < 0 )
+                    index = previous;
+                else
+                {
+                    RS_Social_DelFriendAt(social, previous);
+                    if( previous < index )
+                        index--;
+                }
+            }
+        }
         if( index >= 0 )
         {
-            snprintf(social->friend_name[index], RS_SOCIAL_NAME_LEN, "%s", entry->name);
+            RS_Social_SetFriendNames(social, index, entry->name, entry->previous_name);
+            if( social->friend_world[index] != entry->world )
+                RS_Social_FriendWorldNotice(social, entry->name, entry->world, *state->chat_clock);
             RS_Social_SetFriendWorld(social, index, entry->world);
         }
         else if( RS_Social_AddFriend(social, entry->name, entry->world) )
+        {
             index = social->friend_count - 1;
+            RS_Social_SetFriendNames(social, index, entry->name, entry->previous_name);
+        }
         else
             continue;
         social->friend_rank[index] = entry->rank;
-        snprintf(social->friend_previous_name[index], RS_SOCIAL_NAME_LEN, "%s", entry->previous_name);
     }
     /* The client re-applies the scripts' sort chain on every friend update
      * (class476.java:207), so a world change re-orders the list without the
      * panel asking. */
     RS_Social_SortFriends(social);
+}
+
+/* The login and logout notices due by now, each a type-5 line with no name
+ * (deob class58.method1165, run every client cycle: Statics.method7544(5,
+ * "", name + " has logged in.")). A client calls this from its own clock. */
+void
+RS_ServerState_FriendNotices(
+    struct RS_Social* social,
+    struct RS_Chat* chat,
+    int clock)
+{
+    char text[RS_CHAT_TEXT_LEN];
+
+    assert(social);
+    assert(chat);
+    while( RS_Social_TakeDueNotice(social, clock, text, (int)sizeof(text)) )
+        RS_Chat_AddMessage(chat, RS_CHAT_TYPE_PRIVATE_SYSTEM, "", NULL, text, clock);
 }
 
 /* ---- session --------------------------------------------------------------- */

@@ -1008,6 +1008,9 @@ struct PktUpdateFriendListEntry
     char name[64];
     /** The friend's previous display name, "" when none (rev 239 only). */
     char previous_name[64];
+    /** The leading byte was 1 (RSProt `added`): the reference also finds the
+     *  friend by `previous_name` (Statics.method10091 var4), a rename. */
+    int match_previous;
     int world; /* 0=offline, >0 world/node id */
     /** The friend's friends-chat rank (rev 239 g1; 0 on the older wires). */
     int rank;
