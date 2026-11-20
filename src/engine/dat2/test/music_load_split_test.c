@@ -19,7 +19,11 @@
  *   - THE LONGEST STEP: with every background slice already over when it is
  *     given, each step is one bounded unit of work, and its processor time
  *     (thread CPU time, so a loaded machine does not inflate it) stays under
- *     a bound -- as does the longest step of the reads on the asset queue;
+ *     a bound -- as does the longest step of the reads on the asset queue.
+ *     The bound is a fraction of what one piece of the uncut work costs in
+ *     THIS build (the whole unpack of the largest track, the asset-queue
+ *     step it once was, timed on the same clock), so an unoptimised build is
+ *     held to the same proportion as a release one;
  *   - nothing is left on either queue.
  *
  *   make -C src test-music-load
@@ -112,12 +116,56 @@ real_now(void* data)
     return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
 }
 
-/* The bounds mode B holds a step to, in processor time natively. Before the
- * cut a decode step was one whole sample (up to 8 ms; 4 ms on these songs,
- * 15-16 ms in wasm) and the track's unpack was a step of the asset queue (up
- * to 2.9 ms). A cut step is a fraction of a millisecond. */
-#define LONGEST_DECODE_STEP_US 1500
-#define LONGEST_READ_STEP_US 1000
+/* The bounds mode B holds a step to, as fractions of the uncut unpack of
+ * UNCUT_TRACK in the same build. Before the cut a decode step was one whole
+ * sample (up to 8 ms; 4 ms on these songs, 15-16 ms in wasm) and the track's
+ * unpack was a step of the asset queue (2.9 ms natively for UNCUT_TRACK). A
+ * cut step is a fraction of a millisecond. Natively these are the 1.5 ms and
+ * 1 ms a step was first held to. */
+#define UNCUT_TRACK 735
+#define LONGEST_DECODE_STEP_DIVISOR 2
+#define LONGEST_READ_STEP_DIVISOR 3
+
+/* What the whole unpack of `song_id`'s track costs in this build, in thread
+ * CPU time: the least of three, so one interrupted run does not loosen the
+ * bound. 0 if the cache is not here. */
+static uint64_t
+uncut_unpack_us(
+    char const* root,
+    char const* cache_name,
+    char const* profile_name,
+    int song_id)
+{
+    char path[1024];
+    struct RSCache profile;
+    struct RSCache_Dat2Disk* disk;
+    struct RSCache_Dat2DiskArchive* archive;
+    uint64_t least = UINT64_MAX;
+
+    snprintf(path, sizeof(path), "%s/%s", root, cache_name);
+    disk = RSCache_Dat2DiskNewFromDirectory(path);
+    if( !disk )
+        return 0;
+    if( !RSCache_ProfileByName(profile_name, &profile) )
+        abort();
+    RSCache_Dat2DiskSetProfile(disk, &profile);
+    archive = RSCache_Dat2DiskArchiveNewLoad(
+        disk, RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_MUSIC_TRACKS), song_id);
+    assert(archive);
+    for( int i = 0; i < 3; i++ )
+    {
+        uint64_t const start = real_now(NULL);
+        struct RSCache_MusicSong* song = RSCache_MusicSongNewDecode(archive->data, archive->data_size);
+        uint64_t const spent = real_now(NULL) - start;
+        assert(song);
+        RSCache_MusicSongFree(song);
+        if( spent < least )
+            least = spent;
+    }
+    RSCache_Dat2DiskArchiveFree(archive);
+    RSCache_Dat2DiskFree(disk);
+    return least;
+}
 
 /*
  * One cold song through both queues.
@@ -264,6 +312,7 @@ main(
     static int const songs[] = { 0, 1, 76, 147, 735 };
     uint64_t longest_decode = 0;
     uint64_t longest_read = 0;
+    uint64_t whole_us;
 
     run_song(root, "cache.osrs239", "osrs239", 0, 0, NULL, NULL);
     for( size_t i = 0; i < sizeof(songs) / sizeof(songs[0]); i++ )
@@ -278,12 +327,22 @@ main(
     }
     printf("LONGEST STEP: background %.3f ms, reads %.3f ms (native processor time; one unit of work each)\n",
         (double)longest_decode / 1000.0, (double)longest_read / 1000.0);
-    CHECK(longest_decode < LONGEST_DECODE_STEP_US,
-        "a background step took %.3f ms (bound %.3f ms)", (double)longest_decode / 1000.0,
-        LONGEST_DECODE_STEP_US / 1000.0);
-    CHECK(longest_read < LONGEST_READ_STEP_US,
-        "a read step took %.3f ms (bound %.3f ms)", (double)longest_read / 1000.0,
-        LONGEST_READ_STEP_US / 1000.0);
+    whole_us = uncut_unpack_us(root, "cache.osrs239", "osrs239", UNCUT_TRACK);
+    if( whole_us )
+    {
+        printf("UNCUT UNPACK: track %d %.3f ms in this build; bounds %.3f ms (background), %.3f ms (reads)\n",
+            UNCUT_TRACK, (double)whole_us / 1000.0,
+            (double)(whole_us / LONGEST_DECODE_STEP_DIVISOR) / 1000.0,
+            (double)(whole_us / LONGEST_READ_STEP_DIVISOR) / 1000.0);
+        CHECK(longest_decode < whole_us / LONGEST_DECODE_STEP_DIVISOR,
+            "a background step took %.3f ms (bound %.3f ms, the uncut unpack / %d)",
+            (double)longest_decode / 1000.0, (double)(whole_us / LONGEST_DECODE_STEP_DIVISOR) / 1000.0,
+            LONGEST_DECODE_STEP_DIVISOR);
+        CHECK(longest_read < whole_us / LONGEST_READ_STEP_DIVISOR,
+            "a read step took %.3f ms (bound %.3f ms, the uncut unpack / %d)",
+            (double)longest_read / 1000.0, (double)(whole_us / LONGEST_READ_STEP_DIVISOR) / 1000.0,
+            LONGEST_READ_STEP_DIVISOR);
+    }
     if( g_failures )
     {
         printf("music_load_split_test: %d failure(s)\n", g_failures);

@@ -15,11 +15,15 @@
  *     sound, byte for byte (ToriRS_SoundFromRSCache on the same record);
  *   - a short effect is resident at the end of the frame it was read in, its
  *     render done in that frame's background slice: it starts on the cycle it
- *     did when it was rendered on the asset queue;
+ *     did when it was rendered on the asset queue. The slice is measured on
+ *     the test's own clock, which counts reads, so the answer is the same at
+ *     any optimisation and on any machine;
  *   - THE LONGEST STEP, with every background slice already over when it is
  *     given (so each background step is one unit of work), in thread CPU time:
  *     the longest step of the asset queue and of the compute queue stay under
- *     a bound;
+ *     a bound that is a fraction of what the uncut work costs in THIS build
+ *     (the one-call render of the long effect, timed on the same clock), so
+ *     an unoptimised build is held to the same proportion as a release one;
  *   - nothing is left on either queue.
  *
  *   make -C src test-sound-load
@@ -71,6 +75,19 @@ fake_now(void* data)
     return g_now_us;
 }
 
+/* The test's own clock: one microsecond each time it is read. The render
+ * reads it once per step to check its slice and the runner around each step,
+ * so a slice of N on it is a budget of reads, the same in every build. */
+static uint64_t g_reads_us = 1000000;
+
+static uint64_t
+read_count_now(void* data)
+{
+    (void)data;
+    g_reads_us += 1;
+    return g_reads_us;
+}
+
 /* This thread's processor time, us. */
 static uint64_t
 cpu_now(void* data)
@@ -82,10 +99,12 @@ cpu_now(void* data)
     return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
 }
 
-/* The bounds a step is held to, natively. Before the cut the whole render
- * was one step of the asset queue (7.9 ms for LONG_EFFECT). */
-#define LONGEST_RENDER_STEP_US 1500
-#define LONGEST_READ_STEP_US 1000
+/* The bounds a step is held to, as fractions of the uncut render of
+ * LONG_EFFECT in the same build: before the cut that whole render was one
+ * step of the asset queue (7.9 ms natively). Natively these are the 1.5 ms
+ * and 1 ms a step was first held to. */
+#define LONGEST_RENDER_STEP_DIVISOR 5
+#define LONGEST_READ_STEP_DIVISOR 8
 
 static int
 queue_has(
@@ -277,14 +296,15 @@ test_the_render_is_a_sliced_background_job(char const* root)
     lane_close(&lane);
 }
 
-/* A short effect, with a real 2 ms slice: resident the frame it is read. */
+/* A short effect, with a slice of 2000 reads of the test's own clock:
+ * resident the frame it is read. */
 static void
 test_a_short_effect_lands_the_frame_it_is_read(char const* root)
 {
     struct Lane lane;
 
     printf("TEST: a short effect is resident at the end of the frame it was read in\n");
-    if( !lane_open(&lane, root, cpu_now) )
+    if( !lane_open(&lane, root, read_count_now) )
         return;
     for( size_t i = 0; i < sizeof(k_short_effects) / sizeof(k_short_effects[0]); i++ )
     {
@@ -292,13 +312,13 @@ test_a_short_effect_lands_the_frame_it_is_read(char const* root)
         struct ToriRS_Sound* reference;
 
         ToriRS_TaskQueue_Add(lane.parallel.queue, CreateTask_SoundLoad(lane.provider, id));
-        frame(&lane, cpu_now(NULL) + 2000);
+        frame(&lane, read_count_now(NULL) + 2000);
         CHECK(CacheProvider_SoundHas(lane.provider, id), "effect %d is not resident after one frame", id);
         reference = reference_sound(&lane, id);
         CHECK(same_sound(CacheProvider_SoundGet(lane.provider, id), reference),
             "effect %d is not the one-call render's", id);
         ToriRS_SoundFree(reference);
-        frame(&lane, cpu_now(NULL) + 2000);
+        frame(&lane, read_count_now(NULL) + 2000);
         CHECK(!lane.parallel.queue->head && !lane.background.queue->head, "effect %d left work", id);
     }
     lane_close(&lane);
@@ -311,10 +331,22 @@ test_the_longest_step(char const* root)
 {
     struct Lane lane;
     int frames = 0;
+    uint64_t whole_us = UINT64_MAX;
 
     printf("TEST: the longest step of either queue, effect %d (thread CPU time)\n", LONG_EFFECT);
     if( !lane_open(&lane, root, cpu_now) )
         return;
+    /* What the uncut render costs in this build: the least of three, so one
+     * interrupted run does not loosen the bound. */
+    for( int i = 0; i < 3; i++ )
+    {
+        uint64_t const start = cpu_now(NULL);
+        struct ToriRS_Sound* reference = reference_sound(&lane, LONG_EFFECT);
+        uint64_t const spent = cpu_now(NULL) - start;
+        ToriRS_SoundFree(reference);
+        if( spent < whole_us )
+            whole_us = spent;
+    }
     ToriRS_TaskQueue_Add(lane.parallel.queue, CreateTask_SoundLoad(lane.provider, LONG_EFFECT));
     while( (lane.parallel.queue->head || lane.background.queue->head) && frames < 1000000 )
     {
@@ -326,12 +358,17 @@ test_the_longest_step(char const* root)
         (double)lane.parallel.longest_step_us / 1000.0, lane.parallel.longest_step_name,
         (double)lane.background.longest_step_us / 1000.0, lane.background.longest_step_name,
         frames);
-    CHECK(lane.parallel.longest_step_us < LONGEST_READ_STEP_US,
-        "an asset-queue step took %.3f ms (bound %.3f ms)",
-        (double)lane.parallel.longest_step_us / 1000.0, LONGEST_READ_STEP_US / 1000.0);
-    CHECK(lane.background.longest_step_us < LONGEST_RENDER_STEP_US,
-        "a compute-queue step took %.3f ms (bound %.3f ms)",
-        (double)lane.background.longest_step_us / 1000.0, LONGEST_RENDER_STEP_US / 1000.0);
+    printf("UNCUT RENDER: %.3f ms in this build; bounds %.3f ms (asset queue), %.3f ms (compute queue)\n",
+        (double)whole_us / 1000.0, (double)(whole_us / LONGEST_READ_STEP_DIVISOR) / 1000.0,
+        (double)(whole_us / LONGEST_RENDER_STEP_DIVISOR) / 1000.0);
+    CHECK(lane.parallel.longest_step_us < whole_us / LONGEST_READ_STEP_DIVISOR,
+        "an asset-queue step took %.3f ms (bound %.3f ms, the uncut render / %d)",
+        (double)lane.parallel.longest_step_us / 1000.0,
+        (double)(whole_us / LONGEST_READ_STEP_DIVISOR) / 1000.0, LONGEST_READ_STEP_DIVISOR);
+    CHECK(lane.background.longest_step_us < whole_us / LONGEST_RENDER_STEP_DIVISOR,
+        "a compute-queue step took %.3f ms (bound %.3f ms, the uncut render / %d)",
+        (double)lane.background.longest_step_us / 1000.0,
+        (double)(whole_us / LONGEST_RENDER_STEP_DIVISOR) / 1000.0, LONGEST_RENDER_STEP_DIVISOR);
     lane_close(&lane);
 }
 
