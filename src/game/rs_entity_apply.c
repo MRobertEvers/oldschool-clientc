@@ -264,6 +264,8 @@ RS_EntityApply_PlayerAppearance(
         /* The 0xffff first equipment entry's npc: every appearance restates
          * it (LostCity ClientPlayer.ts setAppearance). */
         ent->transmog_npc_id = appearance->npc_id;
+        /* The hidden byte (rev-239 class60.field551), as the server sent it. */
+        ent->hidden = appearance->hidden;
     }
 }
 
@@ -605,7 +607,8 @@ player_chat_line(
 
 /* A public line from PLAYER_INFO's chat block, as deob class95.method3131
  * (and its reader, class109.method3196) files it: the host decides whether
- * it is shown at all (the ignore list, Tutorial Island); the text is put in
+ * it is shown at all (the ignore list, Tutorial Island, the speaker's hidden
+ * flag); the text is put in
  * sentence case and its tags escaped (class671.method14451(Statics
  * .method10915(text))); the line is typed by the crown and the autotyper
  * flag and named with the crown's image; the overhead is the same text,
@@ -629,7 +632,7 @@ player_public_chat(
 
     assert(in->host->public_chat_shown);
     RS_Chat_CrownImage(chat->type, &ignorable);
-    if( !in->host->public_chat_shown(in->host->ctx, name, ignorable != 0) )
+    if( !in->host->public_chat_shown(in->host->ctx, name, ignorable != 0, player && player->hidden) )
         return;
     RS_Chat_SentenceCase(text, cased, sizeof(cased));
     RS_ServerState_EscapeTags(cased, escaped, sizeof(escaped));

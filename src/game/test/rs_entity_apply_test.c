@@ -8,6 +8,7 @@
 #include "game/rs_entity_sync.h"
 #include "mem/torirs_mem.h"
 #include "net/rev/gameproto_revisions.h"
+#include "net/rev/packets/pkt_player_appearance.h"
 #include "streams/rsprot_info.h"
 #include "world/entity_npc.h"
 #include "world/entity_pathing.h"
@@ -58,19 +59,22 @@ struct TestHost
     int chat_asks;
     char chat_asked_sender[64];
     bool chat_asked_ignorable;
+    bool chat_asked_hidden;
 };
 
 static bool
 host_public_chat_shown(
     void* ctx,
     char const* sender,
-    bool ignorable)
+    bool ignorable,
+    bool hidden)
 {
     struct TestHost* h = ctx;
 
     h->chat_asks++;
     snprintf(h->chat_asked_sender, sizeof(h->chat_asked_sender), "%s", sender ? sender : "(none)");
     h->chat_asked_ignorable = ignorable;
+    h->chat_asked_hidden = hidden;
     return !h->chat_hidden;
 }
 
@@ -614,6 +618,91 @@ test_public_chat(void)
     fixture_free(&f);
 }
 
+/* The rev-239+ appearance block (deob class60.method1293), bare: no
+ * equipment, no customisation, `hidden` the byte after the skill level. */
+static int
+put_v6_appearance(
+    uint8_t* out,
+    char const* name,
+    int hidden)
+{
+    int at = 0;
+
+    out[at++] = 0;   /* gender */
+    out[at++] = 255; /* skull: none */
+    out[at++] = 255; /* head icon: none */
+    for( int i = 0; i < 24; i++ )
+        out[at++] = 0; /* equipment, then identkit: every slot empty */
+    for( int i = 0; i < 5; i++ )
+        out[at++] = 0; /* colours */
+    for( int i = 0; i < 7; i++ )
+    {
+        out[at++] = 0xff; /* stances: none */
+        out[at++] = 0xff;
+    }
+    memcpy(out + at, name, strlen(name) + 1);
+    at += (int)strlen(name) + 1;
+    out[at++] = 3; /* combat level */
+    out[at++] = 0; /* skill level, two bytes */
+    out[at++] = 32;
+    out[at++] = (uint8_t)hidden;
+    out[at++] = 0; /* no customisation */
+    out[at++] = 0;
+    for( int i = 0; i < 3; i++ )
+        out[at++] = 0; /* name extras */
+    out[at++] = 0; /* pronoun */
+    return at;
+}
+
+static int
+test_appearance_v6(
+    uint8_t const* data,
+    int len,
+    struct PktPlayerAppearance* out)
+{
+    return PktPlayerAppearance_DecodeAs(out, APPEARANCE_ENC_V6, data, len);
+}
+
+/* J3: the appearance block's hidden byte (class60.field551) reaches the
+ * player, and every public line asks the host with it; the rule (heard by a
+ * moderator only) is the real client's answer, RS_ServerState
+ * _PublicChatShown, tested in test-rs-server-state. */
+static void
+test_public_chat_hidden_flag(void)
+{
+    struct Fixture f;
+    struct RsprotInfoOp ops[2];
+    struct WorldEntity_Player const* player;
+    uint8_t block[128];
+    int idx = -1;
+
+    fixture_init(&f);
+    f.rev.chat_unpack = test_chat_unpack;
+    f.rev.appearance_decode = test_appearance_v6;
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 12);
+    ops[1] = op_value(RSPROT_OP_APPEARANCE, 0);
+    ops[1].appearance.appearance = block;
+    ops[1].appearance.len = put_v6_appearance(block, "Mod\xa0" "Hidden", 1);
+    RS_EntityApply_PlayerInfo(&f.in, ops, 2);
+    RS_EntitySync_FindPlayer(&f.esync, 12, &idx, NULL);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    assert(player);
+    CHECK(strcmp(player->name, "Mod\xa0" "Hidden") == 0, "the appearance block applied");
+    CHECK(player->hidden == 1, "its hidden byte is kept on the player");
+    send_public_chat(&f, "hi", 0, 0);
+    CHECK(f.h.chat_asks == 1 && f.h.chat_asked_hidden, "a public line asks with the speaker's hidden flag");
+
+    ops[0] = op_value(RSPROT_OP_ADD_OLD, 0);
+    ops[1] = op_value(RSPROT_OP_APPEARANCE, 0);
+    ops[1].appearance.appearance = block;
+    ops[1].appearance.len = put_v6_appearance(block, "Mod\xa0" "Hidden", 0);
+    RS_EntityApply_PlayerInfo(&f.in, ops, 2);
+    CHECK(player->hidden == 0, "a later block that clears it clears it");
+    send_public_chat(&f, "hi", 0, 0);
+    CHECK(f.h.chat_asks == 2 && !f.h.chat_asked_hidden, "and the next line asks without it");
+    fixture_free(&f);
+}
+
 /* ---- wants raised on change (World_SeqSource.want) ---- */
 
 static int g_wants[16];
@@ -926,6 +1015,7 @@ main(void)
     test_npc_types_listed_once();
     test_player_add_hit_and_chat();
     test_public_chat();
+    test_public_chat_hidden_flag();
     test_wants_raised_on_change();
     test_player_name_extras_and_reset();
     test_npc_body_and_head_custom();

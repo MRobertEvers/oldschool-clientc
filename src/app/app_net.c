@@ -1012,6 +1012,7 @@ App_ServerStateBind(
         .npc_update_origin = &app->npc_update_origin,
         .interaction_mode = &app->interaction_mode,
         .rev_number = app->net && app->net->rev ? app->net->rev->number : -1,
+        .staff_mod_level = app->net ? app->net->staff_mod_level : 0,
         .worldviews = &app->worldviews,
         .world = app->world,
         .esync = &app->esync,
