@@ -982,12 +982,14 @@ drive_ui_loc_pending(
 
 /*
  * THE COLLISION route AND plan READ: the world's maps while no loc change is
- * waiting on the loc lane, else copies of them with each waiting change's
- * collision applied (WorldBuilder_LocChangeCollisionInto).
+ * pending, else copies of them with each pending change's collision applied
+ * (WorldBuilder_LocChangeCollisionInto).
  *
- * A LOC_ADD_CHANGE or LOC_DEL reaches the world's collision only when its lane
- * task lands -- after the new loc's config and models load -- where scriptrun
- * stamps it on the packet's tick (ScriptrunCore_LocChange). A door opened or
+ * A LOC_ADD_CHANGE or LOC_DEL reaches the world's collision only when its loc
+ * task lands -- after the new loc's config and models load -- where the
+ * headless client's copy of the same task (game/rs_loc_tasks.h) lands in the
+ * pump straight after its packet, its loaders answering at once, and stamps
+ * through ScriptrunCore_LocPlace. A door opened or
  * a pillar dropped this tick then routed the live solver through the old
  * state a tick longer than the scriptrun one. The copies keep the world's own
  * maps untouched, so the change's own apply still makes the only add/del pair
