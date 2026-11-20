@@ -3082,6 +3082,15 @@ app_world_build_npc_model(
     int npc_id,
     struct ToriRS_Npctype* npctype);
 
+/* An npc's body under its server customisation `o` (active), cached under the
+ * type and the override's serial. NULL while a model is not resident. */
+struct ToriDraw_Model*
+app_world_build_npc_override_model(
+    struct App* app,
+    int npc_id,
+    struct ToriRS_Npctype* npctype,
+    struct WorldNpcOverride const* o);
+
 struct ToriDraw_Model*
 app_world_build_spotanim_model(
     struct App* app,

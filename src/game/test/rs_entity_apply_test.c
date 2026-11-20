@@ -608,6 +608,111 @@ test_player_name_extras_and_reset(void)
     fixture_free(&f);
 }
 
+/* BODY_CUSTOM / HEAD_CUSTOM (FAULTS E12): a block without 0x2 keeps the
+ * type's models and still carries its recolours and retextures; 0x1 alone
+ * clears the override; the chathead's block is its own override; a count
+ * whose list the op arena lost keeps the override the npc had. */
+static void
+test_npc_body_and_head_custom(void)
+{
+    static int32_t const colours[3] = { 11, 22, 33 };
+    static int32_t const textures[1] = { 44 };
+    static int32_t const models[2] = { 5000, 5001 };
+    struct Fixture f;
+    struct RsprotInfoOp add[] = {
+        op_value(RSPROT_OP_ADD_NEW, 6),
+        op_value(RSPROT_OP_NPCTYPE, 3),
+        op_delta(0, 0, true),
+    };
+    struct RsprotInfoOp ext[3] = {
+        op_value(RSPROT_OP_ADD_OLD, 0),
+        op_value(RSPROT_OP_SET_EXT, 0),
+        op_value(RSPROT_OP_BODY_CUSTOM, 0),
+    };
+    struct WorldEntity_NPC const* npc;
+    int idx;
+    int serial;
+
+    fixture_init(&f);
+    RS_EntityApply_NpcInfo(&f.in, 0, add, 3);
+    idx = npc_of(&f, 6);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    serial = npc->body_serial;
+
+    /* 0x4 | 0x8: recolours and retextures, no models. */
+    ext[2].body.flag = 0x4 | 0x8;
+    ext[2].body.recolour_count = 3;
+    ext[2].body.recolours = colours;
+    ext[2].body.retexture_count = 1;
+    ext[2].body.retextures = textures;
+    ext[2].body.mirror = -1;
+    ext[2].body.body_type = -1;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(npc->body_custom.active, "a recolour-only block sets an override");
+    CHECK(!npc->body_custom.models_sent, "over the type's own models");
+    CHECK(npc->body_custom.recolour_count == 3 && npc->body_custom.recolours &&
+              npc->body_custom.recolours[2] == 33,
+        "with every recolour");
+    CHECK(npc->body_custom.retexture_count == 1 && npc->body_custom.retextures[0] == 44, "and the retexture");
+    CHECK(npc->body_serial == serial + 1, "the body is remounted");
+
+    /* 0x2 | 0x10 in the counted form (no mirror byte): models and the mirror. */
+    memset(&ext[2].body, 0, sizeof(ext[2].body));
+    ext[2].body.flag = 0x2 | 0x10;
+    ext[2].body.model_count = 2;
+    ext[2].body.models = models;
+    ext[2].body.mirror = -1;
+    ext[2].body.body_type = -1;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(npc->body_custom.models_sent && npc->body_custom.model_count == 2 && npc->body_custom.models[1] == 5001,
+        "a new block replaces the override whole: its models");
+    CHECK(npc->body_custom.recolour_count == 0, "and not the earlier recolours");
+    CHECK(npc->body_custom.mirror, "the counted form's 0x10 is the mirror");
+
+    /* The op arena overflowed: the count is there, the list is not. */
+    memset(&ext[2].body, 0, sizeof(ext[2].body));
+    ext[2].body.flag = 0x4;
+    ext[2].body.recolour_count = 3;
+    ext[2].body.mirror = -1;
+    ext[2].body.body_type = -1;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(npc->body_custom.model_count == 2 && npc->body_custom.recolour_count == 0,
+        "a lost list keeps the override the npc had");
+
+    /* HEAD_CUSTOM, typed form: models and a mirror byte of 1. */
+    memset(&ext[2].body, 0, sizeof(ext[2].body));
+    ext[2].kind = RSPROT_OP_HEAD_CUSTOM;
+    ext[2].body.flag = 0x2 | 0x10;
+    ext[2].body.model_count = 1;
+    ext[2].body.models = models;
+    ext[2].body.mirror = 1;
+    ext[2].body.body_type = -1;
+    serial = npc->body_serial;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(npc->head_custom.active && npc->head_custom.model_count == 1 && npc->head_custom.mirror,
+        "the chathead override is kept");
+    CHECK(npc->body_serial == serial && npc->body_custom.model_count == 2, "and is not the body's");
+
+    /* 0x1 alone: the reset, of each separately. */
+    memset(&ext[2].body, 0, sizeof(ext[2].body));
+    ext[2].kind = RSPROT_OP_BODY_CUSTOM;
+    ext[2].body.flag = 0x1;
+    ext[2].body.reset = true;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(!npc->body_custom.active && npc->body_custom.model_count == 0, "0x1 clears the body's override");
+    CHECK(npc->head_custom.active, "and keeps the chathead's");
+    ext[2].kind = RSPROT_OP_HEAD_CUSTOM;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(!npc->head_custom.active, "the chathead's 0x1 clears it");
+    fixture_free(&f);
+}
+
 int
 main(void)
 {
@@ -620,6 +725,7 @@ main(void)
     test_player_add_hit_and_chat();
     test_wants_raised_on_change();
     test_player_name_extras_and_reset();
+    test_npc_body_and_head_custom();
     printf("rs_entity_apply_test: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

@@ -18,6 +18,7 @@
 #include "net/net.h"
 #include "net/rev/gameproto_revisions.h"
 #include "streams/info_rs.h"
+#include "rsprot_buf.h"
 #include "test_harness.h"
 #include "toridraw_scene.h"
 #include "world.h"
@@ -983,7 +984,8 @@ test_npc_body_landing_keeps_body_custom(void)
     TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned");
     {
         int const custom[1] = { 4242 };
-        World_NpcSetBodyModels(fx.app.world, world_idx, custom, 1);
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = custom };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
     }
     npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
     serial = npc->body_serial;
@@ -1083,10 +1085,10 @@ test_npc_body_custom_keeps_every_wire_model(void)
             fixture_free(&fx);
             continue;
         }
-        TEST_ASSERT(npc->body_model_count == counts[c], "the count is the wire's");
-        TEST_ASSERT(npc->body_models != NULL, "the list is there");
-        for( int i = 0; npc->body_models && i < npc->body_model_count; i++ )
-            if( npc->body_models[i] != e12_model(i) )
+        TEST_ASSERT(npc->body_custom.model_count == counts[c], "the count is the wire's");
+        TEST_ASSERT(npc->body_custom.models != NULL, "the list is there");
+        for( int i = 0; npc->body_custom.models && i < npc->body_custom.model_count; i++ )
+            if( npc->body_custom.models[i] != e12_model(i) )
                 wrong++;
         TEST_ASSERT(wrong == 0, "every model is the wire's, in order");
         TEST_ASSERT(npc->body_serial == serial + 1, "the body is asked to remount");
@@ -1094,6 +1096,88 @@ test_npc_body_custom_keeps_every_wire_model(void)
         TEST_ASSERT(npc->server_slot == 6, "the server slot is untouched");
         fixture_free(&fx);
     }
+}
+
+/* E12's other half, decoded: osrs242's BodyCustomisationV3 with 0x4 | 0x8
+ * and no 0x2 (recolours and retextures over the type's own models) reaches
+ * the world whole, where the reader's `reset` used to read "no model list" as
+ * the reset and the recolours were dropped; then 0x1 alone clears it. */
+static int
+e12_npc_info_v3_flag(
+    uint8_t* out,
+    int cap,
+    int flag,
+    int recolours,
+    int retextures)
+{
+    RsprotBuf b;
+
+    rsprot_buf_wrap(&b, out, cap);
+    /* The bit section and the flag word, as e12_npc_info_body_custom. */
+    rsprot_p1(&b, 0x01);
+    rsprot_p1(&b, 0x9F);
+    rsprot_p1(&b, 0xFF);
+    rsprot_p1(&b, 0xE0);
+    rsprot_p1(&b, 0x04);
+    rsprot_p1(&b, 0x04);
+    rsprot_p1(&b, 0x20);
+    rsprot_p1(&b, 0x02);
+    rsprot_p1(&b, flag);
+    if( flag & 0x4 )
+    {
+        rsprot_p1_add128(&b, recolours);
+        for( int i = 0; i < recolours; i++ )
+            rsprot_p2_21_add128(&b, 1000 + i);
+    }
+    if( flag & 0x8 )
+    {
+        rsprot_p1_add128(&b, retextures);
+        for( int i = 0; i < retextures; i++ )
+            rsprot_p2_12(&b, 2000 + i);
+    }
+    TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+    return b.wpos;
+}
+
+static void
+test_npc_body_custom_recolours_without_models(void)
+{
+    static uint8_t packet[64 + 255 * 4];
+    static struct ToriRS_Network net242;
+    struct EntityFixture fx;
+    struct WorldEntity_NPC* npc;
+    int len;
+    int wrong = 0;
+
+    printf("TEST: a BODY_CUSTOM of recolours and retextures and no models reaches the world\n");
+    net242.rev = GameProtoRev_OSRS242();
+    fixture_init(&fx);
+    fx.app.net = &net242;
+    register_npc(&fx.app, 301, 500, 6, 30, 30);
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc != NULL, "the npc is tracked before the packet");
+
+    len = e12_npc_info_v3_flag(packet, (int)sizeof(packet), 0x4 | 0x8, 255, 2);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->body_custom.active, "the block is an override, not the reset");
+    if( npc && npc->body_custom.active )
+    {
+        TEST_ASSERT(!npc->body_custom.models_sent, "over the type's own models");
+        TEST_ASSERT(npc->body_custom.recolour_count == 255, "every recolour the wire counted");
+        for( int i = 0; npc->body_custom.recolours && i < npc->body_custom.recolour_count; i++ )
+            if( npc->body_custom.recolours[i] != 1000 + i )
+                wrong++;
+        TEST_ASSERT(npc->body_custom.recolours && wrong == 0, "each as sent, in order");
+        TEST_ASSERT(npc->body_custom.retexture_count == 2 && npc->body_custom.retextures[1] == 2001,
+            "and the retextures");
+    }
+
+    len = e12_npc_info_v3_flag(packet, (int)sizeof(packet), 0x1, 0, 0);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && !npc->body_custom.active && npc->body_custom.recolours == NULL, "0x1 alone resets it");
+    fixture_free(&fx);
 }
 
 /* E5: removing a player (or anything else not an npc) is not an npc despawn;
@@ -1309,6 +1393,7 @@ main(void)
     test_npc_unknown_type_still_exists();
     test_npc_body_landing_keeps_body_custom();
     test_npc_body_custom_keeps_every_wire_model();
+    test_npc_body_custom_recolours_without_models();
     test_only_npc_removals_are_npc_despawns();
     test_varp_retype_coalesces_and_keeps_overrides();
     test_player_add_exists_at_once();

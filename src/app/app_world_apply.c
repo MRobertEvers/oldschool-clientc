@@ -491,7 +491,7 @@ App_WorldApplyNpcType(
             /* A body customisation outlives the transformation (deob: the
              * override is kept on the npc, not the type): mount it over the
              * type's body just mounted. */
-            if( npc->body_model_count > 0 )
+            if( npc->body_custom.active )
                 npc->body_serial++;
             /* The type's body, when it is not resident yet: an npc the
              * server named waits for it on the parallel queue. */
@@ -558,7 +558,7 @@ App_WorldNpcBodyLanded(
     /* The server's body customisation goes back over the type's body just
      * mounted, as the retype does (FAULTS E3: a body landing after a
      * BODY_CUSTOM replaced it with the type's). */
-    if( npc && npc->body_model_count > 0 )
+    if( npc && npc->body_custom.active )
         npc->body_serial++;
     primary_live = npc && npc->animation.primary.anim_id != (uint16_t)-1 &&
                    npc->animation.primary.anim_id != 0;

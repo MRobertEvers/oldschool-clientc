@@ -590,6 +590,9 @@ struct World
      *  ONE entity for its whole life, where the pool index and the slot are
      *  both reused (the key a parallel task holds, game/rs_pending.h). */
     uint32_t entity_spawn_serial;
+    /** The last serial a body or chathead customisation took
+     *  (WorldNpcOverride.serial; the reference's class86.field1242 / 1240). */
+    uint32_t npc_override_serial;
     /** How many npcs have `retype_wanted` set: a varp their multinpc chain
      *  depends on changed, and the rung they draw is to be resolved again
      *  (App_EntityNpcRetypeFlush). 0: none, nothing walks. */
@@ -1686,16 +1689,73 @@ World_NpcSetHeadiconCustom(
     int const group[WORLD_NPC_HEADICON_SLOTS],
     int const index[WORLD_NPC_HEADICON_SLOTS]);
 
-/* Body customisation: draw `models` instead of the type's; 0 models is the
- * type's again. Any count: the row keeps its own copy, sized from it (the
- * wire's count is a byte). `models` is required when the count is not 0.
- * Bumps the npc's body_serial for the app's remount. */
+/* What one BODY_CUSTOM / HEAD_CUSTOM block sent, read (rsprot's
+ * RsprotInfoBodyCustom): the arrays are the caller's and are copied, each
+ * sized from its count. An array is required when its count is not 0. */
+struct WorldNpcOverrideIn
+{
+    bool models_sent;
+    int model_count;
+    int const* models;
+    int recolour_count;
+    int const* recolours;
+    int retexture_count;
+    int const* retextures;
+    bool mirror;
+    bool player;
+    int body_type;
+    int identkit_count;
+    int const* identkits;
+};
+
+/* Body customisation (deob class86.method2906): the npc draws `in` instead of
+ * its type's body, from now; NULL is the block's reset (0x1, method2907), the
+ * type's body again. Any count: the row keeps its own copies, sized from them.
+ * A new override takes a new serial (the model cache key). Bumps the npc's
+ * body_serial for the app's remount. */
 void
-World_NpcSetBodyModels(
+World_NpcSetBodyCustom(
     struct World* world,
     int idx,
-    int const* models,
-    int model_count);
+    struct WorldNpcOverrideIn const* in);
+
+/* Chathead customisation (deob Statics.method2952 / method2951): what an
+ * IF_SETNPCHEAD_ACTIVE head of this npc draws; NULL is the reset. */
+void
+World_NpcSetHeadCustom(
+    struct World* world,
+    int idx,
+    struct WorldNpcOverrideIn const* in);
+
+/* The colour / texture an override puts at the type's destination index `i`
+ * (deob Statics.method9224: the override's array replaces the type's, index
+ * for index over the type's source list): its own where it sent one for `i`,
+ * else `type_value`, the type's. `o` may be inactive (the type's). */
+/* Free what a row's customisations own and clear them (a removal snapshot's
+ * too). Accepts NULL. */
+void
+World_NpcOverridesFree(struct WorldEntity_NPC* npc);
+
+int
+World_NpcOverrideRecolour(
+    struct WorldNpcOverride const* o,
+    int i,
+    int type_value);
+
+/* The key a built npc body is cached under (deob Statics.method9204: the type
+ * id, and an override's serial above it): the type's own body is `npc_id`, a
+ * customised one is distinct per override, so a cached body never answers for
+ * an override it was not built from. */
+int64_t
+World_NpcBodyModelKey(
+    int npc_id,
+    struct WorldNpcOverride const* o);
+
+int
+World_NpcOverrideRetexture(
+    struct WorldNpcOverride const* o,
+    int i,
+    int type_value);
 
 /* CHANGE_TYPE (transmog): caller passes the new size + anim set (the dat1
  * left/right crossing is done in the type conversion, not here). */

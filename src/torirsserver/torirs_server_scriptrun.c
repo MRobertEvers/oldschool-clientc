@@ -1275,7 +1275,7 @@ push_npc_row(
     lua_setfield(L, -2, "headicon_group");
     lua_pushinteger(L, npc->headicon_custom ? npc->headicon_index[0] : -1);
     lua_setfield(L, -2, "headicon_index");
-    lua_pushinteger(L, npc->body_model_count > 0 ? npc->body_models[0] : -1);
+    lua_pushinteger(L, npc->body_custom.model_count > 0 ? npc->body_custom.models[0] : -1);
     lua_setfield(L, -2, "body_model");
     lua_pushinteger(L, npc->spotanim_sent_id >= 0
                            ? npc->spotanim_sent_cycle / SCRIPTRUN_CYCLES_PER_TICK

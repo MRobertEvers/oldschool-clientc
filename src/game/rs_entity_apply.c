@@ -1342,6 +1342,70 @@ npc_retype_now(struct NpcApply* self)
     in->host->npc_retype(in->host->ctx, idx, element_id, live, self->pending_base_type);
 }
 
+/*
+ * BODY_CUSTOM / HEAD_CUSTOM (deob Statics ~47300-47520 and ~47775-47855):
+ * 0x1 clears the override (class86.method2907 / Statics.method2951); any
+ * other block is a whole new one (a new class399), so what an earlier block
+ * set and this one does not send goes back to the type's. Models only with
+ * 0x2 -- without it the type's own models carry this block's recolours and
+ * retextures. The mirror is the typed forms' byte (== 1) or the counted
+ * forms' 0x10 itself; the player composition is the counted forms' 0x20.
+ *
+ * Every model the block sent, however many (FAULTS E12). A count with no list
+ * is the op list's byte arena having overflowed (rsprot_info_ints): the
+ * values were never kept, so the npc keeps the override it has, and says so.
+ */
+static void
+npc_apply_custom(
+    struct World* world,
+    int idx,
+    int head,
+    struct RsprotInfoBodyCustom const* b)
+{
+    struct WorldNpcOverrideIn in;
+    bool models_sent = (b->flag & 0x2) != 0;
+
+    if( b->reset )
+    {
+        if( head )
+            World_NpcSetHeadCustom(world, idx, NULL);
+        else
+            World_NpcSetBodyCustom(world, idx, NULL);
+        return;
+    }
+    if( (models_sent && b->model_count > 0 && !b->models) || (b->recolour_count > 0 && !b->recolours) ||
+        (b->retexture_count > 0 && !b->retextures) || (b->identkit_count > 0 && !b->identkits) )
+    {
+        TORIRS_ERR(
+            "npc_info: npc %d %s customisation of %d models, %d recolours, %d retextures lost: the op "
+            "list overflowed\n",
+            idx,
+            head ? "chathead" : "body",
+            (int)b->model_count,
+            (int)b->recolour_count,
+            (int)b->retexture_count);
+        return;
+    }
+    in = (struct WorldNpcOverrideIn){
+        .models_sent = models_sent,
+        .model_count = models_sent ? b->model_count : 0,
+        .models = models_sent ? b->models : NULL,
+        .recolour_count = b->recolour_count,
+        .recolours = b->recolours,
+        .retexture_count = b->retexture_count,
+        .retextures = b->retextures,
+        .mirror = b->mirror >= 0 ? b->mirror == 1 : (b->flag & 0x10) != 0,
+        .player = (b->flag & 0x20) != 0 && b->body_type >= 0,
+        .body_type = b->body_type,
+        .identkit_count = b->identkit_count,
+        .identkits = b->identkits,
+    };
+    if( head )
+        World_NpcSetHeadCustom(world, idx, &in);
+    else
+        World_NpcSetBodyCustom(world, idx, &in);
+}
+
 static void
 npc_apply_op(
     struct NpcApply* self,
@@ -1604,17 +1668,9 @@ npc_apply_op(
         }
         break;
     case RSPROT_OP_BODY_CUSTOM:
-        /* Every model the block sent, however many (FAULTS E12). A count
-         * with no list is the op list's byte arena having overflowed
-         * (rsprot_info_ints): the models were never kept, so the npc keeps
-         * the body it has, and says so. */
-        if( idx >= 0 && !op->body.reset && op->body.model_count > 0 && !op->body.models )
-            TORIRS_ERR(
-                "npc_info: npc %d body customisation of %d models lost: the op list overflowed\n",
-                idx,
-                (int)op->body.model_count);
-        else if( idx >= 0 )
-            World_NpcSetBodyModels(world, idx, op->body.models, op->body.reset ? 0 : op->body.model_count);
+    case RSPROT_OP_HEAD_CUSTOM:
+        if( idx >= 0 )
+            npc_apply_custom(world, idx, op->kind == RSPROT_OP_HEAD_CUSTOM, &op->body);
         break;
     case RSPROT_OP_TINT:
         if( idx >= 0 )
