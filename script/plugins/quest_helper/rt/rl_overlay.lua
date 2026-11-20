@@ -982,21 +982,47 @@ local function sorted_for(pass)
   return list
 end
 
+-- The phone's gameframe (toplevel_osm, 601) has no RuneLite counterpart. Its
+-- left column (601:41 logout and chat, 601:40 hotkeys, past the safe-area
+-- inset) and its chat box, when open, sit over the viewport's top-left, where
+-- RuneLite's TOP_LEFT corner is -- and the interfaces draw over the world
+-- pass, so the step panel was hidden under them. The game keeps one region
+-- clear of both for boxes of this kind: helper_dodger (601:10), which its
+-- layout scripts place right of the column and below the chat (live, 1097x540:
+-- 76,8 with the chat closed, 76,153 with it open). The left corners start
+-- inside it. On any other toplevel 601 is not mounted, the lookup answers nil
+-- and the corners are RuneLite's own.
+local TOPLEVEL_OSM_HELPER_DODGER = (601 << 16) | 10
+local function left_inset()
+  local w = api().widgets.get(TOPLEVEL_OSM_HELPER_DODGER)
+  if w == nil then return nil end
+  local b = w:bounds()
+  if b == nil or b.width <= 0 or b.height <= 0 then return nil end
+  return b
+end
+
 -- SnapCorners for one pass (RuneLite's BORDER 5, the top-left's 15 px under
 -- the mouse-over text), the viewport's corners standing in for the HUD and
--- chatbox origins.
+-- chatbox origins; `inset` (left_inset) moves the left corners into the
+-- phone's helper region.
 local EXPAND_DOWN, EXPAND_UP, EXPAND_LEFT, EXPAND_RIGHT = 1, 2, 3, 4
-local function snap_corners(vx, vy, vw, vh)
+local function snap_corners(vx, vy, vw, vh, inset)
   local POS = C[P .. "OverlayPosition"]
   local function corner(x, y, align_x, align_bottom, expand)
     return { px = x, py = y, ax = align_x, bottom = align_bottom, expand = expand }
   end
   local r, b = vx + vw, vy + vh
+  local left, top, bottom = vx + 5, vy + 5 + 15, b - 5
+  if inset ~= nil then
+    left = math.max(left, inset.x + 5)
+    top = math.max(top, inset.y + 5)
+    bottom = math.min(bottom, inset.y + inset.height - 5)
+  end
   return {
-    [POS.TOP_LEFT] = corner(vx + 5, vy + 5 + 15, "left", false, EXPAND_DOWN),
+    [POS.TOP_LEFT] = corner(left, top, "left", false, EXPAND_DOWN),
     [POS.TOP_CENTER] = corner(vx + vw // 2, vy + 5, "center", false, EXPAND_DOWN),
     [POS.TOP_RIGHT] = corner(r - 5, vy + 5, "right", false, EXPAND_DOWN),
-    [POS.BOTTOM_LEFT] = corner(vx + 5, b - 5, "left", true, EXPAND_RIGHT),
+    [POS.BOTTOM_LEFT] = corner(left, bottom, "left", true, EXPAND_RIGHT),
     [POS.BOTTOM_RIGHT] = corner(r - 5, b - 5, "right", true, EXPAND_LEFT),
     [POS.ABOVE_CHATBOX_RIGHT] = corner(r - 5, b - 5, "right", true, EXPAND_UP),
     [POS.CANVAS_TOP_RIGHT] = corner(r, vy, "right", false, EXPAND_DOWN),
@@ -1036,7 +1062,7 @@ end
 
 local function render_overlays(pass, draw)
   local vx, vy, vw, vh = viewport(draw)
-  local corners = snap_corners(vx, vy, vw, vh)
+  local corners = snap_corners(vx, vy, vw, vh, left_inset())
   local POS = C[P .. "OverlayPosition"]
   local FM = C["net.runelite.client.ui.FontManager"]
   for _, e in ipairs(sorted_for(pass)) do

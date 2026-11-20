@@ -377,7 +377,12 @@ LocalPoints of actors stay the ROOT's (where they are drawn).
   -- RuneLite draws those layers before the widgets, so an interface covers
   them; the TOP_LEFT quest panel is UNDER_WIDGETS, so the world map's Key panel
   is drawn over it (panel/menu round; it was in the canvas pass and drew over
-  the map). Canvas pass: ABOVE_WIDGETS and ALWAYS_ON_TOP (the quest panel
+  the map). On the phone's gameframe (toplevel_osm, 601) the interfaces that
+  cover it are the left column (logout/chat 601:41, hotkeys 601:40) and the
+  open chat box, so there the left snap corners start inside `helper_dodger`
+  (601:10), the region the game's layout scripts keep right of that column
+  and below the chat (`left_inset`). 601 is mounted on no other toplevel, so
+  everywhere else the corners are RuneLite's. Canvas pass: ABOVE_WIDGETS and ALWAYS_ON_TOP (the quest panel
   while a step overlays a widget), then the world map points (each
   remembers the box it was drawn in, `qh_wmp.box`; the one under the mouse is
   the hovered point: its `getTooltip()` joins the tooltips, and a jump-on-click
@@ -1253,7 +1258,7 @@ aliases.txt only after checking its id in our compack.
     consumers, fake objects / Cheerer / the quest-complete scroll; web,
     Android, Windows and the phone layout not run; panel and menu items carried
     from earlier rounds).
-- 2026-11-19 (panel/menu round). UNCOMMITTED.
+- 2026-11-19 (panel/menu round). COMMITTED and deployed (1fb61aac8..0c9664c02).
   - FIXED: (1) an open Filters/Ordering dropdown was drawn UNDER the quest
     list's wells -- the wells' prims were appended after the window's whole
     display list, its popups included; now panels, wells, then popups, on the
@@ -1312,7 +1317,7 @@ aliases.txt only after checking its id in our compack.
     `Client.menuAction` of non-CC_OP kinds was not built (no caller); the
     phone's in-canvas chrome scale was deliberately left as it was (touch);
     opengl3-zbuffer, web, Android and Windows not run.
-- 2026-11-19 (fake-objects / sailing / bank-fidelity round). UNCOMMITTED.
+- 2026-11-19 (fake-objects / sailing / bank-fidelity round). COMMITTED and deployed (1fb61aac8..0c9664c02).
   - C: `api.scene.instance_place` / `instance_element` / `instance_hit`
     (sub-tile placement, the drawn element, the per-triangle pick through the
     pickset's new `unclassified` hits), `api.game.world_entity_loc_next` (a
@@ -1399,7 +1404,7 @@ aliases.txt only after checking its id in our compack.
     Cheerer stands on a tile centre); a menu hit on the fan model was sampled
     at one point; d3d9/GL/web/Android pick paths were not run.
 - 2026-11-20 (live-sweep round 2: the web lane, the features never seen live,
-  a long session). UNCOMMITTED.
+  a long session). COMMITTED and deployed (1fb61aac8..0c9664c02).
   - HOW (native): one private OPT=1 embed client (`build_qhlive`, removed),
     soft3d under SDL dummy, agent API, a copy of fresh_lumbridge, Quest Helper
     enabled in a scratch TORIRS_PLUGIN_PREFS, `TORIRS_SCRIPT_DIR` = a scratch
@@ -1544,7 +1549,7 @@ aliases.txt only after checking its id in our compack.
     the click latch; the 32-helper session's heap touched the 48 MB cap
     (~42 MB live, eviction from ~42 MB); Android, Windows and opengl3-zbuffer
     not run.
-- 2026-11-20 (fix round 3, after the critic's third review). UNCOMMITTED.
+- 2026-11-20 (fix round 3, after the critic's third review). COMMITTED and deployed (1fb61aac8..0c9664c02).
   - FIXED:
     1. `NPC.getComposition` / `getTransformedComposition` answered nil for an
        npc whose record is missing or loading, and NpcStep.npcPassesChecks
@@ -1653,3 +1658,27 @@ aliases.txt only after checking its id in our compack.
       src/makefile, src/net/*, src/torirsserver/* and the untracked
       src/torirsserver/test/host_reattach_test.c must stay out of this port's
       commit.
+- 2026-11-20 (phone: the step panel under the left column). UNCOMMITTED.
+  - REPORTED (owner, on the phone): the TOP_LEFT step panel ("Waterfall
+    Quest") was covered by the left column of the mobile gameframe. Since the
+    panel/menu round it draws in the world pass, under the interfaces, at
+    RuneLite's viewport corner (5,20) -- where toplevel_osm puts its
+    logout/chat buttons (601:41) and, when open, the chat box (601:49).
+  - FIXED (`rl_overlay.lua` `left_inset`): on toplevel_osm the TOP_LEFT and
+    BOTTOM_LEFT corners start 5 px inside `helper_dodger` (601:10). Live,
+    1097x540 canvas with the safe-area inset 16: the column ends at x=74,
+    helper_dodger is 76,8 with the chat closed and 76,153 with it open (the
+    chat container is 16,0 519x145), so the panel moved from 5,20 to 81,20
+    and 81,158. test_awt +3 (open, closed, no 601 = RuneLite's 5,20); the two
+    phone checks fail on HEAD's rl_overlay.lua (run in a throwaway worktree).
+  - LIVE: a private OPT=1 embed client (removed), soft3d, SDL dummy,
+    `TORIRS_CLIENTTYPE=7 TORIRS_ON_MOBILE=1`, plugin_prefs.mobile.ini plus
+    Quest Helper on, a fresh_lumbridge copy; Cook's Assistant opened by a
+    scratch `::qhopen` in a copy of the entry (the agent's taps on the phone's
+    tab column did not land). The step panel drew right of the column, under
+    the chat when it was open and at the top when closed, not covered.
+  - NOT DONE: the TOP_RIGHT / TOP_CENTER / BOTTOM_RIGHT corners on the phone
+    are still RuneLite's (TOP_RIGHT under the minimap and orbs); Quest Helper's
+    panel uses TOP_LEFT. The desktop toplevels were not run live (601 is not
+    mounted there; the harness covers the nil lookup). The real phone was not
+    run.

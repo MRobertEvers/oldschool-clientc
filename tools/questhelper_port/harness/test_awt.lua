@@ -505,6 +505,22 @@ reset()
 QH.render("world", MOCK_DRAW_AWT())
 local bg = draws("rect")[1]
 check("panel background at the top-left snap corner", bg[2] .. "," .. bg[3], "5,20")
+-- the phone's gameframe: the left corners start in helper_dodger (601:10),
+-- right of the left button column and below an open chat box
+MOCK.widgets[(601 << 16) | 10] = { bounds = { 76, 153, 947, 371 } }
+reset()
+QH.render("world", MOCK_DRAW_AWT())
+local bg_osm = draws("rect")[1]
+check("phone gameframe: the top-left corner is inside helper_dodger", bg_osm[2] .. "," .. bg_osm[3], "81,158")
+MOCK.widgets[(601 << 16) | 10] = { bounds = { 76, 8, 947, 516 } }
+reset()
+QH.render("world", MOCK_DRAW_AWT())
+bg_osm = draws("rect")[1]
+check("phone gameframe, chat closed: the corner keeps RuneLite's 15 px top", bg_osm[2] .. "," .. bg_osm[3], "81,20")
+MOCK.widgets[(601 << 16) | 10] = nil
+reset()
+QH.render("world", MOCK_DRAW_AWT())
+check("no phone gameframe: RuneLite's corner again", draws("rect")[1][2] .. "," .. draws("rect")[1][3], "5,20")
 check("panel background colour", bg[6], (70 << 16) | (61 << 8) | 50)
 check("panel background alpha", bg[7], 156)
 local texts = draws("text")
