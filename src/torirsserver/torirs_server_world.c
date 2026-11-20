@@ -1464,6 +1464,8 @@ ToriRSServer_WorldInteractionSet(
     interaction->size_x = sx;
     interaction->size_z = sz;
     interaction->ap_tried = 0;
+    /* A client's latch until a script says otherwise (p_opnpc). */
+    interaction->scripted = 0;
     /* `PathingEntity.setInteraction` resets both, and it has to: an ap range a
      * previous interaction narrowed would otherwise decide how close this one
      * has to get. */
@@ -2143,11 +2145,10 @@ interaction_reach_position(
  * (`ToriRSServer_WorldClearPendingAction`). What it cannot close is a chat box
  * a queued script opens AFTER it, while the player walks to the target or on
  * the very tick it is reached (the queue phase runs before the interaction).
- * Jagex closes that one when the op fires: a queued level-up box opens and is
- * shut, with no input from the client, on the tick a latched op lands -- the
- * combat level-up as a ground item is taken (RSProx index 4521 [281]: the box,
- * then `if_closesub chatbox:chatmodal` with no `if_sethide` the box's own
- * continue would send), the Hitpoints box under a swing (index 4517 [3992]).
+ * This closes that one when a client's op fires. (The two recordings first
+ * cited for it, index 4521 [281] and 4517 [3992], are a hit on the player on
+ * the box's tick, which closes it by itself -- `hit_closes_chat`; a fight a
+ * script re-arms is held behind the box instead -- `scripted`.)
  * And no recorded level-up box ever shares the chatbox with another chat
  * modal, or replaces one (214 sessions, about 1,440 boxes): an op's dialogue
  * is preceded by the box's close in every recording of one (index 4360
@@ -2162,19 +2163,27 @@ interaction_reach_position(
  * Only the chat modal and a parked dialogue: a main modal open under a latched
  * op is a case no recording shows.
  */
+/* Is a chat box up: the chat modal, or a dialogue parked on its continue? */
+static int
+chat_box_up(struct ToriRSServerPlayer const* player)
+{
+    struct SSVM_State const* parked = player->active_script;
+
+    if( player->chatmodal_group > 0 )
+        return 1;
+    return parked && (parked->execution == SSVM_PAUSEBUTTON ||
+                      parked->execution == SSVM_COUNTDIALOG ||
+                      parked->execution == SSVM_NAMEDIALOG);
+}
+
 static void
 interaction_close_chat_behind(struct ToriRSServer* srv)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
-    struct SSVM_State const* parked = player->active_script;
-    int dialogue_parked;
 
-    dialogue_parked = parked && (parked->execution == SSVM_PAUSEBUTTON ||
-                                 parked->execution == SSVM_COUNTDIALOG ||
-                                 parked->execution == SSVM_NAMEDIALOG);
     if( player->mainmodal_group > 0 || player->sidemodal_group > 0 )
         return;
-    if( player->chatmodal_group <= 0 && !dialogue_parked )
+    if( !chat_box_up(player) )
         return;
     ToriRSServer_WorldCloseModal(srv);
 }
@@ -2200,6 +2209,10 @@ interaction_try(
     int under_pathing;
 
     if( interaction->kind == TORIRSSERVER_INTERACT_NONE )
+        return 0;
+    /* A script's latch (a fight's re-arm) waits behind a chat box, in both
+     * rungs: the swing is held until the box closes (`scripted`). */
+    if( interaction->scripted && chat_box_up(player) )
         return 0;
 
     if( !interaction_target(srv, &target_x, &target_z, &size_x, &size_z) )
@@ -19089,6 +19102,15 @@ phase_player(struct ToriRSServerPlayer* player)
      * one tick after the crossing, before this tick's movement rather than
      * after it. */
     ToriRSServer_ScriptsProcessEngineQueue(srv);
+    /* A hit since the last turn closes the chat box, after the queues (a box
+     * a queue opened on the hit's tick is shut on it: index 4517 [3992]) and
+     * before the interaction (the swing it held runs on the same tick: index
+     * 4555 [3387]). */
+    if( player->hit_closes_chat )
+    {
+        player->hit_closes_chat = 0;
+        interaction_close_chat_behind(srv);
+    }
     ToriRSServer_BusyUpdate(srv, player);
     PP_MARK(bd_on, bd_t, PP_SCRIPTS);
 

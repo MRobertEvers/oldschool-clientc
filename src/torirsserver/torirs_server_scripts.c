@@ -12505,6 +12505,9 @@ script_command(
         ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, (int)op_num, slot,
                                       npc->type, npc->x, npc->z, npc->level,
                                       info->size, info->size);
+        /* A script's latch: it waits behind a chat box (torirs_server.h,
+         * `scripted`). */
+        player->interaction.scripted = 1;
         {
             struct CollisionApproach approach;
             ToriRSServer_SceneNpcApproach(info->size, &approach);
@@ -13025,6 +13028,11 @@ script_command(
          * by its target binds that same player and is the npc's own hit.) */
         ToriRSServer_TicklogSetDealerNpc(
             (target_player == saved_player && !trigger_is_ai_npc(state->trigger)) ? -1 : active_npc_slot(state));
+        /* A hit somebody else dealt closes the victim's chat box on its turn
+         * (torirs_server.h `hit_closes_chat`); one the player's own script
+         * deals itself -- a rock cake, a scripted fall mid-dialogue -- does not. */
+        if( !(target_player == saved_player && !trigger_is_ai_npc(state->trigger)) )
+            target_player->hit_closes_chat = 1;
         ToriRSServer_CombatHitPlayerFrom(
             srv, values[1], values[2],
             saved_player ? (int)(saved_player - &srv->players[0]) : -1);
@@ -13068,6 +13076,9 @@ script_command(
             return 1;
         }
         saved_player = srv->command_turn_player; /* the dealer -- see `damage` */
+        /* As `damage`: a hit somebody else dealt closes the chat box. */
+        if( !(target_player == saved_player && !trigger_is_ai_npc(state->trigger)) )
+            target_player->hit_closes_chat = 1;
         ToriRSServer_WorldSetActive(srv, target_player);
         /* The swinging npc for the tick log -- see `damage` above. */
         ToriRSServer_TicklogSetDealerNpc(active_npc_slot(state));

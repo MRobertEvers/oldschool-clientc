@@ -2586,6 +2586,18 @@ struct ToriRSServerInteraction
     int ap_range_called;
 
     /**
+     * Latched by a script (`p_opnpc`): a fight's re-arm after a swing, the
+     * ranged loop, auto-retaliation. Such an interaction waits while a chat box
+     * is up and fires once it closes: index 4555, Torag's hammers swing every 4
+     * ticks ([3371], [3375], [3379]), a level-up box [3381], no swing [3383],
+     * the next swing [3387] on the tick the box closed; across the 689 boxes
+     * recorded none stayed up over a tick the recorder swung on
+     * (docs/rsprox-analysis/levelup/README.md, "In a fight"). 0 for a client's
+     * own click (ToriRSServer_WorldInteractionSet).
+     */
+    int scripted;
+
+    /**
      * "Use <this item> on it" rather than "do op <n> to it".
      *
      * A use-on click is an interaction like any other — it latches, it walks,
@@ -4145,6 +4157,13 @@ struct ToriRSServerPlayer
      *  themselves"), and the damage funnel has no other way to tell a swing
      *  from a sip. Set by the `damage()` opcode, cleared by the funnel. */
     int hit_self_inflicted;
+    /** A hit somebody else dealt this player since its last turn: the turn
+     *  closes the chat box after its queues (phase_player). Jagex closes a
+     *  level-up box on the tick a hit lands, and no chat modal of any kind
+     *  stays up across a later tick the recorder is hit on (RSProx: 689
+     *  level-up boxes and ~27,000 chat modals; index 4517 [3992], 4555
+     *  [3387]). */
+    int hit_closes_chat;
     /** Debug invulnerability (`::god`). Gates the one player damage funnel,
      *  `ToriRSServer_CombatHitPlayer`, so every source — npc melee, the Inferno's
      *  queued projectile damage, poison, content's own `damage()` — lands as a
