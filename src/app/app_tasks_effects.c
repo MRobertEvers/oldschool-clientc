@@ -449,6 +449,7 @@ Task_ProjectileBody_Run(
             PT_EXIT(&self->pt);
 
         /* 4. Apply, reading the type and the model from the cache now. */
+        App_ParallelTraceApplyDuringGather(app, "ProjectileBody", -1);
         if( self->spotanim_id < 0 )
         {
             int model_ids[1] = { self->model_id };

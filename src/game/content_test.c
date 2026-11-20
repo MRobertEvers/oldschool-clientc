@@ -44,6 +44,18 @@ int ContentTest_Enabled(void)
     return enabled;
 }
 
+int ContentTest_BackgroundRebuild(void)
+{
+    static int on = -1;
+    if( on < 0 )
+    {
+        const char* race = getenv("TORIRS_CONTENT_TEST_RACE");
+        const char* background = getenv("TORIRS_CONTENT_TEST_BACKGROUND");
+        on = ContentTest_Enabled() && race && atoi(race) != 0 && background && atoi(background) != 0;
+    }
+    return on;
+}
+
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
 /* TORIRS_CONTENT_TEST_TICK_ONLY, read once (asked every frame of a test run).
  * Its readers sit in the embedded-server block below, so it lives behind the
