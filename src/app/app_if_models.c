@@ -154,7 +154,8 @@ app_if_head_follow(
 
 /* An active head whose npc changed what it shows -- a chathead customisation
  * set, replaced or reset, a mirror turned on or off, a retype -- is set again
- * from the npc as it is now. The npc gone, or another in its slot: the head
+ * from the npc as it is now, by app_if_head_wants (before the frame's last
+ * pump: the re-set adds a head task). The npc gone, or another in its slot: the head
  * keeps what it shows. */
 static void
 app_if_heads_follow(struct App* app)
@@ -804,6 +805,9 @@ app_if_head_wants(struct App* app)
     if( app->if_models.head_count == 0 || !app->tree )
         return;
     app_if_forget_closed(app);
+    /* An active head re-set from its npc is a new head task: raised here,
+     * with the wants, every frame -- the npc changes without the tree. */
+    app_if_heads_follow(app);
     for( int i = 0; i < app->if_models.head_count; i++ )
     {
         struct UIIfHead* head = &app->if_models.heads[i];
@@ -839,7 +843,6 @@ app_if_head_poll(struct App* app)
         return;
 
     app_if_forget_closed(app);
-    app_if_heads_follow(app);
     for( int i = 0; i < app->if_models.head_count; i++ )
     {
         struct UIIfHead* head = &app->if_models.heads[i];

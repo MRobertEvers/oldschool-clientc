@@ -959,7 +959,7 @@ test_active_head_follows_its_npc(void)
         struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = second };
         World_NpcSetHeadCustom(fx.app.world, idx, &in);
     }
-    app_if_head_poll(&fx.app);
+    app_if_head_wants(&fx.app);
     pump(&fx);
     head = head_of(&fx, com);
     TEST_ASSERT(head && head->custom_serial == npc->head_custom.serial,
@@ -971,7 +971,7 @@ test_active_head_follows_its_npc(void)
 
     /* The customisation reset (NULL, the block's 0x1): the type's head. */
     World_NpcSetHeadCustom(fx.app.world, idx, NULL);
-    app_if_head_poll(&fx.app);
+    app_if_head_wants(&fx.app);
     pump(&fx);
     head = head_of(&fx, com);
     TEST_ASSERT(head && head->custom_serial == 0 && head->npc_id == 501, "a reset shows the type's head");
@@ -989,7 +989,7 @@ test_active_head_follows_its_npc(void)
         struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = third };
         World_NpcSetHeadCustom(fx.app.world, idx, &in);
     }
-    app_if_head_poll(&fx.app);
+    app_if_head_wants(&fx.app);
     pump(&fx);
     head = head_of(&fx, com + 1);
     TEST_ASSERT(head && head->custom_serial == npc->head_custom.serial, "a plain active head takes a later override");
@@ -1010,7 +1010,7 @@ test_active_head_follows_its_npc(void)
         struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = fourth };
         World_NpcSetHeadCustom(fx.app.world, idx, &in);
     }
-    app_if_head_poll(&fx.app);
+    app_if_head_wants(&fx.app);
     pump(&fx);
     head = head_of(&fx, com + 1);
     TEST_ASSERT(head && head->custom_serial == 0 && head->active_npc_slot < 0, "a type's head follows no npc");
@@ -1083,6 +1083,78 @@ test_head_bind_adds_no_task(void)
     fixture_free(&fx);
 }
 
+/*
+ * The two fixes meet: an active chathead follows its npc (4bfbf7b5f), and the
+ * heads' bind after the frame's last pump adds no task (3a0c5b8b3). The
+ * follow re-sets the head -- a new head task -- so it belongs with the wants,
+ * before the last pump. Run from the bind, the followed head's task was added
+ * after the frame's last pump: published unstepped, it started a frame late.
+ */
+static void
+test_active_head_follow_is_a_want_not_a_bind(void)
+{
+    struct Fixture fx;
+    struct ToriRS_Npctype* type;
+    struct WorldEntity_NPC* npc;
+    int const com = 0x00e70004;
+    int const first[1] = { 91 };
+    int const second[1] = { 92 };
+    int idx;
+
+    printf("TEST: an active head's follow is raised with the wants, before the last pump; the bind adds no task\n");
+    fixture_init(&fx);
+    fx.app.tree = UITree_New(16);
+    type = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*type));
+    assert(type);
+    type->transform_varbit = -1;
+    type->transform_varp = -1;
+    type->heads_count = 1;
+    type->heads = ToriMem_Alloc(ToriMem_Assets(), sizeof(*type->heads));
+    assert(type->heads);
+    type->heads[0] = 90;
+    CacheProvider_NpctypeAdd(&fx.provider, 502, type);
+    fx.app.world = World_New();
+    RS_EntitySync_Init(&fx.app.esync);
+    idx = World_NpcSpawn(fx.app.world, 9, 502, 0, 10, 10, 1, (struct WorldEntityFacet_IdleAnimations){ 0 });
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, idx);
+    npc->server_slot = 14;
+    RS_EntitySync_RegisterNpc(&fx.app.esync, 14, 9, idx);
+    {
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = first };
+        World_NpcSetHeadCustom(fx.app.world, idx, &in);
+    }
+    App_SetInterfaceNpcHeadActive(&fx.app, com, idx);
+    pump(&fx);
+    if( loads_of(ASSET_KIND_MODEL, 91, 0) == 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 91, 0), false);
+    pump(&fx);
+    TEST_ASSERT(!App_IfModelPending(&fx.app, com), "the first head landed");
+
+    /* HEAD_CUSTOM again while the head is up. */
+    {
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = second };
+        World_NpcSetHeadCustom(fx.app.world, idx, &in);
+    }
+    app_if_head_poll(&fx.app);
+    TEST_ASSERT(!App_IfModelPending(&fx.app, com), "the bind, after the frame's last pump, adds no task for the follow");
+    app_if_head_wants(&fx.app);
+    TEST_ASSERT(App_IfModelPending(&fx.app, com), "the wants, before the last pump, re-set the followed head");
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 92, 0) == 1, "and its task wants the new override's model");
+    if( loads_of(ASSET_KIND_MODEL, 92, 0) == 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 92, 0), false);
+    pump(&fx);
+    TEST_ASSERT(head_of(&fx, com) && head_of(&fx, com)->custom_serial == npc->head_custom.serial,
+        "the head names the newer override");
+
+    RS_EntitySync_Free(&fx.app.esync);
+    World_Free(fx.app.world);
+    fx.app.world = NULL;
+    UITree_Free(fx.app.tree);
+    fx.app.tree = NULL;
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -1100,6 +1172,7 @@ main(void)
     test_npc_head_custom_empty_list_shows_nothing();
     test_active_head_follows_its_npc();
     test_head_bind_adds_no_task();
+    test_active_head_follow_is_a_want_not_a_bind();
     if( g_failures )
     {
         printf("if_assets_tasks: %d failure(s)\n", g_failures);
