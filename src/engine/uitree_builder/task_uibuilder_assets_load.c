@@ -266,9 +266,15 @@ Task_UIBuilderAssetsLoad_Run(
     for( self->i = 0; self->i < self->manifest->component_count; self->i++ )
     {
         /* Prefetch pack-referenced assets (MODEL widgets especially; dat1 sprite
-         * refs resolve during the pack load itself, so those awaits no-op). */
-        PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(
-            self->builder->provider, self->manifest->components[self->i].iface_id));
+         * refs resolve during the pack load itself, so those awaits no-op).
+         * Deferred: only what the bake, the load scripts and a later packet
+         * read -- the owner binds the models when they come. */
+        if( self->builder->defer_visual )
+            PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoadRequired(
+                self->builder->provider, self->manifest->components[self->i].iface_id));
+        else
+            PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(
+                self->builder->provider, self->manifest->components[self->i].iface_id));
     }
 
     PT_END(&self->pt);

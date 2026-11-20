@@ -159,7 +159,7 @@ app_debug_overlay_init(struct App* app)
 
         for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
             ToriRSChrome_SetSkinAvailable(&app->dev_overlay->ui, i, 1);
-        if( app->dev_overlay->ui.skin_avail & (1u << TORIRS_CHROME_SKIN_PANEL_BODY) )
+        if( ToriRSChrome_SkinAvailable(&app->dev_overlay->ui, TORIRS_CHROME_SKIN_PANEL_BODY) )
         {
             struct ToriRSChromeSkin_Sprite const* body =
                 ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY);

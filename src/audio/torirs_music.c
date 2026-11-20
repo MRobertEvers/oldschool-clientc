@@ -162,7 +162,6 @@ ToriRS_Music_Request(
     player->request_loop = loop;
     player->request_fade_out_ms = fade_out_ms;
     player->request_fade_in_ms = fade_in_ms;
-    player->request_loading = false;
     /* Fades are counted in client ticks; the request carries milliseconds
      * because that is what the wire carries. */
     player->fade_ticks = fade_out_ms > 0 ? (fade_out_ms + 19) / 20 : 0;
@@ -276,7 +275,7 @@ ToriRS_Music_TakeLoadRequest(
     enum ToriRS_MusicSource* out_source)
 {
     assert(player);
-    if( !player->has_request || player->request_loading )
+    if( !player->has_request )
         return false;
     if( player->request_song < 0 )
         return false;
@@ -285,7 +284,6 @@ ToriRS_Music_TakeLoadRequest(
      * rather than shorter. */
     if( player->fade_ticks > 0 )
         return false;
-    player->request_loading = true;
     player->state = TORIRS_MUSIC_LOADING;
     if( out_song )
         *out_song = player->request_song;
@@ -427,6 +425,13 @@ close_stream(
         command.asset_id = MUSIC_ASSET_ID;
         ToriRS_AudioQueue_Push(out, &command);
     }
+    else
+    {
+        /* No queue here (an install from the load task): the unload was
+         * dropped, which left the old generator resident. The next tick
+         * queues it, ahead of the open. */
+        player->unload_pending = true;
+    }
     player->stream_open = false;
 }
 
@@ -448,6 +453,20 @@ ToriRS_Music_Installed(
     if( !song )
     {
         ToriRS_Music_LoadFailed(player, song_id);
+        return;
+    }
+    /* Still the song asked for? A newer request may have come while this
+     * one loaded; installing it anyway played the older song over the newer
+     * request (and, with the newer one failing, kept it playing). */
+    if( !player->has_request || player->request_song != song_id || player->request_source != source )
+    {
+        MUSIC_TRACE(
+            "music: song %d loaded after a newer request (%d), not installed\n",
+            song_id,
+            player->has_request ? player->request_song : -1);
+        for( int i = 0; i < patch_count; i++ )
+            ToriRS_SoundBank_ReleasePatch(&player->bank, patch_ids[i]);
+        RSCache_MusicSongFree(song);
         return;
     }
 
@@ -478,7 +497,6 @@ ToriRS_Music_Installed(
         release_current(player);
         player->state = TORIRS_MUSIC_IDLE;
         player->has_request = false;
-        player->request_loading = false;
         player->songs_failed++;
         return;
     }
@@ -500,7 +518,6 @@ ToriRS_Music_Installed(
     player->pending_fade_in_ms = player->request_fade_in_ms;
     player->state = TORIRS_MUSIC_PLAYING;
     player->has_request = false;
-    player->request_loading = false;
     player->songs_started++;
     /*
      * Check what the loader claims against what the bank holds.
@@ -547,11 +564,11 @@ ToriRS_Music_LoadFailed(
     assert(player);
     MUSIC_TRACE("music: song %d failed to load\n", song_id);
     player->songs_failed++;
-    if( player->request_song == song_id )
-    {
-        player->has_request = false;
-        player->request_loading = false;
-    }
+    /* Only the song still asked for: an older one that failed after a newer
+     * request leaves the newer one loading. */
+    if( !player->has_request || player->request_song != song_id )
+        return;
+    player->has_request = false;
     if( player->state == TORIRS_MUSIC_LOADING )
         player->state = player->current_song >= 0 ? TORIRS_MUSIC_PLAYING : TORIRS_MUSIC_IDLE;
 }
@@ -570,6 +587,16 @@ ToriRS_Music_Tick(
     (void)feedback;
 
     assert(player);
+
+    /* An unload an install could not queue (it had no queue): first, so it
+     * lands before anything below opens the asset again. */
+    if( player->unload_pending && out )
+    {
+        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_ASSET_UNLOAD);
+        command.asset_id = MUSIC_ASSET_ID;
+        ToriRS_AudioQueue_Push(out, &command);
+        player->unload_pending = false;
+    }
 
     /* Fade-out before a switch. Counted in ticks so it is frame-rate
      * independent; the actual ramp belongs to the music voice in the mixer. */
@@ -647,8 +674,8 @@ ToriRS_Music_Tick(
      * app_tick.c calls this before TakeLoadRequest, so the loader still starts
      * on this tick; it just starts with nothing sounding.
      */
-    if( player->has_request && player->request_song >= 0 && !player->request_loading &&
-        player->fade_ticks == 0 && player->current_song >= 0 )
+    if( player->has_request && player->request_song >= 0 && player->fade_ticks == 0 &&
+        player->current_song >= 0 )
     {
         MUSIC_TRACE(
             "music: retiring song %d before loading %d (no fade-out)\n",

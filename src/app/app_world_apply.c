@@ -57,22 +57,23 @@ app_world_reconcile_player_transmog(
  * (torirs_server_zone.c, zone_loc_anim_check); content places the loc a tick
  * before it animates it.
  *
- * "Stands there NOW" maps onto this client's loc lane directly. A change waits
- * on the lane for its config and models, as the deob's waits in its pending
- * list, and it applies to the scene only when its turn comes; until then the
- * scene holds exactly what the deob's holds -- the old loc. So the sequence is
- * applied to the scene synchronously, here, and the lane's pending change for
- * the tile (app_spawn_loc_lane_pending) is the deob's pending spawn: it is
- * handed the sequence under the deob's two conditions, and the loc it places
- * starts on it (the LOC_CHANGE apply, app_world_spawn.c). The deferanimchange
- * half is judged there, once the new loctype has loaded.
+ * "Stands there NOW" maps onto this client's pending loc changes directly. A
+ * change waits as a parallel task for its config and models, as the deob's
+ * waits in its pending list, and it applies to the scene only once they are
+ * here; until then the scene holds exactly what the deob's holds -- the old
+ * loc. So the sequence is applied to the scene synchronously, here, and the
+ * change pending for the tile (app_loc_change_pending, found through the
+ * pending index) is the deob's pending spawn: it is handed the sequence under
+ * the deob's two conditions, and the loc it places starts on it
+ * (app/app_tasks_locs.c). The deferanimchange half is judged there, once the
+ * new loctype has loaded.
  *
- * Where the two differ is a lane that holds a change past the tick that read it,
+ * Where the two differ is a change still pending past the tick that read it,
  * which the deob does only for its own model loads: by the next tick the
  * official client shows the new loc and animates it. So a change from an
- * earlier server tick (RS_ServerTick_Serial of App.server_tick) counts as built, and takes the
- * sequence itself (app_spawn_loc_take); TORIRS_LOC_LANE_TRACE=1 logs every
- * anim's target and every change's wait.
+ * earlier server tick (RS_ServerTick_Serial of App.server_tick) counts as
+ * built, and takes the sequence itself (app_loc_change_take);
+ * TORIRS_LOC_LANE_TRACE=1 logs every anim's target and every change's wait.
  *
  * Revision 239 only. The dat1 lanes reproduce the 2004-era client, whose loc
  * changes carry no sequence: there a LOC_ANIM only ever reaches the standing
@@ -88,51 +89,52 @@ App_WorldSceneryAnim(
     int seq_id)
 {
     struct World* world = NULL;
-    struct Task_AppSpawn* pending = NULL;
-    struct Task_AppSpawn* landed = NULL;
+    struct Task_LocChange* pending = NULL;
+    struct Task_LocChange* landed = NULL;
+    int const view = WorldviewRegistry_Active(&app->worldviews);
     int const layer = World_LocShapeToLayer(loc_shape);
     int stood = 0;
 
     assert(app);
     /* The view the packet addresses (SET_ACTIVE_WORLD), as every zone op uses.
      * A scene still building holds nothing a sequence could attach to. */
-    if( WorldviewRegistry_IsLive(&app->worldviews, WorldviewRegistry_Active(&app->worldviews)) )
+    if( WorldviewRegistry_IsLive(&app->worldviews, view) )
     {
-        struct Worldview* wv = WorldviewRegistry_Get(&app->worldviews, WorldviewRegistry_Active(&app->worldviews));
+        struct Worldview* wv = WorldviewRegistry_Get(&app->worldviews, view);
         if( wv->world && wv->world->load_complete )
             world = wv->world;
     }
+    /* One change is pending per tile and layer (the newest replaced the rest),
+     * so it is both the deob's pending spawn and, read in an earlier tick,
+     * the one it has built. */
     if( app->cfg.cache_kind != APP_CACHE_DAT1 )
-    {
-        pending = app_spawn_loc_lane_pending(
-            app, WorldviewRegistry_Active(&app->worldviews), scene_x, scene_z, level, layer, 0);
-        landed = app_spawn_loc_lane_pending(
-            app, WorldviewRegistry_Active(&app->worldviews), scene_x, scene_z, level, layer, 1);
-    }
+        pending = app_loc_change_pending(app, view, scene_x, scene_z, level, layer);
+    if( pending && pending->tick != RS_ServerTick_Serial(&app->server_tick) )
+        landed = pending;
     /*
-     * A change read in an earlier server tick that this client's lane still
-     * holds (its models are loading, or a change ahead of it is) stands in
-     * the deob's scene already: its pending pass builds a spawn in the client
-     * cycle that read it. That loc is what this sequence animates, so the
-     * change takes it outright -- and the stale loc this scene still shows
-     * gets nothing, because in the official client it is gone, and a sequence
-     * meant for the new model posed on the old one is a glitch of its own.
-     * A landed LOC_DEL left the layer empty.
+     * A change read in an earlier server tick that this client still holds
+     * (its models are loading) stands in the deob's scene already: its
+     * pending pass builds a spawn in the client cycle that read it. That loc
+     * is what this sequence animates, so the change takes it outright -- and
+     * the stale loc this scene still shows gets nothing, because in the
+     * official client it is gone, and a sequence meant for the new model
+     * posed on the old one is a glitch of its own. A landed LOC_DEL left the
+     * layer empty.
      */
     if( landed )
     {
-        stood = landed->loc_id >= 0;
+        stood = landed->change.loc_id >= 0;
         if( stood )
-            app_spawn_loc_take(landed, seq_id);
+            app_loc_change_take(landed, seq_id);
     }
     else if( world )
         stood = app_world_scenery_anim_apply(
             app, world, scene_x, scene_z, level, loc_shape, seq_id);
     if( pending && pending != landed )
-        app_spawn_loc_carry(pending, seq_id, stood);
+        app_loc_change_carry(pending, seq_id, stood);
     if( torirs_env_loc_lane_trace() )
         TORIRS_REPORT(
-            "loc_lane: anim seq=%d shape=%d at %d,%d,l%d tick=%u -> %s%s\n",
+            "loc_change: anim seq=%d shape=%d at %d,%d,l%d tick=%u -> %s%s\n",
             seq_id,
             loc_shape,
             scene_x,
@@ -262,10 +264,13 @@ app_world_npc_mount_body(
     }
     else if( !app_world_npc_models_resident(app, npctype) )
     {
-        /* The body is on the wire (NpcBodyLand re-applies this type when it
-         * lands): keep whatever model the element has rather than mount
-         * nothing, and say nothing -- it is not a failure. */
-        model = NULL;
+        /* The body is on the wire: the npc draws nothing until its body task
+         * (App_EntityNpcBodyWant) mounts it -- the one rule for "no body
+         * yet", the spawn's too. Keeping the old type's model drew the npc
+         * as what it no longer is (FAULTS E7). Not a failure: say nothing. */
+        model = ToriDraw_ModelNew(0, 0, 0);
+        assert(model);
+        ToriDraw_ModelSetBoundsCylinder(model);
     }
     else
     {
@@ -315,6 +320,26 @@ app_world_npc_mount_body(
     return mounted;
 }
 
+/* Mount an empty body on the npc's element: it draws nothing. */
+static void
+app_world_npc_mount_empty(
+    struct App* app,
+    int element_id)
+{
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd;
+
+    if( element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return;
+    model = ToriDraw_ModelNew(0, 0, 0);
+    assert(model);
+    ToriDraw_ModelSetBoundsCylinder(model);
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = model;
+    ToriDraw_SceneElementSetModel(app->scene, element_id, hnd);
+}
+
 /* A type's whole stance set, as a spawn or a retype gives it the npc (see
  * App_WorldApplyNpcType). */
 static struct WorldEntityFacet_IdleAnimations
@@ -349,23 +374,46 @@ app_npc_type_idle(
     };
 }
 
+/* A type's facts as the shared rule gives them to an npc (RS_EntityNpcType):
+ * the shell's size, turn speed and stances, the drawn rung's name, ops,
+ * level and draw flags. The strings are `npctype`'s. */
+void
+app_npc_type_record(
+    struct ToriRS_NpcEntityFacts const* facts,
+    struct ToriRS_Npctype const* npctype,
+    struct RS_EntityNpcType* out)
+{
+    _Static_assert(TORIRS_MENU_ACTION_SLOTS == 5, "an npc has five ops");
+    out->size = facts->size;
+    out->turn_speed = facts->turn_speed;
+    out->idle = app_npc_type_idle(facts, npctype);
+    out->name = npctype->name;
+    for( int i = 0; i < 5; i++ )
+        out->actions[i] = npctype->actions[i];
+    out->combat_level = npctype->combat_level;
+    out->alwaysontop = npctype->alwaysontop;
+    out->minimap_visible = npctype->minimap_visible;
+    out->interactable = npctype->interactable;
+    out->no_rotation_flag = npctype->no_rotation_flag;
+}
+
 int
-App_WorldNpcTypeIdle(
+App_WorldNpcTypeRecord(
     struct App* app,
     int npc_type,
     int base_npc_type,
-    struct WorldEntityFacet_IdleAnimations* out)
+    struct RS_EntityNpcType* out)
 {
     struct ToriRS_Npctype* npctype;
     struct ToriRS_NpcEntityFacts facts;
 
     assert(app);
     assert(out);
-    npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
+    npctype = npc_type >= 0 ? CacheProvider_NpctypeGet(app->provider, npc_type) : NULL;
     if( !npctype )
         return 0;
     app_npc_entity_facts(app, base_npc_type, npctype, &facts);
-    *out = app_npc_type_idle(&facts, npctype);
+    app_npc_type_record(&facts, npctype, out);
     return 1;
 }
 
@@ -382,9 +430,15 @@ App_WorldApplyNpcType(
     int model_mounted;
 
     assert(app);
-    npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
+    npctype = npc_type >= 0 ? CacheProvider_NpctypeGet(app->provider, npc_type) : NULL;
     if( !npctype )
+    {
+        /* A type to none (CHANGE_TYPE -1) or one the cache does not have:
+         * the npc stays, drawing nothing (FAULTS E7: it kept the old model). */
+        app_world_npc_mount_empty(app, element_id);
+        RedrawRequest_Raise(&app->redraw_request);
         return;
+    }
     /* Same rule as the spawn path: the rung draws the body and names the
      * ops, the shell supplies the size, turn speed and stance set.
      * See app_npc_entity_facts. */
@@ -395,9 +449,14 @@ App_WorldApplyNpcType(
 
     model_mounted = app_world_npc_mount_body(app, element_id, npc_type, npctype);
 
+    /* The type and its facts: the shared rule (game/rs_entity_apply.h), the
+     * one the headless client applies too. What the server set on the npc
+     * stays (WORLD_NPC_OVERRIDE_*). */
     {
-        struct WorldEntityFacet_IdleAnimations const idle = app_npc_type_idle(&facts, npctype);
-        World_NpcSetType(app->world, world_idx, npc_type, facts.size, &idle);
+        struct RS_EntityNpcType record;
+
+        app_npc_type_record(&facts, npctype, &record);
+        RS_EntityApply_NpcRetyped(app->world, world_idx, npc_type, &record);
     }
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
@@ -429,21 +488,15 @@ App_WorldApplyNpcType(
             app_world_apply_seq(app, element_id, facts.readyanim);
         if( npc )
         {
-            npc->combat_level = npctype->combat_level;
-            npc->alwaysontop = npctype->alwaysontop;
-            npc->minimap_visible = npctype->minimap_visible;
-            npc->interactable = npctype->interactable;
-            npc->facing.turn_speed = facts.turn_speed;
-            npc->facing.no_rotation_flag = npctype->no_rotation_flag;
-            snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
-            for( int i = 0; i < 5; i++ )
-                snprintf(
-                    npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
             /* A body customisation outlives the transformation (deob: the
              * override is kept on the npc, not the type): mount it over the
              * type's body just mounted. */
-            if( npc->body_model_count > 0 )
+            if( npc->body_custom.active )
                 npc->body_serial++;
+            /* The type's body, when it is not resident yet: an npc the
+             * server named waits for it on the parallel queue. */
+            if( npc->server_slot >= 0 )
+                App_EntityNpcBodyWant(app, world_idx);
             /* The drawn type changed; base_npc_id -- the multinpc shell --
              * did not. A plugin keyed on the shell, which is how anything
              * tagging an npc has to be keyed, keeps its tag across this. */
@@ -451,7 +504,7 @@ App_WorldApplyNpcType(
              * The drawn type changed and the multinpc shell did not, so a
              * verb keyed on the shell keeps matching. Unconditional, unlike
              * the plugin-host snapshot below. */
-            App_DriveEvent(app, DRIVE_EVENT_NPC_RETYPE, world_idx, npc_type, base_npc_type, 0);
+            App_DriveEvent(app, RS_EVENT_NPC_RETYPE, world_idx, npc_type, base_npc_type, 0);
             if( app->plugins )
             {
                 struct ToriRS_NpcSnapshot retyped;
@@ -502,6 +555,11 @@ App_WorldNpcBodyLanded(
     if( !app_world_npc_mount_body(app, element_id, npc_type, npctype) )
         return;
     npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+    /* The server's body customisation goes back over the type's body just
+     * mounted, as the retype does (FAULTS E3: a body landing after a
+     * BODY_CUSTOM replaced it with the type's). */
+    if( npc && npc->body_custom.active )
+        npc->body_serial++;
     primary_live = npc && npc->animation.primary.anim_id != (uint16_t)-1 &&
                    npc->animation.primary.anim_id != 0;
     if( !primary_live && npc && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
@@ -796,6 +854,9 @@ app_world_reconcile_player_body(
     player->body.npc_id = WORLD_PLAYER_BODY_FROM_SLOTS;
     /* Every obj config of the appearance is resident (checked above). */
     player->team = app_appearance_team(app, player->appearance.slots);
+    /* An npc mirroring the local player draws this body too. */
+    if( player == app_local_player(app) )
+        App_WorldNpcMirrorsRemount(app);
     app_sync_textures(app);
     RedrawRequest_Raise(&app->redraw_request);
 }
@@ -809,57 +870,11 @@ App_WorldApplyPlayerAppearance(
     assert(app);
     assert(appearance);
 
-    /* Data only. The body is derived from it by
-     * app_world_reconcile_player_body on the next frame, once whole. */
+    /* The entity already holds it (RS_EntityApply_PlayerAppearance: slots,
+     * colours, stances, name, headicons, the transmog npc). Data only: the
+     * body is derived from it by app_world_reconcile_player_body on the next
+     * frame, once whole. */
     {
-        struct WorldEntityFacet_IdleAnimations idle = {
-            .readyanim = appearance->readyanim,
-            .walkanim = appearance->walkanim,
-            .turnanim = appearance->turnanim,
-            /* rev-239 class60: field1481 = field1480 -- one turn seq both ways. */
-            .turnanim_r = appearance->turnanim,
-            .runanim = appearance->runanim,
-            .walkanim_b = appearance->walkanim_b,
-            .walkanim_r = appearance->walkanim_r,
-            .walkanim_l = appearance->walkanim_l,
-            /* The appearance block states no run or crawl directions. */
-            .runanim_b = -1,
-            .runanim_r = -1,
-            .runanim_l = -1,
-            .crawlanim = -1,
-            .crawlanim_b = -1,
-            .crawlanim_r = -1,
-            .crawlanim_l = -1,
-        };
-        World_PlayerSetAppearance(
-            app->world,
-            world_idx,
-            appearance->slots,
-            appearance->identkit,
-            appearance->colors,
-            &idle,
-            appearance->name,
-            appearance->combat_level,
-            appearance->gender);
-
-        /* Overhead prayer/skull headicon bitmask (reference
-         * ClientPlayer.headicons, appearance g1). SetAppearance carries no
-         * headicon field, so copy it onto the entity directly for the overlay
-         * pass. */
-        {
-            struct WorldEntity_Player* ent =
-                World_EntityPoolGet(&app->world->entities.player, world_idx);
-            if( ent )
-            {
-                ent->headicon = appearance->headicon;
-                /* The 0xffff first equipment entry's npc (LostCity
-                 * ClientPlayer.ts setAppearance: `this.transmog = null` then
-                 * set by the block, so every appearance restates it). Drawn
-                 * by app_world_reconcile_player_transmog. */
-                ent->transmog_npc_id = appearance->npc_id;
-            }
-        }
-
         /* Local player's real name now known: sync it to the chatbox so the
          * public-chat local echo shows the login name instead of the default
          * "Player". The reference echoes with this.localPlayer.name

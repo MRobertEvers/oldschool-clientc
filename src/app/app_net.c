@@ -9,6 +9,7 @@
 
 #include "app/app_internal.h"
 #include "boot_telemetry.h"
+#include "game/rs_server_state.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static bool
@@ -183,6 +184,14 @@ App_Logout(struct App* app)
     /* What the deob's logout reset clears (Statics.method5943's neighbours:
      * field1275, field3246, field1008, the group store). */
     CamScript_Logout(&app->cam_script);
+    /* No pending parallel task belongs to the screen we are going back to. */
+    (void)RS_Pending_Cancel(app->pending, RS_PendingScope_All());
+    App_PendingTrace(app, "at logout");
+    /* Except what the scene bridge reserved, which outlives the session. */
+    App_IfAssetsAfterLogout(app);
+    /* Nor does a RUNCLIENTSCRIPT held for the tick the session never
+     * finished: it would run against the title screen (U8). */
+    RS_ClientScriptQueue_Reset(&app->pending_clientscripts);
     RS_WorldMapSurface_HeatmapOff(&app->worldmap);
     app->host.client.objunlock_present = false;
     RS_GroupStore_Free(&app->host.groups);
@@ -412,7 +421,9 @@ app_net_tear_down_session(
     /* Pushes NET_OUT_DISCONNECT, so the peer sees the FIN before the
      * re-established session asks for the character back. */
     ToriRS_Network_Logout(app->net);
+    App_PendingTrace(app, "at a lost link");
     App_NetSessionReset(app);
+    App_PendingTrace(app, "after the lost link's reset");
 }
 
 /*
@@ -496,6 +507,18 @@ app_net_link_watch(
         }
     }
 
+    /*
+     * The server has spoken if a whole packet is waiting to be popped. The
+     * silence bound is about the server: a client too busy to pop -- booting
+     * the gameframe after IF_OPENTOP, a REBUILD holding the packet queue on
+     * its reads -- is reading a backlog, not hearing nothing. The reference
+     * resets its count on every packet read off the socket (deob client.java,
+     * field709.field1553 > 750), which is this, not the later pop.
+     */
+    if( app->net_link.last_recv_ms && !NetLinkWatch_Lost(&app->net_link) &&
+        ToriRS_Network_HasPacket(app->net) && now_ms > app->net_link.last_recv_ms )
+        NetLinkWatch_NotePacket(&app->net_link, now_ms);
+
     memset(&seen, 0, sizeof(seen));
     seen.now_ms = now_ms;
     last_frame_ms = FrameClockSerial_LastFrameMs(&app->frame_clock.serial);
@@ -568,6 +591,9 @@ app_pump_net_packets(struct App* app)
     int last_exec_packet_type = -1;
     /* A background rebuild was committed on the last turn of the loop. */
     int committed = 0;
+    /* Passes of the parallel queue run under a parked head since the head
+     * last moved (the settle below). */
+    int parallel_rounds = 0;
 
     for( ;; )
     {
@@ -605,11 +631,13 @@ app_pump_net_packets(struct App* app)
              * ordinary settle). Out of time is the same answer as a parked
              * read: the packet runner's had_work latch, and the next turn resumes it.
              *
-             * The work the commit itself queued here (App_WorldLoadFinish's
-             * loc re-place) is part of the commit and settles whole; the
-             * pacing starts once it has. */
+             * The commit's own work settles whole here; the pacing starts once
+             * it has. (App_WorldLoadFinish's loc re-place is not part of it:
+             * each re-placed loc is a parallel task, app/app_tasks_locs.c.) */
             stat = TaskRunner_SettleFrameUntil(
                 &app->packet_runner, committed ? 0 : App_PacedDeadline(app));
+            if( app->packet_runner.progressed )
+                parallel_rounds = 0;
             if( committed )
             {
                 App_PaceArm(app);
@@ -628,10 +656,12 @@ app_pump_net_packets(struct App* app)
         }
 
         /*
-         * Parked on state this queue does not own -- in practice an asset the
-         * FRAME queue is loading: Task_NpcMultiLoad waiting for an npc's body
-         * parts, Task_WorldLoad waiting for a region's map squares. Resolve
-         * that io here rather than ending the frame.
+         * The head is parked on work this queue does not own (a join, a
+         * trigger) -- in practice an asset the FRAME queue is loading:
+         * Task_NpcMultiLoad waiting for an npc's body parts, Task_WorldLoad
+         * waiting for a region's map squares. Resolve that io here rather
+         * than ending the frame: the frame queue's steps are what end the
+         * loads, and the last one's end makes the head ready.
          *
          * A task is only ever resumed against reads that have LANDED, and the
          * budgets those waits carry are counted in resumes, not in frames.
@@ -647,7 +677,7 @@ app_pump_net_packets(struct App* app)
          * the honest end of "resolve the io" -- and is bounded, because a wait
          * that outlives its own budget gives up on its own.
          */
-        if( stat == TASK_RUNNER_BLOCKED )
+        if( stat == TASK_RUNNER_WAITING && TaskRunner_HeadParked(&app->packet_runner) )
         {
             enum TaskRunnerStat assets = TaskRunner_SettleFrame(&app->frame_runner);
 
@@ -657,7 +687,7 @@ app_pump_net_packets(struct App* app)
                 for( struct ToriRS_Task* t = app->frame_runner.queue->head; t; t = t->next )
                     n++;
                 TORIRS_REPORT(
-                    "frame_latch: blocked exec -> assets stat=%d progressed=%d queued=%d "
+                    "frame_latch: parked exec -> assets stat=%d progressed=%d queued=%d "
                     "reads_out=%d cycle=%d\n",
                     (int)assets,
                     app->frame_runner.progressed,
@@ -666,7 +696,26 @@ app_pump_net_packets(struct App* app)
                     (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
             }
             if( assets != TASK_RUNNER_RENDER && app->frame_runner.progressed )
+            {
+                /* The runaway backstop every pump of the parallel queue has
+                 * (app_pump_backstop): passes that go on moving while the
+                 * head never does are a task that will not converge, and
+                 * this loop is inside one call, where nothing else would
+                 * stop it. abort(), not assert(): OPT=1 builds -DNDEBUG. */
+                if( ++parallel_rounds > APP_ASYNC_STEP_LIMIT )
+                {
+                    TORIRS_ERR(
+                        "app: the parallel queue ran %d passes under the parked packet %s without "
+                        "the packet moving (limit %d). A task is not converging.\n",
+                        parallel_rounds,
+                        app->packet_runner.queue->head ? app->packet_runner.queue->head->name
+                                                       : "(none)",
+                        (int)APP_ASYNC_STEP_LIMIT);
+                    fflush(stderr);
+                    abort();
+                }
                 continue;
+            }
         }
 
         if( stat != TASK_RUNNER_IDLE )
@@ -679,11 +728,11 @@ app_pump_net_packets(struct App* app)
                  * difference between "a packet parked" and knowing which
                  * loader to take off the FIFO next. */
                 TORIRS_LOG(
-                    "frame_latch: exec parked stat=%d head=%s blocked=%d reads_out=%d "
+                    "frame_latch: exec parked stat=%d head=%s parked=%d reads_out=%d "
                     "read=%d/%d/%d cycle=%d\n",
                     (int)stat,
                     head ? head->name : "(none)",
-                    head ? head->blocked : -1,
+                    head ? head->parked : -1,
                     TaskRunner_ReadsOutstanding(&app->packet_runner),
                     head ? (int)head->io.kind : -1,
                     head && head->io.kind == TORIRS_IOK_CACHE ? head->io.u.cache.table_id : -1,
@@ -714,9 +763,10 @@ app_pump_net_packets(struct App* app)
          * every packet behind its REBUILD addresses the scene it will build:
          * pop nothing until it is committed. The commit runs HERE, at the
          * packet phase and before the next pop, so to everything behind it
-         * the rebuild is applied exactly where the wire put it. It may queue
-         * work on this FIFO (App_WorldLoadFinish's loc re-place), which the
-         * next turn of the loop settles before anything is popped.
+         * the rebuild is applied exactly where the wire put it. Work it queues
+         * on this FIFO is settled by the next turn of the loop before anything
+         * is popped; App_WorldLoadFinish's loc re-place is not on it (each
+         * re-placed loc is a parallel task, app/app_tasks_locs.c).
          *
          * Nothing else is held: the pipeline is idle and the REBUILD's tick,
          * open on varps alone, has its latch suspended for the hold
@@ -749,6 +799,8 @@ app_pump_net_packets(struct App* app)
 
             if( !app->net || !ToriRS_Network_PopPacket(app->net, &packet) )
             {
+                /* The varp retypes this run of packets wanted. */
+                App_EntityNpcRetypeFlush(app);
                 drained = 1;
                 break;
             }
@@ -762,15 +814,14 @@ app_pump_net_packets(struct App* app)
              * retain only packets that participate in an atomic UI/CS2
              * transaction. World feedback is valid between those ticks.
              * SERVER_TICK_END clears this after its exec task has run. */
-            if( RS_ServerTick_FenceSeen(&app->server_tick) && gameproto_packet_may_mutate_ui(packet.packet_type) &&
-                packet.packet_type != PKT_NAME_SERVER_TICK_END )
+            /* LATCH and the plain-varp flag are the packet's row in the one
+             * table of packet kinds (net/rev/revpacket.c); SERVER_TICK_END's
+             * row latches nothing. */
+            if( RS_ServerTick_FenceSeen(&app->server_tick) && gameproto_packet_latches(packet.packet_type) )
             {
-                int const plain_varp = packet.packet_type == PKT_NAME_VARP_SMALL ||
-                                       packet.packet_type == PKT_NAME_VARP_LARGE;
-
                 if( RS_ServerTick_NotePacket(
                         &app->server_tick,
-                        plain_varp,
+                        gameproto_packet_latches_varp_only(packet.packet_type),
                         FrameClockSerial_LogicCycle(&app->frame_clock.serial)) &&
                     getenv("TORIRS_FRAME_LATCH") )
                     TORIRS_LOG(
@@ -845,12 +896,16 @@ app_pump_net_packets(struct App* app)
              * a script that writes the same component keeps its wire order.
              * Held past them, Jagex's `quest_journal_reset` ran after the
              * journal rows it precedes and blanked every subquest page of
-             * Recipe for Disaster (RSProx index 4400 [2130]).
+             * Recipe for Disaster (RSProx index 4400 [2130]). And ahead of a
+             * packet that runs component hooks (TRIGGER_ONDIALOGABORT). Which
+             * packets those are is the FLUSH column of the packet kinds.
              */
-            if( (gameproto_packet_changes_interface_mounts(packet.packet_type) ||
-                 gameproto_packet_writes_interface_component(packet.packet_type)) &&
+            if( gameproto_packet_flushes_held_scripts(packet.packet_type) &&
                 RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
                 App_FlushPendingClientScripts(app, &app->packet_runner);
+            /* Npc retypes the var writes before this packet wanted, applied
+             * before it runs (app/app_varp_transforms.c). */
+            App_EntityNpcRetypeBeforePacket(app, packet.packet_type);
             TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, CreateTask_GameProtoExec(app, &packet));
             redraw = 1;
         }
@@ -928,14 +983,54 @@ App_SendIdkDesign(
             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), gender, kits, colours));
 }
 
+/*
+ * The packet model's records are this App's modules. Bound per packet, so a
+ * value that is read rather than pointed at (the revision's number) is the
+ * one in force when the packet applies.
+ */
 void
-App_IfTextSet(
+App_ServerStateBind(
+    struct App* app,
+    struct RS_ServerState* out)
+{
+    assert(app);
+    assert(out);
+    *out = (struct RS_ServerState){
+        .varps = &app->varps,
+        .stats = &app->stats,
+        .invs = &app->invs,
+        .if_texts = &app->if_texts,
+        .if_hides = &app->if_hides,
+        .if_colours = &app->if_colours,
+        .if_events = &app->if_events,
+        .chat = &app->chat,
+        .chat_clock = &app->host.client_clock,
+        .social = &app->social,
+        .chat_filter_mode = app->slots.chat_filter_mode,
+        .session_info = &app->session_info,
+        .session_end = &app->session_end,
+        .server_tick = &app->server_tick,
+        .player_ops = &app->player_ops,
+        .hint_arrow = &app->hint_arrow,
+        .npc_update_origin = &app->npc_update_origin,
+        .interaction_mode = &app->interaction_mode,
+        .rev_number = app->net && app->net->rev ? app->net->rev->number : -1,
+        .staff_mod_level = app->net ? app->net->staff_mod_level : 0,
+        .worldviews = &app->worldviews,
+        .world = app->world,
+        .esync = &app->esync,
+        .provider = app->provider,
+        .events = App_DriveEventSink(app),
+    };
+}
+
+void
+App_IfTextShow(
     struct App* app,
     int com_id,
     char const* text)
 {
     assert(app);
-    UIIfTextStore_Set(&app->if_texts, com_id, text);
     {
         bool applied = UITree_ApplyText(app->tree, com_id, text);
         if( torirs_env_net_debug() )
@@ -949,6 +1044,33 @@ App_IfTextSet(
 }
 
 void
+App_IfTextSet(
+    struct App* app,
+    int com_id,
+    char const* text)
+{
+    assert(app);
+    UIIfTextStore_Set(&app->if_texts, com_id, text);
+    App_IfTextShow(app, com_id, text);
+}
+
+void
+App_IfColourShow(
+    struct App* app,
+    int com_id,
+    int colour)
+{
+    assert(app);
+    {
+        bool applied = UITree_ApplyColour(app->tree, com_id, colour);
+        if( torirs_env_net_debug() )
+            TORIRS_LOG(
+                "if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour, (int)applied);
+    }
+    RedrawRequest_Raise(&app->redraw_request);
+}
+
+void
 App_IfColourSet(
     struct App* app,
     int com_id,
@@ -956,11 +1078,29 @@ App_IfColourSet(
 {
     assert(app);
     UIIfIntStore_Set(&app->if_colours, com_id, colour);
+    App_IfColourShow(app, com_id, colour);
+}
+
+void
+App_IfHideShow(
+    struct App* app,
+    int com_id,
+    int hide)
+{
+    assert(app);
     {
-        bool applied = UITree_ApplyColour(app->tree, com_id, colour);
+        int32_t const idx = app->tree ? UITree_FindByComponentId(app->tree, com_id) : -1;
+        int const was_hidden = idx >= 0 && app->tree->components[idx].behavior.hide;
+        bool applied = UITree_ApplyHide(app->tree, com_id, hide);
         if( torirs_env_net_debug() )
-            TORIRS_LOG(
-                "if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour, (int)applied);
+            TORIRS_REPORT("if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
+        /* U4: an unhide resumes the transmit hooks that deferred while the
+         * component was hidden -- the same flag a script's if_sethide unhide
+         * raises (rs_cs2_host.c exec_widget_set_hide). Without it a hook that
+         * missed an inventory or var change while hidden waited for some
+         * unrelated unhide. */
+        if( was_hidden && !hide )
+            app->host.widgets_loaded_dirty = 1;
     }
     RedrawRequest_Raise(&app->redraw_request);
 }
@@ -973,25 +1113,7 @@ App_IfHideSet(
 {
     assert(app);
     UIIfIntStore_Set(&app->if_hides, com_id, hide ? 1 : 0);
-    {
-        bool applied = UITree_ApplyHide(app->tree, com_id, hide);
-        if( torirs_env_net_debug() )
-            TORIRS_REPORT("if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
-    }
-    RedrawRequest_Raise(&app->redraw_request);
-}
-
-void
-App_IfStoresDropGroup(
-    struct App* app,
-    int group_id)
-{
-    assert(app);
-    UIIfTextStore_DropGroup(&app->if_texts, group_id);
-    UIIfIntStore_DropGroup(&app->if_hides, group_id);
-    UIIfIntStore_DropGroup(&app->if_colours, group_id);
-    if( torirs_env_net_debug() )
-        TORIRS_LOG("if_set*: group %d unloaded, its stored values dropped\n", group_id);
+    App_IfHideShow(app, com_id, hide);
 }
 
 /* RS_CS2Host.if_written: a script's write is the newer value of the field the

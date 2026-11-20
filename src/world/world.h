@@ -43,7 +43,7 @@ enum WorldEventKind
      * splash timed to a projectile's arrival spends its whole delay invisible,
      * and an animation stepped through that delay is already finished — or
      * cleared — by the time anyone can see it. See App_WorldDrainEntityRemoved
-     * and app_world_spawn_spotanim_now for the two halves. */
+     * and the map anim body (app/app_tasks_effects.c) for the two halves. */
     WorldEventKind_SpotanimStarted = 1,
 };
 
@@ -203,6 +203,14 @@ struct World_SeqSource
      * the graphic, as the reference does the cycle one comes due without a
      * valid seq (deob Statics ~40085, `var13.method3011()`). */
     int (*spotanim_seq)(void* userdata, int spotanim_id);
+    /* Fetch sequence `seq_id` (>= 0): a track was just set to it -- a
+     * sequence sent, a stance or a movement seq the step chose, a parked
+     * sequence waiting on its priority -- and its frames will be needed. Asked
+     * once per change, never per frame, and for every entity's tracks again
+     * when the source is bound (World_SetSeqSource). NULL: a client that
+     * loads no frames (the headless one). `want_userdata` is its own. */
+    void* want_userdata;
+    void (*want)(void* want_userdata, int seq_id);
 };
 
 /* World_SeqSource.spotanim_seq's "resolved, nothing to play". */
@@ -413,6 +421,10 @@ struct World
      * staleness checks that would otherwise re-run every frame. */
     unsigned load_seq;
 
+    /** The last projectile or spotanim spawn serial handed out (their
+     *  `serial`); 0 before the first. Never 0 once handed out. */
+    uint32_t effect_serial;
+
     /** Bumped whenever a runtime loc change edits the minimap wall bits (door
      * opened/closed): app_world_map_poll rebakes the baked map sprite when this
      * moves, so the red door line follows the world state. */
@@ -573,6 +585,18 @@ struct World
      *  reference draws `addPlayers(true)` (self) ahead of every other entity,
      *  and self is never dedup-skipped. -1 = offline / not yet bound. */
     int local_pid;
+    /** The last spawn serial World_PlayerSpawn / World_NpcSpawn handed out:
+     *  every entity gets the next one, so (server slot, spawn serial) names
+     *  ONE entity for its whole life, where the pool index and the slot are
+     *  both reused (the key a parallel task holds, game/rs_pending.h). */
+    uint32_t entity_spawn_serial;
+    /** The last serial a body or chathead customisation took
+     *  (WorldNpcOverride.serial; the reference's class86.field1242 / 1240). */
+    uint32_t npc_override_serial;
+    /** How many npcs have `retype_wanted` set: a varp their multinpc chain
+     *  depends on changed, and the rung they draw is to be resolved again
+     *  (App_EntityNpcRetypeFlush). 0: none, nothing walks. */
+    int npc_retype_wanted;
 
     /** Loc "mapfunction" minimap icons gathered at scene build (reference
      * activeMapFunctionX/Z/Count, Client.ts minimapBuildBuffer): scene tile
@@ -599,10 +623,12 @@ struct World
      *  "new list that happens to be the same length". */
     int area_sound_generation;
 
-    /** Client-side temporary loc-change list (Client-TS locChanges /
-     * deob world.field1353). Pushed by App_WorldLocChange; shifted on
-     * REBUILD_NORMAL and unlinked when out of the 104 window. Not re-applied
-     * after a rebuild — the server re-sends zone state. */
+    /** Client-side loc-change list (Client-TS locChanges / deob
+     * world.field1353): what each changed tile and layer held before its
+     * first change and holds now. Pushed when a loc change applies
+     * (app/app_tasks_locs.c); shifted on REBUILD_NORMAL and unlinked when out
+     * of the 104 window; re-placed after a rebuild
+     * (World_LocChangesTakeStanding) and restored by a zone reset. */
     struct World_LocChange loc_changes[WORLD_LOC_CHANGE_MAX];
     int loc_change_count;
 };
@@ -1137,7 +1163,14 @@ World_NpcDespawn(
     struct World* world,
     int idx);
 
-/** `target` is the wire target-entity id (see WorldEntity_Projectile.target):
+/** A spotanim spawned before its sequence is known (its body is still
+ *  loading): it never expires on its own; the body sets the real lifetime,
+ *  or the body's task removes it. */
+#define WORLD_SPOTANIM_LIFETIME_PENDING 0x7fffffff
+
+/** `element_id` is the scene element, or -1 for one whose body has not landed
+ * (it flies and is found, and draws nothing until the element is set).
+ * `target` is the wire target-entity id (see WorldEntity_Projectile.target):
  * non-zero makes the arc home on that entity's live position every cycle,
  * WORLD_PROJECTILE_TARGET_NONE pins it to dst_x/dst_z. `source` is the wire
  * source-actor id in the same encoding (NONE: launch from src_x/src_z/h1).
@@ -1168,6 +1201,16 @@ World_ProjectileDespawn(
     struct World* world,
     int idx);
 
+/** The projectile at pool index `idx` if it is the one spawned with `serial`,
+ *  NULL when it has ended (or its slot holds another). */
+struct WorldEntity_Projectile*
+World_ProjectileFind(
+    struct World* world,
+    int idx,
+    uint32_t serial);
+
+/** `element_id` -1: its body has not landed (as World_ProjectileSpawn's).
+ *  `lifetime` WORLD_SPOTANIM_LIFETIME_PENDING: not known yet. */
 int
 World_SpotanimSpawn(
     struct World* world,
@@ -1184,6 +1227,13 @@ void
 World_SpotanimDespawn(
     struct World* world,
     int idx);
+
+/** As World_ProjectileFind, for a spotanim. */
+struct WorldEntity_Spotanim*
+World_SpotanimFind(
+    struct World* world,
+    int idx,
+    uint32_t serial);
 
 /* ---- plugin-owned world objects (entity_pluginobj.h) ---- */
 
@@ -1452,6 +1502,13 @@ World_NpcSetAnimation(
 #define WORLD_ANIMATION_TYPE_PRIMARY 0
 #define WORLD_ANIMATION_TYPE_SECONDARY 1
 
+/** Ask the seq source for sequence `seq_id` (World_SeqSource.want); nothing
+ *  for an id < 0 or a source with no fetch. */
+void
+World_SeqWant(
+    struct World* world,
+    int seq_id);
+
 void
 World_SetSeqSource(
     struct World* world,
@@ -1545,6 +1602,13 @@ World_NpcSetExactMoveDetailed(
     int facing,
     bool facing_is_yaw);
 
+/* The graphic an actor wears in wire slot `slot`, or NULL when that slot was
+ * never sent (WorldEntityFacet_EntitySpotanims). */
+struct WorldEntityFacet_EntitySpotanim const*
+World_EntitySpotanimInSlot(
+    struct WorldEntityFacet_EntitySpotanims const* spotanims,
+    int slot);
+
 /* `slot`: the rev-239 graphic slot, as World_NpcSetSpotanim's; `loop`, as
  * its. */
 void
@@ -1609,10 +1673,10 @@ World_NpcSetTransparency(
     int to,
     bool use_start);
 
-/* `slot`: the rev-239 graphic slot; a graphic replaces only its own slot's
- * (slots past WORLD_NPC_SPOTANIM_SLOTS - 1 share the last). `loop`: rev
- * 241's byte -- the graphic replays from its first frame each time its seq
- * ends, until the slot is sent again (Moia's binders' empower glow). */
+/* `slot`: the rev-239 graphic slot, the wire's byte (0..255, each its own);
+ * a graphic replaces only its own slot's, -1 clears it. `loop`: rev 241's
+ * byte -- the graphic replays from its first frame each time its seq ends,
+ * until the slot is sent again (Moia's binders' empower glow). */
 void
 World_NpcSetSpotanim(
     struct World* world,
@@ -1632,14 +1696,120 @@ World_NpcSetHeadiconCustom(
     int const group[WORLD_NPC_HEADICON_SLOTS],
     int const index[WORLD_NPC_HEADICON_SLOTS]);
 
-/* Body customisation: draw `models` instead of the type's; 0 models is the
- * type's again. Bumps the npc's body_serial for the app's remount. */
+/* What one BODY_CUSTOM / HEAD_CUSTOM block sent, read (rsprot's
+ * RsprotInfoBodyCustom): the arrays are the caller's and are copied, each
+ * sized from its count. An array is required when its count is not 0. */
+struct WorldNpcOverrideIn
+{
+    bool models_sent;
+    int model_count;
+    int const* models;
+    int recolour_count;
+    int const* recolours;
+    int retexture_count;
+    int const* retextures;
+    bool has_recolour_all;
+    int recolour_all;
+    bool mirror;
+    bool player;
+    int body_type;
+    int identkit_count;
+    int const* identkits;
+};
+
+/* Body customisation (deob class86.method2906): the npc draws `in` instead of
+ * its type's body, from now; NULL is the block's reset (0x1, method2907), the
+ * type's body again. Any count: the row keeps its own copies, sized from them.
+ * A new override takes a new serial (the model cache key). Bumps the npc's
+ * body_serial for the app's remount. */
 void
-World_NpcSetBodyModels(
+World_NpcSetBodyCustom(
     struct World* world,
     int idx,
-    int const* models,
-    int model_count);
+    struct WorldNpcOverrideIn const* in);
+
+/* Chathead customisation (deob Statics.method2952 / method2951): what an
+ * IF_SETNPCHEAD_ACTIVE head of this npc draws; NULL is the reset. */
+void
+World_NpcSetHeadCustom(
+    struct World* world,
+    int idx,
+    struct WorldNpcOverrideIn const* in);
+
+/* The colour / texture an override puts at the type's destination index `i`
+ * (deob Statics.method9224: the override's array replaces the type's, index
+ * for index over the type's source list): its own where it sent one for `i`,
+ * else `type_value`, the type's. `o` may be inactive (the type's). */
+/* FREEZE (entity_freeze.h; deob class105.method3557 / method3627): `delay`
+ * and `duration` in client cycles, -1 for none (the wire's 65535). Both
+ * set: a window from cycle + delay for `duration` cycles, `reset` stopping
+ * the sequence as it starts. Either none: every window and the frozen
+ * drawing go, and `reset` stops the sequence now. */
+void
+World_NpcFreeze(
+    struct World* world,
+    int idx,
+    int delay,
+    int duration,
+    bool reset);
+
+void
+World_PlayerFreeze(
+    struct World* world,
+    int idx,
+    int delay,
+    int duration,
+    bool reset);
+
+/* The tracks an actor is DRAWN with: the live ones, or while a freeze window
+ * covers the cycle the snapshot taken as it began (class105.method3528 /
+ * Statics.method3603). */
+struct WorldEntityFacet_Animation const*
+World_EntityDrawnAnimation(
+    struct WorldEntityFacet_Animation const* anim,
+    struct WorldEntityFreeze const* freeze);
+
+/* Free what a row owns -- its customisations and its freeze windows -- and
+ * clear them (a removal snapshot's too). Accepts NULL. */
+void
+World_NpcOverridesFree(struct WorldEntity_NPC* npc);
+
+int
+World_NpcOverrideRecolour(
+    struct WorldNpcOverride const* o,
+    int i,
+    int type_value);
+
+/* The colour every face of an override's body takes (the V4 form's
+ * recolour-all), or -1 when it sent none or sent 65535, the reference's -1 as
+ * a short (rev-242 deob class454.method10217). */
+int
+World_NpcOverrideRecolourAll(struct WorldNpcOverride const* o);
+
+/* The colour every face of an npc's body or chathead takes, the override `o`
+ * over its type (rev-242 deob class454.method10217: the override's
+ * recolour-all when it sent one -- 65535 there is none, and its per-colour
+ * list applies -- else the type's, npc config opcode 42). -1: none, the
+ * per-colour list applies. */
+int
+World_NpcRecolourAll(
+    struct WorldNpcOverride const* o,
+    int type_recolour_all);
+
+/* The key a built npc body is cached under (deob Statics.method9204: the type
+ * id, and an override's serial above it): the type's own body is `npc_id`, a
+ * customised one is distinct per override, so a cached body never answers for
+ * an override it was not built from. */
+int64_t
+World_NpcBodyModelKey(
+    int npc_id,
+    struct WorldNpcOverride const* o);
+
+int
+World_NpcOverrideRetexture(
+    struct WorldNpcOverride const* o,
+    int i,
+    int type_value);
 
 /* CHANGE_TYPE (transmog): caller passes the new size + anim set (the dat1
  * left/right crossing is done in the type conversion, not here). */
@@ -1855,8 +2025,8 @@ World_ObjStackSetCount(
     int idx,
     int count);
 
-/** Give a stack that was added without a scene element (a placeholder, see
- * app/app_placeholder.c) its element, once. */
+/** Give a stack that was added without a scene element (its model was not
+ * resident; app/app_tasks_ground.c) its element, once. */
 void
 World_ObjStackSetElement(
     struct World* world,
@@ -1940,9 +2110,9 @@ World_ShiftEntities(
 /** Record a temporary loc change (Client-TS locChanges.push). One record per
  * (level, layer, x, z): a change to a key that has one updates its new_*,
  * timing and menu and keeps its old_* (the loc before the key's first change).
- * old_* may be -1 when unknown; end_time of -1 means "permanent until replaced" (not
- * countdown-ticked). end_time > 0 is a countdown (locChangeDoQueue): hide/apply
- * new_type when start_time reaches 0, restore old_type when end_time reaches 0. */
+ * old_* may be -1 when unknown; end_time of -1 means "permanent until replaced".
+ * end_time >= 0 marks a LOC_MERGE's hide (app/app_tasks_locs.c times it): not
+ * permanent, so a rebuild drops the key (World_LocChangesTakeStanding). */
 void
 World_LocChangePush(
     struct World* world,
@@ -2010,19 +2180,6 @@ World_LocChangesTakeStanding(
 /** Clear every temporary loc-change record (scene rebuild). */
 void
 World_LocChangesClear(struct World* world);
-
-/**
- * Advance countdown LocChanges (Client-TS locChangeDoQueue). Entries with
- * end_time < 0 are permanent records and are skipped. For each elapsed cycle,
- * decrements timers and invokes `apply` when start hits 0 (new_type) or end
- * hits 0 (old_type, then removes the entry).
- */
-void
-World_LocChangesTick(
-    struct World* world,
-    int cycles_elapsed,
-    void (*apply)(void* user, int level, int x, int z, int loc_id, int shape, int angle),
-    void* user);
 
 /** Despawn every projectile + spotanim (reference mapBuild clears both when
  * the new scene lands; their trajectories are scene-local). Emits

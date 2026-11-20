@@ -77,6 +77,55 @@ Dat2GroupCache_Put(
     int group,
     struct RSCache_Dat2DiskArchive* archive);
 
+/*
+ * A split made a bounded amount at a time, for a task on the time-sliced
+ * background queue: the loc config group is 56,000 members, and its split in
+ * one call was one 5.7 ms unit under UBSan (the editor session's
+ * 'background task Dat2LocLoad ran 5.71 ms between two slice checks').
+ *
+ * One split per group is in flight, whoever started it: every task that
+ * needs the group steps the same one (DAT2_GROUP_AWAIT_SLICED), so a
+ * thousand loc loads that all missed the group split it once, together.
+ * When it ends the group is resident, exactly as Dat2GroupCache_Put leaves
+ * it (the split is RSCache_FileListSplit, of which the one-call split is the
+ * run to its end).
+ */
+
+/** Entries (rscache_filelist.h, RSCache_FileListSplitStep) one step does. */
+#define DAT2_GROUP_SPLIT_ENTRIES 4096
+
+/* Is a split of (table, group) in flight? */
+int
+Dat2GroupCache_Splitting(
+    struct Dat2GroupCache const* cache,
+    int table,
+    int group);
+
+/*
+ * The archive of (table, group), read by a task that found it neither
+ * resident nor being split. The cache takes `archive` either way: it starts
+ * the split from it, or frees it when the group became resident or a split
+ * began while the read was out. A malformed group starts nothing.
+ */
+void
+Dat2GroupCache_SplitOffer(
+    struct Dat2GroupCache* cache,
+    int table,
+    int group,
+    struct RSCache_Dat2DiskArchive* archive);
+
+/*
+ * One step (DAT2_GROUP_SPLIT_ENTRIES) of the split of (table, group): the
+ * resident group once it has ended, else NULL -- with the split still in
+ * flight, or gone (the group was malformed, or a Clear or Evict dropped it;
+ * Dat2GroupCache_Splitting says which).
+ */
+struct Dat2Group const*
+Dat2GroupCache_SplitStep(
+    struct Dat2GroupCache* cache,
+    int table,
+    int group);
+
 /* Member index for a member id, or -1. */
 int
 Dat2Group_IndexOf(

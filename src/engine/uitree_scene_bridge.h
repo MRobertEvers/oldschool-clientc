@@ -11,15 +11,14 @@ struct CacheProvider;
 struct ToriRS_Location;
 struct HMap;
 
-/** A scene id handed out before its sprite was resident. @see UITreeSceneBridge_BindSprite. */
-struct UITreeSceneBridgePendingSprite
-{
-    int cache_id;
-    int scene_id;
-    /** When to ask the provider for it again, and the pause after that. */
-    uint64_t next_ask_ms;
-    uint32_t wait_ms;
-};
+/** Who fills a scene id BindSprite reserved before its sprite was resident:
+ *  told the cache id and the scene id, it makes the work that waits for the
+ *  sprite and fills the id (the client's: one parallel task per reservation,
+ *  app/app_tasks_if_assets.c). @see UITreeSceneBridge_BindSprite. */
+typedef void (*UITreeSceneBridgeSpriteBoundFn)(
+    void* user,
+    int cache_graphic_id,
+    int scene_id);
 
 /**
  * Uploads CacheProvider ToriRS assets into a ToriDraw_Scene and returns scene
@@ -64,11 +63,11 @@ struct UITreeSceneBridge
 
     /** cache_graphic_id → scene_id */
     struct HMap* sprite_map;
-    /** Bound scene ids whose sprite has not landed yet; filled by
-     *  UITreeSceneBridge_PumpSprites. Empty on every steady frame. */
-    struct UITreeSceneBridgePendingSprite* pending_sprites;
-    int pending_sprite_count;
-    int pending_sprite_cap;
+    /** Told of every scene id BindSprite reserves (UITreeSceneBridge_
+     *  SetSpriteFiller); NULL: nothing would fill one, so nothing is
+     *  reserved. */
+    UITreeSceneBridgeSpriteBoundFn sprite_bound;
+    void* sprite_bound_user;
     /** cache_model_id → scene_id (usually same as cache id) */
     struct HMap* model_map;
     /** (obj_id, count) → scene_id for rasterized inventory icons */
@@ -117,12 +116,16 @@ struct UITreeSceneBridge
     /** npc_id → composited chathead scene model id (reference NpcType.getHead). */
     struct HMap* npc_head_map;
 
+    /** The chatheads composited under a server customisation that are in the
+     *  scene (UITreeSceneBridge_EnsureNpcHeadCustom), each released by
+     *  UITreeSceneBridge_NpcHeadCustomSweep once nothing shows it. */
+    struct UITreeSceneBridgeCustomHead* custom_heads;
+    int custom_head_count;
+    int custom_head_cap;
+
     /** obj_id → lit interface model scene id (reference IfType.getModel type 4,
      * set by IF_SETOBJECT — e.g. the combat-tab weapon model). */
     struct HMap* obj_model_map;
-
-    /** Texture ids whose load already failed; never re-requested. */
-    unsigned char texture_failed[2048];
 
     /** Effective lighting behaviour after era + `[render:light]` merge.
      *  Copied from App at init so the bridge can light NPC/player heads
@@ -160,6 +163,13 @@ struct UITreeSceneBridge
 /* Base of the reserved scene-model id range for composited NPC chatheads
  * (id = base | npc_id); distinct from cache model ids and the avatars above. */
 #define UITREE_SCENE_NPC_HEAD_BASE 0x50000000
+
+/* Composited chatheads under a server customisation (NPC_INFO HEAD_CUSTOM):
+ * base | the override's serial (low 26 bits), above every npc id's head id
+ * and below the obj models. Memoized in npc_head_map under -1 - serial, where
+ * no npc id lands. */
+#define UITREE_SCENE_NPC_HEAD_CUSTOM_BASE 0x54000000
+#define UITREE_SCENE_NPC_HEAD_CUSTOM_MASK 0x03FFFFFFu
 
 /** Obj interface models (IF_SETOBJECT: lit + recoloured inventory model bound
  * to a MODEL widget, e.g. the combat-tab weapon): scene ids are base | obj_id. */
@@ -326,12 +336,14 @@ UITreeSceneBridge_EnsureSprite(
  * (a dropped JS5 socket, a browser storage error) blanked every slot, divider
  * and icon of the skills tab for the rest of the session. Here such a sprite
  * gets its scene id now, with nothing behind it yet -- every renderer draws an
- * empty scene id as nothing -- and UITreeSceneBridge_PumpSprites fills it when
- * the sprite lands, asking the provider again until it does.
+ * empty scene id as nothing -- and the filler (UITreeSceneBridge_
+ * SetSpriteFiller) is told of it: it waits for the sprite through the assets
+ * table, asking again with a growing pause until it lands, and fills the id
+ * (UITreeSceneBridge_FillSprite).
  *
- * -1 for a negative id, for an id the sprites table is known not to list, and
- * for a provider with no numeric sprite loader, where nothing would ever fill
- * the reservation.
+ * -1 for a negative id, for an id the sprites table is known not to list, for
+ * a provider with no numeric sprite loader and for a bridge with no filler,
+ * where nothing would ever fill the reservation.
  */
 int
 UITreeSceneBridge_BindSprite(
@@ -339,21 +351,40 @@ UITreeSceneBridge_BindSprite(
     int cache_graphic_id);
 
 /** True when `cache_graphic_id` has a scene id -- drawn, or reserved by
- *  BindSprite and filled by the pump when it lands. */
+ *  BindSprite and filled when it lands. */
 bool
 UITreeSceneBridge_SpriteBound(
     struct UITreeSceneBridge const* bridge,
     int cache_graphic_id);
 
+/** The filler of BindSprite's reservations (see there). `bound` NULL: none. */
+void
+UITreeSceneBridge_SetSpriteFiller(
+    struct UITreeSceneBridge* bridge,
+    UITreeSceneBridgeSpriteBoundFn bound,
+    void* user);
+
 /**
- * Fill the scene ids BindSprite reserved whose sprites have landed, and re-ask
- * for the rest with a growing pause. Once per frame; a steady frame has
- * nothing pending and costs one compare.
+ * Fill the scene id BindSprite reserved for `cache_graphic_id` from the
+ * provider. 1 when the reservation is settled -- filled, or the sprite is
+ * resident but will not convert (EnsureSprite's -1 too: the id stays bound to
+ * nothing, and asking again would convert it again) -- 0 while the sprite is
+ * not resident.
+ */
+int
+UITreeSceneBridge_FillSprite(
+    struct UITreeSceneBridge* bridge,
+    int cache_graphic_id,
+    int scene_id);
+
+/**
+ * Tell the filler again of every reservation not filled yet: for a client
+ * whose fills were cancelled while the bridge -- which outlives a session --
+ * still holds the reservations (a logout cancels every pending task). Walks
+ * the sprite map: once per logout, never per frame.
  */
 void
-UITreeSceneBridge_PumpSprites(
-    struct UITreeSceneBridge* bridge,
-    uint64_t now_ms);
+UITreeSceneBridge_RewantSprites(struct UITreeSceneBridge* bridge);
 
 /** Reverse lookup: cache graphic id for a sprite scene_id, or -1 (debug dumps). */
 int
@@ -720,6 +751,60 @@ UITreeSceneBridge_CollectPlayerDesignModelIds(
  * models already in the provider. Returns the scene model id or -1.
  * Reference: NpcType.getHead (Client-TS) / npc_head_model (v0 entity_scenebuild).
  */
+/**
+ * The chathead of npc type `npc_id` under a server customisation (deob
+ * class405.method9172 -> Statics.method9224): `models` replace the type's
+ * heads (NULL: the type's own), and each of the type's source colours and
+ * textures goes to the override's value at its index where it sent one, else
+ * the type's. Keyed and memoized by the override's `serial` (> 0). Every part
+ * resident, or -1.
+ */
+/** `recolour_all`: what the override says of the recolour-all -- a colour,
+ *  -1 none (it sent 65535: the per-colour list applies), or
+ *  UITREE_NPC_HEAD_RECOLOUR_ALL_TYPE when it sent none and the type's (npc
+ *  config opcode 42) applies (rev-242 deob class454.method10217). */
+#define UITREE_NPC_HEAD_RECOLOUR_ALL_TYPE (-2)
+int
+UITreeSceneBridge_EnsureNpcHeadCustom(
+    struct UITreeSceneBridge* bridge,
+    int npc_id,
+    uint32_t serial,
+    int const* models,
+    int model_count,
+    int const* recolours,
+    int recolour_count,
+    int const* retextures,
+    int retexture_count,
+    int recolour_all);
+
+/** One composited customised chathead: its override's serial and scene id.
+ *  `doomed`: the last sweep found it unused. */
+struct UITreeSceneBridgeCustomHead
+{
+    uint32_t serial;
+    int scene_id;
+    uint8_t doomed;
+};
+
+/** How many customised chatheads are in the scene. */
+int
+UITreeSceneBridge_NpcHeadCustomCount(struct UITreeSceneBridge const* bridge);
+
+/**
+ * Release the customised chatheads nothing uses any more. `in_use` answers for
+ * one (its override's serial and scene id): a head that names the serial, or a
+ * widget that still draws the scene id. One found unused twice running -- two
+ * sweeps, a frame apart -- leaves the scene and is freed, with its memo: a
+ * frame built before it went unused never draws a freed model. Each override
+ * change used to add a composite for the rest of the session (the reference
+ * keeps its chatheads in an LRU, class304.field3984).
+ */
+void
+UITreeSceneBridge_NpcHeadCustomSweep(
+    struct UITreeSceneBridge* bridge,
+    bool (*in_use)(void* user, uint32_t serial, int scene_id),
+    void* user);
+
 int
 UITreeSceneBridge_EnsureNpcHead(
     struct UITreeSceneBridge* bridge,

@@ -423,7 +423,9 @@ texture_bake(
             int alpha = 0xff;
             if( (layer->palette[pi] & 0xf8f8ff) == 0 )
                 alpha = 0;
-            adjusted_palette[pi] = (alpha << 24) | ToriRS_TextureGammaBlend(layer->palette[pi], 0.8);
+            /* In uint32_t: alpha 0xff shifted into an int's sign bit is undefined. */
+            adjusted_palette[pi] = (int)((uint32_t)alpha << 24 |
+                                         (uint32_t)ToriRS_TextureGammaBlend(layer->palette[pi], 0.8));
         }
 
         for( pixel_index = 0; pixel_index < layer->width * layer->height; pixel_index++ )
@@ -829,11 +831,7 @@ Task_Dat2TextureLoad_Run(
                 task->bc->base.asset_queue,
                 create_sprite_load(task->bc, task->dep_sprites[i], NULL, NULL),
                 &task->pending);
-        while( task->pending > 0 )
-        {
-            task->task.blocked = 1;
-            PT_YIELD(&task->pt);
-        }
+        TASK_AWAIT_JOIN(&task->task, &task->pt, task->pending);
 
         proc_texture = proctex_bake(
             proctex_program_get(task->bc, task->texture_id),
@@ -893,11 +891,7 @@ Task_Dat2TextureLoad_Run(
             create_sprite_load(
                 task->bc, task->def->sprite_ids[i], &task->packs[i], &task->failed),
             &task->pending);
-    while( task->pending > 0 )
-    {
-        task->task.blocked = 1;
-        PT_YIELD(&task->pt);
-    }
+    TASK_AWAIT_JOIN(&task->task, &task->pt, task->pending);
     if( task->failed )
     {
         task_dat2_texture_load_clear_packs(task);

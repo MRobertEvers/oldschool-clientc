@@ -1,5 +1,5 @@
 /*
- * Publishing the retained tree's inputs, the inventory icon reconcile, and the
+ * Publishing the retained tree's inputs, the inventory change hook, and the
  * CS1 evaluation task.
  *
  * One translation unit of the App layer. Everything here may read and write
@@ -9,41 +9,6 @@
 
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
-
-/* ---- Inventory obj-icon reconcile ------------------------------------- *
- *
- * Server UPDATE_INV_FULL/PARTIAL (rs_gameproto_exec.c) write item ids into the
- * inv containers but leave scene_id = INV_MANAGER_NO_SCENE_ID, because the
- * inventory model may not be resident and rasterizing needs it loaded. The
- * emit path (emit_rs_inv_slots) only draws a slot when scene_id >= 0, so those
- * items never appear. This mirrors task_interface_open's seed-time icon step
- * (load the models, then UITreeSceneBridge_EnsureObjIcon and stamp the scene id
- * back) but is driven per tick off the live containers, so items that arrive
- * after the interface is open still get icons — the missing lazy path the
- * exec handlers' comment promised.
- *
- * A slot whose parts are all resident and still make no icon (an obj with no
- * inventory model) is stamped with a distinct sentinel so the per-tick scan
- * stops re-enqueueing it; the server replacing the item resets scene_id to
- * NO_SCENE_ID and re-arms the reconcile. A slot whose parts did NOT arrive is
- * never stamped: it waits for a later pass, paced by app->inv_icon_retry
- * (inv/inv_icon_retry.h). */
-#define APP_INV_ICON_BATCH_MAX 64
-#define APP_INV_ICON_SCENE_FAILED (-2)
-
-struct Task_InvIconReconcile
-{
-    struct ToriRS_Task task;
-    struct pt pt;
-    struct App* app;
-    int obj_ids[APP_INV_ICON_BATCH_MAX];
-    int counts[APP_INV_ICON_BATCH_MAX];
-    int n;
-    int published_change;
-    /* Slots this pass gave an icon or the FAILED stamp: 0 means every ask
-     * came back without its parts, and the next pass waits. */
-    int resolved;
-};
 
 /* Wrapper protothread that owns one CS1 evaluation pass: awaits the eval
  * task (which may itself yield for pack loads), then clears the in-flight
@@ -56,12 +21,6 @@ struct Task_AppCS1Eval
 };
 
 /* Private to this unit, declared up front so definition order is free. */
-static int
-Task_InvIconReconcile_Run(
-    struct ToriRS_Task* base,
-    struct ToriRS_IOBatch* io);
-static void
-Task_InvIconReconcile_Free(struct ToriRS_Task* base);
 static int
 Task_AppCS1Eval_Run(
     struct ToriRS_Task* base,
@@ -452,163 +411,16 @@ app_inv_ui_host_change(
     /* DRIVE_STAMP: inv_changed -- a=container_id. inv.await filters by
      * container, so the id has to make it into the ring, not just get read
      * and dropped the way it was before this stamp existed. */
-    App_DriveEvent(app, DRIVE_EVENT_INV_CHANGED, container_id, 0, 0, 0);
+    App_DriveEvent(app, RS_EVENT_INV_CHANGED, container_id, 0, 0, 0);
     /* on_inventory_changed, queued only for a subscriber. */
     app_plugin_inventory_changed(app, container_id);
 
-    /* A new item is not held behind the pause of one whose parts did not
-     * arrive: the next tick runs a reconcile pass. */
-    InvIconRetry_Lift(&app->inv_icon_retry);
+    /* Every slot of it whose item has no icon is wanted now (a task each,
+     * app/app_tasks_if_assets.c); nothing scans the inventories later. */
+    App_InvIconsWant(app, container_id);
 
     UITree_HostInputsChanged(&app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY));
     RedrawRequest_Raise(&app->redraw_request);
-}
-
-static int
-Task_InvIconReconcile_Run(
-    struct ToriRS_Task* base,
-    struct ToriRS_IOBatch* io)
-{
-    struct Task_InvIconReconcile* self = (struct Task_InvIconReconcile*)base;
-    struct App* app = self->app;
-    (void)io;
-
-    PT_BEGIN(&self->pt);
-
-    self->published_change = 0;
-    self->resolved = 0;
-    /* Collect the batch that still needs a model load (bounded; leftovers are
-     * caught by the next tick's scan once this pass stamps its slots). */
-    self->n = 0;
-    for( int ci = 0; ci < app->invs.container_count && self->n < APP_INV_ICON_BATCH_MAX; ci++ )
-    {
-        struct InvContainer const* c = &app->invs.containers[ci];
-        if( !c->slots )
-            continue;
-        for( int s = 0; s < c->slot_count && self->n < APP_INV_ICON_BATCH_MAX; s++ )
-        {
-            struct InvSlot const* slot = &c->slots[s];
-            if( slot->obj_id > INV_MANAGER_EMPTY_OBJ_ID &&
-                slot->scene_id == INV_MANAGER_NO_SCENE_ID )
-            {
-                self->obj_ids[self->n] = slot->obj_id;
-                self->counts[self->n] = slot->obj_count > 0 ? slot->obj_count : 1;
-                self->n++;
-            }
-        }
-    }
-    if( self->n > 0 )
-        PT_TASK_AWAITSELF_IF(
-            CreateTask_ObjModelLoad(app->provider, self->obj_ids, self->counts, self->n));
-
-    /*
-     * Rasterize the pending slots whose parts have actually landed, and leave
-     * the rest pending for a later pass.
-     *
-     * Asking `ObjModelLoad_NeedsWork` first is the whole fix for icons that go
-     * missing at random. The batch above is capped, so on a bank (1410 slots)
-     * or a busy boot most pending slots never had their models requested; an
-     * UPDATE_INV that lands while this task awaits adds slots it never asked
-     * for either; and against an on-demand cache the answer arrives over the
-     * network whenever it arrives. In all three cases the raster below used to
-     * find nothing resident, stamp APP_INV_ICON_SCENE_FAILED, and the per-tick
-     * scan — which only looks at INV_MANAGER_NO_SCENE_ID — would never come
-     * back. The slot stayed blank until the server replaced the item.
-     *
-     * Baking too early is the same bug wearing the other face: an icon rastered
-     * before its model's textures arrive is cached blank against that
-     * (obj, count) key for the rest of the session, which draws as a stack
-     * count with no item under it.
-     *
-     * A slot still missing parts after its load is NOT given up on. Its read
-     * may have come back empty -- a dropped JS5 socket, a browser storage
-     * error -- and an icon stamped FAILED then stayed blank for the session.
-     * The slot stays pending, and a pass that resolved nothing makes the next
-     * one wait (app_inv_icon_reconcile_tick), so an obj whose model never
-     * arrives costs one ask every few seconds, not one every tick.
-     */
-    for( int ci = 0; ci < app->invs.container_count; ci++ )
-    {
-        struct InvContainer* c = &app->invs.containers[ci];
-        if( !c->slots )
-            continue;
-        for( int s = 0; s < c->slot_count; s++ )
-        {
-            struct InvSlot* slot = &c->slots[s];
-            int count;
-            int scene_id;
-            if( slot->obj_id <= INV_MANAGER_EMPTY_OBJ_ID ||
-                slot->scene_id != INV_MANAGER_NO_SCENE_ID )
-                continue;
-            count = slot->obj_count > 0 ? slot->obj_count : 1;
-            scene_id = UITreeSceneBridge_EnsureObjIcon(&app->bridge, slot->obj_id, count);
-            if( scene_id >= 0 )
-            {
-                slot->scene_id = scene_id;
-                slot->atlas_index = 0;
-                self->published_change = 1;
-                self->resolved++;
-                continue;
-            }
-            /* Could not build it *yet*: leave the slot pending for a later
-             * pass to batch. */
-            if( ObjModelLoad_NeedsWork(app->provider, slot->obj_id, count) )
-                continue;
-            slot->scene_id = APP_INV_ICON_SCENE_FAILED;
-            slot->atlas_index = 0;
-            self->published_change = 1;
-            self->resolved++;
-        }
-    }
-
-    InvIconRetry_NotePass(&app->inv_icon_retry, self->resolved, (uint64_t)app->host.client.now_ms);
-
-    if( self->published_change )
-        UITree_HostInputsChanged(
-            &app->ui_host,
-            UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY) |
-                UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ASSETS));
-    InvIconRetry_End(&app->inv_icon_retry);
-    RedrawRequest_Raise(&app->redraw_request);
-    PT_END(&self->pt);
-}
-
-static void
-Task_InvIconReconcile_Free(struct ToriRS_Task* base)
-{
-    ToriMem_Free(ToriMem_Process(), base);
-}
-
-static struct ToriRS_TaskVTable Task_InvIconReconcile_VTable = {
-    .run = Task_InvIconReconcile_Run,
-    .free = Task_InvIconReconcile_Free,
-};
-
-/* Per-tick hook: enqueue one reconcile if any item icon is still unresolved and
- * none is already running. On the ASSET runner: it is enqueued from the tick
- * that applied the inventory packets, so it already runs after them, and the
- * slots stay pending until an icon is built -- ordering needs nothing from
- * the packet queue. What the FIFO cost was the frame: equipping a set of
- * unseen items parked every packet, and the picture, on a wave of obj and
- * model reads (100 ms at ::maxrange through a browser cache). Now the world
- * moves and the cells fill as the icons land. */
-void
-app_inv_icon_reconcile_tick(struct App* app)
-{
-    struct Task_InvIconReconcile* task;
-
-    if( !InvIconRetry_Due(&app->inv_icon_retry, (uint64_t)app->host.client.now_ms) ||
-        !InvManager_HasUnbakedIcon(&app->invs) )
-        return;
-
-    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
-    assert(task);
-    task->task.vtable = &Task_InvIconReconcile_VTable;
-    strncpy(task->task.name, "InvIconReconcile", sizeof(task->task.name) - 1);
-    task->app = app;
-    PT_INIT(&task->pt);
-    InvIconRetry_Begin(&app->inv_icon_retry);
-    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
 static int

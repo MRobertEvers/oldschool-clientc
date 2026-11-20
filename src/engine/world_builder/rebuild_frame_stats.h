@@ -17,7 +17,10 @@
  * window or the frames after it are open.
  *
  * A noted frame says which reports are due: the closed window's, the frames
- * after it once all 48 are in, and a slow frame among those.
+ * after it once all 48 are in, and a slow frame among those. ARMED stats take
+ * marks on every frame, not only inside a window, so the frame a window
+ * opened in reports where all of its time went, the part before the opening
+ * included (REBUILD_FRAME_STATS_FIRST).
  *
  * Nothing here reads a clock, decides whether timing is on or prints. The
  * caller passes each frame's time and each mark's, opens a window only when
@@ -45,10 +48,15 @@ enum
     REBUILD_FRAME_STATS_AFTER_SLOW = 1 << 1,
     /* The last frame after the window is in. */
     REBUILD_FRAME_STATS_AFTER_DONE = 1 << 2,
+    /* The first frame of a window was noted, with armed stats: its marks,
+     * from the frame's start, are due. */
+    REBUILD_FRAME_STATS_FIRST = 1 << 3,
 };
 
 struct RebuildFrameStats
 {
+    /* Marks are taken on every frame (RebuildFrameStats_Arm). */
+    int armed;
     int open;
     int closing;
     int background;
@@ -78,7 +86,7 @@ struct RebuildFrameStats
     int marks;
 };
 
-/** No window, nothing after one, no marks. */
+/** No window, nothing after one, no marks, not armed. */
 void
 RebuildFrameStats_Reset(struct RebuildFrameStats* stats);
 
@@ -94,6 +102,12 @@ RebuildFrameStats_Open(
     struct RebuildFrameStats* stats,
     int background);
 
+/** Take marks on every frame from now on, so a window's first frame can say
+ *  where its time went before the window opened. Kept by Open; Reset
+ *  disarms. */
+void
+RebuildFrameStats_Arm(struct RebuildFrameStats* stats);
+
 /** The rebuild has finished: the next noted frame closes the window. */
 void
 RebuildFrameStats_Finished(struct RebuildFrameStats* stats);
@@ -106,8 +120,8 @@ RebuildFrameStats_Drop(struct RebuildFrameStats* stats);
 void
 RebuildFrameStats_ClearMarks(struct RebuildFrameStats* stats);
 
-/** Is a mark taken now? Only while a window or the frames after it are
- *  open, and while there is room. */
+/** Is a mark taken now? While armed, or while a window or the frames after
+ *  it are open, and while there is room. */
 int
 RebuildFrameStats_WantsMark(struct RebuildFrameStats const* stats);
 

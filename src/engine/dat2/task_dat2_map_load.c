@@ -1,5 +1,6 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "mem/torirs_mem.h"
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_map_from_rscache.h"
@@ -22,6 +23,8 @@ struct Task_Dat2MapLoad
     struct Dat2BuildCache* bc;
     int map_x;
     int map_z;
+    /* The maps reference table's load, while this square waits on it. */
+    int ref_join;
 };
 
 static int
@@ -82,29 +85,28 @@ Task_Dat2MapTerrainLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    /* One fetch for the whole fan-out: the first square to get here loads
-     * the table, the rest wait on it (dat2_buildcache.h,
-     * reference_table_loading). */
+    /* One fetch for the whole fan-out: the table is awaited through the
+     * assets table (ASSET_KIND_REF_TABLE), which holds the one load every
+     * square waits on. A load abandoned mid-read (its task freed) leaves the
+     * entry wanted, and the square asks again; one that ended without the
+     * table is a failure. */
     while( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_MAPS) )
     {
-        if( task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] )
-        {
-            task->task.blocked = 1;
-            PT_YIELD(&task->pt);
-            continue;
-        }
-        task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] = 1;
-        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_MAPS);
-        PT_YIELD(&task->pt);
-
-        table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
-        task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] = 0;
-        if( !table )
+        assert(task->bc->assets);
+        Assets_Await(
+            task->bc->assets,
+            AssetKey_Make(ASSET_KIND_REF_TABLE, RSCACHE_DAT2_TABLE_MAPS, 0),
+            &task->ref_join);
+        TASK_AWAIT_ASSETS(&task->task, &task->pt, task->ref_join);
+        if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_MAPS) &&
+            Assets_State(
+                task->bc->assets,
+                AssetKey_Make(ASSET_KIND_REF_TABLE, RSCACHE_DAT2_TABLE_MAPS, 0)) ==
+                ASSET_STATE_NONE )
         {
             TORIRS_ERR("Failed to load maps reference table\n");
             PT_EXIT(&task->pt);
         }
-        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_MAPS, table);
     }
 
     table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_MAPS);
@@ -194,29 +196,28 @@ Task_Dat2MapSceneryLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    /* One fetch for the whole fan-out: the first square to get here loads
-     * the table, the rest wait on it (dat2_buildcache.h,
-     * reference_table_loading). */
+    /* One fetch for the whole fan-out: the table is awaited through the
+     * assets table (ASSET_KIND_REF_TABLE), which holds the one load every
+     * square waits on. A load abandoned mid-read (its task freed) leaves the
+     * entry wanted, and the square asks again; one that ended without the
+     * table is a failure. */
     while( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_MAPS) )
     {
-        if( task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] )
-        {
-            task->task.blocked = 1;
-            PT_YIELD(&task->pt);
-            continue;
-        }
-        task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] = 1;
-        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_MAPS);
-        PT_YIELD(&task->pt);
-
-        table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
-        task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] = 0;
-        if( !table )
+        assert(task->bc->assets);
+        Assets_Await(
+            task->bc->assets,
+            AssetKey_Make(ASSET_KIND_REF_TABLE, RSCACHE_DAT2_TABLE_MAPS, 0),
+            &task->ref_join);
+        TASK_AWAIT_ASSETS(&task->task, &task->pt, task->ref_join);
+        if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_MAPS) &&
+            Assets_State(
+                task->bc->assets,
+                AssetKey_Make(ASSET_KIND_REF_TABLE, RSCACHE_DAT2_TABLE_MAPS, 0)) ==
+                ASSET_STATE_NONE )
         {
             TORIRS_ERR("Failed to load maps reference table\n");
             PT_EXIT(&task->pt);
         }
-        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_MAPS, table);
     }
 
     table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_MAPS);
@@ -285,6 +286,11 @@ Task_Dat2MapSceneryLoad_Run(
 static void
 Task_Dat2MapLoad_Free(struct ToriRS_Task* task_base)
 {
+    struct Task_Dat2MapLoad* task = (struct Task_Dat2MapLoad*)task_base;
+    /* Freed while it waited on the maps table: stop counting that load on
+     * this task. */
+    if( task->ref_join > 0 )
+        Assets_Unjoin(task->bc->assets, &task->ref_join);
     ToriMem_Free(ToriMem_Assets(), task_base);
 }
 

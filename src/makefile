@@ -732,7 +732,9 @@ endif
 # The lifetime-group allocator (src/mem/torirs_mem.h). Any rule that compiles
 # or links a file allocating through ToriMem names this list too. Defined above
 # $(SRCS) for the reason PORCELAIN_SRCS states just below.
-TORIMEM_SRCS = mem/torirs_mem.c
+# The trigger layer (task_trigger.c, what a parked task waits on) rides with
+# the allocator: every binary that has a task queue links this list.
+TORIMEM_SRCS = mem/torirs_mem.c task_trigger.c
 
 PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
 		plugin/porcelain/porcelain_panel.c
@@ -782,9 +784,18 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_minimap.c \
 	app/app_minimenu.c \
 	app/app_net.c \
+	app/app_gameproto_exec.c \
 	app/app_overlay.c \
 	app/app_overlay_entities.c \
-	app/app_placeholder.c \
+	app/app_assets.c \
+	app/app_parallel_task.c \
+	app/app_tasks_ground.c \
+	app/app_tasks_effects.c \
+	app/app_tasks_locs.c \
+	app/app_tasks_entities.c \
+	app/app_tasks_if_assets.c \
+	app/app_tasks_mounts.c \
+	app/app_tasks_scripts.c \
 	app/app_plugin_api.c \
 	app/app_plugin_assets.c \
 	app/app_plugin_bridge.c \
@@ -871,7 +882,8 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/dev_overlay.c \
 	ui/uitree_keyboard_owner.c \
 	ui/uitree_popup_place.c \
-	engine/async_pending.c \
+	engine/asset_requests.c \
+	engine/asset_load_task.c \
 	engine/entity_spotanim.c \
 	engine/toridraw_element_anim.c \
 	torirs_env_values.c \
@@ -945,7 +957,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \
 	engine/dat2/task_dat2_spotanim_load.c engine/dat2/task_dat2_sound_load.c \
 	engine/dat2/task_dat2_idk_load.c \
-	engine/dat2/task_dat2_map_load.c engine/dat2/task_dat2_loc_load.c \
+	engine/dat2/task_dat2_map_load.c engine/dat2/task_dat2_ref_table_load.c engine/dat2/task_dat2_loc_load.c \
 	engine/dat2/task_dat2_flotype_load.c engine/dat2/task_dat2_underlay_load.c \
 	engine/dat2/task_dat2_texture_load.c \
 	engine/dat2/task_dat2_preload.c engine/dat2/task_dat2_group_touch.c \
@@ -985,6 +997,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_cs2_host.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_group_store.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/task_entity_assets.c game/rs_entity_sync.c game/rs_audio.c \
+	game/rs_entity_apply.c game/rs_loc_tasks.c \
 	game/entity_info_scratch.c \
 	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
 	game/rs_save_debounce.c \
@@ -993,7 +1006,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
 	engine/dat2/task_dat2_music_load.c \
-	engine/uitree_anim.c engine/seq_load_tracker.c engine/entity_model_build.c engine/uitree_role_load.c \
+	engine/uitree_anim.c engine/entity_model_build.c engine/uitree_role_load.c \
 	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
@@ -1009,8 +1022,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \
 	inv/inv_manager.c \
-	inv/inv_icon_retry.c \
-	inv/widget_icon_park.c \
 	cmd/cmdring.c cmd/cmdbus.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c net/chat_huffman.c \
 	$(LOGIN_SRCS) net/packetbuffer.c net/net.c net/net_out.c \
@@ -1020,8 +1031,10 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	net/session_end.c \
 	game/rs_clientscript_queue.c \
 	game/rs_server_tick.c \
+	game/rs_event_ring.c game/rs_effect_log.c \
+	game/rs_server_state.c \
 	game/settle_gate.c \
-	game/rs_zone_inbox.c \
+	game/rs_pending.c \
 	game/rs_rebuild_region.c \
 	game/rs_npc_update_origin.c \
 	game/rs_hint_arrow.c \
@@ -1033,7 +1046,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_sailing_hud.c \
 	game/rs_tile_highlight_watch.c \
 	game/rs_mouseover_report.c \
-	game/rs_npc_body_lands.c \
 	perf/frame_time_ring.c \
 	perf/frame_clock.c \
 	perf/boot_pump_stats.c \
@@ -1053,6 +1065,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	platform/net_transport_replay.c net/rsprox_recording.c \
 	replay/replay_timeline.c replay/replay_scrub.c \
 	replay/replay_ledger.c replay/replay_ledger_entity.c replay/replay_ledger_verify.c \
+	replay/replay_npc_types.c \
 	replay/replay_classify.c replay/replay_world.c replay/replay_world_apply.c \
 	replay/replay_chase.c \
 	replay/replay_digest.c \
@@ -1066,7 +1079,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	world/worldview.c \
 	world/wev_aboard_trace.c \
-	world/loc_lane.c \
 	world/proj_spawn_latch.c \
 	sideapp/side_app.c \
 	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c engine/dat2/task_dat2_grouptype_load.c engine/dat2/task_dat2_varclantype_load.c \
@@ -2277,7 +2289,8 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-uitree-if-events
 	$(MAKE) test-worldmap-drag
 	$(MAKE) test-uitree-keyboard-owner
-	$(MAKE) test-async-pending
+	$(MAKE) test-asset-requests
+	$(MAKE) test-scene-element-serial
 	$(MAKE) test-entity-spotanim
 	$(MAKE) test-ground-items-dirty
 	$(MAKE) test-uitree-popup-place
@@ -2285,8 +2298,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-inv-drag
 	$(MAKE) test-target-select
 	$(MAKE) test-if-models
-	$(MAKE) test-inv-icon-retry
-	$(MAKE) test-widget-icon-park
+	$(MAKE) test-tasks-ground
 	$(MAKE) test-input-claims
 	$(MAKE) test-world-tap
 	$(MAKE) test-frame-modifiers
@@ -2307,9 +2319,16 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-map-editor-app
 	$(MAKE) test-hover-footprint
 	$(MAKE) test-wev-aboard-trace
-	$(MAKE) test-loc-lane
+	$(MAKE) test-loc-tasks
 	$(MAKE) test-proj-spawn-latch
 	$(MAKE) test-cam-script
+	$(MAKE) test-rs-event-ring
+	$(MAKE) test-rs-server-state
+	$(MAKE) test-pending
+	$(MAKE) test-parallel-task
+	$(MAKE) test-scriptrun-shadow
+	$(MAKE) test-scriptrun-zone
+	$(MAKE) test-scriptrun-tasks
 	$(MAKE) test-render-mode
 	$(MAKE) test-painter-cull-bake
 	$(MAKE) test-world-views
@@ -2329,10 +2348,8 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-clientscript-queue
 	$(MAKE) test-rs-server-tick
 	$(MAKE) test-settle-gate
-	$(MAKE) test-rs-zone-inbox
 	$(MAKE) test-rs-rebuild-region
 	$(MAKE) test-rs-npc-update-origin
-	$(MAKE) test-rs-npc-body-lands
 	$(MAKE) test-rs-sailing-hud
 	$(MAKE) test-rs-tile-highlight-watch
 	$(MAKE) test-rs-mouseover-report
@@ -2349,7 +2366,6 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-rs-title-accounts
 	$(MAKE) test-rs-title-music
 	$(MAKE) test-cache-mounts
-	$(MAKE) test-seq-load-tracker
 	$(MAKE) test-entity-info-scratch
 	$(MAKE) test-editor-ghost
 	$(MAKE) test-editor
@@ -2436,7 +2452,7 @@ test-editor-ghost: $(OBJ_DIR)
 test-clientscript-queue: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX) \
 		game/test/rs_clientscript_queue_test.c game/rs_clientscript_queue.c \
-		perf/frame_time_ring.c $(LDFLAGS)
+		perf/frame_time_ring.c $(TORIMEM_SRCS) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX)
 
 # Whether the server tick being applied is complete. A tick that never closes
@@ -2485,14 +2501,27 @@ test-rs-interaction-mode: $(OBJ_DIR)
 		game/test/rs_interaction_mode_test.c game/rs_interaction_mode.c $(LDFLAGS)
 	./$(OBJ_DIR)/rs_interaction_mode_test$(PLATFORM_EXE_SUFFIX)
 
-# The zone base and the zone sub-packets held while a scene loads. A held
-# packet applied at the live base lands in the wrong zone or plane, and one
-# applied out of order leaves a loc the server changed back.
-.PHONY: test-rs-zone-inbox
-test-rs-zone-inbox: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_zone_inbox_test$(PLATFORM_EXE_SUFFIX) \
-		game/test/rs_zone_inbox_test.c game/rs_zone_inbox.c $(LDFLAGS)
-	./$(OBJ_DIR)/rs_zone_inbox_test$(PLATFORM_EXE_SUFFIX)
+# The pending index (game/rs_pending.h) over bare task headers: find the
+# newest pending task by kind and key, a key's generation, cancel by key and
+# by every scope, "an earlier task for this key is pending", order across the
+# wrap, many tasks in one bucket.
+.PHONY: test-pending
+test-pending: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_pending_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) game/test/rs_pending_test.c game/rs_pending.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_pending_test$(PLATFORM_EXE_SUFFIX)
+
+# The shape of a parallel task (game/rs_parallel_task.h), worked once: a task
+# on a parallel runner with a fake assets loader applies when its asset
+# arrives, exits when a newer one cancelled it, when its scope was cancelled,
+# when its scene moved on and when too late, applies "absent" on a failed
+# load, follows a chain, and two tasks for one key apply in order.
+.PHONY: test-parallel-task
+test-parallel-task: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_parallel_task_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) game/test/rs_parallel_task_test.c game/rs_pending.c engine/asset_requests.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_parallel_task_test$(PLATFORM_EXE_SUFFIX)
 
 # The last accepted REBUILD's centre zone and the shown scene's kept template
 # grid: the scene base every scene-local coord is measured from, and the
@@ -2774,14 +2803,6 @@ test-wev-aboard-trace: $(OBJ_DIR)
 		world/test/wev_aboard_trace_test.c world/wev_aboard_trace.c $(LDFLAGS)
 	./$(OBJ_DIR)/wev_aboard_trace_test$(PLATFORM_EXE_SUFFIX)
 
-# The loc lane's tickets: taken in order, each change's turn is the one after
-# the last released, and a ticket's release is asked across the counter wrap.
-.PHONY: test-loc-lane
-test-loc-lane: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/loc_lane_test$(PLATFORM_EXE_SUFFIX) \
-		world/test/loc_lane_test.c world/loc_lane.c $(LDFLAGS)
-	./$(OBJ_DIR)/loc_lane_test$(PLATFORM_EXE_SUFFIX)
-
 # The developer projectile hotkey: the first press marks the source, a press
 # elsewhere launches from it and clears it, a press on the source clears it.
 # No world and no App.
@@ -2813,6 +2834,16 @@ test-cam-script: $(OBJ_DIR)
 		render/test/cam_script_test.c render/cam_script.c $(LDFLAGS)
 	./$(OBJ_DIR)/cam_script_test$(PLATFORM_EXE_SUFFIX)
 
+# The one event vocabulary and ring both clients keep (game/rs_event_ring.h):
+# the Lua-visible names, stamp order, a re-poll from the returned serial, the
+# real client's counted drops and refused stale cursor, the headless client's
+# uncounted overwrite and its by-serial reads.
+.PHONY: test-rs-event-ring
+test-rs-event-ring: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_event_ring_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_event_ring_test.c game/rs_event_ring.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_event_ring_test$(PLATFORM_EXE_SUFFIX)
+
 .PHONY: test-render-mode
 test-render-mode: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/render_mode_test$(PLATFORM_EXE_SUFFIX) \
@@ -2838,8 +2869,8 @@ test-redraw-request: $(OBJ_DIR)
 		render/test/redraw_request_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/redraw_request_test$(PLATFORM_EXE_SUFFIX)
 
-# The CAM_SKYBOX slot: a wanted model is asked for once per want, the old one
-# draws until the new one is built, and wanting none drops it at once.
+# The CAM_SKYBOX slot: the old model draws until the new one is built, and
+# wanting none drops it at once. Asking for the model is the assets table's.
 .PHONY: test-skybox-slot
 test-skybox-slot: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/skybox_slot_test$(PLATFORM_EXE_SUFFIX) \
@@ -2847,25 +2878,18 @@ test-skybox-slot: $(OBJ_DIR)
 	./$(OBJ_DIR)/skybox_slot_test$(PLATFORM_EXE_SUFFIX)
 
 # The attached-graphic table: free entries are -1, a recycled element id is
-# not a match, a full table claims nothing, and a merge is rebuilt only when
+# not a match, a full table grows, and a merge is rebuilt only when
 # its slots or a drawn slot's frame changed.
 .PHONY: test-entity-spotanim
 test-entity-spotanim: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/entity_spotanim_test$(PLATFORM_EXE_SUFFIX) \
-		engine/test/entity_spotanim_test.c engine/entity_spotanim.c $(LDFLAGS)
+		$(TORIMEM_SRCS) engine/test/entity_spotanim_test.c engine/entity_spotanim.c $(LDFLAGS)
 	./$(OBJ_DIR)/entity_spotanim_test$(PLATFORM_EXE_SUFFIX)
-
-# Npc bodies in flight: one load per (base, type), a full table registers
-# nothing, and a forget leaves every other type in flight.
-.PHONY: test-rs-npc-body-lands
-test-rs-npc-body-lands: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_npc_body_lands_test$(PLATFORM_EXE_SUFFIX) \
-		game/test/rs_npc_body_lands_test.c game/rs_npc_body_lands.c $(LDFLAGS)
-	./$(OBJ_DIR)/rs_npc_body_lands_test$(PLATFORM_EXE_SUFFIX)
 
 # The sailing helm's ids and the selected heading: shown for 30 client cycles
 # from the send and not on the 30th, kept across a save and restore on another
-# clock, and an arrow's model load queued once. RevConfigRefs_Get is stubbed.
+# clock, and the arrows' scene elements. RevConfigRefs_Get is stubbed. (The arrow
+# models are wanted through the assets table, which dedupes their loads.)
 .PHONY: test-rs-sailing-hud
 test-rs-sailing-hud: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_sailing_hud_test$(PLATFORM_EXE_SUFFIX) \
@@ -2888,15 +2912,6 @@ test-rs-mouseover-report: $(OBJ_DIR)
 		game/test/rs_mouseover_report_test.c game/rs_mouseover_report.c $(LDFLAGS)
 	./$(OBJ_DIR)/rs_mouseover_report_test$(PLATFORM_EXE_SUFFIX)
 
-# Which sequence loads were already asked for: a claimed id is refused until it
-# is evicted, Add stops at a full table, and ClaimEvicting drops the oldest id
-# instead so a full table keeps deduping.
-.PHONY: test-seq-load-tracker
-test-seq-load-tracker: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/seq_load_tracker_test$(PLATFORM_EXE_SUFFIX) \
-		engine/test/seq_load_tracker_test.c engine/seq_load_tracker.c $(LDFLAGS)
-	./$(OBJ_DIR)/seq_load_tracker_test$(PLATFORM_EXE_SUFFIX)
-
 # The entity-info decoders' kept op lists: one allocation reused per slot, a
 # borrow while it is lent gets a list of its own freed on release, and Free
 # forgets both. rsprot_info_list_init is stubbed in the test.
@@ -2905,6 +2920,18 @@ test-entity-info-scratch: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/entity_info_scratch_test$(PLATFORM_EXE_SUFFIX) \
 		$(TORIMEM_SRCS) game/test/entity_info_scratch_test.c game/entity_info_scratch.c $(LDFLAGS)
 	./$(OBJ_DIR)/entity_info_scratch_test$(PLATFORM_EXE_SUFFIX)
+
+# The read both clients fill an entity-info op list with
+# (EntityInfoScratch_Read): a legal crowded PLAYER_INFO (the server's own
+# writer, 255 players entering view with a busy tick's blocks) and a crowded
+# NPC_INFO need more than a default list; the read grows it, reads the packet
+# again from the stream state before it, and hands back every op.
+.PHONY: test-entity-info-read
+test-entity-info-read: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/entity_info_read_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) game/test/entity_info_read_test.c game/entity_info_scratch.c \
+		$(RSPROT_INFO_OBJS) -lm $(LDFLAGS)
+	./$(OBJ_DIR)/entity_info_read_test$(PLATFORM_EXE_SUFFIX)
 
 # A replay seek's chase: the tile it states until the world comes back, and
 # the client cycles each chase tick charges -- whole on the first tick, then
@@ -3072,25 +3099,58 @@ test-if-models: $(OBJ_DIR)
 		ui/test/uitree_if_models_test.c ui/uitree_if_models.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_models_test$(PLATFORM_EXE_SUFFIX)
 
-# When the next inventory icon pass may run: one in flight, a pass that
-# resolved nothing holding the next off by a wait that doubles to its ceiling,
-# a pass that resolved something clearing it, and a changed inventory lifting
-# the hold.
-.PHONY: test-inv-icon-retry
-test-inv-icon-retry: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/inv_icon_retry_test$(PLATFORM_EXE_SUFFIX) \
-		inv/test/inv_icon_retry_test.c inv/inv_icon_retry.c $(LDFLAGS)
-	./$(OBJ_DIR)/inv_icon_retry_test$(PLATFORM_EXE_SUFFIX)
+# The ground family's parallel tasks (app/app_tasks_ground.c) on a zeroed App
+# with a hand-fed cache and a fake assets loader. Ground stacks: a cold add is
+# a row at once and lands its element when the model arrives; a warm add whose
+# model will not build still keeps its row (G3); an OBJ_COUNT whose new variant
+# is not resident loads it and re-points the element (G1); an OBJ_CUSTOMISE
+# whose model is not resident loads it and re-applies (G2); a row picked up or
+# replaced while it loads is left alone; a rebuild in progress is waited out.
+# Widget icons a clientscript asks for: one task per cell, newest wins, none
+# released in the tick it was asked in, at most twelve a logic tick, the rest
+# in their places in line, and a cell whose parts are still missing asks again
+# after its back-off.
+.PHONY: test-tasks-ground
+test-tasks-ground: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test \
+		-o $(OBJ_DIR)/app_tasks_ground_test \
+		app/test/app_tasks_ground_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_tasks_ground_test
 
-# The widget obj-icon requests a clientscript parks for a logic tick: one per
-# cell, newest wins, and a release that takes the due ones from the head up to
-# its burst while the rest keep their places. A park that grew a row per write
-# would load every obj a script stepped a cell through.
-.PHONY: test-widget-icon-park
-test-widget-icon-park: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/widget_icon_park_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
-		inv/test/widget_icon_park_test.c inv/widget_icon_park.c $(LDFLAGS)
-	./$(OBJ_DIR)/widget_icon_park_test$(PLATFORM_EXE_SUFFIX)
+# The interface-assets family's parallel tasks (app/app_tasks_if_assets.c) on a
+# stack App with fake loaders: IF_SETOBJECT wants its count variant's chain
+# (U1), an npc head its textures and a head task applies only to its own head
+# (U2), and inventory icons are wanted when a slot changes, deduped, cancelled
+# when the slot empties, and asked again after the back-off. Asserts on.
+.PHONY: test-if-assets-tasks
+test-if-assets-tasks: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -o $(OBJ_DIR)/if_assets_tasks_test$(PLATFORM_EXE_SUFFIX) \
+		app/test/if_assets_tasks_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/if_assets_tasks_test$(PLATFORM_EXE_SUFFIX)
+
+# The visual waits that left the main queue (app/app_tasks_mounts.c, the
+# spawns, BODYTYPE, the loose head): each a parallel task, nothing waiting on
+# the packet queue while its model is out, and cancelled by the close of what
+# it was for. Asserts on.
+.PHONY: test-tasks-mounts
+test-tasks-mounts: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -o $(OBJ_DIR)/app_tasks_mounts_test$(PLATFORM_EXE_SUFFIX) \
+		app/test/app_tasks_mounts_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_tasks_mounts_test$(PLATFORM_EXE_SUFFIX)
+
+# Work that kept a tracker of its own, on the assets table and the pending
+# index now: a player's body fetch (one listed task per distinct body), the
+# npc multi-resolve's config reads, a client trigger's subject carried by its
+# script (app/test/app_trackers_test.c).
+.PHONY: test-app-trackers
+test-app-trackers: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -o $(OBJ_DIR)/app_trackers_test$(PLATFORM_EXE_SUFFIX) \
+		app/test/app_trackers_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_trackers_test$(PLATFORM_EXE_SUFFIX)
 
 # Who has taken a part of this frame's input: keys by OSRS code, the frame as
 # a whole and the pointer by chrome, each dropped on its own lifetime.
@@ -3147,15 +3207,16 @@ test-ground-items-dirty: $(OBJ_DIR)
 		game/test/rs_ground_items_dirty_test.c game/rs_ground_items_dirty.c $(LDFLAGS)
 	./$(OBJ_DIR)/ground_items_dirty_test$(PLATFORM_EXE_SUFFIX)
 
-# The two "asked for it, waiting for it" lists. Both fail in ways nothing else
-# in the frame notices: a duplicate queues a second decoder, an overflow makes
-# a model render untextured forever, a stale entry binds somebody else's
-# animation onto whoever inherited a recycled scene element id.
-.PHONY: test-async-pending
-test-async-pending: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/async_pending_test$(PLATFORM_EXE_SUFFIX) \
-		engine/test/async_pending_test.c engine/async_pending.c $(LDFLAGS)
-	./$(OBJ_DIR)/async_pending_test$(PLATFORM_EXE_SUFFIX)
+# The assets table (engine/asset_requests.h), on fake loaders: one load for
+# many waiters, an awaiting task and wanting entries sharing a load, and every
+# policy of the one table (give up after N, back off forever, remember a
+# failure; land late, land shortened, drop after a deadline; newest replaces;
+# land one or all), plus the cases of the trackers it replaced.
+.PHONY: test-asset-requests
+test-asset-requests: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/asset_requests_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) engine/test/asset_requests_test.c engine/asset_requests.c $(LDFLAGS)
+	./$(OBJ_DIR)/asset_requests_test$(PLATFORM_EXE_SUFFIX)
 
 # Who has the keyboard. Every hotkey asks this, and the failure is always a
 # text input the rule does not know about leaving the hotkeys live underneath
@@ -3255,7 +3316,7 @@ test-world-seq-source: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/hmap.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/world_seq_source_test $(TORIMEM_SRCS) \
 		engine/test/world_seq_source_toridraw_test.c engine/world_seq_source_toridraw.c \
 		engine/cache_provider.c world/world.c world/entity_pathing.c world/entity_pool.c \
-		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/hmap.o
+		perf/torirs_perf.c $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/hmap.o
 	./$(OBJ_DIR)/world_seq_source_test
 
 # A plugin-authored mesh: the two halves grow independently and keep what was
@@ -3319,6 +3380,16 @@ test-pacer: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/pacer_test$(PLATFORM_EXE_SUFFIX) \
 		test/pacer_test.c pacer.c $(LDFLAGS)
 	./$(OBJ_DIR)/pacer_test$(PLATFORM_EXE_SUFFIX)
+
+# The shared frame loop through a fake lane (platform/test/loop_lane_test.c):
+# no surface for N frames on a retained and a software lane against a real
+# scene queue (platform/surface_plan.h); a Windows lane's sleeps on a fake
+# clock (platform/sleep_plan.h); a lane that stops calling the loop for 2 s.
+test-loop-lane: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/loop_lane_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/loop_lane_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/loop_lane_test$(PLATFORM_EXE_SUFFIX)
 
 .PHONY: test-cs2-host-request-kinds
 test-cs2-host-request-kinds: $(OBJ_DIR)
@@ -4006,6 +4077,13 @@ test-highlight: $(OBJ_DIR) game/rs_highlight.c game/test/rs_highlight_test.c
 # Client triggers + the scripted-overlay store. Both are pure state modules, so
 # this needs no cache and no renderer -- but the trigger hashes ARE checked
 # against real cache.osrs239 group identifiers (see the file).
+# The triggers the client does not raise (36 npc gone, 41/42 player shown and
+# gone) are bound to no script in the cache: if an upgrade binds one, this
+# fails and the trigger is wanted (fault E10).
+.PHONY: check-client-triggers
+check-client-triggers:
+	@python3 -I $(REPO_ROOT)/tools/client_trigger_scan.py $(REPO_ROOT)/cache.osrs242 --expect-none 36 41 42
+
 test-client-trigger: $(OBJ_DIR) game/rs_client_trigger.c game/rs_entity_overlay.c game/test/rs_client_trigger_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_client_trigger_test \
 		game/rs_client_trigger.c game/rs_entity_overlay.c game/test/rs_client_trigger_test.c $(LDFLAGS)
@@ -4155,6 +4233,18 @@ test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracke
 		plugin/plugins/plugin_draw.c $(PORCELAIN_SRCS) \
 		plugin/test/tracker_test.c $(LDFLAGS)
 	$(TRACKER_TEST_ENV) ./$(OBJ_DIR)/tracker_test
+
+# Every chat line the client adds reaches a plugin's on_chat_message, the
+# private echo, friend-channel and clan-channel kinds included: the packets go
+# through the client's executor into a PluginHost over the client's own engine
+# (app_plugin_engine), so it links the app object set minus main. It lives in
+# app/test because it builds an App.
+.PHONY: test-plugin-chat-kinds
+test-plugin-chat-kinds: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_chat_kinds_test \
+		app/test/app_plugin_chat_kinds_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_chat_kinds_test
 
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/test/torirs_plugin_host_test.c $(ASAN_DYLD_SHIM)
@@ -4307,7 +4397,7 @@ test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edito
 test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_spawn.c \
 		editor/test/editor_jm2_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_jm2_test $(TORIMEM_SRCS) \
-		editor/editor_jm2.c editor/editor_doc.c editor/editor_spawn.c \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_spawn.c editor/editor_if.c \
 		editor/test/editor_jm2_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_jm2_test $(EDITOR_CONTENT_DIR)
 
@@ -4623,8 +4713,12 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o \
 	$(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/rsprot_unity.o $(PROTO_OBJS)
 # The info streams' readers and the list they write (3rd/rsprot/streams, in the
-# codec unity), for a test that links an entity reader without net.o.
-RSPROT_INFO_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_unity.o
+# codec unity), for a test that links an entity reader without net.o. The codec
+# unity's packet functions call the executor (rsprot_branch, rsprot_exec_fail,
+# ...), so pkt_exec.o comes too: an OPT=1 link only got away without it because
+# LTO drops the unreferenced codecs, and at OPT=0 every one is linked.
+RSPROT_INFO_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_unity.o \
+	$(OBJ_DIR)/pkt_exec.o
 # PLAYER_INFO v5 round-trip: rsprot's writer (3rd/rsprot/streams/
 # player_info_write*.c) against its reader for the same revision; the tests live
 # in 3rd/rsprot/test and also run under `make -C 3rd/rsprot test`. Catches the
@@ -4644,6 +4738,16 @@ test-osrs241-npcinfo-large: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 		net/proto/proto_info.c \
 		$(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/osrs241_npc_info_large_test
+
+# NPC_INFO's typed customisations read their colours by the npc's type: two
+# real recorded frames (rev 226, rev 234) and a rev 222 retype in the record.
+.PHONY: test-npc-info-typed
+test-npc-info-typed: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/npc_info_typed_custom_test $(TORIMEM_SRCS) \
+		net/rev/test/npc_info_typed_custom_test.c \
+		net/proto/proto_info.c \
+		$(RSPROT_INFO_OBJS) -lm
+	./$(OBJ_DIR)/npc_info_typed_custom_test
 
 # PLAYER_INFO's rev-241 tail: rsprot's 241 writer against its 241 reader,
 # block by block (the face angle and TRANSPARENCY above all).
@@ -4778,11 +4882,14 @@ test-replay-ledger: $(OBJ_DIR) $(NET_CORE_OBJS)
 
 # The same equalities on real recordings, with a size and timing report:
 # `RECORDINGS="a.bin b.bin.gz"`. Not a suite test -- it needs recordings.
+# `NPC_CACHE=<dat2 dir>` (the recordings' revision's cache) answers the typed
+# npc customisation blocks from its npc configs (replay/replay_npc_types.c).
 .PHONY: replay-ledger-check
 replay-ledger-check: $(OBJ_DIR) $(NET_CORE_OBJS)
 	$(CC) $(CFLAGS) -UNDEBUG $(RSPROT_INCLUDES) -o $(OBJ_DIR)/replay_ledger_check $(TORIMEM_SRCS) \
-		replay/test/replay_ledger_check.c $(REPLAY_LEDGER_ONLY_SRCS) $(NET_CORE_OBJS) -lm
-	./$(OBJ_DIR)/replay_ledger_check $(RECORDINGS)
+		replay/test/replay_ledger_check.c $(REPLAY_LEDGER_ONLY_SRCS) replay/replay_npc_types.c \
+		$(NET_CORE_OBJS) -lm
+	NPC_CACHE="$(NPC_CACHE)" ./$(OBJ_DIR)/replay_ledger_check $(RECORDINGS)
 
 # The replay scrubber's timeline (replay/replay_timeline.c) over a synthetic
 # rev-241 recording: the tick table, the time maps across a stall, the lanes,
@@ -4802,6 +4909,18 @@ test-replay-scrub: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/replay_scrub_test \
 		replay/test/replay_scrub_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/replay_scrub_test
+
+# Packet groups across a seek on a real recording (not a suite test: it needs
+# one): every group adds up as the transport frames it; every group whose
+# members arrive after its header is held open in a real network by the
+# replay transport, a seek is begun inside it, and the seek must land with
+# no byte counted into the group that its header did not state.
+#   make -C src OPT=1 PLATFORM_OBJ_BASE=<objdir> replay-group-check RECORDINGS=<file.bin>
+.PHONY: replay-group-check
+replay-group-check: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/replay_group_check \
+		replay/test/replay_group_check.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/replay_group_check $(RECORDINGS)
 
 # A fast seek against linear play on a real recording: the private client
 # runs each tick twice (TORIRS_REPLAY_SEEK=fullsim, then fast) and every
@@ -4857,6 +4976,35 @@ test-world: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 		world/test/world_test_route.c world/test/world_test_main.c \
 		$(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/world_test
+
+# An npc's body customisation keeps every model the wire sent: 0, 8, 9 and 255
+# read back whole, through a replacement, both despawns and World_Free (FAULTS
+# E12). CFLAGS as given, so OPT=1 runs it with asserts compiled out.
+.PHONY: test-npc-body-models
+test-npc-body-models: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/npc_body_models_test $(TORIMEM_SRCS) \
+		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
+		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
+		features/features.c world/test/npc_body_models_test.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/npc_body_models_test
+
+# An actor's attached graphics are kept per wire slot, every slot byte its own
+# (the rev-239 actor's table keyed by slot): slots 0, 7, 8, 9, 12 and 255 read
+# back apart, replace and clear singly, and the lists go with both despawns and
+# World_Free. CFLAGS as given, so OPT=1 runs it with asserts compiled out.
+.PHONY: test-spotanim-slots
+test-spotanim-slots: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/spotanim_slots_test $(TORIMEM_SRCS) \
+		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
+		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
+		features/features.c world/test/spotanim_slots_test.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/spotanim_slots_test
 
 test-pick: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/pick_face_test \
@@ -5198,7 +5346,7 @@ test-web-cache-invalidate:
 test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o
 	@mkdir -p build
-	$(CC) $(CFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual $(TORIMEM_SRCS) \
+	$(CC) $(CFLAGS) $(PLATFORM_STRIP_LDFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual $(TORIMEM_SRCS) \
 		ui/test/uitree_debug_overlay_visual.c \
 		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
 		engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
@@ -5244,13 +5392,24 @@ test-frame-tile-mark: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 .PHONY: test-soft3d-interface-filter
 test-soft3d-interface-filter: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/soft3d_interface_filter_test $(TORIMEM_SRCS) \
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/soft3d_interface_filter_test $(TORIMEM_SRCS) \
 		platform/test/soft3d_interface_filter_test.c \
 		platform/platform_renderer_soft3d.c \
 		render/torirs_frame.c render/torirs_pick.c \
 		render/torirs_polygon.c render/torirs_arc.c perf/torirs_perf.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
 	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/soft3d_interface_filter_test
+
+# A scene element's allocation serial: a recycled element id gets a new one,
+# and a freed id reads 0, so a key held across a wait (a parked sequence bind)
+# can tell the element it was made for from whoever inherited its id.
+.PHONY: test-scene-element-serial
+test-scene-element-serial: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/scene_element_serial_test $(TORIMEM_SRCS) \
+		render/test/scene_element_serial_test.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	./$(OBJ_DIR)/scene_element_serial_test
 
 .PHONY: test-frame-flat
 test-frame-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
@@ -5266,6 +5425,7 @@ test-frame-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 test-chat-store: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chat_store_test $(TORIMEM_SRCS) \
 		game/rs_chat.c game/rs_social.c net/jbase37.c app/app_plugin_drive_events.c \
+		game/rs_event_ring.c game/rs_effect_log.c \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
 		ui/uitree_frame.c ui/uitree_input.c ui/uitree_minimenu.c ui/uitree_cross.c ui/uitree_hover.c \
 		ui/uitree_ink.c ui/torirs_chrome_inkwell.c ui/uitree_emit.c ui/uitree_inv_view.c ui/uitree_obj_cell.c \
@@ -5359,7 +5519,7 @@ test-preload: $(OBJ_DIR)
 test-login-replies: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_login_replies_test $(TORIMEM_SRCS) \
 		game/test/rs_login_replies_test.c game/rs_login_replies.c \
-		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC)
+		revconfig/revconfig.c revconfig/revconfig_load.c ui/torirs_chrome_inkwell.c $(INI_SRC)
 	./$(OBJ_DIR)/rs_login_replies_test
 
 # JPEG decode over the real title backgrounds on disk. Skips a cache that is
@@ -5376,7 +5536,7 @@ test-jpeg-decode: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 
 test-minimap: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/minimap -I$(BMP_DIR) -o $(OBJ_DIR)/minimap_test $(TORIMEM_SRCS) \
-		engine/minimap/minimap.c engine/torirs_types.c $(BMP_DIR)/bmp.c \
+		engine/minimap/minimap.c engine/torirs_types.c engine/torirs_component_hook.c $(BMP_DIR)/bmp.c \
 		engine/minimap/minimap_test.c
 	./$(OBJ_DIR)/minimap_test
 
@@ -5435,10 +5595,27 @@ test-task-budget: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_budget_test $(TORIMEM_SRCS) game/test/task_budget_test.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/task_budget_test
 
+# The frame contract's queue half (app.h): results by queue, the parallel pump
+# drains, every task gets its turn, who steps the background queue. Asserts
+# live (the death checks fork and expect SIGABRT).
+test-queue-contract: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/queue_contract_test $(TORIMEM_SRCS) game/test/queue_contract_test.c \
+		game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c -lm
+	./$(OBJ_DIR)/queue_contract_test
+
+# What a parked task waits on (task_trigger.h): prime, await, fire, the
+# owner's end, a second prime, cancel, loops, turns, counts, cycles, the
+# rebuild's trigger in both modes, a child's park. Asserts live (the death
+# checks fork and expect SIGABRT).
+test-task-trigger: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/task_trigger_test $(TORIMEM_SRCS) game/test/task_trigger_test.c \
+		game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c -lm
+	./$(OBJ_DIR)/task_trigger_test
+
 # CS2 visual transactions: ready work drains past the old per-frame caps, while
 # genuine external waits retain the last complete display list until settlement.
 test-cs2-frame-settle: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_frame_settle_test $(TORIMEM_SRCS) game/test/cs2_frame_settle_test.c perf/torirs_perf.c -lm
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/cs2_frame_settle_test $(TORIMEM_SRCS) game/test/cs2_frame_settle_test.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/cs2_frame_settle_test
 
 # No blocking IO outside tests: TaskRunner_Drain must appear only under */test/.
@@ -5451,6 +5628,32 @@ check-no-drain:
 # No switch inside a protothread body: PT_BEGIN is a switch on the resume
 # point and every await is a case label, so a nested switch captures the label
 # and the task resumes into a dead end (the placeholder task, 2026-09-18).
+# Undefined behaviour in the shared cache, sound and render code: the unit
+# tests that reach it, built with UBSan set to abort on the first report, in
+# their own object directory. On arm64 a shift into the sign bit, a signed
+# wrap or a misaligned load happens to do what was meant; another compiler or
+# optimisation level need not (fx-ub, 2026-11-20). A test that passes plain and
+# fails here has met one.
+UBSAN_UNIT_OBJ_BASE ?= build_ubsan_units
+#
+# Also the raster kernels and spans that no client run dispatches with every
+# triangle shape (test-scanline, test-kernel-matrix, test-gouraudrgb and the
+# two setup-shift targets reach them), the 2D packs, and rsprot's own tests,
+# built in a directory of their own because rsprot's makefile keeps its
+# objects in one place (fx3-toolchain, 2026-11-20).
+UBSAN_UNIT_TESTS = test-js5 test-varp test-raster-kernel test-render-hd \
+	test-painters-occluders test-uitree-builder-dat1 test-cs2-math \
+	test-sailing-navigation test-audio test-entity-apply \
+	test-scanline test-kernel-matrix test-gouraudrgb \
+	test-toridraw-setup-shift test-toridraw-setup-shift-x86 test-toridraw-2d-wrap
+check-ubsan-units:
+	$(MAKE) OPT=0 PLATFORM_OBJ_BASE=$(UBSAN_UNIT_OBJ_BASE) \
+		PLATFORM_CC='$(PLATFORM_CC) -fsanitize=undefined -fno-sanitize-recover=all' \
+		$(UBSAN_UNIT_TESTS)
+	$(MAKE) -C $(RSPROT_DIR) BUILD=../../src/$(UBSAN_UNIT_OBJ_BASE)_rsprot \
+		CC='$(HOST_CC) -fsanitize=undefined -fno-sanitize-recover=all' test
+	@echo "check-ubsan-units: PASS ($(UBSAN_UNIT_TESTS) rsprot)"
+
 # rscache and its tools (cachepack) include nothing from src/: the dependency
 # runs one way, and what crosses is data (fields/<type>.ini) and an injected
 # binding (rscache_band.h), never a header.
@@ -5461,6 +5664,15 @@ check-pt-switch:
 	@python3 $(REPO_ROOT)/tools/pt_switch_audit.py . | tail -1 | grep -q "^total 0$$" \
 		&& echo "check-pt-switch: PASS (no switch inside a protothread)" \
 		|| (python3 $(REPO_ROOT)/tools/pt_switch_audit.py . && echo "check-pt-switch: FAIL" && exit 1)
+
+# No client task suspends with PT_WAITING (PT_WAIT_UNTIL / _WHILE / PT_RESTART):
+# the task queues assert on it (asyncio.h). Task_WorldLoad's reprime wait did,
+# and the first rebuild after a live reload stopped there (fault A8).
+.PHONY: check-pt-wait
+check-pt-wait:
+	@python3 $(REPO_ROOT)/tools/pt_wait_audit.py . | tail -1 | grep -q "^total 0$$" \
+		&& echo "check-pt-wait: PASS (no task suspends with PT_WAITING)" \
+		|| (python3 $(REPO_ROOT)/tools/pt_wait_audit.py . && echo "check-pt-wait: FAIL" && exit 1)
 
 # Every loop over a whole UI tree says what it is: metered (the frame loop's
 # scan meter fails a steady frame that keeps walking -- @see UITREE_SCAN_METER)
@@ -5596,6 +5808,47 @@ test-scanline: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
 	./$(OBJ_DIR)/scanline_parity_test
 
+# The fixed-point setup of the C triangle kernels and texture spans, reached:
+# negative edge deltas, clipped vertices, shade planes and texture steps on
+# every triangle shape, including kernels nothing else calls. It exists for
+# check-ubsan-units, where a left shift of a negative int stops it, and it
+# prints one digest per kernel so a change to the setup arithmetic can be
+# proved bit-for-bit by diffing two runs. The native build takes the lane's
+# span (NEON here); the second build takes the scalar span. Standalone TU.
+SETUP_SHIFT_TEST_CFLAGS = -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter \
+	-Wno-unused-function -Wno-pointer-sign -I$(TORIDRAW_DIR)
+test-toridraw-setup-shift: $(OBJ_DIR)
+	$(CC) $(SETUP_SHIFT_TEST_CFLAGS) -o $(OBJ_DIR)/setup_shift_test \
+		$(TORIDRAW_DIR)/toridraw_setup_shift_test.c -lm
+	$(CC) $(SETUP_SHIFT_TEST_CFLAGS) -DNEON_DISABLED=1 -DAVX2_DISABLED=1 \
+		-DSSE41_DISABLED=1 -DSSE2_DISABLED=1 -DSSE_DISABLED=1 \
+		-o $(OBJ_DIR)/setup_shift_test_scalar $(TORIDRAW_DIR)/toridraw_setup_shift_test.c -lm
+	@for t in setup_shift_test setup_shift_test_scalar; do \
+		./$(OBJ_DIR)/$$t > $(OBJ_DIR)/$$t.txt || { cat $(OBJ_DIR)/$$t.txt; exit 1; }; \
+		echo "$$t: $$(tail -1 $(OBJ_DIR)/$$t.txt)"; \
+	done
+
+# The same test on the x86 spans the win32, win64, web and Android x86 lanes
+# select: SSE2, SSE4.1 and AVX2. On an arm64 Mac they are built for x86_64
+# and run under Rosetta; on an x86_64 host natively (AVX2 only where the CPU
+# has it); anywhere else they are skipped, and the target says so.
+test-toridraw-setup-shift-x86: $(OBJ_DIR)
+	@host="$$(uname -s)-$$(uname -m)"; arch=""; run=""; avx2=1; \
+	if [ "$$host" = "Darwin-arm64" ] && arch -x86_64 /usr/bin/true 2>/dev/null; then \
+		arch="-arch x86_64"; run="arch -x86_64"; \
+	elif [ "$$(uname -m)" = "x86_64" ]; then \
+		grep -qw avx2 /proc/cpuinfo 2>/dev/null || sysctl -n machdep.cpu.leaf7_features 2>/dev/null | grep -qw AVX2 || avx2=0; \
+	else echo "test-toridraw-setup-shift-x86: no x86_64 on $$host; skipped"; exit 0; fi; \
+	for lane in "sse2:-mno-sse4.1 -mno-sse4.2 -mno-avx" "sse41:-msse4.1" "avx2:-mavx2"; do \
+		n=$${lane%%:*}; f=$${lane#*:}; \
+		if [ $$n = avx2 ] && [ $$avx2 = 0 ]; then echo "setup_shift_test_$$n: no AVX2 on this CPU; skipped"; continue; fi; \
+		$(CC) $(SETUP_SHIFT_TEST_CFLAGS) $$arch $$f -o $(OBJ_DIR)/setup_shift_test_$$n \
+			$(TORIDRAW_DIR)/toridraw_setup_shift_test.c -lm || exit 1; \
+		$$run ./$(OBJ_DIR)/setup_shift_test_$$n > $(OBJ_DIR)/setup_shift_test_$$n.txt \
+			|| { cat $(OBJ_DIR)/setup_shift_test_$$n.txt; exit 1; }; \
+		echo "setup_shift_test_$$n: $$(tail -1 $(OBJ_DIR)/setup_shift_test_$$n.txt)"; \
+	done
+
 # The same parity, on every pixel format the library claims to support.
 #
 # This is the proof that the raster families are format-agnostic: a solid face
@@ -5608,7 +5861,8 @@ test-scanline: $(OBJ_DIR)
 # -Werror=incompatible-pointer-types is the point of the compile: a kernel that
 # has not been converted cannot silently accept a native buffer.
 TORIDRAW_PIXEL_FORMATS = \
-	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7 \n	RGB565_BE:8
+	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7 \
+	RGB565_BE:8
 
 .PHONY: test-scanline-formats
 test-scanline-formats: $(OBJ_DIR)
@@ -5643,6 +5897,15 @@ test-raster-kernel: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o $(AS
 		$(TORIDRAW_DIR)/toridraw_raster_kernel_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/bmp.o $(ASAN_COMPAT_SRC)
 	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_test
+
+# The 2D library's ARGB packs and rotated-blit start, which shift an alpha
+# into bit 31 and a negative pivot: run for check-ubsan-units.
+test-toridraw-2d-wrap: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(filter -fsanitize=%,$(LDFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) \
+		-o $(OBJ_DIR)/toridraw_2d_wrap_test \
+		$(TORIDRAW_DIR)/toridraw_2d_wrap_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o $(ASAN_COMPAT_SRC)
+	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/toridraw_2d_wrap_test
 
 # The same routing contract, compiled and linked under a SECOND pixel format.
 #
@@ -5800,13 +6063,13 @@ endif
 test-blit-scaled: $(OBJ_DIR)
 	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/blit_scaled_test \
-		$(TORIDRAW_DIR)/toridraw_blit_scaled_test.c -lm
+		$(TORIDRAW_DIR)/toridraw_blit_scaled_test.c $(TORIDRAW_DIR)/toridraw_alloc.c -lm
 	./$(OBJ_DIR)/blit_scaled_test
 
 test-blit-opaque: $(OBJ_DIR)
 	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/blit_opaque_test \
-		$(TORIDRAW_DIR)/toridraw_blit_opaque_test.c -lm
+		$(TORIDRAW_DIR)/toridraw_blit_opaque_test.c $(TORIDRAW_DIR)/toridraw_alloc.c -lm
 	./$(OBJ_DIR)/blit_opaque_test
 
 # The `gouraudrgb` family: per-channel RGB interpolation, as opposed to
@@ -5873,18 +6136,21 @@ test-rotate-blit: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 # The depth renderers' draw order: radix words against a stable sort.
 test-trspk-order-sort: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_order_sort_test \
-		render/test/trspk_order_sort_test.c $(TRSPK_UNITY_SRC)
+		render/test/trspk_order_sort_test.c $(TRSPK_UNITY_SRC) \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/trspk_order_sort_test
 
 test-trspk-modelarena-index: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_modelarena_index_test \
-		render/test/trspk_modelarena_index_test.c $(TRSPK_UNITY_SRC)
+		render/test/trspk_modelarena_index_test.c $(TRSPK_UNITY_SRC) \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/trspk_modelarena_index_test
 
 # The 32-bit world build: contiguous bases, key lookup, rebuild and clear.
 test-trspk-batch32: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_batch32_test \
-		render/test/trspk_batch32_test.c $(TRSPK_UNITY_SRC)
+		render/test/trspk_batch32_test.c $(TRSPK_UNITY_SRC) \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/trspk_batch32_test
 
 # The ES 3.0 painter's index packer. Header-only and GL-free, so it builds and
@@ -5923,6 +6189,68 @@ test-net-exec: $(OBJ_DIR) $(OBJS)
 		game/test/rs_gameproto_exec_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_exec_test
+
+# The one table of packet kinds (net/rev/revpacket.c): every name has a row,
+# the latch and flush sets the packet pump reads are derived from it, and every
+# packet the executor handles is in it (tools/packet_kinds_check.py).
+.PHONY: test-packet-kinds
+test-packet-kinds: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/packet_kinds_test \
+		net/rev/test/packet_kinds_test.c net/rev/revpacket.c $(TORIMEM_SRCS) $(LDFLAGS)
+	./$(OBJ_DIR)/packet_kinds_test
+	python3 -I ../tools/packet_kinds_check.py --root .
+
+# The packet model (game/rs_server_state.h) with no App and no UI tree: a
+# packet in, the records and the stamped events out, per family it applies.
+# Asserts on: the model and the test compile without NDEBUG, so the model's
+# contract asserts are live here even in an OPT build.
+.PHONY: test-rs-server-state
+test-rs-server-state: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test \
+		-o $(OBJ_DIR)/rs_server_state_test \
+		game/test/rs_server_state_test.c game/rs_server_state.c \
+		$(filter-out $(OBJ_DIR)/main.o $(OBJ_DIR)/rs_server_state.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_server_state_test
+
+# The headless client's shadow of the packet model (scriptrun/scriptrun_shadow.h,
+# TORIRS_SCRIPTRUN_SHADOW) against a hand-built core holding its own model
+# (scriptrun/scriptrun_model.h): agreement writes nothing, a difference is one
+# row until it changes, the event stream is aligned, the row names the packet
+# that last touched the key, a group's unload drops what the bare model keeps.
+# Asserts on, as above.
+.PHONY: test-scriptrun-shadow
+test-scriptrun-shadow: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
+		-o $(OBJ_DIR)/scriptrun_shadow_test \
+		scriptrun/test/scriptrun_shadow_test.c scriptrun/scriptrun_model.c \
+		scriptrun/scriptrun_shadow.c scriptrun/scriptrun_zone.c game/rs_server_state.c \
+		$(filter-out $(OBJ_DIR)/main.o $(OBJ_DIR)/rs_server_state.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/scriptrun_shadow_test
+
+# The headless client's zone families (scriptrun/scriptrun_zone.h) and the
+# effect log both clients keep (game/rs_effect_log.h): the real client's rule
+# for each, at the records. Asserts on.
+.PHONY: test-scriptrun-zone
+test-scriptrun-zone: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
+		-o $(OBJ_DIR)/scriptrun_zone_test \
+		scriptrun/test/scriptrun_zone_test.c scriptrun/scriptrun_zone.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/scriptrun_zone_test
+
+# The headless client's parallel queue (scriptrun/scriptrun_tasks.h) running
+# the loc tasks both clients share (game/rs_loc_tasks.h): a change applies in
+# the pump after its packet, a LOC_MERGE hides at start+1 and restores at
+# end+1 on the bot's cycle, a rebuild drops it, a zone reset or a newer change
+# cancels it, an unservable config drops a change, a tick ends with nothing
+# but cycle waits. The bot's loc table is a recording stand-in. Asserts on.
+.PHONY: test-scriptrun-tasks
+test-scriptrun-tasks: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
+		-o $(OBJ_DIR)/scriptrun_tasks_test \
+		scriptrun/test/scriptrun_tasks_test.c scriptrun/scriptrun_tasks.c scriptrun/scriptrun_zone.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/scriptrun_tasks_test
 
 # World entities (sailing, SAILING_PLAN C1): the WORLDENTITY_INFO delta
 # reader, the class458 interpolator (incl. the 2047->1 wraparound arc), the
@@ -6015,6 +6343,113 @@ test-logout-wait: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/app_logout_wait_test
 
+# The locs family's parallel tasks (app/app_tasks_locs.c) on a real root
+# world, builder and parallel runner with a fake loader: one pending change
+# per tile and layer (the newest replaces it, a delete waits for nothing,
+# another tile's slow change holds nothing), a LOC_ANIM as a field on the
+# pending change, a merge timed in its own view, a zone reset cancelling what
+# is pending in its zone, zone packets held for an unbuilt view applied in
+# arrival order once THAT view is built, a rebuild carrying a pending change
+# over, and a logout cancelling it all. Asserts live in the test.
+.PHONY: test-loc-tasks
+test-loc-tasks: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test \
+		-o $(OBJ_DIR)/app_loc_tasks_test app/test/app_loc_tasks_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_loc_tasks_test
+
+# A hull's sequences are wanted where they change, not every frame
+# (app/app_wev.c): a spawn wants its idle once, a one-shot is wanted where it
+# is set, and steady frames want nothing.
+.PHONY: test-wev-seq-wants
+test-wev-seq-wants: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
+		-o $(OBJ_DIR)/app_wev_seq_want_test app/test/app_wev_seq_want_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_wev_seq_want_test
+
+# The scripts family's parallel tasks (app/app_tasks_scripts.c): a visual
+# script operation is one listed task that a newer set cancels and a closed
+# interface drops; and TRIGGER_ONDIALOGABORT's listeners keep wire order (U9).
+.PHONY: test-music-load test-tasks-scripts
+# A song's loader reads on the asset queue and decodes on the compute queue
+# (the background queue), and the song is installed only after the decode
+# job: engine/dat2/task_dat2_music_load.c, against the real osrs239 cache.
+test-music-load: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/music_load_split_test \
+		engine/dat2/test/music_load_split_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/music_load_split_test ..
+
+# The world map's loader reads on the asset queue and decodes on the compute
+# queue (the background queue), in bounded steps: engine/dat2/
+# task_dat2_worldmap_load.c, against the real osrs242 cache.
+.PHONY: test-worldmap-load
+test-worldmap-load: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/worldmap_load_split_test \
+		engine/dat2/test/worldmap_load_split_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/worldmap_load_split_test ..
+
+# An animated loc whose sequence binds after the build (WorldBuilder_BindLocSequence)
+# looks as one bound during it: its post transforms and its lighting, against
+# the real osrs242 cache (engine/world_builder/world_scenery.u.c).
+.PHONY: test-loc-seq-bind
+test-loc-seq-bind: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/painters -I$(SRC_DIR)/engine/world_builder \
+		-I$(SRC_DIR)/world -o $(OBJ_DIR)/loc_seq_late_bind_test \
+		engine/world_builder/test/loc_seq_late_bind_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/loc_seq_late_bind_test ..
+
+# A sound effect's loader reads on the asset queue and renders on the compute
+# queue (the background queue), in bounded steps, and adds the sound the moment
+# the render ends: engine/dat2/task_dat2_sound_load.c, against the real
+# osrs242 cache (the longest render, 8787, and three short effects).
+# The loc config load on the time-sliced background queue, against the real
+# cache.osrs242 (engine/dat2/test/loc_load_split_test.c): the loc group's
+# split is made a bounded number of entries at a time, shared by every load
+# waiting for it, and is the per-member decode byte for byte.
+.PHONY: test-loc-load-split
+test-loc-load-split: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/loc_load_split_test \
+		engine/dat2/test/loc_load_split_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/loc_load_split_test ..
+
+.PHONY: test-sound-load
+test-sound-load: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/sound_load_split_test \
+		engine/dat2/test/sound_load_split_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/sound_load_split_test ..
+
+# The same split for a dat1 effect (engine/dat1/task_dat1_sound_load.c):
+# read on the asset queue, rendered on the compute queue in bounded steps,
+# against the real cache254.lostcity.
+.PHONY: test-dat1-sound-load
+test-dat1-sound-load: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/dat1_sound_load_split_test \
+		engine/dat1/test/dat1_sound_load_split_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/dat1_sound_load_split_test ..
+
+# The music install (app/app_tick.c, Task_MusicInstall): a parallel task that
+# awaits the song; a newer song cancels the older task and loads after the
+# older loader ends; a failed song is told to the player.
+.PHONY: test-music-install
+test-music-install: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/music_install_test \
+		app/test/music_install_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/music_install_test
+
+test-tasks-scripts: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/app_tasks_scripts_test \
+		app/test/app_tasks_scripts_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_tasks_scripts_test
+
 # The mouseover ENTRY's four halves all come from one row (`_7100` / the FIND
 # ops, `_7101`, `_7110`, `_7109`). The subject half used to come from the pick
 # set instead, which is a different entry.
@@ -6029,6 +6464,15 @@ test-minimenu-world: $(OBJ_DIR) $(OBJS)
 		game/test/rs_minimenu_world_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_minimenu_world_test
+
+# The one copy of PLAYER_INFO / NPC_INFO's rules both clients call
+# (game/rs_entity_apply.h) against a recording host. Asserts on.
+.PHONY: test-entity-apply
+test-entity-apply: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_entity_apply_test \
+		game/test/rs_entity_apply_test.c game/rs_entity_apply.c \
+		$(filter-out $(OBJ_DIR)/main.o $(OBJ_DIR)/rs_entity_apply.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_entity_apply_test
 
 # NPC_INFO / PLAYER_INFO count-shrinkage despawn (plane-change orphans).
 test-entity-info-shrink: $(OBJ_DIR) $(OBJS)
@@ -6074,6 +6518,18 @@ test-drive-event-ring: $(OBJ_DIR) $(OBJS)
 		app/test/app_drive_event_ring_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/app_drive_event_ring_test $(DAT1_CACHE)
+
+# Projectiles and map graphics exist at their packet and only their bodies
+# wait (app/app_tasks_effects.c): rows at once, a CHANGE finds a projectile
+# still loading, a second ADD for a slot is dropped, a failed or cancelled
+# graphic takes its row, a deck's graphic is the deck's, a projectile held
+# through a rebuild lands in its scene, and the effect log's rows.
+.PHONY: test-effects
+test-effects: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/app_tasks_effects_test \
+		app/test/app_tasks_effects_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_tasks_effects_test
 
 # End-to-end dat1 RevConfig build against a dat1 cache (default
 # ../cache254.lostcity, the name this tree actually ships -- test-ui-slots
@@ -6143,14 +6599,28 @@ TORIRSSERVER_ACCOUNT_SRCS = torirsserver/torirs_server_hiscoreslink.c \
 # client files below and of scriptrun_stubs.c's link stand-ins. Its bots perceive
 # through the CLIENT's own parser, entity decoders and world model, listed here.
 SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core.c \
+	game/rs_event_ring.c \
 	scriptrun/scriptrun_stubs.c ui/uitree_if_events.c \
 	net/rev/revpacket.c net/proto/proto_adapt.c $(REV_EXEC_SRCS) \
 	net/login/login_osrs.c net/pow_sha256.c net/sha256.c \
 	net/rev/packets/pkt_player_appearance.c \
 	world/world.c world/world_cycle.c world/entity_pool.c world/world_entity.c \
-	world/entity_pathing.c world/entity_registry.c game/rs_entity_sync.c \
+	world/entity_pathing.c world/entity_registry.c game/rs_entity_sync.c game/rs_entity_apply.c \
+	game/entity_info_scratch.c \
 	scriptrun/scriptrun_collision.c engine/torirs_types.c engine/torirs_map_from_rscache.c \
-	engine/torirs_location_from_rscache.c
+	engine/torirs_location_from_rscache.c \
+	scriptrun/scriptrun_tasks.c game/rs_loc_tasks.c game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c \
+	$(SCRIPTRUN_SHADOW_SRCS)
+# The packet model (game/rs_server_state.c) and the records it writes, the real
+# client's own modules, as a headless client holds them (scriptrun/scriptrun_model.c):
+# the bot's own set, and its shadow's (scriptrun/scriptrun_shadow.h,
+# TORIRS_SCRIPTRUN_SHADOW), a second set fed the bare packets to compare against.
+SCRIPTRUN_SHADOW_SRCS = scriptrun/scriptrun_model.c scriptrun/scriptrun_shadow.c game/rs_server_state.c \
+	scriptrun/scriptrun_zone.c game/rs_effect_log.c \
+	varp/varp_manager.c game/rs_player_stats.c inv/inv_manager.c ui/uitree_if_store.c \
+	ui/uitree_if_models.c ui/uitree_kept_mounts.c game/rs_chat.c game/rs_social.c game/rs_session_info.c net/session_end.c \
+	game/rs_server_tick.c game/rs_player_ops.c game/rs_hint_arrow.c \
+	game/rs_npc_update_origin.c game/rs_interaction_mode.c world/worldview.c
 # Dedicated read-only, multi-client JS5 cache service.
 #
 # It is separate from ToriRSServer because a client uses ONE port for JS5 and the
@@ -6221,8 +6691,8 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # the script on the unknown opcode right after stopping the crab's timer, and
 # the crab stood at her edge until it was killed (owner 2026-10-10, "the
 # nylocas get stuck at the edge of maiden"). Both names now build this file,
-# and the headers count: the sources are compiled in one invocation, so no .d
-# file says which header each one read.
+# and the headers count. This list is the coarse rule; each object's own .d
+# file (included at the end of this makefile) names every header it read.
 TORIRSSERVER_HDRS := $(wildcard torirsserver/*.h scriptrun/*.h serverscript/*.h content/*.h \
 		net/*.h net/login/*.h net/proto/*.h net/rev/*.h torirsserver/wire/*/*.h net/rev/packets/*.h \
 		world/*.h engine/*.h engine/world_builder/*.h features/*.h game/rs_entity_sync.h \
@@ -6317,13 +6787,38 @@ ifneq ($(LTO_MODE_STAMP),)
 $(TORIRSSERVER_OBJS): $(LTO_MODE_STAMP)
 endif
 
+# The server compiles the shared World (world/world.c, world_cycle.c) and a
+# few client units whose scene-side functions it never calls; they name the
+# painter, heightmap, minimap, scene element, world builder and UI tree host,
+# none of which is linked here. -flto drops them at OPT=1; without LTO only
+# the dead-code strip does, as it does for the client and the world tests,
+# so an asserts-live (OPT=0) server links on macOS too.
+# One file on Windows, as the client is (platform.mk's -static note): the
+# repository MinGW is threads=posix, so without -static the server imports
+# libwinpthread-1.dll and, run from anywhere but a shell with the toolchain's
+# bin/ on PATH, dies before main with STATUS_DLL_NOT_FOUND (0xC0000135, exit
+# 3221225781) -- what a run on Windows 11 found.
+TORIRSSERVER_STATIC_LDFLAGS := $(if $(filter win32 win64,$(PLATFORM)),-static -static-libgcc)
 $(TORIRSSERVER_BIN): $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
 	@mkdir -p $(TORIRSSERVER_OBJ_DIR) $(if $(TORIRSSERVER_LTO_CACHE),$(TORIRSSERVER_LTO_CACHE_DIR))
 	$(file >$(TORIRSSERVER_OBJ_DIR)/link_objs.rsp,$(TORIRSSERVER_OBJS))
 	$(LTO_CACHE_LINK) $(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_OBJS_ARG) \
 		$(TORIRSSERVER_LINK_OBJS) \
-		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_LTO_CACHE)
+		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_STATIC_LDFLAGS) $(PLATFORM_STRIP_LDFLAGS) $(TORIRSSERVER_LTO_CACHE)
 	@echo "built $(TORIRSSERVER_BIN)"
+
+# The headless client's core fed the server's own osrs242 wire bytes (encoded
+# by the RSProt codecs the 242 writer uses): IF_MOVESUB moves a mount, the
+# models set on MODEL components are kept until the slot changes group, and
+# the per-player entity setters reach its World through the packet model.
+# Links the server's objects but its main. Asserts on in the test itself.
+.PHONY: test-scriptrun-core
+test-scriptrun-core: $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(LUA_DIR) $(RSPROT_INCLUDES) \
+		-o $(OBJ_DIR)/scriptrun_core_test scriptrun/test/scriptrun_core_test.c \
+		$(filter-out %/torirs_server_main.o,$(TORIRSSERVER_OBJS)) $(TORIRSSERVER_LINK_OBJS) \
+		-lm $(JS5_SOCKET_LIBS) $(PLATFORM_STRIP_LDFLAGS)
+	./$(OBJ_DIR)/scriptrun_core_test
 
 # ---- ToriRSMapEd -----------------------------------------------------------
 #
@@ -7976,7 +8471,7 @@ test-loc-ops-wire: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unit
 		torirsserver/test/loc_ops_wire_test.c \
 		$(TORIRSSERVER_WIRE_SRCS) torirsserver/torirs_server_loc_ops.c \
 		torirsserver/torirs_server_interface_state.c \
-		net/wordpack.c $(RSCACHE_DIR)/src/rsbuffer.c \
+		net/wordpack.c $(RSCACHE_DIR)/src/rsbuffer.c $(RSCACHE_DIR)/src/rscache_alloc.c \
 		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) \
 		$(OBJ_DIR)/jbase37.o -lm
 	./$(OBJ_DIR)/loc_ops_wire_test
@@ -8087,7 +8582,7 @@ test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $
 		$(SERVICE_SRCS) torirsserver/torirs_server_history.c \
 		torirsserver/torirs_server_hiscoreslink.c platform/platform_x_http.c platform/sockstream.c \
 		platform/platform_mdns.c \
-		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(SERVERS_SQLITE_OBJ)
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(SERVERS_SQLITE_OBJ) $(JS5_SOCKET_LIBS)
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest
 
 # mDNS response parser: name compression (including a pointer chain and a
@@ -8655,7 +9150,7 @@ endif
 .PHONY: test-win32-platform
 ifneq ($(filter $(PLATFORM),win32 win64),)
 WIN32_PLATFORM_TEST_CFLAGS := -std=c11 -O2 -Wall -Wextra -g \
-	-DTORIRS_PERF_DISABLE=1 -I$(SRC_DIR) \
+	-DTORIRS_PERF_DISABLE=1 -I$(SRC_DIR) -I$(REPO_ROOT) -I$(BMP_DIR) \
 	$(PLATFORM_CFLAGS)
 WIN32_PLATFORM_TEST_LDFLAGS := -static -static-libgcc \
 	-lgdi32 -luser32 -lole32 -loleaut32 -luuid -lwinmm -lkernel32
@@ -8673,7 +9168,7 @@ test-win32-platform: $(OBJ_DIR)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) -DTORIRS_WIN32_GDI_TEST_API=1 \
 		-o $(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
 		platform/test/win32_gdi_test.c platform/platform_win32gdi.c \
-		platform/test/win32_browser_backend_fake.c \
+		platform/test/win32_browser_backend_fake.c $(BMP_DIR)/bmp.c \
 		platform/platform_win32_timing.c platform/platform_app_icon.c \
 		cmd/cmdbus.c cmd/cmdring.c \
 		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(WIN32_PLATFORM_TEST_LDFLAGS)
@@ -8829,6 +9324,11 @@ ifeq ($(and $(MAKECMDGOALS),$(if $(filter-out $(PACK_ONLY_GOALS),$(MAKECMDGOALS)
 -include $(wildcard $(OBJ_DIR)/sscompile.d $(OBJ_DIR)/maped_script_check.d)
 else
 -include $(wildcard $(OBJ_DIR)/*.d)
+# The server's objects are compiled one source each into a directory of their
+# own, with the -MMD in CFLAGS, so each has a .d file there: without these an
+# edit to any header outside TORIRSSERVER_HDRS (game/rs_effect_rules.h, read
+# by seven of them) rebuilt nothing.
+-include $(wildcard $(TORIRSSERVER_OBJ_DIR)/*.d)
 endif
 
 # The three revision-239 music packets: encode as RSProt does, parse back.

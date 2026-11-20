@@ -243,8 +243,10 @@ app_cs2_local_route_signature(struct App* app)
     self = World_PlayerGetByServerPid(app->world, app->world->local_pid);
     if( !self )
         return -1;
-    return ((int)self->pathing.route_length << 28) | ((int)self->pathing.route_x[0] << 14) |
-           (int)self->pathing.route_z[0];
+    /* Folded in uint32_t: a route of 8 or more steps reaches bit 31, and a
+     * shift into an int's sign bit is undefined. */
+    return (int)((uint32_t)self->pathing.route_length << 28 |
+                 (uint32_t)self->pathing.route_x[0] << 14 | (uint32_t)self->pathing.route_z[0]);
 }
 
 /* TILE_FIND (6951). */

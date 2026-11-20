@@ -65,3 +65,41 @@ SettleGate_WorldSettled(struct SettleGateInput const* in)
     assert(in);
     return !in->world_load_inflight && !in->world_job_pending;
 }
+
+bool
+SettleGate_ReasonPacketSide(enum SettleGateReason reason)
+{
+    assert(reason >= 0);
+    assert(reason < SETTLE_GATE_REASON_COUNT);
+    /* All five: two script latches, the packet queue's, the tick, the
+     * scripts' requests. Stated as a switch-free table of one answer so a
+     * reason added later has to be classed here. */
+    return reason == SETTLE_GATE_REASON_FRAME_RUNNER_HAD_WORK || reason == SETTLE_GATE_REASON_FRAME_SETTLE_PENDING ||
+           reason == SETTLE_GATE_REASON_PACKET_RUNNER_HAD_WORK || reason == SETTLE_GATE_REASON_SERVER_TICK_OPEN ||
+           reason == SETTLE_GATE_REASON_PENDING_CLIENTSCRIPTS;
+}
+
+static char const* const k_withhold_names[SETTLE_GATE_WITHHOLD_COUNT] = {
+    [SETTLE_GATE_WITHHOLD_BOOT] = "withheld:boot",
+    [SETTLE_GATE_WITHHOLD_LOGOUT_HOLD] = "withheld:logout_hold",
+    [SETTLE_GATE_WITHHOLD_SCRIPTS_LATCHED] = "withheld:scripts_latched",
+    [SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING] = "withheld:scripts_pending",
+    [SETTLE_GATE_WITHHOLD_GATE] = "withheld:gate",
+    [SETTLE_GATE_WITHHOLD_REPLAY_SEEK] = "withheld:replay_seek",
+};
+
+bool
+SettleGate_WithholdPacketSide(enum SettleGateWithhold why)
+{
+    assert(why >= 0);
+    assert(why < SETTLE_GATE_WITHHOLD_COUNT);
+    return why != SETTLE_GATE_WITHHOLD_REPLAY_SEEK;
+}
+
+char const*
+SettleGate_WithholdName(enum SettleGateWithhold why)
+{
+    assert(why >= 0);
+    assert(why < SETTLE_GATE_WITHHOLD_COUNT);
+    return k_withhold_names[why];
+}

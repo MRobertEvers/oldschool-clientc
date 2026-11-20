@@ -229,6 +229,22 @@ else ifeq ($(PLATFORM),win32)
   #                               in BASE_CFLAGS, not CFLAGS, so it reaches the
   #                               vendored units too -- same reasoning as
   #                               _GNU_SOURCE on the web lane below.
+  #   -mcrtdll=msvcrt-os          link the system msvcrt.dll, which XP has,
+  #                               not the Universal CRT (api-ms-win-crt-*.dll,
+  #                               ucrtbase.dll), which XP has not. A mingw-w64
+  #                               built for UCRT (Homebrew's) makes libmsvcrt.a
+  #                               a copy of libucrt.a, so the toolchain's
+  #                               default links an exe XP refuses to load; the
+  #                               WinLibs MSVCRT toolchain build_winxp.ps1 uses
+  #                               already defaults to this, so there it changes
+  #                               nothing. The driver also sets the headers'
+  #                               __MSVCRT_VERSION__ to 0x700 (XP's msvcrt.dll
+  #                               is 7.0), which is why it is a compile flag as
+  #                               well as a link flag: the headers then declare
+  #                               only what that DLL exports, a 32-bit time_t,
+  #                               and mingw's own C99 printf
+  #                               (__USE_MINGW_ANSI_STDIO), since msvcrt's has
+  #                               no %zu or %lld.
   #
   # 32-bitness is deliberately *not* forced with -m32: on an x86_64 MinGW
   # without multilib that fails deep in the assembler. `make lane-check`
@@ -237,6 +253,7 @@ else ifeq ($(PLATFORM),win32)
                           -DTORIRS_NO_D3D8=1 -DTORIRS_NO_D3D11=1 \
                           -D_WIN32_WINNT=0x0501 -DWINVER=0x0501 \
                           -march=pentium4 -mtune=generic -mfpmath=sse \
+                          -mcrtdll=msvcrt-os \
                           -include $(SRC_DIR)/platform/win32_compat.h
   # No TORIRS_HAVE_GL3: this lane selects the fixed-function D3D9 path instead.
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS)
@@ -258,6 +275,7 @@ else ifeq ($(PLATFORM),win32)
   # stages the .exe and nothing else. Linking static makes the one file the
   # whole deliverable, which is what this lane is for.
   PLATFORM_LDFLAGS := -lm -static -static-libgcc -Wl,--subsystem,console:5.01 \
+                      -mcrtdll=msvcrt-os \
                       -ld3d9 -lgdi32 -luser32 -lole32 -loleaut32 -luuid \
                       -lws2_32 -lwinmm -lpsapi -lkernel32
   # See the linux note above: --gc-sections would be a no-op here too.

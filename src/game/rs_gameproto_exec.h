@@ -2,69 +2,51 @@
 #define SRC_GAME_RS_GAMEPROTO_EXEC_H
 
 /*
- * Server-packet execution against src App state — the seam ToriRS_Network's
- * parsed packets flow into (analogous to v0 gameproto_exec, rewritten for
- * src's managers). Context-struct pattern like RS_MinimenuBuildCtx so it is
- * testable without a full App.
+ * A server packet in a client with no App: the model, and the writes that go
+ * to a UI tree alone.
  *
- * Mappings: VARP to VarPManager, UPDATE_INV to InvManager, UPDATE_STAT /
- * RUNENERGY / RUNWEIGHT to RS_PlayerStats, IF_* mutations to UITree, the
- * IF_OPEN / SETTAB family to RS_UISlots (needs App), MESSAGE_* to RS_Chat.
+ * The MODEL half of every packet is RS_ServerState_Apply
+ * (game/rs_server_state.h): varps, stats, inventories, the interface stores,
+ * chat, social, the session records and the per-player entity setters,
+ * written whether or not anything can be shown. Both clients run it.
+ *
+ * What only the real client does with a packet -- CS2 transmits and hooks,
+ * redraws, queued mounts, client scripts, audio, the scene, and the parallel
+ * tasks for what must not hold the packet pump -- is the App layer's,
+ * App_GameProto_Exec (app/app_gameproto_exec.h). This file names no App: it is
+ * what the unit tests of game state drive, and the tree-only arms the App
+ * calls for the same packets.
  */
 
 struct RevPacket;
-struct App;
 struct UITree;
-struct InvManager;
-struct VarPManager;
-struct RS_PlayerStats;
-struct RS_Chat;
+struct RS_ServerState;
 
 struct RS_GameProtoCtx
 {
+    /** The packet model's records (RS_ServerState_Apply). Required. */
+    struct RS_ServerState const* state;
+    /** The tree the interface writes go to. Required. */
     struct UITree* tree;
-    struct InvManager* invs;
-    struct VarPManager* varps;
-    struct RS_PlayerStats* stats;
-    struct RS_Chat* chat;
-    /** Required, like every field above: RS_GameProto_Exec asserts each one.
-     *  A test that has no live client passes a zeroed App. */
-    struct App* app;
 };
 
-/** Execute one parsed packet. Never fatal — unmapped opcodes are logged. */
+/** One parsed packet with no App: RS_ServerState_Apply, then the tree-only
+ *  arms (RS_GameProto_PresentTree). An interface setter's value is the
+ *  model's store; only the App puts it on a node. Every field of `ctx` is
+ *  required and asserted once. A control frame is the App's and is never
+ *  handed here. */
 void
 RS_GameProto_Exec(
     struct RS_GameProtoCtx const* ctx,
     struct RevPacket* packet);
 
-/* Replay zone sub-packets that arrived while the world was async-loading
- * (App::zone_inbox), in arrival order. No-op until load_complete. Called
- * lazily before any live zone sub-packet, and from the app tick so a queue
- * with no follow-up traffic still drains. */
+/** The arms that write only to a UI tree and are the same in both clients:
+ *  IF_SETSCROLLPOS, IF_SETPOSITION, IF_SETROTATESPEED, IF_SETANGLE and
+ *  IF_CLEARINV. Each relies on the mount task having been queued ahead of it.
+ *  Any other packet is left alone. */
 void
-RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx);
-
-struct PktZoneSubPacket;
-struct TorirsControlFrame;
-
-/* A replay seek's world keyframe (replay/replay_world_apply.c), through the
- * arms the zone packets themselves run through. */
-
-/** One zone op, at the zone base (scene-local) and plane it was decoded for,
- *  in the root view; queued like a live one while the scene is loading. */
-void
-RS_GameProto_ReplayZoneOp(
-    struct RS_GameProtoCtx const* ctx,
-    struct PktZoneSubPacket const* pkt,
-    int base_x,
-    int base_z,
-    int level);
-
-/** Every zone of the loaded root scene back to the map, as
- *  UPDATE_ZONE_FULL_FOLLOWS puts one back: the client's loc changes restored
- *  and its ground items gone. */
-void
-RS_GameProto_ReplayClearScene(struct App* app);
+RS_GameProto_PresentTree(
+    struct UITree* tree,
+    struct RevPacket const* packet);
 
 #endif

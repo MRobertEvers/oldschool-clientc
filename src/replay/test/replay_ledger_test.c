@@ -41,6 +41,7 @@
 #include "packets/obj_del.h"
 #include "packets/update_zone_full_follows.h"
 #include "packets/update_zone_partial_enclosed.h"
+#include "streams/npc_info_write.h"
 #include "packets/update_zone_partial_follows.h"
 #include "streams/rsprot_info.h"
 #include "streams/player_info_write.h"
@@ -408,7 +409,35 @@ struct Gen
     /** SPECIFIC_TICK's stack, absolute, and the ops it was given a tick later. */
     int stack_x;
     int stack_z;
+    /** A5: the tick being written, and the npc A5_NPC_TICK's blocks went to
+     *  (-1 none kept that tick). */
+    int tick;
+    int a5_npc;
+    /** The tick it got them: the first from A5_NPC_TICK that kept an npc. */
+    int a5_tick;
 };
+
+/* A5: the blocks a keyframe used to drop. The first tick from A5_NPC_TICK
+ * that keeps an npc gives the first one it keeps a chathead override (HEAD_CUSTOM, one model) and a freeze window
+ * (FREEZE, delay 2, 900 cycles = 30 ticks); the local player gets
+ * NAME_EXTRAS at A5_EXTRAS_TICK, a RESET at A5_RESET_TICK (which clears
+ * them), and a RESET with new NAME_EXTRAS in one record at A5_BOTH_TICK
+ * (which keeps those: the reset runs at the record's start). */
+#define A5_NPC_TICK 20
+#define A5_HEAD_MODEL 70777
+#define A5_FREEZE_DELAY 2
+#define A5_FREEZE_DURATION 900
+/* I4: the HEAD_CUSTOM is the TYPED form (241's 0x80000): with colours
+ * (0x4) it carries as many as its npc's TYPE has and no count, so its read
+ * asks the ledger's npc types; a NAME_CHANGE follows it in the record, which a
+ * read that stopped at the block would never reach. Every type here has
+ * A5_TYPE_RECOLOURS colours (a5_npc_types). */
+#define A5_TYPE_RECOLOURS 3
+#define A5_RECOLOUR 4100
+#define A5_NAME "Renamed by A5"
+#define A5_EXTRAS_TICK 100
+#define A5_RESET_TICK 150
+#define A5_BOTH_TICK 160
 
 /* After the rebuild: an obj stack added, its enabled ops set a tick later by
  * OBJ_ENABLED_OPS_SPECIFIC, and a head icon set on the npc list's head. */
@@ -452,6 +481,25 @@ gen_player_info(
         look_for(g->local_look, LOCAL_INDEX, tick);
         updates[n].appearance = g->local_look;
         updates[n].appearance_len = 24;
+    }
+    if( tick == A5_EXTRAS_TICK || tick == A5_RESET_TICK || tick == A5_BOTH_TICK )
+    {
+        static struct RsprotPlayerExt ext;
+
+        memset(&ext, 0, sizeof(ext));
+        if( tick != A5_RESET_TICK )
+        {
+            ext.has_name_extras = 1;
+            ext.name_before = tick == A5_EXTRAS_TICK ? "<col=ff0000>" : "[";
+            ext.name_after = "";
+            ext.name_after_level = tick == A5_EXTRAS_TICK ? " (iron)" : "]";
+        }
+        if( tick != A5_EXTRAS_TICK )
+        {
+            ext.has_player_reset = 1;
+            ext.player_reset = 0;
+        }
+        updates[n].ext = &ext;
     }
     n++;
     for( int i = 0; i < REMOTES; i++ )
@@ -512,12 +560,26 @@ gen_npc_info(struct Gen* g)
 
     memset(&b, 0, sizeof(b));
     bits(&b, 8, (uint32_t)g->npc_count);
+    if( g->tick == 0 )
+    {
+        g->a5_npc = -1;
+        g->a5_tick = -1;
+    }
     for( int i = 0; i < g->npc_count; i++ )
     {
         struct GenNpc* npc = &g->npcs[i];
         int r = range(0, 99);
 
-        if( r < 70 )
+        if( r < 70 && g->tick >= A5_NPC_TICK && g->a5_tick < 0 && g->a5_npc < 0 )
+        {
+            /* Stood still with extended info (the blocks after the bits). */
+            bits(&b, 1, 1);
+            bits(&b, 2, 0);
+            kept[kept_count++] = *npc;
+            g->a5_npc = npc->slot;
+            g->a5_tick = g->tick;
+        }
+        else if( r < 70 )
         {
             bits(&b, 1, 0);
             kept[kept_count++] = *npc;
@@ -577,6 +639,39 @@ gen_npc_info(struct Gen* g)
         bits(&b, 2, 0);                    /* 12-bit type */
         bits(&b, 12, (uint32_t)npc->type);
         bits(&b, 6, (uint32_t)dx & 63u);
+    }
+    if( g->tick == g->a5_tick )
+    {
+        /* 241's blocks (npc_info_osrs241.c): the flag word 0x90 (FREEZE 0x80,
+         * and 0x10 for a second byte), 0x20 (0x2000: a third), 0x08
+         * (HEAD_CUSTOMISATION_V2, 0x80000); FREEZE before HEAD_CUSTOM. */
+        uint8_t tail[64];
+        RsprotBuf t;
+        int bytes;
+
+        rsprot_buf_wrap(&t, tail, (int)sizeof(tail));
+        rsprot_p1(&t, 0x90);
+        rsprot_p1(&t, 0x24); /* and 0x400: NAME_CHANGE */
+        rsprot_p1(&t, 0x08);
+        rsprot_p2_21(&t, A5_FREEZE_DELAY);
+        rsprot_p2_12(&t, A5_FREEZE_DURATION);
+        rsprot_p1_neg(&t, 0);
+        rsprot_p1_sub128(&t, 0x2 | 0x4); /* a model list and the type's colours */
+        rsprot_p1(&t, 1);
+        rsprot_p4_4321(&t, A5_HEAD_MODEL);
+        for( int k = 0; k < A5_TYPE_RECOLOURS; k++ )
+            rsprot_p2_12(&t, A5_RECOLOUR + k);
+        rsprot_pjstr(&t, A5_NAME);
+        TEST_CHECK(rsprot_buf_ok(&t));
+        if( rsprot_npc_info_tail_needs_sentinel((size_t)b.pos, (size_t)t.wpos) )
+            bits(&b, 16, 0xFFFF);
+        bytes = (b.pos + 7) / 8;
+        memcpy(b.buf + bytes, tail, (size_t)t.wpos);
+        memcpy(g->npcs, kept, (size_t)kept_count * sizeof(kept[0]));
+        memcpy(g->npcs + kept_count, added, (size_t)added_count * sizeof(added[0]));
+        g->npc_count = kept_count + added_count;
+        w_server(&g->rec, PKT_NAME_NPC_INFO, b.buf, bytes + t.wpos);
+        return;
     }
     memcpy(g->npcs, kept, (size_t)kept_count * sizeof(kept[0]));
     memcpy(g->npcs + kept_count, added, (size_t)added_count * sizeof(added[0]));
@@ -797,6 +892,7 @@ build_recording(struct Gen* g)
         struct Expect* e = &g_expect[tick];
 
         g_ms = 600u * (uint64_t)tick + 10;
+        g->tick = tick;
         gen_player_info(g, tick);
         if( tick == REBUILD_TICK )
         {
@@ -874,7 +970,10 @@ check_keyframe(
             look = e->local_look;
         TEST_CHECK(p->x == x);
         TEST_CHECK(p->z == z);
-        TEST_CHECK(p->op_count == 1);
+        /* The local player's NAME_EXTRAS while they stand (A5). */
+        TEST_CHECK(p->op_count ==
+                   1 + (p->pid == LOCAL_INDEX &&
+                        ((tick > A5_EXTRAS_TICK && tick <= A5_RESET_TICK) || tick > A5_BOTH_TICK)));
         TEST_CHECK(kf.ops[p->op_first].kind == RSPROT_OP_APPEARANCE);
         TEST_CHECK(kf.ops[p->op_first].appearance.len == 24);
         TEST_CHECK(memcmp(kf.ops[p->op_first].appearance.appearance, look, 24) == 0);
@@ -918,6 +1017,134 @@ check_keyframe(
         TEST_CHECK(held == 1);
     }
     ReplayWorldKeyframe_Free(&kf);
+}
+
+/*
+ * A5: a keyframe restore must hold what a replay played from the start
+ * holds. Played from the start, the npc A5_NPC_TICK customised draws its
+ * override's model from then on, frozen over cycles [s, s + 900) with s =
+ * A5_NPC_TICK * 30 + 2; the local player's name is decorated from
+ * A5_EXTRAS_TICK until the RESET of A5_RESET_TICK, and again from
+ * A5_BOTH_TICK. So the keyframe at every tick after, applied at that tick's
+ * boundary, must carry the override's model, a freeze covering exactly
+ * those cycles while any remain (and none after), and the decorations
+ * exactly while they stand.
+ */
+/* I4: the ledger's npc types (GameProtoNpcTypeLengths, by type): every type
+ * has A5_TYPE_RECOLOURS colours. `ctx` counts the questions. */
+static int g_a5_type_asks;
+
+static int
+a5_npc_types(
+    void* ctx,
+    int old,
+    int npc_type,
+    int head,
+    int* recolours,
+    int* retextures)
+{
+    TEST_CHECK(old == -1); /* the ledger resolves its list's index itself */
+    TEST_CHECK(npc_type >= 0);
+    TEST_CHECK(head == 1);
+    (*(int*)ctx)++;
+    *recolours = A5_TYPE_RECOLOURS;
+    *retextures = 0;
+    return 1;
+}
+
+static void
+check_a5(
+    struct ReplayLedger* ledger,
+    struct Gen const* g)
+{
+    int const start = g->a5_tick * REPLAY_LEDGER_CYCLES_PER_TICK + A5_FREEZE_DELAY;
+    int const end = start + A5_FREEZE_DURATION;
+    int checked_frozen = 0;
+    int checked_thawed = 0;
+
+    TEST_CHECK(g->a5_npc >= 0);
+    TEST_CHECK(g->a5_tick >= A5_NPC_TICK && g->a5_tick + 30 < A5_EXTRAS_TICK);
+    for( int tick = g->a5_tick + 1; tick <= A5_BOTH_TICK + 5; tick++ )
+    {
+        struct ReplayWorldKeyframe kf;
+        struct ReplayWorldNpc const* npc = NULL;
+        int head = 0;
+        int named = 0;
+        int freezes = 0;
+
+        TEST_CHECK(ReplayLedger_WorldAt(ledger, tick, &kf));
+        for( int i = 0; i < kf.npc_count; i++ )
+            if( kf.npcs[i].slot == g->a5_npc )
+                npc = &kf.npcs[i];
+        for( int i = 0; npc && i < npc->op_count; i++ )
+        {
+            RsprotInfoOp const* op = &kf.ops[npc->op_first + i];
+            int const now = kf.tick * REPLAY_LEDGER_CYCLES_PER_TICK;
+
+            if( op->kind == RSPROT_OP_HEAD_CUSTOM )
+            {
+                TEST_CHECK(op->body.model_count == 1);
+                TEST_CHECK(op->body.models && op->body.models[0] == A5_HEAD_MODEL);
+                /* I4: the type's count of colours, read whole. */
+                TEST_CHECK(op->body.recolour_count == A5_TYPE_RECOLOURS);
+                for( int k = 0; op->body.recolours && k < op->body.recolour_count; k++ )
+                    TEST_CHECK(op->body.recolours[k] == A5_RECOLOUR + k);
+                head++;
+            }
+            if( op->kind == RSPROT_OP_NAME_CHANGE )
+            {
+                /* I4: the block after it in the record was reached. */
+                TEST_CHECK(op->name_change.name && strcmp(op->name_change.name, A5_NAME) == 0);
+                named++;
+            }
+            if( op->kind == RSPROT_OP_FREEZE )
+            {
+                /* The restored window, in absolute cycles, is the one played
+                 * from the start (the part of it still to come). */
+                TEST_CHECK(now + op->freeze.delay == (start > now ? start : now));
+                TEST_CHECK(now + op->freeze.delay + op->freeze.duration == end);
+                freezes++;
+            }
+        }
+        if( npc )
+        {
+            int const now = tick * REPLAY_LEDGER_CYCLES_PER_TICK;
+
+            TEST_CHECK(head == 1);
+            TEST_CHECK(named == 1);
+            TEST_CHECK(freezes == (now < end));
+            checked_frozen += now < end;
+            checked_thawed += now >= end;
+        }
+        for( int i = 0; i < kf.player_count; i++ )
+        {
+            struct ReplayWorldPlayer const* p = &kf.players[i];
+            int extras = 0;
+
+            if( p->pid != LOCAL_INDEX )
+                continue;
+            for( int k = 0; k < p->op_count; k++ )
+            {
+                RsprotInfoOp const* op = &kf.ops[p->op_first + k];
+
+                if( op->kind != RSPROT_OP_NAME_EXTRAS )
+                    continue;
+                extras++;
+                TEST_CHECK(op->name_extras.before_name && op->name_extras.after_name &&
+                           op->name_extras.after_combat_level);
+                TEST_CHECK(strcmp(op->name_extras.before_name, tick > A5_BOTH_TICK ? "[" : "<col=ff0000>") == 0);
+                TEST_CHECK(strcmp(op->name_extras.after_name, "") == 0);
+                TEST_CHECK(strcmp(op->name_extras.after_combat_level, tick > A5_BOTH_TICK ? "]" : " (iron)") == 0);
+            }
+            TEST_CHECK(extras == ((tick > A5_EXTRAS_TICK && tick <= A5_RESET_TICK) || tick > A5_BOTH_TICK));
+        }
+        ReplayWorldKeyframe_Free(&kf);
+    }
+    /* The npc stood long enough to be seen frozen at a key: the window is 30
+     * ticks, and the generator keeps an npc 70% of ticks. */
+    printf("  A5: npc %d checked frozen at %d keyframes, thawed at %d\n", g->a5_npc, checked_frozen,
+           checked_thawed);
+    TEST_CHECK(checked_frozen > 0);
 }
 
 /* SPECIFIC_TICK's packets, at the keyframes a tick and two after them. */
@@ -1006,7 +1233,7 @@ main(void)
     }
     g_rev->player_info_state_save(before);
 
-    ledger = ReplayLedger_Build(&rec, g_rev);
+    ledger = ReplayLedger_Build(&rec, g_rev, a5_npc_types, &g_a5_type_asks);
     ReplayLedger_Stats(ledger, &st);
     TEST_CHECK(st.scenes == 2);
     TEST_CHECK(ReplayLedger_Scene(ledger, 0)->login == 1);
@@ -1096,6 +1323,8 @@ main(void)
         for( int t = SPECIFIC_TICK - 1; t <= SPECIFIC_TICK + 40; t++ )
             check_keyframe(ledger, &rec, t);
         check_specific(ledger, &gen);
+        check_a5(ledger, &gen);
+        TEST_CHECK(g_a5_type_asks == 1); /* asked once, when built */
     }
     {
         uint32_t* alive = malloc((size_t)(ReplayLedger_ZoneOpsAliveMax(ledger) + 1) * sizeof(*alive));

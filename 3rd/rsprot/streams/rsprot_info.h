@@ -541,8 +541,12 @@ typedef struct RsprotInfoHeadiconCustom
  * A body (BODY_CUSTOM) or chathead (HEAD_CUSTOM) customisation. `flag` is the
  * block's byte: 0x1 reset (nothing follows), 0x2 models, 0x4 recolours, 0x8
  * retextures, 0x10 mirror, 0x20 a player composition (the counted forms).
- * `reset` is the executor's reading: back to the type's models, which a block
- * without 0x2 also means. The arrays are the list's; absent ones are empty.
+ * `reset` is 0x1: the override is cleared, back to the type's body. Any other
+ * block is a new override; one without 0x2 keeps the type's models and still
+ * carries its recolours and retextures. The arrays are the list's; absent
+ * ones are empty. A count with a NULL array is a list whose byte arena
+ * overflowed (rsprot_info_ints). For the counted forms the mirror is 0x10
+ * itself (`mirror` stays -1: the form sends no byte for it).
  */
 typedef struct RsprotInfoBodyCustom
 {
@@ -738,14 +742,27 @@ int32_t* rsprot_info_ints(RsprotInfoList* out, int32_t n);
 
 /**
  * CUSTOM_TYPED / HEAD_CUSTOM_TYPED carry their recolour and retexture arrays
- * with no count: the length is the npc TYPE's (RSProx reads recoldest /
- * retexdest off the cache). The host answers for the npc at list position
- * `who` (`head` 1 for the head block); returning 0 -- or passing no lookup --
- * ends the tail, since there is no way to step over an array of unknown length.
+ * with no count: the length is the npc TYPE's -- its recolour and retexture
+ * source lists (the reference reads field1237.field5139 / field5158; RSProx
+ * recoldest / retexdest off the cache). The type is the one in force when the
+ * block is read, and the reader says which:
+ *   `npc_type` >= 0   a type this packet named for the npc (its entering-view
+ *                     record, or a TRANSFORMATION earlier in its record);
+ *   `old` >= 0        otherwise: the npc the host's list held at index `old`
+ *                     before this packet (its type as the host has it);
+ *   both -1           a TRANSFORMATION to no type: answer 0 and 0.
+ * `head` is 1 for the head block. The host fills both counts and returns 1, or
+ * returns 0 when it cannot answer yet (the type's config is not resident):
+ * that -- or passing no lookup -- ends the tail with a STOP at the block, since
+ * there is no way to step over an array of unknown length. The reader bounds
+ * what it is told: a count above 255 (a config's g1) or arrays longer than
+ * the payload left stop it too. A type the cache does not have has no lists:
+ * 0 and 0, as the reference's default type.
  */
 typedef int (*RsprotNpcTypeLengths)(
     void* ctx,
-    int who,
+    int old,
+    int npc_type,
     int head,
     int* recolours,
     int* retextures);

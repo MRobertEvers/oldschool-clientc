@@ -61,6 +61,34 @@ RSCache_MusicSongNewDecode(
 void
 RSCache_MusicSongFree(struct RSCache_MusicSong* song);
 
+/**
+ * The same decode in steps, for a caller that must stop between them (a
+ * background job that checks its clock): New reads the header, each Step
+ * does at most `unit_budget` units of work (an opcode counted, a delta
+ * skipped, a controller counted, an event re-emitted) and answers whether
+ * the decode is finished, and Take hands over the song (NULL if it was
+ * malformed). The archive is borrowed: the caller keeps `data` alive until
+ * Free. The one-call decode above is these four with an unbounded budget.
+ */
+struct RSCache_MusicSongDecode;
+
+struct RSCache_MusicSongDecode*
+RSCache_MusicSongDecodeNew(
+    const char* data,
+    int data_size);
+
+bool
+RSCache_MusicSongDecodeStep(
+    struct RSCache_MusicSongDecode* decode,
+    int unit_budget);
+
+struct RSCache_MusicSong*
+RSCache_MusicSongDecodeTake(struct RSCache_MusicSongDecode* decode);
+
+/** NULL is accepted. */
+void
+RSCache_MusicSongDecodeFree(struct RSCache_MusicSongDecode* decode);
+
 static inline bool
 RSCache_MusicSongPatchUsesNote(
     const struct RSCache_MusicSongPatch* patch,

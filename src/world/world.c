@@ -13,6 +13,9 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+static void
+world_freeze_free(struct WorldEntityFreeze* f);
+
 #define WORLD_PROJECTILE_ANGLE_TO_RAD 0.02454369
 #define WORLD_PROJECTILE_ANGLE_TO_RPI2048 325.949
 
@@ -34,6 +37,9 @@ World_SetScene(
     assert(world);
     world->scene = scene;
 }
+
+static void
+world_spotanims_free(struct WorldEntityFacet_EntitySpotanims* spotanims);
 
 void
 World_Free(struct World* world)
@@ -59,6 +65,22 @@ World_Free(struct World* world)
     ToriMem_Free(ToriMem_Scene(), world->tile_last_occupied_cycle);
     ToriMem_Free(ToriMem_Scene(), world->mapscenes);
     ToriMem_Free(ToriMem_Scene(), world->area_sounds);
+    /* What a live npc row owns goes before its pool (the removals' snapshots
+     * went with World_EventsClear above). */
+    for( int ni = World_EntityPoolHead(&world->entities.npc); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(&world->entities.npc, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, ni);
+        World_NpcOverridesFree(npc);
+        world_spotanims_free(&npc->spotanims);
+    }
+    for( int pi = World_EntityPoolHead(&world->entities.player); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(&world->entities.player, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolAt(&world->entities.player, pi);
+        world_spotanims_free(&player->spotanims);
+        world_freeze_free(&player->freeze);
+    }
     World_EntityListFree(&world->entities);
     for( int i = 0; i < world->scenery_info.count; i++ )
         ToriMem_Free(ToriMem_Scene(), world->scenery_info.entries[i]);
@@ -1043,8 +1065,11 @@ World_EmitEntityRemoved(
  * nothing (and can find an unrelated replacement after slot reuse). Keeping a
  * queue-owned copy makes the despawn event a real snapshot rather than an id
  * whose subject has already vanished.
+ *
+ * True when a snapshot was queued: it then owns what the row owned (its body
+ * models), freed by World_EventsClear, and the caller must not free them.
  */
-static void
+static bool
 World_EmitNpcRemoved(
     struct World* world,
     struct WorldEntity_NPC const* npc)
@@ -1054,7 +1079,7 @@ World_EmitNpcRemoved(
     assert(world);
     assert(npc);
     if( npc->element_id < 0 )
-        return;
+        return false;
     assert(world->event_count < WORLD_MAX_EVENTS && "world event queue full — raise WORLD_MAX_EVENTS");
     event = &world->events[world->event_count++];
     *event = (struct World_Event){
@@ -1064,6 +1089,7 @@ World_EmitNpcRemoved(
     event->removed_npc = ToriMem_Alloc(ToriMem_Scene(), sizeof(*event->removed_npc));
     assert(event->removed_npc);
     *event->removed_npc = *npc;
+    return true;
 }
 
 static int
@@ -1176,8 +1202,11 @@ World_PlayerSpawn(
                     .direct_angle = -1,
                     .turn_speed = 32 },
         .server_pid = -1,
+        .spawn_serial = ++world->entity_spawn_serial,
         /* npc id 0 is a real npc type, so "no transmog" is spelled. */
         .transmog_npc_id = -1,
+        /* Skull 0 is a real frame, so "no skull" is spelled too. */
+        .skull_icon = -1,
         .transmog_size = 1,
         .body = { .npc_id = WORLD_PLAYER_BODY_FROM_SLOTS },
         .loc_merge_id = -1,
@@ -1186,10 +1215,9 @@ World_PlayerSpawn(
         .combat = { .healthbar_type = -1 },
         .seq_sent_id = -1,
     };
-    /* Reference ClientEntity default: no attached graphic in any slot
-     * (spotanimId -1). */
-    for( int i = 0; i < WORLD_PLAYER_SPOTANIM_SLOTS; i++ )
-        player->spotanims[i] = (struct WorldEntityFacet_EntitySpotanim){ .id = -1, .frame = -1 };
+    /* Reference ClientEntity default: no attached graphic in any slot (the
+     * row's list is empty: the compound literal zeroed it). */
+    assert(!player->spotanims.items);
     return idx;
 }
 
@@ -1205,7 +1233,9 @@ World_PlayerDespawn(
         return;
 
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+    world_spotanims_free(&player->spotanims);
     World_EmitEntityRemoved(world, player->element_id);
+    world_freeze_free(&player->freeze);
     World_EntityPoolRelease(pool, idx);
 }
 
@@ -1254,6 +1284,7 @@ World_NpcSpawn(
                     .turn_speed = 32 },
         .visible_ops = 0x1f,
         .server_slot = -1,
+        .spawn_serial = ++world->entity_spawn_serial,
         /* 0 is a real healthbar id (the standard bar), so "no bar" has to be
          * spelled rather than left to the pool's zeroing. */
         .combat = { .healthbar_type = -1 },
@@ -1261,14 +1292,9 @@ World_NpcSpawn(
         .spotanim_sent_id = -1,
         .spotanim_packet_id = -1,
     };
-    {
-        struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-
-        /* Reference ClientEntity default: no attached graphic in any slot
-         * (spotanimId -1). */
-        for( int i = 0; i < WORLD_NPC_SPOTANIM_SLOTS; i++ )
-            npc->spotanims[i] = (struct WorldEntityFacet_EntitySpotanim){ .id = -1, .frame = -1 };
-    }
+    /* Reference ClientEntity default: no attached graphic in any slot (the
+     * row's list is empty: the compound literal zeroed it). */
+    assert(!((struct WorldEntity_NPC*)World_EntityPoolAt(pool, idx))->spotanims.items);
     return idx;
 }
 
@@ -1284,7 +1310,16 @@ World_NpcDespawn(
         return;
 
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-    World_EmitNpcRemoved(world, npc);
+    /* Its graphics go with the row: no reader of the removal's snapshot
+     * reads them. */
+    world_spotanims_free(&npc->spotanims);
+    /* The customisations go with the snapshot when one is queued; otherwise
+     * nothing else holds them. */
+    if( !World_EmitNpcRemoved(world, npc) )
+        World_NpcOverridesFree(npc);
+    npc->body_custom = (struct WorldNpcOverride){ 0 };
+    npc->head_custom = (struct WorldNpcOverride){ 0 };
+    npc->freeze = (struct WorldEntityFreeze){ 0 };
     World_EntityPoolRelease(pool, idx);
 }
 
@@ -1384,6 +1419,17 @@ World_ProjectileScriptedFreeze(
     p->delete_on_freeze_end = delete_on_end;
 }
 
+/* The next projectile or spotanim spawn serial: never 0, so a zeroed key
+ * names nothing. */
+static uint32_t
+world_next_effect_serial(struct World* world)
+{
+    world->effect_serial++;
+    if( world->effect_serial == 0 )
+        world->effect_serial = 1;
+    return world->effect_serial;
+}
+
 int
 World_ProjectileSpawn(
     struct World* world,
@@ -1405,7 +1451,7 @@ World_ProjectileSpawn(
     int source)
 {
     assert(world);
-    assert(element_id >= 0);
+    assert(element_id >= -1);
 
     struct World_EntityPool* pool = &world->entities.projectile;
     int idx = World_EntityPoolAlloc(pool);
@@ -1414,6 +1460,7 @@ World_ProjectileSpawn(
     struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, idx);
     *p = (struct WorldEntity_Projectile){
         .element_id = element_id,
+        .serial = world_next_effect_serial(world),
         .level = src_level,
         .dst_level = dst_level,
         .src_x = src_x,
@@ -1460,6 +1507,23 @@ World_ProjectileDespawn(
     World_EntityPoolRelease(pool, idx);
 }
 
+struct WorldEntity_Projectile*
+World_ProjectileFind(
+    struct World* world,
+    int idx,
+    uint32_t serial)
+{
+    struct WorldEntity_Projectile* p;
+
+    assert(world);
+    assert(serial != 0);
+    if( idx < 0 || idx >= world->entities.projectile.count ||
+        !World_EntityPoolIsActive(&world->entities.projectile, idx) )
+        return NULL;
+    p = World_EntityPoolGet(&world->entities.projectile, idx);
+    return p && p->serial == serial ? p : NULL;
+}
+
 int
 World_SpotanimSpawn(
     struct World* world,
@@ -1473,7 +1537,8 @@ World_SpotanimSpawn(
     int lifetime)
 {
     assert(world);
-    assert(element_id >= 0);
+    assert(element_id >= -1);
+    assert(lifetime >= 0);
 
     struct World_EntityPool* pool = &world->entities.spotanim;
     int idx = World_EntityPoolAlloc(pool);
@@ -1482,6 +1547,7 @@ World_SpotanimSpawn(
     struct WorldEntity_Spotanim* s = World_EntityPoolGet(pool, idx);
     *s = (struct WorldEntity_Spotanim){
         .element_id = element_id,
+        .serial = world_next_effect_serial(world),
         .level = level,
         .draw_position = { .x = (uint32_t)scene_x,
                            .z = (uint32_t)scene_z,
@@ -1499,11 +1565,11 @@ World_SpotanimSpawn(
     /*
      * `idle_delay <= 0` (spotanim_map's common case, e.g. Inferno's
      * tzhaar_rock_smash) means "visible this cycle" — and the app layer
-     * (app_world_spawn_spotanim_now) already treats it that way: it skips the
-     * anim_external park-and-wait entirely and starts the model's sequence
-     * synchronously, in the SAME call that spawns this entity, because a
-     * zero-delay graphic has no flight/park window to hide the unplayed first
-     * frame behind (see that function's own comment).
+     * (the map anim body, app/app_tasks_effects.c) already treats it that way: it skips the
+     * anim_external park-and-wait entirely and binds the model's sequence when
+     * the body lands, aged by the cycles the graphic has been active, because
+     * a zero-delay graphic has no flight/park window to hide the unplayed
+     * first frame behind.
      *
      * World's bookkeeping used to disagree with what was already on screen:
      * `active` stayed false and `active_cycle` stayed 0 until the *next*
@@ -1546,6 +1612,23 @@ World_SpotanimDespawn(
     struct WorldEntity_Spotanim* s = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, s->element_id);
     World_EntityPoolRelease(pool, idx);
+}
+
+struct WorldEntity_Spotanim*
+World_SpotanimFind(
+    struct World* world,
+    int idx,
+    uint32_t serial)
+{
+    struct WorldEntity_Spotanim* s;
+
+    assert(world);
+    assert(serial != 0);
+    if( idx < 0 || idx >= world->entities.spotanim.count ||
+        !World_EntityPoolIsActive(&world->entities.spotanim, idx) )
+        return NULL;
+    s = World_EntityPoolGet(&world->entities.spotanim, idx);
+    return s && s->serial == serial ? s : NULL;
 }
 
 /* ---------------------------------------------- plugin-owned world objects */
@@ -2656,6 +2739,7 @@ World_NpcFaceAngle(
 
 static void
 World_SetAnimationTrack(
+    struct World* world,
     struct WorldEntityFacet_Animation* animation,
     int animation_id,
     int animation_type)
@@ -2675,6 +2759,7 @@ World_SetAnimationTrack(
         step->anim_id = (uint16_t)animation_id;
         step->frame = 0;
         step->cycle = 0;
+        World_SeqWant(world, animation_id);
     }
 }
 
@@ -2689,7 +2774,7 @@ World_PlayerSetAnimation(
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
-    World_SetAnimationTrack(&player->animation, animation_id, animation_type);
+    World_SetAnimationTrack(world, &player->animation, animation_id, animation_type);
 }
 
 void
@@ -2703,7 +2788,7 @@ World_NpcSetAnimation(
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-    World_SetAnimationTrack(&npc->animation, animation_id, animation_type);
+    World_SetAnimationTrack(world, &npc->animation, animation_id, animation_type);
 }
 
 int
@@ -2730,6 +2815,8 @@ World_EventsClear(struct World* world)
     assert(world);
     for( int i = 0; i < world->event_count; i++ )
     {
+        if( world->events[i].removed_npc )
+            World_NpcOverridesFree(world->events[i].removed_npc);
         ToriMem_Free(ToriMem_Scene(), world->events[i].removed_npc);
         world->events[i].removed_npc = NULL;
     }
@@ -2761,15 +2848,52 @@ World_ProjectileModel(struct World const* world)
 }
 
 void
+World_SeqWant(
+    struct World* world,
+    int seq_id)
+{
+    assert(world);
+    if( seq_id < 0 || seq_id == 0xFFFF || !world->seq_source.want )
+        return;
+    world->seq_source.want(world->seq_source.want_userdata, seq_id);
+}
+
+/* Every sequence an entity's tracks hold now: what a newly bound source is
+ * asked for once (the tracks were set before it could hear of them). */
+static void
+world_seq_want_tracks(
+    struct World* world,
+    struct WorldEntityFacet_Animation const* animation)
+{
+    if( animation->primary.anim_id != (uint16_t)-1 && animation->primary.anim_id != 0 )
+        World_SeqWant(world, animation->primary.anim_id);
+    if( animation->pending_set )
+        World_SeqWant(world, animation->pending_anim_id);
+    if( animation->secondary.anim_id != (uint16_t)-1 && animation->secondary.anim_id != 0 )
+        World_SeqWant(world, animation->secondary.anim_id);
+}
+
+void
 World_SetSeqSource(
     struct World* world,
     struct World_SeqSource const* source)
 {
+    struct World_EntityPool* pool;
+
     assert(world);
     if( source )
         world->seq_source = *source;
     else
         memset(&world->seq_source, 0, sizeof(world->seq_source));
+    if( !world->seq_source.want )
+        return;
+    /* Once per bind (a world load), not per frame. */
+    pool = &world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+        world_seq_want_tracks(world, &((struct WorldEntity_Player*)World_EntityPoolAt(pool, i))->animation);
+    pool = &world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+        world_seq_want_tracks(world, &((struct WorldEntity_NPC*)World_EntityPoolAt(pool, i))->animation);
 }
 
 void
@@ -2888,6 +3012,10 @@ world_apply_primary_animation(
         animation->pending_set = 0;
         return;
     }
+    /* Sent: played now, parked until its priority is known, or refused --
+     * any of the three needs (or needed) its config, and asking is one entry
+     * in the client's assets table however often it is sent. */
+    World_SeqWant(world, seq_id);
 
     if( animation->primary.anim_id == (uint16_t)seq_id )
     {
@@ -3336,63 +3464,61 @@ World_LocChangesClear(struct World* world)
     world->loc_change_count = 0;
 }
 
-void
-World_LocChangesTick(
-    struct World* world,
-    int cycles_elapsed,
-    void (*apply)(void* user, int level, int x, int z, int loc_id, int shape, int angle),
-    void* user)
+/* The row's graphic list owns nothing but its array. */
+static void
+world_spotanims_free(struct WorldEntityFacet_EntitySpotanims* spotanims)
 {
-    int write;
+    ToriMem_Free(ToriMem_Scene(), spotanims->items);
+    spotanims->items = NULL;
+    spotanims->count = 0;
+    spotanims->cap = 0;
+}
 
-    assert(world);
-    assert(apply);
-    if( cycles_elapsed <= 0 || world->loc_change_count <= 0 )
-        return;
+struct WorldEntityFacet_EntitySpotanim const*
+World_EntitySpotanimInSlot(
+    struct WorldEntityFacet_EntitySpotanims const* spotanims,
+    int slot)
+{
+    assert(spotanims);
+    for( int i = 0; i < spotanims->count; i++ )
+        if( spotanims->items[i].slot == slot )
+            return &spotanims->items[i];
+    return NULL;
+}
 
-    for( int c = 0; c < cycles_elapsed; c++ )
+/* The entry for wire slot `slot`: found, or inserted in slot order (the list
+ * grows on ToriMem_Scene). NULL for a clear (`spotanim_id` -1) of a slot that
+ * was never sent: there is nothing to clear. */
+static struct WorldEntityFacet_EntitySpotanim*
+world_spotanim_slot(
+    struct WorldEntityFacet_EntitySpotanims* spotanims,
+    int slot,
+    int spotanim_id)
+{
+    int at = 0;
+
+    assert(slot >= 0);
+    assert(slot < WORLD_SPOTANIM_SLOT_MAX);
+    while( at < spotanims->count && spotanims->items[at].slot < slot )
+        at++;
+    if( at < spotanims->count && spotanims->items[at].slot == slot )
+        return &spotanims->items[at];
+    if( spotanim_id < 0 )
+        return NULL;
+    if( spotanims->count == spotanims->cap )
     {
-        write = 0;
-        for( int i = 0; i < world->loc_change_count; i++ )
-        {
-            struct World_LocChange loc = world->loc_changes[i];
-
-            /* Permanent records (end_time < 0): keep, never countdown. */
-            if( loc.end_time < 0 )
-            {
-                world->loc_changes[write++] = loc;
-                continue;
-            }
-
-            if( loc.end_time > 0 )
-                loc.end_time--;
-
-            if( loc.end_time != 0 )
-            {
-                if( loc.start_time > 0 )
-                    loc.start_time--;
-                if( loc.start_time == 0 )
-                {
-                    apply(user, loc.level, loc.x, loc.z, loc.new_type, loc.new_shape,
-                          loc.new_angle);
-                    loc.start_time = -1;
-                    if( loc.old_type == loc.new_type && loc.old_type == -1 )
-                        continue;
-                    if( loc.old_type == loc.new_type && loc.old_angle == loc.new_angle &&
-                        loc.old_shape == loc.new_shape )
-                        continue;
-                }
-                world->loc_changes[write++] = loc;
-            }
-            else
-            {
-                apply(user, loc.level, loc.x, loc.z, loc.old_type, loc.old_shape,
-                      loc.old_angle);
-                /* Drop the entry (restored). */
-            }
-        }
-        world->loc_change_count = write;
+        spotanims->cap = spotanims->cap ? spotanims->cap * 2 : 4;
+        assert(spotanims->cap <= WORLD_SPOTANIM_SLOT_MAX);
+        spotanims->items = ToriMem_Realloc(
+            ToriMem_Scene(), spotanims->items, (size_t)spotanims->cap * sizeof(*spotanims->items));
+        assert(spotanims->items);
     }
+    memmove(
+        &spotanims->items[at + 1], &spotanims->items[at],
+        (size_t)(spotanims->count - at) * sizeof(*spotanims->items));
+    spotanims->count++;
+    spotanims->items[at] = (struct WorldEntityFacet_EntitySpotanim){ .slot = slot, .id = -1, .frame = -1 };
+    return &spotanims->items[at];
 }
 
 static void
@@ -3404,6 +3530,8 @@ world_set_entity_spotanim(
     int cycle_delay,
     bool loop)
 {
+    if( !spot )
+        return; /* a clear of a slot never sent */
     spot->id = spotanim_id;
     spot->height = height;
     spot->last_cycle = world->cycle + cycle_delay;
@@ -3427,10 +3555,9 @@ World_PlayerSetSpotanim(
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
-    if( slot >= WORLD_PLAYER_SPOTANIM_SLOTS )
-        slot = WORLD_PLAYER_SPOTANIM_SLOTS - 1;
-    world_set_entity_spotanim(world, &player->spotanims[slot], spotanim_id, height, cycle_delay,
-                              loop);
+    world_set_entity_spotanim(
+        world, world_spotanim_slot(&player->spotanims, slot, spotanim_id), spotanim_id, height,
+        cycle_delay, loop);
 }
 
 void
@@ -3536,16 +3663,15 @@ World_NpcSetSpotanim(
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-    if( slot >= WORLD_NPC_SPOTANIM_SLOTS )
-        slot = WORLD_NPC_SPOTANIM_SLOTS - 1;
     if( spotanim_id >= 0 )
     {
         npc->spotanim_sent_id = spotanim_id;
         npc->spotanim_sent_cycle = world->cycle;
     }
     npc->spotanim_packet_id = (spotanim_id >= 0 && spotanim_id != 65535) ? spotanim_id : -1;
-    world_set_entity_spotanim(world, &npc->spotanims[slot], spotanim_id, height, cycle_delay,
-                              loop);
+    world_set_entity_spotanim(
+        world, world_spotanim_slot(&npc->spotanims, slot, spotanim_id), spotanim_id, height,
+        cycle_delay, loop);
 }
 
 void
@@ -3568,25 +3694,286 @@ World_NpcSetHeadiconCustom(
     }
 }
 
+/* A copy of `n` ints of `src`, sized from `n` (NULL for none). */
+static int*
+world_override_ints(
+    int const* src,
+    int n)
+{
+    int* owned;
+
+    assert(n >= 0);
+    if( n == 0 )
+        return NULL;
+    assert(src);
+    owned = ToriMem_Alloc(ToriMem_Scene(), (size_t)n * sizeof(*owned));
+    assert(owned);
+    memcpy(owned, src, (size_t)n * sizeof(*owned));
+    return owned;
+}
+
+static void
+world_override_free(struct WorldNpcOverride* o)
+{
+    ToriMem_Free(ToriMem_Scene(), o->models);
+    ToriMem_Free(ToriMem_Scene(), o->recolours);
+    ToriMem_Free(ToriMem_Scene(), o->retextures);
+    ToriMem_Free(ToriMem_Scene(), o->identkits);
+    *o = (struct WorldNpcOverride){ 0 };
+}
+
+static void
+world_freeze_free(struct WorldEntityFreeze* f)
+{
+    ToriMem_Free(ToriMem_Scene(), f->windows);
+    *f = (struct WorldEntityFreeze){ 0 };
+}
+
 void
-World_NpcSetBodyModels(
+World_NpcOverridesFree(struct WorldEntity_NPC* npc)
+{
+    if( !npc )
+        return;
+    world_override_free(&npc->body_custom);
+    world_override_free(&npc->head_custom);
+    world_freeze_free(&npc->freeze);
+}
+
+static void
+world_stop_primary(struct WorldEntityFacet_Animation* anim)
+{
+    anim->primary.anim_id = (uint16_t)-1;
+    anim->primary.frame = 0;
+    anim->primary.cycle = 0;
+    anim->primary.loop = 0;
+    anim->primary.delay = 0;
+}
+
+static void
+world_freeze_set(
+    struct World* world,
+    struct WorldEntityFreeze* f,
+    struct WorldEntityFacet_Animation* anim,
+    int delay,
+    int duration,
+    bool reset)
+{
+    int const now = (int)world->cycle;
+    int start;
+    int end;
+
+    if( delay < 0 || duration < 0 )
+    {
+        /* method3627, then method3498 for the reset byte. The windows and
+         * the snapshots go (field1510 / field1509 = null) and the frozen flag
+         * (field1479) is left to the next step (Statics.method7852), so until
+         * it runs the actor does not turn (Statics.method1 turns before that
+         * step, `if (!field1479)`) and is drawn with no sequence: method3528
+         * and method3603 answer null for a frozen actor with no snapshot, and
+         * the model falls back to its held pose track (class105.method943,
+         * field1461), which is the pose here -- held, as nothing steps it
+         * while frozen. A window added before that step finds the flag still
+         * set and takes no snapshot either (method7852's `if
+         * (!var1.field1479)`), in the reference too. */
+        f->count = 0;
+        if( f->frozen )
+        {
+            f->drawn = *anim;
+            f->drawn.primary.anim_id = (uint16_t)-1;
+            f->drawn.primary.frame = 0;
+            f->drawn.primary.cycle = 0;
+            f->drawn.primary.loop = 0;
+            f->drawn.primary.delay = 0;
+        }
+        if( reset )
+            world_stop_primary(anim);
+        return;
+    }
+    start = now + delay;
+    end = start + duration;
+    /* A window that is over is reused (class431.method9827). */
+    for( int i = 0; i < f->count; i++ )
+    {
+        struct WorldFreezeWindow* w = &f->windows[i];
+        if( !(now >= w->start_cycle && now < w->end_cycle) && now >= w->end_cycle )
+        {
+            w->start_cycle = start;
+            w->end_cycle = end;
+            w->reset_seq = reset;
+            return;
+        }
+    }
+    if( f->count == f->cap )
+    {
+        int cap = f->cap ? f->cap * 2 : 4;
+        f->windows = ToriMem_Realloc(ToriMem_Scene(), f->windows, (size_t)cap * sizeof(*f->windows));
+        assert(f->windows);
+        f->cap = cap;
+    }
+    f->windows[f->count++] = (struct WorldFreezeWindow){
+        .start_cycle = start, .end_cycle = end, .seen_cycle = 0, .reset_seq = reset
+    };
+}
+
+void
+World_NpcFreeze(
     struct World* world,
     int idx,
-    int const* models,
-    int model_count)
+    int delay,
+    int duration,
+    bool reset)
 {
     assert(world);
-    assert(model_count >= 0);
-    assert(model_count <= WORLD_NPC_BODY_MODELS_MAX);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-    if( model_count > 0 )
-        assert(models);
-    npc->body_model_count = model_count;
-    for( int i = 0; i < model_count; i++ )
-        npc->body_models[i] = models[i];
+    world_freeze_set(world, &npc->freeze, &npc->animation, delay, duration, reset);
+}
+
+void
+World_PlayerFreeze(
+    struct World* world,
+    int idx,
+    int delay,
+    int duration,
+    bool reset)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+    world_freeze_set(world, &player->freeze, &player->animation, delay, duration, reset);
+}
+
+struct WorldEntityFacet_Animation const*
+World_EntityDrawnAnimation(
+    struct WorldEntityFacet_Animation const* anim,
+    struct WorldEntityFreeze const* freeze)
+{
+    assert(anim);
+    assert(freeze);
+    return freeze->frozen ? &freeze->drawn : anim;
+}
+
+/* Replace `o` with a copy of `in` (NULL: none). Every array as many as the
+ * wire sent (the reference's `new int[count]`): no cap, so nothing a block
+ * reads as valid is cut or written past (FAULTS E12). Copied before the old
+ * arrays are freed, so `in` may point at `o`'s own. */
+static void
+world_override_set(
+    struct World* world,
+    struct WorldNpcOverride* o,
+    struct WorldNpcOverrideIn const* in)
+{
+    struct WorldNpcOverride next = { 0 };
+
+    if( in )
+    {
+        assert(in->model_count >= 0);
+        assert(in->recolour_count >= 0);
+        assert(in->retexture_count >= 0);
+        assert(in->identkit_count >= 0);
+        next.active = true;
+        next.serial = ++world->npc_override_serial;
+        next.models_sent = in->models_sent;
+        next.model_count = in->models_sent ? in->model_count : 0;
+        next.models = world_override_ints(in->models, next.model_count);
+        next.recolour_count = in->recolour_count;
+        next.recolours = world_override_ints(in->recolours, in->recolour_count);
+        next.retexture_count = in->retexture_count;
+        next.retextures = world_override_ints(in->retextures, in->retexture_count);
+        next.has_recolour_all = in->has_recolour_all;
+        next.recolour_all = in->recolour_all;
+        next.mirror = in->mirror;
+        next.player = in->player;
+        next.body_type = in->body_type;
+        next.identkit_count = in->identkit_count;
+        next.identkits = world_override_ints(in->identkits, in->identkit_count);
+    }
+    world_override_free(o);
+    *o = next;
+}
+
+void
+World_NpcSetBodyCustom(
+    struct World* world,
+    int idx,
+    struct WorldNpcOverrideIn const* in)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    world_override_set(world, &npc->body_custom, in);
     npc->body_serial++;
+}
+
+void
+World_NpcSetHeadCustom(
+    struct World* world,
+    int idx,
+    struct WorldNpcOverrideIn const* in)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    world_override_set(world, &npc->head_custom, in);
+}
+
+int
+World_NpcOverrideRecolour(
+    struct WorldNpcOverride const* o,
+    int i,
+    int type_value)
+{
+    assert(o);
+    assert(i >= 0);
+    return o->active && i < o->recolour_count ? o->recolours[i] : type_value;
+}
+
+int
+World_NpcOverrideRecolourAll(struct WorldNpcOverride const* o)
+{
+    assert(o);
+    if( !o->active || !o->has_recolour_all )
+        return -1;
+    if( (o->recolour_all & 0xffff) == 0xffff )
+        return -1;
+    return o->recolour_all & 0xffff;
+}
+
+int
+World_NpcRecolourAll(
+    struct WorldNpcOverride const* o,
+    int type_recolour_all)
+{
+    assert(o);
+    if( o->active && o->has_recolour_all )
+        return World_NpcOverrideRecolourAll(o);
+    return type_recolour_all;
+}
+
+int64_t
+World_NpcBodyModelKey(
+    int npc_id,
+    struct WorldNpcOverride const* o)
+{
+    assert(npc_id >= 0);
+    assert(npc_id <= 0xffff);
+    assert(o);
+    return o->active ? (int64_t)npc_id | ((int64_t)o->serial << 16) : (int64_t)npc_id;
+}
+
+int
+World_NpcOverrideRetexture(
+    struct WorldNpcOverride const* o,
+    int i,
+    int type_value)
+{
+    assert(o);
+    assert(i >= 0);
+    return o->active && i < o->retexture_count ? o->retextures[i] : type_value;
 }
 
 void
@@ -3785,6 +4172,13 @@ World_ObjStackAdd(
     stack = World_EntityPoolGet(pool, idx);
     memset(stack, 0, sizeof(*stack));
     stack->element_id = element_id;
+    /* Process-wide, so (pool index, serial) names one row in every world. */
+    {
+        static uint32_t s_obj_stack_serial;
+        if( ++s_obj_stack_serial == 0 )
+            ++s_obj_stack_serial;
+        stack->serial = s_obj_stack_serial;
+    }
     stack->grid_position.x = scene_x;
     stack->grid_position.z = scene_z;
     stack->grid_position.level = level;

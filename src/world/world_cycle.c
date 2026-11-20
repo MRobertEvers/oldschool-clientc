@@ -1013,16 +1013,69 @@ World_StepAnimationTrack(
 
 /* One client cycle of frame stepping for an entity's animation tracks +
  * attached graphic (exact port of Client.ts entityAnim, 4000-4075). */
+/*
+ * The freeze windows' half of the animation step (deob Statics.method7852,
+ * entity_freeze.h): a window whose start was crossed since it was last looked
+ * at starts the freeze -- unless already frozen, the tracks as they are now
+ * become what is drawn, the primary only when it plays undelayed (field1510)
+ * -- and its reset byte stops the live sequence (method3498). Returns whether
+ * a window covers this cycle; the drawing goes when none does.
+ */
+static bool
+World_StepFreeze(
+    struct World* world,
+    struct WorldEntityFreeze* freeze,
+    struct WorldEntityFacet_Animation* anim)
+{
+    int const now = (int)world->cycle;
+    bool started = false;
+    bool frozen = false;
+
+    for( int i = 0; i < freeze->count; i++ )
+    {
+        struct WorldFreezeWindow* w = &freeze->windows[i];
+
+        if( w->start_cycle > w->seen_cycle && w->start_cycle <= now )
+        {
+            if( !started )
+            {
+                started = true;
+                if( !freeze->frozen )
+                {
+                    freeze->drawn = *anim;
+                    if( !anim_step_active(&anim->primary) || anim->primary.delay != 0 )
+                        freeze->drawn.primary.anim_id = (uint16_t)-1;
+                }
+            }
+            if( w->reset_seq )
+            {
+                anim->primary.anim_id = (uint16_t)-1;
+                anim->primary.frame = 0;
+                anim->primary.cycle = 0;
+                anim->primary.loop = 0;
+                anim->primary.delay = 0;
+            }
+        }
+        frozen |= now >= w->start_cycle && now < w->end_cycle;
+        w->seen_cycle = now;
+    }
+    freeze->frozen = frozen;
+    return frozen;
+}
+
 static void
 World_StepEntityAnimation(
     struct World* world,
     struct WorldEntityFacet_Animation* anim,
+    struct WorldEntityFreeze* freeze,
     struct WorldEntityFacet_EntitySpotanim* spots,
     int spot_count,
     struct WorldEntityFacet_Pathing const* pathing,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_IdleAnimations const* idle)
 {
+    bool frozen;
+
     if( anim->held )
         return;
 
@@ -1031,6 +1084,7 @@ World_StepEntityAnimation(
     anim->needs_forward_draw_padding = 0;
 
     World_ResolvePendingPrimaryAnimation(world, anim, pathing, idle ? idle->readyanim : -1);
+    frozen = World_StepFreeze(world, freeze, anim);
 
     /*
      * Secondary (idle/walk). The reference steps it first and resets it on the
@@ -1043,7 +1097,8 @@ World_StepEntityAnimation(
      * parking, which is what makes a readyanim loop forever without the wrap
      * being special-cased here.
      */
-    if( anim_step_active(&anim->secondary) )
+    /* Frozen: the pose holds (method7852's `if (!var7)`). */
+    if( !frozen && anim_step_active(&anim->secondary) )
     {
         int flags =
             World_StepAnimationTrack(world, &anim->secondary, 1, draw_position, 1);
@@ -1120,6 +1175,13 @@ World_StepEntityAnimation(
             anim->preanim_route_length > 0 && cycle_seq_preanim_move(world, seq) == 1 )
         {
             anim->primary.delay = 1;
+            return;
+        }
+        /* Frozen: the start delay still counts down, the sequence holds. */
+        if( frozen )
+        {
+            if( anim->primary.delay > 0 )
+                anim->primary.delay--;
             return;
         }
 
@@ -1294,6 +1356,7 @@ World_UpdateExactMove(
 
 static void
 World_ApplySecondaryAnim(
+    struct World* world,
     struct WorldEntityFacet_Animation* animation,
     int seqId)
 {
@@ -1317,6 +1380,8 @@ World_ApplySecondaryAnim(
     {
         animation->secondary.anim_id = (uint16_t)seqId;
         animation->secondary.loop = 0;
+        /* The movement step chose a new stance or walk: its frames. */
+        World_SeqWant(world, seqId);
     }
 }
 
@@ -1356,6 +1421,10 @@ World_ActorLeftSceneReset(
     if( view_placement->home_view != 0 )
         return;
 
+    /* A loaded world has a scene (load_complete is set only by the swap of a
+     * finished build, World_SwapScene, or scriptrun's rebuild). Without one
+     * the limit is (0 - 1) << 7, a shift of a negative value. */
+    assert(world->_scene_size > 0);
     uint32_t const x = draw_position->x;
     uint32_t const z = draw_position->z;
     uint32_t const scene_limit = (uint32_t)((world->_scene_size - 1) << 7);
@@ -1397,6 +1466,7 @@ World_ActorLeftSceneReset(
 static void
 World_CycleActor(
     struct World_MoverInfo* info,
+    struct WorldEntityFreeze* freeze,
     struct WorldEntityFacet_ExactMove* exact,
     struct WorldEntityFacet_EntitySpotanim* spotanims,
     int spot_count,
@@ -1413,7 +1483,7 @@ World_CycleActor(
             world, exact, info->draw_position, info->orientation, info->animation, size) )
     {
         int seqId = World_UpdateMoverMovementAndAnimation(info);
-        World_ApplySecondaryAnim(info->animation, seqId);
+        World_ApplySecondaryAnim(world, info->animation, seqId);
     }
     /* else: exact move overrides route movement; the secondary anim keeps
      * whatever it was (reference skips routeMove). */
@@ -1430,11 +1500,13 @@ World_CycleActor(
         size);
     if( !rev239 )
         World_EntityFaceTarget(info);
-    face_seq = World_EntityTurn(info);
+    /* A frozen actor does not turn (Statics.method1's `if (!field1479)`,
+     * the flag the last animation step left). */
+    face_seq = freeze->frozen ? -1 : World_EntityTurn(info);
     if( face_seq != -1 )
-        World_ApplySecondaryAnim(info->animation, face_seq);
+        World_ApplySecondaryAnim(world, info->animation, face_seq);
     World_StepEntityAnimation(
-        world, info->animation, spotanims, spot_count, info->pathing, info->draw_position,
+        world, info->animation, freeze, spotanims, spot_count, info->pathing, info->draw_position,
         info->idle);
 }
 
@@ -1470,9 +1542,10 @@ World_CycleUpdatePlayers(
                 };
                 World_CycleActor(
                     &info,
+                    &player->freeze,
                     &player->exact_move,
-                    player->spotanims,
-                    WORLD_PLAYER_SPOTANIM_SLOTS,
+                    player->spotanims.items,
+                    player->spotanims.count,
                     world->local_pid >= 0 && player->server_pid == world->local_pid,
                     player->transmog_size);
             }
@@ -1514,7 +1587,7 @@ World_CycleUpdateNpcs(
                     .size_z = size,
                 };
                 World_CycleActor(
-                    &info, &npc->exact_move, npc->spotanims, WORLD_NPC_SPOTANIM_SLOTS, false,
+                    &info, &npc->freeze, &npc->exact_move, npc->spotanims.items, npc->spotanims.count, false,
                     size);
             }
             /* Overhead chat expiry (reference Client.ts:3174). */
@@ -1795,9 +1868,13 @@ World_ProjectileScriptedStep(
         }
         progress = (int)floorf(curve_frac * 65536.0f + 0.5f);
     }
-    h = World_ProjectileCurve(world, proj->curve[0], progress);
-    a = World_ProjectileCurve(world, proj->curve[1], progress);
-    t = World_ProjectileCurve(world, proj->curve[2], progress);
+    /* Before its curve scripts are here it stays at its start: it draws
+     * nothing until then (its body lands with them), and the curves are pure
+     * functions of the progress, so the first step after they land is where
+     * the deob's would be. */
+    h = proj->curves_ready ? World_ProjectileCurve(world, proj->curve[0], progress) : 0.0f;
+    a = proj->curves_ready ? World_ProjectileCurve(world, proj->curve[1], progress) : 0.0f;
+    t = proj->curves_ready ? World_ProjectileCurve(world, proj->curve[2], progress) : 0.0f;
 
     len = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
     prev[0] = (float)proj->x;

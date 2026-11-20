@@ -2141,8 +2141,8 @@ spawn_rows_copy(
 {
     void* copy;
 
-    if( count <= 0 )
-        return NULL;
+    assert(from);
+    assert(count > 0);
     copy = ToriMem_Alloc(ToriMem_ServerContent(), (size_t)count * element);
     assert(copy);
     memcpy(copy, from, (size_t)count * element);
@@ -2165,10 +2165,19 @@ spawn_file_parse(
     rows->npc_count = g_npc_spawn_count - npc0;
     rows->obj_count = g_obj_spawn_count - obj0;
     rows->supp_count = g_spawn_suppression_count - supp0;
-    rows->npcs = spawn_rows_copy(g_npc_spawns + npc0, rows->npc_count, sizeof(*g_npc_spawns));
-    rows->objs = spawn_rows_copy(g_obj_spawns + obj0, rows->obj_count, sizeof(*g_obj_spawns));
-    rows->supps = spawn_rows_copy(g_spawn_suppressions + supp0, rows->supp_count,
-                                  sizeof(*g_spawn_suppressions));
+    /* A file that appended no rows of a kind owns none. The merged table may
+     * still be NULL then, and NULL + 0 is undefined: test before forming the
+     * pointer. */
+    rows->npcs = rows->npc_count > 0 ? spawn_rows_copy(g_npc_spawns + npc0, rows->npc_count,
+                                                        sizeof(*g_npc_spawns))
+                                     : NULL;
+    rows->objs = rows->obj_count > 0 ? spawn_rows_copy(g_obj_spawns + obj0, rows->obj_count,
+                                                        sizeof(*g_obj_spawns))
+                                     : NULL;
+    rows->supps = rows->supp_count > 0
+                      ? spawn_rows_copy(g_spawn_suppressions + supp0, rows->supp_count,
+                                        sizeof(*g_spawn_suppressions))
+                      : NULL;
 }
 
 static struct SpawnFileRows*

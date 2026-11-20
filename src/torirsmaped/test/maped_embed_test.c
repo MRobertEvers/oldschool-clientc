@@ -31,6 +31,7 @@
 #include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -549,6 +550,121 @@ test_v1_peer(char const* scratch)
     free(maped);
     free(v1);
     free(v2);
+}
+
+/** Drop every frame queued for this peer. */
+static void
+raw_drain(struct raw_peer* peer)
+{
+    uint32_t type;
+    uint32_t length;
+    const uint8_t* body;
+    while( raw_take(peer, &type, &length, &body) )
+        ;
+}
+
+/** Send STATE_SET for `key` with `count` values 1000+i. */
+static void
+raw_state_set(
+    struct raw_peer* peer,
+    uint32_t key,
+    uint32_t count)
+{
+    uint8_t payload[8 + 4 * (TORIRSMAPED_STATE_VALUES_MAX + 1)];
+    assert(count <= TORIRSMAPED_STATE_VALUES_MAX + 1);
+    ToriRSMapEd_WriteU32(payload, key);
+    ToriRSMapEd_WriteU32(payload + 4, count);
+    for( uint32_t i = 0; i < count; i++ )
+        ToriRSMapEd_WriteU32(payload + 8 + i * 4, 1000u + i);
+    raw_send_frame(peer, TORIRSMAPED_REQ_STATE_SET, payload, 8 + count * 4);
+}
+
+/**
+ * The state store's bound. STATE_SET is the store's one writer and refuses a
+ * count over TORIRSMAPED_STATE_VALUES_MAX, which is what lets STATE_SYNC build
+ * each replayed FACT_STATE in a payload of 12 + 4 * that many bytes: a full
+ * entry replays whole, and an entry one value longer is never stored (its
+ * sender is closed). The i686 GCC LTO link could not see the bound through the
+ * stored count and warned that the replay wrote past its payload.
+ */
+static void
+test_state_store_bounds(char const* scratch)
+{
+    struct ToriRSMapEd* maped = calloc(1, sizeof(*maped));
+    struct raw_peer* a = calloc(1, sizeof(*a));
+    struct raw_peer* b = calloc(1, sizeof(*b));
+    uint8_t hello[12];
+    uint32_t type = 0;
+    uint32_t length = 0;
+    const uint8_t* body = NULL;
+    uint32_t group;
+    int states = 0;
+    int full = 0;
+
+    assert(maped);
+    assert(a);
+    assert(b);
+    ToriRSMapEd_Open(maped, scratch, NULL);
+    raw_attach(a, maped);
+    raw_attach(b, maped);
+
+    ToriRSMapEd_WriteU32(hello, TORIRSMAPED_PROTO_VERSION);
+    ToriRSMapEd_WriteU32(hello + 4, TORIRSMAPED_ROLE_GENERIC);
+    ToriRSMapEd_WriteU32(hello + 8, 0);
+    raw_send_frame(a, TORIRSMAPED_REQ_HELLO, hello, 12);
+    check(raw_take(a, &type, &length, &body) && type == TORIRSMAPED_FACT_HELLO && length >= 12,
+        "state bounds: the first peer is greeted");
+    group = ToriRSMapEd_ReadU32(body + 8);
+    raw_drain(a);
+
+    raw_state_set(a, TORIRSMAPED_STATE_SELECTION, TORIRSMAPED_STATE_VALUES_MAX);
+    check(ToriRSMapEd_SessionAlive(&a->session), "state bounds: a full STATE_SET is taken");
+    raw_drain(a);
+
+    /* A second peer in the same group replays the store. */
+    ToriRSMapEd_WriteU32(hello + 8, group);
+    raw_send_frame(b, TORIRSMAPED_REQ_HELLO, hello, 12);
+    raw_drain(b);
+    raw_send_frame(b, TORIRSMAPED_REQ_STATE_SYNC, NULL, 0);
+    while( raw_take(b, &type, &length, &body) )
+    {
+        if( type != TORIRSMAPED_FACT_STATE )
+            continue;
+        states++;
+        if( length == 12 + 4 * TORIRSMAPED_STATE_VALUES_MAX
+            && ToriRSMapEd_ReadU32(body + 4) == TORIRSMAPED_STATE_SELECTION
+            && ToriRSMapEd_ReadU32(body + 8) == TORIRSMAPED_STATE_VALUES_MAX
+            && ToriRSMapEd_ReadU32(body + 12) == 1000u
+            && ToriRSMapEd_ReadU32(body + 12 + 4 * (TORIRSMAPED_STATE_VALUES_MAX - 1))
+                   == 1000u + TORIRSMAPED_STATE_VALUES_MAX - 1 )
+            full++;
+    }
+    check(states == 1 && full == 1,
+        "state bounds: STATE_SYNC replays a full entry whole, in a frame of 12 + 4 * max bytes");
+
+    /* One value more is refused, and the store keeps the full entry. */
+    raw_state_set(a, TORIRSMAPED_STATE_SELECTION, TORIRSMAPED_STATE_VALUES_MAX + 1);
+    check(!ToriRSMapEd_SessionAlive(&a->session), "state bounds: a STATE_SET over the max closes its sender");
+    raw_send_frame(b, TORIRSMAPED_REQ_STATE_SYNC, NULL, 0);
+    states = 0;
+    full = 0;
+    while( raw_take(b, &type, &length, &body) )
+    {
+        if( type != TORIRSMAPED_FACT_STATE )
+            continue;
+        states++;
+        if( length == 12 + 4 * TORIRSMAPED_STATE_VALUES_MAX
+            && ToriRSMapEd_ReadU32(body + 8) == TORIRSMAPED_STATE_VALUES_MAX )
+            full++;
+    }
+    check(states == 1 && full == 1, "state bounds: the refused entry was not stored");
+
+    raw_detach(a);
+    raw_detach(b);
+    ToriRSMapEd_Close(maped);
+    free(maped);
+    free(a);
+    free(b);
 }
 
 /* The server pack's manifest diff RUN uses to name the server-pack groups a
@@ -1675,6 +1791,7 @@ main(
     /* ---- a v1 peer on the same protocol ------------------------------------ */
 
     test_v1_peer(scratch);
+    test_state_store_bounds(scratch);
     test_plain_open_on_lane(scratch);
 
     /* ---- a second SERVER over the same tree is read-only ------------------- */

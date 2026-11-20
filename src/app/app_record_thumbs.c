@@ -92,7 +92,10 @@ thumb_raster(
             parts[i], app->scene, &position, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
 }
 
-/** Queue `task` on the asset runner (NULL: nothing to queue). */
+/** Queue `task` on the asset runner (NULL: nothing to queue). The record
+ *  thumbnails are an editor-only path (the map editor's record gallery): its
+ *  loads are its own and not the assets table's, which the game's packets
+ *  and scripts use. */
 static void
 thumb_queue(
     struct App* app,

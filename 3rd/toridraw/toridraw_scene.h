@@ -698,6 +698,16 @@ ToriDraw_SceneElementIsLive(
     int element_id);
 
 /**
+ * Which allocation of `element_id` is live: element ids are recycled, the
+ * serial is not, so (id, serial) names one element for the life of the scene.
+ * 0 when the id is not live. A key held across a wait carries both.
+ */
+uint32_t
+ToriDraw_SceneElementSerial(
+    struct ToriDraw_Scene* scene,
+    int element_id);
+
+/**
  * Occlusion sample height above ground for a scene element — reference
  * Model.minY / bottomY (= max(-vertexY)). Returns 0 when the element is dead,
  * the handle is not a full model, or bounds are missing.

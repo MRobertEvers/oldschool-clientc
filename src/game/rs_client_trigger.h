@@ -49,17 +49,28 @@
  */
 /** An npc became visible (`Client::GetNPCPosNewVis`). Subject = npc type. */
 #define RS_TRIGGER_NPC_ADD 35
-/** An npc went away (`Client::DestroyNpc`). Subject = npc type. */
-#define RS_TRIGGER_NPC_DEL 36
 /** The scene builder placed a loc (`Client::OnLoadLocation`). Subject = loc
  *  type. This is the big one: 218 scripts in this cache. */
 #define RS_TRIGGER_LOC_ADD 37
 /** A zone packet changed a loc (`Client::LocChangeUnchecked`). */
 #define RS_TRIGGER_LOC_CHANGE 38
-/** A player became visible / went away. Subject is unused (players have no
- *  type), so only the global form can match. */
-#define RS_TRIGGER_PLAYER_ADD 41
-#define RS_TRIGGER_PLAYER_DEL 42
+/* 36 (npc gone, `Client::DestroyNpc`), 41 and 42 (a player became visible /
+ * went away) are not named, and nothing raises them (FAULTS E10, settled):
+ *  - the rev-239 deob raises none of them. Its lookup is Statics.method983
+ *    (trigger, subject, category): `(subject << 8) + trigger`, then
+ *    `(-3 - category << 8) + trigger`, then `trigger - 512` -- the three forms
+ *    above -- called only from the script dispatch Statics.method4335, and the
+ *    only triggers it is ever handed are the ones Statics.method9753 builds
+ *    events for: 10-14 (menu actions 1008-1012 on a map element,
+ *    Statics.method12866), 15-17
+ *    (map elements entering, leaving and staying in view, class597), 18
+ *    (class85), 76 (client.java ~3824), 85 (class603) and 86 (class59). No
+ *    npc removal and no player add or removal is among them;
+ *  - no cache this client reads binds a script to them in any form
+ *    (tools/client_trigger_scan.py: 0 in cache.osrs239 and in cache.osrs242,
+ *    against 24 and 31 for trigger 35).
+ * Firing one would look up nothing; `make check-client-triggers` says so again
+ * after a cache upgrade. */
 /** The right-click menu opened (`Minimenu::Open`). Global form only. */
 #define RS_TRIGGER_MINIMENU_OPEN 82
 

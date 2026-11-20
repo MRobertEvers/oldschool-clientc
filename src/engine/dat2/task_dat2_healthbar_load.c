@@ -152,11 +152,7 @@ Task_Dat2HealthbarLoad_Run(
                 &task->pending);
         }
     }
-    while( task->pending > 0 )
-    {
-        task->task.blocked = 1;
-        PT_YIELD(&task->pt);
-    }
+    TASK_AWAIT_JOIN(&task->task, &task->pt, task->pending);
 
     PT_END(&task->pt);
 }

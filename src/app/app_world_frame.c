@@ -35,40 +35,24 @@ App_WorldDrainEntityRemovedFor(
         const struct World_Event* ev = World_EventsPeek(world, i);
         if( ev->kind == WorldEventKind_EntityRemoved && ev->element_id >= 0 )
         {
-            /* The world releases its pool slot when it queues the removal, but
-             * preserves an immutable NPC copy on that event. Prefer it over a
-             * live lookup: the slot may be absent or may already belong to a
-             * different NPC by the time this render-side drain runs. */
+            /* An npc's removal carries the npc as it was (World_EmitNpcRemoved):
+             * the pool slot is released when the removal is queued and may
+             * already belong to someone else here. Every OTHER removal -- a
+             * player, a projectile, a graphic, a ground stack, a loc -- has
+             * none, and is not an npc despawn: it was reported as one, with
+             * -1 for the npc (FAULTS E5). */
             struct WorldEntity_NPC const* going = ev->removed_npc;
-            if( !going )
-                going = World_NpcGetByElementId(world, ev->element_id, NULL);
-            /* DRIVE_STAMP: npc_despawn -- a=npc slot b=npc_id. Unconditional,
-             * unlike the plugin-host snapshot below: -1 when the slot's npc
-             * identity could not be recovered, the render side having cleaned
-             * this up late -- the same case that snapshot's -1 sentinels
-             * cover. */
-            App_DriveEvent(
-                app, DRIVE_EVENT_NPC_DESPAWN, ev->element_id, going ? going->npc_id : -1, 0, 0);
-            if( app->plugins )
+            if( going )
             {
-                struct ToriRS_NpcSnapshot snap;
-                if( going )
-                    app_plugin_fill_npc_for_world(app, world, going, &snap);
-                else
+                /* DRIVE_STAMP: npc_despawn -- a=npc slot b=npc_id. The server
+                 * slot, as stated (it stamped the element id, FAULTS E10). */
+                App_DriveEvent(app, RS_EVENT_NPC_DESPAWN, going->server_slot, going->npc_id, 0, 0);
+                if( app->plugins )
                 {
-                    memset(&snap, 0, sizeof(snap));
-                    snap.server_slot = -1;
-                    snap.npc_id = -1;
-                    snap.base_npc_id = -1;
-                    snap.element_id = ev->element_id;
-                    /* Explicitly, because a zeroed health_ratio is the value
-                     * that means DEAD and this snapshot knows nothing at all.
-                     * A loot tracker reading it as a kill would open a record
-                     * for every entity the render side cleaned up late. */
-                    snap.health_ratio = -1;
-                    snap.health_scale = -1;
+                    struct ToriRS_NpcSnapshot snap;
+                    app_plugin_fill_npc_for_world(app, world, going, &snap);
+                    PluginHost_NpcDespawn(app->plugins, &snap);
                 }
-                PluginHost_NpcDespawn(app->plugins, &snap);
             }
             app_entity_spotanim_drop(app, ev->element_id);
             app_seq_bind_pending_drop(app, ev->element_id);
@@ -77,7 +61,7 @@ App_WorldDrainEntityRemovedFor(
         }
         else if( ev->kind == WorldEventKind_SpotanimStarted && ev->element_id >= 0 && app->scene )
         {
-            /* The delayed map spotanim parked in app_world_spawn_spotanim_now
+            /* The delayed map spotanim parked by its body task (app_tasks_effects.c)
              * is drawing for the first time this cycle: rewind to frame 0 and
              * hand it back to the per-element tick.
              *
@@ -172,6 +156,9 @@ app_world_frame(
     /* Mirror the local pid so the render cycle's dynamic pass can register the
      * local player first (reference addPlayers(true) precedence). */
     world->local_pid = app->esync.local_pid;
+    /* A varp a client script wrote (or one the pump has not flushed yet):
+     * the npcs it retypes are drawn as their new rung this frame. */
+    App_EntityNpcRetypeFlush(app);
 
     /*
      * Movement, then the cycle work -- rev-239's steady-state order, where a
@@ -194,7 +181,6 @@ app_world_frame(
     /* Only the root world is cycled; a deck advances nothing of its own but
      * still needs its painter's dynamic half rebuilt every tick. */
     app_wev_cycle_views(app);
-    World_LocChangesTick(world, cycles, app_loc_change_apply_cb, app);
     App_WorldDrainEntityRemoved(app);
 
     app_world_sync_positions(app);

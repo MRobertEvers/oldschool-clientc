@@ -27,12 +27,15 @@ static void
 usage(char const* argv0)
 {
     fprintf(stderr,
-            "usage: %s [--port N] [--behind-website] [--bind-all] [IO flags]\n"
+            "usage: %s [--port N] [--behind-website] [--bind-all] [--loopback] [IO flags]\n"
             "  --port            listen port (default %d alone, %d behind the website)\n"
             "  --behind-website  answer only requests signed by the servers -- the\n"
             "                    website's forwards (service/service_auth.h)\n"
             "  --bind-all        listen on every address, not only 127.0.0.1 (behind\n"
-            "                    the website only: alone it already listens on all)\n\n",
+            "                    the website only: alone it already listens on all)\n"
+            "  --loopback        alone, listen on 127.0.0.1 only (default: every\n"
+            "                    address, so a phone on the LAN can load the page);\n"
+            "                    a local test run's choice\n\n",
             argv0, IO_SERVER_DEFAULT_PORT, IO_SERVER_BEHIND_PORT);
     IoServer_Usage(stderr);
 }
@@ -45,6 +48,7 @@ main(
     int port = 0;
     int behind = 0;
     int bind_all = 0;
+    int loopback_only = 0;
     int status;
 
     /* Before anything allocates: this binary links the ondemand and io_wire
@@ -71,6 +75,11 @@ main(
         if( strcmp(argv[i], "--bind-all") == 0 )
         {
             bind_all = 1;
+            continue;
+        }
+        if( strcmp(argv[i], "--loopback") == 0 )
+        {
+            loopback_only = 1;
             continue;
         }
         taken = IoServer_ParseArg(argc, argv, &i);
@@ -101,8 +110,9 @@ main(
            port, behind ? "(behind the website: signed requests only)" : "", port);
     fflush(stdout);
     /* Alone it is a browser's server, as it always was; behind the website,
-     * only the website reaches it, on this machine unless --bind-all. */
-    status = ServiceHost_Run(behind && !bind_all, port);
+     * only the website reaches it, on this machine unless --bind-all; a local
+     * test run asks for 127.0.0.1 alone with --loopback. */
+    status = ServiceHost_Run(loopback_only || (behind && !bind_all), port);
     IoServer_Stop();
     ToriMem_Shutdown();
     return status;

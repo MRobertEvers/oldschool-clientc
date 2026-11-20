@@ -475,7 +475,7 @@ absorb_npc_info(
     int n;
 
     rsprot_info_list_init(&list, ops, (int)(sizeof(ops) / sizeof(ops[0])), bytes, sizeof(bytes));
-    n = peer->net.rev->npc_info_read(data, length, &list);
+    n = peer->net.rev->npc_info_read(data, length, NULL, NULL, &list);
 
     for( int i = 0; i < n; i++ )
     {
@@ -615,8 +615,13 @@ absorb_social(
     {
     case PKT_NAME_UPDATE_FRIENDLIST:
         peer->saw_friend_count++;
-        peer->saw_friend_name37 = packet->_update_friendlist.name37;
-        peer->saw_friend_world = packet->_update_friendlist.world;
+        /* The first entry, keyed as the friend list keys it. */
+        peer->saw_friend_name37 = packet->_update_friendlist.count > 0
+                                      ? (int64_t)strtobase37(packet->_update_friendlist.entries[0].name)
+                                      : 0;
+        peer->saw_friend_world = packet->_update_friendlist.count > 0
+                                     ? packet->_update_friendlist.entries[0].world
+                                     : 0;
         return 1;
     case PKT_NAME_FRIENDLIST_LOADED:
         peer->saw_friendlist_loaded = packet->_friendlist_loaded.status;
@@ -627,7 +632,7 @@ absorb_social(
         return 1;
     case PKT_NAME_MESSAGE_PRIVATE:
         peer->saw_pm_count++;
-        peer->saw_pm_from = packet->_message_private.from;
+        peer->saw_pm_from = (int64_t)strtobase37(packet->_message_private.sender);
         peer->saw_pm_id = packet->_message_private.message_id;
         snprintf(peer->saw_pm_text, sizeof(peer->saw_pm_text), "%s",
                  packet->_message_private.text ? packet->_message_private.text : "");
@@ -2149,7 +2154,14 @@ main(void)
         int64_t bob37 = (int64_t)strtobase37("bob");
 
         /* ── What the login burst already sent ── */
-        check(peers[0].saw_friendlist_loaded == 2,
+        /* "Loaded" is two packets on a rev-221+ wire: FRIENDLIST_LOADED is a
+         * bare marker the client reads as state 1 (deob class58.method1191;
+         * adapt_friendlist_loaded states 1), and the UPDATE_FRIENDLIST after
+         * it, empty or not, is what reads as state 2 (class58.method1164). An
+         * rs-family wire states 2 in the marker itself. This used to demand
+         * 2 of the marker, which no rev-221+ wire can send. */
+        check((peers[0].saw_friendlist_loaded == 1 && peers[0].saw_friend_count > 0) ||
+                  peers[0].saw_friendlist_loaded == 2,
               "alice's login told her client the friend list finished loading");
         check(peers[0].saw_ignorelist_count > 0 && peers[0].saw_ignorelist_len == 0,
               "and handed it an ignore list, empty but stated");
@@ -2282,11 +2294,16 @@ main(void)
 
         /* ── ignoring somebody hides you from them ── */
         peers[0].saw_friend_count = 0;
+        peers[1].saw_ignorelist_count = 0;
         peer_social_name37(&peers[1], PKTOUT_NAME_IGNORELIST_ADD, "alice");
         for( int round = 0; round < 6; round++ )
             pump(peers, 2, embed, 1, 64);
 
         check(ToriRSServer_FriendsIsIgnored(bob37, alice37), "IGNORELIST_ADD reached the service");
+        /* J5: the client only asks (rev-239 class58.method1218), so the
+         * server answers with the added entry, as it answers a friend add. */
+        check(peers[1].saw_ignorelist_count == 1 && peers[1].saw_ignorelist_len == 1,
+              "and bob is answered with the one added entry");
         check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_name37 == bob37 &&
                   peers[0].saw_friend_world == 0,
               "and bob ignoring alice makes him read offline in her panel");

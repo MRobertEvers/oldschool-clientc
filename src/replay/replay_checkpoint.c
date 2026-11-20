@@ -6,6 +6,7 @@
 
 #include "app.h"
 #include "app/app_checkpoint.h"
+#include "engine/asset_requests.h"
 #include "game/rs_chat.h"
 #include "game/rs_cs2_host.h"
 #include "game/rs_clientscript_queue.h"
@@ -186,8 +187,6 @@ ReplayCheckpoint_CanTake(
         reason = "a clientscript callback is running";
     else if( app->cs1_host.has_pending || app->cs1_host.has_awaited || RS_CS1Host_EvalInflight(&app->cs1_host) )
         reason = "a CS1 evaluation is in flight";
-    else if( InvIconRetry_InFlight(&app->inv_icon_retry) )
-        reason = "an inventory icon pass is in flight";
     else if( app->host.triggeroplocal_count > 0 || app->host.close_modal_requested ||
              app->host.resume_pausebutton_component_id != -1 || app->host.social_send_count > 0 )
         reason = "a clientscript's request to the App is not drained";

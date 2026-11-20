@@ -44,17 +44,30 @@
  *   TEMP_MOVE_SPEED     it into ABS_XZLEVEL from the
  *                       table's move_speed, which the
  *                       key carries in the table bytes)
- *   NAME_EXTRAS, RESET, not consumed                    not consumed
- *   FREEZE, HEAD_CUSTOM
+ *   NAME_EXTRAS         sticky (NAME_EXTRAS)            -
+ *   HEAD_CUSTOM         -                               sticky (HEAD)
+ *   FREEZE              sticky (FREEZE)                 sticky (FREEZE)
+ *   RESET               clears NAME_EXTRAS and          -
+ *                       FACE_ENTITY set before its
+ *                       record (player_reset runs at
+ *                       the record's start)
+ *
+ * A FREEZE window counts in client cycles from its packet. The keyframe hands
+ * the last one over re-timed to the keyframe's tick (freeze_retime): its
+ * delay less the cycles since, or, once started, a window from now to its
+ * end, so the restored window covers the same cycles as one played from the
+ * start; one that is over is not handed over. A cancel (delay or duration
+ * 65535) drops it. One window per entity is kept: a second open at once, the
+ * rare case, keeps only the newer.
  *
  * Within one sticky slot the latest op replaces the earlier (each setter writes
- * the whole field: World_NpcSetBodyModels, World_NpcSetHeadiconCustom, the BAS
+ * the whole field: World_NpcSetBodyCustom, World_NpcSetHeadiconCustom, the BAS
  * block's full set at :1776). A keyframe hands an entity's sticky ops over in
  * recorded order, so FACE_ENTITY against FACE_DIR lands as it did.
  *
  * NPC_HEADICON_SPECIFIC is not an info op but a packet of its own that writes
- * ONE head-icon slot of an npc this client tracks (exec_npc_headicon_specific,
- * rs_gameproto_exec.c: an npc not in the registry is skipped, a slot outside
+ * ONE head-icon slot of an npc this client tracks (state_npc_headicon_specific,
+ * game/rs_server_state.c: an npc not in the registry is skipped, a slot outside
  * 0..7 refused; the first write copies the type's icons in). So it gets a
  * sticky slot per head-icon slot, set from the npc list as it stands when the
  * packet arrives, and a HEADICON_CUSTOM, which writes every slot, clears them.
@@ -94,6 +107,7 @@
  */
 #include "replay/replay_ledger_internal.h"
 
+#include "mem/torirs_mem.h"
 #include "net/rev/pktnames.h"
 #include "rsprot_buf.h"
 
@@ -210,6 +224,56 @@ blob_natural(
         rsprot_gdata(&b, out, len);
 }
 
+/* `len` bytes into the ledger's own blobs; their offset. */
+static uint32_t
+blob_put(
+    struct ReplayLedger* building,
+    void const* src,
+    int len)
+{
+    uint32_t at;
+
+    assert(len >= 0);
+    if( building->blob_used + (size_t)len > building->blob_cap )
+    {
+        while( building->blob_used + (size_t)len > building->blob_cap )
+            building->blob_cap = building->blob_cap ? building->blob_cap * 2 : 65536;
+        building->blobs = realloc(building->blobs, building->blob_cap);
+        assert(building->blobs);
+    }
+    if( len > 0 )
+        memcpy(building->blobs + building->blob_used, src, (size_t)len);
+    at = (uint32_t)building->blob_used;
+    building->blob_used += (size_t)len;
+    return at;
+}
+
+/* NAME_EXTRAS' three strings point into the decode list: copied into the
+ * blobs, end to end, each with its NUL. */
+static void
+record_name_extras(
+    struct ReplayLedger* building,
+    struct ReplayLedgerPlayerOp* copy,
+    RsprotInfoOp const* op)
+{
+    char const* parts[3] = { op->name_extras.before_name, op->name_extras.after_name,
+                             op->name_extras.after_combat_level };
+
+    copy->blob_offset = (uint32_t)building->blob_used;
+    copy->blob_len = 0;
+    for( int k = 0; k < 3; k++ )
+    {
+        char const* text = parts[k] ? parts[k] : "";
+        int n = (int)strlen(text) + 1;
+
+        (void)blob_put(building, text, n);
+        copy->blob_len += n;
+    }
+    copy->op.name_extras.before_name = NULL;
+    copy->op.name_extras.after_name = NULL;
+    copy->op.name_extras.after_combat_level = NULL;
+}
+
 static void
 record_player_op(
     struct ReplayLedger* building,
@@ -234,6 +298,11 @@ record_player_op(
     copy->ref = REPLAY_STICKY_REF(f, op_index);
     copy->op = *op;
     copy->blob_order = -1;
+    if( op->kind == RSPROT_OP_NAME_EXTRAS )
+    {
+        record_name_extras(building, copy, op);
+        return;
+    }
     if( op->kind != RSPROT_OP_APPEARANCE )
         return;
     copy->op.appearance.appearance = NULL;
@@ -271,16 +340,15 @@ record_player_op(
         return;
     }
     building->stats.appearance_copies++;
-    if( building->blob_used + (size_t)len > building->blob_cap )
-    {
-        while( building->blob_used + (size_t)len > building->blob_cap )
-            building->blob_cap = building->blob_cap ? building->blob_cap * 2 : 65536;
-        building->blobs = realloc(building->blobs, building->blob_cap);
-        assert(building->blobs);
-    }
-    memcpy(building->blobs + building->blob_used, op->appearance.appearance, (size_t)len);
-    copy->blob_offset = (uint32_t)building->blob_used;
-    building->blob_used += (size_t)len;
+    copy->blob_offset = blob_put(building, op->appearance.appearance, len);
+}
+
+/* A FREEZE that cancels every window (65535 in either field: the apply's
+ * -1, World_NpcFreeze / World_PlayerFreeze). */
+static int
+freeze_cancels(RsprotInfoOp const* op)
+{
+    return op->freeze.delay == 65535 || op->freeze.duration == 65535;
 }
 
 /* --- PLAYER_INFO ---------------------------------------------------------- */
@@ -306,6 +374,8 @@ player_info(
         if( !rsprot_info_list_complete(&list) )
             building->stats.player_info_incomplete++;
     }
+    int record_first = 0;
+
     for( int i = 0; i < count; i++ )
     {
         RsprotInfoOp const* op = &list.ops[i];
@@ -315,10 +385,38 @@ player_info(
         {
         case RSPROT_OP_SET_LOCAL_PLAYER:
             cur = state->pi.local_index;
+            record_first = i;
             continue;
         case RSPROT_OP_ADD_NEW:
             cur = (int)op->value;
+            record_first = i;
             continue;
+        case RSPROT_OP_RESET:
+            /* player_reset, at the start of its record: what was set before
+             * the record goes; what the record itself sets stays. */
+            if( cur >= 0 && cur < REPLAY_LEDGER_PLAYER_SLOTS )
+            {
+                uint64_t const record = REPLAY_STICKY_REF(f, record_first);
+                uint64_t* sticky = state->player_sticky[cur];
+
+                if( sticky[REPLAY_PLAYER_NAME_EXTRAS] < record )
+                    sticky[REPLAY_PLAYER_NAME_EXTRAS] = REPLAY_STICKY_NONE;
+                if( sticky[REPLAY_PLAYER_FACE_ENTITY] < record )
+                    sticky[REPLAY_PLAYER_FACE_ENTITY] = REPLAY_STICKY_NONE;
+            }
+            continue;
+        case RSPROT_OP_NAME_EXTRAS:
+            slot = REPLAY_PLAYER_NAME_EXTRAS;
+            break;
+        case RSPROT_OP_FREEZE:
+            if( freeze_cancels(op) )
+            {
+                if( cur >= 0 && cur < REPLAY_LEDGER_PLAYER_SLOTS )
+                    state->player_sticky[cur][REPLAY_PLAYER_FREEZE] = REPLAY_STICKY_NONE;
+                continue;
+            }
+            slot = REPLAY_PLAYER_FREEZE;
+            break;
         case RSPROT_OP_REMOVE_PID:
             if( op->value < REPLAY_LEDGER_PLAYER_SLOTS )
                 sticky_clear(state->player_sticky[op->value], REPLAY_PLAYER_STICKY_COUNT);
@@ -413,6 +511,185 @@ npc_fresh(
     sticky_clear(npc->sticky, REPLAY_NPC_STICKY_COUNT);
 }
 
+/*
+ * A typed customisation block's question, put to one NPC_INFO frame's read
+ * (GameProtoNpcTypeLengths). Building, it is answered: `old` through the
+ * ledger's own npc list before the frame (`state`), the type through the
+ * ledger's npc_types; and the answer is kept. Afterwards (a fold from a key,
+ * a frame re-read for a keyframe) the kept answers are handed back in the
+ * order they were asked, so every read of a frame reads it the same way.
+ */
+struct NpcTypeAsk
+{
+    struct ReplayLedger const* ledger;
+    struct ReplayLedger* building;
+    struct ReplayEntityState const* state;
+    uint32_t frame;
+    /* Building: this frame's answers start here. Replaying: its kept ones. */
+    int first;
+    int count;
+    int next;
+};
+
+static void
+npc_type_answer_keep(
+    struct NpcTypeAsk* ask,
+    int answered,
+    int recolours,
+    int retextures)
+{
+    struct ReplayLedger* b = ask->building;
+
+    if( b->answer_count == b->answer_cap )
+    {
+        int const cap = b->answer_cap ? b->answer_cap * 2 : 64;
+
+        b->answers = ToriMem_Realloc(ToriMem_Net(), b->answers, (size_t)cap * sizeof(*b->answers));
+        assert(b->answers);
+        b->answer_cap = cap;
+    }
+    b->answers[b->answer_count].answered = answered;
+    b->answers[b->answer_count].recolours = recolours;
+    b->answers[b->answer_count].retextures = retextures;
+    b->answer_count++;
+    ask->count++;
+}
+
+static int
+npc_type_lengths(
+    void* ctx,
+    int old,
+    int npc_type,
+    int head,
+    int* recolours,
+    int* retextures)
+{
+    struct NpcTypeAsk* ask = ctx;
+    int answered = 1;
+
+    assert(ask);
+    assert(recolours);
+    assert(retextures);
+    *recolours = 0;
+    *retextures = 0;
+    if( !ask->building )
+    {
+        struct ReplayLedgerTypeAnswer const* a;
+
+        /* The same bytes ask the same questions as when the frame was built. */
+        assert(ask->next < ask->count);
+        a = &ask->ledger->answers[ask->first + ask->next++];
+        *recolours = a->recolours;
+        *retextures = a->retextures;
+        return a->answered;
+    }
+    if( npc_type < 0 && old >= 0 )
+    {
+        /* The npc the list held at `old` before this frame, as the clients
+         * ask theirs (RS_EntityApply_NpcOldType): none is nothing to read
+         * the arrays by. */
+        struct ReplayLedgerNpc const* npc =
+            old < ask->state->npc_count ? &ask->state->npcs[old] : NULL;
+
+        npc_type = npc && npc->slot >= 0 && npc->type != REPLAY_NPC_TYPE_NONE ? npc->type : -1;
+        if( npc_type < 0 )
+            answered = 0;
+    }
+    if( answered && npc_type >= 0 )
+        answered = ask->ledger->npc_types(ask->ledger->npc_types_ctx, -1, npc_type, head, recolours, retextures);
+    npc_type_answer_keep(ask, answered, *recolours, *retextures);
+    return answered;
+}
+
+/* This frame's kept answers, for a read after the build. */
+static void
+npc_type_ask_kept(
+    struct NpcTypeAsk* ask,
+    struct ReplayLedger const* ledger,
+    uint32_t f)
+{
+    int lo = 0;
+    int hi = ledger->answer_frame_count;
+
+    memset(ask, 0, sizeof(*ask));
+    ask->ledger = ledger;
+    ask->frame = f;
+    while( lo < hi )
+    {
+        int const mid = (lo + hi) / 2;
+
+        if( ledger->answer_frames[mid].frame < f )
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    if( lo < ledger->answer_frame_count && ledger->answer_frames[lo].frame == f )
+    {
+        ask->first = ledger->answer_frames[lo].first;
+        ask->count = ledger->answer_frames[lo].count;
+    }
+}
+
+/* One NPC_INFO frame read, its typed blocks answered (npc_type_lengths)
+ * when the ledger has npc types. */
+static int
+npc_info_read(
+    struct ReplayLedger const* ledger,
+    struct ReplayLedger* building,
+    struct ReplayEntityState const* state,
+    uint32_t f,
+    int large,
+    RsprotInfoList* list)
+{
+    struct RsproxRecordingFrame const* fr = &ledger->rec->frames[f];
+    struct GameProtoRevTable const* rev = ledger->rev;
+    struct NpcTypeAsk ask;
+    int count;
+
+    if( building )
+    {
+        memset(&ask, 0, sizeof(ask));
+        ask.ledger = ledger;
+        ask.building = building;
+        ask.state = state;
+        ask.frame = f;
+        ask.first = building->answer_count;
+    }
+    else
+        npc_type_ask_kept(&ask, ledger, f);
+    if( large )
+        assert(rev->npc_info_read_large);
+    else
+        assert(rev->npc_info_read);
+    count = (large ? rev->npc_info_read_large : rev->npc_info_read)(
+        ledger->rec->data + fr->offset, (int)fr->length, ledger->npc_types ? npc_type_lengths : NULL,
+        ledger->npc_types ? &ask : NULL, list);
+    if( building && ask.count > 0 )
+    {
+        struct ReplayLedgerTypeFrame* tf;
+
+        if( building->answer_frame_count == building->answer_frame_cap )
+        {
+            int const cap = building->answer_frame_cap ? building->answer_frame_cap * 2 : 32;
+
+            building->answer_frames = ToriMem_Realloc(
+                ToriMem_Net(), building->answer_frames, (size_t)cap * sizeof(*building->answer_frames));
+            assert(building->answer_frames);
+            building->answer_frame_cap = cap;
+        }
+        /* Frames are built in order: the index stays sorted. */
+        assert(building->answer_frame_count == 0 ||
+               building->answer_frames[building->answer_frame_count - 1].frame < f);
+        tf = &building->answer_frames[building->answer_frame_count++];
+        tf->frame = f;
+        tf->first = ask.first;
+        tf->count = ask.count;
+    }
+    else if( !building )
+        assert(ask.next == ask.count);
+    return count;
+}
+
 static void
 npc_info(
     struct ReplayLedger const* ledger,
@@ -423,7 +700,6 @@ npc_info(
 {
     static struct ReplayLedgerNpc old[REPLAY_LEDGER_MAX_NPCS];
     static int cleared[REPLAY_LEDGER_MAX_NPCS];
-    struct RsproxRecordingFrame const* fr = &ledger->rec->frames[f];
     RsprotInfoList list;
     int count;
     int old_count = state->npc_count;
@@ -434,17 +710,7 @@ npc_info(
     int revived = 0;
 
     rsprot_info_list_init(&list, g_ops, LEDGER_INFO_OPS, g_bytes, LEDGER_INFO_BYTES);
-    if( large )
-    {
-        assert(ledger->rev->npc_info_read_large);
-        count = ledger->rev->npc_info_read_large(ledger->rec->data + fr->offset, (int)fr->length,
-                                                 &list);
-    }
-    else
-    {
-        assert(ledger->rev->npc_info_read);
-        count = ledger->rev->npc_info_read(ledger->rec->data + fr->offset, (int)fr->length, &list);
-    }
+    count = npc_info_read(ledger, building, state, f, large, &list);
     if( building )
     {
         building->stats.npc_info_frames++;
@@ -589,6 +855,18 @@ npc_info(
         case RSPROT_OP_BAS_CHANGE:
             slot = REPLAY_NPC_BAS;
             break;
+        case RSPROT_OP_HEAD_CUSTOM:
+            slot = REPLAY_NPC_HEAD;
+            break;
+        case RSPROT_OP_FREEZE:
+            if( freeze_cancels(op) )
+            {
+                if( npc && npc->slot >= 0 )
+                    npc->sticky[REPLAY_NPC_FREEZE] = REPLAY_STICKY_NONE;
+                continue;
+            }
+            slot = REPLAY_NPC_FREEZE;
+            break;
         default:
             continue;
         }
@@ -699,7 +977,7 @@ ledger_entity_step(
     {
         struct RevPacket pkt;
 
-        /* exec_npc_headicon_specific: one slot of an npc in the registry. */
+        /* state_npc_headicon_specific: one slot of an npc in the registry. */
         if( ledger_parse(ledger, f, &pkt) )
         {
             struct PktNpcHeadiconSpecific const* h = &pkt._npc_headicon_specific;
@@ -1071,8 +1349,40 @@ player_op_find(
     return NULL;
 }
 
+/*
+ * A FREEZE op handed over at keyframe `kf`, re-timed from its packet's tick
+ * to the keyframe's (the header's note): 1 and `op` re-timed, or 0 when its
+ * window is over by then. Delays and durations are client cycles, the
+ * packet's apply and the keyframe's both at a tick boundary.
+ */
+static int
+freeze_retime(
+    struct ReplayLedger const* ledger,
+    uint64_t ref,
+    struct ReplayWorldKeyframe const* kf,
+    RsprotInfoOp* op)
+{
+    int const tick = ledger->rec->frames[REPLAY_STICKY_FRAME(ref)].tick;
+    int const elapsed = (kf->tick - tick) * REPLAY_LEDGER_CYCLES_PER_TICK;
+    int const delay = op->freeze.delay;
+    int const end = op->freeze.delay + op->freeze.duration;
+
+    assert(kf->tick >= tick);
+    if( delay >= elapsed )
+    {
+        op->freeze.delay = delay - elapsed;
+        return 1;
+    }
+    if( end <= elapsed )
+        return 0;
+    op->freeze.delay = 0;
+    op->freeze.duration = end - elapsed;
+    return 1;
+}
+
 /* The NPC_INFO frame last decoded for a keyframe: the npc stream is
- * stateless, so a frame decodes the same way whenever it is asked. */
+ * stateless and a typed block is handed the answers the build gave it
+ * (npc_info_read), so a frame decodes the same way whenever it is asked. */
 struct NpcDecode
 {
     uint32_t frame;
@@ -1094,19 +1404,11 @@ npc_op_resolve(
 
     if( cache->frame != f )
     {
-        struct RsproxRecordingFrame const* fr = &ledger->rec->frames[f];
         int name = ledger_frame_name(ledger, f);
 
         cache->frame = f;
-        if( name == PKT_NAME_NPC_INFO_LARGE )
-            cache->count = ledger->rev->npc_info_read_large(ledger->rec->data + fr->offset,
-                                                            (int)fr->length, &cache->list);
-        else
-        {
-            assert(name == PKT_NAME_NPC_INFO);
-            cache->count = ledger->rev->npc_info_read(ledger->rec->data + fr->offset,
-                                                      (int)fr->length, &cache->list);
-        }
+        assert(name == PKT_NAME_NPC_INFO_LARGE || name == PKT_NAME_NPC_INFO);
+        cache->count = npc_info_read(ledger, NULL, NULL, f, name == PKT_NAME_NPC_INFO_LARGE, &cache->list);
     }
     if( index >= cache->count )
         return 0;
@@ -1117,7 +1419,12 @@ npc_op_resolve(
     if( src->kind == RSPROT_OP_NAME_CHANGE )
         op->name_change.name = (char const*)ledger_kf_put(
             kf, src->name_change.name, src->name_change.name ? strlen(src->name_change.name) + 1 : 0);
-    else if( src->kind == RSPROT_OP_BODY_CUSTOM )
+    else if( src->kind == RSPROT_OP_FREEZE )
+    {
+        if( !freeze_retime(ledger, ref, kf, op) )
+            kf->op_count--; /* over by the keyframe: nothing to hand over */
+    }
+    else if( src->kind == RSPROT_OP_BODY_CUSTOM || src->kind == RSPROT_OP_HEAD_CUSTOM )
     {
         RsprotInfoBodyCustom const* b = &src->body;
 
@@ -1146,6 +1453,24 @@ player_op_resolve(
         return 0;
     op = ledger_kf_op(kf);
     *op = copy->op;
+    if( copy->op.kind == RSPROT_OP_FREEZE && !freeze_retime(ledger, ref, kf, op) )
+    {
+        kf->op_count--; /* over by the keyframe: nothing to hand over */
+        return 1;
+    }
+    if( copy->op.kind == RSPROT_OP_NAME_EXTRAS )
+    {
+        uintptr_t const at = ledger_kf_put(kf, ledger->blobs + copy->blob_offset, (size_t)copy->blob_len);
+        char const* base = (char const*)(ledger->blobs + copy->blob_offset);
+        size_t const first = strlen(base) + 1;
+        size_t const second = first + strlen(base + first) + 1;
+
+        /* Arena offsets, as every pointer here until ledger_kf_fixup. */
+        op->name_extras.before_name = (char const*)at;
+        op->name_extras.after_name = (char const*)(at + first);
+        op->name_extras.after_combat_level = (char const*)(at + second);
+        return 1;
+    }
     if( copy->op.kind == RSPROT_OP_APPEARANCE && copy->blob_len > 0 )
     {
         /* Into the keyframe's arena, in natural order, as the reader gave it. */

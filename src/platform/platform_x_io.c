@@ -113,6 +113,10 @@ enum RemoteSource
      * group is in the disk the JS5 client filled, which is all a prefetch
      * asked for. */
     REMOTE_SOURCE_JS5_PREFETCH = 3,
+    /* A local disk read held back TORIRS_IO_DEFER_MS (io_defer_ms) or
+     * TORIRS_IO_DEFER_FRAMES (io_defer_frames): answered by the first Pump at
+     * or after both `due_ms` and `due_frame`. */
+    REMOTE_SOURCE_DEFERRED = 4,
 };
 
 struct RemotePendingItem
@@ -124,6 +128,9 @@ struct RemotePendingItem
     struct ToriRS_IOItem* item;
     int archive;
     int group;
+    /* REMOTE_SOURCE_DEFERRED only: when it may be answered (0: no bound). */
+    uint64_t due_ms;
+    uint64_t due_frame;
 };
 
 struct PlatformX_IO
@@ -143,6 +150,15 @@ struct PlatformX_IO
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     struct PlatformXIOJs5Cache* js5;
 #endif
+    /* Told after every tick of the JS5 link (PlatformX_IO_SetReprimeTickHook):
+     * the provider fires its re-prime trigger when the table it waits for
+     * has landed. */
+    void (*reprime_tick)(void* user);
+    void* reprime_tick_user;
+    /* The client's frame count (PlatformX_IO_SetFrameSource): what a
+     * TORIRS_IO_DEFER_FRAMES deferral counts in. NULL: no frames, so no
+     * frame deferral on this executor. */
+    uint64_t const* frames;
     /* Reads parked on either remote source. @see RemotePendingItem. */
     struct RemotePendingItem* pending;
     int pending_count;
@@ -456,6 +472,26 @@ PlatformX_IO_ArchiveInvalidateHook(
 {
     assert(user);
     PlatformX_IO_InvalidateArchive((struct PlatformX_IO*)user, index, archive);
+}
+
+void
+PlatformX_IO_SetFrameSource(
+    struct PlatformX_IO* px,
+    uint64_t const* frames)
+{
+    assert(px);
+    px->frames = frames;
+}
+
+void
+PlatformX_IO_SetReprimeTickHook(
+    struct PlatformX_IO* px,
+    void (*hook)(void* user),
+    void* user)
+{
+    assert(px);
+    px->reprime_tick = hook;
+    px->reprime_tick_user = hook ? user : NULL;
 }
 
 int
@@ -1575,6 +1611,63 @@ cache_source_parks(enum CacheSource source)
 }
 #endif
 
+#if !defined(NDEBUG)
+/*
+ * TORIRS_IO_FAIL=t:a[,t:a...]: a fault injection, in asserts-live builds only
+ * (NDEBUG compiles it out). Every disk read of archive `a` in logical dat2
+ * table `t` (RSCACHE_DAT2_TABLE_*; `a` may be `*` for the whole table) fails
+ * as a missing archive does, so what a task does when the asset it waits for
+ * can never be served can be run on purpose: a visual load ends its task and
+ * is remembered, a required one follows its policy, and nothing waits forever.
+ * Beside TORIRS_IO_DEFER_MS below, which makes reads slow instead. Unset: off.
+ */
+static int
+io_fail_wanted(
+    int table,
+    int archive)
+{
+    static char const* spec;
+    static int read;
+    char const* at;
+
+    if( !read )
+    {
+        spec = getenv("TORIRS_IO_FAIL");
+        read = 1;
+    }
+    if( !spec || !spec[0] )
+        return 0;
+    for( at = spec; *at; )
+    {
+        char* end = NULL;
+        long const t = strtol(at, &end, 10);
+
+        if( end == at || *end != ':' )
+            return 0;
+        at = end + 1;
+        if( *at == '*' )
+        {
+            if( t == table )
+                return 1;
+            at++;
+        }
+        else
+        {
+            long const a = strtol(at, &end, 10);
+
+            if( end == at )
+                return 0;
+            if( t == table && a == archive )
+                return 1;
+            at = end;
+        }
+        if( *at == ',' )
+            at++;
+    }
+    return 0;
+}
+#endif
+
 static int
 load_cache_item_dat2(
     struct PlatformX_IO* px,
@@ -1596,6 +1689,14 @@ load_cache_item_dat2(
         return -1;
     }
 
+#if !defined(NDEBUG)
+    if( io_fail_wanted(logical_table, archive_id) )
+    {
+        TORIRS_LOG("io_fail: table=%d archive=%d failed on purpose (TORIRS_IO_FAIL)\n", logical_table, archive_id);
+        item->error_code = -1;
+        return -1;
+    }
+#endif
     {
         static int trace_enabled = -1;
         if( trace_enabled < 0 )
@@ -1679,6 +1780,220 @@ remote_pending_alloc(struct PlatformX_IO* px)
     memset(&px->pending[px->pending_count], 0, sizeof(*px->pending));
     return &px->pending[px->pending_count++];
 }
+
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+/*
+ * TORIRS_IO_DEFER_MS=n: a desktop disk that answers like a remote cache. Every
+ * cache read the disk would answer inside Process is parked instead and
+ * answered by the first Pump at least n ms later -- the shape of a JS5 or
+ * browser read, on a lane whose reads are otherwise never pending. A
+ * diagnostic for the frame contract's waits (app.h, beside the runners): what
+ * the queues and the frame loop do while every task waits on a read
+ * (ToriRS_Pacer_LoopWait's NAP) can be run on any native lane with a local
+ * cache. 0 or unset: off. The content test refuses it (content_test.c): its
+ * clock is virtual, so use TORIRS_IO_DEFER_FRAMES there.
+ */
+static uint64_t
+io_defer_ms(void)
+{
+    static long defer = -1;
+    if( defer < 0 )
+    {
+        char const* env = getenv("TORIRS_IO_DEFER_MS");
+        defer = env && env[0] ? strtol(env, NULL, 0) : 0;
+        if( defer < 0 )
+            defer = 0;
+    }
+    return (uint64_t)defer;
+}
+
+/*
+ * TORIRS_IO_DEFER_FRAMES=n: the same deferral counted in client FRAMES (each
+ * App_RunOnce, PlatformX_IO_SetFrameSource) instead of wall milliseconds. The
+ * content test's client runs on a virtual clock whose frames cost microseconds
+ * of wall time, so a deferral in ms is spent long before the frame budget is
+ * (pm BUGTEST_ROUND1, bt-quests); in frames it is the same slowness on every
+ * machine and in every run. Paired with TORIRS_CONTENT_TEST_RACE=1
+ * (content_test.c) it is how a test drives a packet arriving while an earlier
+ * packet's parallel task still waits for its read. An executor with no frame
+ * source (an io server, the headless client) does not defer. 0 or unset: off.
+ *
+ *   TORIRS_IO_DEFER_JITTER=j  each deferred read waits n + 0..j frames, a
+ *                             different number per read, so the ORDER reads
+ *                             answer in varies from the order they were made;
+ *   TORIRS_IO_DEFER_SEED=s    the seed of that draw (default 1): one seed is
+ *                             one order, run after run;
+ *   TORIRS_IO_DEFER_TABLES=t[,t...]  defer only cache reads of these logical
+ *                             dat2 tables (RSCACHE_DAT2_TABLE_*: 7 models, 0
+ *                             anims, 2 configs, ...): one asset kind at a time.
+ *
+ * TORIRS_IO_DEFER_AFTER_MS below applies to it too.
+ */
+struct IoDeferFrames
+{
+    long frames;
+    long jitter;
+    uint32_t seed;
+    /* Bit t set: table t is deferred. All set when TABLES is unset. */
+    uint64_t tables;
+    /* Reads deferred so far: the jitter draw's counter. */
+    uint32_t serial;
+};
+
+static struct IoDeferFrames*
+io_defer_frames_config(void)
+{
+    static struct IoDeferFrames cfg;
+    static int read;
+
+    if( !read )
+    {
+        char const* env = getenv("TORIRS_IO_DEFER_FRAMES");
+        read = 1;
+        cfg.frames = env && env[0] ? strtol(env, NULL, 0) : 0;
+        if( cfg.frames < 0 )
+            cfg.frames = 0;
+        env = getenv("TORIRS_IO_DEFER_JITTER");
+        cfg.jitter = env && env[0] ? strtol(env, NULL, 0) : 0;
+        if( cfg.jitter < 0 )
+            cfg.jitter = 0;
+        env = getenv("TORIRS_IO_DEFER_SEED");
+        cfg.seed = env && env[0] ? (uint32_t)strtoul(env, NULL, 0) : 1u;
+        env = getenv("TORIRS_IO_DEFER_TABLES");
+        if( env && env[0] )
+        {
+            char const* at = env;
+            cfg.tables = 0;
+            while( *at )
+            {
+                char* end = NULL;
+                long const t = strtol(at, &end, 10);
+                if( end == at )
+                    break;
+                if( t >= 0 && t < 64 )
+                    cfg.tables |= (uint64_t)1 << t;
+                at = *end == ',' ? end + 1 : end;
+                if( end == at )
+                    break;
+            }
+        }
+        else
+            cfg.tables = ~(uint64_t)0;
+        if( cfg.frames > 0 )
+            TORIRS_LOG(
+                "io_defer: every cache read waits %ld+0..%ld frames (seed %u, tables %#llx)\n",
+                cfg.frames,
+                cfg.jitter,
+                (unsigned)cfg.seed,
+                (unsigned long long)cfg.tables);
+    }
+    return &cfg;
+}
+
+/* The frames one more deferred read waits: n plus a draw in 0..j that is a
+ * pure function of the seed and the read's place in the order (splitmix32). */
+static uint64_t
+io_defer_frames_draw(struct IoDeferFrames* cfg)
+{
+    uint32_t h;
+
+    assert(cfg);
+    if( cfg->jitter <= 0 )
+        return (uint64_t)cfg->frames;
+    h = cfg->seed + 0x9e3779b9u * ++cfg->serial;
+    h = (h ^ (h >> 16)) * 0x85ebca6bu;
+    h = (h ^ (h >> 13)) * 0xc2b2ae35u;
+    h ^= h >> 16;
+    return (uint64_t)cfg->frames + (uint64_t)(h % (uint32_t)(cfg->jitter + 1));
+}
+
+/* Is `item` deferred in frames on this executor? */
+static int
+io_defer_frames_wanted(
+    struct PlatformX_IO const* px,
+    struct ToriRS_IOItem const* item)
+{
+    struct IoDeferFrames const* cfg = io_defer_frames_config();
+    int const table = item->u.cache.table_id;
+
+    if( cfg->frames <= 0 || !px->frames )
+        return 0;
+    if( table < 0 || table >= 64 )
+        return cfg->tables == ~(uint64_t)0;
+    return (cfg->tables >> table) & 1u;
+}
+
+/*
+ * TORIRS_IO_DEFER_AFTER_MS=t: defer only the reads issued t ms or more after
+ * the first read, so a run can boot and log in at disk speed and then play
+ * against a slow cache (tools/rebuild_park_probe.sh: a REBUILD's gather that
+ * outlasts a ground item's model read, without a bake so slow the session is
+ * lost). Unset: every read, as before.
+ */
+static int
+io_defer_active(
+    struct PlatformX_IO const* px,
+    struct ToriRS_IOItem const* item)
+{
+    static long after = -1;
+    static uint64_t epoch_ms;
+
+    if( io_defer_ms() == 0 && !io_defer_frames_wanted(px, item) )
+        return 0;
+    if( after < 0 )
+    {
+        char const* env = getenv("TORIRS_IO_DEFER_AFTER_MS");
+        after = env && env[0] ? strtol(env, NULL, 0) : 0;
+        if( after < 0 )
+            after = 0;
+        epoch_ms = PlatformWindow_Ticks64();
+    }
+    return PlatformWindow_Ticks64() >= epoch_ms + (uint64_t)after;
+}
+
+static void
+io_defer_park(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOItem* item)
+{
+    struct RemotePendingItem* pending = remote_pending_alloc(px);
+
+    pending->in_use = 1;
+    pending->source = REMOTE_SOURCE_DEFERRED;
+    pending->item = item;
+    pending->due_ms = io_defer_ms() ? PlatformWindow_Ticks64() + io_defer_ms() : 0;
+    pending->due_frame =
+        io_defer_frames_wanted(px, item) ? *px->frames + io_defer_frames_draw(io_defer_frames_config()) : 0;
+    item->pending++;
+}
+
+/* Answer every deferred read whose time has come, from the disk. */
+static void
+io_defer_service(struct PlatformX_IO* px)
+{
+    uint64_t now_ms;
+    uint64_t now_frame;
+
+    if( io_defer_ms() == 0 && (io_defer_frames_config()->frames <= 0 || !px->frames) )
+        return;
+    now_ms = PlatformWindow_Ticks64();
+    now_frame = px->frames ? *px->frames : 0;
+    for( int i = 0; i < px->pending_count; i++ )
+    {
+        struct RemotePendingItem* pending = &px->pending[i];
+        struct ToriRS_IOItem* item;
+
+        if( !pending->in_use || pending->source != REMOTE_SOURCE_DEFERRED || pending->due_ms > now_ms ||
+            pending->due_frame > now_frame )
+            continue;
+        item = pending->item;
+        (void)PlatformX_IO_LoadItem(px, item);
+        assert(item->pending > 0);
+        item->pending--;
+        memset(pending, 0, sizeof(*pending));
+    }
+}
+#endif
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
 static int
@@ -2132,6 +2447,7 @@ PlatformX_IO_Pump(struct PlatformX_IO* px)
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     if( px->js5 )
         PlatformXIO_Js5Pump(px, PlatformWindow_Ticks64());
+    io_defer_service(px);
 #endif
 #if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     od_service_pending(px);
@@ -2218,6 +2534,14 @@ PlatformX_IO_Process(
         }
         else
 #endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+            if( item->kind == TORIRS_IOK_CACHE && io_defer_active(px, item) )
+        {
+            io_defer_park(px, item);
+            processed++;
+        }
+        else
+#endif
             if( PlatformX_IO_LoadItem(px, item) == 0 )
             processed++;
     }
@@ -2259,6 +2583,8 @@ PlatformXIO_Js5Pump(
         return -1;
     result = PlatformXIOJs5Cache_Tick(px->js5, now_ms);
     js5_service_pending(px, result < 0);
+    if( px->reprime_tick )
+        px->reprime_tick(px->reprime_tick_user);
     if( result < 0 )
         return -1;
     return PlatformXIOJs5Cache_MetadataReady(px->js5) ? 1 : 0;

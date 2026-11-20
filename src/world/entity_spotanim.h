@@ -4,10 +4,14 @@
 #include "entity_facets.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 struct WorldEntity_Spotanim
 {
+    /** The scene element, -1 until its body has landed (as a projectile's). */
     int element_id;
+    /** Its spawn serial (World.effect_serial at spawn, never 0). */
+    uint32_t serial;
     int level;
     struct WorldEntityFacet_DrawPosition draw_position;
     struct WorldEntityFacet_Orientation orientation;

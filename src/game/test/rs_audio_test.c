@@ -35,9 +35,12 @@
 #include "platform/platform_x_io.h"
 #include "varp/varp_manager.h"
 #include "task_runner.h"
+#include "engine/asset_load_task.h"
+#include "engine/asset_requests.h"
 
 #include <rscache.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -380,6 +383,28 @@ test_prefs_persistence(void)
 /** One frame: tick the game's sound queue, pump async loads, hand the platform
  *  whatever came out. Exactly the order main.c uses. */
 static struct ToriDraw_Scene* g_scene = NULL;
+/* The harness's assets table: its SOUND loader queues the provider's load on
+ * the harness runner, which `frame` drains. NULL with no cache. */
+static struct Assets* g_assets = NULL;
+/* The harness's compute queue (CacheProvider::compute_queue): a dat2 effect is
+ * rendered there (task_dat2_sound_load.c), its loader joined on the render.
+ * NULL with no cache. */
+static struct TaskRunner* g_compute = NULL;
+
+/* Settle what the loads need, as a frame does: the asset queue drained, then
+ * the compute queue, until neither has work (a load joined on a render
+ * resumes on the asset queue once the render ends). */
+static void
+drain_loads(struct TaskRunner* runner)
+{
+    assert(runner);
+    TaskRunner_Drain(runner);
+    while( g_compute && g_compute->queue->head )
+    {
+        TaskRunner_Drain(g_compute);
+        TaskRunner_Drain(runner);
+    }
+}
 
 static void
 frame(
@@ -394,10 +419,10 @@ frame(
 
     /* No world and no device: the listener is the origin and the music player
      * synthesises nothing, which is what a headless run looks like. */
-    RS_Audio_Tick(audio, provider, runner, g_scene, NULL, 0, 0, 0, NULL, queue);
+    RS_Audio_Tick(audio, provider, runner ? g_assets : NULL, g_scene, NULL, 0, 0, 0, NULL, queue);
     /* Loads the tick queued must complete before the next tick can see them. */
     if( runner )
-        TaskRunner_Drain(runner);
+        drain_loads(runner);
     count = ToriRS_AudioQueue_Drain(queue, commands, TORIRS_AUDIO_QUEUE_MAX);
     PlatformAudio_SubmitAll(platform, commands, count);
     /* Mixing is what turns an accepted command into audible samples, and the
@@ -471,7 +496,11 @@ test_queue_without_cache(void)
     CHECK(audio.dropped_absent == 1, "drop counted as absent");
     CHECK(audio.played == 0, "nothing played");
 
-    /* Volume levels: the reference's 128/96/64/32/mute ladder. */
+    /* Volume levels: the reference's 128/96/64/32/mute ladder. The mixer bus
+     * gets the level times the master gain, and a fresh client's master is
+     * silence (test_boot_muted); open the master fully first, with no queue
+     * so no command is pushed, so the bus below carries the level itself. */
+    RS_Audio_SetMasterVolume(&audio, TORIRS_AUDIO_VOLUME_MAX, NULL);
     RS_Audio_SetVolumeLevel(&audio, 0, &queue);
     CHECK(audio.effect_volume == 255 && audio.enabled, "level 0 -> full");
     RS_Audio_SetVolumeLevel(&audio, 3, &queue);
@@ -540,6 +569,156 @@ test_queue_without_cache(void)
     PlatformAudio_Free(platform);
 }
 
+/* --- the scene-event drain across a frame end --------------------------- */
+
+/*
+ * The audio drain (rs_audio.c, drain_scene_events) reads the scene's event
+ * queue with its own cursor; the renderer empties that queue at the end of
+ * every frame (ToriDraw_SceneFrameEnd). The question: after a frame end, can
+ * events that arrive before the next tick, in at least the old cursor's
+ * number, be skipped -- sound loads among them?
+ */
+
+static struct ToriRS_Sound*
+drain_test_sound(int id)
+{
+    struct ToriRS_Sound* sound = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sound));
+    int const frames = 64;
+
+    assert(sound);
+    sound->id = id;
+    sound->pcm16 = ToriMem_Calloc(ToriMem_Assets(), (size_t)frames, sizeof(int16_t));
+    assert(sound->pcm16);
+    for( int i = 0; i < frames; i++ )
+        sound->pcm16[i] = (int16_t)((i & 1) ? 8000 : -8000);
+    sound->sample_count = frames;
+    sound->sample_rate = 22050;
+    sound->channels = 1;
+    sound->loop_start = -1;
+    sound->loop_end = -1;
+    return sound;
+}
+
+/* A scene clip made outside the audio tick, as the scene's own API makes
+ * one (SoundAdd emits SOUND_LOAD). */
+static void
+drain_test_scene_clip(
+    struct ToriDraw_Scene* scene,
+    int id)
+{
+    int16_t* pcm = TORIDRAW_MALLOC(64 * sizeof(int16_t));
+
+    assert(pcm);
+    memset(pcm, 0, 64 * sizeof(int16_t));
+    ToriDraw_SceneSoundAdd(scene, id, ToriDraw_SoundNew(pcm, 64, 22050, -1, -1, false, 0));
+}
+
+/* One audio tick; how many asset commands of `kind` it queued for `asset_id`
+ * (-1: any). */
+static int
+drain_test_tick(
+    struct RS_Audio* audio,
+    struct CacheProvider* provider,
+    struct ToriDraw_Scene* scene,
+    enum ToriRS_AudioCommandKind kind,
+    int asset_id)
+{
+    struct ToriRS_AudioQueue queue;
+    struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
+    int count;
+    int seen = 0;
+
+    ToriRS_AudioQueue_Reset(&queue);
+    RS_Audio_Tick(audio, provider, NULL, scene, NULL, 0, 0, 0, NULL, &queue);
+    count = ToriRS_AudioQueue_Drain(&queue, commands, TORIRS_AUDIO_QUEUE_MAX);
+    for( int i = 0; i < count; i++ )
+        if( commands[i].kind == kind && (asset_id < 0 || commands[i].asset_id == asset_id) )
+            seen++;
+    return seen;
+}
+
+static void
+test_scene_event_drain_across_frame_end(void)
+{
+    struct CacheProvider provider;
+    struct CacheProviderVTable vtable;
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    struct RS_Audio audio;
+    int loads;
+
+    printf("scene-event drain across a frame end\n");
+    assert(scene);
+    memset(&provider, 0, sizeof(provider));
+    memset(&vtable, 0, sizeof(vtable));
+    provider.vtable = &vtable;
+    CacheProvider_InitEngineCaches(&provider);
+    RS_Audio_Init(&audio);
+
+    /* 1. The client's own producers. Every sound event the client makes is
+     *    made inside the audio tick, by publish_sound, which drains right
+     *    after: effects 1..6 published in one tick put the cursor at 6. */
+    for( int id = 1; id <= 6; id++ )
+    {
+        CacheProvider_SoundAdd(&provider, id, drain_test_sound(id));
+        RS_Audio_Synth(&audio, id, 1, 0);
+    }
+    loads = drain_test_tick(&audio, &provider, scene, TORIRS_AUDIO_CMD_ASSET_LOAD, -1);
+    CHECK(loads == 6, "six clips published in one tick, six ASSET_LOADs");
+    /* The renderer ends its frame; before the next tick the scene takes more
+     * events than the cursor's number that are not the audio's (sprite loads
+     * here, as a frame's models, textures and sprites do). */
+    ToriDraw_SceneFrameEnd(scene);
+    for( int id = 1; id <= 10; id++ )
+    {
+        uint32_t* argb = TORIDRAW_MALLOC(4 * sizeof(uint32_t));
+        struct ToriDraw_Sprite** sprites = TORIDRAW_MALLOC(sizeof(*sprites));
+        assert(argb);
+        assert(sprites);
+        memset(argb, 0, 4 * sizeof(uint32_t));
+        sprites[0] = ToriDraw_SpriteNewFromArgbOwned(argb, 2, 2);
+        assert(sprites[0]);
+        ToriDraw_SceneSpriteAdd(scene, id, sprites, 1);
+    }
+    CacheProvider_SoundAdd(&provider, 7, drain_test_sound(7));
+    RS_Audio_Synth(&audio, 7, 1, 0);
+    CHECK(drain_test_tick(&audio, &provider, scene, TORIRS_AUDIO_CMD_ASSET_LOAD, 7) == 1,
+        "a clip published by the next tick still reaches the backend (made after the drain)");
+
+    /* 2. A sound event made OUTSIDE the tick, after a frame end, with at least
+     *    the old cursor's number of events before the tick: the scene's own
+     *    API does this (SoundRemove's UNLOAD, SoundAdd's LOAD). Every one of
+     *    them must reach the backend. */
+    ToriDraw_SceneFrameEnd(scene);
+    ToriDraw_SceneSoundRemove(scene, 1);
+    for( int id = 101; id <= 110; id++ )
+        drain_test_scene_clip(scene, id);
+    {
+        struct ToriRS_AudioQueue queue;
+        struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
+        int count;
+        int unloads = 0;
+        int scene_loads = 0;
+
+        ToriRS_AudioQueue_Reset(&queue);
+        RS_Audio_Tick(&audio, &provider, NULL, scene, NULL, 0, 0, 0, NULL, &queue);
+        count = ToriRS_AudioQueue_Drain(&queue, commands, TORIRS_AUDIO_QUEUE_MAX);
+        for( int i = 0; i < count; i++ )
+        {
+            if( commands[i].kind == TORIRS_AUDIO_CMD_ASSET_UNLOAD && commands[i].asset_id == 1 )
+                unloads++;
+            if( commands[i].kind == TORIRS_AUDIO_CMD_ASSET_LOAD && commands[i].asset_id >= 101 &&
+                commands[i].asset_id <= 110 )
+                scene_loads++;
+        }
+        CHECK(unloads == 1, "an UNLOAD made between frames reaches the backend");
+        CHECK(scene_loads == 10, "every LOAD made between frames reaches the backend");
+    }
+
+    RS_Audio_Shutdown(&audio);
+    CacheProvider_FreeEngineCaches(&provider);
+    ToriDraw_SceneFree(scene);
+}
+
 /* --- against a real cache ------------------------------------------------ */
 
 struct harness
@@ -549,6 +728,7 @@ struct harness
     struct PlatformAudio* platform;
     struct CacheProvider* provider;
     struct TaskRunner runner;
+    struct TaskRunner compute;
     struct ToriRS_IOBatch* io;
     struct ToriRS_TaskQueue* task_queue;
     struct PlatformX_IO* px;
@@ -561,10 +741,19 @@ struct harness
 static void
 harness_free(struct harness* harness)
 {
+    if( g_assets )
+        Assets_Close(g_assets);
     RS_Audio_Shutdown(&harness->audio);
     PlatformAudio_Free(harness->platform);
     if( harness->task_queue )
         ToriRS_TaskQueue_Free(harness->task_queue);
+    if( harness->compute.queue )
+        ToriRS_TaskQueue_Free(harness->compute.queue);
+    if( harness->compute.io )
+        ToriRS_IOBatch_Free(harness->compute.io);
+    g_compute = NULL;
+    Assets_Free(g_assets);
+    g_assets = NULL;
     if( harness->io )
         ToriRS_IOBatch_Free(harness->io);
     PlatformX_IO_Free(harness->px);
@@ -577,6 +766,28 @@ harness_free(struct harness* harness)
     if( harness->dat2_disk )
         RSCache_Dat2DiskFree(harness->dat2_disk);
     memset(harness, 0, sizeof(*harness));
+}
+
+/* The client's SOUND loader, on the harness runner. */
+static bool
+harness_sound_resident(
+    void* data,
+    struct AssetKey key)
+{
+    struct harness* harness = data;
+    return CacheProvider_SoundHas(harness->provider, key.id) != 0;
+}
+
+static enum AssetStart
+harness_sound_start(
+    void* data,
+    struct Assets* assets,
+    struct AssetKey key)
+{
+    struct harness* harness = data;
+    struct AssetLoadTask* task = AssetLoadTask_New(assets, key, harness_sound_resident, harness);
+    return AssetLoadTask_Start(
+        task, CreateTask_SoundLoad(harness->provider, key.id), harness->task_queue);
 }
 
 static bool
@@ -643,10 +854,22 @@ harness_init(
     }
     CacheProvider_SetProfile(harness->provider, profile);
     CacheProvider_SetAssetQueue(harness->provider, harness->task_queue);
+    harness->compute.queue = ToriRS_TaskQueue_New();
+    harness->compute.io = ToriRS_IOBatch_New();
+    harness->compute.px = harness->px;
+    harness->compute.role = TASK_RUNNER_ROLE_BACKGROUND;
+    harness->compute.parallel = 1;
+    CacheProvider_SetComputeQueue(harness->provider, harness->compute.queue);
+    g_compute = &harness->compute;
 
     harness->runner.queue = harness->task_queue;
     harness->runner.io = harness->io;
     harness->runner.px = harness->px;
+    {
+        struct AssetLoader loader = { harness_sound_start, harness_sound_resident, harness };
+        g_assets = Assets_New();
+        Assets_SetLoader(g_assets, ASSET_KIND_SOUND, &loader);
+    }
     return true;
 }
 
@@ -749,7 +972,7 @@ test_cache_pipeline(
             if( task )
             {
                 ToriRS_TaskQueue_Add(harness.runner.queue, task);
-                TaskRunner_Drain(&harness.runner);
+                drain_loads(&harness.runner);
             }
             RS_Audio_Synth(&harness.audio, id, 1, 0);
             frame(
@@ -804,7 +1027,7 @@ test_overlap_rule(
         if( task )
         {
             ToriRS_TaskQueue_Add(harness.runner.queue, task);
-            TaskRunner_Drain(&harness.runner);
+            drain_loads(&harness.runner);
         }
         sound = CacheProvider_SoundGet(harness.provider, id);
         if( !sound )
@@ -935,7 +1158,7 @@ test_late_load_timing(
         struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
         int count;
         RS_Audio_Tick(
-            &harness.audio, harness.provider, &harness.runner, g_scene, NULL, 0, 0, 0, NULL,
+            &harness.audio, harness.provider, g_assets, g_scene, NULL, 0, 0, 0, NULL,
             &harness.queue);
         /* No TaskRunner_Drain: the load stays outstanding. */
         count = ToriRS_AudioQueue_Drain(&harness.queue, commands, TORIRS_AUDIO_QUEUE_MAX);
@@ -943,10 +1166,15 @@ test_late_load_timing(
         PlatformAudio_Update(harness.platform);
     }
     CHECK(harness.audio.played == 0, "nothing played while the clip was withheld");
+    /* Asked every tick of the stall, loaded once: the table holds the load
+     * (an effect asked once through a flag; an ambient loop or an emitter
+     * queued a load every tick until the clip landed). */
+    CHECK(Assets_LoadsStarted(g_assets, ASSET_KIND_SOUND) == 1,
+        "one load for every tick that asked");
     CHECK(harness.audio.count == 1, "the entry survived the stall");
 
     /* One frame with the drain: the load completes and the effect is overdue. */
-    TaskRunner_Drain(&harness.runner);
+    drain_loads(&harness.runner);
     played_after = harness.audio.played;
     frame(&harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform);
     CHECK(
@@ -1025,6 +1253,7 @@ main(void)
     test_prefs_persistence();
     test_prefs_file_survives_load();
     test_queue_without_cache();
+    test_scene_event_drain_across_frame_end();
 
     if( !RSCache_ProfileByName("lc254", &dat1_profile) )
     {

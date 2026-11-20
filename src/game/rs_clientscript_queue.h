@@ -28,14 +28,23 @@
 #include <stdint.h>
 
 /**
- * Payloads one server tick may hold before the fence.
+ * The capacity the hold starts with.
  *
  * Measured rather than guessed: the busiest tick in this tree is a panel open
  * (`~pricechecker_open` pushes two, a bank open pushes six), and login's burst
- * is the outlier at just under twenty. 64 leaves that room; past it the caller
- * runs the script immediately, so the cap costs ordering and never a script.
+ * is the outlier at just under twenty. 64 leaves that room; a tick that holds
+ * more GROWS the hold (doubling) rather than running its overflow anywhere
+ * else. Order matters more than the cap: a script run on another queue runs
+ * out of wire order, ahead of the tick's packets it was held behind.
  */
-#define RS_CLIENTSCRIPT_QUEUE_MAX 64
+#define RS_CLIENTSCRIPT_QUEUE_INITIAL 64
+
+/**
+ * The ceiling the hold may grow to. A tick that holds this many scripts is a
+ * fence that never comes, which the backstop below releases long before; past
+ * it is an assert, never a dropped or reordered script.
+ */
+#define RS_CLIENTSCRIPT_QUEUE_CEILING 65536
 
 /**
  * Logic cycles a held clientscript may wait for a fence that never comes.
@@ -48,7 +57,9 @@
 
 struct RS_ClientScriptQueue
 {
-    struct PktRunClientScript items[RS_CLIENTSCRIPT_QUEUE_MAX];
+    /** `capacity` slots (ToriMem_Script), a ring from `head`. */
+    struct PktRunClientScript* items;
+    int capacity;
     int head;
     int count;
     /** Logic cycle the oldest held payload arrived on -- what the backstop
@@ -56,15 +67,25 @@ struct RS_ClientScriptQueue
     uint32_t held_since_cycle;
 };
 
+/** Make an empty hold of RS_CLIENTSCRIPT_QUEUE_INITIAL slots. */
+void
+RS_ClientScriptQueue_Init(struct RS_ClientScriptQueue* queue);
+
+/** Release the slots (NULL is accepted). Unusable until Init again. */
+void
+RS_ClientScriptQueue_Free(struct RS_ClientScriptQueue* queue);
+
+/** Forget every held payload, keeping the slots: a logout, whose session's
+ *  scripts never run. */
 void
 RS_ClientScriptQueue_Reset(struct RS_ClientScriptQueue* queue);
 
 /**
- * Hold one payload until the fence. False when the queue is full, and then the
- * caller runs it now: a script that arrives late is better than one that never
- * arrives, and the cap is set where that trade has already been made.
+ * Hold one payload until the fence. Always holds it: a full hold grows
+ * (doubling, up to RS_CLIENTSCRIPT_QUEUE_CEILING, past which it asserts), so
+ * no script is ever run ahead of the packets it was held behind.
  */
-bool
+void
 RS_ClientScriptQueue_Hold(
     struct RS_ClientScriptQueue* queue,
     struct PktRunClientScript const* request,
@@ -74,12 +95,16 @@ RS_ClientScriptQueue_Hold(
 int
 RS_ClientScriptQueue_Count(struct RS_ClientScriptQueue const* queue);
 
+/** How many the hold has room for before it next grows. */
+int
+RS_ClientScriptQueue_Capacity(struct RS_ClientScriptQueue const* queue);
+
 /**
  * Take the oldest held payload, or false when there is none.
  *
  * Copied out rather than handed back by pointer, because the caller dispatches
- * it and the dispatch can push -- and a push into the slot just vacated would
- * rewrite the payload being run.
+ * it and the dispatch can push -- and a push into the slot just vacated (or a
+ * push that grows the hold) would rewrite the payload being run.
  */
 bool
 RS_ClientScriptQueue_Pop(

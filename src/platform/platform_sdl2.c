@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /**
  * One borderless window's state, and what SDL's hit test is handed as its
@@ -5655,9 +5656,27 @@ PlatformWindow_Ticks64(void)
     return SDL_GetTicks64();
 }
 
+/*
+ * On the web lane the microsecond clock is performance.now()
+ * (emscripten_get_now), not SDL's performance counter.
+ *
+ * SDL's unix timer asks for CLOCK_MONOTONIC_RAW, which emscripten's
+ * clock_gettime refuses (EINVAL: only the four WASI clocks exist), so SDL falls
+ * back to gettimeofday -- Date.now(): whole milliseconds of WALL time, which
+ * can step backwards. Every microsecond reading on this lane was a millisecond
+ * one: the parallel queue's compute check read a 3-4 ms step as 4.00 ms and
+ * aborted a strict boot (pf_web_run, 2026-11-19), and a background slice, a
+ * slow-task time or the vsync-bounded slack could only be cut on a
+ * millisecond. performance.now() is monotonic and 100 us or finer. The
+ * origin moves (navigation start, where SDL's was the Unix epoch); nothing
+ * compares this clock with another one.
+ */
 uint64_t
 PlatformWindow_TicksUs(void)
 {
+#if defined(TORIRS_PLATFORM_WEB)
+    return (uint64_t)(emscripten_get_now() * 1000.0);
+#else
     uint64_t const frequency = SDL_GetPerformanceFrequency();
     uint64_t const counter = SDL_GetPerformanceCounter();
 
@@ -5667,6 +5686,33 @@ PlatformWindow_TicksUs(void)
      * counter*1000000 overflows 64 bits after a few days of uptime on a
      * nanosecond-resolution clock even though the microsecond result fits. */
     return (counter / frequency) * 1000000u + (counter % frequency) * 1000000u / frequency;
+#endif
+}
+
+uint64_t
+PlatformWindow_ThreadCpuUs(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    /* One thread and no processor clock in the browser. */
+    return PlatformWindow_TicksUs();
+#else
+    struct timespec ts;
+    int const rc = clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+
+    assert(rc == 0);
+    (void)rc;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)(ts.tv_nsec / 1000);
+#endif
+}
+
+int
+PlatformWindow_ThreadCpuIsWall(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    return 1;
+#else
+    return 0;
+#endif
 }
 
 void

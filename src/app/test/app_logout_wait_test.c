@@ -25,12 +25,17 @@
 
 #include "app.h"
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 #include "net/rev/gameproto_revisions.h"
 #include "test_harness.h"
 
+#include <assert.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 int g_failures;
 
@@ -40,7 +45,11 @@ int g_failures;
  * The attack-option reset asserts `features` holds an era, and a name is what
  * says so; the rest stays zeroed, the table's default models. `esync` has to
  * be Init'd because a zeroed one carries local pid 0, which the clear would
- * then try to remove from a world that does not exist here.
+ * then try to remove from a world that does not exist here. The logout
+ * cancels every pending parallel task, so the pending index (and the assets
+ * table it is made after) is made too. A session's end empties the friend
+ * and ignore lists through the host, so the host is handed the social store
+ * as App_Init hands it (app.c, RS_CS2Host_SetSocial).
  */
 static struct App*
 make_app(struct ToriRS_Network* net)
@@ -49,11 +58,23 @@ make_app(struct ToriRS_Network* net)
 
     TEST_ASSERT(app != NULL, "allocated the app fixture");
     app->features.name = "test";
+    RS_Social_Init(&app->social);
+    RS_CS2Host_SetSocial(&app->host, &app->social, app->slots.chat_filter_mode, app->social.node_id);
     RS_EntitySync_Init(&app->esync);
+    App_AssetsInit(app);
+    App_PendingInit(app);
     app->net = net;
     if( net )
         ToriRS_Network_Enable(net);
     return app;
+}
+
+static void
+free_app(struct App* app)
+{
+    App_PendingFree(app);
+    App_AssetsFree(app);
+    free(app);
 }
 
 /* A network that is in the game stream and has never been connected to
@@ -103,7 +124,7 @@ test_the_click_does_not_end_the_session(void)
     TEST_ASSERT(net->state == TORIRS_NET_GAME, "still in the game stream");
     TEST_ASSERT(!disconnect_queued(net), "nothing closed the socket on the player's behalf");
 
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -153,7 +174,7 @@ test_a_refused_logout_keeps_the_session(void)
         "the late answer was not read as a lost connection to redial");
     TEST_ASSERT(net->state == TORIRS_NET_DISCONNECTED, "the session ended");
 
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -169,17 +190,25 @@ test_a_closed_socket_is_the_answer(void)
 
     printf("TEST: a socket that closes during the wait IS the logout\n");
 
+    app->social.friend_count = 1;
+    app->social.ignore_count = 1;
+    app->social.server_status = RS_SOCIAL_SERVER_CONNECTED;
     SessionEnd_RequestLogout(&app->session_end);
     app_logout_tick(app);
     app_net_lost(app, "socket closed");
 
     TEST_ASSERT(app->session_end.logout_wait_cycles == 0, "the answer ended the wait");
+    /* Deob Statics.method9200 -> class58.method1166: the next session's
+     * lists arrive as changes to empty ones, its friend server loading. */
+    TEST_ASSERT(app->social.friend_count == 0, "the session's end emptied the friend list");
+    TEST_ASSERT(app->social.ignore_count == 0, "and the ignore list");
+    TEST_ASSERT(app->social.server_status == RS_SOCIAL_SERVER_LOADING, "and set the friend server loading");
     TEST_ASSERT(
         !NetLinkWatch_Lost(&app->net_link),
         "the link was not left lost, so nothing redials the world the player left");
     TEST_ASSERT(net->state == TORIRS_NET_DISCONNECTED, "the session ended");
 
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -197,7 +226,7 @@ test_a_closed_socket_with_no_logout_pending_still_reconnects(void)
 
     TEST_ASSERT(NetLinkWatch_Lost(&app->net_link), "the link is lost and being re-established");
 
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -234,7 +263,7 @@ test_a_logout_forgets_the_resumable_session(void)
         app_session_resume_user()[0] == '\0',
         "a reload would have logged back into the world the player left");
 
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -260,7 +289,7 @@ test_a_lost_connection_keeps_the_resumable_session(void)
         "a dropped socket threw away the session key that gets the player back");
 
     app_session_resume_forget();
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -278,7 +307,213 @@ test_no_session_means_no_wait(void)
     TEST_ASSERT(app_logout_tick(app), "the session ended on the tick that drained the request");
     TEST_ASSERT(app->session_end.logout_wait_cycles == 0, "nothing was armed to wait for");
 
-    free(app);
+    free_app(app);
+}
+
+/*
+ * A client too busy to read its packets is not a server that went quiet.
+ *
+ * The 15 s silence bound (NET_LINK_TIMEOUT_MS) is about the SERVER: it is
+ * measured from the last packet popped, and a client that pops nothing --
+ * booting the gameframe after IF_OPENTOP, or a REBUILD holding the packet
+ * queue on its reads -- while the server's packets keep arriving used to read
+ * its own backlog as silence: with every cache read 400 ms late
+ * (TORIRS_IO_DEFER_MS) the gameframe bake took longer than 15 s and the
+ * session was dropped and refused. The reference counts its silence in
+ * gameState 30's cycles and resets it on every packet it has read off the
+ * socket (deob client.java, field709.field1553 > 750); a whole packet that is
+ * waiting to be popped has been read. The control: the same watch with the
+ * queue empty still declares the link lost 15 s after that packet.
+ */
+static void
+test_a_backlog_is_not_silence(void)
+{
+    struct ToriRS_Network* net = make_net_in_game();
+    struct App* app = make_app(net);
+    struct RevPacketItem* item = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*item));
+    uint64_t const heard = 1000;
+    uint64_t const busy_until = heard + NET_LINK_TIMEOUT_MS + 5000;
+
+    printf("TEST: a backlog the client has not popped is not a silent server\n");
+    assert(item);
+
+    NetLinkWatch_NotePacket(&app->net_link, heard);
+    net->packets_head = item;
+    net->packets_tail = item;
+    app_net_link_watch(app, busy_until);
+    TEST_ASSERT(
+        !NetLinkWatch_Lost(&app->net_link),
+        "a packet waited 20 s to be popped and the watch called the server silent");
+
+    if( net->packets_head == item )
+    {
+        net->packets_head = NULL;
+        net->packets_tail = NULL;
+        ToriMem_Free(ToriMem_Net(), item);
+    }
+    if( !NetLinkWatch_Lost(&app->net_link) )
+    {
+        app_net_link_watch(app, busy_until + NET_LINK_TIMEOUT_MS - 1);
+        TEST_ASSERT(!NetLinkWatch_Lost(&app->net_link), "the silence is counted from the waiting packet");
+        app_net_link_watch(app, busy_until + NET_LINK_TIMEOUT_MS);
+        TEST_ASSERT(
+            NetLinkWatch_Lost(&app->net_link), "15 s with nothing waiting is still a lost link");
+    }
+
+    free_app(app);
+    free(net);
+}
+
+/*
+ * The packet pump's settle of the parallel queue is bounded.
+ *
+ * While the main queue's head is parked on the parallel queue's work, the
+ * packet pump (app_pump_net_packets) steps the parallel queue and tries the
+ * head again for as long as a pass ran anything. A parallel task that never
+ * converges -- it yields without ever parking -- kept that loop going for
+ * ever, inside one call, where the parallel pump's own runaway backstop
+ * (app_pump_backstop, APP_ASYNC_STEP_LIMIT passes) never sees it: the client
+ * hung instead of aborting. "Tasks never hang - that is just a game crash."
+ */
+struct Spinner
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+};
+
+static int
+Spinner_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct Spinner* self = (struct Spinner*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    for( ;; )
+        PT_YIELD(&self->pt);
+    PT_END(&self->pt);
+}
+
+static void
+spinner_free(struct ToriRS_Task* task)
+{
+    free(task);
+}
+
+static struct ToriRS_TaskVTable k_spinner_vtable = { .run = Spinner_Run, .free = spinner_free };
+
+struct HeldHead
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct ToriRS_Trigger* trigger;
+};
+
+static int
+HeldHead_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct HeldHead* self = (struct HeldHead*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    TASK_AWAIT_TRIGGER(&self->task, &self->pt, TORIRS_TASK_WAIT_TRIGGER, self->trigger);
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_held_head_vtable = { .run = HeldHead_Run, .free = spinner_free };
+
+static void
+pump_over_a_spinner(void)
+{
+    static struct ToriRS_Trigger gate;
+    static struct ToriRS_TriggerOwner outside;
+    struct App* app = make_app(NULL);
+    struct PlatformX_IO* px = PlatformX_IO_New();
+    struct HeldHead* head = calloc(1, sizeof(*head));
+    struct Spinner* spinner = calloc(1, sizeof(*spinner));
+
+    assert(head);
+    assert(spinner);
+    app->phase.app_state = APP_STATE_READY;
+    app->packet_runner.queue = ToriRS_TaskQueue_New();
+    app->packet_runner.io = ToriRS_IOBatch_New();
+    app->packet_runner.px = px;
+    app->packet_runner.role = TASK_RUNNER_ROLE_MAIN;
+    app->frame_runner.queue = ToriRS_TaskQueue_New();
+    app->frame_runner.io = ToriRS_IOBatch_New();
+    app->frame_runner.px = px;
+    app->frame_runner.parallel = 1;
+    app->frame_runner.role = TASK_RUNNER_ROLE_PARALLEL;
+    ToriRS_Trigger_Init(&gate, "what the head waits on");
+    ToriRS_TriggerOwner_Init(&outside, TORIRS_OWNER_EXTERNAL, "the outside");
+    ToriRS_Trigger_Prime(&gate, &outside);
+    head->task.vtable = &k_held_head_vtable;
+    strcpy(head->task.name, "HeldHead");
+    head->trigger = &gate;
+    PT_INIT(&head->pt);
+    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &head->task);
+    spinner->task.vtable = &k_spinner_vtable;
+    strcpy(spinner->task.name, "Spinner");
+    PT_INIT(&spinner->pt);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &spinner->task);
+    /* Killed by the alarm if it hangs: that is the failure. */
+    alarm(20);
+    (void)app_pump_net_packets(app);
+    _exit(0);
+}
+
+static void
+test_a_parallel_task_that_never_converges_aborts_the_packet_pump(void)
+{
+    pid_t pid;
+    int status = 0;
+
+    printf("TEST: a parallel task that never converges under a parked packet aborts, not hangs\n");
+    fflush(stdout);
+    fflush(stderr);
+    pid = fork();
+    assert(pid >= 0);
+    if( pid == 0 )
+        pump_over_a_spinner();
+    (void)waitpid(pid, &status, 0);
+    if( WIFSIGNALED(status) && WTERMSIG(status) == SIGALRM )
+        printf("  the packet pump was still spinning 20 s later\n");
+    TEST_ASSERT(
+        WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT,
+        "the packet pump's settle of the parallel queue hit a runaway backstop");
+}
+
+/*
+ * A WORLD HOP (LOGOUT_TRANSFER) ends the session as a logout and a lost link
+ * do (pm open finding E3: a hop was never run; the embedded server has one
+ * world and never sends it). The watch takes the parked hop at the head of
+ * the next frame: the socket closes, the session's epoch moves -- a NPC_INFO
+ * or a REBUILD still waiting from the world it left applies nothing
+ * (task_exec_entity_info.c, task_gameproto_exec.c rebuild_session_ended) --
+ * and the next dial is a fresh login (state 45), not a reconnect. Once.
+ */
+static void
+test_a_hop_ends_the_session_and_dials_fresh(void)
+{
+    struct ToriRS_Network* net = make_net_in_game();
+    struct App* app = make_app(net);
+    uint32_t const epoch = app->esync.epoch;
+
+    printf("TEST: a world hop ends the session: the socket closes, the epoch moves, the next login is fresh\n");
+
+    SessionEnd_Hop(&app->session_end, 330);
+    app_net_link_watch(app, 1000);
+    TEST_ASSERT(disconnect_queued(net), "the hop closed the session");
+    TEST_ASSERT(app->esync.epoch != epoch, "the session's epoch moved: what waits from the old world is stale");
+    TEST_ASSERT(net->hop == 1, "the next dial is a fresh login with the account's credentials");
+    TEST_ASSERT(!app->session_end.hop_pending, "the hop was taken");
+    TEST_ASSERT(NetLinkWatch_Lost(&app->net_link), "the watch dials again, as for any lost link");
+    {
+        uint32_t const after = app->esync.epoch;
+
+        app_net_link_watch(app, 1001);
+        TEST_ASSERT(app->esync.epoch == after, "taken once: the next frame ends nothing more");
+    }
+
+    free_app(app);
+    free(net);
 }
 
 int
@@ -293,6 +528,9 @@ main(void)
     test_a_logout_forgets_the_resumable_session();
     test_a_lost_connection_keeps_the_resumable_session();
     test_no_session_means_no_wait();
+    test_a_backlog_is_not_silence();
+    test_a_hop_ends_the_session_and_dials_fresh();
+    test_a_parallel_task_that_never_converges_aborts_the_packet_pump();
 
     if( g_failures )
     {

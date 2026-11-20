@@ -32,6 +32,14 @@
 static int g_checks;
 static int g_failed;
 
+/* The hint spelling of Ctrl: "Cmd" on Apple (Editor_ChordDisplay), as
+ * editor_hotkeys_test.c's HINT_CTRL. */
+#if defined(__APPLE__)
+#define WS_CTRL "Cmd"
+#else
+#define WS_CTRL "Ctrl"
+#endif
+
 #define CHECK(cond, ...)                                                                           \
     do                                                                                             \
     {                                                                                              \
@@ -293,7 +301,7 @@ test_workspace_defaults(void)
                     count++;
                     if( w->checked )
                         pressed = ws;
-                    CHECK(strstr(w->tooltip, "Ctrl+") != NULL, "the %s chip's tooltip names its chord (%s)",
+                    CHECK(strstr(w->tooltip, WS_CTRL "+") != NULL, "the %s chip's tooltip names its chord (%s)",
                         w->text, w->tooltip);
                 }
         }
@@ -729,10 +737,10 @@ test_hotkeys_panel(void)
         const char* text = hotkeys_text(hotkeys_row_of(EDITOR_HK_EDIT_REDO));
         CHECK(text && strcmp(cell_field(text, 1, field, (int)sizeof(field)), "Redo") == 0, "Redo's row");
         CHECK(text && strcmp(cell_field(text, 2, field, (int)sizeof(field)), "Edit G") == 0, "group and context");
-        CHECK(text && strcmp(cell_field(text, 3, field, (int)sizeof(field)), "Ctrl+Shift+Z Ctrl+Y") == 0,
+        CHECK(text && strcmp(cell_field(text, 3, field, (int)sizeof(field)), WS_CTRL "+Shift+Z " WS_CTRL "+Y") == 0,
             "both chords, one cell each (%s)", text ? field : "-");
         text = hotkeys_text(hotkeys_row_of(EDITOR_HK_EDIT_UNDO));
-        CHECK(text && strcmp(cell_field(text, 3, field, (int)sizeof(field)), "Ctrl+Z -") == 0,
+        CHECK(text && strcmp(cell_field(text, 3, field, (int)sizeof(field)), WS_CTRL "+Z -") == 0,
             "an empty second slot is its own cell, '-'");
         text = hotkeys_text(hotkeys_row_of(EDITOR_HK_CAM_TURN_LEFT));
         CHECK(text && strcmp(cell_field(text, 4, field, (int)sizeof(field)), "twist") == 0,
@@ -772,6 +780,25 @@ test_hotkeys_panel(void)
     Editor_Hotkeys_SetFilter(&g_ui, "Level", 0, 0, 0);
     n = Editor_Hotkeys_Rows(&g_ui, rows, EDITOR_HK_COUNT);
     CHECK(n == EDITOR_HK_LEVEL_ABOVE - EDITOR_HK_LEVEL_DOWN + 1, "the Level group alone (%d)", n);
+    /* The three groups the hand-kept list never had (fx-editor C1): each is
+     * a filter of its own, and Tools lists only its own run. */
+    Editor_Hotkeys_SetFilter(&g_ui, "Building", 0, 0, 0);
+    n = Editor_Hotkeys_Rows(&g_ui, rows, EDITOR_HK_COUNT);
+    CHECK(n == EDITOR_HK_BUILDING_BUILD - EDITOR_HK_BUILDING_SHELL + 1 && rows[0] == EDITOR_HK_BUILDING_SHELL,
+        "the Building group alone (%d)", n);
+    Editor_Hotkeys_SetFilter(&g_ui, "Stamps", 0, 0, 0);
+    n = Editor_Hotkeys_Rows(&g_ui, rows, EDITOR_HK_COUNT);
+    CHECK(n == EDITOR_HK_STAMP_DELETE - EDITOR_HK_STAMP_SAVE_RECT + 1 && rows[0] == EDITOR_HK_STAMP_SAVE_RECT,
+        "the Stamps group alone (%d)", n);
+    Editor_Hotkeys_SetFilter(&g_ui, "NPC editor", 0, 0, 0);
+    n = Editor_Hotkeys_Rows(&g_ui, rows, EDITOR_HK_COUNT);
+    CHECK(n == EDITOR_HK_NPC_FIX_LEGS - EDITOR_HK_NPC_ADD_WAYPOINT + 1 && rows[0] == EDITOR_HK_NPC_ADD_WAYPOINT,
+        "the NPC editor group alone (%d)", n);
+    Editor_Hotkeys_SetFilter(&g_ui, "Tools", 0, 0, 0);
+    n = Editor_Hotkeys_Rows(&g_ui, rows, EDITOR_HK_COUNT);
+    CHECK(n == EDITOR_HK_HOLD_CLEAR - EDITOR_HK_TOOL_SELECT + 1 && rows[0] == EDITOR_HK_TOOL_SELECT
+              && rows[n - 1] == EDITOR_HK_HOLD_CLEAR,
+        "the Tools group is its own run (%d)", n);
     Editor_Hotkeys_SetFilter(&g_ui, NULL, EDITOR_HK_CTX_Q, 0, 0);
     n = Editor_Hotkeys_Rows(&g_ui, rows, EDITOR_HK_COUNT);
     /* Workbench 6.6 added N (graph.new_node) beside Ctrl+L. */
@@ -794,7 +821,7 @@ test_hotkeys_panel(void)
         "a click on chord cell 2 captures Redo's second slot");
     {
         const char* text = hotkeys_text(hotkeys_row_of(EDITOR_HK_EDIT_REDO));
-        CHECK(text && strcmp(cell_field(text, 3, field, (int)sizeof(field)), "Ctrl+Shift+Z press...") == 0
+        CHECK(text && strcmp(cell_field(text, 3, field, (int)sizeof(field)), WS_CTRL "+Shift+Z press...") == 0
                   && strcmp(cell_field(text, 5, field, (int)sizeof(field)), "*") == 0,
             "the captured cell says so, the row in the accent");
     }

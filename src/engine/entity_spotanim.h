@@ -23,6 +23,11 @@
  * changed, or when a drawn slot's graphic is at a different frame from the
  * one baked in. A slot whose graphic changed drops its model and its frame.
  *
+ * The table grows: a crowd wearing graphics is never a graphic that silently
+ * does not draw (it was a fixed 64, and the 65th entity's graphic was dropped
+ * with nothing to say so). Growing moves the entries, so an entry pointer is
+ * not held across a Claim.
+ *
  * Nothing here frees a model, reads a scene or a world, or loads anything.
  * Where a model leaves an entry it is handed back to the caller to free. The
  * caller decides which slots are active and resident, what frame each is at,
@@ -30,18 +35,20 @@
  * hands off every model before it clears an entry.
  */
 
+#include <stdbool.h>
+
 struct ToriDraw_Model;
 
-/** Entities that can wear graphics at once. */
-#define ENTITY_SPOTANIMS_MAX 64
-/** Graphic slots per entity: the rev-239 actor's, a player's as an npc's. */
-#define ENTITY_SPOTANIM_SLOTS 8
+/** Entries the table starts with; it doubles when they are all in use. */
+#define ENTITY_SPOTANIMS_INITIAL 64
 
+/* One of the entity's graphics, at its position in the entity's own list (the
+ * world's, sorted by wire slot: WorldEntityFacet_EntitySpotanims). */
 struct EntitySpotanimSlot
 {
     int spotanim_id;   /* -1 = slot empty */
-    int load_enqueued; /* asset-load task fired for spotanim_id */
     int applied_frame; /* spot seq frame baked into `combined`; -1 none */
+    bool merged;       /* drawn in `combined` */
     struct ToriDraw_Model* spot;
 };
 
@@ -60,25 +67,30 @@ struct EntitySpotanim
      * The liveness sweep cannot see it either: a recycled id IS live.
      */
     int owner_entity_id;
-    /* Every slot drawing is merged onto the one body. */
-    struct EntitySpotanimSlot slots[ENTITY_SPOTANIM_SLOTS];
-    /* Bit i: slot i is in `combined`. */
-    int merged_mask;
+    /* Every slot drawing is merged onto the one body: one per entry of the
+     * entity's graphic list, as many as it has (EntitySpotanim_Slots). */
+    struct EntitySpotanimSlot* slots;
+    int slot_count;
     struct ToriDraw_Model* body;
     struct ToriDraw_Model* combined;
 };
 
 struct EntitySpotanims
 {
-    struct EntitySpotanim entries[ENTITY_SPOTANIMS_MAX];
+    struct EntitySpotanim* entries;
+    int capacity;
 };
 
 /**
- * Mark every entry free. Element id 0 is valid, so a free entry is -1, not
- * 0. Touches nothing else: the table is expected to start zeroed.
+ * ENTITY_SPOTANIMS_INITIAL free entries. Element id 0 is valid, so a free
+ * entry is -1, not 0.
  */
 void
 EntitySpotanims_Init(struct EntitySpotanims* table);
+
+/** Release the entries. The caller has freed every model they held. */
+void
+EntitySpotanims_Free(struct EntitySpotanims* table);
 
 /**
  * The first entry whose body element is `body_element_id`, or NULL.
@@ -97,7 +109,8 @@ EntitySpotanims_Find(
 
 /**
  * Take the first free entry for (element, owner): every slot empty, nothing
- * merged. NULL when the table is full.
+ * merged. With none free the table doubles first; every entry pointer the
+ * caller held is stale after this.
  */
 struct EntitySpotanim*
 EntitySpotanims_Claim(
@@ -106,11 +119,21 @@ EntitySpotanims_Claim(
     int owner_entity_id);
 
 /**
- * The entry is free again, every field cleared. The caller has already freed
- * or handed off its body and spot models.
+ * The entry is free again, every field cleared and its slots released. The
+ * caller has already freed or handed off its body and spot models.
  */
 void
 EntitySpotanim_Clear(struct EntitySpotanim* entry);
+
+/**
+ * The entry's slots, at least `count` of them: grown with empty slots when
+ * the entity's graphic list grew. Every slot pointer the caller held is stale
+ * after this.
+ */
+struct EntitySpotanimSlot*
+EntitySpotanim_Slots(
+    struct EntitySpotanim* entry,
+    int count);
 
 /**
  * The slot wants graphic `spotanim_id` (-1: none). When that is a change the
@@ -128,22 +151,24 @@ void
 EntitySpotanim_ForgetMerge(struct EntitySpotanim* entry);
 
 /**
- * Must the merge be rebuilt to draw the slots in `draw_mask` at `frames`?
- * Only `frames[i]` for a slot in the mask is read, for i < `spot_count`.
+ * Must the merge be rebuilt to draw the slots with `draw[i]` set at
+ * `frames`? Only `frames[i]` for a drawn slot is read, for i < `spot_count`
+ * (at most the entry's slot_count); a slot past `spot_count` is not drawn.
  */
 int
 EntitySpotanim_NeedsMerge(
     struct EntitySpotanim const* entry,
-    int draw_mask,
+    bool const* draw,
     int const* frames,
     int spot_count);
 
-/** `merged` is on the element, drawing the slots in `draw_mask` at `frames`. */
+/** `merged` is on the element, drawing the slots with `draw[i]` set at
+ *  `frames`. */
 void
 EntitySpotanim_NoteMerged(
     struct EntitySpotanim* entry,
     struct ToriDraw_Model* merged,
-    int draw_mask,
+    bool const* draw,
     int const* frames,
     int spot_count);
 

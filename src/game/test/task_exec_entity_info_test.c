@@ -6,15 +6,21 @@
  * rejects them (visible, Walk-here only).
  */
 #include "app.h"
+#include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 #include "asyncio.h"
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/uitree_scene_bridge.h"
+#include "engine/torirs_model_inst_cache.h"
 #include "game/rs_entity_sync.h"
 #include "game/task_exec_entity_info.h"
+#include "game/task_entity_assets.h"
+#include "game/rs_hitsplat.h"
 #include "net/net.h"
 #include "net/rev/gameproto_revisions.h"
 #include "streams/info_rs.h"
+#include "rsprot_buf.h"
 #include "test_harness.h"
 #include "toridraw_scene.h"
 #include "world.h"
@@ -184,6 +190,8 @@ test_npc_info_count_zero_despawns_all(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
 
     register_npc(&app, 101, 500, 10, 20, 20);
     register_npc(&app, 102, 501, 11, 21, 20);
@@ -204,6 +212,7 @@ test_npc_info_count_zero_despawns_all(void)
     TEST_ASSERT(!RS_EntitySync_FindNpc(&app.esync, 11, NULL, NULL), "slot 11 gone");
     TEST_ASSERT(!RS_EntitySync_FindNpc(&app.esync, 12, NULL, NULL), "slot 12 gone");
 
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -216,6 +225,8 @@ test_npc_origin_is_root_for_shore_and_aboard_observers(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
     register_local_player(&app, 100, 7, 4, 4);
     struct WorldEntity_Player* player = World_PlayerGetByServerPid(app.world, 7);
     RS_NpcUpdateOrigin_Set(&app.npc_update_origin, 52, 51);
@@ -238,6 +249,7 @@ test_npc_origin_is_root_for_shore_and_aboard_observers(void)
     player->grid_position.level = 2;
     RS_EntityInfo_NpcOrigin(&app, &x, &z, &plane);
     TEST_ASSERT(x == 4 && z == 6 && plane == 2, "older protocols retain route-head origin fallback");
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -267,6 +279,8 @@ test_npc_info_unresolvable_entry_keeps_list_positions(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
 
     /* One tracked npc, but the wire says it is tracking two. */
     register_npc(&app, 301, 500, 20, 30, 30);
@@ -284,6 +298,7 @@ test_npc_info_unresolvable_entry_keeps_list_positions(void)
         app.esync.active_npcs[1] == -1,
         "position 1 is an explicit no-target, not a shift of position 0");
 
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -298,6 +313,8 @@ test_npc_info_count_shrink_keeps_prefix(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
 
     register_npc(&app, 201, 500, 20, 30, 30);
     register_npc(&app, 202, 501, 21, 31, 30);
@@ -315,6 +332,7 @@ test_npc_info_count_shrink_keeps_prefix(void)
     TEST_ASSERT(
         World_TestPoolIterateCount(&app.world->entities.npc) == 1, "one NPC left in world pool");
 
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -341,6 +359,8 @@ test_player_info_unresolvable_entry_keeps_list_positions(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
 
     register_local_player(&app, 400, 7, 39, 40);
     register_other_player(&app, 401, 8, 40, 40);
@@ -358,6 +378,7 @@ test_player_info_unresolvable_entry_keeps_list_positions(void)
         app.esync.active_players[1] == -1,
         "position 1 is an explicit no-target, not a shift of position 0");
 
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -372,6 +393,8 @@ test_player_info_count_zero_despawns_others(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
 
     /* Local must already exist so SET_LOCAL does not try to spawn (needs a
      * provider). It is not in active_players — count-shrink only trims that. */
@@ -392,6 +415,7 @@ test_player_info_count_zero_despawns_others(void)
         World_TestPoolIterateCount(&app.world->entities.player) == 1,
         "only local player left in pool");
 
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -435,8 +459,14 @@ test_npc_info_resident_sequence_queues_nothing(void)
 
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
     app.provider = &provider;
     app.frame_runner.queue = ToriRS_TaskQueue_New();
+    /* The sequence is wanted through the assets table, which asks the scene
+     * whether it is registered before it asks the loader. */
+    app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    App_AssetsInit(&app);
 
     register_npc(&app, 601, 500, 30, 30, 30);
 
@@ -462,6 +492,9 @@ test_npc_info_resident_sequence_queues_nothing(void)
         "the animation is on the npc whether or not anything had to be loaded");
 
     ToriRS_TaskQueue_Free(app.frame_runner.queue);
+    App_AssetsFree(&app);
+    ToriDraw_SceneFree(app.scene);
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
     CacheProvider_FreeEngineCaches(&provider);
@@ -592,8 +625,11 @@ test_multinpc_interface_head_loads_selected_child(void)
         VarPManager_SetVarpTypes(&app.varps, &varp_type, 1),
         "chathead fixture varps initialized");
     app.provider = &provider;
-    /* The asset runner: app_if_head_enqueue streams the head load there. */
+    /* The parallel queue: the head's task (Task_IfModel) runs there, listed
+     * in the pending index. */
     app.frame_runner.queue = ToriRS_TaskQueue_New();
+    App_AssetsInit(&app);
+    App_PendingInit(&app);
     io = ToriRS_IOBatch_New();
     app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     TEST_ASSERT(app.scene != NULL, "chathead fixture scene initialized");
@@ -617,11 +653,14 @@ test_multinpc_interface_head_loads_selected_child(void)
     TEST_ASSERT(
         ToriRS_TaskQueue_Run(app.frame_runner.queue, io) == TORIRS_ASYNCIO_STAT_DONE,
         "multiNpc chathead load task completes");
+    /* Both configs are resident, and the resolve reads each rung through
+     * the assets table, which loads nothing that is here: the provider is
+     * not asked for either. The walk through the shell is proven by the head
+     * model below, which only the selected child names. */
     TEST_ASSERT(
-        trace_has_id(
-            g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 100) &&
-            trace_has_id(g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 101),
-        "chathead loader requests both the shell and selected child configs");
+        !trace_has_id(g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 100) &&
+            !trace_has_id(g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 101),
+        "chathead resolve reads the resident shell and child configs without a load");
     TEST_ASSERT(
         g_head_load_trace.model_count == 1 && g_head_load_trace.model_ids[0] == 777,
         "chathead loader requests the selected child's head model");
@@ -631,8 +670,1450 @@ test_multinpc_interface_head_loads_selected_child(void)
     ToriDraw_SceneFree(app.scene);
     ToriRS_IOBatch_Free(io);
     ToriRS_TaskQueue_Free(app.frame_runner.queue);
+    App_PendingFree(&app);
     VarPManager_Free(&app.varps);
     CacheProvider_FreeEngineCaches(&provider);
+}
+
+/* ------------------------------------------------------------------------
+ * Entities exist at once; bodies wait on the parallel queue (packet model,
+ * step "entities"; FAULTS E1-E11).
+ * ------------------------------------------------------------------------ */
+
+struct EntityFixture
+{
+    struct App app;
+    struct CacheProvider provider;
+    struct CacheProviderVTable vtable;
+    struct VarPType varp_type;
+};
+
+static struct ToriRS_Npctype*
+fixture_npctype(
+    struct EntityFixture* fx,
+    int id,
+    int model_id)
+{
+    struct ToriRS_Npctype* type = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*type));
+
+    type->size = 1;
+    type->readyanim = -1;
+    type->walkanim = -1;
+    type->walkanim_b = -1;
+    type->walkanim_l = -1;
+    type->walkanim_r = -1;
+    type->turnanim_l = -1;
+    type->turnanim_r = -1;
+    type->runanim = -1;
+    type->runanim_b = -1;
+    type->runanim_l = -1;
+    type->runanim_r = -1;
+    type->crawlanim = -1;
+    type->crawlanim_b = -1;
+    type->crawlanim_l = -1;
+    type->crawlanim_r = -1;
+    type->transform_varbit = -1;
+    type->transform_varp = -1;
+    snprintf(type->name, sizeof(type->name), "type%d", id);
+    if( model_id >= 0 )
+    {
+        type->models_count = 1;
+        type->models = ToriMem_Alloc(ToriMem_Assets(), sizeof(*type->models));
+        type->models[0] = model_id;
+    }
+    CacheProvider_NpctypeAdd(&fx->provider, id, type);
+    return type;
+}
+
+static void
+fixture_init(struct EntityFixture* fx)
+{
+    memset(fx, 0, sizeof(*fx));
+    memset(&g_head_load_trace, 0, sizeof(g_head_load_trace));
+    fx->app.net = test_net();
+    fx->vtable.Task_NpcLoad = trace_npc_load;
+    fx->vtable.Task_ModelLoad = trace_model_load;
+    fx->vtable.Task_SequenceLoad = trace_sequence_load_resident;
+    fx->provider.vtable = &fx->vtable;
+    CacheProvider_InitEngineCaches(&fx->provider);
+    VarPManager_Init(&fx->app.varps);
+    TEST_ASSERT(VarPManager_SetVarpTypes(&fx->app.varps, &fx->varp_type, 1), "fixture varps");
+    /* The App's script host reads the same varps (RS_CS2Host_Init in
+     * app.c): a varp change syncs the audio options through it. */
+    fx->app.host.varps = &fx->app.varps;
+    fx->app.provider = &fx->provider;
+    fx->app.world = World_TestMakeReady(104);
+    RS_EntitySync_Init(&fx->app.esync);
+    fx->app.frame_runner.queue = ToriRS_TaskQueue_New();
+    fx->app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    App_AssetsInit(&fx->app);
+    App_PendingInit(&fx->app);
+}
+
+static void
+fixture_free(struct EntityFixture* fx)
+{
+    /* The queue first: every parallel task unlists itself as it is freed. */
+    ToriRS_TaskQueue_Free(fx->app.frame_runner.queue);
+    App_PendingFree(&fx->app);
+    App_AssetsFree(&fx->app);
+    ToriDraw_SceneFree(fx->app.scene);
+    RS_EntitySync_Free(&fx->app.esync);
+    World_Free(fx->app.world);
+    VarPManager_Free(&fx->app.varps);
+    CacheProvider_FreeEngineCaches(&fx->provider);
+}
+
+static void
+run_npc_ops(
+    struct App* app,
+    RsprotInfoOp const* ops,
+    int count)
+{
+    run_task_to_done(CreateTask_ExecNpcInfoOps(app, ops, count));
+}
+
+static RsprotInfoOp
+op_value(
+    int kind,
+    uint64_t value)
+{
+    RsprotInfoOp op;
+
+    memset(&op, 0, sizeof(op));
+    op.kind = (uint8_t)kind;
+    op.value = value;
+    return op;
+}
+
+/* How many drive events of `kind` are in the ring; the newest one's a/b. */
+static int g_drive_last_c;
+static int g_drive_last_d;
+
+static int
+drive_count(
+    struct App const* app,
+    int kind,
+    int* out_a,
+    int* out_b)
+{
+    int n = 0;
+
+    for( int i = 0; i < app->drive_events.ring.count && i < APP_DRIVE_RING_CAPACITY; i++ )
+    {
+        struct RS_Event const* ev = &app->drive_events.entries[i];
+        if( ev->kind != kind )
+            continue;
+        n++;
+        if( out_a )
+            *out_a = ev->a;
+        if( out_b )
+            *out_b = ev->b;
+        g_drive_last_c = ev->c;
+        g_drive_last_d = ev->d;
+    }
+    return n;
+}
+
+static struct WorldEntity_NPC*
+npc_in_slot(
+    struct App* app,
+    int slot)
+{
+    int world_idx = -1;
+
+    if( !RS_EntitySync_FindNpc(&app->esync, slot, &world_idx, NULL) || world_idx < 0 )
+        return NULL;
+    return World_EntityPoolGet(&app->world->entities.npc, world_idx);
+}
+
+/*
+ * (a) An npc whose body is not resident exists at once, draws nothing, and
+ * one parallel task waits for its body; it is announced once its add record
+ * has placed it (E1, E2), with its server slot (E10). Removing it cancels the
+ * task.
+ */
+static void
+test_npc_cold_body_exists_and_waits_on_the_parallel_queue(void)
+{
+    printf("TEST: an npc with a cold body exists at once and its body waits on the parallel queue\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct WorldEntity_NPC* npc;
+    int a = -1;
+    int b = -1;
+
+    fixture_init(&fx);
+    fixture_npctype(&fx, 500, 777);
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 7);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 500);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    ops[2].delta_xz.dx = 3;
+    ops[2].delta_xz.dz = -2;
+    ops[2].delta_xz.jump = 1;
+    run_npc_ops(&fx.app, ops, 3);
+
+    npc = npc_in_slot(&fx.app, 7);
+    TEST_ASSERT(npc != NULL, "the npc exists although its body is not resident");
+    TEST_ASSERT(npc && npc->npc_id == 500, "it is the type the wire named");
+    TEST_ASSERT(npc && npc->spawn_serial != 0, "it carries a spawn serial");
+    TEST_ASSERT(npc && App_EntityNpcBodyPending(&fx.app, npc), "a body task is pending for it");
+    TEST_ASSERT(
+        RS_Pending_Count(fx.app.pending, RS_PENDING_KINDS_ENTITIES_FIRST) == 1,
+        "one body task, on the parallel queue");
+    TEST_ASSERT(fx.app.packet_runner.queue == NULL, "nothing was put on the packet queue");
+    TEST_ASSERT(drive_count(&fx.app, RS_EVENT_NPC_SPAWN, &a, &b) == 1, "one npc_spawn");
+    TEST_ASSERT(a == 7, "npc_spawn names the server slot, not the pool index (E10)");
+    TEST_ASSERT(b == 500, "npc_spawn names the type");
+    TEST_ASSERT(
+        g_drive_last_c == 52 + 3 && g_drive_last_d == 52 - 2,
+        "it was announced (and its NPC_ADD script run) once the add record's DELTA_XZ "
+        "placed it, not on the update origin (E1)");
+
+    /* Gone in the next packet: its body task is cancelled with it. */
+    {
+        RsprotInfoOp clear = op_value(RSPROT_OP_CLEAR_OLD, 0);
+        run_npc_ops(&fx.app, &clear, 1);
+    }
+    TEST_ASSERT(npc_in_slot(&fx.app, 7) == NULL, "the npc was removed");
+    TEST_ASSERT(
+        RS_Pending_Count(fx.app.pending, RS_PENDING_KINDS_ENTITIES_FIRST) == 0,
+        "its body task was cancelled with it");
+
+    fixture_free(&fx);
+}
+
+/* (a) + E7: a retype to a type whose body is cold draws nothing (not the old
+ * type's body) and replaces the npc's body task; a retype to none draws
+ * nothing too. */
+static void
+test_npc_retype_newest_body_wins(void)
+{
+    printf("TEST: a retype replaces the npc's pending body task\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    RsprotInfoOp change[2];
+    struct WorldEntity_NPC* npc;
+    struct RS_ParallelTask* pending;
+
+    fixture_init(&fx);
+    fixture_npctype(&fx, 500, 777);
+    fixture_npctype(&fx, 501, 778);
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 9);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 500);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+
+    /* Kept from the last packet's list, then its block. */
+    change[0] = op_value(RSPROT_OP_ADD_OLD, 0);
+    memset(&change[1], 0, sizeof(change[1]));
+    change[1].kind = RSPROT_OP_CHANGE_TYPE;
+    change[1].change_type.npc_type = 501;
+    run_npc_ops(&fx.app, change, 2);
+
+    npc = npc_in_slot(&fx.app, 9);
+    TEST_ASSERT(npc && npc->npc_id == 501, "the retype applied at once");
+    TEST_ASSERT(
+        RS_Pending_Count(fx.app.pending, RS_PENDING_KINDS_ENTITIES_FIRST) == 1,
+        "one body task: the retype's replaced the spawn's");
+    pending = npc ? RS_Pending_Find(fx.app.pending, RS_PENDING_KINDS_ENTITIES_FIRST, App_EntityNpcKey(npc))
+                  : NULL;
+    TEST_ASSERT(pending != NULL, "and it is listed under the npc's key");
+    {
+        struct ToriDraw_SceneElement* el =
+            npc ? ToriDraw_SceneElementGet(fx.app.scene, npc->element_id) : NULL;
+        struct ToriDraw_Model const* model =
+            el && ToriDraw_ModelKindIsFull(el->model.kind) ? el->model.u.model.model : NULL;
+        TEST_ASSERT(model && model->vertex_count == 0, "it draws nothing until the body lands (E7)");
+    }
+
+    fixture_free(&fx);
+}
+
+/* E11: an npc whose config the cache does not have still exists, so the ops
+ * that follow for its slot apply instead of being dropped. */
+static void
+test_npc_unknown_type_still_exists(void)
+{
+    printf("TEST: an npc of a type the cache lacks exists and takes later ops\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[4];
+    struct WorldEntity_NPC* npc;
+
+    fixture_init(&fx);
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 4);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 999);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    ops[3] = op_value(RSPROT_OP_LEVEL_CHANGE, 55);
+    run_npc_ops(&fx.app, ops, 4);
+
+    npc = npc_in_slot(&fx.app, 4);
+    TEST_ASSERT(npc != NULL, "the npc exists although its config is missing");
+    TEST_ASSERT(npc && npc->combat_level == 55, "a later op for its slot applied");
+
+    fixture_free(&fx);
+}
+
+/*
+ * A session that ends under a waiting NPC_INFO.
+ *
+ * NPC_INFO waits on the packet queue for the npc configs its records name.
+ * Its records are positions in the lists the server and this client rebuild
+ * in lockstep, so they mean something only against the lists they were sent
+ * against. A session end (App_NetSessionReset: logout, a lost link, a world
+ * hop) clears those lists (RS_EntitySync_Clear) while the packet waits; the
+ * packet, resumed after, must apply nothing -- it used to spawn its npcs into
+ * the cleared world, announce them (npc_spawn, the NPC_ADD script) on the
+ * title screen, and leave them registered for the next session.
+ */
+static int g_config_resident;
+
+static enum AssetStart
+config_start_loading(
+    void* data,
+    struct Assets* assets,
+    struct AssetKey key)
+{
+    (void)data;
+    (void)assets;
+    (void)key;
+    return ASSET_START_LOADING;
+}
+
+static bool
+config_resident_when_told(
+    void* data,
+    struct AssetKey key)
+{
+    (void)data;
+    (void)key;
+    return g_config_resident != 0;
+}
+
+static void
+test_npc_info_from_an_ended_session_applies_nothing(void)
+{
+    printf("TEST: an NPC_INFO waiting on a config when the session ends applies nothing after\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct ToriRS_Task* task;
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
+    int st;
+    int spawns;
+
+    fixture_init(&fx);
+    g_config_resident = 0;
+    App_AssetsSetLoader(&fx.app, ASSET_KIND_CONFIG, config_start_loading, config_resident_when_told);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 9);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 903);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    task = CreateTask_ExecNpcInfoOps(&fx.app, ops, 3);
+    io->task = task;
+    st = task_run(task, io);
+    TEST_ASSERT(st == PT_YIELDED && task->park_req.on == TORIRS_PARK_COUNT, "it waits on the config");
+    TEST_ASSERT(npc_in_slot(&fx.app, 9) == NULL, "nothing applied yet");
+    spawns = drive_count(&fx.app, RS_EVENT_NPC_SPAWN, NULL, NULL);
+
+    /* The session ends while it waits. */
+    RS_EntitySync_Clear(&fx.app.esync, fx.app.world);
+
+    /* The config lands; the packet resumes. */
+    fixture_npctype(&fx, 903, -1);
+    g_config_resident = 1;
+    Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_CONFIG, 903, ASSET_CONFIG_NPC), true);
+    do
+        st = task_run(task, io);
+    while( st == PT_YIELDED && task->park_req.on == TORIRS_PARK_NONE );
+    TEST_ASSERT(st == PT_ENDED || st == PT_EXITED, "it ends");
+    TEST_ASSERT(npc_in_slot(&fx.app, 9) == NULL, "the ended session's npc is not spawned");
+    TEST_ASSERT(fx.app.esync.active_npc_count == 0, "nor listed for the next session");
+    TEST_ASSERT(
+        World_TestPoolIterateCount(&fx.app.world->entities.npc) == 0, "nor in the world");
+    TEST_ASSERT(drive_count(&fx.app, RS_EVENT_NPC_SPAWN, NULL, NULL) == spawns, "nor announced");
+    task_free(task);
+    ToriRS_IOBatch_Free(io);
+    fixture_free(&fx);
+}
+
+/* E3: a body that lands after a BODY_CUSTOM leaves the customisation on: the
+ * landing asks for the custom body to be mounted over the type's. */
+static void
+test_npc_body_landing_keeps_body_custom(void)
+{
+    printf("TEST: a landing body keeps the server's body customisation\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct WorldEntity_NPC* npc;
+    int world_idx = -1;
+    int serial;
+
+    fixture_init(&fx);
+    fixture_npctype(&fx, 502, -1);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 3);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 502);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+    TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned");
+    {
+        int const custom[1] = { 4242 };
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = custom };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    serial = npc->body_serial;
+
+    App_WorldNpcBodyLanded(&fx.app, world_idx, npc->element_id, 502, 502);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_serial == serial + 1, "the custom body is mounted again over the type's");
+
+    fixture_free(&fx);
+}
+
+/* E12: a BODY_CUSTOM block's model count is a byte and the reference sizes
+ * the list from it. Nine models (one past the npc row's old fixed eight) and
+ * 255 (the most a byte says) go through osrs242's real NPC_INFO reader and
+ * the npc exec into the world, and every one reads back. */
+static int
+e12_model(int i)
+{
+    /* Above 0xFFFF, so g4_3412's high half is exercised too. */
+    return 0x12345 + i * 0x101;
+}
+
+static int
+e12_npc_info_body_custom(
+    uint8_t* out,
+    int cap,
+    int model_count)
+{
+    int n = 0;
+
+    TEST_ASSERT(cap >= 4 + 4 + 2 + model_count * 4, "the packet fits its buffer");
+    /* The bit section: 8 bits of count (1), the npc updated (1), stood still
+     * with extended info (type 00), then no adds: the 0xFFFF terminator,
+     * needed because the extended tail leaves 28 or more readable bits. */
+    out[n++] = 0x01;
+    out[n++] = 0x9F; /* 1 00 11111 */
+    out[n++] = 0xFF;
+    out[n++] = 0xE0; /* 111, then the pad to a byte */
+    /* The flag word: 0x4 -> a second byte, 0x400 -> a third, 0x200000 -> a
+     * fourth carrying BIT_BODY_CUSTOMISATION_V3 (0x2000000). */
+    out[n++] = 0x04;
+    out[n++] = 0x04;
+    out[n++] = 0x20;
+    out[n++] = 0x02;
+    /* BodyCustomisationV3: flag 0x2 (counted models), the count (g1), each
+     * model g4_3412. */
+    out[n++] = 0x02;
+    out[n++] = (uint8_t)model_count;
+    for( int i = 0; i < model_count; i++ )
+    {
+        uint32_t v = (uint32_t)e12_model(i);
+        out[n++] = (uint8_t)(v >> 8);
+        out[n++] = (uint8_t)v;
+        out[n++] = (uint8_t)(v >> 24);
+        out[n++] = (uint8_t)(v >> 16);
+    }
+    return n;
+}
+
+static void
+test_npc_body_custom_keeps_every_wire_model(void)
+{
+    static int const counts[] = { 9, 255 };
+    static uint8_t packet[4 + 4 + 2 + 255 * 4];
+    static struct ToriRS_Network net242;
+
+    printf("TEST: a BODY_CUSTOM of 9 and of 255 models reaches the world whole\n");
+    net242.rev = GameProtoRev_OSRS242();
+    for( size_t c = 0; c < sizeof(counts) / sizeof(counts[0]); c++ )
+    {
+        struct EntityFixture fx;
+        struct WorldEntity_NPC* npc;
+        int len;
+        int serial;
+        int wrong = 0;
+
+        fixture_init(&fx);
+        fx.app.net = &net242;
+        register_npc(&fx.app, 301, 500, 6, 30, 30);
+        npc = npc_in_slot(&fx.app, 6);
+        TEST_ASSERT(npc != NULL, "the npc is tracked before the packet");
+        if( !npc )
+        {
+            fixture_free(&fx);
+            continue;
+        }
+        serial = npc->body_serial;
+        npc->seq_sent_id = 4321;
+
+        len = e12_npc_info_body_custom(packet, (int)sizeof(packet), counts[c]);
+        run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+
+        npc = npc_in_slot(&fx.app, 6);
+        TEST_ASSERT(npc != NULL, "the npc survived the packet");
+        if( !npc )
+        {
+            fixture_free(&fx);
+            continue;
+        }
+        TEST_ASSERT(npc->body_custom.model_count == counts[c], "the count is the wire's");
+        TEST_ASSERT(npc->body_custom.models != NULL, "the list is there");
+        for( int i = 0; npc->body_custom.models && i < npc->body_custom.model_count; i++ )
+            if( npc->body_custom.models[i] != e12_model(i) )
+                wrong++;
+        TEST_ASSERT(wrong == 0, "every model is the wire's, in order");
+        TEST_ASSERT(npc->body_serial == serial + 1, "the body is asked to remount");
+        TEST_ASSERT(npc->seq_sent_id == 4321, "the row past the list is untouched");
+        TEST_ASSERT(npc->server_slot == 6, "the server slot is untouched");
+        fixture_free(&fx);
+    }
+}
+
+/* E12's other half, decoded: osrs242's BodyCustomisationV3 with 0x4 | 0x8
+ * and no 0x2 (recolours and retextures over the type's own models) reaches
+ * the world whole, where the reader's `reset` used to read "no model list" as
+ * the reset and the recolours were dropped; then 0x1 alone clears it. */
+static int
+e12_npc_info_v3_flag(
+    uint8_t* out,
+    int cap,
+    int flag,
+    int recolours,
+    int retextures)
+{
+    RsprotBuf b;
+
+    rsprot_buf_wrap(&b, out, cap);
+    /* The bit section and the flag word, as e12_npc_info_body_custom. */
+    rsprot_p1(&b, 0x01);
+    rsprot_p1(&b, 0x9F);
+    rsprot_p1(&b, 0xFF);
+    rsprot_p1(&b, 0xE0);
+    rsprot_p1(&b, 0x04);
+    rsprot_p1(&b, 0x04);
+    rsprot_p1(&b, 0x20);
+    rsprot_p1(&b, 0x02);
+    rsprot_p1(&b, flag);
+    if( flag & 0x4 )
+    {
+        rsprot_p1_add128(&b, recolours);
+        for( int i = 0; i < recolours; i++ )
+            rsprot_p2_21_add128(&b, 1000 + i);
+    }
+    if( flag & 0x8 )
+    {
+        rsprot_p1_add128(&b, retextures);
+        for( int i = 0; i < retextures; i++ )
+            rsprot_p2_12(&b, 2000 + i);
+    }
+    TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+    return b.wpos;
+}
+
+static void
+test_npc_body_custom_recolours_without_models(void)
+{
+    static uint8_t packet[64 + 255 * 4];
+    static struct ToriRS_Network net242;
+    struct EntityFixture fx;
+    struct WorldEntity_NPC* npc;
+    int len;
+    int wrong = 0;
+
+    printf("TEST: a BODY_CUSTOM of recolours and retextures and no models reaches the world\n");
+    net242.rev = GameProtoRev_OSRS242();
+    fixture_init(&fx);
+    fx.app.net = &net242;
+    register_npc(&fx.app, 301, 500, 6, 30, 30);
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc != NULL, "the npc is tracked before the packet");
+
+    len = e12_npc_info_v3_flag(packet, (int)sizeof(packet), 0x4 | 0x8, 255, 2);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->body_custom.active, "the block is an override, not the reset");
+    if( npc && npc->body_custom.active )
+    {
+        TEST_ASSERT(!npc->body_custom.models_sent, "over the type's own models");
+        TEST_ASSERT(npc->body_custom.recolour_count == 255, "every recolour the wire counted");
+        for( int i = 0; npc->body_custom.recolours && i < npc->body_custom.recolour_count; i++ )
+            if( npc->body_custom.recolours[i] != 1000 + i )
+                wrong++;
+        TEST_ASSERT(npc->body_custom.recolours && wrong == 0, "each as sent, in order");
+        TEST_ASSERT(npc->body_custom.retexture_count == 2 && npc->body_custom.retextures[1] == 2001,
+            "and the retextures");
+    }
+
+    len = e12_npc_info_v3_flag(packet, (int)sizeof(packet), 0x1, 0, 0);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && !npc->body_custom.active && npc->body_custom.recolours == NULL, "0x1 alone resets it");
+    fixture_free(&fx);
+}
+
+/*
+ * A1: a TYPED customisation (BodyCustomisationV2: rev 239's 0x800000, rev
+ * 242's 0x10000) carries as many recolours and retextures as the npc's TYPE
+ * has, with no count on the wire (deob Statics ~47320: field1237.field5139 /
+ * field5158 .length). The reader asks the client; an unanswered question used
+ * to end the whole packet there, so every npc after it went un-updated. Two
+ * kept npcs: slot 6 (type 500, two recolours and one retexture) with the
+ * typed block, then slot 7 with an overhead line.
+ */
+enum
+{
+    A1_TYPE_KEPT = 500,
+    A1_TYPE_COLD = 700,
+    A1_TYPE_ABSENT = 701,
+};
+
+static int g_a1_cold_loads;
+static struct EntityFixture* g_a1_fx;
+
+static void
+a1_npctype_lists(
+    struct ToriRS_Npctype* type,
+    int recolours,
+    int retextures)
+{
+    type->recolor_count = recolours;
+    type->retexture_count = retextures;
+    if( recolours > 0 )
+    {
+        type->recolors_from = ToriMem_Calloc(ToriMem_Assets(), (size_t)recolours, sizeof(int));
+        type->recolors_to = ToriMem_Calloc(ToriMem_Assets(), (size_t)recolours, sizeof(int));
+    }
+    if( retextures > 0 )
+    {
+        type->retextures_from = ToriMem_Calloc(ToriMem_Assets(), (size_t)retextures, sizeof(int));
+        type->retextures_to = ToriMem_Calloc(ToriMem_Assets(), (size_t)retextures, sizeof(int));
+    }
+}
+
+/* The npc config loader of the "not resident when the packet is read" case:
+ * the cold type turns up when it is loaded; the absent one never does. */
+static struct ToriRS_Task*
+a1_npc_load(
+    struct CacheProvider* provider,
+    int npc_id)
+{
+    (void)provider;
+    if( npc_id == A1_TYPE_COLD )
+    {
+        g_a1_cold_loads++;
+        a1_npctype_lists(fixture_npctype(g_a1_fx, A1_TYPE_COLD, -1), 2, 1);
+    }
+    return NULL;
+}
+
+/* Rev 239: flag word 0x40 | 0x800 | 0x800000 (0x40 and 0x800 carry the next
+ * bytes), the block's flag g1, recolours g2 big-endian (method13235),
+ * retextures g2 little-endian (method13175); then SAY (0x2). Rev 242: flag
+ * word 0x4 | 0x400 | 0x10000, flag g1_neg, both lists g2_12; SAY is 0x10. */
+static int
+a1_typed_packet(
+    uint8_t* out,
+    int cap,
+    int rev,
+    int recolours,
+    int retextures)
+{
+    RsprotBuf b;
+
+    rsprot_buf_wrap(&b, out, cap);
+    /* Two kept npcs, each stood still with extended info (1 00), then the
+     * 0xFFFF terminator, padded to the byte. */
+    rsprot_p1(&b, 0x02);
+    rsprot_p1(&b, 0x93); /* 100 100 11 */
+    rsprot_p1(&b, 0xFF);
+    rsprot_p1(&b, 0xFC); /* 111111, then the pad */
+    if( rev == 239 )
+    {
+        rsprot_p1(&b, 0x40);
+        rsprot_p1(&b, 0x08);
+        rsprot_p1(&b, 0x80);
+        rsprot_p1(&b, 0x4 | 0x8);
+        for( int i = 0; i < recolours; i++ )
+            rsprot_p2_12(&b, 1111 * (i + 1));
+        for( int i = 0; i < retextures; i++ )
+            rsprot_p2_21(&b, 3333 + i);
+        rsprot_p1(&b, 0x02);
+    }
+    else
+    {
+        rsprot_p1(&b, 0x04);
+        rsprot_p1(&b, 0x04);
+        rsprot_p1(&b, 0x01);
+        rsprot_p1_neg(&b, 0x4 | 0x8);
+        for( int i = 0; i < recolours; i++ )
+            rsprot_p2_12(&b, 1111 * (i + 1));
+        for( int i = 0; i < retextures; i++ )
+            rsprot_p2_12(&b, 3333 + i);
+        rsprot_p1(&b, 0x10);
+    }
+    rsprot_pjstr(&b, "after");
+    TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+    return b.wpos;
+}
+
+static void
+test_npc_typed_custom_reads_the_rest_of_the_packet(void)
+{
+    static uint8_t packet[64];
+    static struct ToriRS_Network net;
+    int const revs[2] = { 239, 242 };
+
+    printf("TEST: a typed customisation with recolours reads its type's counts; the packet goes on\n");
+    for( int r = 0; r < 2; r++ )
+    {
+        struct EntityFixture fx;
+        struct WorldEntity_NPC* npc;
+        int len;
+
+        fixture_init(&fx);
+        net.rev = revs[r] == 239 ? GameProtoRev_OSRS239() : GameProtoRev_OSRS242();
+        fx.app.net = &net;
+        a1_npctype_lists(fixture_npctype(&fx, A1_TYPE_KEPT, -1), 2, 1);
+        fixture_npctype(&fx, 501, -1);
+        register_npc(&fx.app, 301, A1_TYPE_KEPT, 6, 30, 30);
+        register_npc(&fx.app, 302, 501, 7, 31, 30);
+
+        len = a1_typed_packet(packet, (int)sizeof(packet), revs[r], 2, 1);
+        run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+        npc = npc_in_slot(&fx.app, 6);
+        TEST_ASSERT(npc && npc->body_custom.active, "the typed block is applied");
+        TEST_ASSERT(npc && npc->body_custom.recolour_count == 2 && npc->body_custom.recolours &&
+                        npc->body_custom.recolours[0] == 1111 && npc->body_custom.recolours[1] == 2222,
+            "with as many recolours as its type has, as sent");
+        TEST_ASSERT(npc && npc->body_custom.retexture_count == 1 && npc->body_custom.retextures &&
+                        npc->body_custom.retextures[0] == 3333,
+            "and its retexture");
+        npc = npc_in_slot(&fx.app, 7);
+        TEST_ASSERT(npc && strcmp(npc->chat.message, "after") == 0,
+            "the npc after it is updated: the read did not stop");
+        fixture_free(&fx);
+    }
+}
+
+/* The type's config is not resident when the packet is read: the packet waits
+ * for it and is read again (a type whose config never comes reads as the
+ * reference's default type, with no lists). */
+static void
+test_npc_typed_custom_waits_for_its_type(void)
+{
+    static uint8_t packet[64];
+    static struct ToriRS_Network net;
+    struct EntityFixture fx;
+    struct WorldEntity_NPC* npc;
+    int len;
+
+    printf("TEST: a typed customisation of a type not yet resident waits for its config\n");
+    fixture_init(&fx);
+    g_a1_fx = &fx;
+    g_a1_cold_loads = 0;
+    fx.vtable.Task_NpcLoad = a1_npc_load;
+    net.rev = GameProtoRev_OSRS242();
+    fx.app.net = &net;
+    fixture_npctype(&fx, 501, -1);
+    register_npc(&fx.app, 301, A1_TYPE_COLD, 6, 30, 30);
+    register_npc(&fx.app, 302, 501, 7, 31, 30);
+    len = a1_typed_packet(packet, (int)sizeof(packet), 242, 2, 1);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    TEST_ASSERT(g_a1_cold_loads == 1, "the config is loaded once");
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->body_custom.recolour_count == 2 && npc->body_custom.retexture_count == 1,
+        "the block is read with the loaded type's counts");
+    npc = npc_in_slot(&fx.app, 7);
+    TEST_ASSERT(npc && strcmp(npc->chat.message, "after") == 0, "and the packet is read to its end");
+    fixture_free(&fx);
+
+    fixture_init(&fx);
+    g_a1_fx = &fx;
+    fx.vtable.Task_NpcLoad = a1_npc_load;
+    fx.app.net = &net;
+    fixture_npctype(&fx, 501, -1);
+    register_npc(&fx.app, 301, A1_TYPE_ABSENT, 6, 30, 30);
+    register_npc(&fx.app, 302, 501, 7, 31, 30);
+    len = a1_typed_packet(packet, (int)sizeof(packet), 242, 0, 0);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->body_custom.active && npc->body_custom.recolour_count == 0,
+        "a type the cache lacks has no lists");
+    npc = npc_in_slot(&fx.app, 7);
+    TEST_ASSERT(npc && strcmp(npc->chat.message, "after") == 0, "and the packet is read to its end");
+    fixture_free(&fx);
+    g_a1_fx = NULL;
+}
+
+/*
+ * A6: osrs242's BodyCustomisationV4 (0x2000) can send a recolour-all: 0x4,
+ * then a flag byte of 1 and a colour. The rev-242 reference paints every face
+ * of the body that colour and does not apply the per-colour list
+ * (class454.method10217: `if (var10 != -1) var9.method4694(var10)` else the
+ * list); 65535 is -1 as its short, and then the list follows on the wire and
+ * is applied.
+ */
+static int
+a6_npc_info_v4(
+    uint8_t* out,
+    int cap,
+    int colour)
+{
+    RsprotBuf b;
+
+    rsprot_buf_wrap(&b, out, cap);
+    rsprot_p1(&b, 0x01);
+    rsprot_p1(&b, 0x9F);
+    rsprot_p1(&b, 0xFF);
+    rsprot_p1(&b, 0xE0);
+    rsprot_p1(&b, 0x04); /* a second flag byte */
+    rsprot_p1(&b, 0x20); /* BIT_BODY_CUSTOMISATION_V4 (0x2000) */
+    rsprot_p1_add128(&b, 0x4);
+    rsprot_p1_add128(&b, 1); /* a recolour-all */
+    rsprot_p2_12_add128(&b, colour);
+    if( colour == 65535 )
+    {
+        rsprot_p1_add128(&b, 1);
+        rsprot_p2_21(&b, 4321);
+    }
+    TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+    return b.wpos;
+}
+
+/* One triangle of colour 500, the cache's model 9000. */
+static void
+a6_triangle(struct EntityFixture* fx)
+{
+    struct ToriRS_Model* m = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m));
+
+    m->vertex_count = 3;
+    m->face_count = 1;
+    m->vertices_x = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_x));
+    m->vertices_y = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_y));
+    m->vertices_z = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_z));
+    m->vertices_x[1] = 64;
+    m->vertices_z[2] = 64;
+    m->face_indices_a = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_a));
+    m->face_indices_b = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_b));
+    m->face_indices_c = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_c));
+    m->face_indices_b[0] = 1;
+    m->face_indices_c[0] = 2;
+    m->face_colors = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors));
+    m->face_colors[0] = 500;
+    m->face_colors_a = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_a));
+    m->face_colors_b = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_b));
+    m->face_colors_c = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_c));
+    CacheProvider_ModelAdd(&fx->provider, 9000, m);
+}
+
+static void
+test_npc_body_custom_v4_recolour_all(void)
+{
+    static uint8_t packet[64];
+    static struct ToriRS_Network net242;
+    struct EntityFixture fx;
+    struct ToriRS_Npctype* type;
+    struct WorldEntity_NPC* npc;
+    struct ToriDraw_Model* model;
+    int len;
+
+    printf("TEST: a V4 body customisation's recolour-all paints the whole body\n");
+    net242.rev = GameProtoRev_OSRS242();
+    fixture_init(&fx);
+    fx.app.net = &net242;
+    type = fixture_npctype(&fx, 520, 9000);
+    a1_npctype_lists(type, 1, 0);
+    type->recolors_from[0] = 500;
+    type->recolors_to[0] = 600;
+    a6_triangle(&fx);
+    register_npc(&fx.app, 301, 520, 6, 30, 30);
+    TEST_ASSERT(TorirsModelInstCache_Init(&fx.app.model_inst_cache), "the built bodies' cache");
+
+    len = a6_npc_info_v4(packet, (int)sizeof(packet), 1234);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && World_NpcOverrideRecolourAll(&npc->body_custom) == 1234, "the override keeps its colour");
+    model = npc ? app_world_build_npc_override_model(&fx.app, 520, type, &npc->body_custom) : NULL;
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 1234,
+        "every face is that colour, not the type's recolour");
+    if( model )
+        ToriDraw_ModelFree(model);
+
+    len = a6_npc_info_v4(packet, (int)sizeof(packet), 65535);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && World_NpcOverrideRecolourAll(&npc->body_custom) == -1, "65535 is none");
+    TEST_ASSERT(npc && npc->body_custom.recolour_count == 1 && npc->body_custom.recolours[0] == 4321,
+        "and the list that follows is the override's");
+    model = npc ? app_world_build_npc_override_model(&fx.app, 520, type, &npc->body_custom) : NULL;
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 4321, "applied index for index");
+    if( model )
+        ToriDraw_ModelFree(model);
+    TorirsModelInstCache_Free(&fx.app.model_inst_cache);
+    fixture_free(&fx);
+}
+
+/*
+ * I3: the rev-242 npc TYPE's own recolour-all (npc config opcode 42,
+ * class454.field5610). class454.method10217 takes the override's when it sent
+ * one (field5557; 65535 there is none, and its list applies), else the
+ * type's: so a type with one paints its plain body, and an override that
+ * sends none, that colour in place of the per-colour list; an override that
+ * sends its own wins, and one that sends 65535 applies its list.
+ */
+static void
+test_npc_type_recolour_all(void)
+{
+    static uint8_t packet[64];
+    static struct ToriRS_Network net242;
+    struct EntityFixture fx;
+    struct ToriRS_Npctype* type;
+    struct WorldEntity_NPC* npc;
+    struct ToriDraw_Model* model;
+    struct WorldNpcOverride none;
+    int len;
+
+    printf("TEST: a type's recolour-all (opcode 42) paints its body unless a customisation sends one\n");
+    net242.rev = GameProtoRev_OSRS242();
+    fixture_init(&fx);
+    fx.app.net = &net242;
+    type = fixture_npctype(&fx, 520, 9000);
+    a1_npctype_lists(type, 1, 0);
+    type->recolors_from[0] = 500;
+    type->recolors_to[0] = 600;
+    a6_triangle(&fx);
+    register_npc(&fx.app, 301, 520, 6, 30, 30);
+    TEST_ASSERT(TorirsModelInstCache_Init(&fx.app.model_inst_cache), "the built bodies' cache");
+
+    model = app_world_build_npc_model(&fx.app, 520, type);
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 600,
+        "without one, the type's per-colour list");
+    if( model )
+        ToriDraw_ModelFree(model);
+    TorirsModelInstCache_Free(&fx.app.model_inst_cache);
+    TEST_ASSERT(TorirsModelInstCache_Init(&fx.app.model_inst_cache), "the built bodies' cache, again");
+
+    type->has_recolor_all = true;
+    type->recolor_all = 777;
+    model = app_world_build_npc_model(&fx.app, 520, type);
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 777,
+        "the plain body: every face the type's recolour-all, not its list");
+    if( model )
+        ToriDraw_ModelFree(model);
+
+    memset(&none, 0, sizeof(none));
+    TEST_ASSERT(World_NpcRecolourAll(&none, 777) == 777, "no override: the type's");
+
+    len = a6_npc_info_v4(packet, (int)sizeof(packet), 1234);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && World_NpcRecolourAll(&npc->body_custom, 777) == 1234, "an override's own wins");
+    model = npc ? app_world_build_npc_override_model(&fx.app, 520, type, &npc->body_custom) : NULL;
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 1234, "painted the override's colour");
+    if( model )
+        ToriDraw_ModelFree(model);
+
+    len = a6_npc_info_v4(packet, (int)sizeof(packet), 65535);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && World_NpcRecolourAll(&npc->body_custom, 777) == -1,
+        "an override's 65535 is none, over the type's");
+    model = npc ? app_world_build_npc_override_model(&fx.app, 520, type, &npc->body_custom) : NULL;
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 4321, "its list applies");
+    if( model )
+        ToriDraw_ModelFree(model);
+
+    /* A V4 block without the recolour-all: 0x4 (colours) is sent but the
+     * flag byte is 0, so the type's recolour-all applies. */
+    {
+        RsprotBuf b;
+
+        rsprot_buf_wrap(&b, packet, (int)sizeof(packet));
+        rsprot_p1(&b, 0x01);
+        rsprot_p1(&b, 0x9F);
+        rsprot_p1(&b, 0xFF);
+        rsprot_p1(&b, 0xE0);
+        rsprot_p1(&b, 0x04);
+        rsprot_p1(&b, 0x20);
+        rsprot_p1_add128(&b, 0x4);
+        rsprot_p1_add128(&b, 0); /* no recolour-all: the list follows */
+        rsprot_p1_add128(&b, 1);
+        rsprot_p2_21(&b, 4321);
+        TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+        len = b.wpos;
+    }
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->body_custom.active && !npc->body_custom.has_recolour_all,
+        "an override that sends no recolour-all");
+    model = npc ? app_world_build_npc_override_model(&fx.app, 520, type, &npc->body_custom) : NULL;
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 777,
+        "draws the type's recolour-all, not its own list");
+    if( model )
+        ToriDraw_ModelFree(model);
+    TorirsModelInstCache_Free(&fx.app.model_inst_cache);
+    fixture_free(&fx);
+}
+
+/* E12, flags 0x10 and 0x20: a body customisation that mirrors the local
+ * player is remounted when the local player's body changes, and one that is
+ * a player composition draws nothing of the npc's type and does not follow
+ * the local player (what it draws: test_npc_body_custom_player_draws_its_models). */
+static void
+test_npc_body_custom_mirror_and_player(void)
+{
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct WorldEntity_NPC* npc;
+    int world_idx = -1;
+    int serial;
+    int const kits[2] = { 256 + 7, 0 };
+    int const colours[5] = { 1, 2, 3, 4, 5 };
+
+    printf("TEST: a mirror body follows the local player; a composition wants its kits\n");
+    fixture_init(&fx);
+    fixture_npctype(&fx, 502, -1);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 3);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 502);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+    TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned");
+
+    {
+        struct WorldNpcOverrideIn in = { .mirror = true };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    serial = npc->body_serial;
+    App_WorldNpcMirrorsRemount(&fx.app);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_serial == serial + 1, "the local player's new body remounts a mirror");
+
+    {
+        struct WorldNpcOverrideIn in = {
+            .player = true, .body_type = 0, .identkit_count = 2, .identkits = kits,
+            .recolour_count = 5, .recolours = colours,
+        };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    serial = npc->body_serial;
+    App_WorldNpcMirrorsRemount(&fx.app);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_serial == serial, "a composition does not follow the local player");
+    TEST_ASSERT(Assets_LoadsStarted(fx.app.assets, ASSET_KIND_CONFIG) == 0, "no config is asked for before the sync");
+    app_world_sync_npc_bodies(&fx.app);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_mounted_serial != npc->body_serial, "and nothing is mounted while it loads");
+    fixture_free(&fx);
+}
+
+/* Config loads the composition asks for, by kind. */
+static int g_comp_idk_ids[16];
+static int g_comp_idk_count;
+static int g_comp_obj_ids[16];
+static int g_comp_obj_count;
+
+static struct ToriRS_Task*
+trace_idk_load(
+    struct CacheProvider* provider,
+    int idk_id)
+{
+    (void)provider;
+    if( g_comp_idk_count < (int)(sizeof(g_comp_idk_ids) / sizeof(g_comp_idk_ids[0])) )
+        g_comp_idk_ids[g_comp_idk_count++] = idk_id;
+    return NULL;
+}
+
+static struct ToriRS_Task*
+trace_obj_load(
+    struct CacheProvider* provider,
+    int obj_id)
+{
+    (void)provider;
+    if( g_comp_obj_count < (int)(sizeof(g_comp_obj_ids) / sizeof(g_comp_obj_ids[0])) )
+        g_comp_obj_ids[g_comp_obj_count++] = obj_id;
+    return NULL;
+}
+
+static void
+fixture_idk(
+    struct EntityFixture* fx,
+    int id,
+    int body_part,
+    bool not_selectable,
+    int model_id)
+{
+    struct ToriRS_Idk* idk = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*idk));
+
+    assert(idk);
+    idk->id = id;
+    idk->body_part_id = body_part;
+    idk->not_selectable = not_selectable;
+    idk->model_ids_count = 1;
+    idk->model_ids = ToriMem_Alloc(ToriMem_Assets(), sizeof(*idk->model_ids));
+    assert(idk->model_ids);
+    idk->model_ids[0] = model_id;
+    for( int h = 0; h < 10; h++ )
+        idk->heads[h] = -1;
+    CacheProvider_IdkAdd(&fx->provider, id, idk);
+}
+
+/*
+ * E12 flag 0x20, against the rev-239 deob: what a player composition DRAWS is
+ * the block's MODEL list (class399.field5091, handed to class316.method7618 as
+ * its second array, field4251: the equipment class316.method7569 builds the
+ * model from), in the composition's own slot form -- 256..2047 a kit (id +
+ * 256, Statics.method7614 / method7580), 2048 and up a worn obj (id + 2048,
+ * class316.method7579 / Statics.method7622). The identkit list (field5096 ->
+ * field4250) is the body underneath, read only when the body type changes. A
+ * block without 0x2 draws the body type's default kits (method7564's
+ * method7589: per body part, the first selectable kit in config order).
+ */
+static void
+test_npc_body_custom_player_draws_its_models(void)
+{
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct WorldEntity_NPC* npc;
+    int world_idx = -1;
+    int models[12] = { 0 };
+    int const kits[2] = { 256 + 9, 0 };
+    int const colours[5] = { 1, 2, 3, 4, 5 };
+
+    printf("TEST: a player composition draws its model list, obj 2048+id, kit 256+id\n");
+    fixture_init(&fx);
+    fx.vtable.Task_IdkLoad = trace_idk_load;
+    fx.vtable.Task_ObjLoad = trace_obj_load;
+    g_comp_idk_count = 0;
+    g_comp_obj_count = 0;
+    fixture_npctype(&fx, 502, -1);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 3);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 502);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+    TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned");
+
+    models[0] = 256 + 7;     /* a kit */
+    models[3] = 2048 + 4151; /* a worn obj */
+    {
+        struct WorldNpcOverrideIn in = {
+            .player = true, .body_type = 0, .models_sent = true, .model_count = 12, .models = models,
+            .identkit_count = 2, .identkits = kits, .recolour_count = 5, .recolours = colours,
+        };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    app_world_sync_npc_bodies(&fx.app);
+    TEST_ASSERT(trace_has_id(g_comp_obj_ids, g_comp_obj_count, 4151), "the worn obj 2048 + 4151 is obj 4151");
+    TEST_ASSERT(!trace_has_id(g_comp_obj_ids, g_comp_obj_count, 4151 + 2048 - 512),
+        "not obj 5687: 512 is not this revision's obj base");
+    TEST_ASSERT(trace_has_id(g_comp_idk_ids, g_comp_idk_count, 7), "the model list's kit 256 + 7 is kit 7");
+    TEST_ASSERT(!trace_has_id(g_comp_idk_ids, g_comp_idk_count, 9), "the identkit list is not what is drawn");
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_mounted_serial != npc->body_serial, "nothing is mounted while its configs load");
+    fixture_free(&fx);
+
+    /* No model list: the body type's default kits, never the identkits. */
+    fixture_init(&fx);
+    fx.vtable.Task_IdkLoad = trace_idk_load;
+    fx.vtable.Task_ObjLoad = trace_obj_load;
+    fx.vtable.Task_ModelLoad = trace_model_load;
+    g_comp_idk_count = 0;
+    g_comp_obj_count = 0;
+    memset(&g_head_load_trace, 0, sizeof(g_head_load_trace));
+    fixture_npctype(&fx, 502, -1);
+    fixture_idk(&fx, 0, 2, false, 70);  /* torso */
+    fixture_idk(&fx, 1, 0, true, 71);   /* hair, not selectable */
+    fixture_idk(&fx, 2, 0, false, 72);  /* hair */
+    fixture_idk(&fx, 3, 7, false, 73);  /* the other body type's hair */
+    run_npc_ops(&fx.app, ops, 3);
+    TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned again");
+    {
+        struct WorldNpcOverrideIn in = {
+            .player = true, .body_type = 0, .identkit_count = 2, .identkits = kits,
+            .recolour_count = 5, .recolours = colours,
+        };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    app_world_sync_npc_bodies(&fx.app);
+    TEST_ASSERT(!trace_has_id(g_comp_idk_ids, g_comp_idk_count, 9), "no model list: the identkits are not drawn");
+    TEST_ASSERT(trace_has_id(g_head_load_trace.model_ids, g_head_load_trace.model_count, 72),
+        "the body type's first selectable hair kit is drawn");
+    TEST_ASSERT(trace_has_id(g_head_load_trace.model_ids, g_head_load_trace.model_count, 70),
+        "and its first torso kit");
+    TEST_ASSERT(!trace_has_id(g_head_load_trace.model_ids, g_head_load_trace.model_count, 71),
+        "not a kit that is not selectable");
+    TEST_ASSERT(!trace_has_id(g_head_load_trace.model_ids, g_head_load_trace.model_count, 73),
+        "nor one of the other body type");
+    fixture_free(&fx);
+}
+
+/* E12 FREEZE, decoded: osrs242's npc freeze block (flag 0x8: g2_21_add128
+ * delay, g2_21 duration, g1 reset) opens a window in the world; 65535 is the
+ * cancel. */
+static int
+e12_npc_info_freeze(
+    uint8_t* out,
+    int cap,
+    int delay,
+    int duration,
+    int reset)
+{
+    RsprotBuf b;
+
+    rsprot_buf_wrap(&b, out, cap);
+    rsprot_p1(&b, 0x01);
+    rsprot_p1(&b, 0x9F);
+    rsprot_p1(&b, 0xFF);
+    rsprot_p1(&b, 0xE0);
+    rsprot_p1(&b, 0x08);
+    rsprot_p2_21_add128(&b, delay);
+    rsprot_p2_21(&b, duration);
+    rsprot_p1(&b, reset);
+    TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+    return b.wpos;
+}
+
+static void
+test_npc_freeze_reaches_the_world(void)
+{
+    static uint8_t packet[32];
+    static struct ToriRS_Network net242;
+    struct EntityFixture fx;
+    struct WorldEntity_NPC* npc;
+    int len;
+    int now;
+
+    printf("TEST: an NPC_INFO freeze opens a window; 65535 cancels\n");
+    net242.rev = GameProtoRev_OSRS242();
+    fixture_init(&fx);
+    fx.app.net = &net242;
+    register_npc(&fx.app, 301, 500, 6, 30, 30);
+    now = (int)fx.app.world->cycle;
+    len = e12_npc_info_freeze(packet, (int)sizeof(packet), 30, 90, 1);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->freeze.count == 1, "one window");
+    TEST_ASSERT(npc && npc->freeze.count == 1 && npc->freeze.windows[0].start_cycle == now + 30 &&
+                    npc->freeze.windows[0].end_cycle == now + 120 && npc->freeze.windows[0].reset_seq,
+        "from the cycle plus the delay, for the duration, with its reset");
+    len = e12_npc_info_freeze(packet, (int)sizeof(packet), 65535, 65535, 0);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->freeze.count == 0, "65535 cancels every window");
+    fixture_free(&fx);
+}
+
+/* E5: removing a player (or anything else not an npc) is not an npc despawn;
+ * an npc's removal is, with its server slot (E10). */
+static void
+test_only_npc_removals_are_npc_despawns(void)
+{
+    printf("TEST: only an npc's removal is reported as an npc despawn\n");
+
+    struct EntityFixture fx;
+    struct ToriDraw_Model* model;
+    int element;
+    int player;
+    RsprotInfoOp ops[3];
+    int a = -1;
+
+    fixture_init(&fx);
+    model = ToriDraw_ModelNew(0, 0, 0);
+    element = app_world_scene_element_create(&fx.app, TORIDRAW_ELEMENT_KIND_PLAYER, model, 64, 0, 64);
+    player = World_PlayerSpawn(fx.app.world, element, 0, 10, 10, World_TestDefaultIdle());
+    World_PlayerDespawn(fx.app.world, player);
+    App_WorldDrainEntityRemovedFor(&fx.app, fx.app.world);
+    TEST_ASSERT(drive_count(&fx.app, RS_EVENT_NPC_DESPAWN, NULL, NULL) == 0, "a player's removal is no npc despawn");
+
+    fixture_npctype(&fx, 503, -1);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 12);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 503);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+    {
+        RsprotInfoOp clear = op_value(RSPROT_OP_CLEAR_OLD, 0);
+        run_npc_ops(&fx.app, &clear, 1);
+    }
+    App_WorldDrainEntityRemovedFor(&fx.app, fx.app.world);
+    TEST_ASSERT(drive_count(&fx.app, RS_EVENT_NPC_DESPAWN, &a, NULL) == 1, "an npc's removal is one");
+    TEST_ASSERT(a == 12, "naming its server slot");
+
+    fixture_free(&fx);
+}
+
+/* (c) + E6: several varps that one npc's multinpc depends on make one retype,
+ * applied at once without the packet queue, keeping the server's overrides. */
+static void
+test_varp_retype_coalesces_and_keeps_overrides(void)
+{
+    printf("TEST: a varp retype is applied at once, once, keeping server overrides\n");
+
+    struct EntityFixture fx;
+    struct ToriRS_Npctype* shell;
+    RsprotInfoOp ops[4];
+    struct WorldEntity_NPC* npc;
+
+    fixture_init(&fx);
+    shell = fixture_npctype(&fx, 600, -1);
+    shell->transform_varp = 0;
+    shell->transform_count = 3;
+    shell->transforms = ToriMem_Alloc(ToriMem_Assets(), 3 * sizeof(*shell->transforms));
+    shell->transforms[0] = 601;
+    shell->transforms[1] = 602;
+    shell->transforms[2] = 603;
+    fixture_npctype(&fx, 601, -1);
+    fixture_npctype(&fx, 602, -1);
+    fixture_npctype(&fx, 603, -1);
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 20);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 600);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    memset(&ops[3], 0, sizeof(ops[3]));
+    ops[3].kind = RSPROT_OP_NAME_CHANGE;
+    ops[3].name_change.name = "Renamed";
+    run_npc_ops(&fx.app, ops, 4);
+    npc = npc_in_slot(&fx.app, 20);
+    TEST_ASSERT(npc && npc->npc_id == 601, "spawned as the rung varp 0 selects");
+
+    fx.app.varps.var[0] = 1;
+    app_varp_change(&fx.app, 0);
+    fx.app.varps.var[0] = 2;
+    app_varp_change(&fx.app, 0);
+    TEST_ASSERT(npc->npc_id == 601, "not applied between two var writes");
+    App_EntityNpcRetypeFlush(&fx.app);
+
+    TEST_ASSERT(npc->npc_id == 603, "applied as the rung both writes select");
+    TEST_ASSERT(drive_count(&fx.app, RS_EVENT_NPC_RETYPE, NULL, NULL) == 1, "one retype for two varps");
+    TEST_ASSERT(strcmp(npc->name, "Renamed") == 0, "the server's NAME_CHANGE survived the retype");
+    TEST_ASSERT(fx.app.packet_runner.queue == NULL, "nothing waited on the packet queue");
+    TEST_ASSERT(fx.app.world->npc_retype_wanted == 0, "nothing left wanted");
+
+    fixture_free(&fx);
+}
+
+/* (a): PLAYER_INFO's add makes the player at once -- nothing awaited, no
+ * default kit, no ready stance -- and registers it. */
+static void
+test_player_add_exists_at_once(void)
+{
+    printf("TEST: a new player exists at once and nothing is awaited\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp add = op_value(RSPROT_OP_ADD_NEW, 5);
+    int world_idx = -1;
+
+    fixture_init(&fx);
+    run_task_to_done(CreateTask_ExecPlayerInfoOps(&fx.app, &add, 1));
+    TEST_ASSERT(
+        RS_EntitySync_FindPlayer(&fx.app.esync, 5, &world_idx, NULL) && world_idx >= 0,
+        "the player exists and is registered");
+    TEST_ASSERT(g_head_load_trace.model_count == 0, "no kit model was asked for");
+
+    fixture_free(&fx);
+}
+
+/* E4: an npc's body is resident when the stances it PLAYS are -- the shell's,
+ * not the drawn rung's. */
+static void
+test_npc_body_resident_reads_the_shells_stances(void)
+{
+    printf("TEST: an npc body's stances are the shell's\n");
+
+    struct EntityFixture fx;
+    struct ToriRS_Npctype* shell;
+    struct ToriRS_Npctype* drawn;
+
+    fixture_init(&fx);
+    shell = fixture_npctype(&fx, 610, -1);
+    drawn = fixture_npctype(&fx, 611, -1);
+    shell->readyanim = 50;
+    drawn->readyanim = 51;
+    ToriDraw_SceneAnimationAdd(fx.app.scene, 50, calloc(1, sizeof(struct ToriDraw_Animation)));
+
+    TEST_ASSERT(
+        EntityAssets_NpcBodyResident(&fx.app, 611, 610) == 1,
+        "the shell's stance is resident: so is the body");
+    TEST_ASSERT(
+        EntityAssets_NpcBodyResident(&fx.app, 611, -1) == 0,
+        "with no shell, the drawn type's stance is the one wanted");
+
+    fixture_free(&fx);
+}
+
+/* E8: a splat's duration comes off the type its selector resolves to when it
+ * arrives (deob class105), not off the wire's selector record. */
+static void
+test_hitsplat_duration_is_the_resolved_types(void)
+{
+    printf("TEST: a hitsplat's duration is the resolved type's\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[4];
+    struct WorldEntity_NPC* npc;
+    int* sprites = ToriMem_Calloc(ToriMem_Assets(), 2, sizeof(int));
+    int* durations = ToriMem_Calloc(ToriMem_Assets(), 2, sizeof(int));
+    int* policies = ToriMem_Calloc(ToriMem_Assets(), 2, sizeof(int));
+    struct RS_HitsplatVariants* variants = ToriMem_Calloc(ToriMem_Assets(), 2, sizeof(*variants));
+
+    fixture_init(&fx);
+    RS_Hitsplats_Init(&fx.app.hitsplats);
+    sprites[0] = sprites[1] = -1;
+    durations[0] = 70;  /* the selector record's own */
+    durations[1] = 123; /* the leaf it selects */
+    policies[0] = policies[1] = -1;
+    variants[0].varbit = -1;
+    variants[0].varp = 0;
+    variants[0].count = 2;
+    variants[0].ids = ToriMem_Calloc(ToriMem_Assets(), 2, sizeof(int));
+    variants[0].ids[0] = 1;
+    variants[0].ids[1] = 1;
+    variants[1].varbit = -1;
+    variants[1].varp = -1;
+    TEST_ASSERT(
+        RS_Hitsplats_SetTypes(&fx.app.hitsplats, sprites, durations, policies, NULL, variants, 2),
+        "hitsplat types installed");
+    fixture_npctype(&fx, 504, -1);
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 2);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 504);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    memset(&ops[3], 0, sizeof(ops[3]));
+    ops[3].kind = RSPROT_OP_DAMAGE;
+    ops[3].damage.damage_type = 0;
+    ops[3].damage.damage = 5;
+    ops[3].damage.health = 10;
+    ops[3].damage.total_health = 20;
+    run_npc_ops(&fx.app, ops, 4);
+
+    npc = npc_in_slot(&fx.app, 2);
+    TEST_ASSERT(npc != NULL, "spawned");
+    TEST_ASSERT(npc && npc->combat.damage_types[0] == 0, "the wire's type is kept for the draw");
+    TEST_ASSERT(
+        npc && npc->combat.damage_cycles[0] - npc->combat.damage_start_cycles[0] == 123,
+        "the duration is the resolved leaf's");
+
+    RS_Hitsplats_Free(&fx.app.hitsplats);
+    fixture_free(&fx);
 }
 
 int
@@ -647,6 +2128,25 @@ main(void)
     test_player_info_unresolvable_entry_keeps_list_positions();
     test_multinpc_resolution_is_per_player();
     test_multinpc_interface_head_loads_selected_child();
+    test_npc_cold_body_exists_and_waits_on_the_parallel_queue();
+    test_npc_retype_newest_body_wins();
+    test_npc_unknown_type_still_exists();
+    test_npc_info_from_an_ended_session_applies_nothing();
+    test_npc_body_landing_keeps_body_custom();
+    test_npc_body_custom_keeps_every_wire_model();
+    test_npc_body_custom_recolours_without_models();
+    test_npc_typed_custom_reads_the_rest_of_the_packet();
+    test_npc_typed_custom_waits_for_its_type();
+    test_npc_body_custom_v4_recolour_all();
+    test_npc_type_recolour_all();
+    test_npc_body_custom_mirror_and_player();
+    test_npc_body_custom_player_draws_its_models();
+    test_npc_freeze_reaches_the_world();
+    test_only_npc_removals_are_npc_despawns();
+    test_varp_retype_coalesces_and_keeps_overrides();
+    test_player_add_exists_at_once();
+    test_npc_body_resident_reads_the_shells_stances();
+    test_hitsplat_duration_is_the_resolved_types();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

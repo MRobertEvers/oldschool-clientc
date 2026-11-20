@@ -3,6 +3,8 @@
 
 #include "entity_facets.h"
 
+#include <stdint.h>
+
 /* Ground item stack (zone OBJ_ADD/DEL/COUNT packets). The element draws the
  * TOP of the stack; obj_id/count mirror the server's authoritative stack. */
 #define WORLD_OBJSTACK_CUSTOM_SLOTS 32
@@ -10,6 +12,11 @@
 struct WorldEntity_ObjStack
 {
     int element_id;
+    /** Which row this is: a pool slot is reused once its stack is gone, and
+     *  this tells the new row from the old one (World_ObjStackAdd numbers
+     *  every row it makes, process-wide, from 1). A task that waits on the
+     *  stack's model keys on (pool index, serial), never on a pointer. */
+    uint32_t serial;
     struct WorldEntityFacet_GridPosition grid_position;
     struct WorldEntityFacet_DrawPosition draw_position;
     int obj_id;

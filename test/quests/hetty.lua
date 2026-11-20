@@ -196,10 +196,16 @@ return {
         -- Drink from the cauldron (hettycauldron 2967,3205, inside Hetty's house) to finish off the quest.
         t.exec("drinkPotion", t.player.click_loc, "hettycauldron", 1)
 
-        -- The completion mesbox appears: its literal text (quest_hetty.rs2:8)
+        -- The completion mesbox appears: its literal text (quest_hetty.rs2:8). chat.text
+        -- answers the component's text as the server set it, line breaks and all: a
+        -- mesbox's text is laid out server-side and carries <br> where its lines break
+        -- (Jagex's own, RSProx index 4360 [1181]: "...You can<br>now use the Ardougne
+        -- Teleport Spell."), so the sentence is matched as the player reads it, each
+        -- break one space (chat.play's own reading, read.lua QD.read._strip_tags).
         local mesbox_text_result, mesbox_text = t.chat.text()
+        local mesbox_read = tostring(mesbox_text):gsub("%s*<br>%s*", " ")
         t.check("hetty.completion_mesbox_text", mesbox_text_result == "ok"
-                and tostring(mesbox_text):find("You drink from the cauldron, it tastes horrible! You feel yourself imbued with power.", 1, true) ~= nil,
+                and mesbox_read:find("You drink from the cauldron, it tastes horrible! You feel yourself imbued with power.", 1, true) ~= nil,
             tostring(mesbox_text_result) .. ": " .. tostring(mesbox_text))
 
         -- Dismissing the mesbox runs the queue that awards the quest

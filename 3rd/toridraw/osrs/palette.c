@@ -236,7 +236,9 @@ palette_hsl24_to_hsl16(
     if( lightness > 243 )
         saturation >>= 1;
 
-    return ((hue / 4) << 10) + ((saturation / 32) << 7) + ((lightness / 2));
+    /* Multiplies: hue and saturation can be negative here, and a left shift
+     * of a negative int is undefined. */
+    return ((hue / 4) * 1024) + ((saturation / 32) * 128) + ((lightness / 2));
 }
 
 int

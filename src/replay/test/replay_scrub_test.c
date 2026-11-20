@@ -21,6 +21,13 @@
  *   tick 25      RSProx's RECONNECT
  *   tick 31..40  8 s later than that: a stall before tick 31
  *   41 ticks; no LOGOUT, so the transport appends one
+ *
+ * test_seek_inside_a_group adds, to tick GROUP_TICK only, one
+ * PACKET_GROUP_START whose members are the bytes RSProx recorded in
+ * recording 96 (rev 227, tick 7269, frames 132507..132513), with that
+ * group's shape: its members after the first two arrive later than the
+ * header -- there 10 ms, here GROUP_LATE_MS, so that a 20 ms frame can stop
+ * between them.
  */
 #include "cmd/cmdbus.h"
 #include "mem/torirs_mem.h"
@@ -35,6 +42,7 @@
 #include "replay/replay_scrub.h"
 #include "replay/replay_world.h"
 
+#include "packets/packet_group_start.h"
 #include "packets/varp_small.h"
 
 #include <assert.h>
@@ -64,6 +72,10 @@ static char const* const TEST_RSA_N =
 #define TIMESTAMP_MS 0x0000019a12345678LL
 #define TICKS 41
 #define STALL_MS 8000
+/* The group's tick, and its members' times in it (see the header). */
+#define GROUP_TICK 3
+#define GROUP_AT_MS 100
+#define GROUP_LATE_MS 69
 
 /* --- writing a recording ------------------------------------------------- */
 
@@ -238,6 +250,54 @@ w_varp(
     w_server(r, rev, t_ms, PKT_NAME_VARP_SMALL, buf, (int)b.wpos);
 }
 
+/* Recording 96's tick 7269 group, its members' payloads byte for byte:
+ * SET_NPC_UPDATE_ORIGIN with the header, UPDATE_ZONE_PARTIAL_ENCLOSED
+ * after it. (Its SET_ACTIVE_WORLD, PLAYER_INFO, NPC_INFO and CAM_TARGET are
+ * left out: their rev-227 bodies are not rev 241's.) */
+static uint8_t const k_group_origin[] = { 0x32, 0x37 };
+static uint8_t const k_group_enclosed[] = {
+    0x30, 0x7e, 0xd0, 0x00, 0x00, 0x00, 0x00, 0x00, 0xaa, 0x00, 0xe4, 0x00,
+    0xa0, 0xd9, 0x00, 0xe9, 0x00, 0x2c, 0x08, 0x23, 0x7e, 0x5c, 0x7e, 0x71,
+};
+static int s_with_group;
+
+/* What a packet costs on the wire: pSmart1Or2 opcode, length, payload. */
+static int
+framed_bytes(
+    struct GameProtoRevTable const* rev,
+    int pkt_name,
+    int len)
+{
+    int const op = rev->packetin_wire(pkt_name);
+    int const size = rev->packetin_size(op);
+
+    return (op >= 0x80 ? 2 : 1) + (size == PKTIN_LENGTH_VARU8 ? 1 : size == PKTIN_LENGTH_VARU16 ? 2 : 0) + len;
+}
+
+static void
+w_group(
+    struct Rec* r,
+    struct GameProtoRevTable const* rev,
+    uint64_t at)
+{
+    uint8_t buf[8];
+    MsgPacketGroupStart m;
+    RsprotBuf b;
+    RsprotExec x;
+
+    m.length = framed_bytes(rev, PKT_NAME_SET_NPC_UPDATE_ORIGIN, (int)sizeof(k_group_origin)) +
+               framed_bytes(rev, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED, (int)sizeof(k_group_enclosed));
+    rsprot_buf_wrap(&b, buf, (int32_t)sizeof(buf));
+    rsprot_exec_encode(&x, &b);
+    packet_packet_group_start_osrs241_out(&x, &m);
+    TEST_CHECK(rsprot_exec_ok(&x));
+    w_server(r, rev, at, PKT_NAME_PACKET_GROUP_START, buf, (int)b.wpos);
+    w_server(r, rev, at, PKT_NAME_SET_NPC_UPDATE_ORIGIN, k_group_origin, (int)sizeof(k_group_origin));
+    w_server(
+        r, rev, at + GROUP_LATE_MS, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED, k_group_enclosed,
+        (int)sizeof(k_group_enclosed));
+}
+
 static uint64_t
 tick_ms(int t)
 {
@@ -263,6 +323,8 @@ build_recording(struct GameProtoRevTable const* rev)
         uint64_t const at = tick_ms(t);
 
         w_varp(&r, rev, at, t);
+        if( t == GROUP_TICK && s_with_group )
+            w_group(&r, rev, at + GROUP_AT_MS);
         if( t == 10 )
             w_client(&r, rev, at + 100, PKTOUT_NAME_RESUME_P_OBJDIALOG, 2);
         if( t == 20 )
@@ -332,6 +394,11 @@ struct Client
     int world_rebuilds;
     int world_tick;
     int rebuilds;
+    /** What popped after the last PACKET_GROUP_START, in order: packet
+     *  names, a control frame as -1 (group_seq_count: how many). */
+    int group_seq[8];
+    int group_seq_count;
+    int groups;
 };
 
 static struct ToriRS_CmdBus s_bus;
@@ -415,6 +482,13 @@ frame(struct Client* c)
     while( ToriRS_Network_PopPacket(&c->net, &packet) )
     {
         c->popped++;
+        if( packet.packet_type == PKT_NAME_PACKET_GROUP_START )
+        {
+            c->groups++;
+            c->group_seq_count = 0;
+        }
+        else if( c->groups > 0 && c->group_seq_count < (int)(sizeof(c->group_seq) / sizeof(c->group_seq[0])) )
+            c->group_seq[c->group_seq_count++] = packet._control ? -1 : (int)packet.packet_type;
         c->mid_tick = packet.packet_type != PKT_NAME_SERVER_TICK_END;
         if( packet.packet_type == PKT_NAME_SERVER_TICK_END )
             c->serial++;
@@ -1059,6 +1133,63 @@ test_watchdog_real_stall(void)
     bare_close(&b);
 }
 
+/*
+ * A seek that starts while a packet group is half on the bus. The header
+ * states how many bytes its members take, and the client holds every member
+ * until that many have come (net.c gameproto_drain). A recorded group whose
+ * members arrive after its header (recording 96 has three) -- or a staging
+ * buffer that fills mid-group -- leaves the cursor inside the group between
+ * two polls; a chase that starts there withholds the rest of its world
+ * members and stages its control frames instead, which no server sends:
+ * the client counted those bytes into the group, overshot it, and an
+ * asserts-live client aborted ('net->group_left == 0', recording 96, seek to
+ * tick 300). A group the client has begun is the server's to finish: the
+ * seek starts after its last member.
+ */
+static void
+test_seek_inside_a_group(void)
+{
+    struct Client c;
+
+    s_with_group = 1;
+    client_open(&c, 1);
+    s_with_group = 0;
+    NetTransport_ReplaySetSeekFast(c.t, 1);
+    /* Frame by frame to the poll that leaves the group open: its header and
+     * first member are in, its late member is not. */
+    for( int i = 0; i < 2000 && !c.net.group_open; i++ )
+        frame(&c);
+    TEST_CHECK(c.net.group_open);
+    TEST_CHECK(c.net.group_left ==
+               framed_bytes(c.rev, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED, (int)sizeof(k_group_enclosed)));
+    TEST_CHECK(executed(&c) == GROUP_TICK);
+
+    /* Forward far enough for a chase. */
+    NetTransport_ReplayHold(c.t);
+    NetTransport_ReplaySeek(c.t, 38);
+    TEST_CHECK(strcmp(status(&c).seek_phase, "chase") == 0);
+    for( int i = 0; i < 4000 && status(&c).seeking; i++ )
+    {
+        frame(&c);
+        /* Never more bytes counted into the group than it stated. */
+        TEST_CHECK(c.net.group_left >= 0);
+    }
+    TEST_CHECK(!status(&c).seeking);
+    TEST_CHECK(!c.net.group_open);
+    TEST_CHECK(c.net.group_left == 0);
+    /* The group the client executed is the one the server sent: its two
+     * members, whole, and then the tick's end -- not a chase's control frame
+     * or the next tick taken in to make up the count. */
+    TEST_CHECK(c.groups == 1);
+    TEST_CHECK(c.group_seq_count >= 3);
+    TEST_CHECK(c.group_seq[0] == PKT_NAME_SET_NPC_UPDATE_ORIGIN);
+    TEST_CHECK(c.group_seq[1] == PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED);
+    TEST_CHECK(c.group_seq[2] == PKT_NAME_SERVER_TICK_END);
+    check_held_at(&c, 38);
+    check_session_varps(&c, 0, 38);
+    client_close(&c);
+}
+
 int
 main(void)
 {
@@ -1069,6 +1200,7 @@ main(void)
     test_seek_to_the_end();
     test_fast_seek();
     test_seek_back_across_a_reconnect();
+    test_seek_inside_a_group();
     test_watchdog_long_map_wait();
     test_watchdog_real_stall();
     printf("replay_scrub_test: ok\n");

@@ -483,6 +483,7 @@ td_scene_allocate_element_id(
 
     element->scene_id = id;
     element->pool = (uint8_t)pool;
+    element->serial = ++scene->element_serial;
     scene->anim_list_dirty = true;
     return id;
 }
@@ -2011,6 +2012,17 @@ ToriDraw_SceneElementIsLive(
     return td_scene_element_valid(scene, element_id);
 }
 
+uint32_t
+ToriDraw_SceneElementSerial(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    assert(scene);
+    if( !td_scene_element_valid(scene, element_id) )
+        return 0;
+    return td_scene_element_ptr(scene, element_id)->serial;
+}
+
 int
 ToriDraw_SceneElementSlotCount(struct ToriDraw_Scene* scene)
 {
@@ -3086,4 +3098,5 @@ ToriDraw_SceneFrameEnd(struct ToriDraw_Scene* scene)
     }
     scene->pending_pose_count = 0;
     scene->event_queue.count = 0;
+    scene->event_queue.spent++;
 }

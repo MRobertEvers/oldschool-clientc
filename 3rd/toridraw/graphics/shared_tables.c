@@ -1,5 +1,6 @@
 #include "graphics/shared_tables.h"
 
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 
@@ -271,11 +272,26 @@ ToriDraw_InitCosTable(void)
     ToriDraw_RebuildProjectionModelYawTable();
 }
 
+/* tan * 65536 as an int, saturating. Converting a double outside int's range
+ * is undefined in C; Java's (int) cast saturates, and so does arm64's fcvtzs,
+ * which is what this table held there, while x86's cvttsd2si gives INT_MIN.
+ * Entries 512 and 1536 (a quarter and three quarters of a turn) overflow. */
+static int
+tan_table_entry(int i)
+{
+    double const v = tan((double)i * 0.0030679615) * (1 << 16);
+    if( v >= 2147483647.0 )
+        return INT_MAX;
+    if( v <= -2147483648.0 )
+        return INT_MIN;
+    return (int)v;
+}
+
 void
 ToriDraw_InitTanTable(void)
 {
     for( int i = 0; i < 2048; i++ )
-        g_tan_table_builtin[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
+        g_tan_table_builtin[i] = tan_table_entry(i);
     g_tan_table = g_tan_table_builtin;
 }
 

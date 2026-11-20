@@ -1,4 +1,5 @@
 #include "app.h"
+#include "engine/asset_requests.h"
 #include "agent/agent_server.h"
 #include "boot_telemetry.h"
 #include "bootmanifest/bootmanifest.h"
@@ -34,10 +35,12 @@
 #include "replay/replay_digest.h"
 #include "replay/replay_checkpoint_check.h"
 #include "replay/replay_checkpoint_play.h"
+#include "replay/replay_npc_types.h"
 #include "replay/replay_scrub.h"
 #include "replay/replay_viewer.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_window.h"
+#include "platform/surface_plan.h"
 #if !defined(TORIRS_PLATFORM_WEB)
 #include "platform/platform_x_io_js5.h"
 #include "platform/platform_x_io_js5_cache.h"
@@ -159,6 +162,7 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #endif
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
+#include <emscripten/html5.h>
 #include <malloc.h>
 
 #endif
@@ -810,6 +814,15 @@ struct MainPacing
      * frames -- there is exactly one frame loop per process. */
     int paced_mode;
     int paced_value;
+    /* The mode that scheduled the PREVIOUS callback. paced_mode is the one
+     * that scheduled this callback until the end of the frame installs the
+     * next (web_pace_next_frame). A period is a vsync measure only when both
+     * of its ends were raf callbacks: the first raf callback after a
+     * timer-paced frame comes at the first vsync after an arbitrary start. */
+    int prev_paced_mode;
+    /* The display's period, from raf-paced periods (pacer.h): what bounds the
+     * background queue's slack at the end of the frame. */
+    struct ToriRS_DisplayPeriod display_period;
 #endif
 };
 static struct MainPacing main_pacing = {
@@ -817,6 +830,7 @@ static struct MainPacing main_pacing = {
 #if defined(TORIRS_PLATFORM_WEB)
     .paced_mode = -1,
     .paced_value = -1,
+    .prev_paced_mode = -1,
 #endif
 };
 
@@ -2166,6 +2180,45 @@ renderer_switch(enum ToriRS_RendererKind kind)
         (unsigned long long)(PlatformWindow_Ticks64() - begin_ms));
     return started;
 }
+
+/*
+ * The surface is back after frames that had none, and the running renderer is
+ * retained: it missed the scene's events those frames spent
+ * (ToriRS_SurfacePlan_Frame). Restart it as itself and replay every load the
+ * scene holds into it, as a switch to it would -- before it draws, so the
+ * first frame back draws a scene it is level with. Soft3D if it will not
+ * start again.
+ */
+static void
+renderer_rebake(int frames_without)
+{
+    enum ToriRS_RendererKind const kind = renderer_active;
+    uint64_t const begin_ms = PlatformWindow_Ticks64();
+
+    assert(!renderer_is_software(kind));
+    renderer_stop();
+    ToriDraw_SceneStageBatchForget(app.scene);
+    if( !renderer_bring_up(kind) )
+    {
+        bool const software = renderer_bring_up(TORIRS_RENDERER_KIND_SOFTWARE);
+        assert(software);
+        (void)software;
+        renderer_active = TORIRS_RENDERER_KIND_SOFTWARE;
+    }
+    ToriDraw_SceneFrameEnd(app.scene);
+    if( !renderer_is_software(renderer_active) )
+        ToriDraw_SceneReemitRendererLoads(app.scene);
+    TORIRS_REPORT(
+        "renderer: %d re-baked as %d after %d frame(s) with no surface, in %llu ms\n",
+        (int)kind,
+        (int)renderer_active,
+        frames_without,
+        (unsigned long long)(PlatformWindow_Ticks64() - begin_ms));
+}
+
+/* What each frame does with no surface, and the re-bake owed when it returns
+ * (platform/surface_plan.h). */
+static struct ToriRS_SurfacePlan main_surface_plan;
 
 /*
  * Between two frames: start the renderer Client Settings asks for, if it is
@@ -4025,6 +4078,377 @@ main_hotkey_debug_edges(
     TORIRS_REPORT("hotkey_edges: frame %ld%s\n", frame, line);
 }
 
+/*
+ * TORIRS_QUEUE_CONTRACT_TRACE: the native loop's half of the frame contract,
+ * summed over MAIN_LOOP_TRACE_FRAMES iterations and printed as one line with
+ * the App's half (App_QueueContractTraceLine): how each iteration waited
+ * (ToriRS_Pacer_LoopWait), the naps and the pumps between them, and the slack
+ * the background queue was given. Also printed when the loop ends.
+ */
+#define MAIN_LOOP_TRACE_FRAMES 250
+
+static struct
+{
+    int frames;
+    int committed;
+    int waits[3];
+    int naps;
+    int nap_pumps_moved;
+    int slack_calls;
+    uint64_t slack_us;
+    /* When the first summarised frame ran, for the line's elapsed time. */
+    uint64_t start_us;
+    /* The logic cycle before the window's first App_RunOnce: the line says
+     * how many cycles its frames ran (TORIRS_LOGIC_CYCLES_PER_FRAME). */
+    uint64_t cycle_start;
+} main_loop_trace;
+
+static void
+main_loop_trace_flush(int at_end)
+{
+    char app_line[512];
+
+    if( !TaskRunner_ContractTrace() || main_loop_trace.frames == 0 )
+        return;
+    if( !at_end && main_loop_trace.frames < MAIN_LOOP_TRACE_FRAMES )
+        return;
+    (void)App_QueueContractTraceLine(&app, app_line, (int)sizeof(app_line));
+    if( main_loop_trace.start_us == 0 )
+        main_loop_trace.start_us = PlatformWindow_TicksUs();
+    fprintf(
+        stderr,
+        "queue_contract: loop t=%.2fs frames=%d committed=%d wait none=%d sleep=%d nap=%d naps=%d (moved %d) "
+        "slack=%d (%.1f ms) cycles=%llu (%.2f a frame); %s\n",
+        (double)(PlatformWindow_TicksUs() - main_loop_trace.start_us) / 1e6,
+        main_loop_trace.frames,
+        main_loop_trace.committed,
+        main_loop_trace.waits[TORIRS_LOOP_WAIT_NONE],
+        main_loop_trace.waits[TORIRS_LOOP_WAIT_SLEEP],
+        main_loop_trace.waits[TORIRS_LOOP_WAIT_NAP],
+        main_loop_trace.naps,
+        main_loop_trace.nap_pumps_moved,
+        main_loop_trace.slack_calls,
+        (double)main_loop_trace.slack_us / 1000.0,
+        (unsigned long long)(FrameClockSerial_LogicCycle(&app.frame_clock.serial) - main_loop_trace.cycle_start),
+        (double)(FrameClockSerial_LogicCycle(&app.frame_clock.serial) - main_loop_trace.cycle_start) /
+            (double)main_loop_trace.frames,
+        app_line);
+    {
+        uint64_t const start_us = main_loop_trace.start_us;
+        memset(&main_loop_trace, 0, sizeof(main_loop_trace));
+        main_loop_trace.start_us = start_us;
+    }
+}
+
+#if !defined(__EMSCRIPTEN__)
+/* The background queue's slack: App_RunBackground up to `until_ms`. Costs
+ * nothing when the queue is empty. */
+static void
+main_give_background_slack(uint64_t until_ms)
+{
+    uint64_t const now_ms = PlatformWindow_Ticks64();
+    uint64_t t0;
+
+    if( until_ms <= now_ms || !app.background_runner.queue->head )
+        return;
+    t0 = PlatformWindow_TicksUs();
+    App_RunBackground(&app, t0 + (until_ms - now_ms) * 1000u);
+    main_loop_trace.slack_calls++;
+    main_loop_trace.slack_us += PlatformWindow_TicksUs() - t0;
+}
+
+/*
+ * A NAP wait (ToriRS_Pacer_LoopWait): the frame's work is queued and only
+ * waits -- on a read the platform has not answered, a join on one, or
+ * another queue. Sleep it out TORIRS_LOOP_NAP_MS at a time, and between naps
+ * pump the queues the way the browser does when a batch lands
+ * (torirs_web_io_pump): App_PumpAsync takes up whatever answers arrived, and
+ * the background queue is given what is left of the slack, since an answer
+ * may be its. Back to the frames as soon as a pump runs anything, or nothing
+ * is left queued: the next frame publishes what it did. Never a spin -- every
+ * turn of this loop sleeps -- and never a frame late on an answer by more
+ * than a nap.
+ */
+static void
+main_wait_napping(uint64_t wait_until_ms)
+{
+    int const main_waited = App_MainQueueWaitsOnRead(&app);
+
+    for( ;; )
+    {
+        uint64_t const now_ms = PlatformWindow_Ticks64();
+        uint64_t nap_until;
+
+        if( now_ms >= wait_until_ms )
+            return;
+        nap_until = now_ms + TORIRS_LOOP_NAP_MS;
+        if( nap_until > wait_until_ms )
+            nap_until = wait_until_ms;
+        PlatformWindow_SleepUntil(nap_until);
+        main_loop_trace.naps++;
+        (void)App_PumpAsync(&app, 0);
+        main_give_background_slack(wait_until_ms);
+        if( App_AsyncMoved(&app) )
+        {
+            main_loop_trace.nap_pumps_moved++;
+            return;
+        }
+        /* A packet's read landed: the next frame's packet pump resumes it. */
+        if( main_waited && !App_MainQueueWaitsOnRead(&app) )
+        {
+            main_loop_trace.nap_pumps_moved++;
+            return;
+        }
+        if( App_AsyncRunnable(&app) || (!App_AsyncPending(&app) && !main_waited) )
+            return;
+    }
+}
+#endif
+
+/*
+ * TORIRS_BOOT_STATS: the loading screen as it is shown, one line each time
+ * the bar's position or caption changes on a boot frame -- the check that the
+ * boot, now on the main queue, still shows its progress frame by frame.
+ */
+static void
+main_boot_bar_report(int committed)
+{
+    static int last_percent = -2;
+    static char last_caption[96];
+    int font = -1;
+    int percent;
+    char const* caption;
+
+    if( !main_harness.boot_stats || !RS_ClientPhase_Booting(&app.phase) )
+        return;
+    percent = App_BootBarPercent(&app);
+    caption = App_BootBarCaption(&app, &font);
+    if( percent == last_percent && strcmp(caption ? caption : "", last_caption) == 0 )
+        return;
+    last_percent = percent;
+    snprintf(last_caption, sizeof(last_caption), "%s", caption ? caption : "");
+    TORIRS_ERR(
+        "boot bar: frame %d committed=%d percent=%d caption='%s'\n",
+        BootPumpStats_BootFrames(&app.pump_stats),
+        committed,
+        percent,
+        last_caption);
+}
+
+/*
+ * May this frame go undrawn because nobody can see it? Only on the web lane,
+ * only while the document is hidden, and only where a frame that is not drawn
+ * still spends what the draw would have: Soft3D (ToriDraw_SceneFrameEnd, as a
+ * render-skipped frame does) and WebGL2, which is handed the scene's load
+ * events without a draw (renderer_learn_held_frame). WebGL1 has no such path,
+ * so a hidden WebGL1 tab keeps drawing -- at the hidden timer's rate -- rather
+ * than let its scene events pile up against the queue's cap. A content test's
+ * forced draw is always drawn. TORIRS_QUEUE_CONTRACT_TRACE prints how many
+ * frames ran hidden, and how many of them were drawn, when the tab is shown.
+ */
+static int
+main_hidden_skip_draw(
+    int content_draw,
+    int retained)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    static int hidden_frames;
+    static int hidden_drawn;
+    int const hidden = web_document_hidden();
+    int skip;
+
+    if( !hidden )
+    {
+        if( hidden_frames && TaskRunner_ContractTrace() )
+            fprintf(stderr, "queue_contract: trace web tab shown: %d frames ran while hidden, %d of them drawn\n",
+                    hidden_frames, hidden_drawn);
+        hidden_frames = 0;
+        hidden_drawn = 0;
+        return 0;
+    }
+    skip = !content_draw && (!retained || renderer_can_learn_held_frame());
+    hidden_frames++;
+    if( !skip )
+        hidden_drawn++;
+    return skip;
+#else
+    (void)content_draw;
+    (void)retained;
+    return 0;
+#endif
+}
+
+/*
+ * The frames that ran with nowhere to put a picture (PlatformWindow_CanPresent
+ * false: Android while its activity is stopped or its SurfaceView is being
+ * recreated). Called once a frame, before the draw decision spends anything.
+ * TORIRS_QUEUE_CONTRACT_TRACE prints, when the surface comes back, how many
+ * frames ran without one, how many of them spent the scene's queue as a
+ * skipped frame does (all of them, on every lane: platform/surface_plan.h),
+ * and the most scene events the queue held: how close the queue came to its
+ * cap (TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE), past which td_scene_emit drops
+ * events.
+ */
+static void
+main_surfaceless_trace(
+    int surfaceless,
+    int spent)
+{
+    static int frames;
+    static int spent_frames;
+    static int events_high;
+    struct ToriDraw_EventQueue const* events;
+
+    if( !surfaceless )
+    {
+        if( frames && TaskRunner_ContractTrace() )
+            fprintf(stderr,
+                    "queue_contract: trace surface back: %d frames ran with no surface, %d of them spent the "
+                    "scene's queue, most events queued %d\n",
+                    frames, spent_frames, events_high);
+        frames = 0;
+        spent_frames = 0;
+        events_high = 0;
+        return;
+    }
+    frames++;
+    if( spent )
+        spent_frames++;
+    events = ToriDraw_SceneEvents(app.scene);
+    assert(events);
+    if( events->count > events_high )
+        events_high = events->count;
+}
+
+#if defined(TORIRS_PLATFORM_WEB)
+/*
+ * How the browser schedules the NEXT frame: decided at the end of this one,
+ * from what this frame left queued.
+ *
+ * It used to be decided at the top of the frame, right after PlatformWeb_Pump
+ * took up the answers that had landed -- so the frame that consumed a boot
+ * read always saw nothing on the wire, chose requestAnimationFrame, and then
+ * issued the boot's next read itself. Every link of a serial chain then
+ * waited out a compositor frame, and so did every boot stage that asked for
+ * a frame (TASK_RUNNER_RENDER): the frame it asked for runs, the boot is
+ * resumed by the pump after it (TaskRunner_RenderOwed), and when that was the
+ * next frame's it was a vsync away although the boot could run at once. The
+ * stage's frame is still run before the boot goes on; only the wait for the
+ * display after it is gone, as it is on the native loop. Measured in headless
+ * Chrome on SwiftShader, where a WebGL frame's composite is slow: 110-160 ms
+ * of a cold boot to the title (lo-webboot, 2026-11-19). The native loop does
+ * not wait in that state either (ToriRS_Pacer_LoopWait: work that can run
+ * now -- no wait).
+ *
+ * Decided before the frame's background slack, which ends before the next
+ * vsync only when the next frame is a raf one.
+ */
+static int
+web_boot_can_run_now(void)
+{
+    struct ToriRS_Task const* head = app.packet_runner.queue->head;
+
+    /* A boot queued during this frame after its pump (the title swap's bake,
+     * app_title_swap_if_pending) has not been seen by any pump yet: it is
+     * neither waiting on a read nor parked, so the next frame runs it. */
+    return RS_ClientPhase_Booting(&app.phase) && head && !head->io.pending && !head->parked;
+}
+
+static void
+web_pace_next_frame(void)
+{
+    /* Pace the loop by what it is waiting for.
+     *
+     * A task pipeline is serial: it issues one read, parks, and cannot resume
+     * until the answer lands, so a frame consumes at most one round trip per
+     * pipeline. At display rate that caps the client at ~120 archives a second
+     * while its 20ms logic ticks keep queueing more work — and on a boot that
+     * reads several hundred archives the queue grows faster than it drains.
+     *
+     * Logic ticks are driven by the wall clock, not by the loop, so running the
+     * loop from the event loop instead of the display drains the backlog
+     * without producing more of it. Back to requestAnimationFrame the moment
+     * nothing is outstanding, so a settled client renders on frame boundaries
+     * like any other page.
+     *
+     * Three regimes share one setting, so they are decided together:
+     *
+     *   boot backlog settimeout(0)  — drain as fast as the event loop will:
+     *                                 reads on the wire, or a boot that can
+     *                                 run on now
+     *   hidden tab   settimeout(50) — keep the socket drained, don't draw
+     *   visible play raf(1)         — a normal page on frame boundaries
+     *
+     * The backlog arm is gated to pre-READY on purpose, and the gate is a
+     * jank fix, not thrift. Past READY the reads that remain are one or
+     * two chain links deep — a server tick reveals an npc whose model is
+     * not resident — and an async response only needs the event loop to
+     * turn, which every animation-frame boundary already does; the read
+     * resolves a frame later either way. Leaving raf for it cost two
+     * callbacks run off vsync plus a raf re-registration that landed
+     * mid-cycle: a 13-16ms presentation interval against an 8ms cadence,
+     * once per 600ms server tick, visible as a periodic stutter whenever
+     * the camera was moving. The backlog this arm exists for — hundreds
+     * of serially-discovered boot archives — cannot recur once READY:
+     * the bake state regresses only on a full gameframe re-root, which gets
+     * the fast drain back along with its loading screen, and world/region
+     * streaming (Task_WorldLoad) stays READY and rides raf. If a region
+     * load's settle rate ever matters, drain it from the IO response
+     * callback instead of re-pacing the frame loop.
+     *
+     * The hidden case is the other one worth explaining. A browser stops
+     * calling requestAnimationFrame for a hidden tab, so the client stops
+     * draining a socket the server keeps writing to; minutes later the
+     * tab comes back to a backlog it can only fast-forward through.
+     * Timers keep firing where animation frames do not — clamped to
+     * about 1Hz in the background, which is still several times the
+     * 600ms server tick, so a hidden tab keeps up instead of falling
+     * behind. Asking for 50ms costs nothing when the clamp is the thing
+     * that decides.
+     *
+     * This is not a guarantee: a browser that freezes the page entirely,
+     * or an OS that suspends it, stops timers too. That case is what
+     * app_net_link_watch is for — it notices the gap and drops the
+     * session rather than replaying it.
+     */
+    int waiting = !RS_ClientPhase_Ready(&app.phase) &&
+                  (PlatformWeb_PendingTotal() > 0 || App_AsyncRunnable(&app) || web_boot_can_run_now());
+    int hidden = !waiting && web_document_hidden();
+    /* An unlocked replay is the one browser run with no display rate to
+     * keep: setImmediate (a posted message, so no 4 ms timer clamp) runs
+     * the next frame as soon as this one returns, and the transport plays
+     * the recording at whatever rate that is (main_rsprox_replay_frame). */
+    int fast = rsprox_replay.path && App_SpeedUnlocked();
+    int mode = fast                  ? EM_TIMING_SETIMMEDIATE
+               : (waiting || hidden) ? EM_TIMING_SETTIMEOUT
+                                     : EM_TIMING_RAF;
+    int value = fast ? 0 : waiting ? 0 : (hidden ? 50 : 1);
+
+    if( mode != main_pacing.paced_mode || value != main_pacing.paced_value )
+    {
+        if( g_torirs_perf_enabled )
+        {
+            char label[96];
+            snprintf(
+                label,
+                sizeof label,
+                "torirs-pace %s(%d)->%s(%d) frame=%ld",
+                main_pacing.paced_mode < 0                ? "init"
+                : main_pacing.paced_mode == EM_TIMING_RAF ? "raf"
+                                              : "settimeout",
+                main_pacing.paced_value,
+                mode == EM_TIMING_RAF ? "raf" : "settimeout",
+                value,
+                main_harness.frame_count);
+            web_mark_frame_event(label);
+        }
+        main_pacing.paced_mode = mode;
+        main_pacing.paced_value = value;
+        emscripten_set_main_loop_timing(mode, value);
+    }
+}
+#endif
+
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
 frame_loop_step(void)
@@ -4052,94 +4476,6 @@ frame_loop_step(void)
      */
     PlatformWeb_SetBlockingReads(!RS_ClientPhase_Ready(&app.phase));
 
-    /* Pace the loop by what it is waiting for.
-     *
-     * A task pipeline is serial: it issues one read, parks, and cannot resume
-     * until the answer lands, so a frame consumes at most one round trip per
-     * pipeline. At display rate that caps the client at ~120 archives a second
-     * while its 20ms logic ticks keep queueing more work — and on a boot that
-     * reads several hundred archives the queue grows faster than it drains.
-     *
-     * Logic ticks are driven by the wall clock, not by the loop, so running the
-     * loop from the event loop instead of the display drains the backlog
-     * without producing more of it. Back to requestAnimationFrame the moment
-     * nothing is outstanding, so a settled client renders on frame boundaries
-     * like any other page. */
-    {
-        /*
-         * Three regimes share one setting, so they are decided together:
-         *
-         *   boot backlog settimeout(0)  — drain as fast as the event loop will
-         *   hidden tab   settimeout(50) — keep the socket drained, don't draw
-         *   visible play raf(1)         — a normal page on frame boundaries
-         *
-         * The backlog arm is gated to pre-READY on purpose, and the gate is a
-         * jank fix, not thrift. Past READY the reads that remain are one or
-         * two chain links deep — a server tick reveals an npc whose model is
-         * not resident — and an async response only needs the event loop to
-         * turn, which every animation-frame boundary already does; the read
-         * resolves a frame later either way. Leaving raf for it cost two
-         * callbacks run off vsync plus a raf re-registration that landed
-         * mid-cycle: a 13-16ms presentation interval against an 8ms cadence,
-         * once per 600ms server tick, visible as a periodic stutter whenever
-         * the camera was moving. The backlog this arm exists for — hundreds
-         * of serially-discovered boot archives — cannot recur once READY:
-         * the bake state regresses only on a full gameframe re-root, which gets
-         * the fast drain back along with its loading screen, and world/region
-         * streaming (Task_WorldLoad) stays READY and rides raf. If a region
-         * load's settle rate ever matters, drain it from the IO response
-         * callback instead of re-pacing the frame loop.
-         *
-         * The hidden case is the other one worth explaining. A browser stops
-         * calling requestAnimationFrame for a hidden tab, so the client stops
-         * draining a socket the server keeps writing to; minutes later the
-         * tab comes back to a backlog it can only fast-forward through.
-         * Timers keep firing where animation frames do not — clamped to
-         * about 1Hz in the background, which is still several times the
-         * 600ms server tick, so a hidden tab keeps up instead of falling
-         * behind. Asking for 50ms costs nothing when the clamp is the thing
-         * that decides.
-         *
-         * This is not a guarantee: a browser that freezes the page entirely,
-         * or an OS that suspends it, stops timers too. That case is what
-         * app_net_link_watch is for — it notices the gap and drops the
-         * session rather than replaying it.
-         */
-        int waiting = !RS_ClientPhase_Ready(&app.phase) && PlatformWeb_PendingTotal() > 0;
-        int hidden = !waiting && web_document_hidden();
-        /* An unlocked replay is the one browser run with no display rate to
-         * keep: setImmediate (a posted message, so no 4 ms timer clamp) runs
-         * the next frame as soon as this one returns, and the transport plays
-         * the recording at whatever rate that is (main_rsprox_replay_frame). */
-        int fast = rsprox_replay.path && App_SpeedUnlocked();
-        int mode = fast                  ? EM_TIMING_SETIMMEDIATE
-                   : (waiting || hidden) ? EM_TIMING_SETTIMEOUT
-                                         : EM_TIMING_RAF;
-        int value = fast ? 0 : waiting ? 0 : (hidden ? 50 : 1);
-
-        if( mode != main_pacing.paced_mode || value != main_pacing.paced_value )
-        {
-            if( g_torirs_perf_enabled )
-            {
-                char label[96];
-                snprintf(
-                    label,
-                    sizeof label,
-                    "torirs-pace %s(%d)->%s(%d) frame=%ld",
-                    main_pacing.paced_mode < 0                ? "init"
-                    : main_pacing.paced_mode == EM_TIMING_RAF ? "raf"
-                                                  : "settimeout",
-                    main_pacing.paced_value,
-                    mode == EM_TIMING_RAF ? "raf" : "settimeout",
-                    value,
-                    main_harness.frame_count);
-                web_mark_frame_event(label);
-            }
-            main_pacing.paced_mode = mode;
-            main_pacing.paced_value = value;
-            emscripten_set_main_loop_timing(mode, value);
-        }
-    }
 #endif
     /* A popped-out editor window's Dock button ends it as its OS close box
      * would (editor_view.h EditorView_RequestExit). */
@@ -4166,6 +4502,14 @@ frame_loop_step(void)
     /* A replay seek's held frame on a renderer that is handed its scene
      * events without a draw (renderer_learn_held_frame). */
     int held_learns = 0;
+    /* A hidden browser tab's frame: run whole, not drawn (main_hidden_skip_draw). */
+    int hidden_skip = 0;
+    /* A frame with no surface on a lane that reads the scene directly: not
+     * drawn, and spent as a skipped frame is (main_surfaceless_trace). */
+    int surfaceless_spend = 0;
+#if !defined(__EMSCRIPTEN__)
+    enum ToriRS_LoopWait loop_wait;
+#endif
     int app_committed = 0;
     uint64_t frame_start_us;
     /* When the screen is next allowed to be redrawn.
@@ -4309,9 +4653,10 @@ frame_loop_step(void)
          * a raw trace. Timer-paced frames (boot drain, hidden tab) are
          * excluded from both sides of the check, and the 4ms floor (240Hz)
          * keeps a scheduling fluke on a raf frame from becoming a baseline
-         * every honest frame would then appear to miss. A period spanning a
-         * mode flip is judged by the mode just installed above -- close
-         * enough for instrumentation, and the flip logs its own marker. */
+         * every honest frame would then appear to miss. A period is judged
+         * by the mode that scheduled this callback (installed at the end of
+         * the previous frame, web_pace_next_frame); the flip logs its own
+         * marker. */
         if( g_torirs_perf_enabled && main_pacing.paced_mode == EM_TIMING_RAF )
         {
             if( period_us >= 4000 && (main_pacing.raf_baseline_us == 0 || period_us < main_pacing.raf_baseline_us) )
@@ -4329,8 +4674,13 @@ frame_loop_step(void)
                 web_mark_frame_event(label);
             }
         }
+        if( main_pacing.paced_mode == EM_TIMING_RAF && main_pacing.prev_paced_mode == EM_TIMING_RAF )
+            ToriRS_DisplayPeriod_Note(&main_pacing.display_period, period_us);
 #endif
     }
+#if defined(TORIRS_PLATFORM_WEB)
+    main_pacing.prev_paced_mode = main_pacing.paced_mode;
+#endif
     main_pacing.prev_frame_start_us = frame_start_us;
     TORIRS_PERF_FRAME_BEGIN();
 
@@ -6151,10 +6501,18 @@ frame_loop_step(void)
     }
 
     app_redraw = 0;
+    if( main_loop_trace.frames == 0 )
+        main_loop_trace.cycle_start = FrameClockSerial_LogicCycle(&app.frame_clock.serial);
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
     {
         app_redraw = App_RunOnce(&app, logic_now, input);
         app_committed = app_redraw;
+        main_boot_bar_report(app_committed);
+        if( main_loop_trace.start_us == 0 )
+            main_loop_trace.start_us = PlatformWindow_TicksUs();
+        main_loop_trace.frames++;
+        if( app_committed )
+            main_loop_trace.committed++;
         /* Acceptance sessions rasterize explicit checkpoints; logic still runs at 50 Hz. */
         static int checkpoints = -1;
         if( checkpoints < 0 )
@@ -6251,7 +6609,8 @@ frame_loop_step(void)
      * Retained presents are skipped for the same reason: there is no
      * retained frame to show and no surface to show it on.
      */
-    if( !PlatformWindow_CanPresent(platform) )
+    int const surfaceless = !PlatformWindow_CanPresent(platform);
+    if( surfaceless )
         app_redraw = 0;
     /*
      * An input frame App_RunOnce did not consume is held over to the next
@@ -6350,9 +6709,34 @@ frame_loop_step(void)
          * drawn on that lane either. */
         int const retained = !renderer_is_software(renderer_active);
 
-        held_learns = RenderSkip_Held(&app.render_skip) && retained && renderer_can_learn_held_frame();
+        hidden_skip = main_hidden_skip_draw(content_draw, retained);
+        held_learns = (RenderSkip_Held(&app.render_skip) || hidden_skip) && retained && renderer_can_learn_held_frame();
         app_redraw = App_RenderSkipFrame(&app, app_redraw, content_draw || (retained && !held_learns));
+        if( hidden_skip )
+            app_redraw = 0;
+        /*
+         * No surface: nothing is drawn, and the scene's load-event queue and
+         * the models held for this frame's poses are spent
+         * (ToriDraw_SceneFrameEnd below), exactly as a skipped frame does, on
+         * every lane. Without it nothing spent them until a surface returned:
+         * the queue filled to its cap and every event after it was dropped --
+         * among them the sound loads audio reads from it on the tick. A
+         * retained lane (GLES2/GLES3) learns the scene only from those
+         * events, so it is re-baked when the surface comes back, before it
+         * draws (platform/surface_plan.h, renderer_rebake).
+         */
+        /* Read before the frame's decision, which restarts the count. */
+        int const frames_without = main_surface_plan.frames_without;
+        struct ToriRS_SurfaceFrame const surface_frame =
+            ToriRS_SurfacePlan_Frame(&main_surface_plan, !surfaceless, retained, app_redraw);
+
+        if( !surface_frame.draw )
+            app_redraw = 0;
+        surfaceless_spend = surface_frame.spend;
+        if( surface_frame.rebake )
+            renderer_rebake(frames_without);
     }
+    main_surfaceless_trace(surfaceless, surfaceless_spend);
     /* The runner camera split: the offscreen runner frame a driver push owed
      * is drawn here, BEFORE the presented one (one branch while detached). */
     main_view_split_step(app_committed);
@@ -6372,7 +6756,7 @@ frame_loop_step(void)
         }
         app.world_views.frame = App_RunnerView(&app);
     }
-    else if( App_RenderSkipEnabled(&app) || RenderSkip_Held(&app.render_skip) )
+    else if( hidden_skip || surfaceless_spend || App_RenderSkipEnabled(&app) || RenderSkip_Held(&app.render_skip) )
     {
         /* Not drawn, on a lane that learns the scene from its draws: what the
          * draw would have handed it, without the draw. */
@@ -6739,18 +7123,64 @@ frame_loop_step(void)
     /*
      * The cap paces the screen, not the pipeline.
      *
-     * App_RunOnce drains a bounded number of async steps per frame (32 once
-     * past boot), so sleeping out the rest of the frame while work is still
-     * queued caps the pipeline at budget-times-framerate -- which on a cold
-     * boot is the client's whole world download, and is why an uncapped run
-     * reached the world visibly sooner than a capped one on the same machine.
+     * App_RunOnce pumps the parallel queue to a standstill every frame (no
+     * bound: APP_ASYNC_STEP_LIMIT is a runaway backstop that aborts), and it
+     * ends with work left only when that work waits -- on a read the
+     * platform has not answered, or on a join. Sleeping out the rest of the
+     * frame then would make the frame cap decide when those answers are
+     * taken up, which on a cold boot is the client's whole world download:
+     * the reason an uncapped run once reached the world visibly sooner than
+     * a capped one on the same machine. Nor does it go straight on: work
+     * that only waits cannot be moved by another frame, and a loop that
+     * went round again for it spun the parallel queue against reads still
+     * on the wire. So the wait is decided by what is queued
+     * (ToriRS_Pacer_LoopWait, pacer.h): nothing -- the ordinary sleep; work
+     * that can run now (the boot asked for its next frame) -- no wait; work
+     * that only waits -- the wait slept in naps with a pump between them
+     * (main_wait_napping), ended the moment a pump moves anything.
      *
-     * There is no busy-wait here: the loop goes straight back into
-     * App_RunOnce, which does real work. When the queue drains, async_pending
-     * clears and the ordinary wait resumes on the very next frame.
+     * The background queue's slack below is taken whenever the loop waits.
+     * A frame that does not wait gives it the floor slice alone
+     * (app_run_background_floor), which every App_RunOnce pays.
      */
     ContentTest_End(&app, sock);
-    if( !replay && !main_pacing.uncapped && !ContentTest_Enabled() && !App_AsyncPending(&app) )
+    {
+        struct ToriRS_LoopWaitInput const wait_in = {
+            .uncapped = main_pacing.uncapped,
+            .replay = replay ? 1 : 0,
+            .content_test = ContentTest_Enabled() ? 1 : 0,
+            .async_pending = App_AsyncPending(&app),
+            .async_runnable = App_AsyncRunnable(&app),
+            .main_waits_on_read = App_MainQueueWaitsOnRead(&app),
+        };
+        loop_wait = ToriRS_Pacer_LoopWait(&wait_in);
+    }
+    /* TORIRS_LOOP_NAP=0: the A/B for the nap -- work that only waits goes
+     * straight into the next frame, as the loop did before it napped. */
+    {
+        static int nap = -1;
+        if( nap < 0 )
+        {
+            char const* env = getenv("TORIRS_LOOP_NAP");
+            nap = env && env[0] == '0' ? 0 : 1;
+        }
+        if( loop_wait == TORIRS_LOOP_WAIT_NAP && !nap )
+            loop_wait = TORIRS_LOOP_WAIT_NONE;
+    }
+    main_loop_trace.waits[loop_wait]++;
+    if( TaskRunner_ContractTrace() >= 3 )
+        fprintf(
+            stderr,
+            "queue_contract: trace loop frame t=%.3fs committed=%d wait=%s pending=%d runnable=%d main_read=%d "
+            "main_head=%s\n",
+            (double)(PlatformWindow_TicksUs() - main_loop_trace.start_us) / 1e6,
+            app_committed,
+            ToriRS_Pacer_LoopWaitName(loop_wait),
+            App_AsyncPending(&app),
+            App_AsyncRunnable(&app),
+            App_MainQueueWaitsOnRead(&app),
+            app.packet_runner.queue->head ? app.packet_runner.queue->head->name : "-");
+    if( loop_wait != TORIRS_LOOP_WAIT_NONE )
     {
         uint64_t pace_begin_us = PlatformWindow_TicksUs();
         /*
@@ -6771,15 +7201,8 @@ frame_loop_step(void)
          * frame would have woken anyway (App_RunBackground; nothing queued
          * costs nothing). The pace timer restarts after it, so the PACE stage
          * stays the wait and not the work. */
-        {
-            uint64_t const slack_now_ms = PlatformWindow_Ticks64();
-            if( wait_until_ms > slack_now_ms )
-            {
-                App_RunBackground(
-                    &app, PlatformWindow_TicksUs() + (wait_until_ms - slack_now_ms) * 1000u);
-                pace_begin_us = PlatformWindow_TicksUs();
-            }
-        }
+        main_give_background_slack(wait_until_ms);
+        pace_begin_us = PlatformWindow_TicksUs();
 
         if( main_pacing.pace_spin )
         {
@@ -6790,6 +7213,8 @@ frame_loop_step(void)
             while( PlatformWindow_Ticks64() < wait_until_ms )
                 ;
         }
+        else if( loop_wait == TORIRS_LOOP_WAIT_NAP )
+            main_wait_napping(wait_until_ms);
         else
             PlatformWindow_SleepUntil(wait_until_ms);
 
@@ -6800,16 +7225,33 @@ frame_loop_step(void)
         }
     }
 #else
-    /* The browser has no wait to fill, so its slack is what is left of the
-     * draw period after this frame's work: the background queue's, up to the
-     * point the next frame is due (App_RunBackground). */
+    /* The browser has no wait to fill, so its slack is what is left after
+     * this frame's work before the next frame is due: the background queue's
+     * (App_RunBackground). Due is the draw period from the frame's start and,
+     * on requestAnimationFrame, no later than the display's next vsync less
+     * the compositor's share (ToriRS_Pacer_SlackEndUs) -- a 20 ms period on a
+     * 60 Hz display ran every callback 3 ms past its vsync while a background
+     * job had work, which costs the next frame, and the background queue
+     * never withholds one. A frame that has overrun has no slack and gives
+     * none: the floor in App_RunOnce has already stepped every background
+     * task once, whatever the clock said. */
     {
         uint64_t const period_us = (uint64_t)ToriRS_Pacer_DrawPeriodMs(&main_pacing.frame_pacer) * 1000u;
-        if( period_us > 0 )
-            App_RunBackground(&app, frame_start_us + period_us);
+        uint64_t display_us;
+        uint64_t slack_end_us;
+
+        /* The next frame's timing first: the slack ends before the next
+         * vsync only when the next frame is a raf one. */
+        web_pace_next_frame();
+        display_us = main_pacing.paced_mode == EM_TIMING_RAF ? main_pacing.display_period.estimate_us : 0;
+        slack_end_us =
+            period_us > 0 ? ToriRS_Pacer_SlackEndUs(frame_start_us, period_us, display_us, PlatformWindow_TicksUs()) : 0;
+        if( slack_end_us )
+            App_RunBackground(&app, slack_end_us);
     }
 #endif
     frame_loop_scan_meter_check();
+    main_loop_trace_flush(0);
     return 1;
 }
 
@@ -6817,6 +7259,7 @@ frame_loop_step(void)
 static void
 frame_loop_teardown(void)
 {
+    main_loop_trace_flush(1);
     /* The agent control server goes first: its connections are told nothing
      * more, and its port file stops naming a port nobody listens on. */
     AgentServer_Stop(agent_server, &bus);
@@ -7545,6 +7988,8 @@ frame_loop_teardown(void)
                       st.seeking, (unsigned long long)RS_ServerTick_Serial(&app.server_tick));
     }
     NetTransport_Free(sock);
+    ReplayNpcTypes_Free(rsprox_replay.npc_types);
+    rsprox_replay.npc_types = NULL;
     /*
      * The audio ledger, and the leak check the retained API makes possible.
      *
@@ -7642,6 +8087,14 @@ static int web_pump_armed;
  * exists to remove: a task chain that asks for one group at a time paid it
  * per link.
  *
+ * What it steps is App_PumpAsync's between-frames pump, and that is the
+ * frame contract's (app.h): the parallel queue drained to a standstill, the
+ * script settle when one is pending, and while the client boots the main
+ * queue, which holds the boot -- unless the boot asked for a frame that has
+ * not been shown yet, which it then waits for. Never the packet pump (no
+ * packet is popped here), never the background queue, never a frame
+ * published: those are frame_loop_step's.
+ *
  * Returns 1 when it stepped anything, 0 when it was not armed.
  */
 EMSCRIPTEN_KEEPALIVE int
@@ -7652,6 +8105,64 @@ torirs_web_io_pump(void)
     App_PumpAsync(&app, 0);
     return 1;
 }
+
+#if defined(TORIRS_PLATFORM_WEB)
+/* Loop restarts web_visibility_changed made (the contract trace's count). */
+static int web_hidden_restarts;
+
+/*
+ * The tab was hidden: keep the loop running, on a timer.
+ *
+ * frame_loop_step paces a hidden tab with settimeout(50) (the pacing block:
+ * "keep the socket drained, don't draw"), but it can only choose that from
+ * inside a frame, and a tab hidden while the loop is on requestAnimationFrame
+ * has no next frame: the browser never fires the callback it has already
+ * registered. Measured (pf_web_run, 2026-11-19, headless Chrome, window
+ * minimized): every runner's pass count stood still for the whole 40 s hide
+ * -- no packet popped, no parallel or background step, nothing drained from
+ * the socket -- and on return the link watch dropped the session
+ * (NET_LINK_STALL_MS) and the client came back through GAMERECONNECT and a
+ * full rebuild.
+ *
+ * So the switch is made here, on the visibilitychange event, which a hidden
+ * tab still gets: the timing goes to settimeout(50) and the loop is paused and
+ * resumed, which retires the rAF callback that will not fire (a resumed loop
+ * is a new loop id, so the old callback returns at once if the tab comes back
+ * before the timer) and schedules the timer's. From then on each frame runs
+ * App_RunOnce whole -- the logic ticks and their packets on the main queue,
+ * the parallel queue drained, the background floor -- and is not drawn
+ * (main_hidden_skip_draw). The browser clamps a hidden tab's timers (about
+ * 1 Hz), which still outpaces the 600 ms server tick's needs, and the
+ * between-frames pump keeps taking reads as they land. When the tab is shown
+ * again the next timer frame finds it visible and goes back to rAF itself.
+ * An event that finds the loop already on a timer changes nothing: timers
+ * keep firing for a hidden tab.
+ */
+static EM_BOOL
+web_visibility_changed(
+    int event_type,
+    EmscriptenVisibilityChangeEvent const* event,
+    void* user)
+{
+    (void)event_type;
+    (void)user;
+    assert(event);
+    if( !web_pump_armed || !event->hidden || main_pacing.paced_mode != EM_TIMING_RAF )
+        return EM_FALSE;
+    main_pacing.paced_mode = EM_TIMING_SETTIMEOUT;
+    main_pacing.paced_value = 50;
+    /* The next callback is a timer's: its period is not a vsync. */
+    main_pacing.prev_paced_mode = EM_TIMING_SETTIMEOUT;
+    emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, 50);
+    emscripten_pause_main_loop();
+    emscripten_resume_main_loop();
+    web_hidden_restarts++;
+    if( TaskRunner_ContractTrace() )
+        fprintf(stderr, "queue_contract: trace web tab hidden: loop moved from raf to settimeout(50) (restart %d)\n",
+                web_hidden_restarts);
+    return EM_FALSE;
+}
+#endif
 
 /*
  * The replay's controls, for the page that embeds a replaying client
@@ -9233,6 +9744,7 @@ main(
         CacheProvider_SetArchiveInvalidateHook(app.provider, PlatformX_IO_ArchiveInvalidateHook,
                                                app.frame_runner.px);
         CacheProvider_SetArchiveReprimeHook(app.provider, PlatformX_IO_ArchiveReprimePendingHook, app.frame_runner.px);
+        PlatformX_IO_SetReprimeTickHook(app.frame_runner.px, CacheProvider_ArchiveReprimeTick, app.provider);
     }
 #else
     /* The browser's half: platform_web_io.js drops its decoded copy, resident
@@ -10183,7 +10695,8 @@ main(
             TORIRS_LOG("\n");
             TORIRS_ERR("TEX_AUDIT: failed:");
             for( int i = 0; i < 2048; i++ )
-                if( app.bridge.texture_failed[i] )
+                if( Assets_State(app.assets, AssetKey_Make(ASSET_KIND_TEXTURE, i, 0)) ==
+                    ASSET_STATE_FAILED )
                     TORIRS_LOG(" %d", i);
             TORIRS_LOG("\n");
         }
@@ -10777,6 +11290,12 @@ main(
                 rsprox_recording_resolve_reconnects(RsproxRecording_Rev(&rsprox_replay.rec),
                                                     &rsprox_replay.rec);
                 sock = NetTransport_NewReplay(&rsprox_replay.rec, app.net->rev);
+                /* Its world ledger reads a typed npc customisation by the
+                 * npc's type, from this cache's npc configs (read once). */
+                rsprox_replay.npc_types =
+                    ReplayNpcTypes_NewFromCacheDir(cfg.cache_dir, CacheProvider_Profile(app.provider));
+                if( rsprox_replay.npc_types )
+                    NetTransport_ReplaySetNpcTypeLengths(sock, ReplayNpcTypes_Lengths, rsprox_replay.npc_types);
                 /* Its control frames are expected (net/torirs_control.h). */
                 ToriRS_Network_MarkReplay(app.net);
             }
@@ -10909,6 +11428,9 @@ main(
         web_announce_ready();
 #endif
         web_pump_armed = 1;
+#if defined(TORIRS_PLATFORM_WEB)
+        emscripten_set_visibilitychange_callback(NULL, EM_FALSE, web_visibility_changed);
+#endif
         emscripten_set_main_loop(frame_loop_tick, 0, 1);
         return 0;
 #else

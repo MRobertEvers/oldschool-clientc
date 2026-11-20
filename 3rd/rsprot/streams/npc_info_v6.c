@@ -13,7 +13,7 @@ npc_info_v6_read(
     const NpcInfoV6 *k, int delta_bits, const uint8_t *data, int32_t len,
     RsprotNpcTypeLengths lengths, void *ctx, RsprotInfoList *out)
 {
-    static _Thread_local int extended[RSPROT_INFO_NPC_EXTENDED_MAX];
+    static _Thread_local RsprotNpcExtended extended[RSPROT_INFO_NPC_EXTENDED_MAX];
     RsprotInfoBlocks t;
     RsprotBuf b;
     int count;
@@ -29,9 +29,10 @@ npc_info_v6_read(
     t.lengths = lengths;
     t.ctx = ctx;
     for (int i = 0; i < count && !b.err; i++) {
-        if (!rsprot_info_flags(&t, extended[i], k->ext, k->illegal))
+        if (!rsprot_info_flags(&t, extended[i].position, k->ext, k->illegal))
             break;
-        rsprot_info_emit_value(out, RSPROT_OP_SET_EXT, (uint64_t)extended[i]);
+        t.npc = &extended[i];
+        rsprot_info_emit_value(out, RSPROT_OP_SET_EXT, (uint64_t)extended[i].position);
         if (!k->blocks(&t, k))
             break;
     }

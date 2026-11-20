@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 
+struct Assets;
 struct CacheProvider;
 struct ToriDraw_Scene;
 struct ToriRS_TaskQueue;
@@ -77,14 +78,17 @@ struct RS_WorldMapOverviewIcon
     int tile_z;
 };
 
+/** An overview whose bakes want their assets from `assets` (see
+ *  RS_WorldMapRender_New). */
 struct RS_WorldMapOverview*
-RS_WorldMapOverview_New(void);
+RS_WorldMapOverview_New(struct Assets* assets);
 
 void
 RS_WorldMapOverview_Free(struct RS_WorldMapOverview* overview);
 
 /**
- * Move the window's regions along: queue what is not loaded onto `queue`,
+ * Move the window's regions along: want what is not loaded from the assets
+ * table,
  * bake what is ready (many per call: a bake at one pixel per tile is cheap).
  * Call once per frame while it reports regions missing. `mapscene_scene_id`
  * is the "mapscene" sprite pack's scene id (-1 none: no landmark icons).
@@ -101,7 +105,6 @@ RS_WorldMapOverview_Poll(
     struct RS_WorldMapOverview* overview,
     struct CacheProvider* provider,
     struct ToriDraw_Scene* scene,
-    struct ToriRS_TaskQueue* queue,
     int mapscene_scene_id,
     struct ToriRS_WorldMapArea const* area,
     struct RS_WorldMapOverviewWindow const* window,
@@ -152,7 +155,6 @@ RS_WorldMapOverview_PollAll(
     struct RS_WorldMapOverview* overview,
     struct CacheProvider* provider,
     struct ToriDraw_Scene* scene,
-    struct ToriRS_TaskQueue* queue,
     int mapscene_scene_id,
     struct ToriRS_WorldMapAreas const* areas,
     struct RS_WorldMapOverviewWindow const* window,

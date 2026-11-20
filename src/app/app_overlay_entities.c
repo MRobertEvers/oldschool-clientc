@@ -33,13 +33,13 @@ struct AppOverlayPos
 };
 
 /* Private to this unit, declared up front so definition order is free. */
-static void
+static int
 app_overlay_build_healthbar(
     struct App* app,
     struct WorldEntityFacet_Combat const* combat,
     int screen_x,
     int screen_y);
-static void
+static int
 app_overlay_build_entity(
     struct App* app,
     int element_id,
@@ -73,8 +73,12 @@ app_overlay_anchor(
  *     travels between them and then fades, rather than snapping to one value.
  *
  * Reference: the health-bar block of drawEntities, class381 and class66.
+ *
+ * Returns what the bar adds to the overhead stack's lift (deob
+ * Statics.method6709: `var27 += height`, drawn, `var27 += 2`; the rectangle
+ * is 5 tall), 0 when nothing was drawn.
  */
-static void
+static int
 app_overlay_build_healthbar(
     struct App* app,
     struct WorldEntityFacet_Combat const* combat,
@@ -127,7 +131,7 @@ app_overlay_build_healthbar(
         /* Not started: its hit is still in the air. The fill already on
          * screen stays, and a bar that was not up yet waits for the splat. */
         if( combat->healthbar_held_fill < 0 )
-            return;
+            return 0;
         drawn = combat->healthbar_held_fill * span / type->width;
     }
     else if( combat->healthbar_duration > elapsed )
@@ -172,7 +176,7 @@ app_overlay_build_healthbar(
         bar.w = span - drawn;
         bar.color = 0xFFFF0000u; /* Colour.RED */
         app_overlay_push(app, &bar);
-        return;
+        return RS_HEALTHBAR_FALLBACK_HEIGHT + 2;
     }
 
     {
@@ -208,9 +212,13 @@ app_overlay_build_healthbar(
         if( clip_w > 0 )
             app_overlay_push(app, &front);
     }
+    /* The full-width sprite's height (the reference's var32.field6911). */
+    return back_h + 2;
 }
 
-static void
+/* Returns what its health bars add to the overhead stack's lift
+ * (app_overlay_overhead_lift's `bars_lift`). */
+static int
 app_overlay_build_entity(
     struct App* app,
     int element_id,
@@ -232,6 +240,7 @@ app_overlay_build_entity(
     int height = app_entity_overlay_height(app, element_id, type_height) +
                  app_actor_seq_vertical_offset(app, animation);
     int screen_x, screen_y;
+    int bars_lift = 0;
 
     /*
      * Health bar, 15px above the model top. Two sources, and they are not
@@ -257,7 +266,7 @@ app_overlay_build_entity(
             &screen_x,
             &screen_y) )
     {
-        app_overlay_build_healthbar(app, combat, screen_x, screen_y);
+        bars_lift = app_overlay_build_healthbar(app, combat, screen_x, screen_y);
     }
     else if(
         combat->healthbar_type < 0 && combat->combat_cycle > cycle + 100 &&
@@ -292,6 +301,7 @@ app_overlay_build_entity(
         bar.w = bar_width - filled;
         bar.color = 0xFFFF0000u; /* Colour.RED */
         app_overlay_push(app, &bar);
+        bars_lift = RS_HEALTHBAR_FALLBACK_HEIGHT + 2;
     }
 
     /* Hitsplats: up to 4 concurrent, each alive for 70 cycles, positioned by
@@ -495,6 +505,7 @@ app_overlay_build_entity(
             }
         }
     }
+    return bars_lift;
 }
 
 /** Where one overlay's subject is this frame, or `ok = false` when the subject
@@ -601,10 +612,10 @@ app_entity_overlay_layout(struct App* app)
 
     /* A rebuilt tree took every overlay layer with it (see
      * game/rs_client_trigger.h). The sweep below raises the refire when it
-     * finds an overlay whose layer is gone; it is taken here, before the
-     * sweep, so the refire happens outside the walk it would invalidate. */
-    if( RS_ClientTriggerRefire_Take(&app->client_trigger_refire) )
-        app_client_triggers_refire(app);
+     * finds an overlay whose layer is gone; the next frame takes it before
+     * its last pump (app_frame.c), outside the walk it would invalidate and
+     * ahead of the publication gate, so the scripts it queues settle before
+     * that frame is published. */
 
     /* The parent IS the world rect: it is what clips the overlays (see
      * UITree_ComponentClipsChildren), and the App is the only thing that knows
@@ -833,7 +844,7 @@ app_build_entity_overlays(
         anchor = app_entity_overlay_height(app, npc->element_id, npctype ? npctype->height : -1) +
                  app_actor_seq_vertical_offset(app, &npc->animation);
         footprint = npctype ? npctype->footprint_size : 0;
-        app_overlay_build_entity(
+        (void)app_overlay_build_entity(
             app,
             npc->element_id,
             &npc->combat,
@@ -858,39 +869,60 @@ app_build_entity_overlays(
     }
 
     pool = &world->entities.player;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
     {
-        struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
-        if( !player || player->element_id < 0 )
-            continue;
-        app_overlay_build_entity(
-            app,
-            player->element_id,
-            &player->combat,
-            &player->draw_position,
-            &player->view_placement,
-            player->grid_position.level,
-            font_id,
-            hitmarks_scene,
-            -1,
-            &player->animation,
-            0);
-        app_overlay_build_player_headicons(
-            app,
-            app_entity_overlay_height(app, player->element_id, -1) +
-                app_actor_seq_vertical_offset(app, &player->animation),
-            0,
-            player->headicon,
-            &player->draw_position,
-            &player->view_placement,
-            player->grid_position.level,
-            headicons_scene);
-    }
+        /* The overhead stack's lift (deob var27) the hinted player's icons
+         * leave, for its arrow: computed with the stack, below. */
+        struct WorldEntity_Player const* hinted =
+            app->hint_arrow.type == RS_HINT_ARROW_PLAYER
+                ? World_PlayerGetByServerPid(world, app->hint_arrow.target)
+                : NULL;
+        int const pk_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HEADICONS_PK);
+        int hint_lift = 0;
 
-    /* One arrow, after every entity, so it layers over the health bars and
-     * splats of whatever it is pointing at. */
-    app_overlay_build_hint_arrow(app);
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+            int lift;
+
+            if( !player || player->element_id < 0 )
+                continue;
+            /* deob Statics.method6709: the chat line, then the bars, then the
+             * icons, each above the last (app_overlay_overhead_lift). */
+            lift = app_overlay_build_entity(
+                app,
+                player->element_id,
+                &player->combat,
+                &player->draw_position,
+                &player->view_placement,
+                player->grid_position.level,
+                font_id,
+                hitmarks_scene,
+                -1,
+                &player->animation,
+                0);
+            lift = app_overlay_overhead_lift(app_overlay_chat_shown(&player->chat), lift);
+            lift = app_overlay_build_player_headicons(
+                app,
+                app_entity_overlay_height(app, player->element_id, -1) +
+                    app_actor_seq_vertical_offset(app, &player->animation),
+                0,
+                player->skull_icon,
+                player->headicon,
+                lift,
+                &player->draw_position,
+                &player->view_placement,
+                player->grid_position.level,
+                headicons_scene,
+                pk_scene);
+            if( player == hinted )
+                hint_lift = lift;
+        }
+
+        /* One arrow, after every entity, so it layers over the health bars
+         * and splats of whatever it is pointing at. */
+        app_overlay_build_hint_arrow(app, hint_lift);
+    }
 
     /* Overhead chat is a second pass so it layers above every entity's health
      * bar and hitsplats (reference draws chatX/chatY after the entity loop).

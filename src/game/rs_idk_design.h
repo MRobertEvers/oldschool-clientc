@@ -19,9 +19,8 @@
 
 #define RS_IDK_DESIGN_PARTS 7   /* head, jaw, torso, arms, hands, legs, feet */
 #define RS_IDK_DESIGN_COLOURS 5 /* hair, torso, legs, feet, skin */
-/* Model ids whose load is already queued for the pending rebuild. Seven kits
- * of a handful of models each; the cap only bounds the dedup window. */
-#define RS_IDK_DESIGN_LOAD_TRACK_MAX 64
+/* Model ids a design's seven kits can name: a handful each. */
+#define RS_IDK_DESIGN_MODELS_MAX 64
 
 struct CacheProvider;
 
@@ -38,11 +37,6 @@ struct RS_IdkDesign
     int kit_count;
     /** Composite is stale and must be rebuilt (reference idkDesignRedraw). */
     uint8_t redraw;
-
-    /** Model ids already requested for the pending rebuild (dedup, so a
-     *  rebuild that waits on IO does not re-queue the same loads every tick). */
-    int load_requested[RS_IDK_DESIGN_LOAD_TRACK_MAX];
-    int load_requested_count;
 
     /** Gender-button sprites captured from the first 324/325 widget seen
      *  (reference idkDesignButton1/idkDesignButton2). */
@@ -128,12 +122,5 @@ RS_IdkDesign_StepKitId(
     int body_part_id,
     int kit,
     int step);
-
-/** Note `model_id` as requested; returns nonzero when it was not already in
- *  the dedup window (i.e. the caller should queue the load). */
-int
-RS_IdkDesign_LoadRequestAdd(
-    struct RS_IdkDesign* design,
-    int model_id);
 
 #endif

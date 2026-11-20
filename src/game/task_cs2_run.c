@@ -8,6 +8,7 @@
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_host.h"
 #include "cs2vm2/cs2vm2_script.h"
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/torirs_types.h"
@@ -102,7 +103,124 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_DBINDEX,
     TASK_CS2_YIELD_DBTABLE,
     TASK_CS2_YIELD_ABORT,
+    TASK_CS2_YIELD_COUNT
 };
+
+/*
+ * WHAT A SCRIPT STOPS FOR, AND WHETHER IT WAITS.
+ *
+ * One row per plan above. This is the table to review when an operation that
+ * can stop a script is added.
+ *
+ *   REQUIRED  the script needs the VALUE (a config it reads, the script it
+ *             calls, a pack it is about to look into): it waits, and resumes
+ *             when the read ends. On the app's host the wait is through the
+ *             assets table (RS_CS2Host.assets: Assets_Await, one load in
+ *             flight per asset however many scripts want it, whichever cache
+ *             table the value is in); a host with no table waits on the
+ *             provider's load task. Where the value is fetched on demand
+ *             rather than filled at boot, the fix is the boot fill (the db
+ *             table index, revconfig [preload:dbtableindex]), not a non-wait.
+ *   VISUAL    the operation only PUTS SOMETHING ON SCREEN: it writes what was
+ *             asked onto the widget and returns, and one parallel task
+ *             (app/app_tasks_scripts.c, app/app_if_models.c,
+ *             app/app_tasks_ground.c) waits for the asset and binds it. The
+ *             plan is reached only on a host without that hook (rs_cs2_host.h:
+ *             widget_*_lazy, pack_models_lazy), where it still yields.
+ *
+ * `absent` is what the operation does when the wait ends without the asset
+ * (a load that failed, an id the cache does not hold): the wait always ends,
+ * the host sees its own request spent (rs_cs2_await_spent) and takes that
+ * branch instead of yielding again. Checked per operation in rs_cs2_host.c.
+ *
+ * No operation reads a VALUE out of a model (the model getters --
+ * cc_getmodelangle_*, cc_getmodelzoom, cc_getmodeltransparent -- read the
+ * widget's fields, not the model), so no model wait is required.
+ */
+enum TaskCS2Wait
+{
+    TASK_CS2_WAIT_NONE = 0,
+    TASK_CS2_WAIT_REQUIRED,
+    TASK_CS2_WAIT_VISUAL,
+};
+
+struct TaskCS2YieldRow
+{
+    char const* name;
+    enum TaskCS2Wait wait;
+    /** What is waited for, and by which operations. */
+    char const* what;
+    /** What the operation does when the asset never arrives. */
+    char const* absent;
+};
+
+static struct TaskCS2YieldRow const k_task_cs2_yields[TASK_CS2_YIELD_COUNT] = {
+    [TASK_CS2_YIELD_NONE] = { "none", TASK_CS2_WAIT_NONE, "nothing (a cleared id)", "-" },
+    [TASK_CS2_YIELD_SCRIPT] = { "script", TASK_CS2_WAIT_REQUIRED,
+        "the script a gosub calls, and the task's own script",
+        "the call is an error (its return values cannot be made up)" },
+    [TASK_CS2_YIELD_INVTYPE] = { "invtype", TASK_CS2_WAIT_REQUIRED, "inv_size's inventory type",
+        "size 0" },
+    [TASK_CS2_YIELD_ENUM] = { "enum", TASK_CS2_WAIT_REQUIRED, "enum, enum_string, enum counts",
+        "the enum's default / empty" },
+    [TASK_CS2_YIELD_STRUCT] = { "struct", TASK_CS2_WAIT_REQUIRED,
+        "struct_param's struct and ParamType; cc_param, if_query_refine's ParamType",
+        "the ParamType default (null when that is missing too)" },
+    [TASK_CS2_YIELD_PARAMS] = { "params", TASK_CS2_WAIT_REQUIRED, "cc_find_param's two ParamTypes",
+        "a missing param's default is null" },
+    [TASK_CS2_YIELD_OBJ] = { "obj", TASK_CS2_WAIT_REQUIRED,
+        "oc_* (name, ops, cost, cert, param, ...) and stockmarket_*: the objtype (+ ParamType)",
+        "the objtype's defaults (null name, no ops, the ParamType default)" },
+    [TASK_CS2_YIELD_COMPONENT] = { "component", TASK_CS2_WAIT_REQUIRED,
+        "a group's pack a cc_/if_ op looks into, with its sprites and fonts; its MODELS are "
+        "visual (pack_models_lazy)",
+        "the op treats the component as not found; the script ends" },
+    [TASK_CS2_YIELD_MODEL] = { "model", TASK_CS2_WAIT_VISUAL,
+        "cc_setmodel / if_setmodel: the model (widget_model_lazy)", "the widget draws nothing" },
+    [TASK_CS2_YIELD_LOC_MODEL] = { "loc_model", TASK_CS2_WAIT_VISUAL,
+        "cc_setlocmodel: the loc config and its models (widget_loc_model_lazy)",
+        "the widget draws nothing" },
+    [TASK_CS2_YIELD_NPC] = { "npc", TASK_CS2_WAIT_REQUIRED, "nc_name's npc config", "\"null\"" },
+    [TASK_CS2_YIELD_NPC_HEAD] = { "npc_head", TASK_CS2_WAIT_VISUAL,
+        "cc_setnpchead: the npc, its multinpc rung and its head models (widget_npc_head_lazy)",
+        "the widget is left as it was" },
+    [TASK_CS2_YIELD_NPC_PARAM] = { "npc_param", TASK_CS2_WAIT_REQUIRED,
+        "nc_param's npc config and ParamType", "the ParamType default" },
+    [TASK_CS2_YIELD_LOC_PARAM] = { "loc_param", TASK_CS2_WAIT_REQUIRED,
+        "lc_param's loc config and ParamType", "the ParamType default" },
+    [TASK_CS2_YIELD_SETOBJECT] = { "setobject", TASK_CS2_WAIT_VISUAL,
+        "cc_setobject: an icon cell's obj model (widget_obj_icon_lazy), a MODEL widget's "
+        "(widget_obj_model_lazy)",
+        "the icon is built from what arrived; a model-less obj shows its icon" },
+    [TASK_CS2_YIELD_SPRITE] = { "sprite", TASK_CS2_WAIT_REQUIRED,
+        "cc_setgraphic, setfeedbacksprite: the sprite (the bake binds it; local from boot)",
+        "no graphic" },
+    [TASK_CS2_YIELD_FONT] = { "font", TASK_CS2_WAIT_REQUIRED,
+        "cc_settextfont, paraheight, parawidth: the font (text is measured with it)",
+        "no font; measured as 0" },
+    [TASK_CS2_YIELD_WORLDMAP] = { "worldmap", TASK_CS2_WAIT_REQUIRED, "worldmap_* and mel_*: the map",
+        "the map ops answer as for a cache with no map" },
+    [TASK_CS2_YIELD_MAPELEMENT] = { "mapelement", TASK_CS2_WAIT_REQUIRED,
+        "mec_*: the map element config", "the element's defaults" },
+    [TASK_CS2_YIELD_OBJALL] = { "objall", TASK_CS2_WAIT_REQUIRED, "oc_find, oc_byid: every objtype",
+        "the search finds what is resident" },
+    [TASK_CS2_YIELD_DBROW] = { "dbrow", TASK_CS2_WAIT_REQUIRED, "db_*: a row", "the row is absent" },
+    [TASK_CS2_YIELD_DBINDEX] = { "dbindex", TASK_CS2_WAIT_REQUIRED,
+        "db_find*: a table's index (cache table 21, filled at boot)", "an empty index: no match" },
+    [TASK_CS2_YIELD_DBTABLE] = { "dbtable", TASK_CS2_WAIT_REQUIRED,
+        "db_getfield's column defaults: the table", "no default" },
+    [TASK_CS2_YIELD_ABORT] = { "abort", TASK_CS2_WAIT_NONE, "nothing: the script ends", "-" },
+};
+
+/* The name a plan is traced by (TORIRS_TRACE_CS2_YIELD). */
+static char const*
+task_cs2_yield_name(enum TaskCS2YieldPlan plan)
+{
+    assert((int)plan >= 0);
+    assert(plan < TASK_CS2_YIELD_COUNT);
+    assert(k_task_cs2_yields[plan].name);
+    return k_task_cs2_yields[plan].name;
+}
 
 struct Task_CS2Run
 {
@@ -138,6 +256,10 @@ struct Task_CS2Run
     char* str_args[TASK_CS2_RUN_STR_ARGS_MAX];
     /* Bit i set = arg position i is the long long_args[i]. NULL with a zero
      * mask for every caller but RUNCLIENTSCRIPT, so a hook pays nothing. */
+    /* Task_CS2Run_SetSubject: written to the client-op register at the
+     * first step. */
+    int has_subject;
+    struct RS_ClientOpContext subject;
     uint64_t long_mask;
     int64_t* long_args;
 
@@ -188,6 +310,9 @@ struct Task_CS2Run
     int yield_npc_id;
     int yield_npc_depth;
     int started;
+    /* A REQUIRED read waited through the assets table (RS_CS2Host.assets):
+     * the loads counted, dropped as each attempt ends, landed or not. */
+    int join;
 
     /*
      * ~2.9 MB, and deliberately not inline.
@@ -1233,6 +1358,101 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     }
 }
 
+/*
+ * After a wait, forget a component the script was pointing at that is gone.
+ *
+ * Its active and dot components (what cc_* ops address) are re-resolved from
+ * the references taken when it stopped. One that is not the same live node
+ * now -- freed, or its id taken by a new component -- is cleared to -1, so
+ * the script's later cc_* writes through it go nowhere; the script itself
+ * carries on, and its other context, still live, keeps working. A script is
+ * ended only when the target of the request it stopped on is gone
+ * (pending_target_ref, above): that request cannot be finished.
+ */
+static void
+task_cs2_resume_forget_stale_context(struct Task_CS2Run* self)
+{
+    struct CS2VM2_Thread* thread;
+    int32_t active;
+    int32_t dot;
+
+    if( !self->has_resume_context )
+        return;
+    assert(self->vm);
+    thread = CS2VM2_ThreadMain(self->vm);
+    active = UITree_ResolveRef(self->host->tree, self->resume_active_ref);
+    dot = UITree_ResolveRef(self->host->tree, self->resume_dot_ref);
+    if( active < 0 || self->host->tree->components[active].component_id != thread->active_component_id )
+        thread->active_component_id = -1;
+    if( dot < 0 || self->host->tree->components[dot].component_id != thread->dot_component_id )
+        thread->dot_component_id = -1;
+}
+
+/*
+ * Start a REQUIRED read of `key` through the assets table, counted on
+ * self->join: true when the host has the table (the caller then waits with
+ * PT_TASK_JOIN(join); nothing is counted when the asset is already here or
+ * remembered failed), false when it has none and the caller awaits the
+ * provider's load task instead. Two lines at every wait, because two
+ * suspension points cannot share a line.
+ */
+static bool
+task_cs2_read(
+    struct Task_CS2Run* self,
+    struct AssetKey key)
+{
+    assert(self);
+    assert(self->join == 0);
+    if( !self->host->assets )
+        return false;
+    (void)Assets_Await(self->host->assets, key, &self->join);
+    return true;
+}
+
+static struct AssetKey
+task_cs2_config(
+    enum AssetConfigType table,
+    int id)
+{
+    return AssetKey_Make(ASSET_KIND_CONFIG, id, (int)table);
+}
+
+/*
+ * The COMPONENT yield on the app's host: the pack's sprites and fonts are
+ * required (the bake binds the sprites and lays text out with the fonts), its
+ * models are not (pack_models_lazy). Counts each on self->join.
+ */
+static void
+task_cs2_read_pack_faces(struct Task_CS2Run* self)
+{
+    struct ToriRS_ComponentPack* pack;
+
+    assert(self->host->assets);
+    assert(self->join == 0);
+    if( !CacheProvider_ComponentPackHas(self->provider, self->await_id) )
+        return;
+    pack = CacheProvider_ComponentPackGet(self->provider, self->await_id);
+    assert(pack);
+    for( int i = 0; i < pack->component_count; i++ )
+    {
+        struct ToriRS_Component const* c = &pack->components[i];
+        if( c->graphic >= 0 )
+            (void)Assets_Await(self->host->assets,
+                AssetKey_Make(ASSET_KIND_SPRITE, c->graphic, 0), &self->join);
+        if( c->graphic_active >= 0 )
+            (void)Assets_Await(self->host->assets,
+                AssetKey_Make(ASSET_KIND_SPRITE, c->graphic_active, 0), &self->join);
+        for( int slot = 0; c->inv_slots && slot < TORIRS_INV_SLOT_MAX; slot++ )
+            if( c->inv_slots->graphic_id[slot] > 0 )
+                (void)Assets_Await(self->host->assets,
+                    AssetKey_Make(ASSET_KIND_SPRITE, c->inv_slots->graphic_id[slot], 0),
+                    &self->join);
+        if( c->font_id >= 0 )
+            (void)Assets_Await(self->host->assets,
+                task_cs2_config(ASSET_CONFIG_FONT, c->font_id), &self->join);
+    }
+}
+
 static int
 Task_CS2Run_Run(
     struct ToriRS_Task* task,
@@ -1259,38 +1479,40 @@ Task_CS2Run_Run(
         if( !self->cancelled && getenv("TORIRS_TRACE_NATIVE_UI") )
             TORIRS_REPORT("NATIVE_CALLBACK_CANCEL script=%d reason=stale-widget\n", self->script_id);
         self->cancelled = 1;
+        /* A read counted on the assets table is the table's to finish: stop
+         * counting it. */
+        if( self->join > 0 )
+            Assets_Unjoin(self->host->assets, &self->join);
         /* Resource-load children own outstanding IO. Drain that load without
          * resuming the callback or its tree bake, then release the child. */
         struct ToriRS_Task* child = self->pt.user;
         if( child )
         {
-            int result = task_run(child, io);
-            self->task.blocked = child->blocked;
+            int result;
+            child->woke = self->task.woke;
+            result = task_run(child, io);
+            self->task.park_req = child->park_req;
             self->task.wants_render = child->wants_render;
             self->task.render = child->render;
             if( result != PT_ENDED && result != PT_EXITED ) return result;
+            child->completed = 1;
+            self->task.inline_child = NULL;
             task_free(child);
             self->pt.user = NULL;
         }
         PT_EXIT(&self->pt);
     }
 
-    if( self->has_resume_context )
-    {
-        thread = CS2VM2_ThreadMain(self->vm);
-        int32_t active = UITree_ResolveRef(self->host->tree, self->resume_active_ref);
-        int32_t dot = UITree_ResolveRef(self->host->tree, self->resume_dot_ref);
-        if( active < 0 || self->host->tree->components[active].component_id != thread->active_component_id )
-            thread->active_component_id = -1;
-        if( dot < 0 || self->host->tree->components[dot].component_id != thread->dot_component_id )
-            thread->dot_component_id = -1;
-    }
+    task_cs2_resume_forget_stale_context(self);
 
     PT_BEGIN(&self->pt);
 
     assert(self->host);
     assert(self->host->provider);
     self->provider = self->host->provider;
+    if( self->has_subject )
+        RS_ClientOpActiveSet(
+            &self->host->clientop, (enum RS_ClientOpKind)self->subject.kind, &self->subject);
 
     if( !self->script && self->script_id <= 0 )
     {
@@ -1303,7 +1525,9 @@ Task_CS2Run_Run(
         if( !CacheProvider_ClientScriptHas(self->provider, self->script_id) )
         {
             self->await_id = self->script_id;
-            PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_SCRIPT, self->await_id)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         self->script = CacheProvider_ClientScriptGet(self->provider, self->script_id);
         if( !self->script )
@@ -1539,6 +1763,17 @@ Task_CS2Run_Run(
 
         /* Flat switch (no PT) then linear awaits — protothreads cannot nest switch. */
         task_cs2_plan_yield(self);
+        /* Asked for by name, so it prints in every build (torirs_log.h: a
+         * line someone turned on is a report, not narration). */
+        if( getenv("TORIRS_TRACE_CS2_YIELD") )
+            TORIRS_REPORT("cs2-yield: script=%d plan=%s wait=%s id=%d id2=%d\n",
+                self->script_id,
+                task_cs2_yield_name(self->yield_plan),
+                k_task_cs2_yields[self->yield_plan].wait == TASK_CS2_WAIT_VISUAL ? "visual"
+                    : k_task_cs2_yields[self->yield_plan].wait == TASK_CS2_WAIT_REQUIRED ? "required"
+                    : "none",
+                self->await_id,
+                self->await_id2);
 
         if( self->yield_plan == TASK_CS2_YIELD_ABORT )
         {
@@ -1547,67 +1782,109 @@ Task_CS2Run_Run(
         }
         else if( self->yield_plan == TASK_CS2_YIELD_SCRIPT )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_SCRIPT, self->await_id)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_INVTYPE )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_InvtypeLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_INVTYPE, self->await_id)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_InvtypeLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_ENUM )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_EnumLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_ENUM, self->await_id)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_EnumLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_WORLDMAP )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_WorldMapLoad(self->provider));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_WORLDMAP, 0)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_WorldMapLoad(self->provider));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_MAPELEMENT )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_MapElementLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_MAPELEMENT, self->await_id)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_MapElementLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_OBJALL )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoadAll(self->provider));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_OBJ_ALL, 0)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_ObjLoadAll(self->provider));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_STRUCT )
         {
-            if( self->await_id >= 0 )
+            if( self->await_id >= 0 &&
+                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_STRUCT, self->await_id)) )
                 PT_TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
-            if( self->await_id2 >= 0 )
+            PT_TASK_JOIN(join);
+            if( self->await_id2 >= 0 &&
+                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id2)) )
                 PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_PARAMS )
         {
-            if( self->await_id >= 0 )
+            if( self->await_id >= 0 &&
+                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id)) )
                 PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id));
-            if( self->await_id2 >= 0 )
+            PT_TASK_JOIN(join);
+            if( self->await_id2 >= 0 &&
+                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id2)) )
                 PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_DBROW )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_DbRowLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_DBROW, self->await_id)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_DbRowLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_DBINDEX )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_DbTableIndexLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_DBINDEX, self->await_id)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_DbTableIndexLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_DBTABLE )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_DbTableLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_DBTABLE, self->await_id)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_DbTableLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_OBJ )
         {
-            if( self->await_id >= 0 )
+            if( self->await_id >= 0 &&
+                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_OBJ, self->await_id)) )
                 PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
-            if( self->await_id2 >= 0 )
+            PT_TASK_JOIN(join);
+            if( self->await_id2 >= 0 &&
+                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id2)) )
                 PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_COMPONENT )
         {
             assert(self->host->tree);
-            PT_TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
-            PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, AssetKey_Make(ASSET_KIND_IF_GROUP, self->await_id, 0)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
+            /* The pack is required; its sprites and fonts too (the bake binds
+             * and measures with them). Its models are VISUAL: on the app's
+             * host they load and bind after the bake (pack_models_lazy). */
+            if( self->host->assets && self->host->pack_models_lazy )
+                task_cs2_read_pack_faces(self);
+            else
+                PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
             task_cs2_bake_pack(self);
+            if( self->host->assets && self->host->pack_models_lazy &&
+                CacheProvider_ComponentPackHas(self->provider, self->await_id) )
+                self->host->pack_models_lazy(self->host->world_user, self->await_id);
             if( !CacheProvider_ComponentPackHas(self->provider, self->await_id) )
             {
                 CS2VM2_ResetRuntime(CS2VM2_ThreadMain(self->vm));
@@ -1638,24 +1915,34 @@ Task_CS2Run_Run(
         }
         else if( self->yield_plan == TASK_CS2_YIELD_NPC )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_NPC, self->await_id)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         /* NC_PARAM / LC_PARAM: the record AND the ParamType, the same pairing
          * TASK_CS2_YIELD_OBJ makes for OC_PARAM -- the answer needs the key
          * from one and the default from the other. */
         else if( self->yield_plan == TASK_CS2_YIELD_NPC_PARAM )
         {
-            if( self->await_id >= 0 )
+            if( self->await_id >= 0 &&
+                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_NPC, self->await_id)) )
                 PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
-            if( self->await_id2 >= 0 )
+            PT_TASK_JOIN(join);
+            if( self->await_id2 >= 0 &&
+                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id2)) )
                 PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_LOC_PARAM )
         {
-            if( self->await_id >= 0 )
+            if( self->await_id >= 0 &&
+                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_LOC, self->await_id)) )
                 PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(self->provider, self->await_id));
-            if( self->await_id2 >= 0 )
+            PT_TASK_JOIN(join);
+            if( self->await_id2 >= 0 &&
+                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id2)) )
                 PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_NPC_HEAD )
         {
@@ -1672,8 +1959,12 @@ Task_CS2Run_Run(
                 int next;
                 struct ToriRS_Npctype* npc;
 
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_NpcLoad(self->provider, self->yield_npc_id));
+                /* Each rung's config through the assets table, as the NPC
+                 * yield reads it (a host with no table loads it itself). */
+                if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_NPC, self->yield_npc_id)) )
+                    PT_TASK_AWAITSELF_IF(
+                        CreateTask_NpcLoad(self->provider, self->yield_npc_id));
+                PT_TASK_JOIN(join);
                 npc = CacheProvider_NpctypeGet(
                     self->provider, self->yield_npc_id);
                 if( !npc || npc->transform_count <= 0 || !npc->transforms )
@@ -1720,11 +2011,15 @@ Task_CS2Run_Run(
         }
         else if( self->yield_plan == TASK_CS2_YIELD_SPRITE )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, AssetKey_Make(ASSET_KIND_SPRITE, self->await_id, 0)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_FONT )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->await_id));
+            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_FONT, self->await_id)) )
+                PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->await_id));
+            PT_TASK_JOIN(join);
         }
         /* TASK_CS2_YIELD_NONE: expected no-op (clear ids). Re-enter ThreadRun. */
     }
@@ -1738,6 +2033,8 @@ Task_CS2Run_Free(struct ToriRS_Task* task)
 {
     struct Task_CS2Run* self = (struct Task_CS2Run*)task;
     assert(self);
+    if( self->join > 0 )
+        Assets_Unjoin(self->host->assets, &self->join);
     /* NULL when the task was dropped before it ever ran (queue teardown). */
     CS2VM2_Release(self->vm);
     /* NULL when the task never yielded, which is the common case. Both come
@@ -2064,6 +2361,22 @@ Task_CS2Run_SetLongArgs(
             self->long_args[i] = long_args[i];
     }
     self->long_mask = long_mask;
+}
+
+void
+Task_CS2Run_SetSubject(
+    struct ToriRS_Task* task,
+    struct RS_ClientOpContext const* subject)
+{
+    struct Task_CS2Run* self = (struct Task_CS2Run*)task;
+
+    assert(self);
+    assert(self->task.vtable == &Task_CS2Run_VTable);
+    assert(subject);
+    assert(subject->kind >= 0);
+    assert(!self->has_subject);
+    self->subject = *subject;
+    self->has_subject = 1;
 }
 
 struct ToriRS_Task*

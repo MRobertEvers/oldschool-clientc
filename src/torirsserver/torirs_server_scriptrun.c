@@ -39,6 +39,7 @@
 
 #include "torirs_server.h"
 #include "mem/torirs_mem.h"
+#include "game/rs_effect_log.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_content.h"
 #include "torirs_server_db.h"
@@ -426,32 +427,24 @@ d_settled(lua_State* L)
     return 1;
 }
 
-/* app/app_plugin_drive_events.c's names, in enum ScriptrunEventKind order. */
-static char const* const EVENT_NAMES[SCRIPTRUN_EV_KIND_COUNT] = {
-    "none", "sub_opened", "sub_mounted", "sub_closed", "chat_opened", "slot_mounted",
-    "resume_answered", "varp_changed", "inv_changed", "obj_added", "obj_removed", "map_flag",
-    "chat_message", "server_tick", "npc_spawn", "npc_despawn", "npc_retype", "inv_packet",
-    "npc_seq", "npc_face",
-};
-
+/* The kind an await names (game/rs_event_ring.h's names, the client's), -1
+ * for none: "none" is no kind here, where the client filters on it. */
 static int
 event_kind(char const* name)
 {
-    for( int k = 1; k < SCRIPTRUN_EV_KIND_COUNT; k++ )
-        if( strcmp(EVENT_NAMES[k], name) == 0 )
-            return k;
-    return -1;
+    int kind = RS_EventKindFromName(name);
+    return kind > SCRIPTRUN_EV_NONE ? kind : -1;
 }
 
 static void
 push_event(
     lua_State* L,
-    struct ScriptrunEvent const* ev)
+    struct RS_Event const* ev)
 {
     lua_createtable(L, 0, 7);
     lua_pushinteger(L, ev->serial);
     lua_setfield(L, -2, "serial");
-    lua_pushstring(L, EVENT_NAMES[ev->kind]);
+    lua_pushstring(L, RS_EventKindName(ev->kind));
     lua_setfield(L, -2, "kind");
     lua_pushinteger(L, ev->cycle);
     lua_setfield(L, -2, "cycle");
@@ -1016,38 +1009,25 @@ d_vessel(lua_State* L)
     return 2;
 }
 
-/* The XP table: the level a client derives from the experience it was sent. */
-static int
-level_for_xp(int xp_tenths_or_xp)
-{
-    int xp = xp_tenths_or_xp;
-    int points = 0;
-    for( int lvl = 1; lvl < 99; lvl++ )
-    {
-        int threshold;
-        points += (int)((double)lvl + 300.0 * pow(2.0, (double)lvl / 7.0));
-        threshold = points / 4;
-        if( xp < threshold )
-            return lvl;
-    }
-    return 99;
-}
-
+/* The packet model's RS_PlayerStats (DriveState_Skill reads the same
+ * fields). `stated` stays true: the real client's is set by its plugin
+ * presentation (last_seen_level), which this runner has none of. */
 static int
 d_skill(lua_State* L)
 {
     struct ScriptBot* bot = bot_of(L);
+    struct RS_PlayerStats const* stats = &bot->core->model.stats;
     int stat = (int)luaL_checkinteger(L, 1);
 
-    if( stat < 0 || stat >= SCRIPTRUN_STATS )
+    if( stat < 0 || stat >= RS_PLAYER_STATS_SKILL_COUNT )
         return push_result(L, "not_found", NULL);
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    lua_pushinteger(L, bot->core->stat_level[stat]);
+    lua_pushinteger(L, stats->current_level[stat]);
     lua_setfield(L, -2, "level");
-    lua_pushinteger(L, level_for_xp(bot->core->stat_xp[stat]));
+    lua_pushinteger(L, stats->base_level[stat]);
     lua_setfield(L, -2, "base_level");
-    lua_pushinteger(L, bot->core->stat_xp[stat]);
+    lua_pushinteger(L, stats->xp[stat]);
     lua_setfield(L, -2, "experience");
     lua_pushboolean(L, 1);
     lua_setfield(L, -2, "stated");
@@ -1061,26 +1041,30 @@ d_run_energy(lua_State* L)
     struct ScriptBot* bot = bot_of(L);
 
     lua_pushstring(L, "ok");
-    lua_pushinteger(L, bot->core->run_energy);
+    lua_pushinteger(L, bot->core->model.stats.run_energy_raw);
     return 2;
 }
 
+/* The model's VarPManager. not_found past what the client's array holds
+ * (ScriptrunCore_VarpAddressable), as DriveState_Varp answers past its
+ * count: the quest driver then reads the server's copy (var_content). */
 static int
 d_varp(lua_State* L)
 {
     struct ScriptBot* bot = bot_of(L);
     int id = (int)luaL_checkinteger(L, 1);
 
-    if( id < 0 || id >= SCRIPTRUN_VARPS )
+    if( !ScriptrunCore_VarpAddressable(bot->core, id) )
         return push_result(L, "not_found", NULL);
     lua_pushstring(L, "ok");
-    lua_pushinteger(L, bot->core->varps[id]);
+    lua_pushinteger(L, VarPManager_GetVarp(&bot->core->model.varps, id));
     return 2;
 }
 
 /* api_drive.var_content: the server's own copy of a varp, for the vars the
- * client never holds (a content-allocated varp above SCRIPTRUN_VARPS, or one
- * declared transmit=no).  The scriptrun twin of DriveState_VarpContent. */
+ * client never holds (a content-allocated varp the client cannot address,
+ * ScriptrunCore_VarpAddressable, or one declared transmit=no).  The
+ * scriptrun twin of DriveState_VarpContent. */
 static int
 d_var_content(lua_State* L)
 {
@@ -1118,16 +1102,12 @@ d_inv_count(lua_State* L)
     struct ScriptBot* bot = bot_of(L);
     int inv_id = (int)luaL_checkinteger(L, 1);
     int obj_id = (int)luaL_checkinteger(L, 2);
-    struct ScriptrunInv const* inv = ScriptrunCore_Inv(bot->core, inv_id);
-    int total = 0;
+    struct InvContainer const* inv = ScriptrunCore_Inv(bot->core, inv_id);
 
     if( !inv )
         return push_result(L, "not_found", NULL);
-    for( int s = 0; s < inv->size; s++ )
-        if( inv->obj[s] == obj_id )
-            total += inv->count[s];
     lua_pushstring(L, "ok");
-    lua_pushinteger(L, total);
+    lua_pushinteger(L, InvManager_Total(&bot->core->model.invs, inv_id, obj_id));
     return 2;
 }
 
@@ -1137,15 +1117,16 @@ d_inv_slot(lua_State* L)
     struct ScriptBot* bot = bot_of(L);
     int inv_id = (int)luaL_checkinteger(L, 1);
     int slot = (int)luaL_checkinteger(L, 2);
-    struct ScriptrunInv const* inv = ScriptrunCore_Inv(bot->core, inv_id);
+    struct InvContainer const* inv = ScriptrunCore_Inv(bot->core, inv_id);
 
-    if( !inv || slot < 0 || slot >= SCRIPTRUN_INV_SLOTS )
+    /* DriveState_InvSlot: a slot past the container's size is not_found. */
+    if( !inv || slot < 0 || slot >= inv->slot_count )
         return push_result(L, "not_found", NULL);
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    lua_pushinteger(L, inv->obj[slot]);
+    lua_pushinteger(L, inv->slots[slot].obj_id);
     lua_setfield(L, -2, "obj_id");
-    lua_pushinteger(L, inv->obj[slot] >= 0 ? inv->count[slot] : 0);
+    lua_pushinteger(L, inv->slots[slot].obj_id >= 0 ? inv->slots[slot].obj_count : 0);
     lua_setfield(L, -2, "count");
     return 2;
 }
@@ -1155,12 +1136,12 @@ d_inv_capacity(lua_State* L)
 {
     struct ScriptBot* bot = bot_of(L);
     int inv_id = (int)luaL_checkinteger(L, 1);
-    struct ScriptrunInv const* inv = ScriptrunCore_Inv(bot->core, inv_id);
+    struct InvContainer const* inv = ScriptrunCore_Inv(bot->core, inv_id);
 
     if( !inv )
         return push_result(L, "not_found", NULL);
     lua_pushstring(L, "ok");
-    lua_pushinteger(L, inv->size);
+    lua_pushinteger(L, inv->slot_count);
     return 2;
 }
 
@@ -1294,7 +1275,7 @@ push_npc_row(
     lua_setfield(L, -2, "headicon_group");
     lua_pushinteger(L, npc->headicon_custom ? npc->headicon_index[0] : -1);
     lua_setfield(L, -2, "headicon_index");
-    lua_pushinteger(L, npc->body_model_count > 0 ? npc->body_models[0] : -1);
+    lua_pushinteger(L, npc->body_custom.model_count > 0 ? npc->body_custom.models[0] : -1);
     lua_setfield(L, -2, "body_model");
     lua_pushinteger(L, npc->spotanim_sent_id >= 0
                            ? npc->spotanim_sent_cycle / SCRIPTRUN_CYCLES_PER_TICK
@@ -1494,12 +1475,20 @@ d_projectiles(lua_State* L)
     int now = (int)c->world->cycle;
     int n = 0;
 
+    static struct RS_EffectProjectile shots[RS_EFFECT_LOG_CAP / 2];
+    int const logged = RS_EffectLog_Projectiles(
+        &c->zone.effects, c->zone.effect_entries, shots, RS_EFFECT_LOG_CAP / 2);
+
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    for( int i = 0; i < c->projectile_count; i++ )
+    /* The effect log's projectiles, oldest first, while their flight lasts
+     * (DriveUi_Projectiles' rule: gone once elapsed passes end_delay). */
+    for( int i = 0; i < logged; i++ )
     {
-        struct ScriptrunProjectile const* p = &c->projectiles[i];
-        int elapsed = now - p->launch_cycle;
+        struct RS_EffectProjectile const* p = &shots[i];
+        int elapsed = now - p->cycle;
+        if( elapsed > p->end_delay )
+            continue;
         if( have && radius > 0 && cheb(px, pz, p->dst_x, p->dst_z) > radius )
             continue;
         lua_newtable(L);
@@ -1548,17 +1537,24 @@ d_spotanims(lua_State* L)
     int now = (int)c->world->cycle;
     int n = 0;
 
+    static struct RS_EffectMapAnim anims[RS_EFFECT_LOG_CAP];
+    int const logged =
+        RS_EffectLog_MapAnims(&c->zone.effects, c->zone.effect_entries, anims, RS_EFFECT_LOG_CAP);
+
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    for( int i = 0; i < c->map_anim_count; i++ )
+    for( int i = 0; i < logged; i++ )
     {
-        struct ScriptrunMapAnim const* a = &c->map_anims[i];
+        struct RS_EffectMapAnim const* a = &anims[i];
         int left;
+        /* A floor graphic is listed RS_EFFECT_MAP_ANIM_LIFE_TICKS after it
+         * lands (the server keeps no spotanim config to read its sequence
+         * length from). */
+        left = RS_EFFECT_MAP_ANIM_LIFE_CYCLES - (now - a->cycle);
+        if( left < 0 )
+            continue;
         if( have && radius > 0 && cheb(px, pz, a->x, a->z) > radius )
             continue;
-        /* The core retires a floor graphic 40 ticks after it lands (the
-         * server keeps no spotanim config to read its sequence length from). */
-        left = 40 * SCRIPTRUN_CYCLES_PER_TICK - (now - a->cycle);
         lua_newtable(L);
         lua_pushinteger(L, -1);
         lua_setfield(L, -2, "seq");
@@ -1599,9 +1595,9 @@ d_loc_anims(lua_State* L)
 
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    for( int i = 0; i < c->loc_anim_count; i++ )
+    for( int i = 0; i < c->zone.loc_anim_count; i++ )
     {
-        struct ScriptrunLocAnim const* a = &c->loc_anims[i];
+        struct ScriptrunLocAnim const* a = &c->zone.loc_anims[i];
         if( have && radius > 0 && cheb(px, pz, a->x, a->z) > radius )
             continue;
         lua_newtable(L);
@@ -1632,13 +1628,21 @@ d_objs(lua_State* L)
     int have = ScriptrunCore_LocalTile(c, &px, &pz, &plevel);
     int n = 0;
 
-    struct PoolOrder order[SCRIPTRUN_OBJS];
+    int const count = ScriptrunCore_ObjCount(c);
+    struct ScriptrunObjRow* rows =
+        ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*rows));
+    struct PoolOrder* order =
+        ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*order));
+    int const listed = ScriptrunCore_Objs(c, rows, count + 1);
     int kept = 0;
 
-    assert(c->obj_count <= SCRIPTRUN_OBJS);
-    for( int i = 0; i < c->obj_count; i++ )
+    assert(rows);
+    assert(order);
+    /* The rows in arrival order, as the real client's pool walks them; the
+     * index breaks a distance tie in that order. */
+    for( int i = 0; i < listed; i++ )
     {
-        struct ScriptrunObj const* o = &c->objs[i];
+        struct ScriptrunObjRow const* o = &rows[i];
         if( have && radius > 0 && cheb(px, pz, o->x, o->z) > radius )
             continue;
         order[kept].idx = i;
@@ -1650,7 +1654,7 @@ d_objs(lua_State* L)
     lua_newtable(L);
     for( int k = 0; k < kept; k++ )
     {
-        struct ScriptrunObj const* o = &c->objs[order[k].idx];
+        struct ScriptrunObjRow const* o = &rows[order[k].idx];
         lua_newtable(L);
         lua_pushinteger(L, o->obj_id);
         lua_setfield(L, -2, "obj_id");
@@ -1666,6 +1670,8 @@ d_objs(lua_State* L)
         lua_setfield(L, -2, "element_id");
         lua_rawseti(L, -2, ++n);
     }
+    ToriMem_Free(ToriMem_ServerPlayers(), order);
+    ToriMem_Free(ToriMem_ServerPlayers(), rows);
     return 2;
 }
 
@@ -1999,39 +2005,42 @@ d_locs_of(lua_State* L)
 
 /* --------------------------------------------------------- messages */
 
+/* The model's RS_Chat, newest first, as DriveState_Messages reads it (the
+ * store keeps RS_CHAT_MESSAGE_MAX lines). */
 static int
 d_messages(lua_State* L)
 {
     struct ScriptBot* bot = bot_of(L);
-    struct ScriptrunCore* c = bot->core;
+    struct RS_Chat const* chat = &bot->core->model.chat;
     int count = (int)luaL_optinteger(L, 1, 20);
-    int n = 0;
 
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    for( int s = c->message_serial; s > 0 && n < count && s > c->message_serial - SCRIPTRUN_MESSAGES;
-         s-- )
+    for( int i = 0; i < chat->message_count && i < count; i++ )
     {
-        struct ScriptrunMessage const* m = &c->messages[s % SCRIPTRUN_MESSAGES];
+        struct RS_ChatMessage const* m = &chat->messages[i];
         lua_newtable(L);
         lua_pushinteger(L, m->type);
         lua_setfield(L, -2, "type");
         lua_pushinteger(L, m->serial);
         lua_setfield(L, -2, "serial");
-        lua_pushstring(L, m->name);
+        lua_pushstring(L, m->sender);
         lua_setfield(L, -2, "sender");
         lua_pushstring(L, m->text);
         lua_setfield(L, -2, "text");
-        lua_rawseti(L, -2, ++n);
+        lua_rawseti(L, -2, i + 1);
     }
     return 2;
 }
 
+/* The newest line's serial, 0 before the first (DriveState_MessageSerial). */
 static int
 d_message_serial(lua_State* L)
 {
+    struct RS_Chat const* chat = &bot_of(L)->core->model.chat;
+
     lua_pushstring(L, "ok");
-    lua_pushinteger(L, bot_of(L)->core->message_serial);
+    lua_pushinteger(L, chat->message_count > 0 ? chat->messages[0].serial : 0);
     return 2;
 }
 
@@ -2566,11 +2575,18 @@ d_world_op(lua_State* L)
     }
     if( strcmp(kind, "obj") == 0 )
     {
-        struct ScriptrunObj const* best = NULL;
+        int const count = ScriptrunCore_ObjCount(c);
+        struct ScriptrunObjRow* rows =
+            ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*rows));
+        int const listed = ScriptrunCore_Objs(c, rows, count + 1);
+        struct ScriptrunObjRow pick;
+        struct ScriptrunObjRow const* best = NULL;
         int best_d = 1 << 30;
-        for( int i = 0; i < c->obj_count; i++ )
+
+        assert(rows);
+        for( int i = 0; i < listed; i++ )
         {
-            struct ScriptrunObj const* o = &c->objs[i];
+            struct ScriptrunObjRow const* o = &rows[i];
             int d;
             if( o->obj_id != type_id )
                 continue;
@@ -2583,8 +2599,12 @@ d_world_op(lua_State* L)
                 best = o;
             }
         }
+        if( best )
+            pick = *best;
+        ToriMem_Free(ToriMem_ServerPlayers(), rows);
         if( !best )
             return push_result(L, "not_found", "no such object on the ground in view");
+        best = &pick;
         if( push_beyond_draw(L, best->x, best->z, px, pz) )
             return 2;
         put2(payload, best->x);
@@ -4045,7 +4065,8 @@ d_click_armed(lua_State* L)
 }
 
 /* The component's own hidden flag, as the client keeps it: the server's last
- * IF_SETHIDE since the group opened, else the cache's `hidden=`. Interface
+ * IF_SETHIDE since the group was last unloaded (ScriptrunCore_SetHide), else
+ * the cache's `hidden=`. Interface
  * 233 ships all 25 skill icons hidden and the server shows one
  * (levelup.rs2), so "never told" must read as the cache's yes, not as shown. */
 static int
@@ -4345,6 +4366,37 @@ d_widget_presented(lua_State* L)
     lua_pushboolean(L, ScriptrunCore_InterfaceOpen(bot->core, (component >> 16) & 0xffff) &&
                            panel_showing(bot, component) &&
                            ScriptrunCore_SetHide(bot->core, component) != 1);
+    return 2;
+}
+
+/* api_drive.widget_model(component) -> ("ok", {kind, id}): what the real
+ * client's DriveRead_WidgetModel answers, from the same store (the core's
+ * UIIfModels): "npc", "obj" or "model" with its id, and "none", -1 for no
+ * model or a player portrait, which carries no identity to check. */
+static int
+d_widget_model(lua_State* L)
+{
+    static char const* const KIND_NAMES[] = { "none", "npc", "obj", "model" };
+    struct ScriptBot* bot = bot_of(L);
+    int component = (int)luaL_checkinteger(L, 1);
+    struct UIIfHead const* head = ScriptrunCore_Head(bot->core, component);
+    int kind = 0;
+    int id = -1;
+
+    if( head && head->kind == UI_IFHEAD_NPC )
+        kind = 1;
+    else if( head && head->kind == UI_IFHEAD_OBJ )
+        kind = 2;
+    else if( head && head->kind == UI_IFHEAD_MODEL )
+        kind = 3;
+    if( kind != 0 )
+        id = head->npc_id;
+    lua_pushstring(L, "ok");
+    lua_createtable(L, 0, 2);
+    lua_pushstring(L, KIND_NAMES[kind]);
+    lua_setfield(L, -2, "kind");
+    lua_pushinteger(L, id);
+    lua_setfield(L, -2, "id");
     return 2;
 }
 
@@ -4710,7 +4762,7 @@ static char const* const CLIENT_VERBS[] = {
     "server_npc_pack", "shot", "sote_guard", "start", "stop", "tab", "tab_by_name", "tests",
     "text", "tiles_nearest", "var_content", "varbit_base", "varbit_content", "view_attach",
     "view_detach", "view_interact", "view_status", "view_watcher", "widget_at",
-    "widget_bounds", "widget_model", "widget_own_hidden", "world_gate", "yellow_chains", "yellow_match",
+    "widget_bounds", "widget_own_hidden", "world_gate", "yellow_chains", "yellow_match",
 };
 
 static void
@@ -4801,6 +4853,7 @@ push_drive_table(
     bind(L, bot, "resume", d_resume);
     bind(L, bot, "close_modal", d_close_modal);
     bind(L, bot, "widget_presented", d_widget_presented);
+    bind(L, bot, "widget_model", d_widget_model);
     bind(L, bot, "group_present", d_group_present);
     bind(L, bot, "widget_text", d_widget_text);
     bind(L, bot, "modal_group", d_modal_group);
@@ -5235,7 +5288,7 @@ bot_settle(
 }
 
 /* The client's pump reads at most this many events a frame
- * (drive_pump_once's `struct App_DriveEvent events[32]`). */
+ * (drive_pump_once's `struct RS_Event events[32]`). */
 enum
 {
     SCRIPTRUN_PUMP_BATCH = 32
@@ -5268,16 +5321,16 @@ bot_step_once(struct ScriptBot* bot)
     {
         /* An on-demand Play's cursor starts at the ring's newest entry
          * (drive_demand_begin): what came before is not this script's. */
-        bot->event_cursor = c->event_serial;
+        bot->event_cursor = (int)c->events.newest_serial;
         bot->state = SCRIPTBOT_DONE; /* until it yields */
         bot_resume(bot, 5);
         return 1;
     }
 
     from = bot->event_cursor + 1;
-    if( from < c->event_serial - SCRIPTRUN_EVENTS + 1 )
-        from = c->event_serial - SCRIPTRUN_EVENTS + 1;
-    batch_end = c->event_serial;
+    if( from < (int)c->events.newest_serial - SCRIPTRUN_EVENTS + 1 )
+        from = (int)c->events.newest_serial - SCRIPTRUN_EVENTS + 1;
+    batch_end = (int)c->events.newest_serial;
     if( batch_end - from + 1 > SCRIPTRUN_PUMP_BATCH )
         batch_end = from + SCRIPTRUN_PUMP_BATCH - 1;
     if( batch_end >= from )
@@ -5289,7 +5342,8 @@ bot_step_once(struct ScriptBot* bot)
     /* Predicates run on the main state: they are plain functions. */
     for( int serial = from; serial <= batch_end; serial++ )
     {
-        struct ScriptrunEvent const* ev = &c->events[serial % SCRIPTRUN_EVENTS];
+        struct RS_Event const* ev =
+            RS_EventRing_At(&c->events, c->event_entries, SCRIPTRUN_EVENTS, (uint32_t)serial);
         int matched;
 
         if( bot->state != SCRIPTBOT_AWAIT )
@@ -5313,7 +5367,7 @@ bot_step_once(struct ScriptBot* bot)
         if( matched )
         {
             char how[64];
-            snprintf(how, sizeof(how), "event %s %d/%d", EVENT_NAMES[ev->kind], serial - from + 1,
+            snprintf(how, sizeof(how), "event %s %d/%d", RS_EventKindName(ev->kind), serial - from + 1,
                      batch_end - from + 1);
             await_trace(bot, how, bot->await_note);
             bot_settle(bot, 1);
@@ -5361,7 +5415,7 @@ bot_step(struct ScriptBot* bot)
     for( int pass = 0; pass < 32; pass++ )
     {
         int resumed = bot_step_once(bot);
-        if( !resumed && bot->event_cursor >= bot->core->event_serial )
+        if( !resumed && bot->event_cursor >= (int)bot->core->events.newest_serial )
             break;
     }
 }
@@ -5411,7 +5465,7 @@ relog_tick(
         bot->login_tick = (int)srv->tick;
         bot->tab = SCRIPTRUN_TAB_INVENTORY;
         disarm(bot);
-        bot->event_cursor = bot->core->event_serial;
+        bot->event_cursor = (int)bot->core->events.newest_serial;
         bot->relog_phase = SCRIPTBOT_RELOG_IN;
         fprintf(stderr, "scriptrun: %s logs back in as pid %d at %d,%d,%d\n", bot->name,
                 player->pid, player->x, player->z, player->level);
@@ -6013,10 +6067,10 @@ ToriRSServer_ScriptRun(
                     run.bots[i].player ? run.bots[i].player->z : -1,
                     c->have_scene, c->rebuild_zone_x, c->rebuild_zone_z,
                     c->world->_base_tile_x, c->world->_base_tile_z, c->esync->local_pid, pp->count,
-                    np->count, c->message_serial);
-            for( int k = 0; k < SCRIPTRUN_INVS; k++ )
-                if( c->invs[k].inv_id >= 0 )
-                    fprintf(stderr, " %d(size %d)", c->invs[k].inv_id, c->invs[k].size);
+                    np->count, c->model.chat.next_message_serial);
+            for( int k = 0; k < c->model.invs.container_count; k++ )
+                fprintf(stderr, " %d(size %d)", c->model.invs.containers[k].inv_id,
+                        c->model.invs.containers[k].slot_count);
             fprintf(stderr, "\n");
             for( int k = World_EntityPoolHead(pp); k != WORLD_ENTITY_NIL; k = World_EntityPoolNext(pp, k) )
             {
@@ -6025,8 +6079,8 @@ ToriRSServer_ScriptRun(
                         p->name, p->pathing.route_x[0], p->pathing.route_z[0], p->pathing.route_length,
                         p->grid_position.x, p->grid_position.z);
             }
-            for( int m = c->message_serial; m > 0 && m > c->message_serial - 6; m-- )
-                fprintf(stderr, "  msg %s\n", c->messages[m % SCRIPTRUN_MESSAGES].text);
+            for( int m = 0; m < c->model.chat.message_count && m < 6; m++ )
+                fprintf(stderr, "  msg %s\n", c->model.chat.messages[m].text);
         }
     }
     {

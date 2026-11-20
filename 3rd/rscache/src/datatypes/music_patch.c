@@ -109,7 +109,7 @@ apply_ramp(
     if( !ramp || ramp_len < 2 )
         return;
     from = ramp[0];
-    value = scale_volume ? (int8_t)ramp[1] : ((int8_t)ramp[1]) << 1;
+    value = scale_volume ? (int8_t)ramp[1] : (int8_t)ramp[1] * 2; /* a negative << 1 is undefined */
     if( from > 128 )
         from = 128;
 

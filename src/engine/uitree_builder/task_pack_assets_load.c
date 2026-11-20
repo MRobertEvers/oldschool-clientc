@@ -36,6 +36,9 @@ struct Task_PackAssetsLoad
     int npc_cap;
 
     int needs_player; /* pack has a local-player model widget (clientCode 327/328) */
+    /* CreateTask_PackAssetsLoadRequired: leave the models and the default
+     * avatar's kit models out (a mount's visual part). */
+    int required_only;
 
     /** Loaders fanned out on the provider's frame queue and not yet ended. */
     int pending;
@@ -159,7 +162,7 @@ Task_PackAssetsLoad_Run(
             self->provider->asset_queue,
             CreateTask_FontLoad(self->provider, self->font_ids[k]),
             &self->pending);
-    for( int k = 0; k < self->model_count; k++ )
+    for( int k = 0; !self->required_only && k < self->model_count; k++ )
         ToriRS_TaskQueue_AddParallelPoolSubTask(
             self->provider->asset_queue,
             CreateTask_ModelLoad(self->provider, self->model_ids[k]),
@@ -171,8 +174,8 @@ Task_PackAssetsLoad_Run(
             &self->pending);
     PT_TASK_JOIN(pending);
 
-    if( self->needs_player )
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(self->provider));
+    if( self->needs_player && !self->required_only )
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(self->provider, NULL));
 
     PT_END(&self->pt);
 }
@@ -194,6 +197,53 @@ static struct ToriRS_TaskVTable Task_PackAssetsLoad_VTable = {
     .run = Task_PackAssetsLoad_Run,
     .free = Task_PackAssetsLoad_Free,
 };
+
+void
+PackAssets_CollectVisual(
+    struct ToriRS_ComponentPack const* pack,
+    struct ToriMem_Group* mem,
+    struct PackVisualAssets* out)
+{
+    assert(pack);
+    assert(mem);
+    assert(out);
+    for( int i = 0; i < pack->component_count; i++ )
+    {
+        struct ToriRS_Component const* c = &pack->components[i];
+        /* The same model ids collect_from_pack prefetches. */
+        if( c->model_type == 1 && c->model_id >= 0 )
+            unique_id_add(mem, &out->model_ids, &out->model_count, &out->model_cap, c->model_id);
+        if( c->active_model_type == 1 && c->active_model_id >= 0 )
+            unique_id_add(
+                mem, &out->model_ids, &out->model_count, &out->model_cap, c->active_model_id);
+        if( c->client_code == 327 || c->client_code == 328 )
+            out->needs_player = 1;
+    }
+}
+
+void
+PackAssets_FreeVisual(
+    struct ToriMem_Group* mem,
+    struct PackVisualAssets* assets)
+{
+    assert(mem);
+    assert(assets);
+    ToriMem_Free(mem, assets->model_ids);
+    assets->model_ids = NULL;
+    assets->model_count = 0;
+    assets->model_cap = 0;
+}
+
+struct ToriRS_Task*
+CreateTask_PackAssetsLoadRequired(
+    struct CacheProvider* provider,
+    int iface_id)
+{
+    struct ToriRS_Task* task = CreateTask_PackAssetsLoad(provider, iface_id);
+    if( task )
+        ((struct Task_PackAssetsLoad*)task)->required_only = 1;
+    return task;
+}
 
 struct ToriRS_Task*
 CreateTask_PackAssetsLoad(

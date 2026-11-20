@@ -183,6 +183,7 @@ RS_EntitySync_Clear(
     struct World* world)
 {
     assert(sync);
+    sync->epoch++;
     for( int i = 0; i < sync->active_player_count; i++ )
         RS_EntitySync_RemovePlayer(sync, world, sync->active_players[i]);
     for( int i = 0; i < sync->active_npc_count; i++ )

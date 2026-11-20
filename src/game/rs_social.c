@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <stdio.h>
 #include <string.h>
 #include <strings.h>
 
@@ -24,9 +25,10 @@ RS_Social_Init(struct RS_Social* social)
 }
 
 /* Base-37 key for a name in any of the forms this store is handed one:
- * lowercase-with-underscores from a packet, "Bob" from a chat line, "B o b"
- * from a typed prompt. strtobase37 folds case and maps every character it does
- * not know (space, underscore) onto the same slot, so all three agree. */
+ * lowercase-with-underscores from a base37 packet, "Eden\xa0Cosine" as a
+ * jstr packet spells it, "Bob" from a chat line, "B o b" from a typed prompt.
+ * strtobase37 folds case and maps every character it does not know (space,
+ * underscore, the cp1252 NBSP) onto the same slot, so all of them agree. */
 static int64_t
 name_hash(char const* name)
 {
@@ -138,15 +140,14 @@ RS_Social_AddFriend(
     return 1;
 }
 
-int
-RS_Social_DelFriend(
+void
+RS_Social_DelFriendAt(
     struct RS_Social* social,
-    char const* name)
+    int idx)
 {
     assert(social);
-    int idx = find_hash(social->friend_hash, social->friend_name, social->friend_count, name);
-    if( idx < 0 )
-        return 0;
+    assert(idx >= 0);
+    assert(idx < social->friend_count);
     for( int i = idx; i + 1 < social->friend_count; i++ )
     {
         memcpy(social->friend_name[i], social->friend_name[i + 1], RS_SOCIAL_NAME_LEN);
@@ -157,7 +158,109 @@ RS_Social_DelFriend(
         memcpy(social->friend_previous_name[i], social->friend_previous_name[i + 1], RS_SOCIAL_NAME_LEN);
     }
     social->friend_count--;
+}
+
+int
+RS_Social_DelFriend(
+    struct RS_Social* social,
+    char const* name)
+{
+    assert(social);
+    int idx = find_hash(social->friend_hash, social->friend_name, social->friend_count, name);
+    if( idx < 0 )
+        return 0;
+    RS_Social_DelFriendAt(social, idx);
     return 1;
+}
+
+void
+RS_Social_SetFriendNames(
+    struct RS_Social* social,
+    int index,
+    char const* name,
+    char const* previous_name)
+{
+    assert(social);
+    assert(index >= 0);
+    assert(index < social->friend_count);
+    assert(name);
+    assert(previous_name);
+    snprintf(social->friend_name[index], RS_SOCIAL_NAME_LEN, "%s", name);
+    social->friend_hash[index] = name_hash(name);
+    snprintf(social->friend_previous_name[index], RS_SOCIAL_NAME_LEN, "%s", previous_name);
+}
+
+void
+RS_Social_FriendWorldNotice(
+    struct RS_Social* social,
+    char const* name,
+    int world,
+    int clock)
+{
+    struct RS_SocialNotices* q;
+    int64_t hash;
+    bool queue = true;
+    int kept = 0;
+
+    assert(social);
+    assert(name);
+    assert(world >= 0);
+    q = &social->notices;
+    hash = name_hash(name);
+    /* Every queued notice of the other direction for this friend goes, and
+     * then nothing is queued (Statics.method10091's loop over field5447). */
+    for( int i = 0; i < q->count; i++ )
+    {
+        struct RS_SocialNotice const* n = &q->entries[i];
+        bool const same = n->hash != 0 ? n->hash == hash : strcasecmp(n->name, name) == 0;
+
+        if( same && ((world != 0 && n->world == 0) || (world == 0 && n->world != 0)) )
+        {
+            queue = false;
+            continue;
+        }
+        if( kept != i )
+            q->entries[kept] = *n;
+        kept++;
+    }
+    q->count = kept;
+    if( !queue )
+        return;
+    /* Ten seconds at the most (class474 lives ten to eleven), so a full
+     * queue is that many world changes inside eleven seconds. */
+    assert(q->count < RS_SOCIAL_NOTICE_MAX);
+    snprintf(q->entries[q->count].name, RS_SOCIAL_NAME_LEN, "%s", name);
+    q->entries[q->count].hash = hash;
+    q->entries[q->count].world = world;
+    q->entries[q->count].stamp = clock / RS_SOCIAL_CYCLES_PER_SECOND + 5;
+    q->count++;
+}
+
+int
+RS_Social_TakeDueNotice(
+    struct RS_Social* social,
+    int clock,
+    char* text,
+    int cap)
+{
+    struct RS_SocialNotices* q;
+    int const now = clock / RS_SOCIAL_CYCLES_PER_SECOND;
+
+    assert(social);
+    assert(text);
+    assert(cap > 0);
+    q = &social->notices;
+    for( int i = 0; i < q->count; i++ )
+    {
+        if( q->entries[i].stamp >= now - 5 )
+            continue;
+        snprintf(text, (size_t)cap, "%s%s", q->entries[i].name,
+            q->entries[i].world > 0 ? " has logged in." : " has logged out.");
+        memmove(&q->entries[i], &q->entries[i + 1], (size_t)(q->count - i - 1) * sizeof(q->entries[0]));
+        q->count--;
+        return 1;
+    }
+    return 0;
 }
 
 int
@@ -174,8 +277,26 @@ RS_Social_AddIgnore(
     strncpy(social->ignore_name[social->ignore_count], name, RS_SOCIAL_NAME_LEN - 1);
     social->ignore_name[social->ignore_count][RS_SOCIAL_NAME_LEN - 1] = '\0';
     social->ignore_hash[social->ignore_count] = name_hash(name);
+    social->ignore_previous_name[social->ignore_count][0] = '\0';
     social->ignore_count++;
     return 1;
+}
+
+void
+RS_Social_DelIgnoreAt(
+    struct RS_Social* social,
+    int index)
+{
+    assert(social);
+    assert(index >= 0);
+    assert(index < social->ignore_count);
+    for( int i = index; i + 1 < social->ignore_count; i++ )
+    {
+        memcpy(social->ignore_name[i], social->ignore_name[i + 1], RS_SOCIAL_NAME_LEN);
+        social->ignore_hash[i] = social->ignore_hash[i + 1];
+        memcpy(social->ignore_previous_name[i], social->ignore_previous_name[i + 1], RS_SOCIAL_NAME_LEN);
+    }
+    social->ignore_count--;
 }
 
 int
@@ -187,13 +308,44 @@ RS_Social_DelIgnore(
     int idx = find_hash(social->ignore_hash, social->ignore_name, social->ignore_count, name);
     if( idx < 0 )
         return 0;
-    for( int i = idx; i + 1 < social->ignore_count; i++ )
-    {
-        memcpy(social->ignore_name[i], social->ignore_name[i + 1], RS_SOCIAL_NAME_LEN);
-        social->ignore_hash[i] = social->ignore_hash[i + 1];
-    }
-    social->ignore_count--;
+    RS_Social_DelIgnoreAt(social, idx);
     return 1;
+}
+
+int
+RS_Social_IgnoreIndex(
+    struct RS_Social const* social,
+    char const* name)
+{
+    assert(social);
+    assert(name);
+    return find_hash(social->ignore_hash, social->ignore_name, social->ignore_count, name);
+}
+
+void
+RS_Social_SetIgnoreNames(
+    struct RS_Social* social,
+    int index,
+    char const* name,
+    char const* previous_name)
+{
+    assert(social);
+    assert(index >= 0);
+    assert(index < social->ignore_count);
+    assert(name);
+    assert(previous_name);
+    snprintf(social->ignore_name[index], RS_SOCIAL_NAME_LEN, "%s", name);
+    social->ignore_hash[index] = name_hash(name);
+    snprintf(social->ignore_previous_name[index], RS_SOCIAL_NAME_LEN, "%s", previous_name);
+}
+
+void
+RS_Social_ResetForLogin(struct RS_Social* social)
+{
+    assert(social);
+    social->friend_count = 0;
+    social->ignore_count = 0;
+    social->server_status = RS_SOCIAL_SERVER_LOADING;
 }
 
 void
@@ -226,15 +378,80 @@ RS_Social_SortAppend(
     chain->count++;
 }
 
-/* The name the client compares (class5.method191, a String compareTo): the
- * displayed form, byte-wise. */
+/* A Username's separators (deob Statics.method8328): trimmed from both ends
+ * before the key is made. The bytes are the wire's cp1252. */
+static bool
+name_is_separator(unsigned char c)
+{
+    return c == 0xa0 || c == ' ' || c == '_' || c == '-';
+}
+
+/* One character of a Username's key (deob Statics.method12690): separators
+ * fold to '_', the accented Latin-1 letters to their base letter, the rest
+ * to lower case. 0 drops the character. */
+static char
+name_key_char(unsigned char c)
+{
+    static char const k_latin1[64] = {
+        /* 0xc0 */ 'a', 'a', 'a', 'a', 'a', 0, 0, 'c', 'e', 'e', 'e', 'e', 0, 'i', 'i', 'i',
+        /* 0xd0 */ 0, 'n', 'o', 'o', 'o', 'o', 'o', 0, 0, 'u', 'u', 'u', 'u', 0, 0, 'b',
+        /* 0xe0 */ 'a', 'a', 'a', 'a', 'a', 0, 0, 'c', 'e', 'e', 'e', 'e', 0, 'i', 'i', 'i',
+        /* 0xf0 */ 0, 'n', 'o', 'o', 'o', 'o', 'o', 0, 0, 'u', 'u', 'u', 'u', 0, 0, 'y',
+    };
+
+    if( name_is_separator(c) )
+        return '_';
+    if( (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || c == '#' || c == '[' || c == ']' )
+        return (char)c;
+    if( c >= 'A' && c <= 'Z' )
+        return (char)(c - 'A' + 'a');
+    if( c == 0x9f ) /* cp1252 Y-diaeresis, U+0178 */
+        return 'y';
+    if( c >= 0xc0 )
+        return k_latin1[c - 0xc0];
+    return 0;
+}
+
+/* The key a Username compares by (deob class7.field12): the name trimmed of
+ * separators, at most 12 characters, folded by name_key_char. "" when the
+ * name is no Username (empty, or too long), which compareTo puts last. */
+static void
+name_key(char const* name, char out[RS_SOCIAL_NAME_LEN])
+{
+    size_t start = 0;
+    size_t end = strlen(name);
+    int n = 0;
+
+    while( start < end && name_is_separator((unsigned char)name[start]) )
+        start++;
+    while( end > start && name_is_separator((unsigned char)name[end - 1]) )
+        end--;
+    out[0] = '\0';
+    if( end - start < 1 || end - start > 12 )
+        return;
+    for( size_t i = start; i < end; i++ )
+    {
+        char const c = name_key_char((unsigned char)name[i]);
+
+        if( c )
+            out[n++] = c;
+    }
+    out[n] = '\0';
+}
+
+/* The order the client sorts names in (deob class628, class7.method28): by
+ * the Username key, a String compareTo; a name with no key sorts after every
+ * name with one. */
 static int
 compare_names(char const* a_raw, char const* b_raw)
 {
     char a[RS_SOCIAL_NAME_LEN];
     char b[RS_SOCIAL_NAME_LEN];
-    RS_Social_DisplayName(a_raw, a, (int)sizeof(a));
-    RS_Social_DisplayName(b_raw, b, (int)sizeof(b));
+
+    name_key(a_raw, a);
+    name_key(b_raw, b);
+    if( !a[0] || !b[0] )
+        return (a[0] ? -1 : 0) + (b[0] ? 1 : 0);
     return strcmp(a, b);
 }
 
@@ -390,6 +607,9 @@ RS_Social_SortIgnores(struct RS_Social* social)
             int64_t const hash = social->ignore_hash[j - 1];
             social->ignore_hash[j - 1] = social->ignore_hash[j];
             social->ignore_hash[j] = hash;
+            memcpy(name, social->ignore_previous_name[j - 1], RS_SOCIAL_NAME_LEN);
+            memcpy(social->ignore_previous_name[j - 1], social->ignore_previous_name[j], RS_SOCIAL_NAME_LEN);
+            memcpy(social->ignore_previous_name[j], name, RS_SOCIAL_NAME_LEN);
         }
     }
 }
@@ -398,13 +618,10 @@ int
 RS_Social_FriendCount(struct RS_Social const* social)
 {
     assert(social);
-    /*
-     * The 2004 client says this by reporting 0 friends while
-     * friendServerStatus != 2 (Client.ts, the CC_FRIENDS_* clientCode branch);
-     * the rev-230 panel spells the same state as a negative count, so that is
-     * the translation. -1 rather than -2: both render the same text, and -1 is
-     * what script 129's ignore twin uses.
-     */
+    /* The rev-239 client's 3600 (Statics.method7997): -2 at friend server
+     * status 0, -1 at 1, the count at 2. */
+    if( social->server_status == RS_SOCIAL_SERVER_LOADING )
+        return -2;
     if( social->server_status != RS_SOCIAL_SERVER_CONNECTED )
         return -1;
     return social->friend_count;
@@ -413,7 +630,12 @@ RS_Social_FriendCount(struct RS_Social const* social)
 int
 RS_Social_IgnoreCount(struct RS_Social const* social)
 {
-    return social ? social->ignore_count : 0;
+    assert(social);
+    /* 3621: the count once the friend server has loaded (method1217, status
+     * 2), -1 before. */
+    if( social->server_status != RS_SOCIAL_SERVER_CONNECTED )
+        return -1;
+    return social->ignore_count;
 }
 
 void
@@ -429,7 +651,7 @@ RS_Social_FriendName(
     out[0] = '\0';
     if( !social || index < 0 || index >= social->friend_count )
         return;
-    RS_Social_DisplayName(social->friend_name[index], out, cap);
+    snprintf(out, (size_t)cap, "%s", social->friend_name[index]);
 }
 
 void
@@ -445,7 +667,7 @@ RS_Social_IgnoreName(
     out[0] = '\0';
     if( !social || index < 0 || index >= social->ignore_count )
         return;
-    RS_Social_DisplayName(social->ignore_name[index], out, cap);
+    snprintf(out, (size_t)cap, "%s", social->ignore_name[index]);
 }
 
 void
@@ -462,7 +684,24 @@ RS_Social_FriendPreviousName(
     out[0] = '\0';
     if( index < 0 || index >= social->friend_count )
         return;
-    RS_Social_DisplayName(social->friend_previous_name[index], out, cap);
+    snprintf(out, (size_t)cap, "%s", social->friend_previous_name[index]);
+}
+
+void
+RS_Social_IgnorePreviousName(
+    struct RS_Social const* social,
+    int index,
+    char* out,
+    int cap)
+{
+    if( cap <= 0 )
+        return;
+    assert(social);
+    assert(out);
+    out[0] = '\0';
+    if( index < 0 || index >= social->ignore_count )
+        return;
+    snprintf(out, (size_t)cap, "%s", social->ignore_previous_name[index]);
 }
 
 int
@@ -498,6 +737,16 @@ RS_Social_IsFriend(
 }
 
 int
+RS_Social_FriendIndex(
+    struct RS_Social const* social,
+    char const* name)
+{
+    assert(social);
+    assert(name);
+    return find_hash(social->friend_hash, social->friend_name, social->friend_count, name);
+}
+
+int
 RS_Social_IsIgnored(
     struct RS_Social const* social,
     char const* name)
@@ -505,6 +754,20 @@ RS_Social_IsIgnored(
     assert(social);
     assert(name);
     return find_hash(social->ignore_hash, social->ignore_name, social->ignore_count, name) >= 0;
+}
+
+int
+RS_Social_SameName(
+    char const* a,
+    char const* b)
+{
+    int64_t const ha = name_hash(a);
+    int64_t const hb = name_hash(b);
+
+    if( ha != 0 && hb != 0 )
+        return ha == hb;
+    /* An unpackable name compares literally, as find_hash does. */
+    return strcasecmp(a, b) == 0;
 }
 
 bool

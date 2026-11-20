@@ -34,8 +34,10 @@ packet_update_ignorelist_v1_out(RsprotExec *x, MsgUpdateIgnoreList *m)
 
         RSPROT_U1(x, e->flags);
         RSPROT_JSTR(x, e->name);
-        /* A removal ends here; an add carries two more strings. */
-        if (!(RSPROT_BRANCH(x, e->flags) & MSG_UPDATE_IGNORELIST_REMOVED)) {
+        /* A removal ends here; an add carries two more strings. Only the
+         * value 4 is a removal (deob class428.method9746 `var4 == 4`): a 5
+         * is an add with its low bit set. */
+        if (RSPROT_BRANCH(x, e->flags) != MSG_UPDATE_IGNORELIST_REMOVED) {
             RSPROT_JSTR(x, e->previous_name);
             RSPROT_JSTR(x, e->note);
         }

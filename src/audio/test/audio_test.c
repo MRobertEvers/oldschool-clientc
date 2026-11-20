@@ -1393,6 +1393,108 @@ test_music_stop_without_fade(void)
     ToriRS_Music_Free(&player);
 }
 
+/* A small playable song for the state tests, owned by whoever installs it. */
+static struct RSCache_MusicSong*
+make_test_song(void)
+{
+    uint8_t smf[256];
+    int smf_size = build_test_smf(smf);
+    struct RSCache_MusicSong* song = calloc(1, sizeof(*song));
+
+    assert(song);
+    song->midi = malloc((size_t)smf_size);
+    assert(song->midi);
+    memcpy(song->midi, smf, (size_t)smf_size);
+    song->midi_size = smf_size;
+    song->track_count = 1;
+    song->division = 96;
+    return song;
+}
+
+/*
+ * A1: a song that finishes loading after a newer request is not installed.
+ *
+ * The loader of the older song cannot be stopped mid-read, so it runs to its
+ * end; the player used to install whatever it was handed, playing the older
+ * song over the newer request -- and if the newer one then failed, the older
+ * kept playing. A failure of the older one must not end the newer's load
+ * either.
+ */
+static void
+test_music_stale_install_refused(void)
+{
+    struct ToriRS_MusicPlayer player;
+    struct ToriRS_AudioQueue queue;
+    int song_id = -1;
+    enum ToriRS_MusicSource source = TORIRS_MUSIC_SOURCE_TRACK;
+
+    ToriRS_Music_Init(&player);
+    memset(&queue, 0, sizeof(queue));
+    ToriRS_Music_Request(&player, 10, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    CHECK(ToriRS_Music_TakeLoadRequest(&player, &song_id, &source));
+    CHECK_EQ(song_id, 10);
+    /* A newer song while 10 loads. */
+    ToriRS_Music_Request(&player, 11, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    ToriRS_Music_Installed(&player, 10, TORIRS_MUSIC_SOURCE_TRACK, make_test_song(), NULL, 0, NULL);
+    CHECK_EQ(player.current_song, -1);
+    CHECK(player.song == NULL);
+    CHECK(player.has_request);
+    CHECK_EQ(player.request_song, 11);
+    CHECK_EQ(player.state, TORIRS_MUSIC_LOADING);
+
+    /* The older one failing instead leaves the newer one loading. */
+    ToriRS_Music_LoadFailed(&player, 10);
+    CHECK(player.has_request);
+    CHECK_EQ(player.state, TORIRS_MUSIC_LOADING);
+
+    /* The newer one installs. */
+    ToriRS_Music_Installed(&player, 11, TORIRS_MUSIC_SOURCE_TRACK, make_test_song(), NULL, 0, NULL);
+    CHECK_EQ(player.current_song, 11);
+    CHECK_EQ(player.state, TORIRS_MUSIC_PLAYING);
+    CHECK(!player.has_request);
+
+    /* The same id from the other source is not the request either. */
+    ToriRS_Music_Request(&player, 12, TORIRS_MUSIC_SOURCE_JINGLE, false, 0, 0);
+    ToriRS_Music_Tick(&player, NULL, &queue);
+    ToriRS_Music_Installed(&player, 12, TORIRS_MUSIC_SOURCE_TRACK, make_test_song(), NULL, 0, NULL);
+    CHECK(player.current_song != 12);
+    ToriRS_Music_Free(&player);
+}
+
+/*
+ * A1: an install from the load task has no command queue. Closing a stream
+ * that was open there dropped its ASSET_UNLOAD, so the old generator stayed
+ * resident while the next open loaded the asset again. The next tick now
+ * queues the unload first.
+ */
+static void
+test_music_install_without_queue_unloads(void)
+{
+    struct ToriRS_MusicPlayer player;
+    struct ToriRS_AudioQueue queue;
+
+    ToriRS_Music_Init(&player);
+    memset(&queue, 0, sizeof(queue));
+    ToriRS_Music_Request(&player, 20, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    ToriRS_Music_Installed(&player, 20, TORIRS_MUSIC_SOURCE_TRACK, make_test_song(), NULL, 0, &queue);
+    ToriRS_Music_Tick(&player, NULL, &queue);
+    CHECK(player.stream_open);
+
+    /* Installed straight from a loader (no tick in between to retire 20). */
+    memset(&queue, 0, sizeof(queue));
+    ToriRS_Music_Request(&player, 21, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    ToriRS_Music_Installed(&player, 21, TORIRS_MUSIC_SOURCE_TRACK, make_test_song(), NULL, 0, NULL);
+    CHECK(!player.stream_open);
+    CHECK(player.unload_pending);
+    ToriRS_Music_Tick(&player, NULL, &queue);
+    CHECK(queue.count >= 2);
+    CHECK_EQ(queue.commands[0].kind, TORIRS_AUDIO_CMD_ASSET_UNLOAD);
+    CHECK_EQ(queue.commands[1].kind, TORIRS_AUDIO_CMD_ASSET_LOAD);
+    CHECK(!player.unload_pending);
+    CHECK(player.stream_open);
+    ToriRS_Music_Free(&player);
+}
+
 static void
 test_music_swap_state(void)
 {
@@ -1448,6 +1550,183 @@ test_music_swap_state(void)
     ToriRS_Music_Free(&player);
 }
 
+/*
+ * The stepped decodes the client's background jobs use
+ * (engine/dat2/task_dat2_music_load.c) give exactly what the one-call decodes
+ * give, for every track, every music sample and every sound effect of a real
+ * cache: a track unpacked one unit a step, a Vorbis sample one packet a step,
+ * an effect one tone a step. What is carried between steps is the whole of
+ * the decoder's state, or the bytes would differ.
+ */
+static int
+bytes_equal(
+    const void* a,
+    const void* b,
+    size_t n)
+{
+    return n == 0 || memcmp(a, b, n) == 0;
+}
+
+static void
+test_stepped_decodes_equal(
+    const char* cache_dir,
+    const char* profile_name)
+{
+    struct RSCache profile;
+    struct RSCache_Dat2Disk* disk;
+    struct RSCache_Dat2DiskArchive* archive;
+    struct RSCache_VorbisSetup* setup = NULL;
+    int tracks = 0, tracks_same = 0;
+    int samples = 0, samples_same = 0;
+    int effects = 0, effects_same = 0;
+
+    disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
+    if( !disk )
+    {
+        printf("   SKIP %s: not present\n", cache_dir);
+        return;
+    }
+    if( !RSCache_ProfileByName(profile_name, &profile) )
+    {
+        printf("   SKIP %s: no profile %s\n", cache_dir, profile_name);
+        RSCache_Dat2DiskFree(disk);
+        return;
+    }
+    RSCache_Dat2DiskSetProfile(disk, &profile);
+
+    /* Tracks, one unit a step. */
+    for( int id = 0; id < 2000; id++ )
+    {
+        struct RSCache_MusicSong* whole;
+        struct RSCache_MusicSong* stepped = NULL;
+        struct RSCache_MusicSongDecode* decode;
+        int same;
+
+        archive = load_archive(disk, RSCACHE_DAT2_TABLE_MUSIC_TRACKS, id);
+        if( !archive )
+            continue;
+        whole = RSCache_MusicSongNewDecode(archive->data, archive->data_size);
+        decode = RSCache_MusicSongDecodeNew(archive->data, archive->data_size);
+        if( decode )
+        {
+            while( !RSCache_MusicSongDecodeStep(decode, 1) )
+                ;
+            stepped = RSCache_MusicSongDecodeTake(decode);
+            RSCache_MusicSongDecodeFree(decode);
+        }
+        tracks++;
+        same = (!whole && !stepped) ||
+               (whole && stepped && whole->midi_size == stepped->midi_size &&
+                whole->patch_count == stepped->patch_count &&
+                whole->track_count == stepped->track_count && whole->division == stepped->division &&
+                bytes_equal(whole->midi, stepped->midi, (size_t)whole->midi_size) &&
+                bytes_equal(
+                    whole->patches, stepped->patches,
+                    (size_t)whole->patch_count * sizeof(*whole->patches)));
+        tracks_same += same;
+        RSCache_MusicSongFree(whole);
+        RSCache_MusicSongFree(stepped);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
+
+    /* Music samples, one packet a step, against the shared setup. */
+    archive = load_archive(disk, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0);
+    if( archive )
+    {
+        setup = RSCache_VorbisSetupNewDecode(archive->data, archive->data_size);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
+    CHECK(setup != NULL);
+    for( int id = 1; setup && id < 2000; id++ )
+    {
+        struct RSCache_AudioSample* whole;
+        struct RSCache_AudioSample* stepped = NULL;
+        struct RSCache_VorbisSampleDecode* decode;
+        int same;
+
+        archive = load_archive(disk, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, id);
+        if( !archive )
+            continue;
+        whole = RSCache_VorbisSampleNewDecode(setup, archive->data, archive->data_size);
+        decode = RSCache_VorbisSampleDecodeNew(setup, archive->data, archive->data_size);
+        if( decode )
+        {
+            while( !RSCache_VorbisSampleDecodeStep(decode, 1) )
+                ;
+            stepped = RSCache_VorbisSampleDecodeTake(decode);
+            RSCache_VorbisSampleDecodeFree(decode);
+        }
+        samples++;
+        same = (!whole && !stepped) ||
+               (whole && stepped && whole->sample_count == stepped->sample_count &&
+                whole->sample_rate == stepped->sample_rate &&
+                whole->loop_start == stepped->loop_start && whole->loop_end == stepped->loop_end &&
+                whole->loop == stepped->loop &&
+                bytes_equal(
+                    whole->samples, stepped->samples,
+                    (size_t)whole->sample_count * sizeof(*whole->samples)));
+        samples_same += same;
+        RSCache_AudioSampleFree(whole);
+        RSCache_AudioSampleFree(stepped);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
+    RSCache_VorbisSetupFree(setup);
+
+    /* Sound effects (the percussion a patch names are among them), one tone a
+     * step. */
+    for( int id = 0; id < 4000; id++ )
+    {
+        struct RSCache_SoundEffect* effect;
+        struct RSCache_SoundPcm whole;
+        struct RSCache_SoundPcm stepped;
+        struct RSCache_SoundRender* render;
+        bool whole_ok;
+        bool stepped_ok = false;
+        int same;
+
+        archive = load_archive(disk, RSCACHE_DAT2_TABLE_SOUND_EFFECTS, id);
+        if( !archive )
+            continue;
+        effect = RSCache_SoundEffectNewDecode(&profile, archive->data, archive->data_size);
+        RSCache_Dat2DiskArchiveFree(archive);
+        if( !effect )
+            continue;
+        whole_ok = RSCache_SoundEffectRender(&profile, effect, &whole);
+        memset(&stepped, 0, sizeof(stepped));
+        render = RSCache_SoundRenderNew(&profile, effect);
+        if( render )
+        {
+            /* An odd budget, so steps end mid-tone and mid-pass. */
+            while( !RSCache_SoundRenderStep(render, 509) )
+                ;
+            RSCache_SoundRenderTake(render, &stepped);
+            RSCache_SoundRenderFree(render);
+            stepped_ok = true;
+        }
+        effects++;
+        same = whole_ok == stepped_ok &&
+               (!whole_ok ||
+                (whole.sample_count == stepped.sample_count &&
+                 whole.sample_rate == stepped.sample_rate &&
+                 whole.loop_start == stepped.loop_start && whole.loop_end == stepped.loop_end &&
+                 bytes_equal(whole.samples, stepped.samples, (size_t)whole.sample_count)));
+        effects_same += same;
+        RSCache_SoundPcmRelease(&whole);
+        RSCache_SoundPcmRelease(&stepped);
+        RSCache_SoundEffectFree(effect);
+    }
+    RSCache_Dat2DiskFree(disk);
+
+    printf("   %s: %d/%d tracks, %d/%d samples, %d/%d effects the same stepped\n", cache_dir,
+        tracks_same, tracks, samples_same, samples, effects_same, effects);
+    CHECK(tracks > 0);
+    CHECK(samples > 0);
+    CHECK(effects > 0);
+    CHECK_EQ(tracks_same, tracks);
+    CHECK_EQ(samples_same, samples);
+    CHECK_EQ(effects_same, effects);
+}
+
 int
 main(
     int argc,
@@ -1493,12 +1772,18 @@ main(
     test_music_swap_state();
     test_music_jingle_retires_outgoing_before_load();
     test_music_stop_without_fade();
+    test_music_stale_install_refused();
+    test_music_install_without_queue_unloads();
 
     GROUP("render a real song");
     snprintf(path, sizeof(path), "%s/cache.osrs239", cache_root);
     test_render_song(path, "osrs239", 0);
     snprintf(path, sizeof(path), "%s/cache.osrs230", cache_root);
     test_render_song(path, "osrs230", 2);
+
+    GROUP("stepped decodes equal the one-call decodes");
+    snprintf(path, sizeof(path), "%s/cache.osrs239", cache_root);
+    test_stepped_decodes_equal(path, "osrs239");
 
     printf("audio_test: %d/%d checks %s\n", checks - failures, checks,
            failures ? "FAILED" : "passed");

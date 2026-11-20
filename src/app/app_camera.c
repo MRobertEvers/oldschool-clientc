@@ -970,6 +970,167 @@ app_world_camera_limits(struct App const* app)
     return limits;
 }
 
+/*
+ * A follow focus standing in a deck: its view-local fine position pushed out
+ * through the hull into root scene-local fine units, and its look-at height
+ * composed as client.method1605 composes it -- the deck's own ground under the
+ * focus (method1812 in the focus's view) plus the hull's height in the root
+ * (the root ground under the boat, which the interpolator keeps in Wev.y),
+ * less the 8 and the camera's 50. Returns 0, outputs untouched, when the
+ * placement is not in a live root-parented deck.
+ */
+static int
+app_world_camera_deck_focus(
+    struct App* app,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int level,
+    int* inout_x,
+    int* inout_z,
+    int* out_y)
+{
+    struct Wev const* wev;
+    struct Worldview* view;
+
+    assert(app);
+    assert(placement);
+    assert(out_y);
+    if( !app_wev_actor_root_fine(app, placement, inout_x, inout_z) )
+        return 0;
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    wev = Wevs_Get(&app->wevs, placement->view_id);
+    view = WorldviewRegistry_Get(&app->worldviews, placement->view_id);
+    *out_y = wev->y + World_HeightAt(view->world, placement->x, placement->z, level) - 8 - 50;
+    return 1;
+}
+
+/*
+ * CAM_TARGET: what the follow camera follows instead of the local player
+ * (deob client.java method1936 picks the view, method1700 the focus in it;
+ * the focus step, method1605, pushes a view's focus out into the root):
+ *   0 a player by index, 1 an npc by index;
+ *   2 a world entity by its wire id, looked up in the ROOT view's own list
+ *     (method1936 answers the root for type 2, and method1700 reads
+ *     root.field1402) -- a hull carried by another hull is not found;
+ *   3 a coordinate packed as level << 28 | x << 14 | z in absolute tiles,
+ *     resolved to the view whose staging rectangle holds it, else the root
+ *     (class61.method1423), and focused on the centre of that tile in the
+ *     view's own fine units ((tile << 7) + 64, Statics.method6778), pushed
+ *     through the hull when the view is a deck.
+ * The coordinate focus is on plane 0 whatever the packed level says: the
+ * deob's focus object for it (class610) takes the level in method13074 and
+ * never stores it, so its plane (field6703, read by method1284) stays 0.
+ *
+ * A player or npc is focused in the view it stands in (method1936 asks
+ * class61.method1429 / method1390 for it), so one aboard a deck is pushed
+ * out through the hull, as the local player is.
+ *
+ * Writes the focus's root scene-local fine position and level and returns 1
+ * when the camera has such a target and it can be found; 0 leaves the local
+ * player's. When the focus stands in a deck, *out_y is its look-at height
+ * (app_world_camera_deck_focus) and *out_y_valid is 1.
+ */
+static int
+app_world_camera_target_focus(
+    struct App* app,
+    int* inout_x,
+    int* inout_z,
+    int* inout_level,
+    int* out_y,
+    int* out_y_valid)
+{
+    int type;
+    int index;
+    int world_idx;
+
+    assert(app);
+    assert(out_y);
+    assert(out_y_valid);
+    *out_y_valid = 0;
+    if( !CamScript_Target(&app->cam_script, &type, &index) )
+        return 0;
+    if( type == CAM_SCRIPT_TARGET_PLAYER )
+    {
+        struct WorldEntity_Player* target;
+
+        if( index == app->esync.local_pid ||
+            !RS_EntitySync_FindPlayer(&app->esync, index, &world_idx, NULL) )
+            return 0;
+        target = World_EntityPoolGet(&app->world->entities.player, world_idx);
+        if( !target )
+            return 0;
+        *inout_x = (int)target->draw_position.x;
+        *inout_z = (int)target->draw_position.z;
+        *inout_level = target->grid_position.level;
+        *out_y_valid = app_world_camera_deck_focus(
+            app, &target->view_placement, target->grid_position.level, inout_x, inout_z, out_y);
+        return 1;
+    }
+    if( type == CAM_SCRIPT_TARGET_NPC )
+    {
+        struct WorldEntity_NPC* target;
+
+        if( !RS_EntitySync_FindNpc(&app->esync, index, &world_idx, NULL) )
+            return 0;
+        target = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+        if( !target )
+            return 0;
+        *inout_x = (int)target->draw_position.x;
+        *inout_z = (int)target->draw_position.z;
+        *inout_level = target->grid_position.level;
+        *out_y_valid = app_world_camera_deck_focus(
+            app, &target->view_placement, target->grid_position.level, inout_x, inout_z, out_y);
+        return 1;
+    }
+    if( type == CAM_SCRIPT_TARGET_WORLDENTITY )
+    {
+        int const slot = WorldviewRegistry_SlotForWire(&app->worldviews, index);
+        struct Wev const* wev;
+
+        if( slot == WORLDVIEW_SLOT_NONE || slot == WORLDVIEW_ROOT || !Wevs_IsLive(&app->wevs, slot) )
+            return 0;
+        wev = Wevs_Get(&app->wevs, slot);
+        if( wev->parent_view_id != WORLDVIEW_ROOT )
+            return 0;
+        /* A Wev's transform is absolute root-world fine units; the camera
+         * works in the root scene's. */
+        *inout_x = wev->x - (app->world->_base_tile_x << 7);
+        *inout_z = wev->z - (app->world->_base_tile_z << 7);
+        *inout_level = wev->parent_level;
+        return 1;
+    }
+    if( type == CAM_SCRIPT_TARGET_COORD )
+    {
+        int const abs_x = (index >> 14) & 0x3fff;
+        int const abs_z = index & 0x3fff;
+        int local_x;
+        int local_z;
+        int view_id;
+        struct WorldEntityFacet_ViewPlacement placement;
+
+        view_id = WorldviewRegistry_HomeViewForAbsTile(
+            &app->worldviews, abs_x, abs_z, &local_x, &local_z);
+        if( view_id == WORLDVIEW_ROOT )
+        {
+            *inout_x = ((abs_x - app->world->_base_tile_x) << 7) + 64;
+            *inout_z = ((abs_z - app->world->_base_tile_z) << 7) + 64;
+            *inout_level = 0;
+            return 1;
+        }
+        memset(&placement, 0, sizeof(placement));
+        placement.view_id = view_id;
+        placement.x = (local_x << 7) + 64;
+        placement.z = (local_z << 7) + 64;
+        *out_y_valid = app_world_camera_deck_focus(app, &placement, 0, inout_x, inout_z, out_y);
+        if( *out_y_valid )
+            *inout_level = 0;
+        return *out_y_valid;
+    }
+    return 0;
+}
+
 void
 app_world_camera_follow(struct App* app)
 {
@@ -979,6 +1140,8 @@ app_world_camera_follow(struct App* app)
     int pitch, yaw, distance;
     int aboard_y = 0;
     int aboard_y_valid = 0;
+    int focus_level;
+    int focus_other;
 
     /* U unlocked the camera: the follow update stands down and the W/A/S/D +
      * R/F debug keys own world_camera_pos until U relocks. Without this gate
@@ -1067,6 +1230,9 @@ app_world_camera_follow(struct App* app)
 
     target_x = (int)player->draw_position.x;
     target_z = (int)player->draw_position.z;
+    focus_level = player->grid_position.level;
+    focus_other = app_world_camera_target_focus(
+        app, &target_x, &target_z, &focus_level, &aboard_y, &aboard_y_valid);
 
     /*
      * Aboard (SAILING_PLAN C5.3): the player's own coordinates are deck-local,
@@ -1078,8 +1244,8 @@ app_world_camera_follow(struct App* app)
      * actor. Nested hulls would need the parent chain composed; the camera
      * handles the root-parented case, which is every hull that exists today.
      */
-    aboard_y_valid = 0;
-    if( Wevs_AboardView(&app->wevs) != WORLDVIEW_ROOT && player->view_placement.view_id == Wevs_AboardView(&app->wevs) &&
+    if( !focus_other && Wevs_AboardView(&app->wevs) != WORLDVIEW_ROOT &&
+        player->view_placement.view_id == Wevs_AboardView(&app->wevs) &&
         app_wev_actor_root_fine(app, &player->view_placement, &target_x, &target_z) )
     {
         struct Wev* wev = Wevs_Get(&app->wevs, Wevs_AboardView(&app->wevs));
@@ -1113,7 +1279,7 @@ app_world_camera_follow(struct App* app)
      * the player model swung round a point beside itself while orbiting — the
      * camera appeared to orbit the tile rather than the player. */
     if( CamScript_FreeCamera(&app->cam_script) )
-        app_world_camera_oculus_step(app, target_x, target_z, player->grid_position.level);
+        app_world_camera_oculus_step(app, target_x, target_z, focus_level);
     else
         Wev_SmoothCameraFocus(
             &app->world_views.frame->orbit.anchor_x, &app->world_views.frame->orbit.anchor_z, target_x, target_z);
@@ -1134,7 +1300,7 @@ app_world_camera_follow(struct App* app)
      * clears it. cameraPitchClamp is 24.8 fixed (clamp/256 = pitch units). */
     {
         struct Heightmap* hm = app->world ? app->world->heightmap : NULL;
-        int level = player->grid_position.level;
+        int level = focus_level;
         int orbit_ix = (int)app->world_views.frame->orbit.anchor_x;
         int orbit_iz = (int)app->world_views.frame->orbit.anchor_z;
         int orbit_tile_x = orbit_ix >> 7;
@@ -1195,7 +1361,7 @@ app_world_camera_follow(struct App* app)
     target_y =
         aboard_y_valid
             ? aboard_y
-            : app_world_height(app, target_x, target_z, player->grid_position.level) - 8 - 50;
+            : app_world_height(app, target_x, target_z, focus_level) - 8 - 50;
     target_x = (int)app->world_views.frame->orbit.anchor_x;
     target_z = (int)app->world_views.frame->orbit.anchor_z;
     if( CamScript_FreeCamera(&app->cam_script) )

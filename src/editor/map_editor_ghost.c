@@ -56,8 +56,12 @@ MapEditorGhost_Remove(
      * Its loc id is not part of that: a deletion names the slot. */
     *out_removed = ghost->spec;
     *out_has_restore = ghost->displaced_valid;
+    /* Always written, so the caller's copy is never read uninitialised: the
+     * occupant when there is one, else an empty spec. */
     if( ghost->displaced_valid )
         *out_restore = ghost->displaced;
+    else
+        *out_restore = (struct MapEditorGhostSpec){ 0 };
 
     ghost_loc_clear(ghost);
     return true;

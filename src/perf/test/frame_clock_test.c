@@ -145,6 +145,26 @@ test_locked_owed_cycles(void)
     TEST_ASSERT(FrameClockStep_PayLocked(&clock.step, 1, TICK) == 3, "the last debt is the one paid");
 }
 
+/* The content test held its virtual clock (App_LogicClockHold): a locked
+ * frame then runs no cycle and moves nothing, and the debt waits for the
+ * frame that does pay. Before it, a locked client ran a cycle a frame
+ * through every hold, so its clock ran ahead of the held server's and a
+ * quest driver deadline (client cycles) expired with no server tick run. */
+static void
+test_held_frame_pays_nothing(void)
+{
+    struct FrameClock clock;
+
+    FrameClock_Reset(&clock);
+    TEST_ASSERT(FrameClockStep_PayLocked(&clock.step, 1, TICK) == 1, "a locked frame pays its cycle");
+    FrameClockStep_Owe(&clock.step, 1);
+    for( int i = 0; i < 300; i++ )
+        TEST_ASSERT(FrameClockStep_PayHeld(&clock.step) == 0, "a held frame pays no cycle");
+    TEST_ASSERT(FrameClockStep_FrameMs(&clock.step) == 0, "and is no time long (the movers stand still)");
+    TEST_ASSERT(FrameClockStep_CyclesOwed(&clock.step) == 1, "the debt waits through the hold");
+    TEST_ASSERT(FrameClockStep_PayLocked(&clock.step, 1, TICK) == 2, "the next paying frame pays k + owed");
+}
+
 static void
 test_serials(void)
 {
@@ -232,6 +252,7 @@ main(void)
     test_skip_does_not_owe();
     test_locked_and_refund();
     test_locked_owed_cycles();
+    test_held_frame_pays_nothing();
     test_serials();
     test_fps_window();
     test_idle_timer_says_once();

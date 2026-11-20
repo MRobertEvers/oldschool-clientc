@@ -1,6 +1,7 @@
 #ifndef SRC_GAME_RS_AUDIO_H
 #define SRC_GAME_RS_AUDIO_H
 
+#include "engine/asset_requests.h"
 #include "audio/torirs_audio.h"
 #include "audio/torirs_music.h"
 
@@ -47,9 +48,10 @@
  */
 
 struct CacheProvider;
-struct TaskRunner;
+struct Assets;
 struct ToriRS_FeatureTable;
 struct ToriDraw_Scene;
+struct ToriDraw_EventQueue;
 struct World;
 struct RS_Soundscapes;
 
@@ -77,6 +79,8 @@ struct RS_Soundscapes;
  * costs too (its archive reads are synchronous and in-memory, so it simply never
  * hits the window).
  */
+/* The reference's `delays[i] >= -10`: ten client ticks. The queue's own rule,
+ * counted on its own countdown (the assets table has no late policy). */
 #define RS_AUDIO_LATE_LIMIT_TICKS 10
 
 /**
@@ -144,8 +148,6 @@ struct RS_AudioEntry
     int delay;
     /** Set once ToriDraw_Sound.queue_delay has been folded into `delay`. */
     bool delay_resolved;
-    /** Set once a load has been asked for, so it is asked for exactly once. */
-    bool load_requested;
     /** Where it should sound from, in scene tiles; -1 for "not positional",
      *  which plays it centred at full volume (UI and self-inflicted sounds).
      *  SYNTH_SOUND is deliberately in that class: the reference queues it with
@@ -249,8 +251,6 @@ struct RS_Audio
     int next_voice_id;
 
     struct ToriRS_MusicPlayer music;
-    /** Set while a music load task is outstanding. */
-    bool music_loading;
 
     /**
      * The region's background bed (AMBIENTSOUND_START): an *unpositioned* set of
@@ -284,10 +284,15 @@ struct RS_Audio
     /** The world's area-sound generation this layer last synchronised with. */
     int area_generation;
 
-    /** Cursor into the scene's event queue for the asset drain. Reset whenever
-     *  the queue shrinks, which is how a frame boundary is detected without the
-     *  scene having to tell us. */
+    /** Cursor into the scene's event queue for the asset drain, valid for the
+     *  queue it was taken on and that queue's `spent` count: a frame end
+     *  (ToriDraw_SceneFrameEnd) empties the queue and bumps the count, and the
+     *  cursor restarts. (Restarting only when the queue was SHORTER than the
+     *  cursor skipped the first `cursor` events of a queue refilled past it
+     *  before the next tick: a sound UNLOAD or LOAD made between frames.) */
     int scene_event_cursor;
+    struct ToriDraw_EventQueue const* scene_event_queue;
+    uint32_t scene_event_spent;
 
     /* Counters, for tests and TORIRS_AUDIO_DEBUG. */
     int played;
@@ -423,8 +428,11 @@ RS_Audio_Jingle(
  *
  * Drains the scene's sound-asset events, runs the effect queue, synchronises
  * area sounds against the world, and ticks the music player. `provider`,
- * `runner`, `scene` and `world` may be NULL (no cache, no scene yet), in which
- * case the parts that need them are skipped rather than guessed at.
+ * `assets`, `scene` and `world` may be NULL (no cache, no scene yet), in which
+ * case the parts that need them are skipped rather than guessed at. A clip
+ * that is not resident is wanted through `assets` (ASSET_KIND_SOUND): one
+ * load in flight per clip however many effects, emitters and ticks ask, and a
+ * load that ended without it asked again after a back-off.
  *
  * `camera_tile_x/z` and `camera_level` place the listener; `feedback` is what
  * the host reported before the frame.
@@ -433,7 +441,7 @@ void
 RS_Audio_Tick(
     struct RS_Audio* audio,
     struct CacheProvider* provider,
-    struct TaskRunner* runner,
+    struct Assets* assets,
     struct ToriDraw_Scene* scene,
     struct World* world,
     int camera_tile_x,

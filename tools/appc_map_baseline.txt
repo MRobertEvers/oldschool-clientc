@@ -230,6 +230,39 @@
 # Lowered to 148 by the map editor app step: editor (struct Editor) and
 # editor_shell (struct EditorShell) left; map_editor (struct MapEditorApp,
 # editor/map_editor_app.h, NULL outside an editor boot) arrived.
+# Raised to 149 by the assets table step: assets (struct Assets,
+# engine/asset_requests.h) arrived; the trackers it replaces leave in the
+# commits that follow.
+# Lowered to 148 by the npc body step: npc_body_lands (struct RS_NpcBodyLands)
+# left for the table's ASSET_KIND_NPC_BODY.
+# Lowered to 146 by the sequence trackers step: entity_seq_loads and seq_loads
+# (struct SeqLoadTracker) left for the table's ASSET_KIND_SEQUENCE.
+# Lowered to 145 by the textures step: tex_pending (struct
+# AsyncPendingTextures) left for the table's ASSET_KIND_TEXTURE.
+# Lowered to 144 by the sequence binds step: seq_bind_pending (struct
+# AsyncPendingSeqBinds) left for the table's SEQUENCE waiters.
+# Lowered to 143 by the inventory icon step: inv_icon_retry (struct
+# InvIconRetry) left for the table's ASSET_KIND_INV_ICONS.
+# Raised to 144 by the parked lookup step: parked (struct Park,
+# game/rs_parked.h), the one lookup every family of parked work shares;
+# the per-family pending records it replaces leave in the family steps.
+# Kept at 144 by the parallel task step: parked becomes pending (struct
+# RS_Pending, game/rs_pending.h), the index of live parallel tasks on
+# frame_runner, which holds no data of its own.
+# Raised to 145 by the local load step: world_local (struct
+# AppWorldLocalLoad, app/app_world_load.c, one pointer), the offline and
+# editor load's gather job on background_runner; it was a task on
+# frame_runner that held nothing on App, and the job has to be found again
+# by the frame that builds it.
+# Raised to 146 by the trigger step: triggers (struct AppTriggers, app.h),
+# what a parked task waits on that is neither a task's end nor a join -- the
+# logic cycle's clock, the boot's built trigger, each view's built trigger
+# and the view that owns it until its first scene; the polled conditions it
+# replaces held nothing on App.
+# Raised to 148 by the merge of v3 into the packet model: the Quest Helper's
+# plugin_loads (the bridge's memo of cache loads a plugin asked for, with the
+# join count the frame queue decrements) and plugin_open_url_ok (set by main.c
+# from the platform) arrived on v3 beside this branch's 146.
 struct-App-fields: 148
 
 src/main.c
@@ -243,7 +276,9 @@ src/editor/editor_panel.c
 src/game/content_test.c
 src/game/content_test_sailing.c
 src/game/rs_clientcode.c
-src/game/rs_gameproto_exec.c
+# src/game/rs_gameproto_exec.c left 2026-11-19 (j2_sweep): the App half of
+# every packet moved to src/app/app_gameproto_exec.c; what stays is the model
+# and the tree-only writes.
 src/game/rs_if1_buttons.c
 src/game/rs_ui_slots.c
 src/game/task_exec_entity_info.c
@@ -261,11 +296,36 @@ src/world/test/wev_rebuild_test.c
 # quest-driver units (src/plugin/torirs_plugin_drive*.c) read the App by
 # design through g_app -- the driver is a test harness bolted onto the live
 # client -- and the rest are tests and two task units that kept the pointer.
+# src/game/rs_chat.c left 2026-11-19 (packet model step): it stamps
+# chat_message through an RS_EventSink now, not an App pointer.
+# src/app/test/app_loc_tasks_test.c added 2026-11-19 (locs step): it drives
+# the locs family's parallel tasks on a real App's queue and index.
 src/app/test/app_drive_event_ring_test.c
+src/app/test/app_loc_tasks_test.c
 src/app/test/app_logout_wait_test.c
 src/app/test/app_mouseover_entry_test.c
+# Added 2026-11-19 (ground step): a test of the App layer's ground tasks, on a zeroed App.
+src/app/test/app_tasks_ground_test.c
+# Added 2026-11-19 (packet model, effects): a test of the effects family's
+# parallel tasks, driven through the packet executor on a calloc'd App.
+src/app/test/app_tasks_effects_test.c
+# Added 2026-11-19 (ifassets step): the interface-assets tasks run on a stack App.
+src/app/test/if_assets_tasks_test.c
+src/app/test/app_tasks_scripts_test.c
+# Added 2026-11-19 (lo-mounts step): the visual waits moved off the main queue, run on a stack App.
+src/app/test/app_tasks_mounts_test.c
+# Added 2026-11-19 (lo-music step): the music install task runs on a stack App.
+src/app/test/music_install_test.c
+# Added 2026-11-19 (lo-faults step): chat lines reaching a plugin, through the
+# packet executor into a PluginHost over a calloc'd App's own engine.
+src/app/test/app_plugin_chat_kinds_test.c
+# Added 2026-11-19 (lo-tables step): the trackers moved onto the assets table
+# and the pending index, run on a stack App's queue, table and index.
+src/app/test/app_trackers_test.c
+# Added 2026-11-20 (bt-left step): a hull's sequence wants, on a calloc'd App's
+# assets table, scene and world-entity tables.
+src/app/test/app_wev_seq_want_test.c
 src/engine/uitree_builder/task_slot_mount.c
-src/game/rs_chat.c
 src/game/task_entity_assets.c
 src/plugin/torirs_plugin_drive.c
 src/plugin/torirs_plugin_drive_chat.c
@@ -369,4 +429,27 @@ src/replay/replay_world_apply.c
 # feature table no longer repoints a pointer at it.
 # Lowered to 1420 by the per-app config step: App_Init's two-line editor-boot
 # test became one MapEditorConfig_IsEditorBoot call.
-app.c-lines: 1418
+# Raised to 1421 by the assets table step: App_AssetsInit after the provider
+# is opened, App_AssetsFree after the queues.
+# Raised to 1424 by the spot-animation step and the table's close: the
+# attached-graphic table grows now, so App_Shutdown frees it
+# (EntitySpotanims_Free), and App_Shutdown closes the assets table before the
+# queues (Assets_Close and its two-line comment) in place of App_AssetsFree's
+# one-line comment.
+# Raised to 1426 by the parked lookup step: App_ParkedInit after
+# App_AssetsInit, App_ParkedFree before the teardown that frees the table.
+# Kept at 1426 by the parallel task step: App_PendingInit in its place, and
+# App_PendingFree moves after the frame queue is freed (its tasks unlist).
+# Raised to 1428 by the scripts step: the CS2 host takes the scripts family's
+# hooks in one call, and the client-script hold, which grows now, is freed.
+# Raised to 1430 by the music decode step: the provider is told its compute
+# queue (the background queue) beside its asset queue, and the comment names it.
+# Raised to 1431 by the lo-tables step: the scene bridge's sprite
+# reservations are filled by the interface-assets family's tasks, bound once
+# beside the bridge (App_IfAssetsBindBridge).
+# Raised to 1434 by the slow-read tool: the frame queue's executor is told the
+# client's frame count (TORIRS_IO_DEFER_FRAMES), and App_Shutdown traces the
+# pending index once (App_PendingTrace, at exit).
+# Raised to 1441 by the merge of v3 into the packet model: v3's seven lines
+# for the plugin host (the load memo and the open-url flag) on top of 1434.
+app.c-lines: 1441

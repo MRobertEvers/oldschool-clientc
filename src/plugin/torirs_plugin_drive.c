@@ -710,7 +710,7 @@ struct DriveAwait
     int active;
     int level_ref;   /* LUA_NOREF, or a registry ref to a 0-arg predicate */
     int match_ref;   /* LUA_NOREF, or a registry ref to a 1-arg predicate */
-    int event_kind;  /* -1, or an enum App_DriveEventKind to filter on */
+    int event_kind;  /* -1, or an enum RS_EventKind to filter on */
     int deadline_cycle; /* -1 = no deadline (level-only, never reached here) */
     char note[96];
 };
@@ -856,7 +856,9 @@ drive_ledger_write(char const* step, char const* verdict, int ticks, char const*
         return; /* stderr mirror is all a run with no session dir gets */
 
     snprintf(path, sizeof(path), "%s/ledger.tsv", dir);
-    f = fopen(path, g_ledger.index == 1 ? "w" : "a");
+    /* Binary, as the tick log: the ledger is compared across platforms and a
+     * Windows text-mode stream ends each row with CRLF. */
+    f = fopen(path, g_ledger.index == 1 ? "wb" : "ab");
     assert(f);
     if( g_ledger.index == 1 )
         fprintf(f, "quest-ledger-v1\nindex\tstep\tverdict\tticks\tshots\tdetail\n");
@@ -884,7 +886,7 @@ drive_ledger_write_summary_exit(char const* exit_text)
     if( !dir )
         return;
     snprintf(path, sizeof(path), "%s/ledger.tsv", dir);
-    f = fopen(path, g_ledger.index == 0 ? "w" : "a");
+    f = fopen(path, g_ledger.index == 0 ? "wb" : "ab");
     assert(f);
     if( g_ledger.index == 0 )
         fprintf(f, "quest-ledger-v1\nindex\tstep\tverdict\tticks\tshots\tdetail\n");
@@ -917,14 +919,14 @@ drive_ledger_write_summary(int code)
 }
 
 static void
-drive_push_event(struct lua_State* L, struct App_DriveEvent const* ev)
+drive_push_event(struct lua_State* L, struct RS_Event const* ev)
 {
     assert(L);
     assert(ev);
     lua_createtable(L, 0, 7);
     lua_pushinteger(L, (lua_Integer)ev->serial);
     lua_setfield(L, -2, "serial");
-    lua_pushstring(L, DriveEventKindName((enum App_DriveEventKind)ev->kind));
+    lua_pushstring(L, RS_EventKindName(ev->kind));
     lua_setfield(L, -2, "kind");
     lua_pushinteger(L, ev->cycle);
     lua_setfield(L, -2, "cycle");
@@ -967,7 +969,7 @@ drive_await_level_true(int level_ref)
 }
 
 static int
-drive_await_match_true(int match_ref, struct App_DriveEvent const* ev)
+drive_await_match_true(int match_ref, struct RS_Event const* ev)
 {
     int result;
     if( match_ref == LUA_NOREF )
@@ -1188,12 +1190,16 @@ drive_await_trace(char const* how, char const* note)
 static void
 drive_pump_once(void)
 {
-    struct App_DriveEvent events[32];
+    struct RS_Event events[32];
     int count = 0;
     uint32_t next_serial = g_sched.event_cursor;
     int i;
 
     if( !g_host.app || !g_sched.thread )
+        return;
+    /* The content test's oracle or race mode held the clock this frame: the
+     * driver waits with it (ContentTest_DriverHeld). */
+    if( ContentTest_DriverHeld() )
         return;
 
     /* NEVER ON A HALF-APPLIED TICK (App_DriveRing.batch_open): the driver
@@ -1244,7 +1250,7 @@ drive_pump_once(void)
     (void)App_DriveEventsRead(g_host.app, g_sched.event_cursor, events, 32, &count, &next_serial);
     g_sched.event_cursor = next_serial;
     for( i = 0; i < count; i++ )
-        if( events[i].kind == DRIVE_EVENT_SERVER_TICK )
+        if( events[i].kind == RS_EVENT_SERVER_TICK )
         {
             g_sched.fence_tick = drive_raw_server_tick();
             if( g_sched.fence_count == DRIVE_FENCE_HISTORY )
@@ -1270,7 +1276,7 @@ drive_pump_once(void)
         {
             char how[64];
             snprintf(how, sizeof(how), "event %s %d/%d",
-                     DriveEventKindName((enum App_DriveEventKind)events[i].kind), i + 1, count);
+                     RS_EventKindName(events[i].kind), i + 1, count);
             drive_await_trace(how, g_sched.await.note);
         }
         drive_await_settle(DRIVE_OK, NULL);
@@ -1321,7 +1327,7 @@ lua_drive_await(struct lua_State* L)
 
     lua_getfield(L, 1, "event");
     if( lua_type(L, -1) == LUA_TSTRING )
-        kind = DriveEventKindFromName(lua_tostring(L, -1));
+        kind = RS_EventKindFromName(lua_tostring(L, -1));
     lua_pop(L, 1);
 
     lua_getfield(L, 1, "level");
@@ -1905,7 +1911,7 @@ drive_demand_begin_play(void)
     }
 
     g_demand.start_pending = 0;
-    g_sched.event_cursor = g_host.app->drive_events.newest_serial;
+    g_sched.event_cursor = g_host.app->drive_events.ring.newest_serial;
     /* A new Play counts ticks from its own fences. */
     g_sched.fence_tick = -1;
     g_sched.fence_count = 0;
@@ -1984,7 +1990,7 @@ drive_demand_begin(void)
     /* The event ring's cursor starts at its newest entry: what happened before
      * the person pressed Play is not this script's to await. (A test run's
      * first pump reads from 0 -- everything since boot -- and is unchanged.) */
-    g_sched.event_cursor = g_host.app->drive_events.newest_serial;
+    g_sched.event_cursor = g_host.app->drive_events.ring.newest_serial;
     /* A new Play counts ticks from its own fences. */
     g_sched.fence_tick = -1;
     g_sched.fence_count = 0;
@@ -2164,7 +2170,7 @@ lua_drive_pump(struct lua_State* L)
 static int
 lua_drive_events(struct lua_State* L)
 {
-    struct App_DriveEvent events[64];
+    struct RS_Event events[64];
     int count = 0;
     uint32_t after = (uint32_t)PluginDrive_ArgOptInt(L, 1, 0);
     uint32_t next_serial = after;
@@ -2682,6 +2688,11 @@ lua_drive_forget_varps(struct lua_State* L)
         return PluginDrive_PushResult(L, DRIVE_REFUSED,
             "drive.forget_varps: not on the title screen (log out first)");
     VarPManager_ResetAll(&g_host.app->varps);
+    /* DRIVE_STAMP: varp_changed -- a=-1 (every varp), as a VARP_RESET packet
+     * stamps it (game/rs_server_state.c): this is the same reset, made by the
+     * driver rather than the server. */
+    App_DriveEvent(g_host.app, RS_EVENT_VARP_CHANGED, -1,
+        VarPManager_GetVarp(&g_host.app->varps, -1), 0, 0);
     fprintf(stderr, "quest-driver: on demand: play %s: the last account's client varps forgotten\n",
         g_demand.id);
     return PluginDrive_PushResult(L, DRIVE_OK, "client varps zeroed");

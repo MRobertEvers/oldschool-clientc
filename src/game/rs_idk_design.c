@@ -77,7 +77,6 @@ RS_IdkDesign_Validate(
     assert(design && provider);
 
     design->redraw = 1;
-    design->load_requested_count = 0;
 
     for( int part = 0; part < RS_IDK_DESIGN_PARTS; part++ )
     {
@@ -117,25 +116,6 @@ RS_IdkDesign_ColourCount(
     int part)
 {
     return PlayerModel_DesignColourCount(provider, part);
-}
-
-int
-RS_IdkDesign_LoadRequestAdd(
-    struct RS_IdkDesign* design,
-    int model_id)
-{
-    assert(design);
-    for( int i = 0; i < design->load_requested_count; i++ )
-    {
-        if( design->load_requested[i] == model_id )
-            return 0;
-    }
-    /* Window full: fall through and let the caller re-queue. A duplicate load
-     * is wasteful but correct, and only happens past 64 distinct models. */
-    if( design->load_requested_count >= RS_IDK_DESIGN_LOAD_TRACK_MAX )
-        return 1;
-    design->load_requested[design->load_requested_count++] = model_id;
-    return 1;
 }
 
 /* Step the kit id one at a time (wrapping over the whole IdkType table) until
@@ -193,7 +173,6 @@ design_cycle_part(
         return;
     design->parts[part] = next;
     design->redraw = 1;
-    design->load_requested_count = 0;
 }
 
 static void

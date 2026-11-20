@@ -900,7 +900,8 @@ Editor_RecDefNpc(
         else if( (index = recdef_indexed(key, "headicon")) >= 0 )
         {
             int pair[2];
-            ok = recdef_int_list(value, pair, 2) == 2;
+            /* Opcode 102's slot mask is a byte: headicon1..8. */
+            ok = index < TORIRS_NPCTYPE_HEADICON_SLOTS && recdef_int_list(value, pair, 2) == 2;
             if( ok )
             {
                 recdef_ints_set(&icon_archive, index, pair[0]);
@@ -1537,8 +1538,8 @@ Editor_RecDefNpcDiff(
     RECDEF_DIFF_INT(alwaysontop);
     RECDEF_DIFF_INT(minimap_visible);
     RECDEF_DIFF_INT(interactable);
-    RECDEF_DIFF_INT(head_icon_group);
-    RECDEF_DIFF_INT(head_icon_index);
+    RECDEF_DIFF_BYTES(head_icon_group);
+    RECDEF_DIFF_BYTES(head_icon_index);
     RECDEF_DIFF_INT(ambient);
     RECDEF_DIFF_INT(contrast);
     RECDEF_DIFF_INT(height);

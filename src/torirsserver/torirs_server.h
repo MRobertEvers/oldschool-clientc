@@ -1722,6 +1722,18 @@ struct ToriRSServerNpcInfo
     int transform_varp;
     int* transforms;
     int transform_count;
+    /** The overhead icons the type carries (config opcode 102, every slot it
+     *  states: a sprite group and an index in it, -1 for an empty slot), as
+     *  the client reads them (torirs_npctype_from_rscache.c). The headless
+     *  client's NPC_HEADICON_SPECIFIC starts from them, as the real client's
+     *  does from its NpcType. */
+    int head_icon_group[TORIRSSERVER_NPC_HEADICON_SLOTS];
+    int head_icon_index[TORIRSSERVER_NPC_HEADICON_SLOTS];
+    /** NpcType recolour and retexture source counts (config opcodes 40, 41):
+     *  how many colours a typed NPC_INFO customisation block carries for the
+     *  type, which the headless client's reader asks. */
+    int recolour_count;
+    int retexture_count;
 };
 
 /**
@@ -10296,13 +10308,20 @@ ToriRSServer_SendMessageFriendchannel(
 void
 ToriRSServer_SendUpdateFriendlistEmpty(struct ToriRSServerPlayer* player);
 
-/** The whole ignore list: p8 name37 * count. The client replaces its store
- *  wholesale, so there is no single-entry form. */
+/** Ignore list entries: p8 name37 * count on the rs wires, whose client
+ *  replaces its store wholesale; one added entry each on a wire that states
+ *  entries (ToriRSServer_WireIgnoreListByEntry), whose client changes its
+ *  list entry by entry (rev-239 class428.method9746). */
 void
 ToriRSServer_SendUpdateIgnorelist(
     struct ToriRSServerPlayer* player,
     const int64_t* names37,
     int count);
+
+/** Does this player's wire state UPDATE_IGNORELIST entry by entry (an entry
+ *  is a change to the list held), rather than as the whole list? */
+int
+ToriRSServer_WireIgnoreListByEntry(struct ToriRSServerPlayer* player);
 
 /** 0 loading, 1 connecting, 2 online. Sent once, after the login dump. */
 void

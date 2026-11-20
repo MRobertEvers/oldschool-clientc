@@ -2,22 +2,80 @@
 #define WORLD_ENTITY_NPC_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "entity_facets.h"
 #include "entity_tint.h"
+#include "entity_freeze.h"
 #include "entity_transparency.h"
 
 /*
  * Rev-239 numbered graphic slots: an npc wears one attached graphic per slot,
  * and a SPOTANIM entry replaces only its own slot (a Tormented Demon's shield
  * loop in slot 4 plays under its claw arc in slot 2). The wire's slot is a
- * byte; slots past the last share it.
+ * byte, every value its own (WorldEntityFacet_EntitySpotanims).
  */
 enum
 {
-    WORLD_NPC_SPOTANIM_SLOTS = 8,
     WORLD_NPC_HEADICON_SLOTS = 8,
-    WORLD_NPC_BODY_MODELS_MAX = 8,
+};
+
+/* What the server set on the npc itself over its type's value (NAME_CHANGE,
+ * LEVEL_CHANGE, BAS_CHANGE): a retype the CLIENT makes (a varp moving its
+ * multinpc onto another rung) keeps them, as the reference keeps the
+ * overrides on the npc, not the type. A server type change clears them. */
+enum
+{
+    WORLD_NPC_OVERRIDE_NAME = 1 << 0,
+    WORLD_NPC_OVERRIDE_LEVEL = 1 << 1,
+    WORLD_NPC_OVERRIDE_STANCES = 1 << 2,
+};
+
+/*
+ * One server customisation of an npc's model (deob class399, built by
+ * NPC_INFO's BODY_CUSTOM / HEAD_CUSTOM blocks, Statics ~47300-47520 and
+ * ~47775-47855). Every array is sized from the wire's count, as the reference
+ * sizes it (`new int[count]`, the count a byte or the type's own length), and
+ * owned by the row on ToriMem_Scene(), like the pool the row lives in; NULL
+ * when its count is 0. World_NpcSetBodyCustom / World_NpcSetHeadCustom replace
+ * it whole, World_NpcDespawn hands it to the removal's snapshot
+ * (World_EventsClear frees it there) and World_Free frees what is left.
+ */
+struct WorldNpcOverride
+{
+    /** An override is set (the block's 0x1 clears it: class86.method2907). */
+    bool active;
+    /** Unique per block received (class399.field5098): the built model's
+     *  cache key carries it, so an override never reads another's model. */
+    uint32_t serial;
+    /** 0x2: `models` replace the type's (even an empty list: an empty model).
+     *  Without it the type's own models are drawn (Statics.method9224). */
+    bool models_sent;
+    int model_count;
+    int* models;
+    /** 0x4 / 0x8: replace the TYPE's destination colours / textures index
+     *  for index, over the type's own source list (Statics.method9224).
+     *  An index past the list keeps the type's. */
+    int recolour_count;
+    int* recolours;
+    int retexture_count;
+    int* retextures;
+    /** The V4 form's recolour-all (osrs242: 0x4 then a 1 flag byte and a
+     *  g2): every face of the body takes `recolour_all`, in place of the
+     *  index-for-index recolours; 65535 (-1 as the reference's short) is none
+     *  and the list follows instead (rev-242 deob class454.method10217:
+     *  `if (var10 != -1) var9.method4694(var10)` else the per-colour list). */
+    bool has_recolour_all;
+    int recolour_all;
+    /** 0x10: draw the local player instead (class399.field5094). */
+    bool mirror;
+    /** 0x20 (the counted forms): draw a player composition built from
+     *  `identkits`, `body_type` and the first five recolours
+     *  (class399.field5090, class86.method2906). */
+    bool player;
+    int body_type;
+    int identkit_count;
+    int* identkits;
 };
 
 struct WorldEntity_NPC
@@ -56,6 +114,11 @@ struct WorldEntity_NPC
      *  default-true rule and for the same reason. */
     bool interactable;
     int combat_level;
+    /** WORLD_NPC_OVERRIDE_* bits. */
+    uint8_t overrides;
+    /** A varp its multinpc chain depends on changed since the rung it draws
+     *  was resolved (counted in World.npc_retype_wanted). */
+    bool retype_wanted;
     /* 64, matching ToriRS_Npctype.name (TORIRS_NAME_MAX) -- col-tagged names
      * like "<col=00ffff>Ancestral Glyph</col>" don't fit in 32. */
     char name[64];
@@ -68,7 +131,7 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_Facing facing;
     struct WorldEntityFacet_Combat combat;
     struct WorldEntityFacet_Chat chat;
-    struct WorldEntityFacet_EntitySpotanim spotanims[WORLD_NPC_SPOTANIM_SLOTS];
+    struct WorldEntityFacet_EntitySpotanims spotanims;
     /** Rev-239 NPC_INFO tinting (`npc_tint`, flag 0x100): the body drawn
      *  recoloured while active -- Akkha and his shadows while immune.
      *  Applied per frame by app_world_sync_npc_tints. */
@@ -77,6 +140,8 @@ struct WorldEntity_NPC
      *  body faded in or out -- Ocellus teleporting. Applied per frame by
      *  app_world_sync_npc_transparency. */
     struct WorldEntityTransparency transparency;
+    /** FREEZE windows and the frozen drawing (entity_freeze.h). */
+    struct WorldEntityFreeze freeze;
     /**
      * Headicon customisation (rev-239 0x400000): while `headicon_custom`, the
      * overhead draws these eight (sprite group, frame) slots instead of the
@@ -87,17 +152,19 @@ struct WorldEntity_NPC
     int headicon_group[WORLD_NPC_HEADICON_SLOTS];
     int headicon_index[WORLD_NPC_HEADICON_SLOTS];
     /**
-     * Body customisation (rev-239 0x2000000): while `body_model_count` > 0
-     * the body is built from these models instead of the type's. Bumping
-     * `body_serial` asks the app to remount the body (app_world_reconcile_
-     * npc_body); `body_mounted_serial` is the one it last mounted.
+     * Body customisation (NPC_INFO BODY_CUSTOM: rev-239 0x800000 typed and
+     * 0x2000000 counted) and chathead customisation (HEAD_CUSTOM, rev-239
+     * 0x20000): the server's override of what the type draws (deob class399,
+     * class86.field1246 and field1247). While `body_custom.active` the body is
+     * built from it (app_world_build_npc_body); bumping `body_serial` asks the
+     * app to remount the body (app_world_sync_npc_bodies) and
+     * `body_mounted_serial` is the one it last mounted. A retype keeps both
+     * (the override is the npc's, not the type's). See struct WorldNpcOverride.
      */
-    int body_model_count;
-    int body_models[WORLD_NPC_BODY_MODELS_MAX];
+    struct WorldNpcOverride body_custom;
+    struct WorldNpcOverride head_custom;
     int body_serial;
     int body_mounted_serial;
-    /** The body_serial whose missing models were last asked for. */
-    int body_load_serial;
     /**
      * The newest SEQUENCE and SPOTANIM the server SENT this npc, and the world
      * cycle each arrived on -- stamped by World_NpcSetPrimaryAnimation and
@@ -146,6 +213,9 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_ExactMove exact_move;
     /** Server npc slot this entity mirrors; -1 = local/unsynced. */
     int server_slot;
+    /** Unique for the World's life (World.entity_spawn_serial): with
+     *  server_slot it names this npc, never a later one in the same slot. */
+    uint32_t spawn_serial;
 };
 
 #endif

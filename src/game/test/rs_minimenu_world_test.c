@@ -17,6 +17,7 @@
 #include "world/wev.h"
 #include "world_pickset.h"
 
+#include "game/rs_player_ops.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -662,8 +663,8 @@ test_local_player_pick_expands_stacked_npcs(void)
     World_PickSetReset(&picks);
     World_PickSetAdd(&picks, 100, WORLD_PICK_PLAYER, 25, 25, 0, 0);
 
-    char player_ops[5][40];
-    int player_ops_primary[5] = { 0 };
+    char player_ops[RS_PLAYER_OPS_SLOTS][40];
+    int player_ops_primary[RS_PLAYER_OPS_SLOTS] = { 0 };
     memset(player_ops, 0, sizeof(player_ops));
     snprintf(player_ops[0], sizeof(player_ops[0]), "Follow");
 
@@ -688,6 +689,80 @@ test_local_player_pick_expands_stacked_npcs(void)
     TEST_ASSERT(menu_npc_row_count(&menu) >= 2, "at least one row per stacked NPC");
     TEST_ASSERT(menu_player_row_count(&menu) == 0, "local player emits no OPPLAYER rows");
     TEST_ASSERT(!menu_has_substr(&menu, "Follow"), "Follow not shown for local");
+
+    World_Free(world);
+}
+
+/*
+ * A7: SET_PLAYER_OP keeps eight slots and the menu offers every one, slot 8
+ * first (deob Statics ~29066: `for (var18 = 7; var18 >= 0; var18--)`, the
+ * row's action field724[slot] = 44..51, each its own OPPLAYER1..8). A row
+ * carries its slot, which the click sends as OPPLAYER<slot + 1>.
+ */
+static void
+test_player_ops_six_to_eight_are_rows(void)
+{
+    printf("TEST: player ops 6..8 are menu rows of their own, slot 8 first\n");
+
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct World* world = World_TestMakeReady(104);
+    int lp = World_PlayerSpawn(world, 100, 0, 25, 25, idle);
+    struct WorldEntity_Player* local = World_EntityPoolGet(&world->entities.player, lp);
+    local->server_pid = 7;
+    world->local_pid = 7;
+    int op = World_PlayerSpawn(world, 200, 0, 30, 30, idle);
+    struct WorldEntity_Player* other = World_EntityPoolGet(&world->entities.player, op);
+    other->server_pid = 8;
+    other->combat_level = 10;
+    snprintf(other->name, sizeof(other->name), "Bob");
+
+    struct World_PickSet picks;
+    World_PickSetReset(&picks);
+    World_PickSetAdd(&picks, 200, WORLD_PICK_PLAYER, 30, 30, 0, 0);
+
+    char player_ops[RS_PLAYER_OPS_SLOTS][40];
+    int player_ops_primary[RS_PLAYER_OPS_SLOTS] = { 1, 1, 1, 1, 1, 1, 1, 1 };
+    memset(player_ops, 0, sizeof(player_ops));
+    snprintf(player_ops[0], sizeof(player_ops[0]), "Follow");
+    snprintf(player_ops[5], sizeof(player_ops[5]), "Sixth");
+    snprintf(player_ops[6], sizeof(player_ops[6]), "Seventh");
+    snprintf(player_ops[7], sizeof(player_ops[7]), "Eighth");
+
+    struct RS_MinimenuBuildCtx ctx = {
+        .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+        .player_ops = (char const(*)[40])player_ops,
+        .player_ops_primary = player_ops_primary,
+        .world = world,
+        .world_pickset = &picks,
+        .click_in_world = true,
+    };
+    struct UIMinimenu menu;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+
+    int const want_slot[4] = { 7, 6, 5, 0 };
+    int const want_action[4] = {
+        REVCONFIG_MINIMENU_OPPLAYER8, REVCONFIG_MINIMENU_OPPLAYER7, REVCONFIG_MINIMENU_OPPLAYER6,
+        REVCONFIG_MINIMENU_OPPLAYER1,
+    };
+    int seen = 0;
+    int wrong = 0;
+    for( int i = 0; i < menu.option_count; i++ )
+    {
+        if( menu.options[i].pick.kind != UI_MINIMENU_PICK_PLAYER ||
+            menu.options[i].action == REVCONFIG_MINIMENU_WALK )
+            continue;
+        if( UIMinimenu_ActionNormalize(menu.options[i].action) == REVCONFIG_MINIMENU_USEHELD_ONPLAYER )
+            continue;
+        if( seen < 4 && (menu.options[i].action_index != want_slot[seen] ||
+                            menu.options[i].action != want_action[seen]) )
+            wrong++;
+        seen++;
+    }
+    TEST_ASSERT(menu_has_substr(&menu, "Sixth @whi@Bob"), "slot 6 is a row");
+    TEST_ASSERT(menu_has_substr(&menu, "Seventh @whi@Bob"), "slot 7 is a row");
+    TEST_ASSERT(menu_has_substr(&menu, "Eighth @whi@Bob"), "slot 8 is a row");
+    TEST_ASSERT(seen == 4 && wrong == 0, "added slot 8 first, each with its own op and slot");
 
     World_Free(world);
 }
@@ -717,8 +792,8 @@ test_other_player_stack_rows(void)
     /* Local wins draw — pick is local; expansion still lists Bob. */
     World_PickSetAdd(&picks, 200, WORLD_PICK_PLAYER, 30, 30, 0, 0);
 
-    char player_ops[5][40];
-    int player_ops_primary[5] = { 1, 0, 0, 0, 0 };
+    char player_ops[RS_PLAYER_OPS_SLOTS][40];
+    int player_ops_primary[RS_PLAYER_OPS_SLOTS] = { 1, 0, 0, 0, 0 };
     memset(player_ops, 0, sizeof(player_ops));
     snprintf(player_ops[0], sizeof(player_ops[0]), "Follow");
     snprintf(player_ops[1], sizeof(player_ops[1]), "Trade with");
@@ -783,8 +858,8 @@ test_target_mask_gates_the_armed_player_row(void)
 
     struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
     struct World* world = World_TestMakeReady(104);
-    char player_ops[5][40];
-    int player_ops_primary[5] = { 1, 1, 0, 0, 0 };
+    char player_ops[RS_PLAYER_OPS_SLOTS][40];
+    int player_ops_primary[RS_PLAYER_OPS_SLOTS] = { 1, 1, 0, 0, 0 };
     struct World_PickSet picks;
     struct UIMinimenu menu;
     int op;
@@ -1015,8 +1090,8 @@ test_local_alone_no_player_ops(void)
     World_PickSetReset(&picks);
     World_PickSetAdd(&picks, 300, WORLD_PICK_PLAYER, 40, 40, 0, 0);
 
-    char player_ops[5][40];
-    int player_ops_primary[5] = { 0 };
+    char player_ops[RS_PLAYER_OPS_SLOTS][40];
+    int player_ops_primary[RS_PLAYER_OPS_SLOTS] = { 0 };
     memset(player_ops, 0, sizeof(player_ops));
     snprintf(player_ops[0], sizeof(player_ops[0]), "Follow");
 
@@ -1148,8 +1223,8 @@ struct AttackFixture
 {
     struct World* world;
     struct World_PickSet picks;
-    char player_ops[5][40];
-    int player_ops_primary[5];
+    char player_ops[RS_PLAYER_OPS_SLOTS][40];
+    int player_ops_primary[RS_PLAYER_OPS_SLOTS];
 };
 
 static void
@@ -1952,6 +2027,7 @@ main(void)
     test_local_player_pick_expands_stacked_npcs();
     test_interaction_modes_filter_root_rows();
     test_other_player_stack_rows();
+    test_player_ops_six_to_eight_are_rows();
     test_target_mask_gates_the_armed_player_row();
     test_local_player_pick_expands_ground_items();
     test_obj_pick_expands_siblings();

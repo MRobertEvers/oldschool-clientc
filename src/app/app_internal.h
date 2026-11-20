@@ -30,6 +30,8 @@
 #include "bmp.h"
 #include "game/rs_minimap_state.h"
 #include "game/settle_gate.h"
+#include "engine/asset_requests.h"
+#include "app/app_tasks.h"
 #include "log/torirs_log.h"
 #include "torirs_env.h"
 #include "torirs_env_values.h"
@@ -98,7 +100,6 @@ app_from_side_app_host(struct SideAppHost* host)
 #include "engine/png_decode.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/toridraw_model_from_torirs.h"
-#include "engine/async_pending.h"
 #include "engine/toridraw_element_anim.h"
 #include "engine/world_seq_source_toridraw.h"
 #include "engine/torirs_chrome_skin_baked.h"
@@ -115,6 +116,7 @@ app_from_side_app_host(struct SideAppHost* host)
 #include "game/rs_client_trigger.h"
 #include "game/rs_clientcode.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/rs_entity_apply.h"
 #include "game/rs_ground_items_dirty.h"
 #include "game/rs_game_events.h"
 #include "game/rs_gameproto_exec.h"
@@ -453,9 +455,10 @@ struct Task_AppBoot
     struct ToriRS_Task task;
     struct pt pt;
     struct App* app;
-    /** The profile's preload task, queued as a joined sibling ahead of this
-     *  one; the boot does not begin until it has ended. */
-    int preload_pending;
+    /** The profile's preload task, run as this task's first inline child
+     *  (on the main queue, where its frame requests are legal); NULL once
+     *  taken, or for a profile that names none. */
+    struct ToriRS_Task* preload;
 };
 
 
@@ -463,16 +466,8 @@ enum AppSpawnKind
 {
     APP_SPAWN_PLAYER = 0,
     APP_SPAWN_NPC,
-    APP_SPAWN_PROJECTILE,
-    APP_SPAWN_PROJECTILE_SPOT,
-    APP_SPAWN_SCRIPTED_PROJ,
     APP_SPAWN_OBJ,
-    APP_SPAWN_SPOTANIM,
     APP_SPAWN_ENTITY_SPOTANIM,
-    /* An npc's body-customisation model (`model_id`): a plain fetch, mounted
-     * by app_world_sync_npc_bodies the frame it is resident. */
-    APP_SPAWN_ENTITY_MODEL,
-    APP_SPAWN_LOC_CHANGE,
     APP_SPAWN_PLUGIN_OBJECT,
 };
 
@@ -481,6 +476,9 @@ struct Task_AppSpawn
 {
     struct ToriRS_Task task;
     struct pt pt;
+    /* Listed in app->pending while it is a parallel task (app_spawn_task_add:
+     * every kind but APP_SPAWN_ENTITY_SPOTANIM, the assets table's loader). */
+    struct RS_ParallelTask par;
     struct App* app;
     /* The worldview cursor AS OF ENQUEUE (WorldviewRegistry_Active). Spawn tasks run
      * at the END of the exec FIFO, behind later packets — including the
@@ -490,23 +488,9 @@ struct Task_AppSpawn
      * mid-flight), so applies guard on WorldviewRegistry_IsLive rather than
      * asserting. */
     int view;
-    /*
-     * For the EFFECT kinds (spotanim, projectile) that run on the asset
-     * runner rather than the exec FIFO: the scene generation and cycle AS OF
-     * ENQUEUE. Off the FIFO nothing orders the apply against a later REBUILD,
-     * so the apply compares load_seq and drops an effect the scene it was
-     * aimed at has been torn down under; and the cycles it spent loading are
-     * taken off its delays, so a projectile whose graphic took 300 ms to
-     * arrive appears mid-flight where it belongs rather than launching late.
-     */
-    unsigned world_load_seq;
-    int enqueue_cycle;
-    /* The loc lane's ticket (LocLane_Take at enqueue), 0 for every
-     * other kind; released exactly once, on apply or on free. */
-    unsigned loc_ticket;
-    int loc_ticket_released;
-    /* APP_SPAWN_LOC_CHANGE: RS_ServerTick_Serial(&App.server_tick) at enqueue. */
-    unsigned loc_tick;
+    /* No kind left here carries a scene generation. Projectiles, map
+     * graphics and loc changes, which did, are parallel tasks with their own
+     * (app/app_tasks_effects.c, app/app_tasks_locs.c). */
     enum AppSpawnKind kind;
     int tile_x;
     int tile_z;
@@ -515,81 +499,13 @@ struct Task_AppSpawn
     int obj_id;
     int model_id;
     int seq_id;
-    int src_tile_x;
-    int src_tile_z;
-    int src_level;
     int model_i;
     int spotanim_id;
-    int spotanim_height;
-    int spotanim_delay;
     /* APP_SPAWN_ENTITY_SPOTANIM: the body scene element of the player/npc the
      * attached graphic belongs to (stable, scene-unique key to re-find the live
      * entity when the async load lands). */
     int entity_element_id;
-    /* APP_SPAWN_LOC_CHANGE: the placement's own right-click menu, carried
-     * across the async model wait because the scenery entity it lands on does
-     * not exist until then. `loc_op_flags` is the 5-bit shown mask and
-     * `loc_ops[i]` the replacement label for slot i ("" = keep the loctype's).
-     * See App_WorldLocChangeOps. */
-    int loc_op_flags;
-    char loc_ops[5][32];
-    /* MAP_PROJANIM (spotanim-based projectile) trajectory params. Source and
-     * destination tiles reuse src_tile_x/z and tile_x/z; src_level and level
-     * carry the source and destination levels. */
-    int proj_src_height;
-    int proj_dst_height;
-    int proj_start_delay;
-    int proj_end_delay;
-    int proj_peak;
-    int proj_arc;
-    int proj_target;
-    /* rev-239 MapProjAnimV2 source actor (wire encoding, 0 = none). */
-    int proj_source;
-    /* APP_SPAWN_SCRIPTED_PROJ: the packet, and the clientscripts it needs
-     * resident -- the three curves, then whatever they GOSUB -- with the
-     * cursor of the one being loaded (both survive the awaits). */
-    struct WorldEntity_ScriptedProjSpec scripted;
-    int curve_scripts[8];
-    int curve_script_count;
-    int curve_script_cursor;
-    /* APP_SPAWN_LOC_CHANGE (zone LOC_ADD_CHANGE / LOC_DEL): the replacement loc
-     * (-1 = pure delete), its map shape/angle, and the nested model-list cursor
-     * (loc models are [shape_entry][model]; both indices must survive awaits). */
-    int loc_id;
-    int loc_shape;
-    int loc_angle;
-    int loc_model_j;
-    int loc_resolved_id;
-    int loc_resolve_depth;
-    int loc_base_seq;
-    /*
-     * APP_SPAWN_LOC_CHANGE: the sequence this PENDING change carries onto the
-     * loc it places -- the deob's class69.field666 -- in place of the loctype's
-     * own `anim=`. Written by App_WorldSceneryAnim when a LOC_ANIM for this
-     * tile and layer is read while the change is still pending (rev 239 only).
-     *
-     * Two slots because the deob's one is written under a condition this
-     * client cannot judge until the loc config has loaded: a LOC_ANIM that
-     * found nothing standing on the layer always writes it, one that found a
-     * loc writes it only when the NEW loctype has `deferanimchange`. So
-     * `loc_carry_unfound_*` is the last LOC_ANIM of the first kind and
-     * `loc_carry_any_*` the last of either; the apply reads the one the
-     * loctype's flag selects (`loc_defers_anim`, its base record's).
-     */
-    int loc_carry_unfound_seq;
-    int loc_carry_unfound_set;
-    int loc_carry_any_seq;
-    int loc_carry_any_set;
-    int loc_defers_anim;
-    /*
-     * A LOC_ANIM read a server tick or more after this change: the rev-239
-     * client had built the loc by then and animated it outright, whatever its
-     * loctype, so the newest such sequence wins over both carry slots
-     * (app_spawn_loc_take).
-     */
-    int loc_take_seq;
-    int loc_take_set;
-    /** APP_SPAWN_LOC_CHANGE: the loc's models and sequence, fanned out and not yet ended. */
+    /** The models and sequences this spawn awaits, fanned out and not yet ended. */
     int pending;
     /* APP_SPAWN_PLUGIN_OBJECT: the plugin object handle whose assets this task
      * is waiting on. Not a pointer -- the record can be destroyed while the
@@ -619,6 +535,47 @@ app_boot_refuse(char const* message);
 
 void
 app_async_polls(struct App* app);
+
+/* ---- the assets table's loaders (app/app_assets.c) ---------------------- */
+
+/** Make app->assets and register a loader for every kind. */
+void
+App_AssetsInit(struct App* app);
+
+void
+App_AssetsFree(struct App* app);
+
+/** A composite kind's loader, owned by the unit whose task follows its
+ *  chain. `data` is the App. */
+void
+App_AssetsSetLoader(
+    struct App* app,
+    enum AssetKind kind,
+    enum AssetStart (*start)(
+        void* data,
+        struct Assets* assets,
+        struct AssetKey key),
+    bool (*resident)(
+        void* data,
+        struct AssetKey key));
+
+/** Is a leaf asset here (model, texture, sprite, sequence, component pack,
+ *  sound, skybox, obj model)? */
+bool
+App_AssetResident(
+    struct App* app,
+    struct AssetKey key);
+
+/** Every asset an attached graphic needs (its type, model, sequence) is in. */
+int
+app_entity_spotanim_resident(
+    struct App* app,
+    int spotanim_id);
+
+/** Per frame, before the polls: the table's clock, and back-offs that are
+ *  over restarted. */
+void
+app_assets_frame(struct App* app);
 
 void
 app_boot_bar_caption(
@@ -903,11 +860,14 @@ app_dev_panels_tick(
 void
 app_client_trigger_loc(
     struct App* app,
+    struct World* world,
     struct WorldEntity_Scenery* loc,
     int trigger);
 
 void
-app_client_triggers_world_loaded(struct App* app);
+app_client_triggers_world_loaded(
+    struct App* app,
+    struct World* world);
 
 void
 app_client_triggers_refire(struct App* app);
@@ -930,34 +890,9 @@ enum TaskRunnerStat
 app_settle_cs2_frame(struct App* app);
 
 
-/* ---- app_placeholder.c ----
- *
- * A thing that exists NOW with an asset it does not have yet, and the task
- * that lands the asset later. The rule, the guards and the family are in the
- * unit's comment. Add a kind there rather than a wait to a packet handler. */
-enum AppPlaceholderKind
-{
-    /* A ground item added before its model was resident: the stack entity
-     * exists with element_id -1 and draws nothing until the model lands. */
-    APP_PLACEHOLDER_OBJ_STACK = 0,
-    /* An obj a clientscript set on a GRAPHIC cell before its icon could be
-     * baked: the cell carries the obj (its ops, tooltip and stack number all
-     * read it) with item_scene_id -1, and draws no picture until this lands. */
-    APP_PLACEHOLDER_WIDGET_ICON,
-};
-
 /** The skybox model for this frame, built once resident. */
 struct ToriDraw_ModelHandle
 app_skybox_handle(struct App* app);
-
-void
-app_placeholder_obj_stack(
-    struct App* app,
-    int scene_x,
-    int scene_z,
-    int level,
-    int obj_id,
-    int count);
 
 /* The background queue's lifetime (app_world_job.c): made beside the packet
  * FIFO at init, with its clock and the rebuild mode; freed with the other
@@ -966,10 +901,45 @@ void
 app_background_runner_init(struct App* app);
 void
 app_background_runner_free(struct App* app);
+
+/* A local world load's job (app_world_load.c): the frame's poll, which
+ * builds and finishes a load whose gather has ended on the background queue,
+ * and its teardown (from app_background_runner_free, before the queue). */
+void
+app_world_local_load_poll(struct App* app);
+void
+app_world_local_load_free(struct App* app);
+/* What is stepping a queue now (app_world_job.c): the script settle, the
+ * logic ticks and the parallel pump name themselves for their span, and a
+ * background pass entered inside one is a contract breach. Enter returns the
+ * previous site; Leave restores it. */
+char const*
+App_QueueSiteEnter(char const* site);
+void
+App_QueueSiteLeave(char const* previous);
+/* The site stepping a queue now, or NULL outside every one. */
+char const*
+App_QueueSiteNow(void);
 /* App_RunOnce's floor slice: App_RunBackground for a couple of ms, so every
  * platform loop moves the queue with no change of its own. */
 void
 app_run_background_floor(struct App* app);
+/* TORIRS_QUEUE_CONTRACT_TRACE's tally of floor pumps that had work
+ * (app_frame.c, App_QueueContractTraceLine). */
+void
+app_contract_note_background_floor(void);
+/* Is a task left on the parallel queue waiting on WORK -- its read, a load,
+ * a join, a trigger -- rather than only on game time? A task parked on a
+ * CYCLE waits for the logic tick, not for loading, and is not pending work
+ * for App_AsyncPending (app_frame.c). */
+int
+app_parallel_waits_on_work(struct App const* app);
+/* TORIRS_QUEUE_CONTRACT_TRACE: one App_RunOnce while a world job is
+ * pending, and whether it committed a frame (app_world_job.c). */
+void
+app_world_job_contract_frame(
+    struct App* app,
+    int committed);
 /* The packet pump's return, in the frame a background rebuild committed in:
  * how long the packets held behind the REBUILD took (rebuild_frames.held_ms). */
 void
@@ -1012,18 +982,11 @@ app_rebuild_frames_note(
     struct App* app,
     uint64_t frame_us);
 
-/* After a rebuild lands: every stack still without a model takes a fresh
- * placeholder against the new scene generation (the one it had was dropped
- * for the rebuild). Called from App_WorldLoadFinish, after load_complete. */
-void
-app_placeholder_obj_stacks_sweep(
-    struct App* app,
-    struct World* world);
-
 /* The world a task that deferred its load may land in, or NULL when the
- * scene it was aimed at is gone. Shared by the placeholder kinds and the
- * effect spawns -- both defer onto the asset runner, so both drop for the
- * same three reasons. The unit comment has them. */
+ * scene it was aimed at is gone: the view died, a rebuild replaced the scene,
+ * or a rebuild is in progress (app_parallel_task.c, beside
+ * App_ParallelTaskWorld, which is this on a task's header). The effect
+ * spawns use it directly. */
 struct World*
 app_deferred_land_world(
     struct App* app,
@@ -1032,41 +995,26 @@ app_deferred_land_world(
     char const* owner,
     int kind);
 
-void
-app_placeholder_widget_icon(
-    struct App* app,
-    int component_id,
-    int obj_id,
-    int count);
-
-/* Release a burst of parked placeholder requests onto the asset runner.
- * Called from the logic tick; see the unit comment for why a script's
- * placeholder cannot simply be queued where it is asked for. */
-void
-app_placeholder_release_tick(struct App* app);
-
-/* Drop the park (App teardown). */
-void
-app_placeholder_park_free(struct App* app);
-
-/* The CS2 host's lazy obj-icon hook (RS_CS2Host.widget_obj_icon_lazy): a
- * GRAPHIC cell whose obj is not resident takes a placeholder instead of
- * holding the script. */
-void
-app_cs2_widget_obj_icon_lazy(
-    void* user,
-    int component_id,
-    int obj_id,
-    int count);
-
-/* app_world_rebuild.c: give a stack added as a placeholder its model and
- * scene element for the count it has now. 1 if it landed, 0 if the model is
- * still not resident (the caller decides whether to ask again). */
+/* app_world_rebuild.c: show the model a stack's state selects now (its obj,
+ * the count variant, its OBJ_CUSTOMISE): give a stack without an element one
+ * (and its name and menu), or put the model on the element it has. 1 if it
+ * did; 0 if a part is still not resident; -1 if every part is resident and
+ * there is still no model (an obj with no ground model), or the scene had no
+ * element to give. `announce`: tell the plugins the stack changed (a stack
+ * that was waiting for its model; the add announces its own spawn). */
 int
-app_obj_stack_land(
+app_obj_stack_apply_model(
     struct App* app,
     struct World* world,
-    int idx);
+    int idx,
+    int announce);
+
+/* app_world_rebuild.c: is every part of the model the stack's state selects
+ * resident (so app_obj_stack_apply_model can build it now)? */
+int
+app_obj_stack_model_resident(
+    struct App* app,
+    struct WorldEntity_ObjStack const* stack);
 
 
 /* ---- app_if_models.c: the CS2 host's lazy-model hooks ---- */
@@ -1209,6 +1157,12 @@ app_request_entity_seq(
     struct App* app,
     int seq_id);
 
+/* World_SeqSource.want (app_world_load.c binds it): a track was set to it. */
+void
+app_world_seq_want(
+    void* want_userdata,
+    int seq_id);
+
 void
 app_world_apply_entity_anim_tracks(
     struct App* app,
@@ -1229,6 +1183,11 @@ void
 app_entity_spotanim_drop(
     struct App* app,
     int body_element_id);
+
+/* The table's owner ends (App_Shutdown): every entry's body snapshot and
+ * graphic models are freed, then the table. */
+void
+app_entity_spotanims_free(struct App* app);
 
 void
 app_world_sync_entity_spotanims(struct App* app);
@@ -1500,6 +1459,33 @@ App_DesignPredictIfButton(
 void
 app_if_head_poll(struct App* app);
 
+/* Ask again for the heads the tree needs and that have no task: before the
+ * frame's last parallel pump (app_frame.c), so the task a want adds is
+ * drained into the frame it was asked in, never published ready. Once per
+ * tree generation, as the bind (app_if_head_poll) re-applies. */
+void
+app_if_head_wants(struct App* app);
+
+/** The head entry a head task was made for, if `com_id` still holds it
+ *  unlanded (UIIfModels_HeadFor), after forgetting what a close unloaded;
+ *  -1 otherwise. */
+int
+app_if_head_current(
+    struct App* app,
+    int com_id,
+    enum UIIfHeadKind kind,
+    int npc_id,
+    int zoom,
+    uint32_t close_serial);
+
+/** The obj an IF3 widget draws for `count` (ObjType.getCountObj): its count
+ *  variant, else `obj_id`. Reads the resident objtype. */
+int
+app_if_obj_count_variant(
+    struct App* app,
+    int obj_id,
+    int count);
+
 void
 app_if_player_model_poll(struct App* app);
 
@@ -1700,6 +1686,12 @@ app_minimap_click(
     int mouse_x,
     int mouse_y,
     int ctrl_held);
+
+int
+app_minimap_flag_abs(
+    struct App* app,
+    int* out_x,
+    int* out_z);
 
 
 /* ---- app_minimenu.c ---- */
@@ -1918,6 +1910,11 @@ app_world_tile_mark_end(struct App* app);
 void
 app_world_tile_marks_place(struct App* app);
 
+/* Whether an actor's overhead chat line is up (what app_overlay_build_chat
+ * draws, and what lifts the overhead stack above it). */
+bool
+app_overlay_chat_shown(struct WorldEntityFacet_Chat const* chat);
+
 void
 app_overlay_build_chat(
     struct App* app,
@@ -1929,19 +1926,126 @@ app_overlay_build_chat(
     int actor_level,
     int font_id);
 
-void
+/*
+ * The overhead stack's lift: how far above an actor's overhead anchor the
+ * next thing goes (deob Statics.method6709's var27). It starts at -2; the
+ * overhead chat line, when shown, takes 12 (the line is drawn at the lift
+ * before it); each health bar drawn takes its height and 2 more
+ * (`bars_lift`, their sum); and a lift still at -2 then (nothing above the
+ * head) becomes 5. The skull and each prayer icon add 25 and are drawn at
+ * the lift that leaves; a player's hint arrow sits its frame's height above
+ * the last.
+ */
+int
+app_overlay_overhead_lift(
+    bool chat_shown,
+    int bars_lift);
+
+/* One overhead icon a player draws: from the PK pack (the skull) or the
+ * prayer pack, the frame, and the lift it is drawn at (canvas y = anchor y
+ * minus it, x = anchor x - 12). */
+struct AppPlayerHeadicon
+{
+    bool pk;
+    int frame;
+    int lift;
+};
+
+/*
+ * A player's overhead icons, bottom up (deob Statics.method6709's player
+ * branch): the skull (`skull` >= 0, field530) and then the prayer icons (each
+ * set bit of `prayer_mask`, field533's index as a mask), each 25 above the
+ * one before, starting from the lift `*io_lift` (app_overlay_overhead_lift).
+ * Fills `out` and returns how many; `*io_lift` becomes the lift after them,
+ * which the hint arrow stacks on.
+ */
+int
+app_overlay_player_headicon_stack(
+    int skull,
+    int prayer_mask,
+    int* io_lift,
+    struct AppPlayerHeadicon out[32]);
+
+/* Draws a player's overhead icons above `lift` (app_overlay_overhead_lift)
+ * and returns the lift after them. */
+int
 app_overlay_build_player_headicons(
     struct App* app,
     int anchor_height,
     int footprint,
+    int skull,
     int headicons,
+    int lift,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
     int actor_level,
-    int headicons_scene);
+    int headicons_scene,
+    int pk_scene);
 
+/* How far above its anchor a hint arrow on a player goes: its frame's art
+ * height above the lift the player's icons left (`field1034[1].field6911 +
+ * var27`). */
+int
+app_overlay_player_hint_lift(
+    int art_height,
+    int player_lift);
+
+/* `player_lift`: for a hint arrow on a player, the lift after that player's
+ * overhead icons (app_overlay_build_player_headicons); unused for the other
+ * subjects. */
 void
-app_overlay_build_hint_arrow(struct App* app);
+app_overlay_build_hint_arrow(
+    struct App* app,
+    int player_lift);
+
+/* One overhead icon an npc draws: the sprite group's scene id, the frame and
+ * the slot (0..7) it is in, which places it. */
+struct AppNpcHeadicon
+{
+    int scene_id;
+    int frame;
+    int slot;
+};
+
+/**
+ * Where the npc overhead icon in `slot` is drawn, on the canvas (deob
+ * Statics.method6709, the npc branch):
+ *
+ *     draw(sx + vx - (w >> 1), sy + ((vy - h - 2) * (slot + 1) - h) - 4)
+ *
+ * with (sx, sy) the anchor projected in the viewport (method6186 at the
+ * actor's height + 15), (vx, vy) the viewport's origin and w, h the frame's
+ * ART width and height (field6921 / field6911, not its canvas). `screen_x`
+ * and `screen_y` are the anchor on the canvas (sx + vx, sy + vy). The slot
+ * is the icon's own, not its rank among the drawn ones, and the step between
+ * slots is h + 2 - vy: the reference multiplies the viewport's y into it.
+ */
+void
+app_overlay_npc_headicon_place(
+    int screen_x,
+    int screen_y,
+    int viewport_y,
+    int slot,
+    int art_width,
+    int art_height,
+    int* out_x,
+    int* out_y);
+
+/* The overhead icons an npc draws, in slot order (deob Statics ~24626: every
+ * slot whose group and frame are set, the override's when the server set one,
+ * else the type's). The prayer group is the client's own pack
+ * (`prayer_scene`); any other group is bound by its id through the bridge,
+ * which loads it through the assets table (UITreeSceneBridge_BindSprite). A
+ * frame the resident group does not have draws nothing, as the reference's
+ * `index < sprites.length` test. Returns how many were written to `out`. */
+int
+app_overlay_npc_headicons(
+    struct App* app,
+    struct ToriRS_Npctype const* npctype,
+    struct WorldEntity_NPC const* npc,
+    int prayer_scene,
+    int prayer_group,
+    struct AppNpcHeadicon out[WORLD_NPC_HEADICON_SLOTS]);
 
 void
 app_overlay_build_npc_headicon(
@@ -2448,13 +2552,37 @@ app_tex_trace_enabled(void);
 void
 app_sync_textures(struct App* app);
 
+/** The textures models built since the last call want (at most 256): each
+ *  already in the provider is published now, each not is one
+ *  Task_TexturePublish, a failed or resident or pending one nothing. */
 void
-app_sync_textures_poll(struct App* app);
+App_TexturesWant(
+    struct App* app,
+    int const* ids,
+    int id_count);
+
+/** Is a Task_TexturePublish pending for texture `id` (tests, the want). */
+int
+App_TexturePublishPending(
+    struct App const* app,
+    int id);
 
 
 /* ---- app_tick.c ---- */
 int
 app_logic_tick(struct App* app);
+
+/* The tick's music step: a request the player holds is installed by a
+ * parallel task that awaits it (Task_MusicInstall), a newer song cancelling
+ * the older task. */
+void
+app_music_tick(struct App* app);
+
+/* Is a music install task pending? Its song in *out_song_id. (tests) */
+int
+app_music_install_pending(
+    struct App const* app,
+    int* out_song_id);
 
 
 /* ---- app_title.c ---- */
@@ -2678,9 +2806,6 @@ app_inv_ui_host_change(
     int container_id);
 
 void
-app_inv_icon_reconcile_tick(struct App* app);
-
-void
 app_request_cs1_eval(struct App* app);
 
 int
@@ -2848,6 +2973,15 @@ app_wev_cycle_views(struct App* app);
 void
 app_wev_advance_bobs(struct App* app);
 
+/* A hull's one-shot sequence (WORLDENTITY_INFO's seq): set from `seq_delay`
+ * cycles away and wanted once, here, where it changes. */
+void
+app_wev_set_seq(
+    struct App* app,
+    struct Wev* wev,
+    int seq_id,
+    int seq_delay);
+
 
 /* ---- app_world_apply.c ---- */
 /* Attach `seq_id` to the loc standing on the tile's layer now (deob
@@ -2936,13 +3070,6 @@ app_world_pick_finish(
 
 
 /* ---- app_world_edit.c ---- */
-/** Queue an EFFECT spawn (a spotanim, a projectile) on the asset runner,
- *  stamped with the scene it was aimed at. */
-void
-app_spawn_effect_queue(
-    struct App* app,
-    struct Task_AppSpawn* task);
-
 /** Queue an npc spawn on the packet runner; `args`' `id=` names it, and
  *  TORIRS_SPAWN_NPC overrides it (3106 when neither does). The spawn tool's
  *  key and the map editor's placement. */
@@ -2965,21 +3092,6 @@ app_world_spawn_obj(
     int level,
     char const* args);
 
-void
-app_loc_change_apply_cb(
-    void* user,
-    int level,
-    int x,
-    int z,
-    int loc_id,
-    int shape,
-    int angle);
-
-/* After a server-driven rebuild: put every loc a zone packet changed back on
- * the rebuilt root scene, with the menu it was placed with (deob
- * client.method2278; see World_LocChangesTakeStanding). */
-void
-app_world_loc_changes_replace(struct App* app);
 
 
 
@@ -3142,58 +3254,8 @@ app_seq_bind_pending_drop(
     struct App* app,
     int element_id);
 
-void
-app_world_bind_pending_seqs(struct App* app);
-
 
 /* ---- app_world_spawn.c ---- */
-/* Queue a LOC_CHANGE on the loc lane (App.loc_lane, world/loc_lane.h). */
-void
-app_spawn_loc_lane_queue(
-    struct App* app,
-    struct Task_AppSpawn* task);
-
-/* The newest LOC_CHANGE on the loc lane for this view, tile, level and layer
- * that has not been applied to the scene yet -- the deob's pending spawn for
- * the tile (Statics.method5652) -- or NULL. `landed_only` keeps to changes
- * queued in an earlier server tick than the current one: the ones the deob has
- * already built, so its scene holds the newest of them where this client's
- * still holds the loc before it. */
-struct Task_AppSpawn*
-app_spawn_loc_lane_pending(
-    struct App* app,
-    int view,
-    int scene_x,
-    int scene_z,
-    int level,
-    int layer,
-    int landed_only);
-
-/* A LOC_ANIM read while `pending` waits: hand it the sequence the way the deob
- * stores it on a pending spawn. `stood` is whether a loc stood on the layer
- * and took the sequence itself (app_world_scenery_anim_apply). */
-void
-app_spawn_loc_carry(
-    struct Task_AppSpawn* pending,
-    int seq_id,
-    int stood);
-
-/* A LOC_ANIM aimed at the loc `landed` places, which the deob has already
- * built (app_spawn_loc_lane_pending, landed_only): it starts on the sequence
- * whatever its loctype says. */
-void
-app_spawn_loc_take(
-    struct Task_AppSpawn* landed,
-    int seq_id);
-
-/* The sequence a LOC_CHANGE places its loc on instead of the loctype's
- * `anim=`: a taken one, else the carry the loctype's deferanimchange selects;
- * 0 when it has none. */
-int
-app_spawn_loc_carried(
-    struct Task_AppSpawn const* task,
-    int* out_seq_id);
-
 struct Task_AppSpawn*
 app_spawn_task_new(
     struct App* app,
@@ -3201,6 +3263,14 @@ app_spawn_task_new(
     int tile_x,
     int tile_z,
     int level);
+
+/* Add a spawn made by app_spawn_task_new (any kind but
+ * APP_SPAWN_ENTITY_SPOTANIM) to the parallel queue: what it waits for is only
+ * drawn, and nothing a packet or script reads waits behind it. */
+void
+app_spawn_task_add(
+    struct App* app,
+    struct Task_AppSpawn* task);
 
 bool
 app_npc_wants_zbuffer(
@@ -3240,6 +3310,51 @@ app_world_build_npc_model(
     int npc_id,
     struct ToriRS_Npctype* npctype);
 
+/* An npc's body under its server customisation `o` (active), cached under the
+ * type and the override's serial. NULL while a model is not resident. */
+/* IF_SETNPCHEAD_ACTIVE for an npc (pool index `world_idx`) that carries a
+ * chathead customisation (head_custom.active, not a mirror): the head of its
+ * drawn type under that override (deob class37.method627: the npc's
+ * transformed type and method2919's override, built by class405.method9172),
+ * composited by the head task from the override as it was when the packet
+ * came; the override's serial keys it. */
+void
+App_SetInterfaceNpcHeadCustom(
+    struct App* app,
+    int component_id,
+    int world_idx);
+
+/* IF_SETNPCHEAD_ACTIVE for the npc at pool index `world_idx`: its head as the
+ * npc stands now -- the local player's when its customisation mirrors, the
+ * override's when it has one, else its type's -- and the head follows the npc
+ * from then on (app_if_head_poll), as the reference resolves it every draw. */
+void
+App_SetInterfaceNpcHeadActive(
+    struct App* app,
+    int component_id,
+    int world_idx);
+
+/* The local player's body changed: every npc whose body customisation mirrors
+ * the local player (0x10) is remounted from it. */
+void
+App_WorldNpcMirrorsRemount(struct App* app);
+
+/* The first selectable kit of design part `design_part` (0..6) for body type
+ * `body_type`, in config order, of the resident kit table (IdkType.method8644:
+ * body type 1 is the female band); -1 for none. */
+int
+app_if_player_model_find_kit(
+    struct App* app,
+    int design_part,
+    int body_type);
+
+struct ToriDraw_Model*
+app_world_build_npc_override_model(
+    struct App* app,
+    int npc_id,
+    struct ToriRS_Npctype* npctype,
+    struct WorldNpcOverride const* o);
+
 struct ToriDraw_Model*
 app_world_build_spotanim_model(
     struct App* app,
@@ -3252,12 +3367,31 @@ app_world_spawn_player_now(
     int tile_z,
     int level);
 
+/* PLAYER_INFO's add: the player exists at once, drawing nothing until its
+ * appearance's body is resident. */
+int
+app_world_spawn_synced_player_now(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level);
+
 void
 app_npc_entity_facts(
     struct App* app,
     int base_npc_id,
     struct ToriRS_Npctype const* drawn,
     struct ToriRS_NpcEntityFacts* out);
+
+struct RS_EntityNpcType;
+
+/* The shared rule's record of a resident type (App_WorldNpcTypeRecord without
+ * the lookup): `facts` from app_npc_entity_facts for `npctype`. */
+void
+app_npc_type_record(
+    struct ToriRS_NpcEntityFacts const* facts,
+    struct ToriRS_Npctype const* npctype,
+    struct RS_EntityNpcType* out);
 
 int
 app_world_spawn_npc_now(
@@ -3268,17 +3402,16 @@ app_world_spawn_npc_now(
     int tile_z,
     int level);
 
-void
-app_world_spawn_spotanim_now(
+/* app_world_spawn_npc_now, then App_WorldNpcSpawnAnnounce: an npc no server
+ * names (the editor's previews, the hotkey). */
+int
+app_world_spawn_npc_announced(
     struct App* app,
-    struct World* world,
-    int spotanim_id,
+    int npc_id,
+    int base_npc_id,
     int tile_x,
     int tile_z,
-    int level,
-    int height,
-    int delay,
-    int late);
+    int level);
 
 /* ---- app_world_sync.c ---- */
 int

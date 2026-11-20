@@ -53,6 +53,17 @@ RS_CS2_RunScript(
     char const* const* str_args,
     int str_arg_count);
 
+/** RS_CS2_RunScript with no arguments, run for `subject` (a client trigger's
+ *  npc or loc): the script writes it to the client-op register at its first
+ *  step (Task_CS2Run_SetSubject), so the subject travels with the script it
+ *  belongs to through every IO yield the script takes. */
+void
+RS_CS2_RunScriptAsSubject(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int script_id,
+    struct RS_ClientOpContext const* subject);
+
 /** RS_CS2_RunScript, with the task counted in `*join` until it ends -- however
  *  it ends (asyncio.h ToriRS_Task.join). For a caller that must know when the
  *  scripts it dispatched have finished: the quest driver's tick fence waits

@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "game/rs_server_state.h"
 #include "mem/torirs_mem.h"
 
 #include "cs2vm2.h"
@@ -26,6 +27,10 @@ struct Task_OpenSubRefresh
     int target_uid;
     int interface_id;
     int type;
+    /* IF_MOVESUB: the slot the group is moved OUT of (-1: an open or a
+     * close). The group's nodes are relinked under target_uid, not closed
+     * and re-baked (class415.method9481). */
+    int move_from_uid;
 };
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -176,11 +181,10 @@ app_async_polls(struct App* app)
     /* World-load completion is no longer polled here: Task_WorldLoad runs
      * App_WorldLoadFinish itself at its synchronous tail (via on_done, or the
      * REBUILD_NORMAL path's inline call after it awaits the load). */
+    app_assets_frame(app);
     if( app_tex_trace_enabled() )
         TORIRS_LOG("tex_trace: --- frame %d ---\n", ++g_tex_trace_frame);
     app_world_map_poll(app);
-    app_sync_textures_poll(app);
-    app_world_bind_pending_seqs(app);
 
     if( UITreeRefresh_Take(&app->tree_refresh) )
     {
@@ -194,23 +198,30 @@ void
 App_BootWait(struct App* app)
 {
     /* Headless harnesses/tests only: step both pipelines until the boot task
-     * AND every load it queued (world, anims, textures) settle. IO still runs
-     * exclusively inside the platform pump; the interactive loop never calls
-     * this — it renders the loading state instead. */
+     * (on the main queue) AND every load it queued on the parallel queue
+     * (world, anims, textures) settle. IO still runs exclusively inside the
+     * platform pump; the interactive loop never calls this — it renders the
+     * loading state instead, and a render request here is a plain yield. */
     long guard = 1000000;
 
     assert(app);
     while( guard-- > 0 )
     {
+        enum TaskRunnerStat parallel_stat;
         enum TaskRunnerStat main_stat;
-        enum TaskRunnerStat exec_stat;
         BootPumpStats_NoteBootSteps(&app->pump_stats, 2);
-        main_stat = TaskRunner_Step(&app->frame_runner);
-        exec_stat = TaskRunner_Step(&app->packet_runner);
+        parallel_stat = TaskRunner_Step(&app->frame_runner);
+        main_stat = TaskRunner_Step(&app->packet_runner);
+        /* A local world load gathers on the background queue and is built
+         * where the frame would build it (app_world_local_load_poll); with
+         * no frame loop here, this drain gives the queue its time. */
+        if( app->background_runner.queue->head )
+            (void)TaskRunner_RunUntil(&app->background_runner, 0);
+        app_world_local_load_poll(app);
         app_title_swap_if_pending(app);
         if( RS_ClientPhase_Ready(&app->phase) )
             app_async_polls(app);
-        if( main_stat == TASK_RUNNER_IDLE && exec_stat == TASK_RUNNER_IDLE &&
+        if( parallel_stat == TASK_RUNNER_IDLE && main_stat == TASK_RUNNER_IDLE &&
             RS_ClientPhase_Ready(&app->phase) && !UITreeRefresh_Pending(&app->tree_refresh) &&
             !WorldLoadState_Inflight(&app->world_load) )
             break;
@@ -256,6 +267,17 @@ app_boot_bar_font_scene_id(struct App* app)
     return UITreeSceneBridge_EnsureDebugFont1x(&app->bridge, TORIRS_CHROME_FONT_MENU);
 }
 
+int
+App_BootBarPercent(struct App const* app)
+{
+    assert(app);
+    /* A request that states no position (-1) leaves the bar where the boot
+     * state has it, as app_render.c draws it. */
+    if( app->packet_runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->packet_runner.render.percent >= 0 )
+        return app->packet_runner.render.percent;
+    return RS_BootState_Progress(&app->boot);
+}
+
 char const*
 App_BootBarCaption(
     struct App* app,
@@ -275,9 +297,9 @@ App_BootBarCaption(
      * knows which stage it is at says so, and this obeys. A task which never
      * asks gets the standing sentence rather than silence.
      */
-    if( app->frame_runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->frame_runner.render.caption &&
-        app->frame_runner.render.caption[0] )
-        caption = app->frame_runner.render.caption;
+    if( app->packet_runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->packet_runner.render.caption &&
+        app->packet_runner.render.caption[0] )
+        caption = app->packet_runner.render.caption;
     else
         caption = RS_LoginReplies_String(
             &app->login_replies, RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_GAME ? "entering_world" : "loading");
@@ -334,6 +356,19 @@ app_boot_bar_caption(
         font, &vp, center_x, baseline_y, text, 0xFFFFFF, true, false, pixels);
 }
 
+/* The preload, handed to the await once (TASK_AWAITEX evaluates it only
+ * while no child is held). */
+static struct ToriRS_Task*
+app_boot_take_preload(struct Task_AppBoot* self)
+{
+    struct ToriRS_Task* preload;
+
+    assert(self);
+    preload = self->preload;
+    self->preload = NULL;
+    return preload;
+}
+
 static int
 Task_AppBoot_Run(
     struct ToriRS_Task* base,
@@ -344,12 +379,10 @@ Task_AppBoot_Run(
 
     PT_BEGIN(&self->pt);
 
-    /* The profile's loading screen runs to its end first; see app_open_tree. */
-    while( self->preload_pending > 0 )
-    {
-        self->task.blocked = 1;
-        PT_YIELD(&self->pt);
-    }
+    /* The profile's loading screen runs to its end first; see app_open_tree.
+     * Inline, so its requests for a frame are this task's, on the main queue;
+     * the reads it fans out still overlap on the parallel queue. */
+    PT_TASK_AWAITSELF_IF(app_boot_take_preload(self));
 
     /* This stage's place in the profile's own list, where it declares
      * one. The modern lane's boot is numbered by the deob and continues
@@ -425,6 +458,11 @@ Task_AppBoot_Run(
      * nothing else, so without this table 218 loc scripts and 23 npc scripts
      * in cache.osrs239 are unreachable. See game/rs_client_trigger.h.
      */
+    /* The boot's loads (this table, the varbits, the prefs, the boot font, the
+     * boot bake's manifest and static sprites) are awaited inline by the boot
+     * on the main queue: each is required, named once, asked for by nothing
+     * else, and the boot is their index (app->triggers.boot_built). Not the
+     * assets table's. */
     if( !RS_BootState_ConfigReady(&app->boot) )
         PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptTableLoad(app->provider));
 
@@ -716,6 +754,11 @@ Task_AppBoot_Run(
      * branch produced (TS parity: WidgetManager.setRootInterface(groupId) — any
      * group can be the root, no hardcoded 161 chrome required). */
     PT_TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
+    /* The build waited for what a later packet or script reads (packs,
+     * sprites, fonts, configs); the models it shows, the default avatar and
+     * the seed inventory icons are drawn when they arrive, by parallel tasks
+     * (builder.defer_visual, app_open_tree). */
+    (void)App_RootVisualsAdd(app);
 
     /* Root-build already performs the reference client's initial var-transmit
      * pass after onLoad, so preview varp/varbit seeds reach listeners without a
@@ -847,8 +890,7 @@ Task_AppBoot_Run(
 
     /* Queue model-widget sequences (they land through the frame pump and
      * render at rest pose meanwhile) and apply whatever is already loaded. */
-    UITreeAnim_RequestMissing(
-        app->tree, app->scene, app->provider, app->frame_runner.queue, &app->seq_loads);
+    UITreeAnim_RequestMissing(app->tree, app->scene, app->assets);
     UITreeAnim_Advance(app->tree, app->scene, 0);
 
     app_sync_textures(app);
@@ -889,6 +931,9 @@ Task_AppBoot_Run(
     app_title_boot_settled(app);
     /* READY, and the tree can draw now, so there is nothing left to hold. */
     RS_ClientPhase_BakeSettled(&app->phase);
+    /* The boot's trigger mirrors the phase: whichever boot settles it fires
+     * it, so a mount waiting out BOOTING goes on exactly when it ends. */
+    ToriRS_Trigger_FireIfPrimed(App_BootBuilt(app));
     ToriRS_BootTelemetry_Mark(RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_GAME ? "ready:game" : "ready:title");
     /* A freshly baked title tree shows every screen's group at once until it is
      * told which one is current. */
@@ -906,6 +951,13 @@ Task_AppBoot_Run(
 static void
 Task_AppBoot_Free(struct ToriRS_Task* base)
 {
+    struct Task_AppBoot* self = (struct Task_AppBoot*)base;
+
+    /* A boot freed before it finished (a queue freed at shutdown): the
+     * preload it never started. The child it was awaiting is freed by
+     * task_free (ToriRS_Task::inline_child). */
+    if( self->preload )
+        task_free(self->preload);
     ToriMem_Free(ToriMem_Process(), base);
 }
 
@@ -942,6 +994,8 @@ app_open_tree(
     /* Display Fixed/Classic/Modern remount: drop the live gameframe before the
      * new root bakes. Without this, InterfaceOpen would add 548/164 beside the
      * old 161 forest, and IF_OPENSUB targets for the new top race the boot. */
+    /* The models the outgoing tree's mounts still wait for go with it. */
+    App_MountsTreeCleared(app);
     if( app->tree && app->tree->root_index >= 0 )
     {
         /* An IF_OPENTOP keeps the groups a script loaded that are not open
@@ -1008,6 +1062,9 @@ app_open_tree(
             sizeof(app->builder.layout_group_exclude) - 1);
     /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
     app->builder.bridge = &app->bridge;
+    /* The bake waits only for what is read; App_RootVisualsAdd binds the
+     * models when they come. */
+    app->builder.defer_visual = 1;
     /* Where a component's `role=` is interned. The table outlives the tree, so
      * a remount re-stamps the same ids onto the new nodes rather than handing
      * out fresh ones. */
@@ -1027,12 +1084,16 @@ app_open_tree(
     app->host.top_interface_id = interface_id;
 
     /*
-     * The profile's own preload list first, as a SIBLING rather than a child.
+     * The profile's own preload list first, as the boot's first CHILD.
      *
-     * The queue runs its head to completion before anything behind it, so
-     * ordering is free -- and being the head is what lets its render
-     * requests reach the runner directly, which is the whole point of a task
-     * that exists to show the bar moving.
+     * The boot runs on the MAIN queue (app->packet_runner): before login
+     * there are no packets, so the boot is the main thread's job, and the
+     * main queue is the one queue on which a task may ask for a frame -- the
+     * whole point of a preload is to show the bar moving, and the boot's own
+     * stages ask too (frame contract, app.h). The preload runs inline in the
+     * boot, so its requests are the boot's; what it fans out (index opens,
+     * prefetch waves) still goes on the parallel queue, where the reads
+     * overlap as they always have.
      *
      * NULL on a profile that names no cache indices, which is every dat1
      * lane: their list is jag archives, loaded by other machinery.
@@ -1062,19 +1123,29 @@ app_open_tree(
                 CacheMounts_TakeDat1Prefetch(&app->cache_mounts));
         }
         /*
-         * Joined, not merely queued ahead: the boot waits for the loading
+         * Awaited, not merely queued ahead: the boot waits for the loading
          * screen to end before it starts its own work (Task_AppBoot_Run), as
          * the deob's does. It used to run on regardless, which was harmless
          * while a preload was eight index reads that finished within the
          * frame -- and a use-after-free once a `groups=all` fill took
          * seconds: a second boot pass created a second preload task, both
          * found the same index absent, and the second one's decode replaced
-         * (freed) the table the first one's fill was still walking.
+         * (freed) the table the first one's fill was still walking. On the
+         * main queue that cannot happen at all: a second boot is queued
+         * behind the first, and the FIFO does not start it, or its preload,
+         * until the first has ended.
          */
-        ToriRS_TaskQueue_AddParallelPoolSubTask(app->frame_runner.queue, preload, &task->preload_pending);
+        task->preload = preload;
     }
 
-    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
+    /* Render-blocking, as every task on the main queue is: the packet pump
+     * reads that flag to know its transaction is still open. While the
+     * client boots App_PumpAsync pumps this queue (app_pump_boot_main). */
+    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
+    /* The phase is BOOTING from here until a boot settles it, and this boot
+     * commits to that: a mount queued behind it waits on the trigger. An
+     * earlier boot still queued held it; this prime replaces that one. */
+    ToriRS_Trigger_Prime(App_BootBuilt(app), ToriRS_TaskOwner(&task->task));
 }
 
 static void
@@ -1209,6 +1280,104 @@ app_title_swap_if_pending(struct App* app)
     App_OpenTitleScreen(app);
 }
 
+/* The mount task for an open, given the server's stored values to apply to
+ * the group before its load scripts run (U3). */
+static struct ToriRS_Task*
+app_open_sub_task(
+    struct App* app,
+    struct Task_OpenSubRefresh const* self)
+{
+    struct ToriRS_Task* task = CreateTask_InterfaceOpenSub(
+        app->provider,
+        app->tree,
+        &app->host,
+        &app->invs,
+        &app->bridge,
+        self->target_uid,
+        self->interface_id,
+        self->type,
+        &app->open_stats);
+    assert(task);
+    InterfaceOpen_SetStores(task, &app->if_texts, &app->if_hides, &app->if_colours);
+    return task;
+}
+
+/* Does the tree record `group` mounted at `target_uid`? */
+static int
+app_slot_holds(
+    struct App const* app,
+    int target_uid,
+    int group)
+{
+    int rec = UITree_InterfaceParentFind(app->tree, target_uid);
+    return rec >= 0 && app->tree->interface_parents[rec].group_id == group;
+}
+
+/*
+ * Close what the tree has mounted at `target_uid`: unload its group and drop
+ * the record.
+ *
+ * This is the reference client's rule, and it has no per-slot cases in it:
+ * `method9520` closes a sub-interface by unloading the whole widget group
+ * (class304.method7206 nulls every Widget and clears the loaded flag), and
+ * the single exemption lives on the OPEN side -- a group being moved to
+ * another slot is not unloaded.
+ */
+static void
+app_slot_reclaim(
+    struct App* app,
+    int target_uid)
+{
+    int rec = UITree_InterfaceParentFind(app->tree, target_uid);
+    if( rec >= 0 )
+    {
+        int old_group = app->tree->interface_parents[rec].group_id;
+        struct UITreeNodeSet const* gset = UITree_GroupNodes(app->tree, old_group);
+        UITreeIfaceStats_NoteClose(old_group);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
+        /* DRIVE_STAMP: sub_closed -- a=target_uid b=old_group.
+         * Stamp while old_group is still in scope; App_CloseSubInterface
+         * itself has no interface_id or type to carry. */
+        App_DriveEvent(app, RS_EVENT_SUB_CLOSED, target_uid, old_group, 0, 0);
+        UITree_ReclaimInterfaceGroup(app->tree, old_group);
+        RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, old_group);
+        App_MountsGroupClosed(app, old_group);
+    }
+    UITree_InterfaceParentClear(app->tree, target_uid);
+}
+
+/* The moved group is still where the move found it, and the destination
+ * exists. */
+static int
+app_move_sub_relinkable(
+    struct App const* app,
+    struct Task_OpenSubRefresh const* self)
+{
+    return app_slot_holds(app, self->move_from_uid, self->interface_id) &&
+           UITree_FindByComponentId(app->tree, self->target_uid) >= 0;
+}
+
+/*
+ * IF_MOVESUB (class415.method9481): close what the destination holds
+ * (unloading it unless it is the moved group), unlink the source's record and
+ * put it at the destination, and lay the destination out. The moved group is
+ * NOT unloaded: its nodes, what its scripts built and the subs open inside it
+ * stay, and its load scripts do not run again. Then the sub-change hooks, as
+ * for any mount change (method9490).
+ */
+static void
+app_move_sub_relink(
+    struct App* app,
+    struct Task_OpenSubRefresh const* self)
+{
+    if( !app_slot_holds(app, self->target_uid, self->interface_id) )
+        app_slot_reclaim(app, self->target_uid);
+    UITree_InterfaceParentClear(app->tree, self->move_from_uid);
+    App_DriveEvent(app, RS_EVENT_SUB_CLOSED, self->move_from_uid, self->interface_id, 0, 0);
+    InterfaceOpen_MountGroupUnder(app->tree, self->target_uid, self->interface_id, self->type);
+    UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+}
+
 static int
 Task_OpenSubRefresh_Run(
     struct ToriRS_Task* base,
@@ -1218,18 +1387,20 @@ Task_OpenSubRefresh_Run(
     struct App* app = self->app;
 
     PT_BEGIN(&self->pt);
-    /* IF_OPENTOP remounts on the asset runner; IF_OPENSUB rides the exec
-     * pipeline. Wait out APP_STATE_BOOTING so the new root's slots exist
-     * before mount_pack_under_target asserts.
+    /* IF_OPENTOP's boot and this mount both ride the main queue, the boot
+     * ahead (App_RootMountsReturn queues these behind it), so the FIFO has
+     * normally finished the boot by now. Wait out APP_STATE_BOOTING all the
+     * same, so the new root's slots exist before mount_pack_under_target
+     * asserts, whoever queued this.
      *
-     * TASK_AWAIT_STATE, not a bare PT_YIELD loop, and the difference is a
-     * deadlock. Only Task_AppBoot on app->frame_runner clears APP_STATE_BOOTING, and
-     * app->frame_runner is stepped by the frame loop — which cannot get its turn back
-     * while this queue is still settling. A plain yield here therefore spins
-     * app_logic_tick's exec drain forever at 100% CPU: measured on every
-     * Display-panel layout switch, which sends IF_OPENTOP and its IF_OPENSUB
-     * mounts in one burst. */
-    TASK_AWAIT_STATE(base, &self->pt, !RS_ClientPhase_Booting(&app->phase));
+     * Parked on the boot's trigger, which the boot primes for exactly as
+     * long as the phase is BOOTING (app_open_tree) and fires when it settles:
+     * not a poll, and not a bare PT_YIELD loop, which spun app_logic_tick's
+     * exec drain at 100% CPU while whatever was booting waited for the frame
+     * loop's turn -- measured on every Display-panel layout switch, back when
+     * the boot ran on the parallel queue. */
+    while( RS_ClientPhase_Booting(&app->phase) )
+        TASK_AWAIT_TRIGGER(base, &self->pt, TORIRS_TASK_WAIT_TRIGGER, App_BootBuilt(app));
     if( self->interface_id > 0 && UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {
         TORIRS_ERR(
@@ -1238,18 +1409,33 @@ Task_OpenSubRefresh_Run(
             self->interface_id);
         PT_EXIT(&self->pt);
     }
-    if( self->interface_id > 0 )
+    /* IF_MOVESUB: relink the group where it is still mounted at the source;
+     * otherwise (it was closed or moved meanwhile) the move is an open. */
+    if( self->move_from_uid >= 0 && !app_move_sub_relinkable(app, self) )
+        self->move_from_uid = -1;
+    if( self->move_from_uid >= 0 )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_InterfaceOpenSub(
-            app->provider,
-            app->tree,
-            &app->host,
-            &app->invs,
-            &app->bridge,
-            self->target_uid,
-            self->interface_id,
-            self->type,
-            &app->open_stats));
+        app_move_sub_relink(app, self);
+        PT_TASK_AWAITSELF_IF(CreateTask_CS2SubChangeDispatch(&app->host));
+    }
+    else if( self->interface_id > 0 )
+    {
+        PT_TASK_AWAITSELF(app_open_sub_task(app, self));
+        /* U6: the pack is not in the cache, so nothing was mounted. The
+         * slot's outgoing group closes all the same -- the reference closes
+         * it before it opens (class415.method9520 from the IF_OPENSUB arm) --
+         * and there is no mount to report. */
+        if( !app_slot_holds(app, self->target_uid, self->interface_id) )
+        {
+            TORIRS_ERR(
+                "if-opensub: iface=%d not mounted at 0x%08x; the slot is closed\n",
+                self->interface_id,
+                (unsigned)self->target_uid);
+            app_slot_reclaim(app, self->target_uid);
+            self->interface_id = -1;
+        }
+        else
+            (void)App_MountVisualsAdd(app, self->interface_id);
     }
     else
     {
@@ -1278,24 +1464,9 @@ Task_OpenSubRefresh_Run(
             struct timespec close_t0;
             struct timespec close_t1;
             uint64_t close_ns;
-            int rec = UITree_InterfaceParentFind(app->tree, self->target_uid);
             clock_gettime(CLOCK_MONOTONIC, &close_t0);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE, 1);
-            if( rec >= 0 )
-            {
-                int old_group = app->tree->interface_parents[rec].group_id;
-                struct UITreeNodeSet const* gset = UITree_GroupNodes(app->tree, old_group);
-                UITreeIfaceStats_NoteClose(old_group);
-                TORIRS_PERF_COUNT(
-                    TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
-                /* DRIVE_STAMP: sub_closed -- a=target_uid b=old_group.
-                 * Stamp while old_group is still in scope; App_CloseSubInterface
-                 * itself has no interface_id or type to carry. */
-                App_DriveEvent(app, DRIVE_EVENT_SUB_CLOSED, self->target_uid, old_group, 0, 0);
-                UITree_ReclaimInterfaceGroup(app->tree, old_group);
-                RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, old_group);
-            }
-            UITree_InterfaceParentClear(app->tree, self->target_uid);
+            app_slot_reclaim(app, self->target_uid);
             clock_gettime(CLOCK_MONOTONIC, &close_t1);
             close_ns = (uint64_t)(close_t1.tv_sec - close_t0.tv_sec) * 1000000000ull +
                        (uint64_t)(close_t1.tv_nsec - close_t0.tv_nsec);
@@ -1322,7 +1493,7 @@ Task_OpenSubRefresh_Run(
      * above, which reaches here with no mount to report. */
     if( self->interface_id > 0 )
         App_DriveEvent(
-            app, DRIVE_EVENT_SUB_MOUNTED, self->target_uid, self->interface_id, self->type, 0);
+            app, RS_EVENT_SUB_MOUNTED, self->target_uid, self->interface_id, self->type, 0);
     PT_END(&self->pt);
 }
 
@@ -1366,10 +1537,17 @@ app_queued_slot_group(
         if( task->vtable != &Task_OpenSubRefresh_VTable )
             continue;
         mount = (struct Task_OpenSubRefresh const*)task;
-        if( mount->target_uid != target_uid )
-            continue;
-        group = mount->interface_id > 0 ? mount->interface_id : 0;
-        queued = 1;
+        if( mount->target_uid == target_uid )
+        {
+            group = mount->interface_id > 0 ? mount->interface_id : 0;
+            queued = 1;
+        }
+        else if( mount->move_from_uid == target_uid )
+        {
+            /* A queued move empties its source. */
+            group = 0;
+            queued = 1;
+        }
     }
     if( queued || !app->tree )
         return group;
@@ -1407,20 +1585,32 @@ app_close_slot(
     int incoming_group)
 {
     int group = app_queued_slot_group(app, target_uid);
+    struct RS_ServerState state;
+    int unloaded;
 
     if( group <= 0 )
         return;
-    App_IfEventsDropGroup(app, group);
-    if( group != incoming_group )
-        App_IfStoresDropGroup(app, group);
+    /* The rule is the packet model's (RS_ServerState_SlotGroupLeaves), which
+     * the headless client applies to its own records; which group the slot
+     * held is this client's to know. */
+    App_ServerStateBind(app, &state);
+    unloaded = RS_ServerState_SlotGroupLeaves(&state, group, incoming_group);
+    if( torirs_env_net_debug() )
+    {
+        TORIRS_LOG("if_setevents: group %d closed, its arming dropped\n", group);
+        if( unloaded )
+            TORIRS_LOG("if_set*: group %d unloaded, its stored values dropped\n", group);
+    }
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 static void
-app_enqueue_open_sub(
+app_enqueue_mount(
     struct App* app,
     int target_uid,
     int interface_id,
-    int type)
+    int type,
+    int move_from_uid)
 {
     struct Task_OpenSubRefresh* task;
 
@@ -1446,8 +1636,46 @@ app_enqueue_open_sub(
     task->target_uid = target_uid;
     task->interface_id = interface_id;
     task->type = type;
+    task->move_from_uid = move_from_uid;
     PT_INIT(&task->pt);
     TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
+}
+
+static void
+app_enqueue_open_sub(
+    struct App* app,
+    int target_uid,
+    int interface_id,
+    int type)
+{
+    app_enqueue_mount(app, target_uid, interface_id, type, -1);
+}
+
+int
+App_SlotMountQueued(
+    struct App const* app,
+    int target_uid,
+    int interface_id,
+    int type)
+{
+    struct ToriRS_Task const* task;
+    int found = 0;
+
+    assert(app);
+    assert(app->packet_runner.queue);
+    for( task = app->packet_runner.queue->head; task; task = task->next )
+    {
+        struct Task_OpenSubRefresh const* mount;
+
+        if( task->vtable != &Task_OpenSubRefresh_VTable )
+            continue;
+        mount = (struct Task_OpenSubRefresh const*)task;
+        if( mount->target_uid == target_uid )
+            found = mount->interface_id == interface_id && mount->type == type;
+        else if( mount->move_from_uid == target_uid )
+            found = 0;
+    }
+    return found;
 }
 
 static void
@@ -1461,7 +1689,7 @@ app_open_sub(
     /* DRIVE_STAMP: sub_opened -- a=target_uid b=interface_id c=type.
      * The QUEUED edge, not the mounted one: ui.await_open uses it to know a
      * mount is coming, and nothing may query the tree off it. */
-    App_DriveEvent(app, DRIVE_EVENT_SUB_OPENED, target_uid, interface_id, type, 0);
+    App_DriveEvent(app, RS_EVENT_SUB_OPENED, target_uid, interface_id, type, 0);
     if( torirs_env_net_debug() )
         TORIRS_LOG(
             "if-opensub: mount iface=%d under uid=0x%08x (%d<<16|%d) type=%d\n",
@@ -1592,8 +1820,10 @@ App_MoveSubInterface(
     int type;
 
     assert(app);
-    if( !app->tree || source_uid < 0 || dest_uid < 0 )
-        return;
+    assert(app->tree);
+    /* The executor refuses a negative uid off the wire (IF_MOVESUB). */
+    assert(source_uid >= 0);
+    assert(dest_uid >= 0);
     idx = UITree_InterfaceParentFind(app->tree, source_uid);
     if( idx < 0 )
     {
@@ -1626,9 +1856,14 @@ App_MoveSubInterface(
             (unsigned)source_uid,
             (unsigned)dest_uid);
     /* The reference (class415.method9481) closes only what the move lands
-     * on; the moved group is relinked, not closed, and keeps its arming. */
+     * on; the moved group is relinked, not closed, and keeps its arming, its
+     * nodes and everything its scripts built (U7: this used to close the
+     * source, which unloaded the group, and re-bake it from the pack at the
+     * destination). */
     app_close_slot(app, dest_uid, group_id);
-    app_close_sub(app, source_uid);
-    app_open_sub(app, dest_uid, group_id, type);
+    App_DriveEvent(app, RS_EVENT_SUB_OPENED, dest_uid, group_id, type, 0);
+    if( type == 0 )
+        RS_UISlots_SetModalHost(&app->slots, dest_uid);
+    app_enqueue_mount(app, dest_uid, group_id, type, source_uid);
 }
 

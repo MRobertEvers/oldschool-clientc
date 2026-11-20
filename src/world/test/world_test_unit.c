@@ -393,10 +393,12 @@ test_height_fn(
     return 500;
 }
 
-/* A ground stack added before its model is resident (app/app_placeholder.c):
- * it exists with no scene element, is found by tile, is never handed back for
- * a picked element, takes its element and menu once when they land, and its
- * removal queues nothing for the drain to free. */
+/* A ground stack added before its model is resident (its model is a task of
+ * app/app_tasks_ground.c): it exists with no scene element, is found by tile,
+ * is never handed back for a picked element, takes its element and menu once
+ * when they land, and its removal queues nothing for the drain to free. Every
+ * row has its own serial, so a row that reuses a freed slot is not the row a
+ * task was waiting for. */
 void
 test_obj_stack_placeholder(void)
 {
@@ -421,8 +423,18 @@ test_obj_stack_placeholder(void)
     TEST_ASSERT(strcmp(stack->actions[0].name, "Take") == 0, "menu from the landed objtype");
     World_EventsClear(world);
     idx = World_ObjStackAdd(world, -1, 11, 12, 0, 526 /* bones */, 1, "", none);
-    World_ObjStackDel(world, idx);
-    TEST_ASSERT(World_EventsCount(world) == 0, "a removed placeholder has no element for the drain to free");
+    {
+        struct WorldEntity_ObjStack const* row = World_EntityPoolGet(&world->entities.obj_stack, idx);
+        uint32_t const serial = row->serial;
+        int again;
+        TEST_ASSERT(serial != 0 && serial != stack->serial, "every row has its own serial");
+        World_ObjStackDel(world, idx);
+        TEST_ASSERT(World_EventsCount(world) == 0, "a removed placeholder has no element for the drain to free");
+        again = World_ObjStackAdd(world, -1, 11, 12, 0, 526, 1, "", none);
+        TEST_ASSERT(again == idx, "the freed slot is reused");
+        row = World_EntityPoolGet(&world->entities.obj_stack, again);
+        TEST_ASSERT(row->serial != serial, "by a row with another serial");
+    }
     World_EventsClear(world);
     World_Free(world);
 }
@@ -576,6 +588,9 @@ test_projectile_scripted(void)
     TEST_ASSERT(World_ProjectileFindScriptedSlot(world, 7) == idx, "the slot finds it");
     TEST_ASSERT(World_ProjectileFindScriptedSlot(world, 8) == -1, "no other slot does");
     struct WorldEntity_Projectile* proj = World_EntityPoolGet(&world->entities.projectile, idx);
+    /* Its curve scripts are resident (test_curve_fn answers them): what the
+     * client's body task sets once they load (app_tasks_effects.c). */
+    proj->curves_ready = true;
 
     for( int t = 0; t < 3; t++ )
         World_TestCycle(world, 1);
@@ -1995,7 +2010,14 @@ test_exact_move_across_far_teleport(void)
     }
 
     /* The 1536..11776 band is the local player's alone: a remote player whose
-     * exact move ends 5 tiles from the scene edge still glides there. */
+     * exact move ends 5 tiles from the scene edge still glides there. The
+     * local player's glide is cut the cycle it crosses into the band, and it
+     * snaps to route[0] -- which the exact move itself set to its END tile
+     * (class95.method3132 -> Statics.method1301), so the reference drops it
+     * on the end tile at once instead of gliding through the band. That tile
+     * is inside the band; the band only forbids the glide, it does not keep
+     * the player out (keeping the player away from the edge is the server's
+     * rebuild, and there is no server here). */
     {
         struct World* world = World_TestMakeReady(104);
         world->local_pid = 7;
@@ -2010,13 +2032,24 @@ test_exact_move_across_far_teleport(void)
         World_PlayerSetExactMove(world, rp, 14, 60, 5, 60, 20, 0, 3);
         /* One cycle per call: World_Cycle advances the clock by the whole
          * count before it steps, so a 25-cycle call would skip the window. */
+        uint32_t const end_fine = (uint32_t)(5 * 128 + 64);
+        int cut_cycle = -1;
         for( int c = 0; c < 25; c++ )
         {
             World_Cycle(world, 1);
-            TEST_ASSERT(local->draw_position.x >= 1536u,
-                        "the local player never stands inside the 12-tile edge band");
+            if( local->draw_position.x < 1536u && cut_cycle < 0 )
+            {
+                cut_cycle = c;
+                TEST_ASSERT(remote->draw_position.x > end_fine,
+                            "the local glide is cut while the remote one is still in flight");
+            }
+            TEST_ASSERT(local->draw_position.x >= 1536u || local->draw_position.x == end_fine,
+                        "inside the 12-tile edge band the local player stands only on route[0], "
+                        "the move's end tile, never mid-glide");
         }
-        TEST_ASSERT(remote->draw_position.x == (uint32_t)(5 * 128 + 64),
+        TEST_ASSERT(cut_cycle >= 0 && cut_cycle < 19,
+                    "the local player's glide was cut at the band, before its window closed");
+        TEST_ASSERT(remote->draw_position.x == end_fine,
                     "a remote player's exact move reaches the edge band");
         TEST_ASSERT(local->exact_move.move_start == 0,
                     "the local player's exact move was dropped at the edge band");
@@ -2389,17 +2422,17 @@ test_entity_spotanim_holds_until_resident(void)
     /* Far longer than the seq's 8 cycles, delay included. */
     for( int i = 0; i < 40; i++ )
         World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanims[0].id == 369, "a graphic still loading is not expired");
-    TEST_ASSERT(npc->spotanims[0].frame == 0, "and it waits on frame 0");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->id == 369, "a graphic still loading is not expired");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->frame == 0, "and it waits on frame 0");
 
     g_spot_test_resident = 1;
     World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanims[0].id == 369, "the cycle it lands it is still playing");
-    TEST_ASSERT(npc->spotanims[0].frame == 0, "from its first frame, not the stall's");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->id == 369, "the cycle it lands it is still playing");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->frame == 0, "from its first frame, not the stall's");
 
-    for( int i = 0; i < 8 && npc->spotanims[0].id != -1; i++ )
+    for( int i = 0; i < 8 && World_EntitySpotanimInSlot(&npc->spotanims, 0)->id != -1; i++ )
         World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanims[0].id == -1, "and it ends after playing its frames once");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->id == -1, "and it ends after playing its frames once");
 
     World_Free(world);
 }
@@ -2431,16 +2464,16 @@ test_entity_spotanim_loop_replays_until_replaced(void)
     for( int i = 0; i < 40; i++ )
     {
         World_Cycle(world, 1);
-        if( npc->spotanims[5].frame < last )
+        if( World_EntitySpotanimInSlot(&npc->spotanims, 5)->frame < last )
             restarts++;
-        last = npc->spotanims[5].frame;
+        last = World_EntitySpotanimInSlot(&npc->spotanims, 5)->frame;
     }
-    TEST_ASSERT(npc->spotanims[5].id == 4223,
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 5)->id == 4223,
                 "a looping graphic is still up after five of its lengths");
     TEST_ASSERT(restarts >= 4, "and it went back to frame 0 each time its seq ended");
 
     World_NpcSetSpotanim(world, ni, 5, -1, 0, 0, true);
-    TEST_ASSERT(npc->spotanims[5].id == -1,
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 5)->id == -1,
                 "the slot sent again with no graphic ends it");
 
     World_Free(world);
@@ -2472,12 +2505,12 @@ test_player_spotanim_slots(void)
     World_Cycle(world, 1);
     World_PlayerSetSpotanim(world, pi, 1, 24, 96, 0, false);
     World_Cycle(world, 1);
-    TEST_ASSERT(player->spotanims[0].id == 2146, "the slot-0 marker is still up");
-    TEST_ASSERT(player->spotanims[1].id == 24, "the slot-1 launch plays beside it");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&player->spotanims, 0)->id == 2146, "the slot-0 marker is still up");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&player->spotanims, 1)->id == 24, "the slot-1 launch plays beside it");
 
     World_PlayerSetSpotanim(world, pi, 0, 245, 124, 0, false);
-    TEST_ASSERT(player->spotanims[0].id == 245, "a second slot-0 graphic replaces the first");
-    TEST_ASSERT(player->spotanims[1].id == 24, "and leaves slot 1 alone");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&player->spotanims, 0)->id == 245, "a second slot-0 graphic replaces the first");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&player->spotanims, 1)->id == 24, "and leaves slot 1 alone");
 
     World_Free(world);
 }
@@ -2508,11 +2541,11 @@ test_entity_spotanim_without_a_seq_retires(void)
     World_NpcSetSpotanim(world, ni, 0, 85, 0, 2, false);
     for( int i = 0; i < 10; i++ )
         World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanims[0].id == 85, "still loading: it waits");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->id == 85, "still loading: it waits");
 
     g_spot_test_resident = 1;
     World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanims[0].id == -1, "resolved to nothing: retired on that cycle");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->id == -1, "resolved to nothing: retired on that cycle");
 
     World_Free(world);
 }

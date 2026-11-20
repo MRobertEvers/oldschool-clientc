@@ -278,7 +278,8 @@ UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge)
     bridge_hmap_free(bridge->obj_icon_border_map);
     bridge_hmap_free(bridge->npc_head_map);
     bridge_hmap_free(bridge->obj_model_map);
-    ToriMem_Free(ToriMem_Ui(), bridge->pending_sprites);
+    /* Their models are the scene's, and go with it. */
+    ToriMem_Free(ToriMem_Ui(), bridge->custom_heads);
     /* The icons' pixels are the scene's, and go with it. */
     ToriDraw_FontSetIcons(NULL, 0);
     memset(bridge, 0, sizeof(*bridge));
@@ -393,12 +394,6 @@ UITreeSceneBridge_EnsureSprite(
     return scene_id;
 }
 
-/* The pause before asking again for a bound sprite that has not landed,
- * doubled per attempt up to the ceiling. The ceiling is what an outage costs
- * after it ends, so it is kept to seconds: an ask is one read. */
-#define BRIDGE_PENDING_SPRITE_FIRST_MS 500u
-#define BRIDGE_PENDING_SPRITE_MAX_MS 4000u
-
 bool
 UITreeSceneBridge_SpriteBound(
     struct UITreeSceneBridge const* bridge,
@@ -408,12 +403,22 @@ UITreeSceneBridge_SpriteBound(
     return bridge_map_get(bridge->sprite_map, cache_graphic_id) > 0;
 }
 
+void
+UITreeSceneBridge_SetSpriteFiller(
+    struct UITreeSceneBridge* bridge,
+    UITreeSceneBridgeSpriteBoundFn bound,
+    void* user)
+{
+    assert(bridge);
+    bridge->sprite_bound = bound;
+    bridge->sprite_bound_user = user;
+}
+
 int
 UITreeSceneBridge_BindSprite(
     struct UITreeSceneBridge* bridge,
     int cache_graphic_id)
 {
-    struct UITreeSceneBridgePendingSprite* pending;
     int scene_id;
 
     assert(bridge);
@@ -426,80 +431,58 @@ UITreeSceneBridge_BindSprite(
         return -1;
     if( !bridge->provider->vtable || !bridge->provider->vtable->Task_SpriteLoad )
         return -1;
-
-    if( bridge->pending_sprite_count >= bridge->pending_sprite_cap )
-    {
-        int cap = bridge->pending_sprite_cap ? bridge->pending_sprite_cap * 2 : 16;
-        struct UITreeSceneBridgePendingSprite* grown = ToriMem_Realloc(
-            ToriMem_Ui(), bridge->pending_sprites, (size_t)cap * sizeof(*grown));
-        assert(grown);
-        bridge->pending_sprites = grown;
-        bridge->pending_sprite_cap = cap;
-    }
+    if( !bridge->sprite_bound )
+        return -1;
 
     scene_id = bridge->next_scene_id++;
     bridge_map_put(bridge, bridge->sprite_map, cache_graphic_id, scene_id);
-    pending = &bridge->pending_sprites[bridge->pending_sprite_count++];
-    pending->cache_id = cache_graphic_id;
-    pending->scene_id = scene_id;
-    /* Ask on the next pump: whatever load ran before this bind has ended. */
-    pending->next_ask_ms = 0;
-    pending->wait_ms = 0;
+    bridge->sprite_bound(bridge->sprite_bound_user, cache_graphic_id, scene_id);
     return scene_id;
 }
 
-void
-UITreeSceneBridge_PumpSprites(
+int
+UITreeSceneBridge_FillSprite(
     struct UITreeSceneBridge* bridge,
-    uint64_t now_ms)
+    int cache_graphic_id,
+    int scene_id)
 {
-    int kept = 0;
+    struct ToriRS_Sprite* rs;
+    struct ToriDraw_Sprite** sprites;
+    int count = 0;
 
     assert(bridge);
-    if( bridge->pending_sprite_count == 0 )
-        return;
     assert(bridge->provider);
-
-    for( int i = 0; i < bridge->pending_sprite_count; i++ )
+    assert(cache_graphic_id >= 0);
+    assert(scene_id > 0);
+    if( !CacheProvider_SpriteHas(bridge->provider, cache_graphic_id) )
+        return 0;
+    rs = CacheProvider_SpriteGet(bridge->provider, cache_graphic_id);
+    sprites = ToriDraw_SpritesFromToriRS(rs, &count);
+    if( sprites && count > 0 )
     {
-        struct UITreeSceneBridgePendingSprite pending = bridge->pending_sprites[i];
-
-        if( CacheProvider_SpriteHas(bridge->provider, pending.cache_id) )
-        {
-            struct ToriRS_Sprite* rs = CacheProvider_SpriteGet(bridge->provider, pending.cache_id);
-            int count = 0;
-            struct ToriDraw_Sprite** sprites = ToriDraw_SpritesFromToriRS(rs, &count);
-            /* A sprite that will not convert is EnsureSprite's -1 too: the id
-             * stays bound to nothing, and asking again would convert it again. */
-            if( sprites && count > 0 )
-            {
-                ToriDraw_SceneSpriteAdd(bridge->scene, pending.scene_id, sprites, count);
-                bridge_assets_changed(bridge);
-            }
-            continue;
-        }
-        /* The table says it will never arrive: the slot stays empty, as an
-         * unlisted graphic always drew. */
-        if( CacheProvider_SpriteAbsent(bridge->provider, pending.cache_id) )
-            continue;
-
-        if( now_ms >= pending.next_ask_ms )
-        {
-            struct ToriRS_Task* task = CreateTask_SpriteLoad(bridge->provider, pending.cache_id);
-            if( task )
-            {
-                assert(bridge->provider->asset_queue);
-                ToriRS_TaskQueue_Add(bridge->provider->asset_queue, task);
-            }
-            pending.wait_ms = pending.wait_ms == 0 ? BRIDGE_PENDING_SPRITE_FIRST_MS
-                              : pending.wait_ms * 2u > BRIDGE_PENDING_SPRITE_MAX_MS
-                                  ? BRIDGE_PENDING_SPRITE_MAX_MS
-                                  : pending.wait_ms * 2u;
-            pending.next_ask_ms = now_ms + pending.wait_ms;
-        }
-        bridge->pending_sprites[kept++] = pending;
+        ToriDraw_SceneSpriteAdd(bridge->scene, scene_id, sprites, count);
+        bridge_assets_changed(bridge);
     }
-    bridge->pending_sprite_count = kept;
+    return 1;
+}
+
+void
+UITreeSceneBridge_RewantSprites(struct UITreeSceneBridge* bridge)
+{
+    struct HMapIter* iter;
+    struct MapEntry_BridgeId* entry;
+
+    assert(bridge);
+    if( !bridge->sprite_bound )
+        return;
+    iter = hmap_iter_new(bridge->sprite_map);
+    while( (entry = (struct MapEntry_BridgeId*)hmap_iter_next(iter)) )
+    {
+        if( entry->scene_id > 0 && !ToriDraw_SceneSpriteHas(bridge->scene, entry->scene_id) &&
+            !CacheProvider_SpriteAbsent(bridge->provider, entry->cache_id) )
+            bridge->sprite_bound(bridge->sprite_bound_user, entry->cache_id, entry->scene_id);
+    }
+    hmap_iter_free(iter);
 }
 
 int
@@ -989,6 +972,7 @@ bridge_skin_sprite(int w, int h, uint32_t const* argb)
     spr->crop_width = w;
     spr->crop_height = h;
     spr->trim_width = w;
+    spr->trim_height = h;
     /* Baked chrome art carries real coverage (rounded corners, soft
      * shadows). @see ToriDraw_Sprite::alpha_channel. */
     spr->alpha_channel = 1;
@@ -1121,6 +1105,7 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
                 spr->crop_width = size;
                 spr->crop_height = size;
                 spr->trim_width = size;
+                spr->trim_height = size;
                 /* The frames carry real coverage -- soft edges, and coloured
                  * pixels under alpha 0 where the baker padded -- so a consumer
                  * must read the alpha byte, never derive one from the colour.
@@ -1175,6 +1160,7 @@ bridge_publish_argb(
     sprite->crop_width = width;
     sprite->crop_height = height;
     sprite->trim_width = width;
+    sprite->trim_height = height;
     /* A plugin image is a decoded PNG: alpha is a channel, and a plugin that
      * drew a transparent coloured pixel meant it. @see
      * ToriDraw_Sprite::alpha_channel. */
@@ -1688,8 +1674,13 @@ UITreeSceneBridge_EnsureNpcHead(
     if( !merged )
         return -1;
 
-    for( int r = 0; r < npc->recolor_count; r++ )
-        ToriDraw_ModelRecolor(merged, npc->recolors_from[r], npc->recolors_to[r]);
+    /* The type's recolour-all (npc config opcode 42) in place of the
+     * per-colour list (rev-242 deob class454.method10217). */
+    if( npc->has_recolor_all )
+        ToriDraw_ModelSetAllFaceColors(merged, (hsl16_t)npc->recolor_all);
+    else
+        for( int r = 0; r < npc->recolor_count; r++ )
+            ToriDraw_ModelRecolor(merged, npc->recolors_from[r], npc->recolors_to[r]);
     /* OSRS deob getHead (class195.method3617): recol then retex before light. */
     for( int r = 0; r < npc->retexture_count; r++ )
         ToriDraw_ModelRetexture(merged, npc->retextures_from[r], npc->retextures_to[r]);
@@ -1713,6 +1704,161 @@ UITreeSceneBridge_EnsureNpcHead(
     ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
     bridge_map_put(bridge, bridge->npc_head_map, npc_id, scene_id);
     return scene_id;
+}
+
+int
+UITreeSceneBridge_EnsureNpcHeadCustom(
+    struct UITreeSceneBridge* bridge,
+    int npc_id,
+    uint32_t serial,
+    int const* models,
+    int model_count,
+    int const* recolours,
+    int recolour_count,
+    int const* retextures,
+    int retexture_count,
+    int recolour_all)
+{
+    struct ToriRS_Npctype* npc;
+    struct ToriDraw_Model** parts;
+    struct ToriDraw_Model* merged;
+    struct ToriDraw_ModelHandle hnd;
+    int const key = -1 - (int)(serial & UITREE_SCENE_NPC_HEAD_CUSTOM_MASK);
+    int part_count = 0;
+    int scene_id;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(bridge->provider);
+    assert(serial > 0);
+    assert(model_count >= 0);
+    assert(recolour_count >= 0);
+    assert(retexture_count >= 0);
+    assert(recolour_all >= UITREE_NPC_HEAD_RECOLOUR_ALL_TYPE);
+    if( npc_id < 0 )
+        return -1;
+    scene_id = bridge_map_get(bridge->npc_head_map, key);
+    if( scene_id > 0 )
+        return scene_id;
+    if( !CacheProvider_NpctypeHas(bridge->provider, npc_id) )
+        return -1;
+    npc = CacheProvider_NpctypeGet(bridge->provider, npc_id);
+    if( !npc )
+        return -1;
+    if( !models )
+    {
+        models = npc->heads;
+        model_count = npc->heads ? npc->heads_count : 0;
+    }
+    /* Every part or none, as EnsureNpcHead (NpcType.getHead's two passes). */
+    for( int i = 0; i < model_count; i++ )
+        if( models[i] >= 0 && !CacheProvider_ModelHas(bridge->provider, models[i]) )
+            return -1;
+    if( model_count == 0 )
+        return -1;
+    /* As many parts as the override sent (a byte's worth): sized from it. */
+    parts = ToriMem_Alloc(ToriMem_Frame(), (size_t)model_count * sizeof(*parts));
+    assert(parts);
+    for( int i = 0; i < model_count; i++ )
+    {
+        struct ToriRS_Model* rs;
+
+        if( models[i] < 0 )
+            continue;
+        rs = CacheProvider_ModelGet(bridge->provider, models[i]);
+        assert(rs);
+        parts[part_count] = ToriDraw_ModelFromToriRS(rs);
+        assert(parts[part_count]);
+        part_count++;
+    }
+    merged = part_count > 0 ? ToriDraw_ModelNewMerge(parts, part_count) : NULL;
+    for( int i = 0; i < part_count; i++ )
+        ToriDraw_ModelFree(parts[i]);
+    ToriMem_Free(ToriMem_Frame(), parts);
+    if( !merged )
+        return -1;
+    /* A recolour-all, the override's or else the type's, in place of the
+     * per-colour list (rev-242 deob class454.method10217); without one,
+     * Statics.method9224: the type's source colours, each to the override's
+     * value at that index where it sent one, else the type's own. */
+    if( recolour_all == UITREE_NPC_HEAD_RECOLOUR_ALL_TYPE )
+        recolour_all = npc->has_recolor_all ? npc->recolor_all : -1;
+    if( recolour_all >= 0 )
+        ToriDraw_ModelSetAllFaceColors(merged, (hsl16_t)recolour_all);
+    else
+        for( int r = 0; r < npc->recolor_count; r++ )
+            ToriDraw_ModelRecolor(
+                merged, npc->recolors_from[r], r < recolour_count ? recolours[r] : npc->recolors_to[r]);
+    for( int r = 0; r < npc->retexture_count; r++ )
+        ToriDraw_ModelRetexture(
+            merged, npc->retextures_from[r], r < retexture_count ? retextures[r] : npc->retextures_to[r]);
+    ToriDraw_ModelSetBoundsCylinder(merged);
+    ToriDraw_ModelCaptureOriginalVertices(merged);
+    ToriDraw_ModelDropNonSdTextures(bridge->provider, merged);
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = merged;
+    if( bridge->npc_light_uses_type_ambient_contrast )
+        ToriDraw_LightModelActor(hnd, npc->contrast, npc->ambient);
+    else
+        ToriDraw_LightModelScene(hnd, 0, 0);
+    scene_id = (int)(UITREE_SCENE_NPC_HEAD_CUSTOM_BASE | (serial & UITREE_SCENE_NPC_HEAD_CUSTOM_MASK));
+    ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
+    bridge_map_put(bridge, bridge->npc_head_map, key, scene_id);
+    if( bridge->custom_head_count == bridge->custom_head_cap )
+    {
+        int cap = bridge->custom_head_cap ? bridge->custom_head_cap * 2 : 8;
+
+        bridge->custom_heads = ToriMem_Realloc(
+            ToriMem_Ui(), bridge->custom_heads, (size_t)cap * sizeof(*bridge->custom_heads));
+        assert(bridge->custom_heads);
+        bridge->custom_head_cap = cap;
+    }
+    bridge->custom_heads[bridge->custom_head_count++] =
+        (struct UITreeSceneBridgeCustomHead){ .serial = serial, .scene_id = scene_id, .doomed = 0 };
+    return scene_id;
+}
+
+int
+UITreeSceneBridge_NpcHeadCustomCount(struct UITreeSceneBridge const* bridge)
+{
+    assert(bridge);
+    return bridge->custom_head_count;
+}
+
+void
+UITreeSceneBridge_NpcHeadCustomSweep(
+    struct UITreeSceneBridge* bridge,
+    bool (*in_use)(void* user, uint32_t serial, int scene_id),
+    void* user)
+{
+    assert(bridge);
+    assert(in_use);
+    for( int i = 0; i < bridge->custom_head_count; )
+    {
+        struct UITreeSceneBridgeCustomHead* c = &bridge->custom_heads[i];
+        int key;
+        struct ToriDraw_ModelHandle gone;
+
+        if( in_use(user, c->serial, c->scene_id) )
+        {
+            c->doomed = 0;
+            i++;
+            continue;
+        }
+        if( !c->doomed )
+        {
+            c->doomed = 1;
+            i++;
+            continue;
+        }
+        key = -1 - (int)(c->serial & UITREE_SCENE_NPC_HEAD_CUSTOM_MASK);
+        (void)hmap_search(bridge->npc_head_map, &key, HMAP_REMOVE);
+        gone = ToriDraw_SceneModelRemove(bridge->scene, c->scene_id);
+        ToriDraw_ModelHandleFree(gone);
+        bridge_assets_changed(bridge);
+        *c = bridge->custom_heads[--bridge->custom_head_count];
+    }
 }
 
 int
@@ -2234,7 +2380,7 @@ UITreeSceneBridge_CollectMissingTextures(
             int texture_id = (int)model->face_textures[f];
             if( texture_id < 0 || texture_id >= 2048 )
                 continue;
-            if( seen[texture_id] || bridge->texture_failed[texture_id] )
+            if( seen[texture_id] )
                 continue;
             seen[texture_id] = 1;
             if( tex_state->texture_map.textures[texture_id] )
@@ -2306,7 +2452,6 @@ UITreeSceneBridge_PublishTextures(
         rs = CacheProvider_TextureGet(bridge->provider, texture_id);
         if( !rs )
         {
-            bridge->texture_failed[texture_id] = 1;
             if( app_tex_trace_enabled() )
                 TORIRS_ERR("tex_trace: publish id=%d -> FAILED (no provider entry)\n", texture_id);
             continue;
@@ -2315,7 +2460,6 @@ UITreeSceneBridge_PublishTextures(
         texture = bridge_texture_from_torirs(rs);
         if( !texture )
         {
-            bridge->texture_failed[texture_id] = 1;
             if( app_tex_trace_enabled() )
                 TORIRS_ERR("tex_trace: publish id=%d -> FAILED (convert: texels=%p %dx%d)\n",
                     texture_id,

@@ -1,6 +1,7 @@
 #ifndef CACHE_PROVIDER_H
 #define CACHE_PROVIDER_H
 
+#include "task_trigger.h"
 #include "torirs_types.h"
 
 #include <assert.h>
@@ -23,6 +24,10 @@ struct RSCache_Dat2ConfigDbRow;
 struct RSCache_Dat2ConfigDbTable;
 struct RSCache_WorldMapGeography;
 struct ToriRS_WorldMapRegionSource;
+
+/* The most sound renders in flight on the compute queue at once (one per
+ * distinct sound being loaded). */
+#define CACHE_PROVIDER_SOUND_RENDERS_MAX 256
 
 struct CacheProvider
 {
@@ -147,6 +152,36 @@ struct CacheProvider
     struct ToriRS_TaskQueue* asset_queue;
 
     /**
+     * Where a loader puts the work it has to COMPUTE once its reads are in,
+     * when that is more than a frame's worth: the background queue (App's
+     * `background_runner`), which is given time and time-sliced, where the
+     * asset queue is drained. The frame contract's split: reads on the asset
+     * queue, CPU-heavy decoding here. A loader that hands work here joins it
+     * like any fan-out (ToriRS_TaskQueue_AddParallelPoolSubTask / a join), and
+     * asserts this is set. The loaders that do: music (task_dat2_music_load.c,
+     * the track's unpack and the sample decode), dat2 and dat1 sound effects
+     * (task_dat2_sound_load.c, the render and a rev-727 sample's Vorbis
+     * decode; task_dat1_sound_load.c, the render), the world map
+     * (task_dat2_worldmap_load.c, the decode) and the dat1 component pack
+     * (task_dat1_component_pack_load.c, the decode). NULL until named.
+     */
+    struct ToriRS_TaskQueue* compute_queue;
+
+    /**
+     * The sound renders on `compute_queue`, by sound id, each while it is
+     * queued (CacheProvider_SoundRenderBegin / _End, from the dat1 and dat2
+     * sound loaders): what the owner of an effect's deadline finishes on the
+     * spot (CacheProvider_SoundRenderFinish) rather than let our own
+     * scheduling lose the effect. Full is an assert.
+     */
+    struct
+    {
+        int sound_id;
+        struct ToriRS_Task* task;
+    } sound_renders[CACHE_PROVIDER_SOUND_RENDERS_MAX];
+    int sound_render_count;
+
+    /**
      * Told of every archive a CACHE_INVALIDATE evicts (CacheProvider_SetArchiveInvalidateHook):
      * the IO layer's half -- its decompressed-archive LRU and the JS5 client's
      * reference table (Js5ClientInvalidateArchive) -- which the provider cannot
@@ -158,6 +193,16 @@ struct CacheProvider
      *  (CacheProvider_SetArchiveReprimeHook). NULL: never. */
     int (*archive_reprime_hook)(void* user, int index);
     void* archive_reprime_user;
+    /**
+     * The maps index's re-prime after a CACHE_INVALIDATE of a square: primed
+     * by `reprime_link` -- the IO's link, an outside owner -- from the
+     * invalidation while its new reference table is on its way
+     * (CacheProvider_ArchiveReprimePending), fired when the IO says it has
+     * landed (CacheProvider_ArchiveReprimeTick). The world gather waits on it
+     * before it reads which squares exist.
+     */
+    struct ToriRS_Trigger maps_reprime;
+    struct ToriRS_TriggerOwner reprime_link;
 
     /**
      * Records a CACHE_INVALIDATE evicted, kept alive until the provider is
@@ -186,6 +231,12 @@ struct CacheProvider
 /** Name the queue loaders fan their siblings out on. See `asset_queue`. */
 void
 CacheProvider_SetAssetQueue(
+    struct CacheProvider* provider,
+    struct ToriRS_TaskQueue* queue);
+
+/** Name the queue loaders hand their decoding to. See `compute_queue`. */
+void
+CacheProvider_SetComputeQueue(
     struct CacheProvider* provider,
     struct ToriRS_TaskQueue* queue);
 
@@ -903,6 +954,20 @@ CacheProvider_ArchiveReprimePending(
     struct CacheProvider* provider,
     int index);
 
+/** The maps index's re-prime trigger (`maps_reprime`). */
+struct ToriRS_Trigger*
+CacheProvider_MapsReprime(struct CacheProvider* provider);
+
+/**
+ * The IO's link moved (a JS5 tick): if the maps index's re-prime is primed
+ * and its table is no longer on its way -- landed, or the link died -- fire
+ * it. `user` is the provider. The IO calls it after every tick of its link
+ * (PlatformX_IO_SetReprimeTickHook); it is the link telling the client its
+ * answer came, as a read's answer clears its item.
+ */
+void
+CacheProvider_ArchiveReprimeTick(void* user);
+
 /** packed_id = (iface_id << 16) | (child & 0xFFFF). Resolves into pack cache. */
 struct ToriRS_Component*
 CacheProvider_ComponentGet(
@@ -1049,6 +1114,31 @@ CacheProvider_SoundHas(
 
 void
 CacheProvider_SoundsCleanup(struct CacheProvider* provider);
+
+/** A render of `sound_id` was queued on the compute queue as `task`. */
+void
+CacheProvider_SoundRenderBegin(
+    struct CacheProvider* provider,
+    int sound_id,
+    struct ToriRS_Task* task);
+
+/** `task` (a sound render) is leaving its queue, ended or freed. */
+void
+CacheProvider_SoundRenderEnd(
+    struct CacheProvider* provider,
+    struct ToriRS_Task* task);
+
+/*
+ * Finish the render of `sound_id` now, if one is queued: run it to its end
+ * outside any slice -- a job with a deadline finished by its owner (the frame
+ * contract, app.h). True when the sound is resident afterwards. For the audio
+ * tick, at the last tick an effect may still be played: its clip's record is
+ * here and only our render of it is late.
+ */
+bool
+CacheProvider_SoundRenderFinish(
+    struct CacheProvider* provider,
+    int sound_id);
 
 void
 CacheProvider_IdkAdd(

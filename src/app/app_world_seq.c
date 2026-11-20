@@ -15,24 +15,23 @@ app_world_catch_up_object_seq(
     int element_id,
     struct ToriDraw_Animation* anim,
     int elapsed_cycles);
-static int
-app_world_try_bind_seq(
-    struct App* app,
-    int element_id,
-    int seq_id,
-    int start_cycle);
 
 /* Wrap a freshly built (owned) model in a new dynamic scene element. The
  * element owns the model from here (SceneElementRemove frees it), which is
  * why spawns copy registry models instead of sharing handles.
  *
- * The pool is the ROOT view's dynamic half, which is right for as long as
- * every entity lives in app->world. When entities start being owned by a boat
- * view they must be allocated in THAT view's dynamic pool
- * (TORIDRAW_SCENE_POOL_DYNAMIC_VIEW / WorldBuilder.dynamic_pool) instead: the
- * reconcile pass sweeps a view's own pool against its own entity list, so a
- * deck entity holding a root-pool element would be swept by the mainland's
- * next rebuild, which does not know its owner. */
+ * The pool is the ROOT view's dynamic half, and that is right because every
+ * actor's RECORD lives in app->world, a deck's npcs and riders included (the
+ * deck's own World holds only its map). The root's rebuild sweep claims every
+ * record in app->world, so it never frees such an element; the first routing
+ * pass of the next frame (app_wev_route_actors, before anything is drawn)
+ * retags a deck actor's element into DYNAMIC_VIEW(its view), where the root's
+ * sweep no longer looks and the deck's own sweep is told about it
+ * (app_wev_claim_deck_actors); World_ShiftEntities leaves deck-homed records
+ * alone; and a released deck evicts its actors back to the root pool and
+ * despawns its npcs (App_WevDespawn) before its pools are cleared. An actor
+ * whose record moved into a deck's World would need its element made in that
+ * view's pool instead. */
 int
 app_world_scene_element_create(
     struct App* app,
@@ -149,8 +148,9 @@ app_world_catch_up_object_seq(
 }
 
 /* Try binding a loaded scene animation onto an element. Returns 1 when bound
- * OR permanently unbindable (failed/empty sentinel), 0 while still loading. */
-static int
+ * OR permanently unbindable (failed/empty sentinel), 0 while still loading.
+ * Task_SeqBind (app/app_tasks_entities.c) calls it when the sequence lands. */
+int
 app_world_try_bind_seq(
     struct App* app,
     int element_id,
@@ -222,20 +222,18 @@ app_world_apply_seq(
     app_world_apply_seq_at(app, element_id, seq_id, app->world ? app->world->cycle : 0);
 }
 
-/* Queue a sequence load (no-op when cached) without binding it to anything,
- * for an element that binds it later (a projectile, at launch). */
+/* Want a sequence without binding it to anything, for an element that binds
+ * it later (a projectile, at launch). One load in flight per sequence: asking
+ * again while it loads is the same entry (the residency test alone queued a
+ * second decoder for every ask inside the load's window). */
 void
 app_world_load_seq(
     struct App* app,
     int seq_id)
 {
-    struct ToriRS_Task* task;
-
     if( seq_id < 0 )
         return;
-    task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
-    if( task )
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
+    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0));
 }
 
 /* app_world_apply_seq for a sequence that started on world cycle
@@ -249,51 +247,25 @@ app_world_apply_seq_at(
 {
     if( seq_id < 0 )
         return;
-    app_world_load_seq(app, seq_id);
-
+    /* A newer sequence on the element replaces a bind still waiting for an
+     * older one (App_EntitySeqBindWant cancels it), bound now or not. */
+    App_EntitySeqBindCancel(app, element_id);
     if( app_world_try_bind_seq(app, element_id, seq_id, start_cycle) )
         return;
-    bool const queued =
-        AsyncPendingSeqBinds_Add(&app->seq_bind_pending, element_id, seq_id, start_cycle);
-    assert(queued && "seq bind list full: the element would never animate");
-    (void)queued;
+    /* Not resident: a parallel task waits for it and binds it, catching the
+     * frames up from `start_cycle` -- the clock runs from arrival. */
+    App_EntitySeqBindWant(app, element_id, seq_id, start_cycle);
 }
 
 /*
- * Forget deferred binds for an element that is going away.
- *
- * Necessary because the poll below can only ask whether the element is LIVE,
- * and scene element ids are recycled: an entry left behind by a despawned
- * entity is indistinguishable from a valid one once the id is handed out
- * again, and its sequence then binds onto whoever inherited it -- the wrong
- * creature suddenly playing somebody else's animation. Dropping at the moment
- * of death removes the ambiguity instead of trying to detect it later. Same
- * class of bug as EntitySpotanim::owner_entity_id; see that note.
+ * Forget a deferred bind for an element that is going away. The task's serial
+ * test already refuses it; cancelling here ends it at the moment of death
+ * instead of at the load's end.
  */
 void
 app_seq_bind_pending_drop(
     struct App* app,
     int element_id)
 {
-    AsyncPendingSeqBinds_DropElement(&app->seq_bind_pending, element_id);
-}
-
-/* Per-frame: bind deferred element/sequence pairs whose loads landed. */
-void
-app_world_bind_pending_seqs(struct App* app)
-{
-    int kept = 0;
-    for( int i = 0; i < app->seq_bind_pending.count; i++ )
-    {
-        struct AsyncPendingSeqBind* pend = &app->seq_bind_pending.items[i];
-        if( !ToriDraw_SceneElementIsLive(app->scene, pend->element_id) )
-            continue; /* element despawned while loading */
-        if( app_world_try_bind_seq(app, pend->element_id, pend->seq_id, pend->start_cycle) )
-        {
-            RedrawRequest_Raise(&app->redraw_request);
-            continue;
-        }
-        app->seq_bind_pending.items[kept++] = *pend;
-    }
-    AsyncPendingSeqBinds_Keep(&app->seq_bind_pending, kept);
+    App_EntitySeqBindCancel(app, element_id);
 }

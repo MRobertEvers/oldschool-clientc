@@ -72,6 +72,12 @@ loc_config(int loc_id)
     return g_locs[loc_id];
 }
 
+struct ToriRS_Location*
+ScriptrunCore_LocConfig(int loc_id)
+{
+    return loc_config(loc_id);
+}
+
 int
 ScriptrunCore_LocConfigsInvalidate(void)
 {
@@ -111,8 +117,8 @@ resolve_loc(
             if( !ScriptrunCore_Varbit(core, resolved->transform_varbit, &index) )
                 index = 0;
         }
-        else if( resolved->transform_varp != -1 && resolved->transform_varp < SCRIPTRUN_VARPS )
-            index = core->varps[resolved->transform_varp];
+        else if( resolved->transform_varp >= 0 )
+            index = VarPManager_GetVarp(&core->model.varps, resolved->transform_varp);
         if( index >= 0 && index < resolved->transform_count - 1 )
             id = resolved->transforms[index];
         else
@@ -670,106 +676,74 @@ loc_cache_level(
     return zone_level;
 }
 
-/* Stamp (add) or undo one row's collision through the rung it resolves to
- * now, as the client's ApplyLocChange does for the loc it removes or adds. */
-static void
-loc_row_collision(
-    struct ScriptrunCore* core,
-    struct ScriptrunLoc const* l,
-    int add)
-{
-    struct WorldBuilder* builder = core->builder;
-    struct ToriRS_Location storage;
-    struct ToriRS_Location* config;
-    int sx = l->x - core->world->_base_tile_x;
-    int sz = l->z - core->world->_base_tile_z;
-
-    if( !builder || sx < 0 || sz < 0 || sx >= SCRIPTRUN_SCENE_SIZE || sz >= SCRIPTRUN_SCENE_SIZE )
-        return;
-    config = placed_config(core, l->loc_id, &storage);
-    if( !config )
-        return;
-    {
-        struct ToriRS_MapLoc ml = {
-            .loc_id = l->loc_id,
-            .shape_select = l->shape,
-            .orientation = l->angle,
-            .chunk_pos_x = sx,
-            .chunk_pos_z = sz,
-            .chunk_pos_level = l->level,
-        };
-        if( add )
-            world_collision_add_loc(builder, &ml, config, sx, sz);
-        else
-            world_collision_del_loc(builder, &ml, config, sx, sz);
-    }
-}
-
-void
-ScriptrunCore_ZoneResetLocs(
-    struct ScriptrunCore* core,
-    int abs_x0,
-    int abs_z0,
-    int zone_level)
-{
-    int base_x, base_z;
-
-    assert(core);
-    base_x = core->world->_base_tile_x;
-    base_z = core->world->_base_tile_z;
-    /* Every change row goes first, then every deleted map row comes back:
-     * the client's per-key restore lands the map's loc after removing what
-     * stood there, so its stamp is the last word on a shared tile. */
-    for( int pass = 0; pass < 2; pass++ )
-    {
-        for( int i = 0; i < core->loc_count; i++ )
-        {
-            struct ScriptrunLoc* l = &core->locs[i];
-
-            if( l->x < abs_x0 || l->x >= abs_x0 + 8 || l->z < abs_z0 || l->z >= abs_z0 + 8 )
-                continue;
-            if( l->level != loc_cache_level(core, l->x - base_x, l->z - base_z, zone_level) )
-                continue;
-            if( pass == 0 && l->map_loc_id < 0 && l->loc_id >= 0 )
-            {
-                loc_row_collision(core, l, 0);
-                l->loc_id = -1;
-            }
-            else if( pass == 1 && l->map_loc_id >= 0 && l->loc_id < 0 )
-            {
-                l->loc_id = l->map_loc_id;
-                loc_row_collision(core, l, 1);
-            }
-        }
-    }
-}
-
-void
-ScriptrunCore_LocChange(
-    struct ScriptrunCore* core,
+int
+ScriptrunCore_MapLocAt(
+    struct ScriptrunCore const* core,
     int abs_x,
     int abs_z,
-    int zone_level,
+    int level,
+    int layer,
+    int* out_shape,
+    int* out_angle)
+{
+    assert(core);
+    assert(out_shape);
+    assert(out_angle);
+    for( int i = 0; i < core->loc_count; i++ )
+    {
+        struct ScriptrunLoc const* l = &core->locs[i];
+
+        if( l->view != 0 || l->map_loc_id < 0 || l->x != abs_x || l->z != abs_z || l->level != level ||
+            World_LocShapeToLayer(l->shape) != layer )
+            continue;
+        *out_shape = l->shape;
+        *out_angle = l->angle;
+        return l->map_loc_id;
+    }
+    *out_shape = -1;
+    *out_angle = 0;
+    return -1;
+}
+
+int
+ScriptrunCore_LocCacheLevel(
+    struct ScriptrunCore const* core,
+    int sx,
+    int sz,
+    int zone_level)
+{
+    assert(core);
+    return loc_cache_level(core, sx, sz, zone_level);
+}
+
+void
+ScriptrunCore_LocPlace(
+    struct ScriptrunCore* core,
+    int view,
+    int abs_x,
+    int abs_z,
+    int level,
     int shape,
     int angle,
     int loc_id,
-    struct PktLocAddChange const* menu)
+    int op_flags,
+    const char ops[5][32])
 {
     struct WorldBuilder* builder = core->builder;
-    int sx, sz, level;
+    int sx, sz;
     int layer = World_LocShapeToLayer(shape);
     struct ToriRS_Location storage;
     struct ToriRS_Location* config;
     int stamps;
 
     assert(core);
+    assert(ops);
     sx = abs_x - core->world->_base_tile_x;
     sz = abs_z - core->world->_base_tile_z;
-    level = loc_cache_level(core, sx, sz, zone_level);
     /* Only a root-scene tile has a cell in the root collision map: a deck's
-     * change (under a SET_ACTIVE_WORLD cursor) is a staging tile far outside
-     * it, and the deck world's own collision is not modelled here. */
-    stamps = builder && core->active_world == 0 && sx >= 0 && sz >= 0 &&
+     * change is a staging tile far outside it, and the deck world's own
+     * collision is not modelled here. */
+    stamps = builder && view == 0 && sx >= 0 && sz >= 0 &&
              sx < SCRIPTRUN_SCENE_SIZE && sz < SCRIPTRUN_SCENE_SIZE;
 
     /* 1. Whatever stood in this layer goes, collision undone through the same
@@ -798,12 +772,12 @@ ScriptrunCore_LocChange(
     if( loc_id < 0 )
         return;
     loc_append(core, abs_x, abs_z, level, shape, angle, loc_id, 0);
-    if( menu )
     {
         struct ScriptrunLoc* row = &core->locs[core->loc_count - 1];
-        row->op_flags = menu->op_flags & 0x1f;
+        row->view = view;
+        row->op_flags = op_flags & 0x1f;
         for( int i = 0; i < 5; i++ )
-            snprintf(row->ops[i], sizeof(row->ops[i]), "%s", menu->ops[i]);
+            snprintf(row->ops[i], sizeof(row->ops[i]), "%s", ops[i]);
     }
     if( stamps && (config = placed_config(core, loc_id, &storage)) != NULL )
     {

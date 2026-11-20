@@ -47,11 +47,35 @@ cw_test_skin(void)
         CW_CHECK(blank == 0, "no editor slot is blank");
     }
 
+    /* Every slot has a bit of its own (fx-editor C2): a 64-bit mask put
+     * slots 64..68 on the bits of 0..4, so marking the eyedropper's slot lit
+     * slot 0 and clearing it cleared slot 0. */
+    cw_reset();
+    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
+        ToriRSChrome_SetSkinAvailable(&g_cw_ui, i, 0);
+    ToriRSChrome_SetSkinAvailable(&g_cw_ui, 64, 1);
+    CW_CHECK(ToriRSChrome_SkinAvailable(&g_cw_ui, 64) && !ToriRSChrome_SkinAvailable(&g_cw_ui, 0),
+        "slot 64 available leaves slot 0 unavailable");
+    ToriRSChrome_SetSkinAvailable(&g_cw_ui, 0, 1);
+    ToriRSChrome_SetSkinAvailable(&g_cw_ui, 64, 0);
+    CW_CHECK(ToriRSChrome_SkinAvailable(&g_cw_ui, 0) && !ToriRSChrome_SkinAvailable(&g_cw_ui, 64),
+        "slot 64 cleared leaves slot 0 available");
+    {
+        int lit = 0;
+        for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
+            lit += ToriRSChrome_SkinAvailable(&g_cw_ui, i);
+        CW_CHECK(lit == 1, "only slot 0 is lit");
+        ToriRSChrome_SetSkinAvailable(&g_cw_ui, TORIRS_CHROME_SKIN_SLOT_COUNT - 1, 1);
+        CW_CHECK(ToriRSChrome_SkinAvailable(&g_cw_ui, TORIRS_CHROME_SKIN_SLOT_COUNT - 1)
+                     && !ToriRSChrome_SkinAvailable(&g_cw_ui, (TORIRS_CHROME_SKIN_SLOT_COUNT - 1) % 64),
+            "the last slot has its own bit");
+    }
+
     cw_reset();
     ToriRSChrome_SetSkinAvailable(&g_cw_ui, TORIRS_CHROME_SKIN_SAVE, 0);
-    CW_CHECK((g_cw_ui.skin_avail >> TORIRS_CHROME_SKIN_SAVE & 1u) == 0 &&
-                 (g_cw_ui.skin_avail >> TORIRS_CHROME_SKIN_STOP & 1u) == 1 &&
-                 (g_cw_ui.skin_avail & 1u) == 1,
+    CW_CHECK(!ToriRSChrome_SkinAvailable(&g_cw_ui, TORIRS_CHROME_SKIN_SAVE)
+                 && ToriRSChrome_SkinAvailable(&g_cw_ui, TORIRS_CHROME_SKIN_STOP)
+                 && ToriRSChrome_SkinAvailable(&g_cw_ui, 0),
         "a slot past 32 clears its own bit and no other");
     {
         int panel = ToriRSChrome_PanelAdd(&g_cw_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 200, "S");

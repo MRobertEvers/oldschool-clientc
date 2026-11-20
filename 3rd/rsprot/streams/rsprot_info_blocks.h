@@ -36,9 +36,22 @@ typedef struct RsprotInfoBlocks
     /* PLAYER_INFO only: the slot table and this packet's movement ops, which
      * the traversal and exact-move blocks amend. */
     RsprotPlayerPacket *player;
+    /* PLAYER_INFO only: this record's persistent MOVE_SPEED has been read.
+     * A RESET decoded after it (240, 241, m241 write it later) must not undo
+     * it: the reference resets before the record's blocks (class81.method2126,
+     * class109.method3804). Cleared per record by rsprot_info_flags. */
+    int move_speed_read;
     /* NPC_INFO only: the type lookup CUSTOM_TYPED needs (NULL ends the tail). */
     RsprotNpcTypeLengths lengths;
     void *ctx;
+    /* NPC_INFO only: the npc this record is for. */
+    const RsprotNpcExtended *npc;
+    /* NPC_INFO only: this record's TRANSFORMATION has been read, and the type
+     * it named: the type a later block of the record reads against (the
+     * reference's npc type field, written by the transformation in record
+     * order). Cleared per record by rsprot_info_flags. */
+    int retyped;
+    int32_t retyped_type;
 } RsprotInfoBlocks;
 
 /* --- encodings ------------------------------------------------------------ */

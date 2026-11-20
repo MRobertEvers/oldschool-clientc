@@ -2140,6 +2140,50 @@ interaction_reach_position(
  *
  * Returns 1 when the interaction ran and was cleared.
  */
+/*
+ * An op that fires takes the chatbox from whatever a queue put there while the
+ * op was latched.
+ *
+ * The op's packet already closed what was up when it arrived
+ * (`ToriRSServer_WorldClearPendingAction`). What it cannot close is a chat box
+ * a queued script opens AFTER it, while the player walks to the target or on
+ * the very tick it is reached (the queue phase runs before the interaction).
+ * Jagex closes that one when the op fires: a queued level-up box opens and is
+ * shut, with no input from the client, on the tick a latched op lands -- the
+ * combat level-up as a ground item is taken (RSProx index 4521 [281]: the box,
+ * then `if_closesub chatbox:chatmodal` with no `if_sethide` the box's own
+ * continue would send), the Hitpoints box under a swing (index 4517 [3992]).
+ * And no recorded level-up box ever shares the chatbox with another chat
+ * modal, or replaces one (214 sessions, about 1,440 boxes): an op's dialogue
+ * is preceded by the box's close in every recording of one (index 4360
+ * [1185], 4439 [328], 4457 [974], 4529 [763], 4603 [594], 4353 [455]).
+ *
+ * Without this the op's script ran while the box's script was parked on its
+ * continue: an op that opens a dialogue (`~mesbox`) put its page over the box
+ * and was dropped by the one-parked-script rule, and the page's continue then
+ * resumed the LEVEL-UP script, whose end closed the op's page and let the next
+ * queued box replace it (cox_lobby after `::maxstats`).
+ *
+ * Only the chat modal and a parked dialogue: a main modal open under a latched
+ * op is a case no recording shows.
+ */
+static void
+interaction_close_chat_behind(struct ToriRSServer* srv)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+    struct SSVM_State const* parked = player->active_script;
+    int dialogue_parked;
+
+    dialogue_parked = parked && (parked->execution == SSVM_PAUSEBUTTON ||
+                                 parked->execution == SSVM_COUNTDIALOG ||
+                                 parked->execution == SSVM_NAMEDIALOG);
+    if( player->mainmodal_group > 0 || player->sidemodal_group > 0 )
+        return;
+    if( player->chatmodal_group <= 0 && !dialogue_parked )
+        return;
+    ToriRSServer_WorldCloseModal(srv);
+}
+
 static int
 interaction_try(
     struct ToriRSServer* srv,
@@ -2330,6 +2374,8 @@ interaction_try(
          * reads the interaction — and the clear a few lines down is what this
          * copy survives. Same reason the ap rung above snapshots. */
         struct ToriRSServerInteraction snapshot = *interaction;
+
+        interaction_close_chat_behind(srv);
 
         /* Multiloc: scene entity / find stays BASE; the trigger lookup tries the
          * varbit-resolved child first (LostCity OpLocHandler + getOpTrigger gap
@@ -3676,6 +3722,15 @@ world_square_loaded(
     world_apply_deck_rules(srv);
 }
 
+/* The tick breakdown (TORIRS_SERVER_BREAKDOWN), defined with the tick below;
+ * a window build reports its own cost through it. */
+static int g_tick_bd_ms;
+static FILE* g_tick_bd_out;
+static int
+tick_bd_on(void);
+static uint64_t
+tick_bd_now_us(void);
+
 static void
 world_window_scene_build(
     struct ToriRSServer* srv,
@@ -3901,6 +3956,8 @@ world_player_scene_build(
 {
     int anchor_x;
     int anchor_z;
+    int const bd_on = tick_bd_on();
+    uint64_t const bd_t0 = bd_on ? tick_bd_now_us() : 0;
 
     player_scene_anchor(srv, player, &anchor_x, &anchor_z);
     player->zone_x = anchor_x >> 3;
@@ -3916,6 +3973,19 @@ world_player_scene_build(
     world_window_scene_build(srv, ToriRSServer_PlayerSceneWindow(player), player->zone_x,
                              player->zone_z);
     player->scene_built_generation = zone_centre_generation(player->zone_x, player->zone_z);
+    /* TORIRS_SERVER_BREAKDOWN: a window build reads and collides every map
+     * square it does not hold yet, inside whichever tick phase moved the
+     * player (maybe_rebuild); the line names that cost apart from the
+     * phase's own. */
+    if( bd_on )
+    {
+        uint64_t const us = tick_bd_now_us() - bd_t0;
+
+        if( us >= (uint64_t)g_tick_bd_ms * 1000u )
+            fprintf(g_tick_bd_out,
+                    "server_scene_build: tick %d pid %d zone %d,%d %.2f ms\n",
+                    srv->tick, player->pid, player->zone_x, player->zone_z, us / 1000.0);
+    }
 }
 
 void
@@ -14758,6 +14828,22 @@ chat_publish_private_filter_varbit(
  * wholesale on this packet, so an empty one is the statement "you have no
  * ignores", which is different from never having been told.
  */
+/* `me`'s whole ignore list to `player`. */
+static void
+social_send_ignore_list(
+    struct ToriRSServerPlayer* player,
+    int64_t me)
+{
+    int64_t ignores[TORIRSSERVER_SOCIAL_IGNORES_MAX];
+    int n = ToriRSServer_FriendsIgnoreCount(me);
+
+    if( n > (int)(sizeof(ignores) / sizeof(ignores[0])) )
+        n = (int)(sizeof(ignores) / sizeof(ignores[0]));
+    for( int i = 0; i < n; i++ )
+        ToriRSServer_FriendsIgnoreGet(me, i, &ignores[i]);
+    ToriRSServer_SendUpdateIgnorelist(player, ignores, n);
+}
+
 void
 ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player)
 {
@@ -14782,16 +14868,7 @@ ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player)
             ToriRSServer_SendUpdateFriendlist(player, friend37, world,
                                               ToriRSServer_FriendchatFriendRank(me, friend37));
     }
-    {
-        int64_t ignores[TORIRSSERVER_SOCIAL_IGNORES_MAX];
-        int n = ToriRSServer_FriendsIgnoreCount(me);
-
-        if( n > (int)(sizeof(ignores) / sizeof(ignores[0])) )
-            n = (int)(sizeof(ignores) / sizeof(ignores[0]));
-        for( int i = 0; i < n; i++ )
-            ToriRSServer_FriendsIgnoreGet(me, i, &ignores[i]);
-        ToriRSServer_SendUpdateIgnorelist(player, ignores, n);
-    }
+    social_send_ignore_list(player, me);
 
     /* The client's own filter UI is driven by these three, and nothing else
      * tells it what the server thinks they are. The reference has no equivalent
@@ -14898,6 +14975,17 @@ handle_social_list(
         break;
     case PKTOUT_NAME_IGNORELIST_ADD:
         result = ToriRSServer_FriendsIgnoreAdd(me, target);
+        /* The rev-239 client does not add an ignore itself (class58
+         * .method1218 only sends): the list changes when this answer, one
+         * added entry, arrives. A wire whose client replaces the list on
+         * every UPDATE_IGNORELIST (the rs wires) is sent the whole list. */
+        if( result == TORIRSSERVER_SOCIAL_OK )
+        {
+            if( ToriRSServer_WireIgnoreListByEntry(player) )
+                ToriRSServer_SendUpdateIgnorelist(player, &target, 1);
+            else
+                social_send_ignore_list(player, me);
+        }
         social_broadcast_to_followers(srv, me);
         break;
     case PKTOUT_NAME_IGNORELIST_DEL:
@@ -18495,8 +18583,7 @@ enum
 
 static int g_tick_bd_init;
 static int g_tick_bd_on;
-static int g_tick_bd_ms;
-static FILE* g_tick_bd_out;
+/* g_tick_bd_ms and g_tick_bd_out are declared above world_window_scene_build. */
 static uint64_t g_pp[PP_COUNT];
 
 /* Two costs that cut across the phases rather than sitting inside one: script
@@ -21739,10 +21826,25 @@ static void
 phase_cleanup_player(struct ToriRSServerPlayer* player)
 {
     player->sent_masks = player->masks;
-    player->stat_dirty = 0;
-    player->inv_dirty = 0;
-    player->worn_dirty = 0;
-    player->clear_map_flag = 0;
+    /*
+     * What phase_client_out flushes at its END is kept on the tick a rebuild
+     * barrier is armed. That tick's client-out stops after the rebuild prefix
+     * (PLAYER_INFO, NPC_INFO, the zones: maybe_rebuild's early return), so the
+     * backpack, the worn set, the stats and the map-flag clear it would have
+     * sent are still owed, and the barrier's own held ticks skip this cleanup
+     * until MAP_BUILD_COMPLETE lets the next client-out send them. Cleared
+     * here, they were lost: a POH room bought with coins left the client
+     * showing the coins the server had taken (makeover_tour's house.free,
+     * `Your new Bedroom is ready.` and no UPDATE_INV for the 10000 coins, the
+     * save holding 89000 and the client 99000).
+     */
+    if( !player->rebuild_scene_pending )
+    {
+        player->stat_dirty = 0;
+        player->inv_dirty = 0;
+        player->worn_dirty = 0;
+        player->clear_map_flag = 0;
+    }
     /* One social packet per tick, spent by whichever of the six arrived first.
      * The reference clears it in `resetEntity`, which is this phase. */
     player->social_protect = 0;

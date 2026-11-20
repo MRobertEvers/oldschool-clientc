@@ -53,7 +53,18 @@ App_IfEventsSet(
 {
     assert(app);
     UIIfEventTable_Set(&app->if_events, com_id, from, to, events);
+    App_IfEventsShow(app, com_id, from, to, events);
+}
 
+void
+App_IfEventsShow(
+    struct App* app,
+    int com_id,
+    int from,
+    int to,
+    int events)
+{
+    assert(app);
     if( torirs_env_net_debug() )
         TORIRS_LOG(
             "if_setevents: com=%d (%d:%d) slots=%d..%d events=0x%x\n",
@@ -71,19 +82,6 @@ App_IfEventsClear(struct App* app)
 {
     assert(app);
     UIIfEventTable_Clear(&app->if_events);
-}
-
-void
-App_IfEventsDropGroup(
-    struct App* app,
-    int group_id)
-{
-    assert(app);
-    UIIfEventTable_DropGroup(&app->if_events, group_id);
-
-    if( torirs_env_net_debug() )
-        TORIRS_LOG("if_setevents: group %d closed, its arming dropped\n", group_id);
-    RedrawRequest_Raise(&app->redraw_request);
 }
 
 int

@@ -1051,6 +1051,15 @@ NetTransport_ReplaySetChaseCycles(
     ReplayScrub_SetChaseCycles(as_replay(t)->scrub, cycles);
 }
 
+void
+NetTransport_ReplaySetNpcTypeLengths(
+    struct NetTransport* t,
+    int (*npc_types)(void* ctx, int old, int npc_type, int head, int* recolours, int* retextures),
+    void* npc_types_ctx)
+{
+    ReplayScrub_SetNpcTypeLengths(as_replay(t)->scrub, npc_types, npc_types_ctx);
+}
+
 int
 NetTransport_IsReplay(struct NetTransport const* t)
 {

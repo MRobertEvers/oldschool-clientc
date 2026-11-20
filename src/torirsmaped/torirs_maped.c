@@ -2294,19 +2294,24 @@ handle_frame(
 
         for( int i = 0; i < maped->state_count; i++ )
         {
+            uint32_t count = maped->state[i].count;
+
             if( maped->state[i].client_id != session->client_id )
                 continue;
+            /* STATE_SET, the store's one writer, refuses a count over the
+             * max, so every entry fits payload (test_state_store_bounds).
+             * The i686 GCC LTO link cannot see that through the stored count
+             * and warned 60 times (-Wstringop-overflow) that this loop writes
+             * past payload; the array's own bound beside count is the bound
+             * it can see. It never ends the loop: the assert is the rule. */
+            assert(count <= TORIRSMAPED_STATE_VALUES_MAX);
             ToriRSMapEd_WriteU32(payload, maped->seq);
             ToriRSMapEd_WriteU32(payload + 4, maped->state[i].key);
-            ToriRSMapEd_WriteU32(payload + 8, maped->state[i].count);
-            for( uint32_t v = 0; v < maped->state[i].count; v++ )
+            ToriRSMapEd_WriteU32(payload + 8, count);
+            for( uint32_t v = 0; v < count && v < TORIRSMAPED_STATE_VALUES_MAX; v++ )
                 ToriRSMapEd_WriteU32(
                     payload + 12 + v * 4, (uint32_t)maped->state[i].values[v]);
-            send_frame(
-                session,
-                TORIRSMAPED_FACT_STATE,
-                payload,
-                12 + maped->state[i].count * 4);
+            send_frame(session, TORIRSMAPED_FACT_STATE, payload, 12 + count * 4);
             replayed++;
         }
         send_status_extra(

@@ -112,8 +112,6 @@ struct ToriRS_MusicPlayer
     bool request_loop;
     int request_fade_out_ms;
     int request_fade_in_ms;
-    /** Set while a load task owns the request, so it is not started twice. */
-    bool request_loading;
     /** A stop with no fade-out, waiting for the tick to retire the song. A
      *  stop request carries no song, so neither the fade path nor the
      *  retire-before-load path would ever act on it. */
@@ -144,6 +142,10 @@ struct ToriRS_MusicPlayer
     /** Stream id in the mixer, and whether it is open. */
     int stream_id;
     bool stream_open;
+    /** The stream was closed where there was no command queue (an install
+     *  from the load task): the next tick queues its ASSET_UNLOAD, before
+     *  anything opens it again. */
+    bool unload_pending;
     /** 0..TORIRS_AUDIO_VOLUME_MAX, the music setting. */
     int volume;
     /** Ticks left of a fade-out before the pending request starts. */
@@ -244,7 +246,13 @@ ToriRS_Music_SetVolume(
     int volume,
     struct ToriRS_AudioQueue* out);
 
-/** True when a request is waiting for a loader to pick it up. */
+/**
+ * True when a request is due to load now: one is held, it names a song, and
+ * no fade-out is still running. Asked every tick; the caller wants the song
+ * through the assets table (ASSET_KIND_MUSIC), which holds the one loader of
+ * the kind -- a newer request replaces an older one whose loader runs, and
+ * the older's install is refused below.
+ */
 bool
 ToriRS_Music_TakeLoadRequest(
     struct ToriRS_MusicPlayer* player,
@@ -256,6 +264,10 @@ ToriRS_Music_TakeLoadRequest(
  *
  * Takes ownership of `song`. `patch_ids`/`patch_count` are what the loader
  * retained in the bank, so the player can release them when the song ends.
+ * A song that is no longer the one requested (a newer request came while it
+ * loaded) is not installed: it is freed and its patches released. `out` may
+ * be NULL (the load task has no queue): a stream that had to close then
+ * queues its ASSET_UNLOAD on the next tick.
  */
 void
 ToriRS_Music_Installed(

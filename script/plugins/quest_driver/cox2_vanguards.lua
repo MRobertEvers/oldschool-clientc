@@ -866,6 +866,9 @@ QD.T2.register("cox_vanguards", {
             local vr, nd = api_drive.varp(ids.nodef)
             if vr ~= "ok" or nd == 1 then break end
             QD.raid._tob_tab(S, ids.combat_tab)
+            -- The tab's panel shows a frame or a read later: a press before
+            -- it does is dropped unseen (ui.await_presented).
+            QD.ui.await_presented(ids.retaliate, S.who .. ": combat_interface:retaliate", 10)
             api_drive.if_click(ids.retaliate, 1)
             for _ = 1, 2 do
                 await({ event = "server_tick", match = function() return true end, note = S.who .. ": retaliate" }, 3)
@@ -877,6 +880,7 @@ QD.T2.register("cox_vanguards", {
             if m == 1 then break end
             assert(press <= 3, S.who .. ": three style presses and varp43_com_mode reads " .. tostring(m))
             QD.raid._tob_tab(S, ids.combat_tab)
+            QD.ui.await_presented(ids.style_slot_1, S.who .. ": the style slot", 10)
             local pr, pd = api_drive.if_click(ids.style_slot_1, 1)
             assert(pr == "ok", S.who .. ": the style press answered " .. tostring(pr) .. " " .. tostring(pd))
             for _ = 1, 2 do

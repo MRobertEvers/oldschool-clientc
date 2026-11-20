@@ -392,7 +392,7 @@ check_one(char const* path, int verbose)
         }
         else if( (npc_read = npc_reader(d->name, rr)) != NULL )
         {
-            int n = proto_info_npc_read(npc_read, data, len, &g_list);
+            int n = proto_info_npc_read(npc_read, data, len, NULL, NULL, &g_list);
 
             ok = rsprot_info_list_complete(&g_list);
             if( g_dump )

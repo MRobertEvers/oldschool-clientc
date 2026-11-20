@@ -5091,15 +5091,15 @@ pinfo(uint8_t const* d, int l, struct RsprotInfoList* o)
 }
 
 static int
-ninfo(uint8_t const* d, int l, struct RsprotInfoList* o)
+ninfo(uint8_t const* d, int l, GameProtoNpcTypeLengths n, void* c, struct RsprotInfoList* o)
 {
-    return proto_info_npc_read(npc_info_small_v5_osrs226, d, l, o);
+    return proto_info_npc_read(npc_info_small_v5_osrs226, d, l, n, c, o);
 }
 
 static int
-ninfo_large(uint8_t const* d, int l, struct RsprotInfoList* o)
+ninfo_large(uint8_t const* d, int l, GameProtoNpcTypeLengths n, void* c, struct RsprotInfoList* o)
 {
-    return proto_info_npc_read(npc_info_large_v5_osrs226, d, l, o);
+    return proto_info_npc_read(npc_info_large_v5_osrs226, d, l, n, c, o);
 }
 
 static struct GameProtoRevTable k_rev = {

@@ -447,10 +447,14 @@ class Gen:
         if self.family in OSRS_FAMILIES:
             o += ["static int", "pinfo(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",
                   "    return proto_info_player_read(player_info_%s, d, l, o);" % rev, "}", "",
-                  "static int", "ninfo(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",
-                  "    return proto_info_npc_read(npc_info_small_%s_%s, d, l, o);" % (npc, rev), "}", "",
-                  "static int", "ninfo_large(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",
-                  "    return proto_info_npc_read(npc_info_large_%s_%s, d, l, o);" % (npc, rev), "}", ""]
+                  "static int",
+                  "ninfo(uint8_t const* d, int l, GameProtoNpcTypeLengths n, void* c, struct RsprotInfoList* o)",
+                  "{",
+                  "    return proto_info_npc_read(npc_info_small_%s_%s, d, l, n, c, o);" % (npc, rev), "}", "",
+                  "static int",
+                  "ninfo_large(uint8_t const* d, int l, GameProtoNpcTypeLengths n, void* c, struct RsprotInfoList* o)",
+                  "{",
+                  "    return proto_info_npc_read(npc_info_large_%s_%s, d, l, n, c, o);" % (npc, rev), "}", ""]
             family = ["    .revision = GAMEPROTO_REVISION_OSRS,",
                       "    /* pSmart1Or2: two bytes once a server opcode passes 0x7F. */",
                       "    .opcode_smart2 = %d," % (1 if max(r[1] for r in server) >= 0x80 else 0),
@@ -468,6 +472,13 @@ class Gen:
                       "    .chat_pack = chat_huffman_pack,",
                       "    .chat_says = chat_huffman_says,"]
         else:
+            o += ["/* The classic npc stream has no typed customisation: nothing asks for a type. */",
+                  "static int",
+                  "ninfo(uint8_t const* d, int l, GameProtoNpcTypeLengths n, void* c, struct RsprotInfoList* o)",
+                  "{",
+                  "    (void)n;",
+                  "    (void)c;",
+                  "    return %s(d, l, o);" % self.conf["npc_stream"], "}", ""]
             family = ["    .revision = GAMEPROTO_REVISION_RS,",
                       "    /* One opcode byte, a 2-byte component id, and LostCity's re-login on",
                       "     * opcode 18 with an otherwise identical block. */",
@@ -475,7 +486,7 @@ class Gen:
                       "    .component_id_bytes = 0,",
                       "    .reconnect_kind = NET_RECONNECT_CREDS,",
                       "    .player_info_read = %s," % self.conf["player_stream"],
-                      "    .npc_info_read = %s," % self.conf["npc_stream"],
+                      "    .npc_info_read = ninfo,",
                       "    .chat_unpack = wordpack_unpack_bytes,",
                       "    .chat_pack = wordpack_pack_bytes,",
                       "    .chat_says = wordpack_says,"]

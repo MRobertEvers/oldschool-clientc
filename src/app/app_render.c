@@ -295,6 +295,11 @@ App_RenderSkipCatchUp(struct App* app)
      * frame is drawn late below. */
     if( app->world_views.split.attached )
         return app_view_split_catch_up(app);
+    /* The skipped frame's emit list borrows the tree it was built from; one
+     * that moved since (a driver verb's settle, a task landing between
+     * frames) is not drawn under it. */
+    if( app->tree )
+        RenderSkip_NoteTree(&app->render_skip, app->tree->dirty_gen);
     catch_up = RenderSkip_CatchUp(&app->render_skip);
     if( catch_up == RENDER_SKIP_CATCH_UP_FRESH )
         return 1;
@@ -688,8 +693,8 @@ App_Render(
          * ("or -1 to leave the bar alone", rs_preload.h). Overriding with -1
          * would clamp to zero and walk the bar backwards.
          */
-        if( app->frame_runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->frame_runner.render.percent >= 0 )
-            percent = app->frame_runner.render.percent;
+        if( app->packet_runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->packet_runner.render.percent >= 0 )
+            percent = app->packet_runner.render.percent;
 
         /* Post-login (and any later quiet bake), the reference shows ONLY the
          * sentence: a black screen and "Loading - please wait.", no bar. The

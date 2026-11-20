@@ -24,6 +24,7 @@
  */
 
 #include <stddef.h>
+#include <stdio.h>
 
 /** TORIRSSERVER_SAVES, or "saves". */
 const char*
@@ -111,6 +112,15 @@ ToriRSServer_SaveWriteText(
 /** `mkdir -p` the directory `path` is in; the save directory when it names none. */
 void
 ToriRSServer_SaveMkdirParent(const char* path);
+
+/**
+ * Create `path` for writing (binary) only if it does not exist yet: fopen's
+ * "wbx", which msvcrt.dll -- the C runtime of the repository's MinGW
+ * toolchains and of Windows XP -- does not know, so there every such fopen
+ * failed. NULL when the file exists or cannot be made.
+ */
+FILE*
+ToriRSServer_SaveCreateExclusive(const char* path);
 
 /** Rename `temp` over `path`, replacing it atomically (MoveFileEx on Windows,
  *  whose rename() refuses an existing destination). 0 on success. */

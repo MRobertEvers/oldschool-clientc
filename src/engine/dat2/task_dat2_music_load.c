@@ -4,6 +4,7 @@
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
+#include "engine/torirs_sound_from_rscache.h"
 
 #include "asyncio.h"
 #include "cache/rscache_io.h"
@@ -55,25 +56,137 @@
  * batch exactly as a prefetch wave did. A cold twelve-instrument track is four
  * round trips -- track, setup, all instruments, all samples -- against the
  * forty-four it once walked one at a time.
+ *
+ * ## Reads here, unpacking and decoding on the background queue, in steps
+ *
+ * Those three tasks only READ: they run on the asset queue, which is drained
+ * every frame and pays its processor time out of that frame, so a task there
+ * must wait, then do a little. Two things here are not a little:
+ *
+ *  - the track's unpack (RSCache_MusicSongNewDecode): up to 2.9 ms of CPU for
+ *    the largest osrs239 track natively, several times that in wasm;
+ *  - decoding the samples: a Vorbis sample is up to 8 ms of CPU natively, a
+ *    rendered percussion effect up to 0.7 ms (one whole sample was a 15-16 ms
+ *    step in wasm, which aborted a strict web session at login).
+ *
+ * So both are jobs on the provider's compute queue (the background queue:
+ * given time, time-sliced), and both are CUT INTO BOUNDED STEPS with the
+ * decoder's state kept in the job between them: the unpack MUSIC_UNPACK_UNITS
+ * units of the track at a time, a Vorbis sample MUSIC_DECODE_FRAMES frames at
+ * a time, a percussion effect TORIRS_SOUND_RENDER_STEP_SAMPLES samples of
+ * render at a time (inside a tone); the clock is checked after
+ * every step (TASK_YIELD_IF_SPENT). A step is then a fraction of a millisecond
+ * natively, whatever the song (test-music-load reports the longest). The song
+ * hands the unpack the track's archive and joins it; later it hands the decode
+ * every sample's archive, and the shared Vorbis setup's, and joins that, and
+ * installs only after it: a song still starts with every sample ready. The
+ * setup (0.2 ms natively) and each patch (0.01 ms) are small enough to be one
+ * step: the setup is decoded by the decode job, a patch where it is read.
  */
 
-/* --- one sample ---------------------------------------------------------- */
+/* How much of the work one step of a background job does (see above). */
+#define MUSIC_UNPACK_UNITS 16384
+#define MUSIC_DECODE_FRAMES 4096
 
-struct Task_Dat2MusicSampleLoad
+/* --- one sample: its read ----------------------------------------------- */
+
+/*
+ * One sample the song wants that the bank does not hold: which, and the
+ * archive its read returned (NULL until it lands, and if it could not be
+ * read). The song owns the list; each read task fills its own slot.
+ */
+struct MusicSampleSlot
+{
+    /** TORIRS_SOUNDBANK_TABLE_MUSIC (pitched) or _EFFECTS (percussion). */
+    int table;
+    int id;
+    struct RSCache_Dat2DiskArchive* archive;
+};
+
+struct Task_Dat2MusicSampleRead
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    /* The song's slot. The song outlives us -- it is parked on the join that
+     * counts us -- so the pointer is good for our whole life. */
+    struct MusicSampleSlot* slot;
+};
+
+static int
+Task_Dat2MusicSampleRead_Run(
+    struct ToriRS_Task* task_base,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_Dat2MusicSampleRead* task = (struct Task_Dat2MusicSampleRead*)task_base;
+    int const table = task->slot->table == TORIRS_SOUNDBANK_TABLE_MUSIC
+                          ? RSCACHE_DAT2_TABLE_MUSIC_SAMPLES
+                          : RSCACHE_DAT2_TABLE_SOUND_EFFECTS;
+
+    PT_BEGIN(&task->pt);
+
+    RSCache_IO_Dat2MusicLoad(io, 0, table, task->slot->id);
+    PT_YIELD(&task->pt);
+    task->slot->archive = RSCache_IO_Dat2MusicDecode(io, 0, table);
+
+    PT_END(&task->pt);
+}
+
+static void
+Task_Dat2MusicSampleRead_Free(struct ToriRS_Task* task_base)
+{
+    ToriMem_Free(ToriMem_Assets(), task_base);
+}
+
+static struct ToriRS_TaskVTable Task_Dat2MusicSampleRead_VTable = {
+    .run = Task_Dat2MusicSampleRead_Run,
+    .free = Task_Dat2MusicSampleRead_Free,
+};
+
+static struct ToriRS_Task*
+create_sample_read(struct MusicSampleSlot* slot)
+{
+    struct Task_Dat2MusicSampleRead* task;
+
+    assert(slot);
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_Dat2MusicSampleRead_VTable;
+    strcpy(task->task.name, "Dat2MusicSampleRead");
+    task->slot = slot;
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
+/* --- the decoding: one job on the background queue ----------------------- */
+
+/*
+ * Everything the song read and the bank does not hold yet, decoded one item
+ * a step, stopping between items when the background queue's slice is
+ * spent. It OWNS what it decodes (the archives, handed over by the song) and
+ * writes only into the player (the Vorbis setups and the bank), never into
+ * the song: the song learns what landed by asking the bank. So it needs
+ * nothing of the song's to be alive -- a queue freed whole frees it without
+ * counting into the song's join.
+ */
+struct Task_Dat2MusicDecode
 {
     struct ToriRS_Task task;
     struct pt pt;
     struct Dat2BuildCache* bc;
     struct ToriRS_MusicPlayer* player;
-    /** TORIRS_SOUNDBANK_TABLE_MUSIC (pitched) or _EFFECTS (percussion). */
-    int table;
-    int id;
     bool rs2012_audio;
-    /* The song's flag, shared down the fan-out exactly as the join count is:
-     * a required sample that does not land fails the whole track, and only
-     * the song can refuse to install. The song outlives us -- it is parked on
-     * the join that counts us -- so the pointer is good for our whole life. */
-    bool* failed;
+    /** The shared setup's archive, when the song had to read it; NULL when
+     *  the player already held the setup. */
+    struct RSCache_Dat2DiskArchive* setup;
+    struct MusicSampleSlot* slots;
+    int slot_count;
+    /** The slot being decoded, and its decoder between steps: a Vorbis
+     *  sample's (reading slots[next].archive), or a percussion effect's
+     *  render (reading `effect`). Kept here, since a step ends at a slice. */
+    int next;
+    struct RSCache_VorbisSampleDecode* vorbis;
+    struct RSCache_SoundEffect* effect;
+    struct RSCache_SoundRender* render;
 };
 
 /** Widen a sound-effect render (8-bit unsigned) into the bank's 16-bit form. */
@@ -84,165 +197,331 @@ widen_effect(
     /* ASSET: ToriRS_SoundBank_AddSample adopts it. */
     int16_t* out = ToriMem_Alloc(ToriMem_Assets(), (size_t)pcm->sample_count * sizeof(int16_t));
 
+    assert(out);
     for( int i = 0; i < pcm->sample_count; i++ )
         out[i] = (int16_t)(((int)pcm->samples[i] - 128) << 8);
     return out;
 }
 
-/** Decode the percussion sample at `id` out of the sound-effect table. */
+/** Start the percussion sample at `id` out of the sound-effect table: its
+ *  record decoded (a small parse) and its render made, stepped later.
+ *  False when there is nothing to render. */
 static bool
-add_effect_sample(
-    struct Task_Dat2MusicSampleLoad* task,
-    struct RSCache_Dat2DiskArchive* archive,
-    int id)
+effect_sample_begin(
+    struct Task_Dat2MusicDecode* task,
+    struct RSCache_Dat2DiskArchive* archive)
 {
     const struct RSCache* profile = CacheProvider_Profile(&task->bc->base);
-    struct RSCache_SoundEffect* effect;
-    struct RSCache_SoundPcm pcm;
-    int16_t* widened;
-    bool ok = false;
 
-    assert(archive);
-    effect = RSCache_SoundEffectNewDecode(profile, archive->data, archive->data_size);
-    if( !effect )
+    assert(!task->effect);
+    assert(!task->render);
+    /* A percussion sample whose read failed. */
+    if( !archive )
         return false;
-    memset(&pcm, 0, sizeof(pcm));
-    if( RSCache_SoundEffectRender(profile, effect, &pcm) && pcm.sample_count > 0 )
-    {
-        widened = widen_effect(&pcm);
-        if( widened )
-            ok = ToriRS_SoundBank_AddSample(
-                     &task->player->bank,
-                     TORIRS_SOUNDBANK_TABLE_EFFECTS,
-                     id,
-                     widened,
-                     pcm.sample_count,
-                     pcm.sample_rate,
-                     0,
-                     pcm.sample_count,
-                     false) != NULL;
-    }
-    RSCache_SoundPcmRelease(&pcm);
-    RSCache_SoundEffectFree(effect);
-    return ok;
+    task->effect = RSCache_SoundEffectNewDecode(profile, archive->data, archive->data_size);
+    if( !task->effect )
+        return false;
+    task->render = RSCache_SoundRenderNew(profile, task->effect);
+    return task->render != NULL;
 }
 
-/** Decode a Vorbis music sample against the shared setup. */
-static bool
-add_music_sample(
-    struct Task_Dat2MusicSampleLoad* task,
-    struct RSCache_Dat2DiskArchive* archive,
+/** The percussion render is finished: put it in the bank (unless another
+ *  song's job did meanwhile) and drop the render. */
+static void
+effect_sample_end(
+    struct Task_Dat2MusicDecode* task,
     int id)
 {
-    struct RSCache_AudioSample* sample;
-    bool ok;
+    struct RSCache_SoundPcm pcm;
 
+    assert(task->render);
+    RSCache_SoundRenderTake(task->render, &pcm);
+    if( pcm.sample_count > 0 &&
+        !ToriRS_SoundBank_FindSample(&task->player->bank, TORIRS_SOUNDBANK_TABLE_EFFECTS, id) )
+        (void)ToriRS_SoundBank_AddSample(
+            &task->player->bank,
+            TORIRS_SOUNDBANK_TABLE_EFFECTS,
+            id,
+            widen_effect(&pcm),
+            pcm.sample_count,
+            pcm.sample_rate,
+            0,
+            pcm.sample_count,
+            false);
+    RSCache_SoundPcmRelease(&pcm);
+}
+
+/** Start a Vorbis music sample against the shared setup, stepped later.
+ *  False when it cannot be decoded at all. */
+static bool
+music_sample_begin(
+    struct Task_Dat2MusicDecode* task,
+    struct RSCache_Dat2DiskArchive* archive)
+{
     const struct RSCache_VorbisSetup* setup = task->rs2012_audio
                                                   ? task->player->rs2012_vorbis_setup
                                                   : task->player->vorbis_setup;
 
+    assert(!task->vorbis);
     if( !archive || !setup )
         return false;
-    sample = RSCache_VorbisSampleNewDecode(
-        setup, archive->data, archive->data_size);
-    if( !sample )
-        return false;
+    task->vorbis = RSCache_VorbisSampleDecodeNew(setup, archive->data, archive->data_size);
+    return task->vorbis != NULL;
+}
+
+/** The Vorbis decode is finished: put it in the bank (unless it was
+ *  malformed, or another song's job put it there meanwhile). */
+static void
+music_sample_end(
+    struct Task_Dat2MusicDecode* task,
+    int id)
+{
+    struct RSCache_AudioSample* sample;
     int16_t* samples = NULL;
+
+    assert(task->vorbis);
+    sample = RSCache_VorbisSampleDecodeTake(task->vorbis);
+    if( !sample )
+        return;
+    if( ToriRS_SoundBank_FindSample(&task->player->bank, TORIRS_SOUNDBANK_TABLE_MUSIC, id) )
+    {
+        RSCache_AudioSampleFree(sample);
+        return;
+    }
     if( sample->samples && sample->sample_count > 0 )
     {
         samples = ToriMem_TakeFromRSCache(
             ToriMem_Assets(), sample->samples, (size_t)sample->sample_count * sizeof(*sample->samples));
         sample->samples = NULL;
     }
-    ok = ToriRS_SoundBank_AddSample(
-             &task->player->bank,
-             TORIRS_SOUNDBANK_TABLE_MUSIC,
-             id,
-             samples,
-             sample->sample_count,
-             sample->sample_rate,
-             sample->loop_start,
-             sample->loop_end,
-             sample->loop) != NULL;
+    (void)ToriRS_SoundBank_AddSample(
+        &task->player->bank,
+        TORIRS_SOUNDBANK_TABLE_MUSIC,
+        id,
+        samples,
+        sample->sample_count,
+        sample->sample_rate,
+        sample->loop_start,
+        sample->loop_end,
+        sample->loop);
     /* Ownership moved into the bank on success AND on failure: AddSample
      * frees what it cannot keep. A buffer that was not taken (no samples)
      * is still the decoder's and goes with it. */
     RSCache_AudioSampleFree(sample);
-    return ok;
+}
+
+/* The slot's decoder, whichever it was, is done with. */
+static void
+decode_drop_current(struct Task_Dat2MusicDecode* task)
+{
+    RSCache_VorbisSampleDecodeFree(task->vorbis);
+    task->vorbis = NULL;
+    RSCache_SoundRenderFree(task->render);
+    task->render = NULL;
+    if( task->effect )
+        RSCache_SoundEffectFree(task->effect);
+    task->effect = NULL;
 }
 
 static int
-Task_Dat2MusicSampleLoad_Run(
+Task_Dat2MusicDecode_Run(
     struct ToriRS_Task* task_base,
     struct ToriRS_IOBatch* io)
 {
-    struct Task_Dat2MusicSampleLoad* task = (struct Task_Dat2MusicSampleLoad*)task_base;
-    struct RSCache_Dat2DiskArchive* archive;
-    int const table = task->table == TORIRS_SOUNDBANK_TABLE_MUSIC
-                          ? RSCACHE_DAT2_TABLE_MUSIC_SAMPLES
-                          : RSCACHE_DAT2_TABLE_SOUND_EFFECTS;
+    struct Task_Dat2MusicDecode* task = (struct Task_Dat2MusicDecode*)task_base;
+    struct MusicSampleSlot* slot;
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2MusicLoad(io, 0, table, task->id);
-    PT_YIELD(&task->pt);
-    archive = RSCache_IO_Dat2MusicDecode(io, 0, table);
-
-    if( task->table == TORIRS_SOUNDBANK_TABLE_MUSIC )
+    /* The setup first: every music sample decodes against it. Another song's
+     * decode may have made it since this song read it. One step: it is small
+     * (see the note at the top of this file). */
+    if( task->setup )
     {
-        if( !add_music_sample(task, archive, task->id) && task->rs2012_audio )
-        {
-            TORIRS_ERR("music: rev-727 QBD sample %d is absent or invalid\n", task->id);
-            *task->failed = true;
-        }
+        if( task->rs2012_audio && !task->player->rs2012_vorbis_setup )
+            task->player->rs2012_vorbis_setup =
+                RSCache_VorbisSetupNewDecode(task->setup->data, task->setup->data_size);
+        else if( !task->rs2012_audio && !task->player->vorbis_setup )
+            task->player->vorbis_setup =
+                RSCache_VorbisSetupNewDecode(task->setup->data, task->setup->data_size);
+        RSCache_Dat2DiskArchiveFree(task->setup);
+        task->setup = NULL;
+        TASK_YIELD_IF_SPENT(&task->task, &task->pt, io);
     }
-    else
-        add_effect_sample(task, archive, task->id);
-    RSCache_Dat2DiskArchiveFree(archive);
+
+    for( task->next = 0; task->next < task->slot_count; task->next++ )
+    {
+        slot = &task->slots[task->next];
+        /* Decoded meanwhile by another song's job: nothing to start. */
+        if( !ToriRS_SoundBank_FindSample(&task->player->bank, slot->table, slot->id) )
+        {
+            if( slot->table == TORIRS_SOUNDBANK_TABLE_MUSIC )
+            {
+                if( music_sample_begin(task, slot->archive) )
+                {
+                    /* MUSIC_DECODE_FRAMES frames a step. */
+                    while( !RSCache_VorbisSampleDecodeStep(task->vorbis, MUSIC_DECODE_FRAMES) )
+                        TASK_YIELD_IF_SPENT(&task->task, &task->pt, io);
+                    slot = &task->slots[task->next];
+                    music_sample_end(task, slot->id);
+                }
+            }
+            else if( effect_sample_begin(task, slot->archive) )
+            {
+                /* TORIRS_SOUND_RENDER_STEP_SAMPLES samples of work a step. */
+                while( !RSCache_SoundRenderStep(task->render, TORIRS_SOUND_RENDER_STEP_SAMPLES) )
+                    TASK_YIELD_IF_SPENT(&task->task, &task->pt, io);
+                slot = &task->slots[task->next];
+                effect_sample_end(task, slot->id);
+            }
+            decode_drop_current(task);
+        }
+        slot = &task->slots[task->next];
+        RSCache_Dat2DiskArchiveFree(slot->archive);
+        slot->archive = NULL;
+        TASK_YIELD_IF_SPENT(&task->task, &task->pt, io);
+    }
 
     PT_END(&task->pt);
 }
 
 static void
-Task_Dat2MusicSampleLoad_Free(struct ToriRS_Task* task_base)
+Task_Dat2MusicDecode_Free(struct ToriRS_Task* task_base)
 {
-    ToriMem_Free(ToriMem_Assets(), task_base);
+    struct Task_Dat2MusicDecode* task = (struct Task_Dat2MusicDecode*)task_base;
+
+    /* Freed before it reached them (a queue freed whole): what is left,
+     * and the decoder of the slot it was in the middle of. */
+    decode_drop_current(task);
+    RSCache_Dat2DiskArchiveFree(task->setup);
+    for( int i = 0; i < task->slot_count; i++ )
+        RSCache_Dat2DiskArchiveFree(task->slots[i].archive);
+    ToriMem_Free(ToriMem_Assets(), task->slots);
+    ToriMem_Free(ToriMem_Assets(), task);
 }
 
-static struct ToriRS_TaskVTable Task_Dat2MusicSampleLoad_VTable = {
-    .run = Task_Dat2MusicSampleLoad_Run,
-    .free = Task_Dat2MusicSampleLoad_Free,
+static struct ToriRS_TaskVTable Task_Dat2MusicDecode_VTable = {
+    .run = Task_Dat2MusicDecode_Run,
+    .free = Task_Dat2MusicDecode_Free,
 };
 
+/* The decode job for what the song read: the setup's archive and the slots,
+ * copied, their archives moved (the song's slots keep table and id, which it
+ * checks against the bank afterwards). */
 static struct ToriRS_Task*
-create_sample_load(
+create_decode(
     struct Dat2BuildCache* bc,
     struct ToriRS_MusicPlayer* player,
-    int table,
-    int id,
     bool rs2012_audio,
-    bool* failed)
+    struct RSCache_Dat2DiskArchive* setup,
+    struct MusicSampleSlot* slots,
+    int slot_count)
 {
-    struct Task_Dat2MusicSampleLoad* task;
+    struct Task_Dat2MusicDecode* task;
 
     assert(bc);
     assert(player);
-    assert(failed);
-    /* Already decoded by an earlier song, or by the instrument next door:
-     * NULL is what AddParallelPoolSubTask takes for "nothing to do". */
-    if( id < 0 || ToriRS_SoundBank_FindSample(&player->bank, table, id) )
-        return NULL;
-
+    assert(slot_count >= 0);
     task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
-    task->task.vtable = &Task_Dat2MusicSampleLoad_VTable;
-    strcpy(task->task.name, "Dat2MusicSampleLoad");
+    task->task.vtable = &Task_Dat2MusicDecode_VTable;
+    strcpy(task->task.name, "Dat2MusicDecode");
     task->bc = bc;
     task->player = player;
-    task->table = table;
-    task->id = id;
     task->rs2012_audio = rs2012_audio;
-    task->failed = failed;
+    task->setup = setup;
+    task->slot_count = slot_count;
+    if( slot_count > 0 )
+    {
+        assert(slots);
+        task->slots = ToriMem_Alloc(ToriMem_Assets(), (size_t)slot_count * sizeof(*task->slots));
+        assert(task->slots);
+        for( int i = 0; i < slot_count; i++ )
+        {
+            task->slots[i] = slots[i];
+            slots[i].archive = NULL;
+        }
+    }
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
+/* --- the track's unpack: one job on the background queue ---------------- */
+
+/*
+ * The track archive the song read, unpacked MUSIC_UNPACK_UNITS units a step
+ * (RSCache_MusicSongDecodeStep), stopping between steps when the background
+ * queue's slice is spent. It OWNS the archive (the song hands it over) and
+ * writes its one result, the unpacked song, into the song's field as it ends:
+ * the song is parked on the join that counts this job until then, and the
+ * background queue is freed before the asset queue at shutdown, so the field
+ * outlives it as the join itself does.
+ */
+struct Task_Dat2MusicUnpack
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    int song_id;
+    struct RSCache_Dat2DiskArchive* archive;
+    struct RSCache_MusicSongDecode* decode;
+    struct RSCache_MusicSong** out;
+};
+
+static int
+Task_Dat2MusicUnpack_Run(
+    struct ToriRS_Task* task_base,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_Dat2MusicUnpack* task = (struct Task_Dat2MusicUnpack*)task_base;
+
+    PT_BEGIN(&task->pt);
+
+    task->decode = RSCache_MusicSongDecodeNew(task->archive->data, task->archive->data_size);
+    if( task->decode )
+    {
+        while( !RSCache_MusicSongDecodeStep(task->decode, MUSIC_UNPACK_UNITS) )
+            TASK_YIELD_IF_SPENT(&task->task, &task->pt, io);
+        *task->out = RSCache_MusicSongDecodeTake(task->decode);
+    }
+    if( !*task->out )
+        TORIRS_LOG("music: song %d did not unpack\n", task->song_id);
+
+    PT_END(&task->pt);
+}
+
+static void
+Task_Dat2MusicUnpack_Free(struct ToriRS_Task* task_base)
+{
+    struct Task_Dat2MusicUnpack* task = (struct Task_Dat2MusicUnpack*)task_base;
+
+    RSCache_MusicSongDecodeFree(task->decode);
+    RSCache_Dat2DiskArchiveFree(task->archive);
+    ToriMem_Free(ToriMem_Assets(), task);
+}
+
+static struct ToriRS_TaskVTable Task_Dat2MusicUnpack_VTable = {
+    .run = Task_Dat2MusicUnpack_Run,
+    .free = Task_Dat2MusicUnpack_Free,
+};
+
+static struct ToriRS_Task*
+create_unpack(
+    int song_id,
+    struct RSCache_Dat2DiskArchive* archive,
+    struct RSCache_MusicSong** out)
+{
+    struct Task_Dat2MusicUnpack* task;
+
+    assert(archive);
+    assert(out);
+    assert(!*out);
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_Dat2MusicUnpack_VTable;
+    strcpy(task->task.name, "Dat2MusicUnpack");
+    task->song_id = song_id;
+    task->archive = archive;
+    task->out = out;
     PT_INIT(&task->pt);
     return &task->task;
 }
@@ -383,8 +662,20 @@ struct Task_Dat2MusicLoad
     bool rs2012_audio;
     bool failed;
 
-    /** Instruments still loading. */
+    /** Instruments, then sample reads, still loading. */
     int pending;
+    /** The unpack job on the compute queue: 1 while it runs. */
+    int unpacking;
+
+    /** The shared Vorbis setup's archive, read here and decoded by the
+     *  decode job; NULL when the player holds the setup already. */
+    struct RSCache_Dat2DiskArchive* setup_archive;
+    /** The samples the song plays that the bank did not hold, with each
+     *  read's archive until the decode job takes them. */
+    struct MusicSampleSlot* slots;
+    int slot_count;
+    /** The decode job on the compute queue: 1 while it runs. */
+    int decoding;
 
     int retained[TORIRS_MUSIC_MAX_PATCHES];
     int retained_count;
@@ -409,30 +700,30 @@ Task_Dat2MusicLoad_Run(
         task->failed = true;
         goto done;
     }
-    task->song = RSCache_MusicSongNewDecode(archive->data, archive->data_size);
-    RSCache_Dat2DiskArchiveFree(archive);
+    /* Unpacked on the compute queue, in steps (the note at the top of this
+     * file); the job takes the archive and writes the song here. */
+    assert(task->bc->base.compute_queue);
+    ToriRS_TaskQueue_AddParallelPoolSubTask(
+        task->bc->base.compute_queue, create_unpack(task->song_id, archive, &task->song),
+        &task->unpacking);
+    archive = NULL;
+    TASK_AWAIT_JOIN(&task->task, &task->pt, task->unpacking);
     if( !task->song )
     {
-        TORIRS_LOG("music: song %d did not unpack\n", task->song_id);
         task->failed = true;
         goto done;
     }
 
     /* 2. the matching shared Vorbis setup, once per session. Foreign samples
      * cannot be decoded with OSRS archive 0 and must never replace it. */
+    /* Read here; decoded by the decode job, before any sample (step 4). */
     if( task->rs2012_audio && !task->player->rs2012_vorbis_setup )
     {
         RSCache_IO_Dat2MusicLoad(
             io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, RS2012_SAMPLE_SETUP_ID);
         PT_YIELD(&task->pt);
-        archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES);
-        if( archive )
-        {
-            task->player->rs2012_vorbis_setup =
-                RSCache_VorbisSetupNewDecode(archive->data, archive->data_size);
-            RSCache_Dat2DiskArchiveFree(archive);
-        }
-        if( !task->player->rs2012_vorbis_setup )
+        task->setup_archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES);
+        if( !task->setup_archive )
         {
             TORIRS_ERR("music: rev-727 setup index 14:%d is absent or invalid for QBD song %d\n",
                     RS2012_SAMPLE_SETUP_ID, task->song_id);
@@ -444,15 +735,7 @@ Task_Dat2MusicLoad_Run(
     {
         RSCache_IO_Dat2MusicLoad(io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0);
         PT_YIELD(&task->pt);
-        archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES);
-        if( archive )
-        {
-            task->player->vorbis_setup =
-                RSCache_VorbisSetupNewDecode(archive->data, archive->data_size);
-            RSCache_Dat2DiskArchiveFree(archive);
-        }
-        if( !task->player->vorbis_setup )
-            TORIRS_LOG("music: no Vorbis setup (index 14 archive 0); samples will be absent\n");
+        task->setup_archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES);
     }
 
     /*
@@ -470,11 +753,7 @@ Task_Dat2MusicLoad_Run(
             &task->pending);
     /* PT_TASK_JOIN's shape, written out because that macro names its task
      * `self` and this file names it `task`. @see task_dat2_healthbar_load.c. */
-    while( task->pending > 0 )
-    {
-        task->task.blocked = 1;
-        PT_YIELD(&task->pt);
-    }
+    TASK_AWAIT_JOIN(&task->task, &task->pt, task->pending);
 
     /*
      * 4. Every sample those instruments play, fetched together.
@@ -486,15 +765,18 @@ Task_Dat2MusicLoad_Run(
      * song is the only place that sees the whole set, so it is the only place
      * that can ask for each sample once.
      *
-     * `seen` is a local, and may be: nothing below it yields until the fan-out
-     * is finished and the list is freed. That is the same reason the loop's
-     * counters are locals -- see the note at the top of this file.
+     * Each read fills its own slot of the song's list, which is sized for
+     * the most there can be before any read is queued, so a slot never moves
+     * under its read. The loop's counters are locals: nothing below yields
+     * until the fan-out is finished -- see the note at the top of this file.
      */
     {
         int const max_ids = task->song->patch_count * 128;
-        int* seen = ToriMem_Alloc(
-            ToriRS_TaskMem(&task->task), (size_t)(max_ids > 0 ? max_ids : 1) * sizeof(int));
-        int seen_count = 0;
+
+        task->slots = ToriMem_Alloc(
+            ToriMem_Assets(), (size_t)(max_ids > 0 ? max_ids : 1) * sizeof(*task->slots));
+        assert(task->slots);
+        task->slot_count = 0;
 
         for( int i = 0; i < task->song->patch_count && i < TORIRS_MUSIC_MAX_PATCHES; i++ )
         {
@@ -506,7 +788,6 @@ Task_Dat2MusicLoad_Run(
             {
                 int id;
                 int table;
-                int key;
                 bool dup = false;
 
                 if( !RSCache_MusicSongPatchUsesNote(&task->song->patches[i], note) )
@@ -517,29 +798,63 @@ Task_Dat2MusicLoad_Run(
                 table = RSCache_MusicPatchNoteIsMusicSample(slot->patch, note)
                             ? TORIRS_SOUNDBANK_TABLE_MUSIC
                             : TORIRS_SOUNDBANK_TABLE_EFFECTS;
-                /* One key over both tables: percussion and pitched samples
-                 * share an id space only by accident. */
-                key = (table << 24) | id;
-                for( int k = 0; k < seen_count; k++ )
-                    if( seen[k] == key )
+                /* Keyed on both table and id: percussion and pitched
+                 * samples share an id space only by accident. */
+                for( int k = 0; k < task->slot_count; k++ )
+                    if( task->slots[k].table == table && task->slots[k].id == id )
                         dup = true;
-                if( dup )
+                /* Already decoded by an earlier song, or listed already. */
+                if( dup || ToriRS_SoundBank_FindSample(&task->player->bank, table, id) )
                     continue;
-                seen[seen_count++] = key;
+                task->slots[task->slot_count].table = table;
+                task->slots[task->slot_count].id = id;
+                task->slots[task->slot_count].archive = NULL;
                 ToriRS_TaskQueue_AddParallelPoolSubTask(
                     task->bc->base.asset_queue,
-                    create_sample_load(
-                        task->bc, task->player, table, id, task->rs2012_audio, &task->failed),
+                    create_sample_read(&task->slots[task->slot_count]),
                     &task->pending);
+                task->slot_count++;
             }
         }
-        ToriMem_Free(ToriRS_TaskMem(&task->task), seen);
     }
-    while( task->pending > 0 )
+    TASK_AWAIT_JOIN(&task->task, &task->pt, task->pending);
+
+    /*
+     * 4b. Decode what was read, on the compute queue (the background queue:
+     * see the note at the top of this file), and wait for it as for any
+     * fan-out. The job takes the archives; the song keeps which samples it
+     * wanted, to ask the bank afterwards.
+     */
+    if( task->setup_archive || task->slot_count > 0 )
     {
-        task->task.blocked = 1;
-        PT_YIELD(&task->pt);
+        assert(task->bc->base.compute_queue);
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
+            task->bc->base.compute_queue,
+            create_decode(
+                task->bc, task->player, task->rs2012_audio, task->setup_archive,
+                task->slots, task->slot_count),
+            &task->decoding);
+        task->setup_archive = NULL;
+        TASK_AWAIT_JOIN(&task->task, &task->pt, task->decoding);
     }
+    if( task->rs2012_audio && !task->player->rs2012_vorbis_setup )
+    {
+        TORIRS_ERR("music: rev-727 setup index 14:%d is absent or invalid for QBD song %d\n",
+                RS2012_SAMPLE_SETUP_ID, task->song_id);
+        task->failed = true;
+        goto done;
+    }
+    if( !task->rs2012_audio && !task->player->vorbis_setup )
+        TORIRS_LOG("music: no Vorbis setup (index 14 archive 0); samples will be absent\n");
+    /* A required sample that did not land fails the whole track: only the
+     * two raw rev-727 tracks have no rendition worth playing without one. */
+    for( int i = 0; task->rs2012_audio && i < task->slot_count; i++ )
+        if( task->slots[i].table == TORIRS_SOUNDBANK_TABLE_MUSIC &&
+            !ToriRS_SoundBank_FindSample(&task->player->bank, TORIRS_SOUNDBANK_TABLE_MUSIC, task->slots[i].id) )
+        {
+            TORIRS_ERR("music: rev-727 QBD sample %d is absent or invalid\n", task->slots[i].id);
+            task->failed = true;
+        }
 
     /*
      * 5. What actually landed. The instruments installed themselves and their
@@ -597,10 +912,16 @@ Task_Dat2MusicLoad_Free(struct ToriRS_Task* task_base)
 {
     struct Task_Dat2MusicLoad* task = (struct Task_Dat2MusicLoad*)task_base;
 
-    /* A task killed mid-load still owns the song it decoded. Its instruments
-     * own nothing of ours: each one freed whatever it held when the queue
-     * reaped it. */
+    /* A task killed mid-load still owns the song it decoded, and what it read
+     * and did not yet hand to the decode job. Its instruments and reads own
+     * nothing of ours: each one freed whatever it held when the queue reaped
+     * it. Nor does the decode job, which holds its own copy: a queue freed
+     * whole frees it without counting into `decoding`. */
     RSCache_MusicSongFree(task->song);
+    RSCache_Dat2DiskArchiveFree(task->setup_archive);
+    for( int i = 0; task->slots && i < task->slot_count; i++ )
+        RSCache_Dat2DiskArchiveFree(task->slots[i].archive);
+    ToriMem_Free(ToriMem_Assets(), task->slots);
     ToriMem_Free(ToriMem_Assets(), task);
 }
 

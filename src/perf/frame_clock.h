@@ -144,6 +144,13 @@ FrameClockStep_PayLocked(
     int ticks,
     int tick_ms);
 
+/** A frame-locked frame whose clock is HELD (App_LogicClockHold: the content
+ *  test's virtual clock did not step) pays nothing: no cycle, no mover time,
+ *  and the debt and the accumulator are kept for the frame that does pay.
+ *  Returns 0. */
+int
+FrameClockStep_PayHeld(struct FrameClockStep* step);
+
 /** A frame-locked frame was paid `cycles` more than it ran: the next
  *  frame-locked frame pays them (FrameClockStep_PayLocked). Replaces any
  *  debt not yet paid. */

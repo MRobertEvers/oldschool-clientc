@@ -46,6 +46,7 @@
  * player_info_osrs<N> / osrsm<N> reader).
  */
 
+#include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
 #include "streams/rsprot_info.h"
 
@@ -82,6 +83,10 @@ struct GameProtoRevTable;
 #define REPLAY_STICKY_REF(frame, op) (((uint64_t)(frame) << 16) | (uint64_t)(op))
 #define REPLAY_STICKY_FRAME(ref) ((uint32_t)((ref) >> 16))
 #define REPLAY_STICKY_OP(ref) ((int)((ref) & 0xffffu))
+
+/** Client cycles in a server tick (the reference's 50 Hz field742 against a
+ *  600 ms tick): a FREEZE window counts in them. */
+#define REPLAY_LEDGER_CYCLES_PER_TICK 30
 
 /* ------------------------------------------------------------------------ */
 /* Scenes                                                                     */
@@ -139,7 +144,7 @@ struct ReplayZoneOp
 
 /** One zone op, decoded again, in the shape the executor's zone arm takes:
  *  `pkt` with a ZoneAt of (base_x, base_z, level) -- rs_gameproto_exec.c
- *  exec_zone_sub_packet_at, RS_ZoneInboxEntry. */
+ *  exec_zone_sub_packet_at, App_ZonePacketHold. */
 struct ReplayWorldZoneOp
 {
     struct PktZoneSubPacket pkt;
@@ -164,6 +169,10 @@ enum ReplayPlayerSticky
     REPLAY_PLAYER_FACE_ENTITY,
     /** FACE_COORD or FACE_ANGLE, whichever came last. */
     REPLAY_PLAYER_FACE_DIR,
+    /** NAME_EXTRAS; a RESET in a later record clears it. */
+    REPLAY_PLAYER_NAME_EXTRAS,
+    /** The last FREEZE that opened a window; a cancel clears it. */
+    REPLAY_PLAYER_FREEZE,
     REPLAY_PLAYER_STICKY_COUNT
 };
 
@@ -182,6 +191,10 @@ enum ReplayNpcSticky
     REPLAY_NPC_HEADICON,
     REPLAY_NPC_BODY,
     REPLAY_NPC_BAS,
+    /** HEAD_CUSTOM (the chathead override), its arrays copied as BODY's. */
+    REPLAY_NPC_HEAD,
+    /** The last FREEZE that opened a window; a cancel clears it. */
+    REPLAY_NPC_FREEZE,
     /** NPC_HEADICON_SPECIFIC, one per head-icon slot: the last since the npc
      *  entered view or since its last HEADICON_CUSTOM (which writes every
      *  slot). Its reference is (frame, 0) of that packet, not an NPC_INFO op;
@@ -332,11 +345,20 @@ struct ReplayLedgerStats
 
 /** Build the ledger. `rec` must be indexed (RsproxRecording_Index) and its
  *  RECONNECT frames resolved (rsprox_recording_resolve_reconnects); `rev` its
- *  revision's table (RsproxRecording_Rev). Both must outlive the ledger. */
+ *  revision's table (RsproxRecording_Rev). Both must outlive the ledger.
+ *
+ *  `npc_types` answers a typed customisation block's question by type (the
+ *  clients' GameProtoNpcTypeLengths contract, asked with `old` -1: the
+ *  ledger resolves an index to a type from its own npc list), with
+ *  `npc_types_ctx`; NULL when this replay has no npc configs, and then such
+ *  a block stops its frame's read, as the reader does with no lookup. It is
+ *  only called while building. */
 struct ReplayLedger*
 ReplayLedger_Build(
     struct RsproxRecording const* rec,
-    struct GameProtoRevTable const* rev);
+    struct GameProtoRevTable const* rev,
+    GameProtoNpcTypeLengths npc_types,
+    void* npc_types_ctx);
 
 /** Accepts NULL. */
 void

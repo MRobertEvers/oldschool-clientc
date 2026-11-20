@@ -2,6 +2,7 @@
 #include "mem/torirs_mem.h"
 
 #include "asyncio.h"
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
 
@@ -51,6 +52,8 @@ struct Task_PlayerAppearanceLoad
     struct ToriRS_Task task;
     struct pt pt;
     struct CacheProvider* provider;
+    /* NULL: load directly (see CreateTask_PlayerAppearanceLoad). */
+    struct Assets* assets;
     int scan_i;
     int found;
     int kits[PLAYER_APPEARANCE_PARTS];
@@ -122,7 +125,13 @@ Task_PlayerAppearanceLoad_Run(
      * load idk" line. */
     for( self->scan_i = 0; self->scan_i < PLAYER_IDK_SCAN_MAX; self->scan_i++ )
     {
-        if( !CacheProvider_IdkHas(self->provider, self->scan_i) )
+        if( !CacheProvider_IdkHas(self->provider, self->scan_i) && self->assets )
+            (void)Assets_Await(
+                self->assets,
+                AssetKey_Make(ASSET_KIND_CONFIG, self->scan_i, ASSET_CONFIG_IDK),
+                &self->pending);
+        PT_TASK_JOIN(pending);
+        if( !CacheProvider_IdkHas(self->provider, self->scan_i) && !self->assets )
             PT_TASK_AWAITSELF_IF(CreateTask_IdkLoad(self->provider, self->scan_i));
         if( !CacheProvider_IdkHas(self->provider, self->scan_i) )
             break;
@@ -152,11 +161,18 @@ Task_PlayerAppearanceLoad_Run(
              self->model_i < player_kit_model_count(self->provider, self->kits[self->model_part]);
              self->model_i++ )
         {
+            int const model_id =
+                player_kit_model_id(self->provider, self->kits[self->model_part], self->model_i);
+            if( self->assets )
+            {
+                if( model_id >= 0 )
+                    (void)Assets_Await(
+                        self->assets, AssetKey_Make(ASSET_KIND_MODEL, model_id, 0), &self->pending);
+                continue;
+            }
             ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->provider->asset_queue,
-                CreateTask_ModelLoad(
-                    self->provider,
-                    player_kit_model_id(self->provider, self->kits[self->model_part], self->model_i)),
+                CreateTask_ModelLoad(self->provider, model_id),
                 &self->pending);
         }
     }
@@ -168,6 +184,11 @@ Task_PlayerAppearanceLoad_Run(
 static void
 Task_PlayerAppearanceLoad_Free(struct ToriRS_Task* base)
 {
+    struct Task_PlayerAppearanceLoad* self = (struct Task_PlayerAppearanceLoad*)base;
+    /* Freed while it waits on the table: it must not count on a join that is
+     * gone. (Siblings it queued itself detach on their own.) */
+    if( self->assets && self->pending > 0 )
+        Assets_Unjoin(self->assets, &self->pending);
     ToriMem_Free(ToriMem_Assets(), base);
 }
 
@@ -177,7 +198,9 @@ static struct ToriRS_TaskVTable Task_PlayerAppearanceLoad_VTable = {
 };
 
 struct ToriRS_Task*
-CreateTask_PlayerAppearanceLoad(struct CacheProvider* provider)
+CreateTask_PlayerAppearanceLoad(
+    struct CacheProvider* provider,
+    struct Assets* assets)
 {
     struct Task_PlayerAppearanceLoad* task;
     assert(provider);
@@ -186,6 +209,7 @@ CreateTask_PlayerAppearanceLoad(struct CacheProvider* provider)
     task->task.vtable = &Task_PlayerAppearanceLoad_VTable;
     strncpy(task->task.name, "PlayerAppearanceLoad", sizeof(task->task.name) - 1);
     task->provider = provider;
+    task->assets = assets;
     for( int i = 0; i < PLAYER_APPEARANCE_PARTS; i++ )
         task->kits[i] = -1;
     PT_INIT(&task->pt);

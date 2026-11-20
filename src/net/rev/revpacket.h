@@ -304,9 +304,12 @@ struct PktMessageGame
 
 struct PktMessagePrivate
 {
-    int64_t from;       /* g8: base37 username */
+    /** The sender's display name as the wire carries it (rev 222+: a jstr,
+     *  capitals and NBSPs kept; the deob shows it and ignore-tests it as
+     *  sent). The base37 wires give the decoded key, lowercase. */
+    char sender[32];
     int message_id;    /* g4 */
-    int staff_mod;     /* g1 */
+    int staff_mod;     /* g1: the crown index */
     char* text;        /* WordPack.unpack(psize-13) */
 };
 
@@ -971,21 +974,55 @@ struct PktHideOps
     int hidden;
 };
 
-struct PktUpdateIgnoreList
+/* One UPDATE_IGNORELIST entry. On rev 221+ an entry is a change to the list
+ * the client holds (deob class428.method9746): a leading 4 removes `name`;
+ * otherwise `name` is added, or renamed onto an entry it already has. */
+struct PktUpdateIgnoreListEntry
 {
-    int count;
-    int64_t* names37; /* heap-allocated, count entries */
+    /** As the wire spells it (rev 221+: a jstr, capitals and NBSPs kept);
+     *  the base37 wires give the key as their client showed it. */
+    char name[64];
+    /** The name before a rename, "" when none. */
+    char previous_name[64];
+    /** The leading byte was 4: `name` is no longer ignored. */
+    int removed;
+    /** The leading byte's low bit (RSProt `added`): the reference also finds
+     *  the entry by `previous_name` (class428.method9746 var7). */
+    int match_previous;
 };
 
-struct PktUpdateFriendList
+struct PktUpdateIgnoreList
 {
-    int64_t name37; /* g8 */
-    int world;      /* g1: 0=offline, >0 world/node id */
-    int present;    /* 239 permits an empty update to complete initial sync */
-    /** The friend's friends-chat rank (rev 239 g1; 0 on the older wires). */
-    int rank;
+    /** 1 when the packet IS the list (the rs-family wires: the 2004 client
+     *  replaces its list); 0 when each entry changes the list held. */
+    int replaces;
+    int count;
+    struct PktUpdateIgnoreListEntry* entries; /* heap-allocated, count entries */
+};
+
+struct PktUpdateFriendListEntry
+{
+    /** The display name as the wire carries it (rev 221+: a jstr, capitals
+     *  and NBSPs kept); the base37 wires give the decoded key as their client
+     *  showed it ("bob_smith" -> "Bob Smith"). */
+    char name[64];
     /** The friend's previous display name, "" when none (rev 239 only). */
     char previous_name[64];
+    /** The leading byte was 1 (RSProt `added`): the reference also finds the
+     *  friend by `previous_name` (Statics.method10091 var4), a rename. */
+    int match_previous;
+    int world; /* 0=offline, >0 world/node id */
+    /** The friend's friends-chat rank (rev 239 g1; 0 on the older wires). */
+    int rank;
+};
+
+/* Every entry the payload carries: the deob (Statics.method10091) reads them
+ * until the packet ends, and a login's first update holds the whole list. A
+ * count of 0 is legal and completes initial sync. */
+struct PktUpdateFriendList
+{
+    int count;
+    struct PktUpdateFriendListEntry* entries; /* heap-allocated, count entries */
 };
 
 struct PktSetNpcUpdateOrigin
@@ -1783,47 +1820,80 @@ struct RevPacketItem
 void
 gameproto_free(struct RevPacket* packet);
 
-/**
- * Can this packet's exec change interface or CS2-visible state?
+/*
+ * THE PACKET KINDS (revpacket.c): one row per canonical packet name. The packet
+ * pump's two questions are read off the row and nowhere else:
  *
- * The client opens a visual server-tick transaction on the first such packet
- * and holds the framebuffer until the tick closes. SERVER_TICK_END is not a
- * universal reply fence -- immediate world feedback is also sent between
- * scheduled ticks, the map flag after MOVE_GAMECLICK being the common case --
- * so treating every inbound packet as a tick opener retains the frame until
- * the next 600 ms server cycle whether or not anything changed.
+ * LATCH -- does the packet open the visual server tick? The client opens that
+ * transaction on the first such packet and holds the framebuffer until the
+ * tick's SERVER_TICK_END, so a tick's interface is shown whole and a client
+ * script later in the same tick reads the packet's write as part of it.
+ * SERVER_TICK_END is not a universal reply fence -- immediate world feedback is
+ * valid between ticks -- so a packet that cannot change the interface or what
+ * a client script reads does not latch. GAMEPROTO_LATCH_VARP is a plain varp:
+ * a tick opened by varps alone may still rebuild in the background
+ * (App_WorldJobWanted).
  *
- * Deliberately includes transmit sources as well as direct IF_* writes: a
- * later clientscript in the same tick must observe varp, inventory, stat and
- * social changes as part of the same UI transaction.
+ * FLUSH -- does the packet release the RUNCLIENTSCRIPTs held for the tick
+ * fence ahead of itself? The reference runs a RUNCLIENTSCRIPT inline, in wire
+ * order, so a script keeps its order against a packet that changes what is
+ * MOUNTED (one sent before an IF_CLOSESUB runs while its group is still up,
+ * Scrambled!'s last jigsaw piece, b72), that writes a property of ONE
+ * COMPONENT (Jagex's `quest_journal_reset` before the journal rows, RSProx
+ * index 4400 [2130]), or that runs component HOOKS. Inventory and varp writes
+ * do not flush: that is the price checker, which the hold exists for (see
+ * `pending_clientscripts` in app.h). A row that flushes also latches.
+ *
+ * WAIT -- documentation, and test-packet-kinds: whether the packet's task, or
+ * a task it queues on the packet queue, waits for something it needs before
+ * the next packet (GAMEPROTO_WAIT_REQUIRED), and whether it hands work that
+ * must not hold the packet pump to a task on the parallel queue
+ * (GAMEPROTO_WAIT_PARALLEL). `waits_for` names what, in that order.
  */
-int
-gameproto_packet_may_mutate_ui(enum GameProtoPktName packet_type);
+enum GameProtoLatch
+{
+    GAMEPROTO_LATCH_NONE = 0,
+    GAMEPROTO_LATCH_UI,
+    GAMEPROTO_LATCH_VARP,
+};
 
-/**
- * Does this packet's exec mount, unmount or move an interface?
- *
- * The packet pump releases the RUNCLIENTSCRIPTs it is holding for the tick
- * fence ahead of every such packet, so a script keeps its wire order against
- * the interface it targets: one sent before an IF_CLOSESUB runs while its
- * group is still mounted, one sent before an IF_OPENSUB seeds state the
- * opened interface's onload reads. See `pending_clientscripts` in app.h.
- */
-int
-gameproto_packet_changes_interface_mounts(enum GameProtoPktName packet_type);
+enum GameProtoFlush
+{
+    GAMEPROTO_FLUSH_NONE = 0,
+    GAMEPROTO_FLUSH_MOUNT,
+    GAMEPROTO_FLUSH_COMPONENT,
+    GAMEPROTO_FLUSH_HOOKS,
+};
 
-/**
- * Does this packet's exec write a property of one interface component (its
- * text, hide flag, colour, model, events, ...)?
- *
- * The packet pump releases the held RUNCLIENTSCRIPTs ahead of these too: a
- * script that writes the same component must keep its wire order against the
- * packet. Jagex's journal page sends `quest_journal_reset` (5240, every qj row
- * to "") and THEN the rows' IF_SETTEXTs (RSProx index 4400 [2130]); held to
- * the next mount change, the reset ran after the rows and blanked the page.
- * Inventory and varp writes still do not release them (the price checker).
- */
+#define GAMEPROTO_WAIT_NONE 0
+#define GAMEPROTO_WAIT_REQUIRED 1
+#define GAMEPROTO_WAIT_PARALLEL 2
+
+struct GameProtoPacketKind
+{
+    /** 1 for every name the table states; a row left out is all zeros. */
+    uint8_t stated;
+    uint8_t latch; /* enum GameProtoLatch */
+    uint8_t flush; /* enum GameProtoFlush */
+    uint8_t wait;  /* GAMEPROTO_WAIT_* bits */
+    /** What it waits for, or hands to the parallel queue; NULL when wait is 0. */
+    char const* waits_for;
+};
+
+/** The row for `packet_type` (PKT_NAME_NONE is the control frame's). */
+struct GameProtoPacketKind const*
+gameproto_packet_kind(enum GameProtoPktName packet_type);
+
+/** The row's latch is not GAMEPROTO_LATCH_NONE: the packet opens the tick. */
 int
-gameproto_packet_writes_interface_component(enum GameProtoPktName packet_type);
+gameproto_packet_latches(enum GameProtoPktName packet_type);
+
+/** The row's latch is GAMEPROTO_LATCH_VARP: it opens the tick as a plain varp. */
+int
+gameproto_packet_latches_varp_only(enum GameProtoPktName packet_type);
+
+/** The row flushes: the held client scripts run ahead of this packet. */
+int
+gameproto_packet_flushes_held_scripts(enum GameProtoPktName packet_type);
 
 #endif

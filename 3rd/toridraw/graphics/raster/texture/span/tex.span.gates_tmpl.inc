@@ -334,9 +334,9 @@ TS2_SPAN_FN(
     int blocks = steps >> 3;
     int remaining = steps & 7;
 
-    int step_au8 = step_au_dx << 3;
-    int step_bv8 = step_bv_dx << 3;
-    int step_cw8 = step_cw_dx << 3;
+    int step_au8 = step_au_dx * 8;
+    int step_bv8 = step_bv_dx * 8;
+    int step_cw8 = step_cw_dx * 8;
 
     /* Block k's end uv is block k+1's start uv — carried forward rather than
      * divided for twice. Each carried endpoint has already had its own axis's
@@ -383,8 +383,8 @@ TS2_SPAN_FN(
             if( w_n != 0 && tex_span_lerp8_fits(cur_u, nxt_u, texture_width) &&
                 tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
             {
-                int s_u = (nxt_u - cur_u) << (texture_shift - 3);
-                int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+                int s_u = (int)((unsigned int)(nxt_u - cur_u) << (texture_shift - 3));
+                int s_v = (int)((unsigned int)(nxt_v - cur_v) << (texture_shift - 3));
 
                 TS2_CAT(TS2_SPAN_FN, _block8)(
                     pixel_buffer,
@@ -472,8 +472,8 @@ TS2_SPAN_FN(
             return;
         }
 
-        int s_u = (nxt_u - cur_u) << (texture_shift - 3);
-        int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+        int s_u = (int)((unsigned int)(nxt_u - cur_u) << (texture_shift - 3));
+        int s_v = (int)((unsigned int)(nxt_v - cur_v) << (texture_shift - 3));
 
         int u_scan = tex_span_wrapped_scan_start(cur_u, texture_width, texture_shift);
         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);

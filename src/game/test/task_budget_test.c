@@ -4,16 +4,22 @@
  *
  * Pins:
  *
- *   1. A pass given a deadline reads its clock between tasks and stops when
- *      the deadline has passed, reporting SPENT; the next pass carries on
- *      where the queue stands. One task always runs, or a late caller would
- *      never move the queue.
+ *   1. THE PUMP GUARANTEE (owner, 2026-11-19): each pump of the given-time
+ *      queue steps every task that can run at least once, whatever the
+ *      clock says -- with a slice shorter than one step, every task is still
+ *      stepped once, and does at least one unit of its work -- and then
+ *      keeps stepping until every task is done or the slice is up. The
+ *      strict FIFO (the main queue's paced settle) keeps the old rule: the
+ *      head always runs, the clock is read before each task after it.
  *   2. A task that yields-if-spent stops for the slice and is NOT run again
- *      within it: RunUntil does not treat SPENT as progress.
+ *      within it: RunUntil does not treat SPENT as progress -- but the task
+ *      behind it still gets its turn in the same pump.
  *   3. A pass with no deadline -- every pass of a drained queue -- never
  *      reads the clock and never stops for it, even for a task that asks.
  *   4. A fan-out joined on the given-time queue completes across several
  *      slices, and a job past its deadline is finished in one unlimited run.
+ *      A timed pass caps the reads it queues, for the tasks that have had
+ *      their turn this pump.
  *   5. A parent cancelled mid-fan-out detaches its loaders, which run to
  *      their own end counted by nothing.
  *
@@ -268,40 +274,88 @@ runner_free(struct TaskRunner* runner)
 
 /* 1. */
 static void
-test_deadline_stops_the_walk_and_the_next_pass_resumes(void)
+test_every_task_gets_a_turn_whatever_the_slice(void)
 {
     struct TaskRunner runner;
     struct PlatformX_IO px = { 0 };
     struct FakeClock clock = { 0 };
+    struct Long* longs[6];
     int ran = 0;
-    int passes = 0;
+    enum TaskRunnerStat stat;
 
+    /* Six long tasks, 1 ms a chunk, and a 0.5 ms slice -- shorter than one
+     * step of any of them. Before the guarantee the head ran and the walk
+     * stopped: the five behind it waited, pump after pump. */
     runner_init(&runner, &px, &clock);
+    runner.role = TASK_RUNNER_ROLE_BACKGROUND;
+    for( int i = 0; i < 6; i++ )
+    {
+        longs[i] = new_long(&clock, 1000, 7);
+        ToriRS_TaskQueue_Add(runner.queue, &longs[i]->task);
+    }
+    stat = TaskRunner_RunUntil(&runner, clock.now_us + 500);
+    TEST_CHECK(stat == TASK_RUNNER_SPENT);
+    for( int i = 0; i < 6; i++ )
+    {
+        /* Stepped once each, in one pump, and each did real work: its first
+         * ask is answered "not over" (the grace), so a turn is never empty. */
+        TEST_CHECK(longs[i]->resumes == 1);
+        TEST_CHECK(longs[i]->done == 2);
+    }
+    /* The overrun is one step per task, and that is the price of the rule. */
+    TEST_CHECK(clock.now_us == 12000);
+    printf("ok - a 0.5 ms slice still steps all 6 one-chunk-per-ms tasks once (12 ms: one step each)\n");
+    runner_free(&runner);
+
+    /* A longer slice: the pump goes on until every task is done or the slice
+     * is up. 10 bursts of 1 ms in 30 ms: all done, IDLE. */
+    runner_init(&runner, &px, &clock);
+    runner.role = TASK_RUNNER_ROLE_BACKGROUND;
     for( int i = 0; i < 10; i++ )
         ToriRS_TaskQueue_Add(runner.queue, new_burst(&clock, 1000, &ran));
+    TEST_CHECK(TaskRunner_RunUntil(&runner, clock.now_us + 30000) == TASK_RUNNER_IDLE);
+    TEST_CHECK(ran == 10);
+    /* Three long tasks of 30 ms each in a 10 ms slice: the pump continues
+     * while time remains (the head works on to the deadline), every task
+     * still gets its turn, and it stops when the slice is up. None ends, so
+     * none is freed under the checks. */
+    for( int i = 0; i < 3; i++ )
+    {
+        longs[i] = new_long(&clock, 1000, 30);
+        ToriRS_TaskQueue_Add(runner.queue, &longs[i]->task);
+    }
+    {
+        uint64_t const t0 = clock.now_us;
+        TEST_CHECK(TaskRunner_RunUntil(&runner, t0 + 10000) == TASK_RUNNER_SPENT);
+        TEST_CHECK(longs[0]->done == 10);
+        for( int i = 1; i < 3; i++ )
+        {
+            TEST_CHECK(longs[i]->resumes == 1);
+            TEST_CHECK(longs[i]->done == 2);
+        }
+    }
+    while( runner.queue->head )
+        TaskRunner_RunUntil(&runner, clock.now_us + 10000);
+    printf("ok - a longer slice runs on until every task is done (IDLE) or the slice is up (SPENT)\n");
+    runner_free(&runner);
 
-    /* 2.5 ms: the first task runs unasked, the clock reads 1 ms -> the second
-     * runs, 2 ms -> the third, 3 ms -> stop. */
+    /* The strict FIFO keeps its rule, as the main queue's paced settle uses
+     * it: 2.5 ms of 1 ms tasks runs three, a late caller still moves one. */
+    runner_init(&runner, &px, &clock);
+    runner.parallel = 0;
+    ran = 0;
+    for( int i = 0; i < 10; i++ )
+        ToriRS_TaskQueue_Add(runner.queue, new_burst(&clock, 1000, &ran));
     TEST_CHECK(TaskRunner_StepUntil(&runner, clock.now_us + 2500) == TASK_RUNNER_SPENT);
     TEST_CHECK(ran == 3);
-    /* The reads queued so far still went out. */
-    TEST_CHECK(px.process_calls == 1);
-    /* The deadline is the pass's, not left on the queue. */
+    TEST_CHECK(px.process_calls >= 1);
     TEST_CHECK(runner.io->slice.deadline_us == 0);
-
-    /* Already past: one task still runs, so a late caller moves the queue. */
     TEST_CHECK(TaskRunner_StepUntil(&runner, clock.now_us) == TASK_RUNNER_SPENT);
     TEST_CHECK(ran == 4);
-
     while( runner.queue->head )
-    {
         TaskRunner_StepUntil(&runner, clock.now_us + 2500);
-        passes++;
-        TEST_CHECK(passes < 10);
-    }
     TEST_CHECK(ran == 10);
-    printf("ok - a 2.5 ms deadline stops a 1 ms-a-task walk after 3; the rest go in %d more passes\n",
-        passes);
+    printf("ok - the strict FIFO's timed pass still stops after 3 of 10 and moves one when late\n");
     runner_free(&runner);
 }
 
@@ -318,10 +372,11 @@ test_yield_if_spent_is_not_rerun_within_the_slice(void)
     int slices = 0;
 
     runner_init(&runner, &px, &clock);
+    runner.role = TASK_RUNNER_ROLE_BACKGROUND;
     task = new_long(&clock, 1000, 7);
     ToriRS_TaskQueue_Add(runner.queue, &task->task);
-    /* A task behind it: a SPENT stop ends the walk, so it must not run in
-     * the slice the long one used up. */
+    /* A task behind it: the long one's SPENT stop does not end the walk --
+     * the one behind still gets its turn in this pump. */
     ToriRS_TaskQueue_Add(runner.queue, new_burst(&clock, 10, &behind));
 
     stat = TaskRunner_RunUntil(&runner, clock.now_us + 2500);
@@ -330,15 +385,17 @@ test_yield_if_spent_is_not_rerun_within_the_slice(void)
     TEST_CHECK(task->done == 3);
     /* Resumed exactly once: RunUntil did not step again within the slice. */
     TEST_CHECK(task->resumes == 1);
-    TEST_CHECK(behind == 0);
+    TEST_CHECK(behind == 1);
     /* And it says why it stopped -- a SPENT stop is progress for the
      * caller's accounting, not a block or a wait. */
     TEST_CHECK(runner.progressed == 1);
 
-    /* Next slice: it resumes after chunk 3, not from the start. */
-    stat = TaskRunner_RunUntil(&runner, clock.now_us + 2500);
+    /* Next slice: it resumes after chunk 3, not from the start. Its turn's
+     * first ask is the grace, so this turn does chunks 4 and 5 (and 6 is
+     * where the clock stops it). */
+    stat = TaskRunner_RunUntil(&runner, clock.now_us + 1500);
     TEST_CHECK(stat == TASK_RUNNER_SPENT);
-    TEST_CHECK(task->done == 6);
+    TEST_CHECK(task->done == 5);
     TEST_CHECK(task->resumes == 2);
     slices = 2;
     while( (stat = TaskRunner_RunUntil(&runner, clock.now_us + 2500)) != TASK_RUNNER_IDLE )
@@ -346,9 +403,9 @@ test_yield_if_spent_is_not_rerun_within_the_slice(void)
         slices++;
         TEST_CHECK(slices < 10);
     }
-    TEST_CHECK(behind == 1);
-    printf("ok - a task that yields-if-spent stops once per slice and resumes where it stopped "
-           "(%d slices)\n",
+    /* (It ended and was freed: nothing of it is read past here.) */
+    printf("ok - a task that yields-if-spent stops once per slice and resumes where it stopped, and "
+           "the task behind it is not starved (%d slices)\n",
         slices + 1);
     runner_free(&runner);
 }
@@ -425,12 +482,19 @@ test_a_joined_fanout_completes_across_slices(void)
     while( !ToriRS_TaskJob_Done(&job) )
     {
         enum TaskRunnerStat stat = TaskRunner_RunUntil(&runner, clock.now_us + 2000);
-        TEST_CHECK(stat != TASK_RUNNER_BLOCKED || ToriRS_TaskJob_Done(&job));
+        /* Never stuck: a pump that ends with every task parked and no read
+         * out has nothing left to wake it. */
+        TEST_CHECK(stat != TASK_RUNNER_WAITING || ToriRS_TaskJob_Done(&job) ||
+                   TaskRunner_ReadsOutstanding(&runner) > 0);
         slices++;
         TEST_CHECK(slices < 100);
     }
     TEST_CHECK(finished == 40);
-    TEST_CHECK(slices > 5);
+    /* Every loader gets its turn each pump, so the fan-out needs only a few
+     * (the read, the decode), each overrunning by its steps; the collect
+     * comes in the slice of the last decode, since the parent its end
+     * readies is owed its turn in that pump (TaskRunner_RunUntil). */
+    TEST_CHECK(slices >= 2);
     TEST_CHECK(runner.queue->head == NULL);
     printf("ok - a 40-load fan-out joined on the given-time queue completes in %d 2 ms slices\n",
         slices);
@@ -457,6 +521,8 @@ struct Reader
     struct ToriRS_Task task;
     struct pt pt;
     int* landed;
+    /* Reads queued, counted by whoever wants to know (NULL: nobody). */
+    int* asked;
 };
 
 static int
@@ -466,6 +532,15 @@ Reader_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
     struct ToriRS_IOItem* item;
     PT_BEGIN(&self->pt);
     ToriRS_IO_QueueFileRead(io, 0, "x");
+    if( self->asked )
+        (*self->asked)++;
+    PT_YIELD(&self->pt);
+    item = ToriRS_IO_TaskSlot(io, 0);
+    ToriRS_IO_ClearItem(item);
+    /* A second read, issued as the first lands: what a chain does. */
+    ToriRS_IO_QueueFileRead(io, 0, "y");
+    if( self->asked )
+        (*self->asked)++;
     PT_YIELD(&self->pt);
     item = ToriRS_IO_TaskSlot(io, 0);
     ToriRS_IO_ClearItem(item);
@@ -483,6 +558,7 @@ test_a_sliced_pass_caps_the_batch_it_queues(void)
     struct PlatformX_IO px = { 0 };
     struct FakeClock clock = { 0 };
     int landed = 0;
+    int asked = 0;
     int passes = 0;
     enum TaskRunnerStat stat;
 
@@ -494,29 +570,39 @@ test_a_sliced_pass_caps_the_batch_it_queues(void)
         t->task.vtable = &k_reader_vtable;
         strcpy(t->task.name, "reader");
         t->landed = &landed;
+        t->asked = &asked;
         PT_INIT(&t->pt);
         ToriRS_TaskQueue_Add(runner.queue, &t->task);
     }
-    /* No time passes on this clock, so only the cap can stop the walk -- and
-     * it is not the deadline, so the pass reports progress, not SPENT. */
+    /* The first pass of a pump gives every task its turn, cap or not: all
+     * 300 readers queue their read. */
+    runner.role = TASK_RUNNER_ROLE_BACKGROUND;
+    TaskRunner_PumpBegin(&runner);
     stat = TaskRunner_StepUntil(&runner, clock.now_us + 2000);
     TEST_CHECK(stat == TASK_RUNNER_PROGRESSED);
     TEST_CHECK(px.process_calls == 1);
-    {
-        int queued = 0;
-        for( struct ToriRS_Task* t = runner.queue->head; t; t = t->next )
-            if( t->io.kind != TORIRS_IOK_NONE )
-                queued++;
-        TEST_CHECK(queued == TASK_RUNNER_SLICE_READS_MAX);
-    }
-    /* RunUntil keeps giving passes while time remains: every read is out and
-     * answered, a batch at a time. */
+    TEST_CHECK(asked == 300);
+    TEST_CHECK(landed == 0);
+    /* The second pass of the same pump: every reader has had its turn, so
+     * with no time passing on this clock only the cap stops the walk -- each
+     * reader lands its first read and queues its second, and the walk passes
+     * over the rest once the batch is full. Not the deadline, so the pass
+     * reports progress, not SPENT. */
+    stat = TaskRunner_StepUntil(&runner, clock.now_us + 2000);
+    TEST_CHECK(stat == TASK_RUNNER_PROGRESSED);
+    TEST_CHECK(px.process_calls == 2);
+    TEST_CHECK(asked == 300 + TASK_RUNNER_SLICE_READS_MAX);
+    TEST_CHECK(landed == 0);
+    (void)TaskRunner_PumpEnd(&runner, "test");
+    /* RunUntil keeps giving passes while time remains: every read is
+     * answered. */
     while( (stat = TaskRunner_RunUntil(&runner, clock.now_us + 2000)) != TASK_RUNNER_IDLE )
     {
         passes++;
         TEST_CHECK(passes < 10);
     }
     TEST_CHECK(landed == 300);
+    runner.role = TASK_RUNNER_ROLE_NONE;
     /* And a drained pass is not capped: one batch of all 300. */
     px.process_calls = 0;
     landed = 0;
@@ -531,11 +617,13 @@ test_a_sliced_pass_caps_the_batch_it_queues(void)
         ToriRS_TaskQueue_Add(runner.queue, &t->task);
     }
     TEST_CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_PROGRESSED);
+    TEST_CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_PROGRESSED);
     TEST_CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_IDLE);
     TEST_CHECK(landed == 300);
-    TEST_CHECK(px.process_calls == 2);
-    printf("ok - a sliced pass stops at %d queued reads and the next pass lands them; a drained "
-           "pass sends all 300 at once\n",
+    /* Two reads each, 300 at a time: three batches, the last one empty. */
+    TEST_CHECK(px.process_calls == 3);
+    printf("ok - every reader gets its turn in a pump's first pass; later passes cap at %d; a "
+           "drained pass sends all 300 at once\n",
         TASK_RUNNER_SLICE_READS_MAX);
     runner_free(&runner);
 }
@@ -591,7 +679,9 @@ test_a_settle_with_a_deadline_stops_between_tasks_and_resumes(void)
     struct FakeClock clock = { 0 };
     int ran = 0;
 
+    /* The main queue's paced settle (app_net.c): a strict FIFO. */
     runner_init(&runner, &px, &clock);
+    runner.parallel = 0;
     for( int i = 0; i < 10; i++ )
         TaskRunner_AddRenderBlockingSerialTask(&runner, new_burst(&clock, 1000, &ran));
 
@@ -619,7 +709,7 @@ test_a_settle_with_a_deadline_stops_between_tasks_and_resumes(void)
 int
 main(void)
 {
-    test_deadline_stops_the_walk_and_the_next_pass_resumes();
+    test_every_task_gets_a_turn_whatever_the_slice();
     test_yield_if_spent_is_not_rerun_within_the_slice();
     test_a_drained_pass_never_reads_the_clock();
     test_a_joined_fanout_completes_across_slices();

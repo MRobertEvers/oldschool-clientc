@@ -391,18 +391,18 @@ dbg_ext_init(struct ToriRSChrome* ui)
 void
 ToriRSChrome_SetSkinAvailable(struct ToriRSChrome* ui, int slot, int available)
 {
-    uint64_t bit;
+    unsigned char bit;
 
     assert(ui);
     assert(slot >= 0);
     assert(slot < TORIRS_CHROME_SKIN_SLOT_COUNT);
-    bit = (uint64_t)1 << slot;
-    if( ((ui->skin_avail & bit) != 0) == (available != 0) )
+    bit = (unsigned char)(1u << (slot & 7));
+    if( ((ui->skin_avail[slot >> 3] & bit) != 0) == (available != 0) )
         return;
     if( available )
-        ui->skin_avail |= bit;
+        ui->skin_avail[slot >> 3] |= bit;
     else
-        ui->skin_avail &= ~bit;
+        ui->skin_avail[slot >> 3] &= (unsigned char)~bit;
     for( int i = 0; i < ui->panel_count; i++ )
         dbg_dirty_panel(ui, i);
 }

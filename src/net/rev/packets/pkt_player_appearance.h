@@ -392,7 +392,7 @@ struct PktPlayerAppearance
 {
     int gender;
     int headicon; /* bitmask over the headicons sprite pack */
-    int skull_icon; /* -1 none; 239 only, no consumer yet */
+    int skull_icon; /* -1 none; 239 only (WorldEntity_Player.skull_icon) */
     int slots[APPEARANCE_SLOT_COUNT];    /* canonical: empty | kit | obj */
     int identkit[APPEARANCE_SLOT_COUNT]; /* 239's body-underneath array, canonical */
     int colors[APPEARANCE_COLOUR_COUNT];

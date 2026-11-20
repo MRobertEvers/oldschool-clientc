@@ -130,9 +130,9 @@ app_mapfunction_scene_id(
     element = CacheProvider_MapElementGet(app->provider, element_id);
     if( !element )
     {
-        struct ToriRS_Task* task = CreateTask_MapElementLoad(app->provider, element_id);
-        if( task )
-            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
+        /* One read in flight however many frames draw the icon. */
+        (void)Assets_Want(
+            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, element_id, ASSET_CONFIG_MAPELEMENT));
         return 0;
     }
     if( out_element )
@@ -208,9 +208,8 @@ app_worldmap_push_icon(
     element = CacheProvider_MapElementGet(app->provider, element_id);
     if( !element )
     {
-        struct ToriRS_Task* task = CreateTask_MapElementLoad(app->provider, element_id);
-        if( task )
-            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
+        (void)Assets_Want(
+            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, element_id, ASSET_CONFIG_MAPELEMENT));
         return false;
     }
     /* The one seam both icon sources funnel through, so it is where the map's
@@ -596,7 +595,6 @@ app_worldmap_build_tiles(
                 app->worldmap.render,
                 app->provider,
                 app->scene,
-                app->frame_runner.queue,
                 area,
                 region_x,
                 region_y,
@@ -642,7 +640,6 @@ app_worldmap_build_tiles(
                 app->worldmap.render,
                 app->provider,
                 app->scene,
-                app->frame_runner.queue,
                 area,
                 region_x,
                 region_y,

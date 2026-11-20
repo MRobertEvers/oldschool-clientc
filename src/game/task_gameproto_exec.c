@@ -1,9 +1,11 @@
 #include "task_gameproto_exec.h"
+#include "game/rs_server_state.h"
+#include "game/rs_pending.h"
 #include "mem/torirs_mem.h"
 
 #include "app.h"
 #include "net/rev/revpacket.h"
-#include "rs_gameproto_exec.h"
+#include "app/app_gameproto_exec.h"
 #include "plugin/torirs_plugin_host.h"
 #include "net/net.h"
 #include "net/torirs_control.h"
@@ -51,7 +53,50 @@ struct Task_GameProtoExec
     int wev_view_id;
     int wev_scene_size;
     int32_t wev_zones[PKT_MAP_REBUILD_ZONES];
+    /* A blocking rebuild, listed in the pending index from before its gather
+     * to after its finish (App_ViewRebuildBegin): what a parallel task
+     * waiting out the rebuild of the view waits on, by name. */
+    struct RS_ParallelTask rebuild;
+    /* The session this packet arrived in (RS_EntitySync::epoch). */
+    uint32_t epoch;
 };
+
+/*
+ * The session ended while this packet waited on its gather (App_NetSessionReset:
+ * a logout, a lost link, a hop). The scene was the old session's, and so was
+ * the acknowledgement its finish sends; the next session's first REBUILD is
+ * forced and builds its own. Nothing is built: the load is no longer in
+ * flight and owes the server nothing, the view's rebuild is unlisted, and the
+ * built trigger its waiters park on is abandoned (they wake ABANDONED and find
+ * the view as it is).
+ */
+static int
+rebuild_session_ended(
+    struct Task_GameProtoExec* self,
+    int root)
+{
+    struct App* app = self->app;
+
+    if( self->epoch == app->esync.epoch )
+        return 0;
+    TORIRS_LOG(
+        "gameproto: a rebuild of zone %d,%d from a session that has ended is dropped\n",
+        self->zone_x,
+        self->zone_z);
+    if( root )
+        WorldLoadState_Cancel(&app->world_load, 1);
+    /* Abandoned here, not left to the task's end: a task that runs to its end
+     * with a trigger still primed forgot to fire it (task_trigger.h). */
+    if( self->rebuild.listed )
+    {
+        struct ToriRS_Trigger* built = &app->triggers.view_built[self->rebuild.view];
+
+        if( built->owner == ToriRS_TaskOwner(&self->task) )
+            ToriRS_Trigger_Retire(built);
+    }
+    App_ViewRebuildEnd(app, &self->rebuild, 0);
+    return 1;
+}
 
 /* The view a REBUILD_NORMAL / REBUILD_REGION rebuilds: always the root. The
  * deob's static rebuild (Statics.method12016) reads the leading worldArea
@@ -240,8 +285,10 @@ Task_GameProtoExec_Run(
             (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial);
     }
 
-    /* Entity command streams decode + apply inside their own awaited tasks
-     * (spawn/appearance/seq cache loads). Everything else applies
+    /* Entity command streams decode + apply inside their own awaited tasks,
+     * which wait only for the npc configs the stream names. Bodies, sequences
+     * and spot animations are not awaited: each is a parallel task
+     * (app/app_tasks_entities.c). Everything else applies
      * synchronously; handlers that mutate interfaces enqueue slot-mount
      * tasks BEHIND this one on the same serial queue, so ordering with later
      * packets holds. */
@@ -312,10 +359,15 @@ Task_GameProtoExec_Run(
          * them: the assets are awaited, then the build runs here, in place
          * and in one piece. */
         memset(&self->gather_report, 0, sizeof(self->gather_report));
+        /* This task owns the root view's built trigger from here to the
+         * finish: a parallel task waiting out the rebuild parks on it. */
+        App_ViewRebuildBegin(app, &self->rebuild, WORLDVIEW_ROOT, ToriRS_TaskOwner(&self->task));
         PT_TASK_AWAITSELF_IF(CreateTask_WorldGather(
             app->provider, rebuild_view(self)->builder, app->frame_runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, 104,
             self->packet._map_rebuild.zones, &self->gather_report));
+        if( rebuild_session_ended(self, 1) )
+            PT_EXIT(&self->pt);
         /* The same C2 drain rule the boat branch below obeys, for the ROOT
          * world: World_ResetSceneAlloc asserts the queue is empty.
          *
@@ -353,6 +405,7 @@ Task_GameProtoExec_Run(
                 rebuild_view(self)->world->_base_tile_x - self->prev_base_x,
                 rebuild_view(self)->world->_base_tile_z - self->prev_base_z);
         App_WorldLoadFinish(app);
+        App_ViewRebuildEnd(app, &self->rebuild, 1);
     }
     else if( self->packet.packet_type == PKT_NAME_REBUILD_WORLDENTITY )
     {
@@ -461,10 +514,13 @@ Task_GameProtoExec_Run(
                 self->wev_scene_size,
                 self->chunk_count);
         memset(&self->gather_report, 0, sizeof(self->gather_report));
+        App_ViewRebuildBegin(app, &self->rebuild, self->wev_view_id, ToriRS_TaskOwner(&self->task));
         PT_TASK_AWAITSELF_IF(CreateTask_WorldGather(
             app->provider, wev_view(self)->builder, app->frame_runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, self->wev_scene_size,
             self->wev_zones, &self->gather_report));
+        if( rebuild_session_ended(self, 0) )
+            PT_EXIT(&self->pt);
         /* C2 drain rule: the boat's own EntityRemoved queue must be empty
          * before its rebuild resets the scene allocation
          * (World_ResetSceneAlloc asserts exactly that). After the gather,
@@ -474,6 +530,13 @@ Task_GameProtoExec_Run(
             wev_view(self)->builder, self->chunks, self->chunk_count, self->zone_x,
             self->zone_z, self->wev_scene_size, self->wev_zones);
         WorldLoad_ReportTiming(&self->gather_report);
+        /* The finish a root rebuild runs, for this view: its locs' LOC_ADD
+         * triggers, its ground stacks' models, its loc changes put back on
+         * the scene built from the map, its textures. A deck rebuild is
+         * server-driven. */
+        if( wev_view(self)->world->load_complete )
+            App_WorldViewLoadFinish(app, self->wev_view_id, 1);
+        App_ViewRebuildEnd(app, &self->rebuild, 1);
         if( getenv("TORIRS_WEV_DEBUG") )
             fprintf(
                 stderr,
@@ -483,43 +546,6 @@ Task_GameProtoExec_Run(
                 wev_view(self)->world->_base_tile_z,
                 wev_view(self)->world->load_complete);
         RedrawRequest_Raise(&app->redraw_request);
-    }
-    else if( self->packet.packet_type == PKT_NAME_OBJ_ADD ||
-             self->packet.packet_type == PKT_NAME_OBJ_REVEAL ||
-             self->packet.packet_type == PKT_NAME_OBJ_COUNT )
-    {
-        /* A ground item's model is NOT awaited here: App_WorldObjStackAdd
-         * creates the stack at once and a placeholder lands the model
-         * (app/app_placeholder.c). The wait used to be one round trip per
-         * first-seen drop, with every packet and the frame behind it. */
-        {
-            struct RS_GameProtoCtx ctx = {
-                .tree = app->tree,
-                .invs = &app->invs,
-                .varps = &app->varps,
-                .stats = &app->stats,
-                .chat = &app->chat,
-                .app = app,
-            };
-            RS_GameProto_Exec(&ctx, &self->packet);
-            RedrawRequest_Raise(&app->redraw_request);
-        }
-    }
-    else if( self->packet.packet_type == PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED )
-    {
-        /* Its obj entries land through placeholders too -- see above. */
-        {
-            struct RS_GameProtoCtx ctx = {
-                .tree = app->tree,
-                .invs = &app->invs,
-                .varps = &app->varps,
-                .stats = &app->stats,
-                .chat = &app->chat,
-                .app = app,
-            };
-            RS_GameProto_Exec(&ctx, &self->packet);
-            RedrawRequest_Raise(&app->redraw_request);
-        }
     }
     else if( self->packet.packet_type == PKT_NAME_PLAYER_INFO && WorldLoadState_Active(&app->world_load) )
     {
@@ -549,7 +575,7 @@ Task_GameProtoExec_Run(
             RS_ServerTick_EndUnfenced(&app->server_tick);
             app->drive_events.batch_open = 0;
             App_DriveEvent(
-                app, DRIVE_EVENT_SERVER_TICK, app->world ? app->world->cycle : 0, 0, 0, 0);
+                app, RS_EVENT_SERVER_TICK, app->world ? app->world->cycle : 0, 0, 0, 0);
             if( app->plugins )
                 PluginHost_ServerTick(app->plugins, app->world ? app->world->cycle : 0);
         }
@@ -572,15 +598,10 @@ Task_GameProtoExec_Run(
     }
     else
     {
-        struct RS_GameProtoCtx ctx = {
-            .tree = app->tree,
-            .invs = &app->invs,
-            .varps = &app->varps,
-            .stats = &app->stats,
-            .chat = &app->chat,
-            .app = app,
-        };
-        RS_GameProto_Exec(&ctx, &self->packet);
+        struct RS_ServerState state;
+
+        App_ServerStateBind(app, &state);
+        App_GameProto_Exec(app, &state, &self->packet);
         RedrawRequest_Raise(&app->redraw_request);
     }
 
@@ -591,6 +612,10 @@ static void
 Task_GameProtoExec_Free(struct ToriRS_Task* base)
 {
     struct Task_GameProtoExec* self = (struct Task_GameProtoExec*)base;
+    /* Freed mid-rebuild (a queue freed at shutdown): it is no longer under
+     * way. The view's built trigger was abandoned by this task's end, just
+     * before (task_free). */
+    App_ViewRebuildEnd(self->app, &self->rebuild, 0);
     gameproto_free(&self->packet);
     ToriMem_Free(ToriMem_Session(), self);
 }
@@ -614,6 +639,7 @@ CreateTask_GameProtoExec(
     strncpy(task->task.name, "GameProtoExec", sizeof(task->task.name) - 1);
     task->app = app;
     task->packet = *packet; /* ownership of heap fields moves here */
+    task->epoch = app->esync.epoch;
     PT_INIT(&task->pt);
     return &task->task;
 }

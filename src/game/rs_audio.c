@@ -6,7 +6,7 @@
 
 #include "audio/torirs_mixer.h"
 #include "engine/cache_provider.h"
-#include "task_runner.h"
+#include "engine/asset_requests.h"
 #include "features/features.h"
 #include "world/world.h"
 
@@ -19,11 +19,14 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+/* TORIRS_REPORT, not TORIRS_LOG: the trace is asked for at run time
+ * (TORIRS_AUDIO_TRACE), and an effect's path from the queue to the mixer is
+ * wanted most in the optimized web build, where narration is compiled out. */
 #define AUDIO_TRACE(...)                                                                           \
     do                                                                                             \
     {                                                                                              \
         if( ToriRS_AudioTraceEnabled() )                                                           \
-            TORIRS_LOG(__VA_ARGS__);                                                          \
+            TORIRS_REPORT(__VA_ARGS__);                                                       \
     } while( 0 )
 
 /**
@@ -406,9 +409,11 @@ publish_sound(
  *
  * The scene's event queue is shared with the renderer, which clears it at the
  * end of its frame. This runs on the logic tick, before that, and keeps its own
- * cursor; a queue that shrank means the renderer cleared it and the cursor
- * restarts. Events the renderer does not understand (ours) it skips, and vice
- * versa, so the two consumers do not interfere.
+ * cursor; the queue's `spent` count says when the renderer has cleared it since
+ * (a queue shorter than the cursor is not enough: refilled past the cursor
+ * before the tick, its first events would be skipped), and the cursor restarts.
+ * Events the renderer does not understand (ours) it skips, and vice versa, so
+ * the two consumers do not interfere.
  */
 static void
 drain_scene_events(
@@ -424,8 +429,13 @@ drain_scene_events(
     events = ToriDraw_SceneEvents(scene);
     if( !events )
         return;
-    if( audio->scene_event_cursor > events->count )
+    if( audio->scene_event_queue != events || audio->scene_event_spent != events->spent ||
+        audio->scene_event_cursor > events->count )
+    {
+        audio->scene_event_queue = events;
+        audio->scene_event_spent = events->spent;
         audio->scene_event_cursor = 0;
+    }
 
     while( audio->scene_event_cursor < events->count )
     {
@@ -543,11 +553,26 @@ play_entry(
         audio->last_play_length_ticks);
 }
 
+/* A clip that is not resident: want it (ASSET_KIND_SOUND). The table holds
+ * one load per clip, so an emitter, an ambient loop or an effect asking every
+ * tick until it lands is one load, not one a tick (A2), and a clip whose load
+ * ended without it is asked again only after the kind's back-off. */
+static void
+audio_want_sound(
+    struct CacheProvider* provider,
+    struct Assets* assets,
+    int sound_id)
+{
+    if( !provider || !assets || sound_id < 0 )
+        return;
+    (void)Assets_Want(assets, AssetKey_Make(ASSET_KIND_SOUND, sound_id, 0));
+}
+
 static void
 tick_effect_queue(
     struct RS_Audio* audio,
     struct CacheProvider* provider,
-    struct TaskRunner* runner,
+    struct Assets* assets,
     struct ToriDraw_Scene* scene,
     int camera_x,
     int camera_z,
@@ -578,6 +603,20 @@ tick_effect_queue(
 
         entry->delay--;
 
+        /*
+         * Its last tick. If the clip's record is here and only our render of
+         * it is left -- a render the frames had no time for (a late frame
+         * pays up to five cycles to one background floor) -- the owner of
+         * the deadline finishes it now: the reference's clip is read and
+         * rendered synchronously, so it is resident by this tick, and losing
+         * the effect to our own scheduling is not its rule. A clip whose read
+         * has not landed is still dropped, as the reference drops one it
+         * cannot have.
+         */
+        if( entry->delay == -RS_AUDIO_LATE_LIMIT_TICKS && provider &&
+            !ToriDraw_SceneSoundGet(scene, entry->sound_id) )
+            (void)CacheProvider_SoundRenderFinish(provider, entry->sound_id);
+
         if( entry->delay < -RS_AUDIO_LATE_LIMIT_TICKS )
         {
             audio->dropped_absent++;
@@ -593,14 +632,9 @@ tick_effect_queue(
         sound = publish_sound(audio, provider, scene, out, entry->sound_id);
         if( !sound )
         {
-            /* Ask once, then let the countdown carry on without it. */
-            if( !entry->load_requested && provider && runner )
-            {
-                struct ToriRS_Task* task = CreateTask_SoundLoad(provider, entry->sound_id);
-                entry->load_requested = true;
-                if( task )
-                    ToriRS_TaskQueue_Add(runner->queue, task);
-            }
+            /* Ask, and let the countdown carry on without it. Every tick asks
+             * again; the table holds the one load. */
+            audio_want_sound(provider, assets, entry->sound_id);
             continue;
         }
 
@@ -768,7 +802,7 @@ static void
 tick_area_sounds(
     struct RS_Audio* audio,
     struct CacheProvider* provider,
-    struct TaskRunner* runner,
+    struct Assets* assets,
     struct ToriDraw_Scene* scene,
     struct World* world,
     int camera_x,
@@ -904,13 +938,7 @@ tick_area_sounds(
 
             if( !sound )
             {
-                if( provider && runner )
-                {
-                    struct ToriRS_Task* task =
-                        CreateTask_SoundLoad(provider, voice->primary_sound);
-                    if( task )
-                        ToriRS_TaskQueue_Add(runner->queue, task);
-                }
+                audio_want_sound(provider, assets, voice->primary_sound);
             }
             else if( voice->primary_voice_id == 0 && out )
             {
@@ -969,12 +997,7 @@ tick_area_sounds(
             {
                 /* Ask for it and try again next tick. Not rescheduling here is
                  * deliberate: the gap is measured from the last *play*. */
-                if( provider && runner )
-                {
-                    struct ToriRS_Task* task = CreateTask_SoundLoad(provider, pick);
-                    if( task )
-                        ToriRS_TaskQueue_Add(runner->queue, task);
-                }
+                audio_want_sound(provider, assets, pick);
                 continue;
             }
 
@@ -1124,7 +1147,7 @@ static void
 tick_ambient_bed(
     struct RS_Audio* audio,
     struct CacheProvider* provider,
-    struct TaskRunner* runner,
+    struct Assets* assets,
     struct ToriDraw_Scene* scene,
     struct ToriRS_AudioQueue* out)
 {
@@ -1167,13 +1190,7 @@ tick_ambient_bed(
         sound = publish_sound(audio, provider, scene, out, audio->ambient_loop_sound_id[i]);
         if( !sound )
         {
-            if( provider && runner )
-            {
-                struct ToriRS_Task* task =
-                    CreateTask_SoundLoad(provider, audio->ambient_loop_sound_id[i]);
-                if( task )
-                    ToriRS_TaskQueue_Add(runner->queue, task);
-            }
+            audio_want_sound(provider, assets, audio->ambient_loop_sound_id[i]);
             continue; /* try again next tick */
         }
         if( !out )
@@ -1215,12 +1232,7 @@ tick_ambient_bed(
         sound = publish_sound(audio, provider, scene, out, pick);
         if( !sound )
         {
-            if( provider && runner )
-            {
-                struct ToriRS_Task* task = CreateTask_SoundLoad(provider, pick);
-                if( task )
-                    ToriRS_TaskQueue_Add(runner->queue, task);
-            }
+            audio_want_sound(provider, assets, pick);
             continue;
         }
 
@@ -1317,7 +1329,7 @@ void
 RS_Audio_Tick(
     struct RS_Audio* audio,
     struct CacheProvider* provider,
-    struct TaskRunner* runner,
+    struct Assets* assets,
     struct ToriDraw_Scene* scene,
     struct World* world,
     int camera_tile_x,
@@ -1349,12 +1361,12 @@ RS_Audio_Tick(
      * already has, and commands are applied in the order they are queued. */
     drain_scene_events(audio, scene, out);
 
-    tick_effect_queue(audio, provider, runner, scene, camera_tile_x, camera_tile_z, out);
-    tick_ambient_bed(audio, provider, runner, scene, out);
+    tick_effect_queue(audio, provider, assets, scene, camera_tile_x, camera_tile_z, out);
+    tick_ambient_bed(audio, provider, assets, scene, out);
     tick_area_sounds(
         audio,
         provider,
-        runner,
+        assets,
         scene,
         world,
         camera_tile_x,

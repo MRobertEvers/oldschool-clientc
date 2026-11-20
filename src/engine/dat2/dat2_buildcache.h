@@ -6,6 +6,8 @@
 
 #include <rscache.h>
 #include <stdbool.h>
+
+struct Assets;
 #include <stddef.h>
 
 struct Dat2BuildCache
@@ -37,12 +39,12 @@ struct Dat2BuildCache
      *  preload task each time; the reference tables above are what stop the
      *  index steps repeating, and this is what stops the fills repeating. */
     uint8_t reference_table_filled[RSCACHE_DAT2_TABLE_COUNT];
-    /** A task has this table's container on the wire. Siblings that need
-     *  the same table wait for it rather than each fetching and decoding a
-     *  copy: a region rebuild fans out eighteen map loads, and every one of
-     *  them asked for the maps table (61 KB decoded eighteen times, and
-     *  eighteen round trips where one would do). */
-    uint8_t reference_table_loading[RSCACHE_DAT2_TABLE_COUNT];
+    /** The client's assets table (Dat2BuildCache_AttachAssets). A reference
+     *  table a loader needs is awaited through it (ASSET_KIND_REF_TABLE, id =
+     *  the table): one load while every sibling waits, rather than each
+     *  fetching and decoding a copy -- a region rebuild fans out eighteen map
+     *  loads, and every one of them asks for the maps table. */
+    struct Assets* assets;
     /** (name hash, group id) pairs from the clientscript reference table,
      *  sorted by hash. Built lazily by dat2_clientscript_id_by_name_hash; see
      *  game/rs_client_trigger.h for what names them. */

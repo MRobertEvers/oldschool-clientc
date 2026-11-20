@@ -243,10 +243,97 @@ test_gameshell_mindel_floor(void)
         "with no floor a client that is behind does not wait at all");
 }
 
+static void
+test_loop_wait(void)
+{
+    struct ToriRS_LoopWaitInput in;
+
+    memset(&in, 0, sizeof(in));
+    TEST_ASSERT(ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_SLEEP, "nothing queued: the ordinary wait");
+
+    in.async_pending = 1;
+    TEST_ASSERT(
+        ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NAP,
+        "work that only waits is waited for in naps, never spun on");
+
+    in.async_runnable = 1;
+    TEST_ASSERT(
+        ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NONE, "work that can run now is not slept through");
+
+    memset(&in, 0, sizeof(in));
+    in.main_waits_on_read = 1;
+    TEST_ASSERT(
+        ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NAP,
+        "a packet waiting on a read is napped through, so its answer is taken up before the deadline");
+
+    memset(&in, 0, sizeof(in));
+    in.uncapped = 1;
+    TEST_ASSERT(ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NONE, "--uncapped never waits");
+    in.uncapped = 0;
+    in.replay = 1;
+    in.async_pending = 1;
+    TEST_ASSERT(ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NONE, "a replay never waits, queued work or not");
+    in.replay = 0;
+    in.content_test = 1;
+    TEST_ASSERT(ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NONE, "a content test never waits");
+
+    TEST_ASSERT(strcmp(ToriRS_Pacer_LoopWaitName(TORIRS_LOOP_WAIT_NAP), "nap") == 0, "names");
+}
+
+/*
+ * The browser lane's background slack (main.c, the frame loop's #else
+ * branch): the display period is the shortest raf-paced period of a window,
+ * and the slack ends at the earlier of the draw period and the display's
+ * next vsync less a quarter -- or is 0 once the frame has overrun.
+ */
+static void
+test_display_period(void)
+{
+    struct ToriRS_DisplayPeriod display;
+
+    memset(&display, 0, sizeof(display));
+    for( int i = 0; i < TORIRS_DISPLAY_PERIOD_WINDOW - 1; i++ )
+        ToriRS_DisplayPeriod_Note(&display, i % 3 ? 33333 : 16667);
+    TEST_ASSERT(display.estimate_us == 0, "no estimate before the first window closes");
+    /* A back-to-back pair of callbacks is not a vsync. */
+    ToriRS_DisplayPeriod_Note(&display, 900);
+    TEST_ASSERT(display.estimate_us == 0, "a period under the floor is not counted");
+    ToriRS_DisplayPeriod_Note(&display, 33333);
+    TEST_ASSERT(display.estimate_us == 16667, "the window's shortest period is the display's");
+    /* The display slows to 30 Hz: the next window follows it. */
+    for( int i = 0; i < TORIRS_DISPLAY_PERIOD_WINDOW; i++ )
+        ToriRS_DisplayPeriod_Note(&display, 33333);
+    TEST_ASSERT(display.estimate_us == 33333, "a display that changes rate is followed within a window");
+}
+
+static void
+test_slack_end(void)
+{
+    /* No display known: the draw period from the frame's start. */
+    TEST_ASSERT(
+        ToriRS_Pacer_SlackEndUs(1000000, 20000, 0, 1005000) == 1020000,
+        "with no display period the slack runs to the draw period");
+    /* 60 Hz: the vsync less a quarter, not the 20 ms draw period. */
+    TEST_ASSERT(
+        ToriRS_Pacer_SlackEndUs(1000000, 20000, 16667, 1005000) == 1000000 + 16667 - 16667 / 4,
+        "on a 60 Hz display the slack ends before the next vsync");
+    /* A display slower than the draw period does not stretch it. */
+    TEST_ASSERT(
+        ToriRS_Pacer_SlackEndUs(1000000, 20000, 33333, 1005000) == 1020000,
+        "a slow display never extends the slack past the draw period");
+    /* Overrun: no slack at all (the floor in App_RunOnce has stepped every
+     * background task already). */
+    TEST_ASSERT(ToriRS_Pacer_SlackEndUs(1000000, 20000, 16667, 1013000) == 0, "an overrun frame has no slack");
+    TEST_ASSERT(ToriRS_Pacer_SlackEndUs(1000000, 20000, 0, 1020000) == 0, "a frame at its period has no slack");
+}
+
 int
 main(void)
 {
     test_names();
+    test_loop_wait();
+    test_display_period();
+    test_slack_end();
     test_deadline_pacer();
     test_locked_deadline();
     test_gameshell_on_budget();

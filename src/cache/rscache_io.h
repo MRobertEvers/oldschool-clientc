@@ -268,14 +268,20 @@ RSCache_IO_Dat1JagfileLoad(
         io, slot_id, 0, RSCACHE_DAT1_DISK_TABLE_CONFIGS, jag_archive_id, TORIRS_IO_CACHE_DAT1);
 }
 
-static inline struct RSCache_FileListDat*
-RSCache_IO_Dat1JagfileDecode(
+/*
+ * The read jagfile archive itself, still compressed, taken out of the slot:
+ * for a loader that hands the decompress to its provider's compute queue
+ * (CacheProvider::compute_queue) instead of doing it in the step that read it.
+ * NULL when the archive is absent from this cache. The caller owns it
+ * (RSCache_Dat1DiskArchiveFree).
+ */
+static inline struct RSCache_Dat1DiskArchive*
+RSCache_IO_Dat1JagfileTake(
     struct ToriRS_IOBatch* io,
     int slot_id,
     int expected_archive_id)
 {
     assert(io);
-    struct RSCache_FileListDat* filelist = NULL;
     struct RSCache_Dat1DiskArchive* archive = NULL;
     struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot_id);
     assert(item->kind == TORIRS_IOK_CACHE);
@@ -288,6 +294,17 @@ RSCache_IO_Dat1JagfileDecode(
     item->data = NULL;
     item->data_size = 0;
     ToriRS_IO_ClearItem(item);
+    return archive;
+}
+
+static inline struct RSCache_FileListDat*
+RSCache_IO_Dat1JagfileDecode(
+    struct ToriRS_IOBatch* io,
+    int slot_id,
+    int expected_archive_id)
+{
+    struct RSCache_FileListDat* filelist = NULL;
+    struct RSCache_Dat1DiskArchive* archive = RSCache_IO_Dat1JagfileTake(io, slot_id, expected_archive_id);
 
     /* Archive absent from this cache (e.g. a live server references an id our
      * local dat2 does not carry): the disk layer logged the miss and left data

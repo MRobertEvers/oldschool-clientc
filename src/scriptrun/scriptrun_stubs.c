@@ -1,15 +1,18 @@
 /*
  * Link stand-ins for the client's renderer, painter and minimap, which the
- * client's world model (world/world.c, world/world_cycle.c) references and the
+ * client's world model (world/world.c, world/world_cycle.c) references, and the
+ * one cache lookup the packet model (game/rs_server_state.c) names, which the
  * in-process script runner never reaches: its World has no scene, no painter
  * and no minimap, and every one of those calls sits behind a pointer that stays
  * NULL. Each aborts loudly if that stops being true, naming itself.
  *
  * Standalone server only (SCRIPTRUN_SRCS); the client links the real ones.
  */
+#include "engine/cache_provider.h"
 #include "engine/world_builder/heightmap.h"
 #include "engine/world_builder/minimap.h"
 #include "painters/painters.h"
+#include "platform/platform_x_io.h"
 #include "ui/uitree.h"
 
 #include <stdint.h>
@@ -37,6 +40,19 @@ UITree_FindByComponentId(
     (void)tree;
     (void)component_id;
     scriptrun_stub_reached("UITree_FindByComponentId");
+}
+
+/* game/rs_server_state.c NPC_HEADICON_SPECIFIC's first write reads the npc's
+ * type; the packet model's shadow (scriptrun_shadow.c) binds no provider and
+ * its World holds no npc, so the lookup that precedes the read always misses. */
+struct ToriRS_Npctype*
+CacheProvider_NpctypeGet(
+    struct CacheProvider* provider,
+    int npc_id)
+{
+    (void)provider;
+    (void)npc_id;
+    scriptrun_stub_reached("CacheProvider_NpctypeGet");
 }
 
 /* world/world.c World_Free calls these only for a non-NULL member, and a
@@ -67,4 +83,43 @@ painters_cullmap_free(struct PaintersCullMap* cm)
 {
     (void)cm;
     scriptrun_stub_reached("painters_cullmap_free");
+}
+
+/* The IO a bot's parallel queue (scriptrun/scriptrun_tasks.c) gives a turn:
+ * its tasks never read, so nothing lands and a read aborts. */
+struct PlatformX_IO
+{
+    int unused;
+};
+
+static struct PlatformX_IO s_scriptrun_io;
+
+struct PlatformX_IO*
+PlatformX_IO_New(void)
+{
+    return &s_scriptrun_io;
+}
+
+void
+PlatformX_IO_Free(struct PlatformX_IO* px)
+{
+    (void)px;
+}
+
+void
+PlatformX_IO_Pump(struct PlatformX_IO* px)
+{
+    (void)px;
+}
+
+int
+PlatformX_IO_Process(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOBatch* io)
+{
+    (void)px;
+    if( io->active_count > 0 )
+        scriptrun_stub_reached("PlatformX_IO_Process with a read");
+    ToriRS_IOBatch_Reset(io);
+    return 0;
 }

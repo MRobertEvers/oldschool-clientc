@@ -24,13 +24,13 @@
 static int
 osrs241_npc_info_read(uint8_t const* data, int len, RsprotInfoList* out)
 {
-    return proto_info_npc_read(npc_info_small_v6_osrs241, data, len, out);
+    return proto_info_npc_read(npc_info_small_v6_osrs241, data, len, NULL, NULL, out);
 }
 
 static int
 osrs241_npc_info_read_large(uint8_t const* data, int len, RsprotInfoList* out)
 {
-    return proto_info_npc_read(npc_info_large_v6_osrs241, data, len, out);
+    return proto_info_npc_read(npc_info_large_v6_osrs241, data, len, NULL, NULL, out);
 }
 
 /* The readers write a list; these hand the test its ops, with the strings

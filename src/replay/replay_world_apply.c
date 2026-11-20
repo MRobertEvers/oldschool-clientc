@@ -23,10 +23,11 @@
  *   6. The NPC_HEADICON_SPECIFICs still in force, as the packets themselves.
  */
 #include "replay/replay_world.h"
+#include "game/rs_server_state.h"
 
 #include "app.h"
 #include "game/rs_entity_sync.h"
-#include "game/rs_gameproto_exec.h"
+#include "app/app_gameproto_exec.h"
 #include "game/task_exec_entity_info.h"
 #include "game/task_gameproto_exec.h"
 #include "mem/torirs_mem.h"
@@ -93,7 +94,7 @@ ReplayWorld_ClearEntities(struct App* app)
     while( Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT) > 0 )
         App_WevDespawn(app, Wevs_ViewListAt(&app->wevs, WORLDVIEW_ROOT, 0)->id);
     WorldviewRegistry_ResetActive(&app->worldviews);
-    RS_ZoneInbox_Discard(&app->zone_inbox);
+    App_ZonePacketsDiscard(app);
 }
 
 /* --- 2. the scene ----------------------------------------------------------- */
@@ -269,8 +270,8 @@ npc_levels(struct Task_ReplayWorldApply* self)
 }
 
 /* The NPC_HEADICON_SPECIFICs still in force, through the packet's own arm
- * (exec_npc_headicon_specific: the npc found by slot, the type's icons copied
- * in on the first write), once the npcs stand. */
+ * (game/rs_server_state.c, state_npc_headicon_specific: the npc found by slot,
+ * the type's icons copied in on the first write), once the npcs stand. */
 _Static_assert(REPLAY_NPC_HEADICON_SLOTS == WORLD_NPC_HEADICON_SLOTS,
                "the ledger keeps a sticky slot per head-icon slot");
 
@@ -279,14 +280,8 @@ apply_npc_headicons(struct Task_ReplayWorldApply* self)
 {
     struct App* app = self->app;
     struct ReplayWorldKeyframe const* kf = &self->d->kf;
-    struct RS_GameProtoCtx ctx = {
-        .tree = app->tree,
-        .invs = &app->invs,
-        .varps = &app->varps,
-        .stats = &app->stats,
-        .chat = &app->chat,
-        .app = app,
-    };
+    struct RS_ServerState state;
+    App_ServerStateBind(app, &state);
 
     for( int i = 0; i < kf->npc_headicon_count; i++ )
     {
@@ -299,7 +294,7 @@ apply_npc_headicons(struct Task_ReplayWorldApply* self)
         packet._npc_headicon_specific.slot = h->icon_slot;
         packet._npc_headicon_specific.group = h->group;
         packet._npc_headicon_specific.index = h->index;
-        RS_GameProto_Exec(&ctx, &packet);
+        App_GameProto_Exec(app, &state, &packet);
     }
 }
 
@@ -311,20 +306,14 @@ apply_zones_and_table(struct Task_ReplayWorldApply* self)
     struct App* app = self->app;
     struct ReplayWorldKeyframe const* kf = &self->d->kf;
     struct GameProtoRevTable const* rev = app->net->rev;
-    struct RS_GameProtoCtx ctx = {
-        .tree = app->tree,
-        .invs = &app->invs,
-        .varps = &app->varps,
-        .stats = &app->stats,
-        .chat = &app->chat,
-        .app = app,
-    };
+    struct RS_ServerState state;
+    App_ServerStateBind(app, &state);
 
     for( int i = 0; i < kf->zone_op_count; i++ )
     {
         struct ReplayWorldZoneOp const* z = &kf->zone_ops[i];
 
-        RS_GameProto_ReplayZoneOp(&ctx, &z->pkt, z->base_x, z->base_z, z->level);
+        App_GameProto_ReplayZoneOp(app, &state, &z->pkt, z->base_x, z->base_z, z->level);
     }
     assert(rev->player_info_state_size);
     assert(rev->player_info_state_load);
@@ -370,14 +359,14 @@ Task_ReplayWorldApply_Run(
          * to the tick the seek left. A seek back from tick 3000 to 2999 on
          * RSProx 96 kept five ground items the keyframe did not name. */
         if( WorldLoadState_Active(&app->world_load) && app->world->load_complete )
-            RS_GameProto_ReplayClearScene(app);
+            App_GameProto_ReplayClearScene(app);
         self->rebuilt = 1;
         PT_TASK_AWAITSELF_IF(rebuild_task(app, self->d));
     }
     else
     {
         (void)RS_RebuildRegion_TakeForced(&app->rebuild_region);
-        RS_GameProto_ReplayClearScene(app);
+        App_GameProto_ReplayClearScene(app);
     }
 
     apply_zones_and_table(self);

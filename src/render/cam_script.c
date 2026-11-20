@@ -505,6 +505,40 @@ CamScript_Logout(struct CamScript* cam)
     cam->oculus_sync = 0;
     cam->oculus_recentre = 0;
     cam->oculus_y_valid = 0;
+    cam->target_set = 0;
+    cam->target_type = 0;
+    cam->target_index = 0;
+}
+
+int
+CamScript_SetTarget(
+    struct CamScript* cam,
+    int type,
+    int index)
+{
+    int const set = index >= 0;
+
+    assert(cam);
+    if( cam->target_set == set && (!set || (cam->target_type == type && cam->target_index == index)) )
+        return 0;
+    cam->target_set = set;
+    cam->target_type = set ? type : 0;
+    cam->target_index = set ? index : 0;
+    return 1;
+}
+
+int
+CamScript_Target(
+    struct CamScript const* cam,
+    int* out_type,
+    int* out_index)
+{
+    assert(cam);
+    assert(out_type);
+    assert(out_index);
+    *out_type = cam->target_type;
+    *out_index = cam->target_index;
+    return cam->target_set;
 }
 
 /* --- what a frame reads and steps ---------------------------------------- */

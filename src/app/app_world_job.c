@@ -43,10 +43,20 @@
 
 extern uint64_t
 PlatformWindow_TicksUs(void);
+extern uint64_t
+PlatformWindow_ThreadCpuUs(void);
 
 /* The slice App_RunOnce always gives the background queue, so every platform
  * loop moves it with no change of its own. */
 #define APP_BACKGROUND_FLOOR_US 2000u
+
+/* The background unit limit (TaskRunner::unit_limit_us) as a multiple of the
+ * floor slice: a task may do at most this many floors' worth of processor
+ * time between two asks of "is the slice over?", because that is how far it
+ * can carry the floor's guaranteed step past its deadline. Two floors: 4 ms,
+ * the parallel compute check's threshold, so neither queue may hide more than
+ * a fifth of a 20 ms frame in one piece of work. */
+#define APP_BACKGROUND_UNIT_FACTOR 2u
 
 /* What the floor spends freeing a swapped-out scene's models per frame. */
 #define APP_GRAVEYARD_SLICE_US 500u
@@ -61,6 +71,131 @@ app_runner_clock(void* ud)
 {
     (void)ud;
     return PlatformWindow_TicksUs();
+}
+
+/* --- who is stepping now (the frame contract's second run-time check) -----
+ *
+ * The background queue is given time by its own pump and by nothing else:
+ * never from inside the script settle, the logic ticks (the packet pump
+ * among them), the parallel queue's pump, or a task of another queue. Those
+ * sites say so here while they run (App_QueueSiteEnter/Leave), and the
+ * background pass checks on entry. The one owner exception is explicit: the
+ * world job finishing its own job at its deadline (App_WorldJobPoll), which
+ * the packet pump asks for while it holds the packets behind it.
+ */
+static char const* g_app_queue_site;
+
+char const*
+App_QueueSiteEnter(char const* site)
+{
+    char const* previous = g_app_queue_site;
+
+    assert(site);
+    g_app_queue_site = site;
+    return previous;
+}
+
+void
+App_QueueSiteLeave(char const* previous)
+{
+    g_app_queue_site = previous;
+}
+
+/*
+ * TORIRS_QUEUE_CONTRACT_TRACE: what one background job was given while it
+ * was pending, reported when it commits -- the check that a rebuild that
+ * holds the packet pump still lets frames through (frames, committed), and
+ * that the job gets both its floor (every App_RunOnce) and the loop's slack.
+ * Process-wide like the trace; a client has one world job at a time.
+ */
+static struct
+{
+    int frames;
+    int committed;
+    int floor_slices;
+    int slack_slices;
+    int in_floor;
+} g_job_tally;
+
+char const*
+App_QueueSiteNow(void)
+{
+    return g_app_queue_site;
+}
+
+static void
+app_background_entry_check(
+    struct App* app,
+    int owner)
+{
+    assert(app);
+    TaskRunner_CheckBackgroundEntry(
+        &app->packet_runner, &app->frame_runner, &app->background_runner, g_app_queue_site, owner);
+}
+
+/*
+ * The parallel queue's "computes" threshold (TaskRunner::compute_step_us),
+ * per lane, ONE table. A step's cost is read on PlatformWindow_ThreadCpuUs:
+ * the stepping thread's processor time where the lane has that clock, so a
+ * strict run on a loaded machine no longer aborts on a step that waited for
+ * a core (the wall-time check named NpcBodyLand at 10.36 ms and MountVisuals
+ * at 5.85 ms beside parallel builds, both clean on a quiet machine). The
+ * number is a share of the 20 ms logic frame a parallel step may take before
+ * it is CPU work on the IO queue -- a property of the frame, not of a
+ * machine, so a slower lane that computes more per step is exactly what it
+ * should name. TORIRS_QUEUE_CONTRACT_COMPUTE_MS overrides it, 0 turns it off.
+ */
+struct AppComputeLane
+{
+    char const* lane;
+    uint32_t threshold_us;
+    /* What the number rests on. */
+    char const* evidence;
+};
+
+static struct AppComputeLane const k_app_compute_lanes[] = {
+    { "macos", 4000u,
+      "thread CPU time. lo-checks: cooks_assistant strict at 4 ms with all 16 cores spun by another "
+      "process; the 96.bin replay windows at a 0.3 ms threshold named only AssetLoad:obj_model "
+      "(0.56 ms) and Dat2LocLoad (0.91 ms) -- AppCS1Eval, 14.1 ms on the wall clock under load, "
+      "never reached 0.3 ms of processor time" },
+    { "linux", 4000u, "thread CPU time, the same clock as macos; not run (no toolchain here)" },
+    { "android", 4000u,
+      "thread CPU time, the same clock; never run on a device. A phone computes a step more slowly, "
+      "which the check is there to name, not to excuse" },
+    { "windows", 4000u,
+      "QueryThreadCycleTime at the time-stamp counter's rate (wall time on XP, which lacks it); "
+      "built only, never run" },
+    { "web", 4000u,
+      "wall time (one thread, performance.now(), 100 us steps). fv_web: 18 strict boots and 16 "
+      "strict sessions on Soft3D, WebGL2 and WebGL1 at 4 ms, 0 compute lines once the music decode "
+      "moved to the background queue (43a8f9ad9)" },
+};
+
+static struct AppComputeLane const*
+app_compute_lane(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    return &k_app_compute_lanes[4];
+#elif defined(TORIRS_PLATFORM_ANDROID) || defined(__ANDROID__)
+    return &k_app_compute_lanes[2];
+#elif defined(_WIN32)
+    return &k_app_compute_lanes[3];
+#elif defined(__APPLE__)
+    return &k_app_compute_lanes[0];
+#else
+    return &k_app_compute_lanes[1];
+#endif
+}
+
+static uint64_t
+app_parallel_compute_us(void)
+{
+    char const* env = getenv("TORIRS_QUEUE_CONTRACT_COMPUTE_MS");
+
+    if( env && env[0] )
+        return (uint64_t)(atof(env) * 1000.0);
+    return app_compute_lane()->threshold_us;
 }
 
 /* The paced catch-up (engine/world_builder/rebuild_pace.c) on the background
@@ -135,9 +270,25 @@ app_background_runner_init(struct App* app)
     /* One IO backend, as for the packet queue. */
     app->background_runner.px = app->frame_runner.px;
     app->background_runner.parallel = 1;
+    /* Which queue is which: what each may return, and what ends its pump
+     * (task_runner.h; the frame contract is in app.h). */
+    app->packet_runner.role = TASK_RUNNER_ROLE_MAIN;
+    app->frame_runner.role = TASK_RUNNER_ROLE_PARALLEL;
+    app->background_runner.role = TASK_RUNNER_ROLE_BACKGROUND;
+    app->frame_runner.compute_step_us = app_parallel_compute_us();
+    /* What a parallel step costs is read on the stepping thread's processor
+     * clock (the lane table above). */
+    TaskRunner_SetCostClock(&app->frame_runner, PlatformWindow_ThreadCpuUs);
+    /* And what a background unit costs, on the same clock. */
+    TaskRunner_SetCostClock(&app->background_runner, PlatformWindow_ThreadCpuUs);
+    app->background_runner.unit_limit_us = APP_BACKGROUND_UNIT_FACTOR * APP_BACKGROUND_FLOOR_US;
     RebuildPace_Reset(&app->pace);
     WorldRebuildJob_Reset(&app->world_job);
     RebuildFrameStats_Reset(&app->rebuild_frames);
+    /* TORIRS_REBUILD_TIMING: marks on every frame, so the frame a rebuild
+     * opens in can say where all of it went (rebuild_marks_first). */
+    if( WorldBuilder_TimingOn() )
+        RebuildFrameStats_Arm(&app->rebuild_frames);
     TaskRunner_SetClock(&app->background_runner, app_runner_clock, NULL);
     /* The packet queue and the frame queue read the same clock: a paced
      * catch-up gives their passes a deadline too (App_PacedDeadline). */
@@ -159,6 +310,7 @@ app_background_runner_free(struct App* app)
 {
     assert(app);
     App_WorldJobCancel(app, "shutdown");
+    app_world_local_load_free(app);
     ToriRS_TaskQueue_Free(app->background_runner.queue);
     ToriRS_IOBatch_Free(app->background_runner.io);
     app->background_runner.queue = NULL;
@@ -201,7 +353,7 @@ App_WorldRebuildModeInit(struct App* app)
      * exactly what such a run must not vary; it blocks whatever the world or
      * the launch says.
      */
-    if( background && ContentTest_Enabled() )
+    if( background && ContentTest_Enabled() && !ContentTest_BackgroundRebuild() )
         background = 0;
     if( deadline && deadline[0] )
     {
@@ -686,6 +838,23 @@ app_world_job_advance(struct App* app)
     return 1;
 }
 
+/*
+ * THE ONE PLACE A WORLD JOB ENDS: `committed` (its scene is the live one) or
+ * cancelled. It is unlisted as the root view's rebuild; committed, the view's
+ * built trigger fires; and the job ends as an owner, which abandons whatever
+ * it primed and did not fire.
+ */
+static void
+app_world_job_end(
+    struct App* app,
+    int committed)
+{
+    struct WorldRebuildJob* job = &app->world_job;
+
+    App_ViewRebuildEnd(app, &job->rebuild, committed);
+    ToriRS_TaskJob_End(&job->job, committed);
+}
+
 void
 App_WorldJobStart(
     struct App* app,
@@ -711,6 +880,11 @@ App_WorldJobStart(
     now = TaskRunner_Now(&app->background_runner);
 
     WorldRebuildJob_Begin(job, chunks_xz, chunk_count, zone_x, zone_z, zones, now);
+    /* Listed as the rebuild of the root view until its commit or cancel, and
+     * the owner of the root view's built trigger for as long (the job's end,
+     * app_world_job_end, is the one place it ends). */
+    App_ViewRebuildBegin(
+        app, &job->rebuild, WORLDVIEW_ROOT, ToriRS_TaskJobOwner(&job->job, "the background world rebuild"));
     /* The varps the scene is built against are the REBUILD's, as a build in
      * place at this packet would read them. */
     WorldRebuildJob_TakeVarps(job, &app->varps);
@@ -892,6 +1066,23 @@ app_world_job_commit(struct App* app)
      * popped: latch it as the blocking flow would have, from here to its
      * SERVER_TICK_END. Counted from now, so the lost-fence backstop measures
      * this stretch, not the hold. */
+    if( TaskRunner_ContractTrace() )
+        fprintf(
+            stderr,
+            "queue_contract: trace world_job commit zone=%d,%d frames=%d committed=%d slices floor=%d slack=%d "
+            "(the job's own finish: promoted=%d)\n",
+            job->zone_x,
+            job->zone_z,
+            g_job_tally.frames,
+            g_job_tally.committed,
+            g_job_tally.floor_slices,
+            g_job_tally.slack_slices,
+            job->job.promoted);
+    App_ParallelTraceGatherCommitted(app);
+    g_job_tally.frames = 0;
+    g_job_tally.committed = 0;
+    g_job_tally.floor_slices = 0;
+    g_job_tally.slack_slices = 0;
     if( WorldRebuildJob_Committed(job, t_done) )
         RS_ServerTick_Resume(
             &app->server_tick, FrameClockSerial_LogicCycle(&app->frame_clock.serial));
@@ -930,6 +1121,8 @@ app_world_job_commit(struct App* app)
             job->report.seqs,
             job->prep_frames,
             ToriDraw_SceneBatchStagingSupported(app->scene));
+    /* The rebuild of the root view has finished, its finish included. */
+    app_world_job_end(app, 1);
     app_world_job_repeat_requested(app);
 }
 
@@ -974,6 +1167,9 @@ App_WorldJobPoll(struct App* app)
                 job->zone_z,
                 WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_GATHER ? "gathered" : "built",
                 (unsigned long long)((now - job->t_begin_us) / 1000u));
+        /* The owner finishing its own job: the one place the background
+         * queue is stepped from inside the packet pump, and it says so. */
+        app_background_entry_check(app, 1);
         (void)TaskRunner_RunUntil(&app->background_runner, 0);
         if( app_world_job_advance(app) == 0 && WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_STAGE )
             (void)TaskRunner_RunUntil(&app->background_runner, 0);
@@ -1054,6 +1250,7 @@ App_WorldJobCancel(
      * job was for was never the scene's, so a REBUILD naming it again must not
      * be skipped as the same zone. */
     WorldLoadState_Cancel(&app->world_load, WorldRebuildJob_Cancelled(job));
+    app_world_job_end(app, 0);
     RS_RebuildRegion_ForgetCentre(&app->rebuild_region);
     RebuildFrameStats_Drop(&app->rebuild_frames);
     RedrawRequest_Raise(&app->redraw_request);
@@ -1118,6 +1315,20 @@ app_world_job_drop_requested(struct App* app)
     app_net_lost(app, "TORIRS_WORLD_JOB_DROP_AT");
 }
 
+
+void
+app_world_job_contract_frame(
+    struct App* app,
+    int committed)
+{
+    assert(app);
+    if( !WorldRebuildJob_Pending(&app->world_job) )
+        return;
+    g_job_tally.frames++;
+    if( committed )
+        g_job_tally.committed++;
+}
+
 void
 App_RunBackground(
     struct App* app,
@@ -1132,9 +1343,13 @@ App_RunBackground(
     /* The common case, every frame: nothing queued, nothing read. */
     if( !app->background_runner.queue->head )
         return;
+    app_background_entry_check(app, 0);
     t0 = TaskRunner_Now(&app->background_runner);
+    /* A slice already over still gets its pump: every task on the queue is
+     * stepped once whatever the clock says (the pump guarantee), so the
+     * background queue moves on a frame that missed its deadline. */
     if( deadline_us <= t0 )
-        return;
+        deadline_us = t0 + 1;
     job = &app->world_job;
     building = WorldRebuildJob_Pending(job) && WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_STAGE;
     (void)TaskRunner_RunUntil(&app->background_runner, deadline_us);
@@ -1149,8 +1364,48 @@ App_RunBackground(
     t1 = TaskRunner_Now(&app->background_runner);
     if( WorldRebuildJob_Pending(job) )
     {
+        if( g_job_tally.in_floor )
+            g_job_tally.floor_slices++;
+        else
+            g_job_tally.slack_slices++;
         WorldRebuildJob_NoteSlice(job, t1 - t0, building);
         app_world_job_drop_requested(app);
+    }
+}
+
+/* TORIRS_QUEUE_CONTRACT_TRACE: the longest single step the background queue
+ * has run, each time it grows -- one step is the unit by which a background
+ * pump can overrun its slice, since every task gets one whatever the clock
+ * says. */
+static void
+app_background_step_report(struct App* app)
+{
+    static uint64_t reported_us;
+    static uint64_t reported_unit_us;
+
+    assert(app);
+    if( !TaskRunner_ContractTrace() )
+        return;
+    if( app->background_runner.longest_step_us > reported_us )
+    {
+        reported_us = app->background_runner.longest_step_us;
+        fprintf(
+            stderr,
+            "queue_contract: trace background longest step %.2f ms (%s)\n",
+            (double)reported_us / 1000.0,
+            app->background_runner.longest_step_name[0] ? app->background_runner.longest_step_name : "(unnamed)");
+    }
+    /* A step runs until its slice is over -- the floor's, or the loop's whole
+     * slack -- so its length is the slice's. The UNIT is what can overrun a
+     * slice: the work between two asks (TaskRunner::unit_limit_us). */
+    if( app->background_runner.longest_unit_us > reported_unit_us )
+    {
+        reported_unit_us = app->background_runner.longest_unit_us;
+        fprintf(
+            stderr,
+            "queue_contract: trace background longest unit %.2f ms (%s)\n",
+            (double)reported_unit_us / 1000.0,
+            app->background_runner.longest_unit_name[0] ? app->background_runner.longest_unit_name : "(unnamed)");
     }
 }
 
@@ -1168,7 +1423,11 @@ app_run_background_floor(struct App* app)
     }
     if( !app->background_runner.queue->head )
         return;
+    app_contract_note_background_floor();
+    g_job_tally.in_floor = 1;
     App_RunBackground(app, PlatformWindow_TicksUs() + APP_BACKGROUND_FLOOR_US);
+    g_job_tally.in_floor = 0;
+    app_background_step_report(app);
 }
 
 /* --- TORIRS_WORLD_DIGEST: what a rebuild left, comparable across modes ----- */
@@ -1386,6 +1645,31 @@ app_rebuild_frames_note(
     assert(app);
     stats = &app->rebuild_frames;
     due = RebuildFrameStats_Note(&app->rebuild_frames, frame_us);
+    /* The frame the rebuild started in, whole: what the platform loop did
+     * before App_RunOnce (the net poll, and with it an in-process server's
+     * tick), App_RunOnce mark by mark, and what the loop did after it (the
+     * draw, audio) up to this note. */
+    if( (due & REBUILD_FRAME_STATS_FIRST) && stats->marks > 0 )
+    {
+        char line[REBUILD_FRAME_STATS_MARKS * 40];
+        uint64_t const now_us = PlatformWindow_TicksUs();
+        uint64_t const start_us = now_us >= frame_us ? now_us - frame_us : 0;
+        uint64_t const first_us = stats->mark_us[0];
+        uint64_t const last_us = stats->mark_us[stats->marks - 1];
+
+        RebuildFrameStats_FormatMarks(stats, 0.3, line, sizeof(line));
+        TORIRS_REPORT(
+            "rebuild_marks_first: mode=%s zone=%d,%d %.1fms: before RunOnce=%.2f RunOnce=%.2f after RunOnce=%.2f | "
+            "RunOnce:%s\n",
+            stats->background ? "background" : "blocking",
+            RS_RebuildRegion_CentreX(&app->rebuild_region),
+            RS_RebuildRegion_CentreZ(&app->rebuild_region),
+            (double)frame_us / 1000.0,
+            first_us > start_us ? (double)(first_us - start_us) / 1000.0 : 0.0,
+            (double)(last_us - first_us) / 1000.0,
+            now_us > last_us ? (double)(now_us - last_us) / 1000.0 : 0.0,
+            line);
+    }
     /* A slow frame in the tail says where its RunOnce went, as the commit
      * frame does (rebuild_marks). */
     if( due & REBUILD_FRAME_STATS_AFTER_SLOW )

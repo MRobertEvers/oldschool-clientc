@@ -334,6 +334,11 @@ ToriRS_Pacer_BeginFrame(struct ToriRS_Pacer* pacer, uint64_t now_ms)
         return now_ms;
     }
 
+    /* A stall (TORIRS_PACER_STALL_MS) starts the estimator afresh. */
+    if( pacer->seeded && now_ms > pacer->last_begin_ms && now_ms - pacer->last_begin_ms > TORIRS_PACER_STALL_MS )
+        pacer->seeded = 0;
+    pacer->last_begin_ms = now_ms;
+
     if( !pacer->seeded )
     {
         /* The reference fills the ring with `now` before entering the loop, so
@@ -417,4 +422,58 @@ ToriRS_Pacer_LockedDeadline(struct ToriRS_Pacer* pacer, uint64_t now_ms)
         due = now_ms;
     pacer->locked_due_ms = due;
     return due;
+}
+
+enum ToriRS_LoopWait
+ToriRS_Pacer_LoopWait(struct ToriRS_LoopWaitInput const* in)
+{
+    assert(in);
+    if( in->uncapped || in->replay || in->content_test )
+        return TORIRS_LOOP_WAIT_NONE;
+    if( in->async_runnable )
+        return TORIRS_LOOP_WAIT_NONE;
+    if( in->async_pending || in->main_waits_on_read )
+        return TORIRS_LOOP_WAIT_NAP;
+    return TORIRS_LOOP_WAIT_SLEEP;
+}
+
+char const*
+ToriRS_Pacer_LoopWaitName(enum ToriRS_LoopWait wait)
+{
+    if( wait == TORIRS_LOOP_WAIT_NONE )
+        return "none";
+    if( wait == TORIRS_LOOP_WAIT_SLEEP )
+        return "sleep";
+    assert(wait == TORIRS_LOOP_WAIT_NAP);
+    return "nap";
+}
+
+void
+ToriRS_DisplayPeriod_Note(struct ToriRS_DisplayPeriod* display, uint64_t period_us)
+{
+    assert(display);
+    if( period_us < TORIRS_DISPLAY_PERIOD_MIN_US )
+        return;
+    if( display->window_count == 0 || period_us < display->window_min_us )
+        display->window_min_us = period_us;
+    if( ++display->window_count < TORIRS_DISPLAY_PERIOD_WINDOW )
+        return;
+    display->estimate_us = display->window_min_us;
+    display->window_count = 0;
+    display->window_min_us = 0;
+}
+
+uint64_t
+ToriRS_Pacer_SlackEndUs(
+    uint64_t frame_start_us, uint64_t draw_period_us, uint64_t display_period_us, uint64_t now_us)
+{
+    uint64_t end = frame_start_us + draw_period_us;
+
+    if( display_period_us > 0 )
+    {
+        uint64_t const display_end = frame_start_us + display_period_us - display_period_us / 4;
+        if( display_end < end )
+            end = display_end;
+    }
+    return end > now_us ? end : 0;
 }

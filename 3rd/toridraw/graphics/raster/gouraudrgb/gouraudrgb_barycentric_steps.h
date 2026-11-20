@@ -1,5 +1,6 @@
 #ifndef GOURAUDRGB_BARYCENTRIC_STEPS_H
 #define GOURAUDRGB_BARYCENTRIC_STEPS_H
+#include "graphics/int_wrap.h"
 
 /*
  * Shared fixed-point rules for the `gouraudrgb` family.
@@ -30,7 +31,7 @@ gouraudrgb_barycentric_channel_step_ish8(
     int numerator,
     int sarea)
 {
-    return (numerator << 8) / sarea;
+    return toridraw_wrap_shl(numerator, 8) / sarea;
 }
 
 /**

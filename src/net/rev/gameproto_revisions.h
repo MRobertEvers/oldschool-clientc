@@ -108,6 +108,17 @@ enum NetReconnectKind
 /* Forward decls: the generation-module slots below take pointers only. */
 struct RevPacket;
 struct RsprotInfoList;
+
+/** An NPC_INFO reader's question about an npc type (streams/rsprot_info.h,
+ *  RsprotNpcTypeLengths, which has the contract): the recolour and retexture
+ *  counts a typed customisation block reads. */
+typedef int (*GameProtoNpcTypeLengths)(
+    void* ctx,
+    int old,
+    int npc_type,
+    int head,
+    int* recolours,
+    int* retextures);
 struct PktPlayerAppearance;
 struct NetLoginVTable;
 struct NetOutVTable;
@@ -203,11 +214,21 @@ struct GameProtoRevTable
      * <prot>_osrs<N> or <prot>_rs<N> (3rd/rsprot/streams).
      * Every table that carries PLAYER_INFO / NPC_INFO names its own. */
     int (*player_info_read)(uint8_t const* data, int len, struct RsprotInfoList* out);
-    int (*npc_info_read)(uint8_t const* data, int len, struct RsprotInfoList* out);
+    int (*npc_info_read)(
+        uint8_t const* data,
+        int len,
+        GameProtoNpcTypeLengths lengths,
+        void* ctx,
+        struct RsprotInfoList* out);
     /** NPC_INFO in extended view (PKT_NAME_NPC_INFO_LARGE), where the
      *  revision names one: npc_info_read's stream with 8-bit low-resolution
      *  deltas. NULL where the table routes no large packet. */
-    int (*npc_info_read_large)(uint8_t const* data, int len, struct RsprotInfoList* out);
+    int (*npc_info_read_large)(
+        uint8_t const* data,
+        int len,
+        GameProtoNpcTypeLengths lengths,
+        void* ctx,
+        struct RsprotInfoList* out);
     /**
      * The modern player stream's session state (a 2048-slot high-resolution
      * table, net/proto/proto_info.c) the host seeds, parks and

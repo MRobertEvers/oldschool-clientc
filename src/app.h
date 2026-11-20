@@ -2,7 +2,6 @@
 #define SRC_APP_H
 
 #include "asyncio.h"
-#include "engine/async_pending.h"
 #include "engine/cache_mounts.h"
 #include "engine/cache_provider.h"
 #include "engine/entity_spotanim.h"
@@ -19,7 +18,6 @@
 #include "game/rs_chat.h"
 #include "game/rs_clientscript_queue.h"
 #include "game/rs_server_tick.h"
-#include "game/rs_zone_inbox.h"
 #include "game/rs_rebuild_region.h"
 #include "game/rs_npc_update_origin.h"
 #include "game/rs_hint_arrow.h"
@@ -28,7 +26,6 @@
 #include "game/rs_session_info.h"
 #include "game/rs_boot_state.h"
 #include "game/rs_client_phase.h"
-#include "game/rs_npc_body_lands.h"
 #include "game/rs_sailing_hud.h"
 #include "game/rs_tile_highlight_watch.h"
 #include "game/rs_mouseover_report.h"
@@ -101,7 +98,6 @@
 #include "input/torirs_frame_modifiers.h"
 #include "input/torirs_input_claims.h"
 #include "input/torirs_world_tap.h"
-#include "inv/inv_icon_retry.h"
 #include "inv/inv_manager.h"
 #include "platform/platform_io.h"
 #include "render/torirs_damage_region.h"
@@ -145,7 +141,6 @@
 #include "world/wev.h"
 #include "world/world_pickset.h"
 #include "world/wev_aboard_trace.h"
-#include "world/loc_lane.h"
 #include "world/entity_objstack.h"
 #include "world/entity_projectile.h"
 #include "sideapp/side_app_binding.h"
@@ -162,6 +157,8 @@ struct PktRunClientScript;
 #include <stdint.h>
 
 struct World;
+struct Assets;
+struct RS_Pending;
 struct WorldBuilder;
 struct PaintersBuffer;
 struct RSCache_Dat1Disk;
@@ -175,8 +172,12 @@ struct RsprotInfoOp;
 struct DevOverlay;
 struct Editor;
 struct MapEditorApp;
-/** Placeholder requests waiting for a tick; owned by app/app_placeholder.c. */
-struct WidgetIconPark;
+/** The ground family's tick state (the widget icons' release); owned by
+ *  app/app_tasks_ground.c. */
+struct AppTasksGround;
+/** A local world load's job on the background queue; owned by
+ *  app/app_world_load.c. */
+struct AppWorldLocalLoad;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -383,6 +384,38 @@ struct AppConfig
 
 /* enum AppState and enum AppScreen: @see game/rs_client_phase.h. */
 
+/* The south-west tile (scene tiles) and plane the latest UPDATE_ZONE_* header
+ * named (App.zone_base). */
+struct App_ZoneBase
+{
+    int base_x;
+    int base_z;
+    int level;
+};
+
+/*
+ * What the client's parked tasks wait on that is neither a task's end nor a
+ * join (task_trigger.h; app/app_parallel_task.h has the calls). Each is fired
+ * in one place.
+ */
+struct AppTriggers
+{
+    /* The logic cycle (App_ParallelCycle), advanced at the top of every logic
+     * tick (app_logic_tick): what PT_PARALLEL_AWAIT_CYCLE parks on. */
+    struct ToriRS_Clock cycle;
+    /* "The boot has built the tree": primed by the boot task (app_open_tree)
+     * for as long as the client phase is BOOTING, fired when it settles. An
+     * interface mount queued behind a boot waits on it. */
+    struct ToriRS_Trigger boot_built;
+    /* "View N's scene is built": primed by a rebuild of the view from its
+     * start (App_ViewRebuildBegin), fired at its commit (App_ViewRebuildEnd);
+     * and, for a spawned view whose first scene the server has yet to send,
+     * primed by `view_awaits[N]` -- the view itself, an outside owner -- from
+     * its spawn to that rebuild or its release. */
+    struct ToriRS_Trigger view_built[WORLDVIEW_MAX];
+    struct ToriRS_TriggerOwner view_awaits[WORLDVIEW_MAX];
+};
+
 struct App
 {
     struct AppConfig cfg;
@@ -437,12 +470,108 @@ struct App
      *   frame_runner       it runs now, as far as it will go, every frame
      *   background_runner  it gets the time a frame has left, for as many
      *                      frames as it takes
+     *
+     * THE FRAME CONTRACT -- the one statement of it; task_runner.h enforces
+     * the queue half by each runner's role, App_RunOnce the frame half, and
+     * every platform loop is held to it (pm/PLATFORM_CONFORMANCE.md). Owner,
+     * 2026-11-19: "the parallel queue is drained whenever possible, while the
+     * background queue is timesliced. It's the distinction between IO heavy
+     * tasks and CPU heavy tasks." "Neither blocks a frame. Only the
+     * packet/command queue."
+     *
+     *   1. WHO WITHHOLDS A FRAME: the packet side, and nothing else. An
+     *      unfinished task on the main queue (a packet, a mount, the boot,
+     *      the tick latch, a blocking rebuild inside its packet task) or a
+     *      render-blocking task (a client script, settled whole before the
+     *      frame is shown). An ordinary task on the parallel queue, or a job
+     *      on the background queue, never withholds a frame however long it
+     *      waits. Every reason App_RunOnce returns no commit is named and
+     *      classed (SettleGate_WithholdPacketSide); one that is not packet
+     *      side is a breach (TORIRS_QUEUE_CONTRACT_*).
+     *   2. THE MAIN QUEUE (packet_runner) is the main thread: strict FIFO,
+     *      pumped until a task asks for a frame (RENDER), its head waits, or
+     *      it is empty. It alone may ask for a frame -- which is why the boot
+     *      and its preload run here (app_open_tree): before login there are
+     *      no packets. A frame it asked for is owed until App_RunOnce has
+     *      run one to its end (TaskRunner_RenderOwed), so no pump -- between
+     *      frames (the browser's, the native loop's naps) or at the top of
+     *      the frame that pays it -- resumes the task that asked before that
+     *      frame is drawn. Its tasks wait the way every task waits (3).
+     *   3. THE PARALLEL QUEUE (frame_runner) is IO-heavy work and is
+     *      DRAINED: each pump steps every task that can run at least once,
+     *      then keeps stepping until every task is DONE OR PARKED. A task
+     *      waits by parking (task_trigger.h), on exactly one of four things,
+     *      and is not stepped until that thing wakes it -- nothing is polled:
+     *        - its own READ (its item is on the wire; the platform answers);
+     *        - a TRIGGER that is primed: some owner (a task, a job, or a party
+     *          outside the client) has committed to firing it -- the end of
+     *          another task (a join's sibling, the earlier task for its key),
+     *          the rebuild of its view, the boot. An owner that ends without
+     *          firing has it fired ABANDONED for it, so it always fires;
+     *        - a COUNT (a join: its siblings, or the loads the assets table
+     *          counts for it), made ready by the decrement that takes it to 0;
+     *        - a CYCLE on a clock its owner advances in one place (the logic
+     *          tick).
+     *      A wait that would close a loop asserts when it is made, and a
+     *      wait on an unprimed trigger asserts: a task that never ends is a
+     *      crash, never a state (TORIRS_QUEUE_CONTRACT_TRACE prints what each
+     *      parked task waits on, down to what it bottoms out in). The macros
+     *      are game/rs_parallel_task.h. Nothing else ends a pump: no clock,
+     *      no step count a frame reaches, no task's request. A parked task
+     *      costs a pump nothing. It is pumped every App_RunOnce
+     *      (App_PumpAsync), between frames on the web when a batch of reads
+     *      lands (torirs_web_io_pump), inside a client script's settle, and
+     *      from the packet pump while the main queue's head is parked on it. Its processor time lands in the
+     *      current frame, so a parallel task waits, then does a little; a
+     *      step that computes is named (TaskRunner::compute_step_us).
+     *   4. THE BACKGROUND QUEUE (background_runner) is CPU-heavy work and is
+     *      GIVEN TIME: a floor slice every App_RunOnce
+     *      (app_run_background_floor) plus whatever slack the platform loop
+     *      has before its next frame is due (App_RunBackground; in the
+     *      browser no later than the display's next vsync,
+     *      ToriRS_Pacer_SlackEndUs). Each pump steps every task that can run
+     *      ONCE whatever the clock says -- the queue always makes progress,
+     *      even on a frame that missed its deadline -- then keeps stepping
+     *      until every task is done or the slice is up; a long task checks
+     *      the clock itself (PT_TASK_YIELD_IF_SPENT). Neither the script
+     *      settle nor the packet pump steps it; a job with a deadline is
+     *      finished by its owner (App_WorldJobPoll), the one exception, and
+     *      an explicit one.
+     *   5. A PACKET HANDLER puts work that waits on an asset it does not need
+     *      in order to continue on the parallel queue, as an ordinary task
+     *      (app/app_parallel_task.h), and work too long for a frame on the
+     *      background queue (the REBUILD's world job). What it needs in
+     *      order to continue it awaits on the main queue.
+     *   6. RESULTS BY QUEUE: RENDER is legal on the main queue only; SPENT on
+     *      the background queue only (asyncio.h has the table); there is no
+     *      "blocked" result on any queue -- a task that waits parks. Only the
+     *      background queue is time-sliced: on any other queue a task that
+     *      asks whether the slice is over is told no (ToriRS_Slice::sliced,
+     *      set in one place, TaskRunner_StepUntil), so no task there can
+     *      stop for a slice, and the main queue's paced pass stops between
+     *      tasks and says so as PACED, never SPENT.
+     *   7. BETWEEN FRAMES a native loop waits by what is queued
+     *      (ToriRS_Pacer_LoopWait, pacer.h): it never sleeps through work
+     *      that can run now (a parked task a fire made ready included), and
+     *      never goes straight round again for work that is only parked --
+     *      it naps, pumping between
+     *      naps (App_PumpAsync) and giving the background queue the slack,
+     *      and goes back to its frames as soon as a pump moves anything.
+     *
+     * Exceptions, named where they live: the paced catch-up after a
+     * background rebuild's commit gives the MAIN queue a deadline
+     * (App_PacedDeadline, app_net.c) -- packet side, so it may, and it paces
+     * the pump between tasks, never a task (a blocking REBUILD's inline
+     * gather inside that window runs on); the replay
+     * seek holds the screen (RenderSkip_Held) -- a driver's mode, not a
+     * queue's, left out of the strict abort.
      */
     /**
-     * The frame queue: parallel, pumped to a standstill every App_RunOnce with
-     * no time limit (App_PumpAsync), and settled whole when a client script is
-     * on it (app_settle_cs2_frame) -- a frame is withheld until its
-     * render-blocking tasks are done. Asset loads, client scripts, sign-in,
+     * The frame queue (the parallel queue): parallel, pumped to a standstill
+     * every App_RunOnce with no time limit (App_PumpAsync), and settled whole
+     * when a client script is on it (app_settle_cs2_frame) -- a frame is
+     * withheld until its render-blocking tasks are done, never for an
+     * ordinary task. Asset loads, parallel tasks, client scripts, sign-in,
      * file saves. Owns queue + io + px.
      *
      * Its had_work latch (TaskRunner_HadWork): tree-affecting async work (CS2
@@ -450,12 +579,13 @@ struct App
      * gets a refresh pass.
      */
     struct TaskRunner frame_runner;
-    /** The packet queue: per-packet exec tasks and interface slot
-     * mounts. Own queue + io slots, SHARED px with `frame_runner`. Head-only
-     * execution makes it a strict FIFO — packet application order is
-     * preserved across IO yields, and a mount enqueued by a packet runs
-     * before the next packet is even popped (the pump only pops a new packet
-     * when this queue is idle).
+    /** The packet queue (the main queue): per-packet exec tasks, interface
+     * slot mounts, and the boot. Own queue + io slots, SHARED px with
+     * `frame_runner`. Head-only execution makes it a strict FIFO — packet
+     * application order is preserved across IO yields, and a mount enqueued
+     * by a packet runs before the next packet is even popped (the pump only
+     * pops a new packet when this queue is idle). While the client boots
+     * App_PumpAsync pumps it; otherwise the packet pump does.
      *
      * Its had_work latch (TaskRunner_HadWork): the serial packet/interface
      * transaction yielded on real external IO. Its partially-applied tree is
@@ -472,6 +602,13 @@ struct App
      * a transaction on it, so its had_work latch is never set.
      */
     struct TaskRunner background_runner;
+    /** The pending index: every live parallel task on frame_runner, found by
+     *  what it is for and cancelled by key or scope; it holds no data of its
+     *  own (game/rs_pending.h; app/app_parallel_task.h). */
+    struct RS_Pending* pending;
+    /** The cycle clock and the boot's and the views' built triggers: what a
+     *  parked task waits on besides another task (app/app_parallel_task.h). */
+    struct AppTriggers triggers;
 
     /* Phase 2: asset pipeline. The disk (or the on-demand stream) and the
      * build cache that backs `provider`; everything downstream sees only the
@@ -743,29 +880,24 @@ struct App
      * @see ui/uitree_if_models.h */
     struct UIIfModels if_models;
 
-    /* Placeholder requests a CLIENTSCRIPT asked for, parked until a logic
-     * tick releases them. A script runs inside the settle, and the settle
-     * drains the asset runner, so a placeholder queued from one would be
-     * picked up by the very frame it was meant to leave -- app_placeholder.c
-     * has the measurement. One pointer: the park and its key are
-     * inv/widget_icon_park.h, its burst bound is that unit's. NULL until the
-     * first request. */
-    struct WidgetIconPark* placeholder_park;
+    /* The widget icons a CLIENTSCRIPT asked for wait, as parallel tasks,
+     * for a logic tick to release them a bounded number at a time. A script
+     * runs inside the settle, and the settle drains the parallel queue, so
+     * an icon load made from one would be stepped by the very frame it was
+     * meant to leave -- app/app_tasks_ground.c has the measurement and the
+     * bound. This is the tick counter and the release count those tasks
+     * read. NULL until the first request. */
+    struct AppTasksGround* tasks_ground;
 
     /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
     /*
-     * The loc lane: zone loc changes apply in the order they were enqueued,
-     * but load off the packet queue. A task takes a ticket when it is queued
-     * (LocLane_Take), loads whatever it needs on the parallel asset
-     * runner alongside the others, and only then waits for the lane's applied
-     * count to reach the ticket before it -- so a LOC_DEL lands after the add it
-     * deletes, and nine rock changes at the Inferno's door cost one model
-     * wave instead of nine, none of it parking the packets behind them. A
-     * change not yet applied is the deob's pending spawn, which a LOC_ANIM
-     * may hand its sequence to (App_WorldSceneryAnim).
-     * See app_spawn_loc_lane_queue (app_world_edit.c) and world/loc_lane.h.
+     * Moves whenever the set of pending loc changes does: one is added, or
+     * one ends (applied, replaced, dropped). A loc change is a parallel task
+     * of app/app_tasks_locs.c, keyed per view, tile, level and layer; what
+     * the quest driver reads as "a change the scene has not caught up with"
+     * is that task (App_DriveLocChangesPending), and its caches key on this.
      */
-    struct LocLane loc_lane;
+    uint32_t loc_task_serial;
     /** The side-apps: the debug tools, their key bindings and their state
      *  (sideapp/side_app.h). Registered by App_Init through app/app_tools.c,
      *  the one place that lists them; freed with the dev overlay. */
@@ -780,10 +912,6 @@ struct App
     /* Phase 4: game state. */
     struct UITree* tree;
     struct InvManager invs;
-    /* One inv obj-icon reconcile task in flight at a time (per-tick scan
-     * re-enqueues while any item slot still lacks a rasterized icon), and the
-     * wait a pass that resolved nothing set. @see inv/inv_icon_retry.h */
-    struct InvIconRetry inv_icon_retry;
     struct VarPManager varps;
     /* Hitsplat types: type -> sprite id, from config group 32. See
      * src/game/rs_hitsplat.h for why a named sprite archive is not enough. */
@@ -927,7 +1055,6 @@ struct App
      * another tree's quiet verdict. */
     struct UITreeEmitRetainGate emit_gate;
     struct UIInteraction interact;
-    struct SeqLoadTracker seq_loads;
     struct InterfaceOpenStats open_stats;
     struct UICross cross;
     /* The touch marker: armed with the cross (app_cross_show), drawn instead
@@ -1161,19 +1288,11 @@ struct App
     /** The boot report's first packet and the TORIRS_NET_CHEAT boot cheat:
      *  each acted on once per run (net/net_once.h). */
     struct NetOnce net_once;
-    /** Texture ids requested but not yet published into the scene. */
-    struct AsyncPendingTextures tex_pending;
-    /** Element/seq bindings deferred until the sequence load lands. */
-    struct AsyncPendingSeqBinds seq_bind_pending;
+    /** Every asset wanted and not here, with at most one load in flight for
+     *  it (engine/asset_requests.h); the loaders are app/app_assets.c. */
+    struct Assets* assets;
     /** Entity-sync bookkeeping (server slots -> world entities). */
     struct RS_EntitySync esync;
-    /** Dedupe for entity movement-seq load requests; a full table drops its
-     *  oldest id (engine/seq_load_tracker.h). */
-    struct SeqLoadTracker entity_seq_loads;
-    /** Npc bodies on their way in (game/task_entity_assets.c): one load per
-     *  (base, resolved) type however many npcs of it a packet spawns; the
-     *  completion dresses every one of them. game/rs_npc_body_lands.h. */
-    struct RS_NpcBodyLands npc_body_lands;
     /** Entity attached-graphic (SPOTANIM mask) combine state, keyed by the
      * entity's body scene element and its owner (engine/entity_spotanim.h);
      * app_entity_sync.c builds and swaps the models. */
@@ -1256,7 +1375,7 @@ struct App
      * The reference has the same arrival order and no such artifact, because it
      * decodes a whole tick's packets in one cycle and only then draws.
      * SERVER_TICK_END is that fence on the wire, so the scripts are drained
-     * there; `app_flush_pending_clientscripts` is also called when the pipeline
+     * there; `App_FlushPendingClientScripts` is also called when the pipeline
      * runs dry, which is what carries revisions that send no fence (lc254).
      *
      * The payload is a flat POD, so entries are held by value. Overflow runs
@@ -1272,11 +1391,11 @@ struct App
      * back (rs_cs2_yield_if_group_missing) and the interface the server closed
      * stayed in the tree -- `t.ui.await_close` timed out on Scrambled!'s last
      * jigsaw piece (b72). So `app_pump_net_packets` releases the held scripts
-     * onto the packet pipeline AHEAD of any packet
-     * `gameproto_packet_changes_interface_mounts` names: they run before the
-     * mount change, against every packet of the tick before them. A
-     * component property write (`gameproto_packet_writes_interface_component`:
-     * IF_SETTEXT, IF_SETHIDE, ...) releases them too, so a script and a packet
+     * onto the packet pipeline AHEAD of any packet whose row in the packet
+     * kinds flushes (`gameproto_packet_flushes_held_scripts`, net/rev/
+     * revpacket.c): a mount change runs after them, against every packet of
+     * the tick before them. A component property write (IF_SETTEXT,
+     * IF_SETHIDE, ...) releases them too, so a script and a packet
      * writing the same component keep wire order (Jagex's journal reset before
      * its rows, RSProx index 4400 [2130]). Inventory and varp writes do not
      * release them -- that is the price checker case above, which the hold
@@ -1317,24 +1436,18 @@ struct App
      */
     struct ToriRS_InputClaims input_claims;
     /**
-     * The zone base for follows-mode zone packets, and the zone sub-packets
-     * that arrived while the world was still async-loading.
+     * The zone base for follows-mode zone packets: the south-west tile (scene
+     * tiles) and plane the latest UPDATE_ZONE_* header named, which the
+     * sub-packets after it address. A revision-239 header can name a plane
+     * other than the local player's.
      *
-     * The reference cannot receive one mid-build — its scene build runs
-     * synchronously inside the packet loop, so every zone update processes
-     * after the build it follows. Our REBUILD is an async task, and dropping
-     * what arrives in that window diverges: the Inferno's flank walls and
-     * rubble land two ticks after REBUILD_REGION and vanished whenever the
-     * load was still in flight (docs/ORANGE_WEDGE.md §17). Each entry keeps
-     * the zone base and header plane AS OF ARRIVAL. Revision 239's header can
-     * target a plane other than the player, so resolving it at replay time
-     * would overwrite locs in the wrong plane. It also keeps the packet-apply
-     * cursor as of arrival: a queued packet can be replayed ticks later, after
-     * SERVER_TICK_END has reset the live cursor, so resolving it at replay
-     * time would land a boat's zones in the root. Replayed in arrival order
-     * once load_complete flips. See game/rs_zone_inbox.h.
+     * A zone sub-packet for a view that is not built yet (a boat whose
+     * REBUILD_WORLDENTITY has not landed, a replay's scene still loading) is
+     * not held here: it is a parallel task that wants THAT view, carrying the
+     * base, plane and view as of its arrival (App_ZonePacketHold,
+     * app/app_tasks_locs.c), applied in arrival order once the view is built.
      */
-    struct RS_ZoneInbox zone_inbox;
+    struct App_ZoneBase zone_base;
     /** Last REBUILD_NORMAL centre zone (deob field1192/field474 /
      * Client-TS mapBuildCenterZoneX/Z), -1 until the first rebuild; same-zone
      * packets early-out when the world is already active. And the root
@@ -1380,6 +1493,14 @@ struct App
      * @see App_WorldJobPending.
      */
     struct WorldRebuildJob world_job;
+    /**
+     * A LOCAL world load (offline, the map editor's opens and edits, the
+     * reload hotkey): its gather a job on background_runner -- CPU-heavy
+     * work, by the frame contract -- and its build and finish the frame's,
+     * at the parallel pump's place near the top of App_RunOnce
+     * (app_world_load.c). NULL until the first local load.
+     */
+    struct AppWorldLocalLoad* world_local;
     /**
      * TORIRS_REBUILD_TIMING: the main-thread work of every frame from the one
      * a REBUILD started in to the one it finished in, either mode -- the
@@ -1940,6 +2061,19 @@ App_FrameLocked(void);
 void
 App_FrameLockEngage(void);
 
+/** HELD CLOCK: the content test did not step its virtual clock this frame
+ *  (content_test.c, ContentTest_Begin), so a frame-locked frame pays no
+ *  logic cycle either (FrameClockStep_PayHeld): the server and the client
+ *  stand still together, as "one virtual clock" means. Without it the client
+ *  ran a cycle a frame through every hold, and a quest driver deadline,
+ *  counted in client cycles, expired with no server tick run. Set every
+ *  frame by its caller; 0 outside a content test. */
+void
+App_LogicClockHold(int held);
+
+int
+App_LogicClockHeld(void);
+
 /** UNLOCKED CLOCK (`--unlocked`, TORIRS_UNLOCKED=1, `[net:boot]
  *  clock=unlocked`): the client runs as fast as the machine allows, and so
  *  does the world it plays in. Implies the FRAME LOCK above -- every frame
@@ -2232,6 +2366,15 @@ App_KeptMountAdd(
     int interface_id,
     int type);
 
+/** Is the newest mount change queued for slot `target_uid` an open (or a
+ *  move) of `interface_id` as `type`? 0 when none is queued for it. */
+int
+App_SlotMountQueued(
+    struct App const* app,
+    int target_uid,
+    int interface_id,
+    int type);
+
 /** RUNCLIENTSCRIPT: run a server-named clientscript with its arguments. Held
  *  until the tick fence (`pending_clientscripts`), but never past an interface
  *  open or close behind it: the packet pump releases the held scripts onto the
@@ -2265,6 +2408,41 @@ App_SendIdkDesign(
     int const kits[RS_IDK_DESIGN_PARTS],
     int const colours[RS_IDK_DESIGN_COLOURS]);
 
+/** The presentation halves of IF_SETTEXT / IF_SETCOLOUR / IF_SETHIDE /
+ *  IF_SETEVENTS, whose store write the packet model has already made
+ *  (game/rs_server_state.c): put the value on the node if it is mounted, log
+ *  it under TORIRS_NET_DEBUG, and redraw. `colour` is RGB888. */
+void
+App_IfTextShow(
+    struct App* app,
+    int com_id,
+    char const* text);
+void
+App_IfColourShow(
+    struct App* app,
+    int com_id,
+    int colour);
+void
+App_IfHideShow(
+    struct App* app,
+    int com_id,
+    int hide);
+void
+App_IfEventsShow(
+    struct App* app,
+    int com_id,
+    int from,
+    int to,
+    int events);
+
+/** Bind the packet model's records (game/rs_server_state.h) to this App's
+ *  modules, for one packet: RS_GameProtoCtx.state. */
+struct RS_ServerState;
+void
+App_ServerStateBind(
+    struct App* app,
+    struct RS_ServerState* out);
+
 /** IF_SETTEXT: persist (reference IfType.list semantics) + apply if mounted. */
 void
 App_IfTextSet(
@@ -2286,26 +2464,10 @@ App_IfHideSet(
     int com_id,
     int hide);
 
-/** Forget every stored IF_SETTEXT, IF_SETHIDE and IF_SETCOLOUR on interface
- *  `group_id`'s components. Called when a close UNLOADS that group (the
- *  reference's IfType.list goes with it); a same-group remount keeps them. */
-void
-App_IfStoresDropGroup(
-    struct App* app,
-    int group_id);
-
 /** Drop every IF_SETEVENTS arming. Called on IF_RESYNC, which replaces the
  *  whole table; IF_OPENTOP keeps it (see that case in rs_gameproto_exec.c). */
 void
 App_IfEventsClear(struct App* app);
-
-/** Drop every IF_SETEVENTS arming on interface `group_id`'s components.
- *  Called when that group is closed out of a slot -- the real client drops
- *  them on every close, a same-group remount included (UIIfEventTable_DropGroup). */
-void
-App_IfEventsDropGroup(
-    struct App* app,
-    int group_id);
 
 /**
  * IF_SETEVENTS: mark slots `from`..`to` of a component as accepting input.
@@ -2314,7 +2476,7 @@ App_IfEventsDropGroup(
  * events before the interface holding the component has mounted, and across
  * an IF_OPENTOP, which the reference never clears them on. Not across an
  * IF_RESYNC (`App_IfEventsClear`), nor a close of the component's own group
- * (`App_IfEventsDropGroup`).
+ * (app_close_slot, RS_ServerState_SlotGroupLeaves).
  */
 void
 App_IfEventsSet(
@@ -2425,9 +2587,10 @@ App_SetInterfaceModelAnim(
 void
 App_BootWait(struct App* app);
 
-/* Entity-sync spawn/apply helpers (assets must already be cached — the
- * PLAYER_INFO / NPC_INFO exec tasks await the loads first). Coordinates are
- * scene-local tiles. Return the World pool index, or -1. */
+/* Entity-sync spawn/apply helpers. The npc's config must be resident (the
+ * NPC_INFO task awaits it: it is required); bodies are not awaited -- the
+ * entity exists at once and draws nothing until its body is resident.
+ * Coordinates are scene-local tiles. Return the World pool index, or -1. */
 int
 App_WorldSpawnSyncedPlayer(
     struct App* app,
@@ -2499,9 +2662,10 @@ App_MinimapBuildDots(
 
 struct PktPlayerAppearance;
 
-/** Apply the decoded appearance (slots, colours, idle anims, name, combat
- * level, headicon) to the World entity. Data only: the body is derived from
- * it per frame once every part is resident (app_world_reconcile_player_body). */
+/** The App's half of an appearance the shared apply wrote to the World entity
+ * (RS_EntityApply_PlayerAppearance, game/rs_entity_apply.h): the local
+ * player's name to the chatbox and the CS2 host. The body is derived from the
+ * entity per frame once every part is resident (app_world_reconcile_player_body). */
 void
 App_WorldApplyPlayerAppearance(
     struct App* app,
@@ -2520,16 +2684,39 @@ App_WorldApplyNpcType(
     int npc_type,
     int base_npc_type);
 
-struct WorldEntityFacet_IdleAnimations;
+struct RS_EntityNpcType;
 
-/** The stance set `npc_type` (drawn under the wire's `base_npc_type`) gives an
- * npc on a spawn or a retype. 0 when the type's config is not resident. */
+/** The facts `npc_type` (drawn under the wire's `base_npc_type`) gives an npc
+ * on a spawn or a retype (game/rs_entity_apply.h). 0 when the type's config
+ * is not resident. The strings are the cache's. */
 int
-App_WorldNpcTypeIdle(
+App_WorldNpcTypeRecord(
     struct App* app,
     int npc_type,
     int base_npc_type,
-    struct WorldEntityFacet_IdleAnimations* out);
+    struct RS_EntityNpcType* out);
+
+/** The npc at `world_idx` (registered, so it has a server slot) draws its
+ *  type's body once that is resident: nothing to do when it is, else a
+ *  parallel task waits for it, replacing any earlier one for the npc
+ *  (app/app_tasks_entities.c). */
+void
+App_EntityNpcBodyWant(
+    struct App* app,
+    int world_idx);
+
+/** The npc in `server_slot` left: cancel every parallel task for it. */
+void
+App_EntityNpcGone(
+    struct App* app,
+    int server_slot);
+
+/** A synced npc is finished (registered, slot and shell set): stamp its
+ *  npc_spawn and tell the plugins. */
+void
+App_WorldNpcSpawnAnnounce(
+    struct App* app,
+    int idx);
 
 /* The body NpcBodyLand waited for is resident: mount it and the type's ready
  * pose, and nothing else (the type's fields were applied with the op). */
@@ -2753,6 +2940,33 @@ App_WorldJobStart(
 int
 App_WorldJobPending(struct App const* app);
 
+struct RS_ParallelTask;
+
+/**
+ * A rebuild of view `view` begins: list `rebuild` (a header the rebuild owns,
+ * not on any queue) in app->pending as RS_PENDING_KIND_REBUILD for the view,
+ * and prime the view's built trigger with `owner` (the packet task a blocking
+ * rebuild runs in, or the job): a parallel task waits on that
+ * (PT_APP_AWAIT_VIEW_REBUILT). The background world job, a blocking REBUILD
+ * inside its packet task and a local load each begin one at their start.
+ */
+void
+App_ViewRebuildBegin(
+    struct App* app,
+    struct RS_ParallelTask* rebuild,
+    int view,
+    struct ToriRS_TriggerOwner* owner);
+
+/** The rebuild ended: unlist it, and when it `built` the scene, fire the
+ *  view's built trigger. A rebuild that ends without building (cancelled,
+ *  or its owner freed) leaves the trigger to its owner's end, which abandons
+ *  it. A header that was never listed, or already unlisted, is left alone. */
+void
+App_ViewRebuildEnd(
+    struct App* app,
+    struct RS_ParallelTask* rebuild,
+    int built);
+
 /**
  * The packet pump's question, asked before every pop while a job is pending:
  * commit it if its gather has landed (or finish it now, if its deadline has
@@ -2813,9 +3027,13 @@ App_WorldSettled(struct App const* app);
 
 /**
  * Give the background queue time until `deadline_us` (PlatformWindow_TicksUs
- * clock). Called by App_RunOnce with a floor slice, and by a platform loop
- * with the slack before its frame deadline instead of sleeping it. Costs
- * nothing when the queue is empty.
+ * clock): one pump of it (TaskRunner_RunUntil), in which every task that can
+ * run is stepped once even if the deadline has already passed, then more
+ * while time remains. Called by App_RunOnce with a floor slice, and by a
+ * platform loop with the slack before its frame deadline instead of sleeping
+ * it. Never from inside the script settle, a logic tick or a task of another
+ * queue (the frame contract, beside the runners above). Costs nothing when
+ * the queue is empty.
  */
 void
 App_RunBackground(
@@ -2874,10 +3092,12 @@ App_EntitySpotanimPrefetch(
     struct App* app,
     int spotanim_id);
 
-/* Spawn a free-standing spotanim (graphical effect) at a tile — reference
- * MapSpotAnim, driven by the MAP_ANIM zone packet. Enqueues an async load of
- * the spotanim config + its model/seq before building the world entity. */
-void
+/* Spawn a free-standing spotanim (graphical effect) at a tile of the active
+ * view — reference MapSpotAnim, driven by the MAP_ANIM zone packet. The world
+ * entity exists at once (its delay and lifetime count from now); its body
+ * (config, model, seq) lands later through a parallel task
+ * (app/app_tasks_effects.c). Returns its pool index. */
+int
 App_WorldSpotanimSpawn(
     struct App* app,
     int scene_x,
@@ -2974,15 +3194,17 @@ App_CinemaCameraRotateTo(
     int easing);
 
 /* Spawn a projectile (reference ClientProj) from a spotanim config, driven by
- * the MAP_PROJANIM zone packet. Enqueues an async load of the spotanim config +
- * its model/seq before building the world entity. Coordinates are scene tiles;
+ * the MAP_PROJANIM zone packet, in the active view's world. The projectile
+ * exists and flies at once; its body (config, model, seq) lands later through
+ * a parallel task (app/app_tasks_effects.c). Returns its pool index.
+ * Coordinates are scene tiles;
  * `src_height`/`dst_height` are the raw wire bytes (×4 applied internally);
  * `start_delay`/`end_delay`/`peak`/`arc` are the wire trajectory params
  * (Client-TS t1/t2/angle/startpos). `target` is the wire target-entity id
  * (>0 npc, <0 player) the arc homes on; `source` the actor it launches from,
  * same encoding, 0 = none (only rev-239's MapProjAnimV2 names one). The two
  * levels are the source's (painted on) and the destination's (landed on). */
-void
+int
 App_WorldProjectileSpawn(
     struct App* app,
     int src_x,
@@ -3033,10 +3255,12 @@ App_WorldObjStackSetEnabledOps(
     int enabled_ops);
 
 /* Spawn a scripted projectile (deob class56). Like App_WorldProjectileSpawn it
- * loads the spotanim first; it also loads the three curve clientscripts and
- * every script they call, because the world runs them synchronously each
- * cycle. */
-void
+ * exists at once and its body lands later; the body also loads the three
+ * curve clientscripts and every script they call, because the world runs them
+ * synchronously each cycle (it flies once they are here). The slot must be
+ * free (World_ProjectileFindScriptedSlot): a second ADD for a slot in use is
+ * the caller's to drop. Returns its pool index. */
+int
 App_WorldScriptedProjSpawn(
     struct App* app,
     struct WorldEntity_ScriptedProjSpec const* sp);
@@ -3099,6 +3323,78 @@ App_WorldLocMerge(
     int start_cycle,
     int end_cycle,
     int player_pid);
+
+struct PktZoneSubPacket;
+
+/**
+ * Hold zone sub-packet `pkt` for view `view` (the base, plane and view as of
+ * its arrival) until that view is built and every packet held for it before
+ * this one has applied. A parallel task (app/app_tasks_locs.c); cancelled at
+ * logout. The packet is copied.
+ */
+void
+App_ZonePacketHold(
+    struct App* app,
+    struct PktZoneSubPacket const* pkt,
+    int base_x,
+    int base_z,
+    int level,
+    int view);
+
+/** Is a zone sub-packet held for `view` (so a later one for it must be held
+ *  behind it)? */
+bool
+App_ZonePacketsHeld(
+    struct App* app,
+    int view);
+
+/** Drop every held zone sub-packet unapplied (a replay's scene reset). */
+void
+App_ZonePacketsDiscard(struct App* app);
+
+/**
+ * UPDATE_ZONE_FULL_FOLLOWS's half for the loc changes still pending: cancel
+ * the loc changes and merges pending in view `view`'s 8x8 zone at
+ * (`base_x`, `base_z`) on the walked plane `zone_level` (each tile's cache
+ * level, as a loc packet means it). Returns how many it cancelled.
+ */
+int
+App_LocChangesCancelZone(
+    struct App* app,
+    int view,
+    int base_x,
+    int base_z,
+    int zone_level);
+
+/** Cancel every pending loc change and merge (a replay's scene reset). */
+void
+App_LocChangesCancelAll(struct App* app);
+
+/**
+ * UPDATE_ZONE_FULL_FOLLOWS's loc half for view `view`'s 8x8 zone at
+ * (`base_x`, `base_z`) on walked plane `zone_level`: the loc core's rule
+ * (RS_LocTasks_ZoneReset). Returns how many map locs it puts back.
+ */
+int
+App_LocChangesZoneReset(
+    struct App* app,
+    int view,
+    int base_x,
+    int base_z,
+    int zone_level);
+
+/**
+ * The finish every rebuilt view runs once its scene is built (the root's from
+ * App_WorldLoadFinish, a deck's from REBUILD_WORLDENTITY): LOC_ADD triggers
+ * for its locs, its ground stacks' models, and -- server-driven only -- the
+ * loc changes the map does not hold put back, those that had landed and those
+ * still pending, and its textures.
+ */
+void
+App_WorldViewLoadFinish(
+    struct App* app,
+    int view,
+    int server_driven);
 
 /**
  * Drain the command bus, routing each command to its subsystem: the single
@@ -3254,10 +3550,69 @@ int
 App_AsyncPending(const struct App* app);
 
 /**
- * Step the asset runner until nothing more can happen without the host's
- * turn. The frame's own async stage, and also what the browser platform runs
- * between frames when reads land (see App_PumpAsync in app_frame.c).
- * `from_frame` is 1 from App_RunOnce and 0 from a platform pump.
+ * Has the client work it will finish without the server or the clock, read
+ * off the queues themselves rather than off a pump's report: a task with a
+ * read out, parked on a join or count, or on a trigger primed by a task or a
+ * job; on the parallel and background queues (pumped every frame) a ready
+ * task too. Not: a task parked on a CYCLE (game time), on a trigger an
+ * outside party owns (a view awaiting the server's first
+ * REBUILD_WORLDENTITY), or a ready task on the main queue (it runs in a
+ * logic cycle). App_AsyncPending describes the frame-start
+ * pump, so it misses what the frame's packets queued after it and what the
+ * main queue waits on; the content test's strict hold asks this
+ * (TORIRS_CONTENT_TEST_HOLD, content_test.c).
+ */
+int
+App_ClientBusy(const struct App* app);
+
+/** The main queue's half of App_ClientBusy: a packet task (or the boot)
+ *  waiting on a read, a join, a count or a task's trigger. */
+int
+App_MainQueueWaitsOnWork(const struct App* app);
+
+/** ...and whether some of it can run at once, without a read landing or
+ *  another queue moving (the boot asked for its next frame). Work that is
+ *  pending but not runnable only waits: a native loop waits for it in naps
+ *  instead of spinning on it (ToriRS_Pacer_LoopWait, pacer.h). */
+int
+App_AsyncRunnable(const struct App* app);
+
+/** Whether the last pump ran any task at all: a loop napping through a
+ *  wait (main.c) goes back to its frames the moment one did. */
+int
+App_AsyncMoved(const struct App* app);
+
+/** Whether the main queue's head waits on a read the platform has not
+ *  answered: the frame loop naps through such a wait rather than sleeping
+ *  it out, and goes back to its frames the moment the answer lands. */
+int
+App_MainQueueWaitsOnRead(const struct App* app);
+
+/** WHAT IS PARKED ON WHAT: one stderr line per task on any of the three
+ *  queues that waits -- on its read, a trigger, a count or a cycle -- with
+ *  its chain down to what it bottoms out in (ToriRS_TaskChainFormat).
+ *  Returns how many. */
+int
+App_QueueParkedPrint(struct App const* app);
+
+/** TORIRS_QUEUE_CONTRACT_TRACE: one line of what the frame side of the
+ *  contract did since the last call -- withheld frames by named reason,
+ *  parallel pumps and how they ended, background floor pumps, the longest
+ *  background step -- then the tally restarts; the parked tasks are printed
+ *  first (App_QueueParkedPrint). Returns the length. */
+int
+App_QueueContractTraceLine(
+    struct App const* app,
+    char* out,
+    int out_size);
+
+/**
+ * One pump: the main queue while the client boots, a pending client
+ * script's settle, then the parallel queue to a standstill -- every task
+ * done or parked (on its read, a trigger, a count, a cycle). The frame's own
+ * async stage, and also what the browser platform runs between frames when
+ * reads land (see App_PumpAsync in app_frame.c). `from_frame` is 1 from
+ * App_RunOnce and 0 from a platform pump.
  */
 enum TaskRunnerStat
 App_PumpAsync(
@@ -3713,6 +4068,12 @@ char const*
 App_BootBarCaption(
     struct App* app,
     int* out_font_scene_id);
+
+/** The boot bar's position, 0..100, as the loading screen draws it: the
+ *  boot's own progress, or the percent the main queue's boot task last
+ *  asked for with its frame (TORIRS_RENDER_BOOT_BAR). */
+int
+App_BootBarPercent(struct App const* app);
 
 /** Write the current emit buffer to a BMP. Returns 0 on success. */
 int

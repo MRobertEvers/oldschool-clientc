@@ -9,9 +9,6 @@
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 
-#include "cs2vm2/cs2_opcode.h"
-#include "cs2vm2/cs2vm2_host.h"
-#include "cs2vm2/cs2vm2_script.h"
 
 /* Has this npc id already been reported as unavailable?  16384 bits is 2KB and
  * covers the whole npc id space of every revision here (osrs239 tops out near
@@ -26,56 +23,14 @@ static bool
 app_model_zbuffer_kernels_enabled(void);
 static int
 app_warn_once_npc(int npc_id);
-static void
-app_world_spawn_projectile_now(
+static int
+app_world_spawn_npc_unknown(
     struct App* app,
-    struct World* world,
-    int model_id,
-    int seq_id,
-    int src_tile_x,
-    int src_tile_z,
-    int src_level,
+    int npc_id,
+    int base_npc_id,
     int tile_x,
     int tile_z,
-    int target);
-static int
-app_world_ground_composed(
-    struct App* app,
-    int fine_x,
-    int fine_z,
     int level);
-static void
-app_world_spawn_projectile_spot_now(
-    struct App* app,
-    struct World* world,
-    int spotanim_id,
-    int src_tile_x,
-    int src_tile_z,
-    int src_level,
-    int dst_tile_x,
-    int dst_tile_z,
-    int dst_level,
-    int src_height,
-    int dst_height,
-    int start_delay,
-    int end_delay,
-    int peak,
-    int arc,
-    int target,
-    int source,
-    int late);
-static void
-app_world_spawn_scripted_proj_now(
-    struct App* app,
-    struct World* world,
-    struct WorldEntity_ScriptedProjSpec const* sp,
-    int late);
-static void
-app_loc_change_apply_ops(
-    struct App* app,
-    struct World* world,
-    struct WorldBuilder* builder,
-    const struct Task_AppSpawn* self);
 static void
 app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self);
 static int
@@ -84,8 +39,6 @@ Task_AppSpawn_Run(
     struct ToriRS_IOBatch* io);
 static void
 Task_AppSpawn_Free(struct ToriRS_Task* base);
-static void
-app_spawn_loc_lane_release(struct Task_AppSpawn* self);
 
 static struct ToriRS_TaskVTable Task_AppSpawn_VTable = {
     .run = Task_AppSpawn_Run,
@@ -259,28 +212,36 @@ app_world_build_model(
     int light_contrast,
     int light_ambient)
 {
-    struct ToriDraw_Model* parts[16];
+    /* Every part the caller named: a server's body customisation sends up to
+     * 255 (FAULTS E12), and a fixed 16 here dropped the rest unseen. Sixteen
+     * fit on the stack; more take a frame buffer, freed before returning. */
+    struct ToriDraw_Model* parts_local[16];
+    struct ToriDraw_Model** parts = parts_local;
     struct ToriDraw_Model* model = NULL;
     int part_count = 0;
 
-    for( int i = 0; i < count && part_count < 16; i++ )
+    if( count > (int)(sizeof(parts_local) / sizeof(parts_local[0])) )
+    {
+        parts = ToriMem_Alloc(ToriMem_Frame(), (size_t)count * sizeof(*parts));
+        assert(parts);
+    }
+    for( int i = 0; i < count; i++ )
     {
         struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, model_ids[i]);
         struct ToriDraw_Model* part = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
         if( part )
             parts[part_count++] = part;
     }
-    if( part_count == 0 )
-        return NULL;
-
     if( part_count > 1 )
     {
         model = ToriDraw_ModelMerge(parts, part_count);
         for( int i = 0; i < part_count; i++ )
             ToriDraw_ModelFree(parts[i]);
     }
-    else
+    else if( part_count == 1 )
         model = parts[0];
+    if( parts != parts_local )
+        ToriMem_Free(ToriMem_Frame(), parts);
     if( !model )
         return NULL;
 
@@ -404,6 +365,16 @@ app_world_build_npc_model(
             .retextures_to = npctype->retextures_to,
             .retexture_count = npctype->retexture_count,
         };
+
+        /* The type's recolour-all (npc config opcode 42): every face that
+         * colour in place of the per-colour list (rev-242 deob
+         * class454.method10217, no override); the retextures still apply. */
+        if( npctype->has_recolor_all )
+        {
+            recolors.has_tint = true;
+            recolors.tint = npctype->recolor_all;
+            recolors.recolor_count = 0;
+        }
         model = app_world_build_model(
             app,
             npctype->models,
@@ -423,6 +394,97 @@ app_world_build_npc_model(
         if( base_copy )
             TorirsModelInstCache_Put(
                 &app->model_inst_cache, TORIRS_MODEL_INST_NPC, (int64_t)npc_id, base_copy);
+    }
+    return model;
+}
+
+/*
+ * The body an npc's server customisation draws over its type (deob
+ * Statics.method9204 / method9224): the override's models when it sent them,
+ * else the type's; the type's source colours and textures, each replaced by
+ * the override's value at that index when it sent one (an index past the
+ * override's list keeps the type's); scaled and lit as the type. Cached like
+ * the type's own base, under the type id and the override's serial, as the
+ * reference keys it (`id | serial << 16`): two overrides of one type never
+ * share a model, and an override never reads the type's plain body. NULL
+ * while a model it names is not resident (the caller wants them).
+ */
+struct ToriDraw_Model*
+app_world_build_npc_override_model(
+    struct App* app,
+    int npc_id,
+    struct ToriRS_Npctype* npctype,
+    struct WorldNpcOverride const* o)
+{
+    struct ToriDraw_Model* model;
+    int64_t key;
+    int* recolors_to = NULL;
+    int* retextures_to = NULL;
+
+    assert(app);
+    assert(npctype);
+    assert(o);
+    assert(o->active);
+    assert(npc_id >= 0);
+    key = World_NpcBodyModelKey(npc_id, o);
+    model = TorirsModelInstCache_CopyGet(&app->model_inst_cache, TORIRS_MODEL_INST_NPC, key);
+    if( model )
+        return model;
+
+    if( npctype->recolor_count > 0 )
+    {
+        recolors_to = ToriMem_Alloc(ToriMem_Frame(), (size_t)npctype->recolor_count * sizeof(int));
+        assert(recolors_to);
+        for( int i = 0; i < npctype->recolor_count; i++ )
+            recolors_to[i] = World_NpcOverrideRecolour(o, i, npctype->recolors_to[i]);
+    }
+    if( npctype->retexture_count > 0 )
+    {
+        retextures_to = ToriMem_Alloc(ToriMem_Frame(), (size_t)npctype->retexture_count * sizeof(int));
+        assert(retextures_to);
+        for( int i = 0; i < npctype->retexture_count; i++ )
+            retextures_to[i] = World_NpcOverrideRetexture(o, i, npctype->retextures_to[i]);
+    }
+    {
+        struct AppModelRecolorSpec recolors = {
+            .recolors_from = npctype->recolors_from,
+            .recolors_to = recolors_to,
+            .recolor_count = npctype->recolor_count,
+            .retextures_from = npctype->retextures_from,
+            .retextures_to = retextures_to,
+            .retexture_count = npctype->retexture_count,
+        };
+
+        int const all = World_NpcRecolourAll(o, npctype->has_recolor_all ? npctype->recolor_all : -1);
+
+        /* A recolour-all, the V4 form's or else the type's (opcode 42):
+         * every face that colour, and the per-colour list is not applied
+         * (rev-242 deob class454.method10217); the retextures still are. */
+        if( all >= 0 )
+        {
+            recolors.has_tint = true;
+            recolors.tint = all;
+            recolors.recolor_count = 0;
+        }
+        model = app_world_build_model(
+            app,
+            o->models_sent ? o->models : npctype->models,
+            o->models_sent ? o->model_count : npctype->models_count,
+            &recolors,
+            npctype->width_scale,
+            npctype->height_scale,
+            APP_LIGHT_ACTOR,
+            ToriRS_FeatureFacts_NpcTypeAmbientContrast(&app->feature_facts) ? npctype->contrast : 0,
+            ToriRS_FeatureFacts_NpcTypeAmbientContrast(&app->feature_facts) ? npctype->ambient : 0);
+    }
+    ToriMem_Free(ToriMem_Frame(), retextures_to);
+    ToriMem_Free(ToriMem_Frame(), recolors_to);
+    if( !model )
+        return NULL;
+    {
+        struct ToriDraw_Model* base_copy = ToriDraw_ModelCopy(model);
+        if( base_copy )
+            TorirsModelInstCache_Put(&app->model_inst_cache, TORIRS_MODEL_INST_NPC, key, base_copy);
     }
     return model;
 }
@@ -508,8 +570,56 @@ app_world_build_spotanim_model(
     return model;
 }
 
+/* A player on a tile, drawn as `model` (owned from here). The ready seq is
+ * bound when it is resident (app_world_apply_seq: at once, or by a parallel
+ * task). Returns the world player-pool index, or -1 when the scene has no
+ * element left for it. */
+static int
+app_world_spawn_player_drawn_as(
+    struct App* app,
+    struct ToriDraw_Model* model,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    int world_x = tile_x * 128 + 64;
+    int world_z = tile_z * 128 + 64;
+    int world_y;
+    int element_id;
+
+    int idx;
+
+    assert(app);
+    assert(model);
+    world_y = app_world_height(app, world_x, world_z, level);
+    element_id = app_world_scene_element_create(
+        app, TORIDRAW_ELEMENT_KIND_PLAYER, model, world_x, world_y, world_z);
+    if( element_id < 0 )
+        return -1;
+    app_world_apply_seq(app, element_id, APP_PLAYER_SEQ_READY);
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
+        if( el )
+            el->anim_external = true;
+        ToriDraw_SceneAnimListInvalidate(app->scene);
+    }
+
+    /* The default kit's stance set, as the headless client spawns one too. */
+    idx = World_PlayerSpawn(
+        app->world, element_id, level, tile_x, tile_z, RS_EntityApply_PlayerSpawnIdle());
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(&app->world->entities.player, idx);
+        if( player )
+            player->server_pid = -1;
+    }
+    TORIRS_LOG("spawn_player: element=%d tile=%d,%d level=%d\n", element_id, tile_x, tile_z, level);
+    app_sync_textures(app);
+    RedrawRequest_Raise(&app->redraw_request);
+    return idx;
+}
+
 /* Hotkey 9 body: default player model on the hovered tile. SYNCHRONOUS —
- * the appearance kit + ready seq must be resident (Task_AppSpawn awaits).
+ * the appearance kit must be resident (Task_AppSpawn awaits).
  * Returns the world player-pool index, or -1. */
 int
 app_world_spawn_player_now(
@@ -521,12 +631,6 @@ app_world_spawn_player_now(
     int scene_model_id;
     struct ToriDraw_ModelHandle reg;
     struct ToriDraw_Model* copy;
-    int world_x = tile_x * 128 + 64;
-    int world_z = tile_z * 128 + 64;
-    int world_y;
-    int element_id;
-
-    int idx;
 
     scene_model_id = UITreeSceneBridge_EnsurePlayerModel(&app->bridge);
     if( scene_model_id <= 0 )
@@ -538,53 +642,31 @@ app_world_spawn_player_now(
     if( !ToriDraw_ModelKindIsFull(reg.kind) || !reg.u.model.model )
         return -1;
     copy = ToriDraw_ModelCopy(reg.u.model.model);
-    if( !copy )
-        return -1;
+    assert(copy);
     ToriDraw_ModelSetBoundsCylinder(copy);
     ToriDraw_ModelCaptureOriginalVertices(copy);
+    return app_world_spawn_player_drawn_as(app, copy, tile_x, tile_z, level);
+}
 
-    world_y = app_world_height(app, world_x, world_z, level);
-    element_id = app_world_scene_element_create(
-        app, TORIDRAW_ELEMENT_KIND_PLAYER, copy, world_x, world_y, world_z);
-    if( element_id < 0 )
-        return -1;
-    app_world_apply_seq(app, element_id, APP_PLAYER_SEQ_READY);
-    {
-        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
-        if( el )
-            el->anim_external = true;
-        ToriDraw_SceneAnimListInvalidate(app->scene);
-    }
+/*
+ * A player PLAYER_INFO adds: it exists at once and draws nothing until its
+ * appearance's body is resident (app_world_reconcile_player_body mounts it
+ * then). Not the default kit: the reference draws no body for a player with
+ * no appearance, and waiting for that kit on the packet queue held every
+ * packet behind the add (the fetch was purely visual).
+ */
+int
+app_world_spawn_synced_player_now(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct ToriDraw_Model* empty = ToriDraw_ModelNew(0, 0, 0);
 
-    {
-        struct WorldEntityFacet_IdleAnimations idle = {
-            .readyanim = APP_PLAYER_SEQ_READY,
-            .walkanim = APP_PLAYER_SEQ_WALK,
-            .turnanim = APP_PLAYER_SEQ_TURN,
-            .turnanim_r = APP_PLAYER_SEQ_TURN,
-            .runanim = APP_PLAYER_SEQ_RUN,
-            .walkanim_b = APP_PLAYER_SEQ_WALK_B,
-            .walkanim_r = APP_PLAYER_SEQ_WALK_R,
-            .walkanim_l = APP_PLAYER_SEQ_WALK_L,
-            .runanim_b = -1,
-            .runanim_r = -1,
-            .runanim_l = -1,
-            .crawlanim = -1,
-            .crawlanim_b = -1,
-            .crawlanim_r = -1,
-            .crawlanim_l = -1,
-        };
-        idx = World_PlayerSpawn(app->world, element_id, level, tile_x, tile_z, idle);
-    }
-    {
-        struct WorldEntity_Player* player = World_EntityPoolGet(&app->world->entities.player, idx);
-        if( player )
-            player->server_pid = -1;
-    }
-    TORIRS_LOG("spawn_player: element=%d tile=%d,%d level=%d\n", element_id, tile_x, tile_z, level);
-    app_sync_textures(app);
-    RedrawRequest_Raise(&app->redraw_request);
-    return idx;
+    assert(empty);
+    ToriDraw_ModelSetBoundsCylinder(empty);
+    return app_world_spawn_player_drawn_as(app, empty, tile_x, tile_z, level);
 }
 
 static int
@@ -664,10 +746,16 @@ app_world_spawn_npc_now(
         /* Once per id. The server re-sends the same missing npc every time the
          * player walks back into its zone, and on Windows an unbuffered stderr
          * write costs milliseconds -- see the spawn narration below. Which ids
-         * are unavailable is the whole diagnostic; the repeat count is not. */
+         * are unavailable is the whole diagnostic; the repeat count is not.
+         *
+         * The npc still EXISTS, drawing nothing (FAULTS E11): refusing it
+         * left its slot in the tracked list resolving to no entity, so every
+         * later op the server sent for it was dropped for the rest of the
+         * session. The reference decodes an absent record as the type's
+         * defaults (one tile, no model, no stances). */
         if( !app_warn_once_npc(npc_id) )
             TORIRS_LOG("spawn_npc: npc %d unavailable\n", npc_id);
-        return -1;
+        return app_world_spawn_npc_unknown(app, npc_id, base_npc_id, tile_x, tile_z, level);
     }
 
     bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
@@ -783,8 +871,11 @@ app_world_spawn_npc_now(
     }
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, idx);
-        if( npc )
-            npc->server_slot = -1;
+        assert(npc);
+        npc->server_slot = -1;
+        /* The shell, before anything snapshots the npc (FAULTS E2). */
+        if( base_npc_id >= 0 )
+            npc->base_npc_id = base_npc_id;
     }
     if( bd_us )
         bd_world = PlatformWindow_TicksUs() - bd_t;
@@ -796,20 +887,14 @@ app_world_spawn_npc_now(
     /* Spawn does not carry menu data; the minimenu rows read it off the
      * entity, so copy name/actions/level from the config here. */
     {
-        struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, idx);
-        if( npc )
-        {
-            npc->combat_level = npctype->combat_level;
-            npc->alwaysontop = npctype->alwaysontop;
-            npc->minimap_visible = npctype->minimap_visible;
-            npc->interactable = npctype->interactable;
-            npc->facing.turn_speed = facts.turn_speed;
-            npc->facing.no_rotation_flag = npctype->no_rotation_flag;
-            snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
-            for( int i = 0; i < 5; i++ )
-                snprintf(
-                    npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
-        }
+        /* The shared rule (game/rs_entity_apply.h), the headless client's too,
+         * from the type and facts this spawn already holds: a fresh lookup
+         * could miss (App_WorldNpcTypeRecord answers 0), and that 0 was only
+         * asserted, so a release build saw an unwritten record. */
+        struct RS_EntityNpcType record;
+
+        app_npc_type_record(&facts, npctype, &record);
+        RS_EntityApply_NpcSpawned(app->world, idx, &record);
     }
     /* Was unconditional. stderr is unbuffered, so this is a synchronous write
      * per npc arrival on the packet-apply path -- and npcs arrive in bursts of
@@ -853,726 +938,111 @@ app_world_spawn_npc_now(
                 (unsigned long long)bd_tex);
     }
     RedrawRequest_Raise(&app->redraw_request);
-    if( idx != WORLD_ENTITY_NIL )
-    {
-        struct WorldEntity_NPC* spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
-        if( spawned )
-        {
-            /* DRIVE_STAMP: npc_spawn -- a=npc slot b=npc_id. Unconditional --
-             * the ring is present in every build, unlike the plugin-host
-             * snapshot below, which stays gated on app->plugins. */
-            App_DriveEvent(app, DRIVE_EVENT_NPC_SPAWN, idx, spawned->npc_id, 0, 0);
-        }
-        /* After the entity is in the pool and carries its name and facts, so
-         * a handler's snapshot is the finished npc rather than a half-built
-         * one. */
-        if( app->plugins && spawned )
-        {
-            struct ToriRS_NpcSnapshot snap;
-            app_plugin_fill_npc(app, spawned, &snap);
-            PluginHost_NpcSpawn(app->plugins, &snap);
-        }
-    }
     return idx;
 }
 
-/* Hotkey 0 fire body: launch source -> destination. SYNCHRONOUS — the
- * projectile model must be resident (Task_AppSpawn awaits it). Arc math
- * lives in World_ProjectileSetTarget/Move (TS reference parity). `target` is
- * the wire target-entity id when a synced NPC sits on the destination tile,
- * WORLD_PROJECTILE_TARGET_NONE for a plain tile shot. */
-static void
-app_world_spawn_projectile_now(
+/* An npc whose config the cache does not have: it exists, one tile, no
+ * stances, no model -- what the reference decodes an absent record as. */
+static int
+app_world_spawn_npc_unknown(
     struct App* app,
-    struct World* world,
-    int model_id,
-    int seq_id,
-    int src_tile_x,
-    int src_tile_z,
-    int src_level,
+    int npc_id,
+    int base_npc_id,
     int tile_x,
     int tile_z,
-    int target)
-{
-    int model_ids[1];
-    struct ToriDraw_Model* model;
-    int src_x, src_z, dst_x, dst_z, src_y;
-    int range, t2;
-    int element_id;
-
-    assert(app);
-    assert(world);
-    model_ids[0] = model_id;
-    model = app_world_build_model(app, model_ids, 1, NULL, 128, 128, APP_LIGHT_ACTOR, 0, 0);
-    if( !model )
-    {
-        TORIRS_ERR("spawn_projectile: model %d failed to load\n", model_id);
-        return;
-    }
-
-    src_x = src_tile_x * 128 + 64;
-    src_z = src_tile_z * 128 + 64;
-    dst_x = tile_x * 128 + 64;
-    dst_z = tile_z * 128 + 64;
-    /* World y is negative-up: start slightly above the source ground. */
-    src_y = app_world_height(app, src_x, src_z, src_level) - 160;
-
-    range = abs(tile_x - src_tile_x);
-    if( abs(tile_z - src_tile_z) > range )
-        range = abs(tile_z - src_tile_z);
-    t2 = 60 + range * 5; /* ticks: base flight + per-tile stretch */
-
-    element_id = app_world_scene_element_create(
-        app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
-    if( element_id < 0 )
-        return;
-
-    World_ProjectileSpawn(
-        world,
-        element_id,
-        src_level,
-        src_level,
-        src_x,
-        src_z,
-        dst_x,
-        dst_z,
-        src_y,
-        160,
-        144, /* end height above target ground (36 * 4) */
-        0,
-        t2,
-        15, /* launch slope (1/2048 circle units) */
-        64,
-        target,
-        WORLD_PROJECTILE_TARGET_NONE);
-    /* Bind the spotanim's sequence so the projectile model animates in flight
-     * (v1 Task_*ProjectileAdd loads the seq, then ElementSetSequenceId). The
-     * element is left non-external, so app_world_tick_animations advances the
-     * frame each tick — matching ClientProj.move's plain frame loop, which is
-     * why the element is marked anim_loop. */
-    ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
-    app_world_apply_seq(app, element_id, seq_id);
-    TORIRS_LOG(
-        "spawn_projectile: element=%d %d,%d -> %d,%d t2=%d target=%d\n",
-        element_id,
-        src_tile_x,
-        src_tile_z,
-        tile_x,
-        tile_z,
-        t2,
-        target);
-    app_sync_textures(app);
-    RedrawRequest_Raise(&app->redraw_request);
-}
-
-/*
- * The ground under a ROOT-frame point, composed through a hull when one is
- * there: a point over a live boat's deck answers the DECK's heightmap plus
- * the hull's y and bob — the same composition the emit path and the overlay
- * anchors use — and root terrain otherwise. A projectile fired from (or at)
- * the deck must measure its height from the planking, not from the grass or
- * water the hull happens to be sitting on: the deob never faces the question
- * because its projectile lives in the boat's own world, where "ground" IS
- * the deck; this is that answer for the root-world approximation.
- */
-static int
-app_world_ground_composed(
-    struct App* app,
-    int fine_x,
-    int fine_z,
     int level)
 {
-    for( int view_id = 1; view_id < WORLDVIEW_MAX; view_id++ )
-    {
-        struct Wev* wev;
-        struct WevDeckBox box;
-        int deck_x;
-        int deck_z;
-        int deck_level;
-        struct Worldview* view;
-
-        if( !Wevs_IsLive(&app->wevs, view_id) ||
-            !WorldviewRegistry_IsLive(&app->worldviews, view_id) )
-            continue;
-        wev = Wevs_Get(&app->wevs, view_id);
-        if( wev->parent_view_id != WORLDVIEW_ROOT )
-            continue;
-        /* Membership is the HULL's footprint — the gunwale rule. The deck box
-         * is the whole zone reservation and the templates carry walkable
-         * staging ground around the parked hull, so a shore tile beside the
-         * boat is inside the box but not on the planking; composing its
-         * ground from the deck template would bend a shot aimed past the
-         * rail. The footprint is the painter's own answer to "which root
-         * tiles does this hull cover", so the two cannot disagree; a config
-         * with no stated extent (the wire-sized Zenith) makes the footprint
-         * the whole box, which is the right fallback too. */
-        if( wev->config )
-        {
-            int min_tile_x;
-            int min_tile_z;
-            int size_x;
-            int size_z;
-            int abs_tile_x = (fine_x >> 7) + app->world->_base_tile_x;
-            int abs_tile_z = (fine_z >> 7) + app->world->_base_tile_z;
-
-            Wev_FootprintTiles(wev, 0, &min_tile_x, &min_tile_z, &size_x, &size_z);
-            if( abs_tile_x < min_tile_x || abs_tile_x >= min_tile_x + size_x ||
-                abs_tile_z < min_tile_z || abs_tile_z >= min_tile_z + size_z )
-                continue;
-        }
-        app_wev_deck_box(app, wev, app->world, &box);
-        Wev_DeckFromParent(&box, fine_x, fine_z, &deck_x, &deck_z);
-        if( !Wev_DeckContainsDeckPoint(&box, deck_x, deck_z) )
-            continue;
-        view = WorldviewRegistry_Get(&app->worldviews, view_id);
-        deck_level = app_wev_deck_level(app, view_id);
-        if( deck_level >= COLLISION_LEVELS )
-            deck_level = COLLISION_LEVELS - 1;
-        return wev->y + wev->bob_y + World_HeightAt(view->world, deck_x, deck_z, deck_level);
-    }
-    return app_world_height(app, fine_x, fine_z, level);
-}
-
-/* Server-driven projectile (reference ClientProj / MAP_PROJANIM). Builds the
- * transformed spotanim model (recolour/resize/angle/lighting), spawns the world
- * projectile with the wire trajectory params, and binds the spotanim seq so the
- * model animates in flight. SYNCHRONOUS — the spotanimtype, its model and its
- * seq must already be resident (Task_AppSpawn awaits them). src_height/dst_height
- * are raw wire bytes (×4, matching Client.ts h1/h2). */
-static void
-app_world_spawn_projectile_spot_now(
-    struct App* app,
-    struct World* world,
-    int spotanim_id,
-    int src_tile_x,
-    int src_tile_z,
-    int src_level,
-    int dst_tile_x,
-    int dst_tile_z,
-    int dst_level,
-    int src_height,
-    int dst_height,
-    int start_delay,
-    int end_delay,
-    int peak,
-    int arc,
-    int target,
-    int source,
-    int late)
-{
-    struct ToriRS_Spotanimtype* spot;
-    struct ToriDraw_Model* model;
-    int src_x, src_z, dst_x, dst_z, src_y;
+    struct ToriDraw_Model* empty = ToriDraw_ModelNew(0, 0, 0);
+    struct WorldEntityFacet_IdleAnimations idle;
+    int world_x = tile_x * 128 + 64;
+    int world_z = tile_z * 128 + 64;
     int element_id;
     int idx;
 
-    assert(app);
-    assert(world);
-    assert(late >= 0);
-    /* Its assets arrived after the server had it land: nothing to show. */
-    if( late > end_delay )
-    {
-        TORIRS_LOG(
-            "spawn_projectile_spot: spotanim %d landed %d cycles before its assets\n",
-            spotanim_id,
-            late - end_delay);
-        return;
-    }
-    spot = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
-    if( !spot )
-    {
-        TORIRS_LOG("spawn_projectile_spot: spotanim %d not resident\n", spotanim_id);
-        return;
-    }
-
-    model = app_world_build_spotanim_model(app, spot);
-    if( !model )
-    {
-        TORIRS_ERR(
-            "spawn_projectile_spot: spotanim %d model %d failed\n", spotanim_id, spot->model);
-        return;
-    }
-
-    src_x = src_tile_x * 128 + 64;
-    src_z = src_tile_z * 128 + 64;
-    dst_x = dst_tile_x * 128 + 64;
-    dst_z = dst_tile_z * 128 + 64;
-    /* World y is negative-up: reference y = getAvH(src) - h1, h1 = src_height*4.
-     * The SOURCE ground composes through a hull when the shooter stands on
-     * one — a bow fired from the deck leaves at deck + chest, not at the
-     * terrain the hull is parked over (a beached hull's planking can sit well
-     * below the bank beside it). The deob never faces this: its projectile
-     * lives in the boat's world, where ground IS the deck. The DESTINATION
-     * deliberately does NOT compose: the landing samples this world's own
-     * ground exactly as the deob's `getAvH(dst, proj.plane) - h2` does, and
-     * World re-aims a tracked target with that same rule every cycle — a
-     * composed one-shot correction here went stale the moment the target
-     * moved and bent the arc whenever the hull's footprint brushed the
-     * target's tile. */
-    src_y = app_world_ground_composed(app, src_x, src_z, src_level) - src_height * 4;
-
+    assert(empty);
+    ToriDraw_ModelSetBoundsCylinder(empty);
     element_id = app_world_scene_element_create(
-        app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
+        app,
+        TORIDRAW_ELEMENT_KIND_NPC,
+        empty,
+        world_x,
+        app_world_height(app, world_x, world_z, level),
+        world_z);
     if( element_id < 0 )
-        return;
-
-    /* peak -> angle, arc -> startpos, end_height = dst_height*4 (World computes
-     * dst y as height_fn(dst) - end_height, matching getAvH(dst) - h2). `target`
-     * goes through in its wire encoding so World re-aims the arc at that
-     * entity's live position every cycle (reference addProjectiles). */
-    idx = World_ProjectileSpawn(
-        world,
-        element_id,
-        src_level,
-        dst_level,
-        src_x,
-        src_z,
-        dst_x,
-        dst_z,
-        src_y,
-        src_height * 4,
-        dst_height * 4,
-        start_delay,
-        end_delay,
-        peak,
-        arc,
-        target,
-        source);
+        return -1;
+    memset(&idle, 0xff, sizeof(idle));
+    idle.idle_anim_restart = 0;
+    idx = World_NpcSpawn(app->world, element_id, npc_id, level, tile_x, tile_z, 1, idle);
     {
-        /* Which graphic it is, for the quest driver's hazard readers
-         * (WorldEntity_Projectile.spotanim_id); World itself never reads it. */
-        struct WorldEntity_Projectile* spawned =
-            World_EntityPoolGet(&world->entities.projectile, idx);
-        assert(spawned);
-        spawned->spotanim_id = spotanim_id;
-        spawned->unbound_seq = spot->seq;
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, idx);
+        assert(npc);
+        npc->server_slot = -1;
+        if( base_npc_id >= 0 )
+            npc->base_npc_id = base_npc_id;
     }
-    /* The projectile's clock starts at enqueue, not at apply: aged by the
-     * cycles its assets took, the next world cycle aims it from where it
-     * stands to the target in the time that is left (World_ProjectileSetTarget
-     * recomputes the velocity from the current position), so a graphic that
-     * took 300 ms to arrive joins the flight rather than restarting it. */
-    if( late > 0 )
-    {
-        struct WorldEntity_Projectile* p =
-            World_EntityPoolGet(&world->entities.projectile, idx);
-        assert(p);
-        p->cycle = late;
-    }
-    /* Reference ClientProj.move wraps animFrame to 0 at the end of the frame
-     * list and never drops the sequence. Flight time routinely outlasts the
-     * sequence — a 12-cycle spotanim seq against a 30+ cycle flight is normal —
-     * so without this the model spends most of the flight back in its un-posed
-     * bind pose. Spotanim models hide geometry by scaling it to zero in every
-     * frame, so what that actually looks like is extra parts of the model
-     * appearing mid-air partway to the target. */
-    ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
-    /* Loaded now, bound at launch (app_world_sync_positions): the reference
-     * starts the animation at t1, and a seq bound here would spend the start
-     * delay playing -- the Archive Guardian's 82-frame shot, launched 48
-     * cycles after its packet, flew the last 34 frames and then stood still. */
-    app_world_load_seq(app, spot->seq);
-
-    if( torirs_env_net_debug() )
-        TORIRS_LOG(
-            "spawn_projectile_spot: element=%d spotanim=%d model=%d seq=%d "
-            "%d,%d -> %d,%d lvl=%d/%d t1=%d t2=%d target=%d src_y=%d ground=%d "
-            "dst_ground=%d h1=%d h2=%d\n",
-            element_id,
-            spotanim_id,
-            spot->model,
-            spot->seq,
-            src_tile_x,
-            src_tile_z,
-            dst_tile_x,
-            dst_tile_z,
-            src_level,
-            dst_level,
-            start_delay,
-            end_delay,
-            target,
-            src_y,
-            app_world_ground_composed(app, src_x, src_z, src_level),
-            app_world_height(app, dst_x, dst_z, dst_level),
-            src_height * 4,
-            dst_height * 4);
-    app_sync_textures(app);
     RedrawRequest_Raise(&app->redraw_request);
+    return idx;
 }
 
-/*
- * The curve VM's host. A curve clientscript is pure arithmetic: the only thing
- * it asks of a host is a GOSUB, and the spawn task made every script it can
- * call resident (app_spawn_curve_callees), so a callee is never awaited here.
- * Anything else is a curve script this client cannot run synchronously.
- */
-static int
-app_curve_host_exec(
-    struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest* request)
-{
-    struct App* app = (struct App*)CS2VM_USER(thread);
-    struct CS2VM2_Script* script;
-
-    assert(app);
-    assert(request);
-    assert(request->kind == CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS);
-    script = CacheProvider_ClientScriptGet(app->provider, request->u.GOSUB_WITH_PARAMS.script_id);
-    assert(script);
-    return CS2VM2_PushCallScript(thread, script);
-}
-
-/*
- * World_CurveFn: one curve clientscript run synchronously on `progress`
- * (deob class56.method1470 -- a script event of [script, progress], its first
- * int result read back). Resident by construction: the spawn task loaded the
- * script and its callees before the projectile existed.
- */
-static int
-app_world_curve(
-    void* userdata,
-    int script_id,
-    int progress)
-{
-    struct App* app = (struct App*)userdata;
-    struct CS2VM2_Script* script;
-    struct CS2VM2_Thread* thread;
-    struct CS2VM2_ThreadError err = { 0 };
-    enum CS2VM2_ThreadStatus status;
-    int value = 0;
-
-    assert(app);
-    script = CacheProvider_ClientScriptGet(app->provider, script_id);
-    assert(script);
-    if( !app->curve_vm )
-    {
-        app->curve_vm = CS2VM2_Acquire();
-        assert(app->curve_vm);
-        CS2VM2_BindHost(app->curve_vm, app, app_curve_host_exec);
-    }
-    thread = CS2VM2_ThreadMain(app->curve_vm);
-    CS2VM2_ThreadStart(thread, script);
-    CS2VM2_SetIntCurrentFrameLocal(thread, 0, progress);
-    status = CS2VM2_ThreadRun(thread, &err);
-    if( status != CS2VM2_THREAD_DONE || CS2VM2_PopInt(thread, &value) != CS2VM_EXECNO_OK )
-    {
-        TORIRS_ERR("curve script %d failed at opcode %d (script %d pc %d)\n",
-            script_id, err.opcode, err.script_id, err.pc);
-        return 0;
-    }
-    return value;
-}
-
-/* Every script the curve scripts GOSUB, appended to the task's list (each
- * once): the world runs them synchronously, so nothing may be loaded late. */
-static void
-app_spawn_curve_callees(
-    struct Task_AppSpawn* self,
-    struct CS2VM2_Script const* script)
-{
-    assert(self);
-    assert(script);
-    for( int i = 0; i < script->op_count; i++ )
-    {
-        int callee;
-        int seen = 0;
-
-        if( script->opcodes[i] != CS2_OP_GOSUB_WITH_PARAMS )
-            continue;
-        callee = script->int_operands[i];
-        for( int j = 0; j < self->curve_script_count; j++ )
-            seen |= self->curve_scripts[j] == callee;
-        if( seen )
-            continue;
-        assert(self->curve_script_count < (int)(sizeof(self->curve_scripts) / sizeof(self->curve_scripts[0])));
-        self->curve_scripts[self->curve_script_count++] = callee;
-    }
-}
-
-/* A rev-241 scripted projectile (deob class56). SYNCHRONOUS -- the spotanim,
- * its model and seq, and every curve script must be resident (Task_AppSpawn
- * awaits them). Placed as a MAP_PROJANIM is, then handed to the world as
- * scripted: the world flies it by the curves, not by an arc. */
-static void
-app_world_spawn_scripted_proj_now(
-    struct App* app,
-    struct World* world,
-    struct WorldEntity_ScriptedProjSpec const* sp,
-    int late)
-{
-    struct ToriRS_Spotanimtype* spot;
-    struct ToriDraw_Model* model;
-    int src_x, src_z, src_y;
-    int element_id;
-    int idx;
-    struct WorldEntity_Projectile* p;
-
-    assert(app);
-    assert(world);
-    assert(sp);
-    assert(late >= 0);
-    if( late > sp->end_delay )
-        return;
-    spot = CacheProvider_SpotanimtypeGet(app->provider, sp->spotanim_id);
-    if( !spot )
-    {
-        TORIRS_LOG("spawn_scripted_proj: spotanim %d not resident\n", sp->spotanim_id);
-        return;
-    }
-    model = app_world_build_spotanim_model(app, spot);
-    if( !model )
-    {
-        TORIRS_ERR("spawn_scripted_proj: spotanim %d model %d failed\n", sp->spotanim_id, spot->model);
-        return;
-    }
-
-    src_x = sp->src_x * 128 + 64;
-    src_z = sp->src_z * 128 + 64;
-    /* Raw: the deob subtracts the packet's height from the ground as it is. */
-    src_y = app_world_ground_composed(app, src_x, src_z, sp->src_level) - sp->src_height;
-    element_id = app_world_scene_element_create(
-        app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
-    if( element_id < 0 )
-        return;
-
-    World_SetCurveFn(world, app_world_curve, app);
-    idx = World_ProjectileSpawn(
-        world,
-        element_id,
-        sp->src_level,
-        sp->dst_level,
-        src_x,
-        src_z,
-        sp->dst_x * 128 + 64,
-        sp->dst_z * 128 + 64,
-        src_y,
-        sp->src_height,
-        sp->dst_height,
-        sp->start_delay,
-        sp->end_delay,
-        0,
-        0,
-        sp->target,
-        sp->source);
-    World_ProjectileMakeScripted(
-        world,
-        idx,
-        sp->curve[0],
-        sp->curve[1],
-        sp->curve[2],
-        sp->src_offset_x,
-        sp->src_offset_z,
-        sp->dst_offset_x,
-        sp->dst_offset_z,
-        sp->slot);
-    p = World_EntityPoolGet(&world->entities.projectile, idx);
-    assert(p);
-    p->spotanim_id = sp->spotanim_id;
-    p->unbound_seq = spot->seq;
-    if( late > 0 )
-        p->cycle = late;
-    ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
-    app_world_load_seq(app, spot->seq);
-    app_sync_textures(app);
-    RedrawRequest_Raise(&app->redraw_request);
-}
-
-/* Free-standing spotanim (reference MapSpotAnim / MAP_ANIM). SYNCHRONOUS — the
- * spotanimtype, its model and its seq must already be resident (Task_AppSpawn
- * awaits them). Builds the transformed model, spawns the world entity with a
- * single-shot lifetime equal to one seq loop, and binds the seq so the element
- * animates per-tick. */
+/* The npc at `idx` is finished -- in the pool with its name, facts, shell and
+ * (for a synced npc) server slot: tell the drive ring and the plugins. */
 void
-app_world_spawn_spotanim_now(
+App_WorldNpcSpawnAnnounce(
     struct App* app,
-    struct World* world,
-    int spotanim_id,
+    int idx)
+{
+    struct WorldEntity_NPC* spawned;
+
+    assert(app);
+    assert(app->world);
+    spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
+    assert(spawned);
+    /* DRIVE_STAMP: npc_spawn -- a=npc slot b=npc_id c,d=scene tile. The server slot, as the
+     * comment always said (it stamped the pool index, FAULTS E10); -1 for an
+     * npc no server named (the editor's previews, the hotkey). Unconditional
+     * -- the ring is present in every build, unlike the plugin-host snapshot
+     * below, which stays gated on app->plugins. */
+    /* c/d: the scene tile it was added on, once its add record placed it. */
+    App_DriveEvent(
+        app,
+        RS_EVENT_NPC_SPAWN,
+        spawned->server_slot,
+        spawned->npc_id,
+        spawned->pathing.route_x[0],
+        spawned->pathing.route_z[0]);
+    if( app->plugins )
+    {
+        struct ToriRS_NpcSnapshot snap;
+        app_plugin_fill_npc(app, spawned, &snap);
+        PluginHost_NpcSpawn(app->plugins, &snap);
+    }
+}
+
+/* The editor's and the hotkey's spawn: the entity, announced at once (no
+ * server slot to wait for). */
+int
+app_world_spawn_npc_announced(
+    struct App* app,
+    int npc_id,
+    int base_npc_id,
     int tile_x,
     int tile_z,
-    int level,
-    int height,
-    int delay,
-    int late)
+    int level)
 {
-    struct ToriRS_Spotanimtype* spot;
-    struct ToriDraw_Model* model;
-    int world_x, world_z, world_y;
-    int element_id;
-    int lifetime;
+    int idx = app_world_spawn_npc_now(app, npc_id, base_npc_id, tile_x, tile_z, level);
 
-    assert(app);
-    assert(world);
-    assert(late >= 0);
-    spot = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
-    if( !spot )
-    {
-        TORIRS_LOG("spawn_spotanim: spotanim %d not resident\n", spotanim_id);
-        return;
-    }
-    /* Loaded late: the wait comes off its delay first, and a graphic whose
-     * whole life passed while its assets were on the wire is not shown at
-     * all -- the reference's spot anims are gone by then too. */
-    delay -= late;
-    if( delay < 0 )
-    {
-        int const overdue = -delay;
-        delay = 0;
-        lifetime = WorldSeqSourceToriDraw_TotalDuration(&app->seq_source, spot->seq);
-        if( lifetime > 0 && overdue >= lifetime )
-        {
-            TORIRS_LOG(
-                "spawn_spotanim: id=%d expired %d cycles before its assets\n",
-                spotanim_id,
-                overdue - lifetime);
-            return;
-        }
-    }
-
-    model = app_world_build_spotanim_model(app, spot);
-    if( !model )
-    {
-        TORIRS_ERR("spawn_spotanim: spotanim %d model %d failed\n", spotanim_id, spot->model);
-        return;
-    }
-
-    world_x = tile_x * 128 + 64;
-    world_z = tile_z * 128 + 64;
-    /* Reference y = getAvH(x,z) - height; world y is negative-up so subtracting
-     * raises the effect above the ground by `height`. */
-    world_y = app_world_height(app, world_x, world_z, level) - height;
-
-    element_id = app_world_scene_element_create(
-        app, TORIDRAW_ELEMENT_KIND_SPOTANIM, model, world_x, world_y, world_z);
-    if( element_id < 0 )
-        return;
-
-    lifetime = WorldSeqSourceToriDraw_TotalDuration(&app->seq_source, spot->seq);
-
-    {
-        int const idx = World_SpotanimSpawn(
-            world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
-        /* Which graphic it is, for the quest driver's hazard readers
-         * (WorldEntity_Spotanim.spotanim_id); World itself never reads it. */
-        struct WorldEntity_Spotanim* spawned = World_EntityPoolGet(&world->entities.spotanim, idx);
-        assert(spawned);
-        spawned->spotanim_id = spotanim_id;
-    }
-    app_world_apply_seq(app, element_id, spot->seq);
-    /* A delayed spotanim is invisible until World flips it active, so its
-     * sequence must not run in the meantime. Park it as anim_external — the
-     * flag the naive per-element tick uses to mean "someone else owns this
-     * element's frames" — and let WorldEventKind_SpotanimStarted hand it back
-     * on the cycle it first draws. Without this the whole delay is spent
-     * animating out of sight: `spotanim_map`'s delay is a projectile's flight
-     * time, which is routinely longer than the sequence, so the splash
-     * surfaced already finished and sat on a cleared final frame. Elements
-     * with no delay are left alone and start immediately, as before. */
-    if( delay > 0 )
-    {
-        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
-        if( el )
-        {
-            el->anim_external = true;
-            /* anim_list membership is filtered on anim_external, so the cached
-             * list is now stale (toridraw_scene.h: the caller mutating this
-             * flag directly owns the invalidation). */
-            ToriDraw_SceneAnimListInvalidate(app->scene);
-        }
-    }
-
-    TORIRS_LOG(
-        "spawn_spotanim: id=%d element=%d tile=%d,%d level=%d model=%d seq=%d "
-        "life=%d delay=%d\n",
-        spotanim_id,
-        element_id,
-        tile_x,
-        tile_z,
-        level,
-        spot->model,
-        spot->seq,
-        lifetime,
-        delay);
-    app_sync_textures(app);
-    RedrawRequest_Raise(&app->redraw_request);
+    if( idx >= 0 )
+        App_WorldNpcSpawnAnnounce(app, idx);
+    return idx;
 }
 
-/*
- * Find the scenery entity a LOC_ADD_CHANGE_V2 just spawned and dress it with
- * the placement menu the change carried.
- *
- * Which labels survive is WorldEntity_SceneryApplyPlacementOps'. This is the
- * part that needs a scene: which placement the change is talking about, and
- * the interning that keeps one label block per distinct menu.
- */
-static void
-app_loc_change_apply_ops(
-    struct App* app,
-    struct World* world,
-    struct WorldBuilder* builder,
-    const struct Task_AppSpawn* self)
-{
-    int idx;
-    struct WorldEntity_Scenery* sc;
-
-    assert(app);
-    (void)app; /* asserted only; unused under NDEBUG */
-    assert(world);
-    assert(builder);
-    assert(self);
-    if( self->loc_id < 0 )
-        return; /* a pure delete has no placement to describe */
-    idx = World_SceneryFindAt(world, self->tile_x, self->tile_z, self->level, self->loc_shape);
-    if( idx < 0 )
-    {
-        /*
-         * Either the spawn was refused (unknown loc, off-scene) -- nothing to
-         * dress -- or the loc is a multiloc whose varbit picks -1 right now,
-         * and ApplyLocChange kept the placement as a hidden record. The
-         * menu belongs to that placement, not to whichever child draws it
-         * (the reference's scene loc holds the mask and labels across every
-         * re-resolve, deob class108 / DynamicObject), so it rides the record
-         * and comes back with the re-placement. A refused spawn has no
-         * record, and the stamp finds none.
-         */
-        (void)WorldBuilder_HiddenLocSetOps(
-            builder,
-            self->tile_x,
-            self->tile_z,
-            self->level,
-            self->loc_shape,
-            self->loc_op_flags,
-            self->loc_ops);
-        return;
-    }
-    sc = World_EntityPoolGet(&world->entities.scenery, idx);
-    if( !sc )
-        return;
-
-    /* The label block is shared, so the override is not written in place: the
-     * edited copy is interned and the placement repointed. */
-    {
-        struct WorldEntity_SceneryInfo probe = *sc->info;
-        char const* replacements[5];
-        bool has_action = false;
-
-        for( int i = 0; i < 5; i++ )
-            replacements[i] = self->loc_ops[i];
-
-        sc->placement_op_mask = (uint8_t)self->loc_op_flags;
-        sc->placement_op_overrides = WorldEntity_SceneryApplyPlacementOps(
-            &probe, (unsigned)self->loc_op_flags, replacements, &has_action);
-        sc->info = World_SceneryInfoIntern(world, &probe);
-        if( has_action )
-            sc->interactive = 1;
-    }
-}
 
 /*
  * A spotanim's model and its sequence, fanned out TOGETHER.
  *
  * Both ids come off the one spotanimtype and neither read feeds the other, so
  * awaiting them one after another was a round trip apiece on a streamed cache
- * — the same shape the loc-change branch below already fixed for a door. The
+ * — the same shape a loc change's task takes for a door (app/app_tasks_locs.c). The
  * first attack after a login is where it showed worst: every combat graphic the
  * browser's cache had never seen paid model-then-sequence in series, and
  * because the spawn runs on the EXEC runner, the packet pipeline behind it —
@@ -1595,49 +1065,44 @@ app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self)
     self->model_id = (spot && spot->model > 0) ? spot->model : -1;
     self->seq_id = spot ? spot->seq : -1;
 
+    /* Through the assets table: the graphic's model and sequence are one
+     * load each however many spawns, projectiles and attached graphics ask
+     * for them at once. */
     if( self->model_id > 0 )
-        ToriRS_TaskQueue_AddParallelPoolSubTask(
-            app->frame_runner.queue,
-            CreateTask_ModelLoad(app->provider, self->model_id),
-            &self->pending);
+        Assets_Await(
+            app->assets, AssetKey_Make(ASSET_KIND_MODEL, self->model_id, 0), &self->pending);
     if( self->seq_id >= 0 )
-        ToriRS_TaskQueue_AddParallelPoolSubTask(
-            app->frame_runner.queue,
-            CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
-            &self->pending);
+        Assets_Await(
+            app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, self->seq_id, 0), &self->pending);
 }
 
 /*
- * The world an EFFECT applies to, or NULL when it must be dropped.
- *
- * Effects load on the asset runner (app_spawn_effect_queue, app_world_edit.c),
- * so nothing orders their apply against the packets that came after them --
- * including a REBUILD. That is the same position a placeholder is in, and the
- * three ways the scene can go out from under a parked task are the same three
- * for both, so the guard is one function now: app_deferred_land_world, in
- * app_placeholder.c, which owns the shape.
+ * The spawns no packet makes -- the developer hotkeys' player, npc and ground
+ * item, and a plugin's object -- wait only for what they draw: a parallel
+ * task each (app_spawn_task_add), never the packet queue, so nothing a later
+ * packet reads waits behind a model. The body reads top to bottom: wait for
+ * the parts, exit if cancelled (a logout) or no longer wanted (the view's
+ * scene was replaced: a hotkey's tile is the old scene's), then apply.
  */
-static struct World*
-app_spawn_effect_world(struct Task_AppSpawn const* self)
+static bool
+app_spawn_wanted(struct Task_AppSpawn* self)
 {
-    assert(self);
-    return app_deferred_land_world(
-        self->app, self->view, self->world_load_seq, "spawn: effect", (int)self->kind);
+    if( RS_ParallelTask_Cancelled(&self->par) )
+        return false;
+    /* A plugin object re-resolves its record by handle when it applies. */
+    if( self->kind == APP_SPAWN_PLUGIN_OBJECT )
+        return true;
+    return App_ParallelTaskWorld(self->app, &self->par, "spawn") != NULL;
 }
 
-/* Cycles the effect spent loading: what its delays are shortened by, so it
- * appears where the server's timeline has it, not late by its own load. */
-static int
-app_spawn_effect_late(
-    struct Task_AppSpawn const* self,
-    struct World const* world)
+/* Count one part the spawn waits for on its join: a load of its own task
+ * through the assets table, so the spawn's step does not decode it. */
+static void
+app_spawn_await_part(
+    struct Task_AppSpawn* self,
+    struct AssetKey key)
 {
-    int late;
-
-    assert(self);
-    assert(world);
-    late = world->cycle - self->enqueue_cycle;
-    return late > 0 ? late : 0;
+    (void)Assets_Await(self->app->assets, key, &self->pending);
 }
 
 static int
@@ -1652,9 +1117,11 @@ Task_AppSpawn_Run(
 
     if( self->kind == APP_SPAWN_PLAYER )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-        PT_TASK_AWAITSELF_IF(
-            CreateTask_SequenceLoad(app->provider, app->scene, APP_PLAYER_SEQ_READY));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider, app->assets));
+        app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_SEQUENCE, APP_PLAYER_SEQ_READY, 0));
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
+        if( !app_spawn_wanted(self) )
+            PT_EXIT(&self->pt);
         app_world_spawn_player_now(app, self->tile_x, self->tile_z, self->level);
     }
     else if( self->kind == APP_SPAWN_NPC )
@@ -1663,9 +1130,11 @@ Task_AppSpawn_Run(
          * this player's selected child so developer/content spawns follow the
          * same multiNpc path as NPC_INFO. */
         PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiLoad(app, self->npc_id, &self->model_id));
+        if( !app_spawn_wanted(self) )
+            PT_EXIT(&self->pt);
         {
             int effective = self->model_id >= 0 ? self->model_id : self->npc_id;
-            int idx = app_world_spawn_npc_now(
+            int idx = app_world_spawn_npc_announced(
                 app, effective, self->npc_id, self->tile_x, self->tile_z, self->level);
             struct WorldEntity_NPC* npc =
                 idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
@@ -1678,7 +1147,8 @@ Task_AppSpawn_Run(
     }
     else if( self->kind == APP_SPAWN_OBJ )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->obj_id));
+        app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_CONFIG, self->obj_id, ASSET_CONFIG_OBJ));
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
         {
             struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->obj_id);
             if( obj && obj->inventory_model_id > 0 )
@@ -1686,7 +1156,10 @@ Task_AppSpawn_Run(
         }
         if( self->model_id > 0 )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+            app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_MODEL, self->model_id, 0));
+            TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
+            if( !app_spawn_wanted(self) )
+                PT_EXIT(&self->pt);
             /* The applicator resolves the cursor itself, so re-arm it with the
              * view captured at enqueue for the duration of the call. The view
              * can have died while the task was parked (a despawned boat takes
@@ -1702,26 +1175,6 @@ Task_AppSpawn_Run(
         else
             TORIRS_LOG("spawn_obj: obj %d has no inventory model\n", self->obj_id);
     }
-    else if( self->kind == APP_SPAWN_SPOTANIM )
-    {
-        PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
-        app_spawn_fan_spotanim_assets(self);
-        PT_TASK_JOIN(pending);
-        {
-            struct World* world = app_spawn_effect_world(self);
-            if( world )
-                app_world_spawn_spotanim_now(
-                    app,
-                    world,
-                    self->spotanim_id,
-                    self->tile_x,
-                    self->tile_z,
-                    self->level,
-                    self->spotanim_height,
-                    self->spotanim_delay,
-                    app_spawn_effect_late(self, world));
-        }
-    }
     else if( self->kind == APP_SPAWN_ENTITY_SPOTANIM )
     {
         /* Attached graphic (SPOTANIM mask): load the same asset chain as the
@@ -1731,72 +1184,6 @@ Task_AppSpawn_Run(
         app_spawn_fan_spotanim_assets(self);
         PT_TASK_JOIN(pending);
         RedrawRequest_Raise(&app->redraw_request);
-    }
-    else if( self->kind == APP_SPAWN_ENTITY_MODEL )
-    {
-        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-        RedrawRequest_Raise(&app->redraw_request);
-    }
-    else if( self->kind == APP_SPAWN_PROJECTILE_SPOT )
-    {
-        PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
-        app_spawn_fan_spotanim_assets(self);
-        PT_TASK_JOIN(pending);
-        {
-            struct World* world = app_spawn_effect_world(self);
-            if( world )
-                app_world_spawn_projectile_spot_now(
-                    app,
-                    world,
-                    self->spotanim_id,
-                    self->src_tile_x,
-                    self->src_tile_z,
-                    self->src_level,
-                    self->tile_x,
-                    self->tile_z,
-                    self->level,
-                    self->proj_src_height,
-                    self->proj_dst_height,
-                    self->proj_start_delay,
-                    self->proj_end_delay,
-                    self->proj_peak,
-                    self->proj_arc,
-                    self->proj_target,
-                    self->proj_source,
-                    app_spawn_effect_late(self, world));
-        }
-    }
-    else if( self->kind == APP_SPAWN_SCRIPTED_PROJ )
-    {
-        PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
-        app_spawn_fan_spotanim_assets(self);
-        PT_TASK_JOIN(pending);
-        /* The curve scripts and, as each lands, the scripts it calls. */
-        for( ; self->curve_script_cursor < self->curve_script_count; self->curve_script_cursor++ )
-        {
-            if( !CacheProvider_ClientScriptHas(
-                    app->provider, self->curve_scripts[self->curve_script_cursor]) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(
-                    app->provider, self->curve_scripts[self->curve_script_cursor]));
-            {
-                struct CS2VM2_Script* script = CacheProvider_ClientScriptGet(
-                    app->provider, self->curve_scripts[self->curve_script_cursor]);
-                /* A cache without the script cannot fly the shot at all. */
-                if( !script )
-                {
-                    TORIRS_ERR("spawn_scripted_proj: curve script %d not in the cache\n",
-                        self->curve_scripts[self->curve_script_cursor]);
-                    PT_EXIT(&self->pt);
-                }
-                app_spawn_curve_callees(self, script);
-            }
-        }
-        {
-            struct World* world = app_spawn_effect_world(self);
-            if( world )
-                app_world_spawn_scripted_proj_now(
-                    app, world, &self->scripted, app_spawn_effect_late(self, world));
-        }
     }
     else if( self->kind == APP_SPAWN_PLUGIN_OBJECT )
     {
@@ -1818,364 +1205,64 @@ Task_AppSpawn_Run(
             self->model_id = obj ? app_plugin_object_model_id(app, obj) : -1;
             self->seq_id = obj ? app_plugin_object_seq_id(app, obj) : -1;
         }
+        /* Together, through the assets table: the loads are their own tasks,
+         * so this one's step is the apply alone. */
         if( self->model_id >= 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+            app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_MODEL, self->model_id, 0));
         if( self->seq_id >= 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+            app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_SEQUENCE, self->seq_id, 0));
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
+        if( !app_spawn_wanted(self) )
+        {
+            /* Its record still says a load is on its way: a later sync asks
+             * again. */
+            struct PluginObject* obj = PluginGeometry_Object(&app->plugin_geometry, self->plugin_object);
+            if( obj )
+                obj->load_pending = 0;
+            PT_EXIT(&self->pt);
+        }
         app_plugin_object_materialize_now(app, self->plugin_object);
-    }
-    else if( self->kind == APP_SPAWN_LOC_CHANGE )
-    {
-        /* Reference locChangeDoQueue (Client.ts:7701): a zone loc change only
-         * applies once changeLocAvailable — the loc config and every model it
-         * references are resident (an open-door variant is usually absent from
-         * the static map build's preload). LOC_DEL (loc_id < 0) has nothing to
-         * load but still runs through this task so same-tile changes apply in
-         * packet order on the serial exec FIFO. */
-        if( self->loc_id >= 0 )
-        {
-            self->loc_resolved_id = self->loc_id;
-            self->loc_base_seq = -1;
-            for( self->loc_resolve_depth = 0;
-                 self->loc_resolved_id >= 0 && self->loc_resolve_depth < 16;
-                 ++self->loc_resolve_depth )
-            {
-                PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_resolved_id));
-                struct ToriRS_Location* cfg =
-                    CacheProvider_LocationGet(app->provider, self->loc_resolved_id);
-                if( !cfg )
-                {
-                    self->loc_resolved_id = -1;
-                    break;
-                }
-                if( self->loc_resolve_depth == 0 )
-                {
-                    self->loc_base_seq = cfg->seq_id;
-                    /* The record the change NAMES, not its transform child:
-                     * the deob reads class393.field4940 off the pending
-                     * spawn's own id (method6184(class69.field663)). */
-                    self->loc_defers_anim = cfg->defer_anim_change;
-                }
-                if( cfg->transform_count <= 0 || !cfg->transforms )
-                    break;
-                int next = VarPManager_ResolveTransform(
-                    &app->varps,
-                    cfg->transforms,
-                    cfg->transform_count,
-                    cfg->transform_varbit,
-                    cfg->transform_varp);
-                if( next == self->loc_resolved_id )
-                    break;
-                self->loc_resolved_id = next;
-            }
-            /*
-             * Every model the resolved child names, and its sequence, TOGETHER: they
-             * are independent reads with one consumer (the placement below),
-             * and awaiting them one after another was a round trip each on a
-             * streamed cache -- an open-door variant is commonly absent from
-             * the map build's preload, so a door was that chain every time.
-             * Queued as siblings on the frame queue and joined.
-             */
-            {
-                struct ToriRS_Location* cfg =
-                    self->loc_resolved_id >= 0
-                        ? CacheProvider_LocationGet(app->provider, self->loc_resolved_id)
-                        : NULL;
-                int entries = 0;
-                if( cfg && cfg->models && cfg->lengths )
-                    entries = cfg->shapes ? cfg->shapes_and_model_count : 1;
-                for( int i = 0; i < entries; i++ )
-                    for( int j = 0; j < cfg->lengths[i]; j++ )
-                        if( cfg->models[i][j] >= 0 )
-                            ToriRS_TaskQueue_AddParallelPoolSubTask(
-                                app->frame_runner.queue,
-                                CreateTask_ModelLoad(app->provider, cfg->models[i][j]),
-                                &self->pending);
-                self->seq_id = cfg && cfg->seq_id >= 0 ? cfg->seq_id : self->loc_base_seq;
-                if( self->seq_id >= 0 )
-                    ToriRS_TaskQueue_AddParallelPoolSubTask(
-                        app->frame_runner.queue,
-                        CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
-                        &self->pending);
-            }
-            PT_TASK_JOIN(pending);
-        }
-        /* Loaded; now its turn. The wait is on the lane's counter, which
-         * only the task before this one advances -- state this queue does
-         * not own in the runner's sense, so it is a blocked yield, retested
-         * once per pass and never spun. */
-        TASK_AWAIT_STATE(&self->task, &self->pt, LocLane_IsTurn(&app->loc_lane, self->loc_ticket));
-        /* The scene captured at enqueue: the view can die and the world can be
-         * rebuilt while the change loaded, and both drop it (see
-         * app_spawn_effect_world). */
-        struct World* world = app_spawn_effect_world(self);
-        struct Worldview* wv = world ? WorldviewRegistry_Get(&app->worldviews, self->view) : NULL;
-        if( wv && wv->builder && world && world->load_complete )
-        {
-            int old_type = -1;
-            int old_angle = 0;
-            int old_shape = -1;
-            int old_idx = World_SceneryFindAt(
-                world, self->tile_x, self->tile_z, self->level, self->loc_shape);
-            if( old_idx >= 0 )
-            {
-                struct WorldEntity_Scenery* old =
-                    World_EntityPoolGet(&world->entities.scenery, old_idx);
-                if( old )
-                {
-                    old_type = old->loc_id;
-                    old_angle = old->angle;
-                    old_shape = old->shape;
-                }
-            }
-            World_LocChangePushOps(
-                world,
-                self->level,
-                World_LocShapeToLayer(self->loc_shape),
-                self->tile_x,
-                self->tile_z,
-                old_type,
-                old_angle,
-                old_shape,
-                self->loc_id,
-                self->loc_angle,
-                self->loc_shape,
-                world->cycle,
-                -1,
-                self->loc_op_flags,
-                self->loc_ops);
-            WorldBuilder_ApplyLocChange(
-                wv->builder,
-                self->tile_x,
-                self->tile_z,
-                self->level,
-                self->loc_id,
-                self->loc_shape,
-                self->loc_angle);
-            /*
-             * The placement's own menu, over the loctype's.
-             *
-             * After the spawn and not before it: the scenery entity is created
-             * by ApplyLocChange with the loctype's actions copied in, so this
-             * is the only point where both the entity and the override exist.
-             * The reference does the same thing in the same order — its scene
-             * loc carries the mask and the labels, and the menu builder reads
-             * the loctype first and lets the placement win (deob class108).
-             */
-            app_loc_change_apply_ops(app, world, wv->builder, self);
-            /* RuneLite's ObjectDespawned and ObjectSpawned events (all four
-             * object kinds): the scenery shows the change from here on. */
-            app_plugin_loc_changed(
-                app, world, self->tile_x, self->tile_z, self->level, self->loc_shape,
-                self->loc_angle, self->loc_id, old_type, old_shape, old_angle);
-            /*
-             * A LOC_ANIM this pending change carried (App_WorldSceneryAnim):
-             * the placed loc starts on it instead of on its `anim=`, the way
-             * the deob's pending pass builds the loc with class69.field666
-             * (Statics.method6346 -> method13799 -> method8559, whose seq
-             * argument wins over the loctype's own when it is >= 0). Which
-             * of the two slots counts is the new loctype's deferanimchange.
-             */
-            {
-                int carried = -1;
-
-                if( self->loc_id >= 0 && app_spawn_loc_carried(self, &carried) )
-                    (void)app_world_scenery_anim_apply(
-                        app,
-                        world,
-                        self->tile_x,
-                        self->tile_z,
-                        self->level,
-                        self->loc_shape,
-                        carried);
-                /* The lane's latency against the deob's. The asset runner
-                 * applies after the packet queue has executed the tick's fence,
-                 * so 1 fence is a change applied in the cycle that read it; 2
-                 * or more stood unbuilt here through a whole server tick in
-                 * which the official client showed it. */
-                if( torirs_env_loc_lane_trace() )
-                {
-                    unsigned const fences = RS_ServerTick_Serial(&app->server_tick) - self->loc_tick;
-
-                    TORIRS_REPORT(
-                        "loc_lane: apply ticket=%u loc=%d shape=%d at %d,%d,l%d "
-                        "fences=%u cycles=%d seq=%d%s%s\n",
-                        self->loc_ticket,
-                        self->loc_id,
-                        self->loc_shape,
-                        self->tile_x,
-                        self->tile_z,
-                        self->level,
-                        fences,
-                        world->cycle - self->enqueue_cycle,
-                        carried,
-                        self->loc_take_set ? " (taken)" : "",
-                        fences >= 2 ? " LATE" : "");
-                }
-            }
-            /*
-             * The cache's own "a loc was placed" script, for a loc that arrived
-             * AFTER the scene was built.
-             *
-             * The world-loaded sweep covers the map's own locs; this covers a
-             * zone packet's, and the difference is not academic -- a Dwarf
-             * multicannon is placed by the server four ticks after you click,
-             * and clientscript 6672 is bound to `dwarf_multicannon1` by exactly
-             * this trigger. Without it the cannon hud (All Settings row 247)
-             * can never appear, because the cannon is never a loc the sweep
-             * saw. See game/rs_client_trigger.h.
-             *
-             * After the ops, for the same reason they are applied after the
-             * spawn: this is the first point at which the entity exists and is
-             * finished, and the script reads its type and its coord.
-             */
-            if( self->loc_id >= 0 )
-            {
-                int const placed_idx = World_SceneryFindAt(
-                    world, self->tile_x, self->tile_z, self->level, self->loc_shape);
-                struct WorldEntity_Scenery* placed =
-                    placed_idx >= 0 ? World_EntityPoolGet(&world->entities.scenery, placed_idx)
-                                    : NULL;
-                if( placed )
-                    app_client_trigger_loc(app, placed, RS_TRIGGER_LOC_ADD);
-            }
-            app_sync_textures(app);
-            RedrawRequest_Raise(&app->redraw_request);
-        }
-        app_spawn_loc_lane_release(self);
-    }
-    else
-    {
-        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-        if( app_spawn_effect_world(self) )
-            app_world_spawn_projectile_now(
-                app,
-                app_spawn_effect_world(self),
-                self->model_id,
-                self->seq_id,
-                self->src_tile_x,
-                self->src_tile_z,
-                self->src_level,
-                self->tile_x,
-                self->tile_z,
-                self->proj_target);
     }
 
     PT_END(&self->pt);
 }
 
-struct Task_AppSpawn*
-app_spawn_loc_lane_pending(
-    struct App* app,
-    int view,
-    int scene_x,
-    int scene_z,
-    int level,
-    int layer,
-    int landed_only)
-{
-    struct Task_AppSpawn* newest = NULL;
-
-    assert(app);
-    assert(app->frame_runner.queue);
-    /*
-     * The lane's changes live on the frame queue until they end, parked on
-     * their loads or on their turn, and a change that has not released its
-     * ticket has not touched the scene: the apply and the release run with no
-     * yield between them. Several may be pending for one tile when a model is
-     * slow; the deob keeps ONE pending spawn per tile and layer and overwrites
-     * it (Statics.method5669), so the newest stands for it -- it is the one
-     * whose loc ends up standing there.
-     */
-    for( struct ToriRS_Task* t = app->frame_runner.queue->head; t; t = t->next )
-    {
-        struct Task_AppSpawn* task;
-
-        if( t->vtable != &Task_AppSpawn_VTable )
-            continue;
-        task = (struct Task_AppSpawn*)t;
-        if( task->kind != APP_SPAWN_LOC_CHANGE || task->loc_ticket_released )
-            continue;
-        if( task->view != view || task->tile_x != scene_x || task->tile_z != scene_z ||
-            task->level != level || World_LocShapeToLayer(task->loc_shape) != layer )
-            continue;
-        if( landed_only && task->loc_tick == RS_ServerTick_Serial(&app->server_tick) )
-            continue;
-        if( !newest || (int)(task->loc_ticket - newest->loc_ticket) > 0 )
-            newest = task;
-    }
-    return newest;
-}
-
-void
-app_spawn_loc_carry(
-    struct Task_AppSpawn* pending,
-    int seq_id,
-    int stood)
-{
-    assert(pending);
-    assert(pending->kind == APP_SPAWN_LOC_CHANGE);
-    /* Deob, the LOC_ANIM decode: a pending spawn whose loctype defers takes
-     * every sequence (class69.field666 = seq after method1508); one that does
-     * not takes it only when method1508 found nothing to attach it to. */
-    pending->loc_carry_any_seq = seq_id;
-    pending->loc_carry_any_set = 1;
-    if( !stood )
-    {
-        pending->loc_carry_unfound_seq = seq_id;
-        pending->loc_carry_unfound_set = 1;
-    }
-}
-
-void
-app_spawn_loc_take(
-    struct Task_AppSpawn* landed,
-    int seq_id)
-{
-    assert(landed);
-    assert(landed->kind == APP_SPAWN_LOC_CHANGE);
-    assert(landed->loc_id >= 0);
-    landed->loc_take_seq = seq_id;
-    landed->loc_take_set = 1;
-}
-
-int
-app_spawn_loc_carried(
-    struct Task_AppSpawn const* task,
-    int* out_seq_id)
-{
-    assert(task);
-    assert(out_seq_id);
-    if( task->loc_take_set )
-    {
-        *out_seq_id = task->loc_take_seq;
-        return 1;
-    }
-    if( task->loc_defers_anim ? !task->loc_carry_any_set : !task->loc_carry_unfound_set )
-        return 0;
-    *out_seq_id = task->loc_defers_anim ? task->loc_carry_any_seq : task->loc_carry_unfound_seq;
-    return 1;
-}
-
-/*
- * Give the loc lane its next turn. Exactly once per lane task, whether it
- * applied, was dropped for a dead scene, or was freed unrun with its queue:
- * a ticket that never released would hold every loc change after it forever.
- */
-static void
-app_spawn_loc_lane_release(struct Task_AppSpawn* self)
-{
-    assert(self);
-    if( self->loc_ticket == 0 || self->loc_ticket_released )
-        return;
-    self->loc_ticket_released = 1;
-    LocLane_Release(&self->app->loc_lane);
-}
-
 static void
 Task_AppSpawn_Free(struct ToriRS_Task* base)
 {
-    app_spawn_loc_lane_release((struct Task_AppSpawn*)base);
+    struct Task_AppSpawn* self = (struct Task_AppSpawn*)base;
+    /* Freed while its parts load: the table must stop counting them on this
+     * task. At shutdown the table is closed and ignores it. */
+    if( self->pending > 0 )
+        Assets_Unjoin(self->app->assets, &self->pending);
+    if( self->par.listed )
+        App_ParallelTaskRelease(self->app, &self->par);
     ToriMem_Free(ToriMem_Process(), base);
+}
+
+void
+app_spawn_task_add(
+    struct App* app,
+    struct Task_AppSpawn* task)
+{
+    /* Each developer spawn is its own target: two hotkey presses are two
+     * spawns. */
+    static uint32_t spawn_serial;
+
+    assert(app);
+    assert(task);
+    assert(task->app == app);
+    assert(task->kind != APP_SPAWN_ENTITY_SPOTANIM);
+    if( task->kind == APP_SPAWN_PLUGIN_OBJECT )
+        App_ParallelTaskAdd(
+            app,
+            &task->task,
+            &task->par,
+            APP_TASK_SPAWN_PLUGIN_OBJECT,
+            RS_PendingKey_Id(task->plugin_object, 0),
+            -1);
+    else
+        App_ParallelTaskAdd(
+            app, &task->task, &task->par, APP_TASK_SPAWN, RS_PendingKey_Id((int)++spawn_serial, 0), task->view);
 }
 

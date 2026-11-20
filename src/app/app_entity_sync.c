@@ -9,12 +9,10 @@
 
 #include "app/app_internal.h"
 
-/* An entry's graphic slots: the rev-239 actor's, a player's as an npc's. */
-#define APP_ENTITY_SPOT_SLOTS ENTITY_SPOTANIM_SLOTS
-_Static_assert(ENTITY_SPOTANIM_SLOTS == WORLD_NPC_SPOTANIM_SLOTS,
-               "one combine slot per world graphic slot");
-_Static_assert((int)WORLD_PLAYER_SPOTANIM_SLOTS == (int)WORLD_NPC_SPOTANIM_SLOTS,
-               "a player's graphic slots combine as an npc's");
+/* An entity's graphics: one per wire slot it was sent, at most one per slot
+ * byte (WorldEntityFacet_EntitySpotanims), each combined at its position in
+ * that list. */
+#define APP_ENTITY_SPOT_SLOTS WORLD_SPOTANIM_SLOT_MAX
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -26,7 +24,7 @@ app_entity_spotanim_detach(
  * the spotanimtype, its model, and a playable seq. One test for the per-frame
  * combine below and for the packet-time prefetch, so the two cannot disagree
  * about what "loaded" means. */
-static int
+int
 app_entity_spotanim_resident(
     struct App* app,
     int spotanim_id)
@@ -46,16 +44,16 @@ app_entity_spotanim_resident(
     return anim && anim->frame_count > 0 && ((anim->frames && anim->base) || anim->skeletal);
 }
 
+/* Want an attached graphic's assets (ASSET_KIND_SPOTANIM: its type, model
+ * and sequence). One load per graphic in flight however many entities wear
+ * it, and however many frames ask while it loads; a load that ends without
+ * them is retried after a back-off while anything still wears it. */
 static void
-app_entity_spotanim_load(
+app_entity_spotanim_want(
     struct App* app,
-    int spotanim_id,
-    int element_id)
+    int spotanim_id)
 {
-    struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_ENTITY_SPOTANIM, 0, 0, 0);
-    task->spotanim_id = spotanim_id;
-    task->entity_element_id = element_id;
-    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
+    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SPOTANIM, spotanim_id, 0));
 }
 
 void
@@ -67,7 +65,7 @@ App_EntitySpotanimPrefetch(
     assert(spotanim_id >= 0);
     if( app_entity_spotanim_resident(app, spotanim_id) )
         return;
-    app_entity_spotanim_load(app, spotanim_id, -1);
+    app_entity_spotanim_want(app, spotanim_id);
 }
 
 static void
@@ -78,37 +76,31 @@ app_world_sync_one_entity_spotanim(
     int element_id,
     int owner_entity_id);
 
-/* Request a sequence load once (deduped through the entity seq tracker).
+/* Want a sequence (ASSET_KIND_SEQUENCE): one load however often it is asked.
  *
- * The tracker is what stops this from re-queueing a load every world tick for
- * the whole of a sequence's load window: `ToriDraw_SceneAnimationHas` above only
- * goes true once the load LANDS, so between the request and the registration
- * that test says "missing" every tick.
- *
- * It is a fixed 64-entry table and it used to only *record* under the capacity
- * check while queueing unconditionally — so once 64 distinct entity sequences
- * had been seen in a session (an afternoon of walking and fighting passes that
- * easily; it is never pruned), the dedupe silently stopped working and every
- * tick queued another Dat2SequenceLoad for the same seq. Each one that landed
- * called ToriDraw_SceneAnimationAdd, which used to free the animation live
- * elements were already pointing at. The claim overwrites the oldest entry
- * instead (engine/seq_load_tracker.h): the table stays bounded, dedupe keeps
- * working, and an evicted-but-still-loading seq costs at worst one redundant
- * task, which the registry now absorbs safely. */
+ * Asked where something changes to it, never per frame: the world asks when
+ * an entity's track is set (World_SeqWant -> app_world_seq_want), a hull's
+ * config names it, the editor poses a preview. The assets table holds one
+ * entry per sequence in flight with no capacity at which the dedupe stops,
+ * and remembers a sequence the cache cannot serve (ASSET_FAIL_REMEMBER), so a
+ * miss is answered once. */
 void
 app_request_entity_seq(
     struct App* app,
     int seq_id)
 {
-    struct ToriRS_Task* task;
-
     if( seq_id < 0 || ToriDraw_SceneAnimationHas(app->scene, seq_id) )
         return;
-    if( !SeqLoadTracker_ClaimEvicting(&app->entity_seq_loads, seq_id) )
-        return;
-    task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
-    if( task )
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
+    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0));
+}
+
+/* World_SeqSource.want: a track of some entity was just set to `seq_id`. */
+void
+app_world_seq_want(
+    void* want_userdata,
+    int seq_id)
+{
+    app_request_entity_seq((struct App*)want_userdata, seq_id);
 }
 
 /* Bind one entity's World animation state onto its scene element (reference
@@ -141,22 +133,18 @@ app_world_apply_entity_anim_tracks(
      * tracks instead (app_world_anim_frame_sound is the listener), which is
      * where the reference emits them too. */
 
-    if( primary_active )
-        app_request_entity_seq(app, anim->primary.anim_id);
-    /* A parked ANIM (WorldEntityFacet_Animation.pending_anim_id) is judged the
-     * cycle its seq registers; keep asking for it until then. */
-    if( anim->pending_set )
-        app_request_entity_seq(app, anim->pending_anim_id);
-    if( secondary_active )
-        app_request_entity_seq(app, anim->secondary.anim_id);
+    /* Nothing is asked for here: the world asked when each track was set to
+     * its sequence (World_SeqWant), a parked ANIM's too, so a steady frame
+     * asks for nothing. A sequence not registered yet is bound the frame its
+     * load lands. */
 
     if( primary_active && anim->primary.delay == 0 )
     {
         struct ToriDraw_Animation* pa =
             ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
-        /* Not registered yet: `app_request_entity_seq` above only queues the
-         * load, so the first ticks after a spawn legitimately have no
-         * animation. That is the caller's condition — the predicate asserts. */
+        /* Not registered yet: the want only queued the load, so the first
+         * ticks after a spawn legitimately have no animation. That is the
+         * caller's condition — the predicate asserts. */
         if( pa && ToriDraw_ElementAnimPlayable(pa) )
         {
             /* TORIRS_MERGE_TRACE=<seq>: every frame that seq is bound as the
@@ -247,7 +235,8 @@ app_world_sync_entity_animations(struct App* app)
         if( player )
         {
             app_world_apply_entity_anim_tracks(
-                app, player->element_id, &player->animation, &player->idle_animations);
+                app, player->element_id, World_EntityDrawnAnimation(&player->animation, &player->freeze),
+                &player->idle_animations);
             app_world_reconcile_player_body(app, player);
         }
     }
@@ -259,7 +248,8 @@ app_world_sync_entity_animations(struct App* app)
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
         if( npc )
             app_world_apply_entity_anim_tracks(
-                app, npc->element_id, &npc->animation, &npc->idle_animations);
+                app, npc->element_id, World_EntityDrawnAnimation(&npc->animation, &npc->freeze),
+                &npc->idle_animations);
     }
 }
 
@@ -343,7 +333,7 @@ app_entity_spotanim_detach(
     }
     if( entry->body )
         ToriDraw_ModelFree(entry->body);
-    for( int i = 0; i < APP_ENTITY_SPOT_SLOTS; i++ )
+    for( int i = 0; i < entry->slot_count; i++ )
         if( entry->slots[i].spot )
             ToriDraw_ModelFree(entry->slots[i].spot);
     EntitySpotanim_Clear(entry);
@@ -359,6 +349,30 @@ app_entity_spotanim_drop(
     struct EntitySpotanim* entry = app_entity_spotanim_find(app, body_element_id, 0);
     if( entry )
         app_entity_spotanim_detach(app, entry, false);
+}
+
+/* The table's owner ends. An entry still wearing a graphic holds the body
+ * snapshot and every slot's graphic (entity_spotanim.h: the caller frees each
+ * model before an entry is cleared); nothing else will now, because the
+ * frame's sweep of dead elements never runs again. `combined` is the
+ * element's, freed with the scene. A doric run on the test client left one
+ * such snapshot, 112 blocks of lib:toridraw, at exit. */
+void
+app_entity_spotanims_free(struct App* app)
+{
+    assert(app);
+    for( int i = 0; i < app->entity_spotanims.capacity; i++ )
+    {
+        struct EntitySpotanim* entry = &app->entity_spotanims.entries[i];
+
+        if( entry->body_element_id < 0 )
+            continue;
+        ToriDraw_ModelFree(entry->body);
+        for( int k = 0; k < entry->slot_count; k++ )
+            ToriDraw_ModelFree(entry->slots[k].spot);
+        EntitySpotanim_Clear(entry);
+    }
+    EntitySpotanims_Free(&app->entity_spotanims);
 }
 
 /* The scale (128 == 1.0) that a later resize by `resize` takes back to 128. */
@@ -507,19 +521,27 @@ app_world_sync_one_entity_spotanim(
     struct World* world = app->world;
     struct EntitySpotanim* entry = app_entity_spotanim_find(app, element_id, owner_entity_id);
     struct ToriDraw_SceneElement* el;
-    struct ToriDraw_Animation* anims[APP_ENTITY_SPOT_SLOTS] = { 0 };
+    struct ToriDraw_Animation* anims[APP_ENTITY_SPOT_SLOTS];
     int frames[APP_ENTITY_SPOT_SLOTS];
-    int active_mask = 0;
-    int draw_mask = 0;
+    bool active[APP_ENTITY_SPOT_SLOTS];
+    bool draw[APP_ENTITY_SPOT_SLOTS];
+    struct EntitySpotanimSlot* slots;
+    int any_active = 0;
+    int any_draw = 0;
     int first_combine;
 
-    assert(spot_count > 0);
+    /* An entity sent no graphic has no list (spot_count 0). */
+    assert(spot_count >= 0);
     assert(spot_count <= APP_ENTITY_SPOT_SLOTS);
     for( int i = 0; i < spot_count; i++ )
-        if( spots[i].id != -1 && world->cycle >= spots[i].last_cycle && spots[i].frame >= 0 )
-            active_mask |= 1 << i;
+    {
+        active[i] = spots[i].id != -1 && world->cycle >= spots[i].last_cycle && spots[i].frame >= 0;
+        draw[i] = false;
+        anims[i] = NULL;
+        any_active |= active[i];
+    }
 
-    if( !active_mask )
+    if( !any_active )
     {
         if( entry )
             app_entity_spotanim_detach(app, entry, true);
@@ -528,16 +550,15 @@ app_world_sync_one_entity_spotanim(
     if( !entry )
     {
         entry = EntitySpotanims_Claim(&app->entity_spotanims, element_id, owner_entity_id);
-        if( !entry )
-            return; /* table full */
     }
 
     /* A slot whose graphic changed (replaced, or ended) drops its model; the
      * body snapshot stays, and the merge below is rebuilt without it. */
-    for( int i = 0; i < APP_ENTITY_SPOT_SLOTS; i++ )
+    slots = EntitySpotanim_Slots(entry, spot_count);
+    for( int i = 0; i < entry->slot_count; i++ )
     {
-        int want = (active_mask & (1 << i)) ? spots[i].id : -1;
-        struct ToriDraw_Model* old = EntitySpotanim_SlotWant(&entry->slots[i], want);
+        int want = i < spot_count && active[i] ? spots[i].id : -1;
+        struct ToriDraw_Model* old = EntitySpotanim_SlotWant(&slots[i], want);
 
         if( old )
             ToriDraw_ModelFree(old);
@@ -557,22 +578,19 @@ app_world_sync_one_entity_spotanim(
      * ever asks for. */
     for( int i = 0; i < spot_count; i++ )
     {
-        struct EntitySpotanimSlot* slot = &entry->slots[i];
+        struct EntitySpotanimSlot* slot = &slots[i];
         struct ToriRS_Spotanimtype* type;
 
-        if( !(active_mask & (1 << i)) )
+        if( !active[i] )
             continue;
         if( !app_entity_spotanim_resident(app, slot->spotanim_id) )
         {
             /* Normally already in flight: the packet that set the graphic
              * prefetched it (App_EntitySpotanimPrefetch), so the start delay
              * covers the load. This is the fallback for anything that did
-             * not. */
-            if( !slot->load_enqueued )
-            {
-                app_entity_spotanim_load(app, slot->spotanim_id, element_id);
-                slot->load_enqueued = 1;
-            }
+             * not; the table answers "already loading" for every frame after
+             * the first. */
+            app_entity_spotanim_want(app, slot->spotanim_id);
             continue;
         }
         type = CacheProvider_SpotanimtypeGet(app->provider, slot->spotanim_id);
@@ -583,7 +601,8 @@ app_world_sync_one_entity_spotanim(
         anims[i] = ToriDraw_SceneAnimationGet(app->scene, type->seq);
         frames[i] = spots[i].frame < anims[i]->frame_count ? spots[i].frame
                                                            : anims[i]->frame_count - 1;
-        draw_mask |= 1 << i;
+        draw[i] = true;
+        any_draw = 1;
     }
 
     if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
@@ -591,7 +610,7 @@ app_world_sync_one_entity_spotanim(
     el = ToriDraw_SceneElementGet(app->scene, element_id);
     if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
         return;
-    if( !draw_mask )
+    if( !any_draw )
     {
         app_entity_spotanim_unmerge(app, entry);
         return;
@@ -617,7 +636,7 @@ app_world_sync_one_entity_spotanim(
             return;
     }
 
-    if( !EntitySpotanim_NeedsMerge(entry, draw_mask, frames, spot_count) )
+    if( !EntitySpotanim_NeedsMerge(entry, draw, frames, spot_count) )
         return; /* merged model already at these spot frames; body animates live */
     first_combine = !entry->combined;
 
@@ -630,9 +649,9 @@ app_world_sync_one_entity_spotanim(
         int carry_resize = entry->body->post_resize;
 
         for( int i = 0; i < spot_count; i++ )
-            if( draw_mask & (1 << i) )
+            if( draw[i] )
                 posed[posed_count++] =
-                    app_entity_spotanim_pose(&entry->slots[i], anims[i], frames[i], spots[i].height);
+                    app_entity_spotanim_pose(&slots[i], anims[i], frames[i], spots[i].height);
 
         /* The body is at its authored size and the renderer re-poses it every
          * frame, resizing after the pose (NpcType.getModel's order), so the
@@ -710,11 +729,11 @@ app_world_sync_one_entity_spotanim(
          * text read its height before the renderer poses it -- once per spot
          * frame, so unposed this flickered for the whole graphic. */
         app_element_pose_after_model_swap(app, element_id);
-        EntitySpotanim_NoteMerged(entry, merged, draw_mask, frames, spot_count);
+        EntitySpotanim_NoteMerged(entry, merged, draw, frames, spot_count);
         RedrawRequest_Raise(&app->redraw_request);
         if( first_combine && getenv("TORIRS_ANIM_DEBUG") )
             TORIRS_LOG(
-                "entity_spotanim: combine element=%d slots=0x%x\n", element_id, draw_mask);
+                "entity_spotanim: combine element=%d graphics=%d\n", element_id, posed_count);
     }
 }
 
@@ -728,7 +747,7 @@ app_world_sync_entity_spotanims(struct App* app)
 
     /* Entries whose body element died outside the event drain (scene
      * teardown): free the snapshots. */
-    for( int i = 0; i < ENTITY_SPOTANIMS_MAX; i++ )
+    for( int i = 0; i < app->entity_spotanims.capacity; i++ )
     {
         struct EntitySpotanim* entry = &app->entity_spotanims.entries[i];
         if( entry->body_element_id >= 0 &&
@@ -744,8 +763,8 @@ app_world_sync_entity_spotanims(struct App* app)
         if( player && player->element_id >= 0 )
             app_world_sync_one_entity_spotanim(
                 app,
-                player->spotanims,
-                WORLD_PLAYER_SPOTANIM_SLOTS,
+                player->spotanims.items,
+                player->spotanims.count,
                 player->element_id,
                 WORLD_ENTITY_ID(WORLD_ENTITY_KIND_PLAYER, player->server_pid));
     }
@@ -764,26 +783,78 @@ app_world_sync_entity_spotanims(struct App* app)
         else if( npc && npc->element_id >= 0 )
             app_world_sync_one_entity_spotanim(
                 app,
-                npc->spotanims,
-                WORLD_NPC_SPOTANIM_SLOTS,
+                npc->spotanims.items,
+                npc->spotanims.count,
                 npc->element_id,
                 WORLD_ENTITY_ID(WORLD_ENTITY_KIND_NPC, npc->server_slot));
     }
 }
 
-/* The body an npc draws: its customisation's models when it has one, the
- * type's own otherwise -- recoloured, scaled and lit as the type's (deob
- * NpcType.getModel with the override's models). NULL while a model is not
- * resident; the fetch is asked for once per change. */
+/* A player body for an npc (its customisation's mirror or composition): built
+ * once every idk / obj config the appearance names and every model those
+ * name are resident; until then each missing one is wanted through the
+ * assets table, every frame the body waits, as the customised models are.
+ * NULL while waiting. */
+static struct ToriDraw_Model*
+app_world_build_npc_player_body(
+    struct App* app,
+    int const slots[12],
+    int const colors[5],
+    int gender)
+{
+    int ids[64];
+    int n;
+    int missing = 0;
+
+    for( int i = 0; i < 12; i++ )
+    {
+        struct AssetKey key;
+
+        if( Appearance_SlotKind(slots[i]) == APPEARANCE_SLOT_KIT )
+            key = AssetKey_Make(ASSET_KIND_CONFIG, Appearance_SlotKit(slots[i]), ASSET_CONFIG_IDK);
+        else if( Appearance_SlotKind(slots[i]) == APPEARANCE_SLOT_OBJ )
+            key = AssetKey_Make(ASSET_KIND_CONFIG, Appearance_SlotObj(slots[i]), ASSET_CONFIG_OBJ);
+        else
+            continue;
+        if( !App_AssetResident(app, key) )
+        {
+            (void)Assets_Want(app->assets, key);
+            missing = 1;
+        }
+    }
+    if( missing )
+        return NULL;
+    n = PlayerModel_CollectAppearanceModelIds(app->provider, slots, gender, ids, (int)(sizeof(ids) / sizeof(ids[0])));
+    for( int i = 0; i < n; i++ )
+    {
+        if( ids[i] < 0 || CacheProvider_ModelHas(app->provider, ids[i]) )
+            continue;
+        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_MODEL, ids[i], 0));
+        missing = 1;
+    }
+    if( missing || !PlayerModel_AppearanceResident(app->provider, slots, gender) )
+        return NULL;
+    return PlayerModel_BuildFromAppearance(app->provider, slots, colors, gender);
+}
+
+/* The body an npc draws: its server customisation over its type when it has
+ * one (app_world_build_npc_override_model: the override's models or the
+ * type's, the override's recolours and retextures over the type's), the
+ * type's own otherwise. NULL while a model is not resident; a missing one is
+ * wanted through the assets table every frame the body waits (one load each
+ * in flight, a failed one retried after a back-off). */
 static struct ToriDraw_Model*
 app_world_build_npc_body(
     struct App* app,
     struct WorldEntity_NPC* npc,
     struct ToriRS_Npctype* npctype)
 {
+    struct WorldNpcOverride const* o = &npc->body_custom;
     struct ToriDraw_Model* model;
+    int const* ids;
+    int count;
 
-    if( npc->body_model_count <= 0 )
+    if( !o->active )
     {
         if( npctype->models_count <= 0 )
         {
@@ -796,48 +867,113 @@ app_world_build_npc_body(
             return NULL; /* NpcBodyLand dresses it */
         return app_world_build_npc_model(app, npc->npc_id, npctype);
     }
-    for( int i = 0; i < npc->body_model_count; i++ )
+    if( o->mirror )
     {
-        if( npc->body_models[i] < 0 || CacheProvider_ModelHas(app->provider, npc->body_models[i]) )
-            continue;
-        if( npc->body_load_serial != npc->body_serial )
-        {
-            for( int k = 0; k < npc->body_model_count; k++ )
-            {
-                struct Task_AppSpawn* task;
+        /* 0x10 (class399.field5094): the npc draws the LOCAL player, its
+         * whole composition, under the npc's own sequences (deob
+         * class86.method2930: Statics.method6652's field532.method7569). No
+         * local player: nothing is drawn. Remounted when the local player's
+         * body changes (App_WorldNpcMirrorsRemount). */
+        struct WorldEntity_Player* lp = app_local_player(app);
 
-                if( npc->body_models[k] < 0 ||
-                    CacheProvider_ModelHas(app->provider, npc->body_models[k]) )
-                    continue;
-                task = app_spawn_task_new(app, APP_SPAWN_ENTITY_MODEL, 0, 0, 0);
-                task->model_id = npc->body_models[k];
-                ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
-            }
-            npc->body_load_serial = npc->body_serial;
+        if( !lp )
+        {
+            model = ToriDraw_ModelNew(0, 0, 0);
+            assert(model);
+            ToriDraw_ModelSetBoundsCylinder(model);
+            return model;
         }
-        return NULL;
+        return app_world_build_npc_player_body(app, lp->appearance.slots, lp->appearance.colors, lp->gender);
+    }
+    if( o->player )
+    {
+        /* 0x20 (class399.field5090, class86.method2906): a player
+         * composition (class316.method7618), its colours the first five
+         * recolours and its body type the block's. What it DRAWS is its
+         * second array, the block's MODEL list (field5091 -> field4251, the
+         * slots class316.method7569 builds from); the identkit list
+         * (field5096 -> field4250) is only the body underneath, read when
+         * the body type changes (method7634), which nothing does here. With
+         * no model list the body type's default kits are drawn
+         * (method7564's method7589). A list shorter than the twelve slots
+         * leaves the rest empty (the reference would index past it). */
+        int slots[12] = { 0 };
+        int colors[5] = { 0 };
+
+        if( o->models_sent )
+        {
+            /* The composition's slot form (deob: 256..2047 a kit, id + 256,
+             * Statics.method7614 / method7580; 2048 and up a worn obj, id +
+             * 2048, class316.method7579 / Statics.method7622) into this
+             * client's packing. The list is g4s: an obj id past a g2 names no
+             * config (the reference's lookup answers an empty type) and
+             * draws nothing, as a value under 256 does. */
+            for( int i = 0; i < 12 && i < o->model_count; i++ )
+            {
+                int const v = o->models[i];
+
+                if( v >= 2048 && v - 2048 <= 0xffff )
+                    slots[i] = Appearance_PackObj(v - 2048);
+                else if( v >= 256 && v < 2048 )
+                    slots[i] = Appearance_PackKit(v - 256);
+            }
+        }
+        else
+        {
+            for( int part = 0; part < PLAYER_APPEARANCE_PARTS; part++ )
+            {
+                int kit = app_if_player_model_find_kit(app, part, o->body_type);
+
+                if( kit >= 0 )
+                    slots[PlayerModel_DesignPartWearpos(part)] = Appearance_PackKit(kit);
+            }
+        }
+        for( int i = 0; i < 5 && i < o->recolour_count; i++ )
+            colors[i] = o->recolours[i];
+        return app_world_build_npc_player_body(app, slots, colors, o->body_type);
+    }
+    ids = o->models_sent ? o->models : npctype->models;
+    count = o->models_sent ? o->model_count : npctype->models_count;
+    if( count <= 0 )
+    {
+        /* An override that sent no models over a type with none, or an
+         * empty list (the reference's `new int[0]`): an empty body. */
+        model = ToriDraw_ModelNew(0, 0, 0);
+        assert(model);
+        ToriDraw_ModelSetBoundsCylinder(model);
+        return model;
     }
     {
-        struct AppModelRecolorSpec recolors = {
-            .recolors_from = npctype->recolors_from,
-            .recolors_to = npctype->recolors_to,
-            .recolor_count = npctype->recolor_count,
-            .retextures_from = npctype->retextures_from,
-            .retextures_to = npctype->retextures_to,
-            .retexture_count = npctype->retexture_count,
-        };
-        model = app_world_build_model(
-            app,
-            npc->body_models,
-            npc->body_model_count,
-            &recolors,
-            npctype->width_scale,
-            npctype->height_scale,
-            APP_LIGHT_ACTOR,
-            ToriRS_FeatureFacts_NpcTypeAmbientContrast(&app->feature_facts) ? npctype->contrast : 0,
-            ToriRS_FeatureFacts_NpcTypeAmbientContrast(&app->feature_facts) ? npctype->ambient : 0);
+        int missing = 0;
+        for( int i = 0; i < count; i++ )
+        {
+            if( ids[i] < 0 || CacheProvider_ModelHas(app->provider, ids[i]) )
+                continue;
+            (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_MODEL, ids[i], 0));
+            missing = 1;
+        }
+        if( missing )
+            return NULL;
     }
-    return model;
+    return app_world_build_npc_override_model(app, npc->npc_id, npctype, o);
+}
+
+void
+App_WorldNpcMirrorsRemount(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    assert(app);
+    assert(app->world);
+    pool = &app->world->entities.npc;
+    /* Only when the local player's body changed: a walk of the npc pool,
+     * never per frame. */
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL; ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        if( npc && npc->body_custom.active && npc->body_custom.mirror )
+            npc->body_serial++;
+    }
 }
 
 void
@@ -887,7 +1023,7 @@ App_WorldSpawnSyncedPlayer(
     int scene_z,
     int level)
 {
-    return app_world_spawn_player_now(app, scene_x, scene_z, level);
+    return app_world_spawn_synced_player_now(app, scene_x, scene_z, level);
 }
 
 int

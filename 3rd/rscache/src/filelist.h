@@ -34,6 +34,64 @@ RSCache_FileListNewFromDecodeShared(
     int num_files,
     char** out_blob);
 
+/**
+ * RSCache_FileListNewFromDecodeShared a bounded amount at a time, for a
+ * caller that must not spend a whole group's split in one go (a client's
+ * time-sliced queue: the loc config group is 56,000 members). One "entry" is
+ * one member in one pass over the group: the size table (chunks x members),
+ * the layout (members, twice) and the copy (chunks x members). The result is
+ * byte for byte RSCache_FileListNewFromDecodeShared's -- that function is
+ * this one run to its end.
+ *
+ * `data` is read until the split ends and stays the caller's.
+ *   Begin: 0, or -1 when the group is malformed (nothing to free).
+ *   Step:  1 when the list is ready, 0 when entries remain, -1 when the group
+ *          turned out malformed (everything is freed).
+ *   Take:  the list and its blob (free with RSCache_FileListFreeShared); the
+ *          split is spent.
+ *   Abandon: frees a split that will not be finished. Accepts one that ended.
+ */
+struct RSCache_FileListSplit
+{
+    char* data;
+    int data_size;
+    int num_files;
+    int phase;
+    int chunks;
+    int chunk;
+    int id;
+    int chunk_size;
+    uint32_t position;
+    uint64_t total;
+    /** The block's size, once the layout is known: the sum of every member. */
+    uint64_t blob_bytes;
+    int** chunk_sizes;
+    int* sizes;
+    int* file_offsets;
+    struct RSCache_FileList* filelist;
+    char* blob;
+};
+
+int
+RSCache_FileListSplitBegin(
+    struct RSCache_FileListSplit* split,
+    char* data,
+    int data_size,
+    int num_files);
+
+int
+RSCache_FileListSplitStep(
+    struct RSCache_FileListSplit* split,
+    int entries);
+
+struct RSCache_FileList*
+RSCache_FileListSplitTake(
+    struct RSCache_FileListSplit* split,
+    char** out_blob);
+
+void
+RSCache_FileListSplitAbandon(struct RSCache_FileListSplit* split);
+
 /** Free a list made by RSCache_FileListNewFromDecodeShared and its blob. */
 void
 RSCache_FileListFreeShared(

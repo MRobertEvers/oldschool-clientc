@@ -13,6 +13,7 @@
 #include "bmp.h"
 #endif
 #include "graphics/dash_restrict.h"
+#include "graphics/int_wrap.h"
 #include "toridraw_math.h"
 
 #include <assert.h>
@@ -65,6 +66,7 @@ ToriDraw_SpriteNewFromPix8(
     sprite->width = pix8->width;
     sprite->height = pix8->height;
     sprite->trim_width = pix8->width;
+    sprite->trim_height = pix8->height;
     return sprite;
 }
 
@@ -118,6 +120,7 @@ ToriDraw_SpriteNewFromPix32(struct ToriDraw_Pix32* pix32)
     sprite->width = pix32->draw_width;
     sprite->height = pix32->draw_height;
     sprite->trim_width = pix32->draw_width;
+    sprite->trim_height = pix32->draw_height;
     return sprite;
 }
 
@@ -139,6 +142,7 @@ ToriDraw_SpriteNewFromArgbOwned(
     sprite->crop_width = width;
     sprite->crop_height = height;
     sprite->trim_width = width;
+    sprite->trim_height = height;
     return sprite;
 }
 
@@ -654,8 +658,8 @@ ToriDraw2D_BlitSpriteRotated(
 
     int center_x = (-width / 2);
     int center_y = (-height / 2);
-    int left_x = (anchor_x << 16) + center_y * sin_zoom + center_x * cos_zoom;
-    int left_y = (anchor_y << 16) + (center_y * cos_zoom - center_x * sin_zoom);
+    int left_x = toridraw_wrap_shl(anchor_x, 16) + center_y * sin_zoom + center_x * cos_zoom;
+    int left_y = toridraw_wrap_shl(anchor_y, 16) + (center_y * cos_zoom - center_x * sin_zoom);
     int left_off = x + y * stride;
 
     for( int i = 0; i < height; i++ )

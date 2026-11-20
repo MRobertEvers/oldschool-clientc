@@ -1,6 +1,7 @@
 #ifndef SRC_GAME_RS_CHAT_H
 #define SRC_GAME_RS_CHAT_H
 
+#include "game/rs_event_ring.h"
 #include "ui/uitree_chatview.h"
 
 #include <stddef.h>
@@ -8,7 +9,6 @@
 
 struct RS_Social;
 struct UITreeHost;
-struct App;
 
 /*
  * Chat model: the 100-entry message ring, filter-aware line layout, the typed
@@ -19,7 +19,13 @@ struct App;
 
 #define RS_CHAT_MESSAGE_MAX 100
 #define RS_CHAT_SENDER_LEN 64
-#define RS_CHAT_TEXT_LEN 200
+/* A line's text, its NUL included. The reference keeps a line as the String
+ * the packet carried (class55.method1052 -> class76.method2620 stores it
+ * whole), and MESSAGE_GAME is a VARU8 packet, so 256 holds every line the wire
+ * can send. It was 200, which cut a 200-character chat-head line copied into
+ * the chatbox ("Doric|Clay is what I use ...", doric and runemysteries) to 199
+ * characters (the headless client's shadow, report 1, M1). */
+#define RS_CHAT_TEXT_LEN 256
 #define RS_CHAT_INPUT_LEN 80
 
 /*
@@ -146,13 +152,13 @@ struct RS_Chat
     /** Next `RS_ChatMessage.serial` to hand out. A separate counter from
      *  `next_uid`: see the field comment on RS_ChatMessage.serial. */
     int next_message_serial;
-    /** The App this chat's messages are stamped to the drive event ring
-     *  through (RS_Chat_SetDriveApp). NULL for every RS_Chat built off the
-     *  stack by a unit test with no App in scope -- that is a legitimate
-     *  topology, the same way `app->plugins` is NULL when plugins are
-     *  switched off, and RS_Chat_AddMessage skips the stamp rather than
+    /** The event ring this chat's messages are stamped to as `chat_message`
+     *  (RS_Chat_SetEventSink). Unbound (`events.ring` NULL) for every RS_Chat
+     *  built off the stack by a unit test with no ring in scope -- that is a
+     *  legitimate topology, the same way `app->plugins` is NULL when plugins
+     *  are switched off, and RS_Chat_AddMessage skips the stamp rather than
      *  asserting it. */
-    struct App* drive_app;
+    struct RS_EventSink events;
     /** One-entry memo for uid lookup. The scripts walk the history strictly
      *  in order -- read uid, ask for the previous one, read that -- so a
      *  single remembered node turns a list walk per line into a pointer hop. */
@@ -203,13 +209,13 @@ void
 RS_Chat_Init(struct RS_Chat* chat, char const* username);
 
 /**
- * Wire the App a live client stamps `chat_message` drive events through.
- * Called once, alongside RS_CS2Host_SetChat, by whatever owns both `app` and
- * `&app->chat`. Never called by a unit test that builds a bare RS_Chat --
- * `drive_app` stays NULL there and RS_Chat_AddMessage skips the stamp.
+ * Bind the event ring a live client stamps `chat_message` events into.
+ * Called once, alongside RS_CS2Host_SetChat, by whatever owns both the ring
+ * and the chat. Never called by a unit test that builds a bare RS_Chat --
+ * `events` stays unbound there and RS_Chat_AddMessage skips the stamp.
  */
 void
-RS_Chat_SetDriveApp(struct RS_Chat* chat, struct App* app);
+RS_Chat_SetEventSink(struct RS_Chat* chat, struct RS_EventSink sink);
 
 /**
  * Does this message occupy a chat line under the current filters?
@@ -263,6 +269,24 @@ RS_Chat_CrownImage(
     int crown,
     int* out_ignorable);
 
+/**
+ * Is a local player standing on world tile (x, z) in the tutorial area, where
+ * the reference shows no friend-channel or private line (deob Statics.method6894
+ * sets client.field765 from the local player's tile every frame; client.java
+ * class243.field2995 and field2953 add a line only while it is 0)? Tutorial
+ * Island and its cave, less the strip of the mainland the island's box reaches.
+ */
+int
+RS_Chat_InTutorialArea(
+    int world_x,
+    int world_z);
+
+/** Is crown index `crown` a moderator's (class278.field3430: player and Jagex
+ *  moderators)? A private line from one is typed PRIVATE_FROM_MOD. 0 for an
+ *  index past the table. */
+int
+RS_Chat_CrownIsStaff(int crown);
+
 /** `<img=N>name` for a crowned speaker, plain `name` otherwise, into `out`. */
 void
 RS_Chat_CrownedName(
@@ -270,6 +294,34 @@ RS_Chat_CrownedName(
     char const* name,
     char* out,
     size_t cap);
+
+/** The chat types a public line is filed as (deob class95.method3131): 1 for
+ *  a staff crown's (class278.field3430), 2 otherwise, and 91 / 90 for the
+ *  same line sent by the autotyper. */
+int
+RS_Chat_PublicType(
+    int crown,
+    int autotyper);
+
+/**
+ * A player's typed line put into sentence case, as the reference does to
+ * every public line it reads (deob Statics.method10915): the first letter of
+ * the line and of each sentence (after '.', '?' or '!') is a capital, every
+ * letter straight after a letter is lower case, and a capital after a space
+ * or a symbol stays. `text` is cp1252, as the wire's; `out` is the same
+ * length.
+ */
+void
+RS_Chat_SentenceCase(
+    char const* text,
+    char* out,
+    size_t cap);
+
+/** `name` past a leading crown image (`<img=N>` for a crown's N), as the
+ *  reference strips one before a friend or ignore test (Statics.method11885);
+ *  `name` itself when it has none. */
+char const*
+RS_Chat_Uncrowned(char const* name);
 
 /** Release the per-type store. The 254-era ring is inline and needs nothing. */
 void

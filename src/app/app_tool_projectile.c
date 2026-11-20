@@ -160,7 +160,6 @@ app_world_spawn_projectile(
     int level,
     char const* args)
 {
-    struct Task_AppSpawn* task;
     int src_x = -1;
     int src_z = -1;
     int src_level = 0;
@@ -178,17 +177,20 @@ app_world_spawn_projectile(
         return;
     }
 
-    task = app_spawn_task_new(app, APP_SPAWN_PROJECTILE, tile_x, tile_z, level);
-    task->model_id = ToriRS_EnvNamedArgOrEnv(
-        args, "model", "TORIRS_SPAWN_PROJ_MODEL", 3081 /* v1 spawn-test spotanim model */);
-    task->seq_id = ToriRS_EnvNamedArgOrEnv(
-        args,
-        "seq",
-        "TORIRS_SPAWN_PROJ_SEQ",
-        659 /* v1 spawn-test spotanim sequence (RUNESCAPE_PROJECTILE_SEQ_ID) */);
-    task->src_tile_x = src_x;
-    task->src_tile_z = src_z;
-    task->src_level = src_level;
-    task->proj_target = app_world_npc_target_at_tile(app, tile_x, tile_z, level);
-    app_spawn_effect_queue(app, task);
+    /* Made at once, drawn when its model lands (app/app_tasks_effects.c). */
+    (void)App_WorldModelProjectileSpawn(
+        app,
+        ToriRS_EnvNamedArgOrEnv(
+            args, "model", "TORIRS_SPAWN_PROJ_MODEL", 3081 /* v1 spawn-test spotanim model */),
+        ToriRS_EnvNamedArgOrEnv(
+            args,
+            "seq",
+            "TORIRS_SPAWN_PROJ_SEQ",
+            659 /* v1 spawn-test spotanim sequence (RUNESCAPE_PROJECTILE_SEQ_ID) */),
+        src_x,
+        src_z,
+        src_level,
+        tile_x,
+        tile_z,
+        app_world_npc_target_at_tile(app, tile_x, tile_z, level));
 }

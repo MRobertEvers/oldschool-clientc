@@ -1,7 +1,6 @@
 #include "rs_chat.h"
 #include "mem/torirs_mem.h"
 
-#include "plugin/torirs_plugin_drive.h"
 #include "rs_social.h"
 #include "input/torirs_keymap.h"
 #include "ui/uitree_host.h"
@@ -38,10 +37,11 @@ RS_Chat_Init(struct RS_Chat* chat, char const* username)
 }
 
 void
-RS_Chat_SetDriveApp(struct RS_Chat* chat, struct App* app)
+RS_Chat_SetEventSink(struct RS_Chat* chat, struct RS_EventSink sink)
 {
     assert(chat);
-    chat->drive_app = app;
+    assert(sink.ring);
+    chat->events = sink;
 }
 
 /*
@@ -156,22 +156,53 @@ RS_Chat_AddMessage(
      * HERE and not App_NotifyChatMessage, which misses clan chat and the
      * synthetic logout line: this is the one choke point every insertion
      * (rs_gameproto_exec.c, RS_CS2Host_ChatAdd, a clan-chat line) passes
-     * through. `drive_app` is NULL for a bare unit-test RS_Chat -- a
+     * through. `events` is unbound for a bare unit-test RS_Chat -- a
      * legitimate topology, not a contract violation, so the stamp is
      * skipped rather than asserted. */
-    if( chat->drive_app )
-        App_DriveEvent(chat->drive_app, DRIVE_EVENT_CHAT_MESSAGE, type, serial, 0, 0);
+    if( chat->events.ring )
+        RS_EventSink_Stamp(&chat->events, RS_EVENT_CHAT_MESSAGE, type, serial, 0, 0);
 }
 
+/* deob class278: (index, field3451 image, field3430 staff, field3449
+ * ignorable), in index order. */
 static struct
 {
     int image;
     int ignorable;
+    int staff;
 } const k_chat_crowns[] = {
-    { -1, 1 }, { 0, 1 },  { 1, 0 },  { 2, 1 },  { 3, 1 },  { 10, 1 },
-    { 22, 1 }, { 41, 1 }, { 42, 1 }, { 43, 1 }, { 44, 1 }, { 45, 1 },
-    { 46, 1 }, { 47, 1 }, { 48, 1 }, { 49, 1 }, { 52, 1 },
+    { -1, 1, 0 }, { 0, 1, 1 },  { 1, 0, 1 },  { 2, 1, 0 },  { 3, 1, 0 },  { 10, 1, 0 },
+    { 22, 1, 0 }, { 41, 1, 0 }, { 42, 1, 0 }, { 43, 1, 0 }, { 44, 1, 0 }, { 45, 1, 0 },
+    { 46, 1, 0 }, { 47, 1, 0 }, { 48, 1, 0 }, { 49, 1, 0 }, { 52, 1, 0 },
 };
+
+int
+RS_Chat_CrownIsStaff(int crown)
+{
+    int const count = (int)(sizeof(k_chat_crowns) / sizeof(k_chat_crowns[0]));
+
+    if( crown < 0 || crown >= count )
+        return 0;
+    return k_chat_crowns[crown].staff;
+}
+
+int
+RS_Chat_InTutorialArea(
+    int world_x,
+    int world_z)
+{
+    int inside = 0;
+
+    /* deob Statics.method6894, in its order: the island, the cave under it,
+     * and then the mainland corner the island's box overlaps is taken out. */
+    if( world_x >= 3053 && world_x <= 3156 && world_z >= 3056 && world_z <= 3136 )
+        inside = 1;
+    if( world_x >= 3072 && world_x <= 3118 && world_z >= 9492 && world_z <= 9535 )
+        inside = 1;
+    if( inside && world_x >= 3139 && world_x <= 3199 && world_z >= 3008 && world_z <= 3062 )
+        inside = 0;
+    return inside;
+}
 
 int
 RS_Chat_CrownImage(
@@ -205,6 +236,121 @@ RS_Chat_CrownedName(
         snprintf(out, cap, "<img=%d>%s", image, name);
     else
         snprintf(out, cap, "%s", name);
+}
+
+int
+RS_Chat_PublicType(
+    int crown,
+    int autotyper)
+{
+    if( RS_Chat_CrownIsStaff(crown) )
+        return autotyper ? 91 : RS_CHAT_TYPE_PUBLIC_MOD;
+    return autotyper ? 90 : RS_CHAT_TYPE_PUBLIC;
+}
+
+/* Java's Character tests over the cp1252 bytes a line is made of: ASCII, the
+ * Latin-1 letters, and cp1252's own S/Z/OE/Y-diaeresis pairs and f-hook. */
+static int
+cp1252_is_upper(unsigned char c)
+{
+    return (c >= 'A' && c <= 'Z') || (c >= 0xc0 && c <= 0xde && c != 0xd7) || c == 0x8a || c == 0x8c ||
+           c == 0x8e || c == 0x9f;
+}
+
+static int
+cp1252_is_lower(unsigned char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 0xdf && c != 0xf7) || c == 0x9a || c == 0x9c || c == 0x9e ||
+           c == 0x83 || c == 0xb5;
+}
+
+static int
+cp1252_is_letter(unsigned char c)
+{
+    return cp1252_is_upper(c) || cp1252_is_lower(c) || c == 0xaa || c == 0xba;
+}
+
+static unsigned char
+cp1252_lower(unsigned char c)
+{
+    if( (c >= 'A' && c <= 'Z') || (c >= 0xc0 && c <= 0xde && c != 0xd7) )
+        return (unsigned char)(c + 0x20);
+    if( c == 0x8a || c == 0x8c || c == 0x8e )
+        return (unsigned char)(c + 0x10);
+    if( c == 0x9f )
+        return 0xff;
+    return c;
+}
+
+/* Character.toTitleCase, less the two the reference leaves alone (181, the
+ * micro sign, and 402, f-hook: cp1252 0x83). */
+static unsigned char
+cp1252_title(unsigned char c)
+{
+    if( (c >= 'a' && c <= 'z') || (c >= 0xe0 && c <= 0xfe && c != 0xf7) )
+        return (unsigned char)(c - 0x20);
+    if( c == 0x9a || c == 0x9c || c == 0x9e )
+        return (unsigned char)(c - 0x10);
+    if( c == 0xff )
+        return 0x9f;
+    return c;
+}
+
+void
+RS_Chat_SentenceCase(
+    char const* text,
+    char* out,
+    size_t cap)
+{
+    /* 2: a sentence starts; 1: after a space or symbol; 0: after a letter. */
+    int state = 2;
+    size_t i = 0;
+
+    assert(text);
+    assert(out);
+    assert(cap > 0);
+    for( ; text[i] != '\0' && i + 1 < cap; i++ )
+    {
+        unsigned char c = (unsigned char)text[i];
+
+        if( state == 0 )
+            c = cp1252_lower(c);
+        else if( state == 2 || cp1252_is_upper(c) )
+            c = cp1252_title(c);
+        if( cp1252_is_letter(c) )
+            state = 0;
+        else if( c == '.' || c == '?' || c == '!' )
+            state = 2;
+        else if( c == ' ' || c == 0xa0 )
+        {
+            if( state != 2 )
+                state = 1;
+        }
+        else
+            state = 1;
+        out[i] = (char)c;
+    }
+    out[i] = '\0';
+}
+
+char const*
+RS_Chat_Uncrowned(char const* name)
+{
+    int const count = (int)(sizeof(k_chat_crowns) / sizeof(k_chat_crowns[0]));
+    char prefix[16];
+
+    assert(name);
+    for( int i = 0; i < count; i++ )
+    {
+        int n;
+
+        if( k_chat_crowns[i].image < 0 )
+            continue;
+        n = snprintf(prefix, sizeof(prefix), "<img=%d>", k_chat_crowns[i].image);
+        if( strncmp(name, prefix, (size_t)n) == 0 )
+            return name + n;
+    }
+    return name;
 }
 
 void
@@ -345,12 +491,10 @@ is_friend(
     assert(name);
     if( !filters->social || !name[0] )
         return 0;
-    for( int i = 0; i < filters->social->friend_count; i++ )
-    {
-        if( strcasecmp(filters->social->friend_name[i], name) == 0 )
-            return 1;
-    }
-    return 0;
+    /* As the reference tests a line's speaker (class76.method2620): the name
+     * without its crown, by the store's key, so "<img=22>eden_cosine" is the
+     * friend the list spells "Eden\xa0Cosine". */
+    return RS_Social_IsFriend(filters->social, RS_Chat_Uncrowned(name));
 }
 
 /* Does this message occupy a chat line under the current filters?
@@ -1084,7 +1228,7 @@ RS_Chat_CheckpointTake(struct RS_Chat const* chat)
     cp = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*cp));
     assert(cp);
     rs_chat_checkpoint_copy(cp, chat);
-    cp->drive_app = NULL;
+    memset(&cp->events, 0, sizeof(cp->events));
     return cp;
 }
 
@@ -1093,17 +1237,17 @@ RS_Chat_CheckpointRestore(
     struct RS_Chat* chat,
     struct RS_Chat const* cp)
 {
-    struct App* drive_app;
+    struct RS_EventSink events;
     int scroll_cycle;
 
     assert(chat);
     assert(cp);
-    drive_app = chat->drive_app;
+    events = chat->events;
     /* Not session state: the checkpoint never held it (RS_Chat.scroll_cycle). */
     scroll_cycle = chat->scroll_cycle;
     RS_Chat_Free(chat);
     rs_chat_checkpoint_copy(chat, cp);
-    chat->drive_app = drive_app;
+    chat->events = events;
     chat->scroll_cycle = scroll_cycle;
 }
 

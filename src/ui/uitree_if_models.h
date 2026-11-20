@@ -58,8 +58,40 @@ struct UIIfHead
     int zoom;             /* IF_SETOBJECT third field: IF1 zoom, IF3 quantity */
     int anim_id;          /* IF_SETANIM seq for this head, or -1 (reference modelAnim) */
     uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
+    uint32_t wanted_gen;  /* tree generation its want was last raised at (app_if_head_wants) */
     uint32_t close_serial; /* tree->group_close_serial when set: a later close of
                             * the group unloads it (UITree_GroupCloseSerial) */
+    /* What the head's parallel task landed (Task_IfModel, app/
+     * app_tasks_if_assets.c): until `landed` its task is still loading, and
+     * nothing is attempted for it -- an unresolved head was re-attempted
+     * every frame forever. Once landed, `scene_id` is the composite to bind
+     * (-1: the assets did not come, nothing to show) and `landed_npc_id` the
+     * npc an npc head was resolved to (a multinpc's child, -1 hidden). */
+    uint8_t landed;
+    int scene_id;
+    int landed_npc_id;
+    /* The scene id the widget draws: what the bind last applied to it (-1
+     * none). A new set of the head leaves it: the widget keeps drawing it
+     * until the new head lands and binds. */
+    int bound_scene_id;
+    /* An IF_SETNPCHEAD_ACTIVE head of an npc that carries a chathead
+     * customisation (NPC_INFO HEAD_CUSTOM): the npc's server slot and spawn
+     * serial, and the override's serial (WorldNpcOverride.serial), which the
+     * head task reads the override by. 0 / -1: the type's own head. */
+    uint32_t custom_serial;
+    int custom_npc_slot;
+    uint32_t custom_npc_spawn_serial;
+    /* An IF_SETNPCHEAD_ACTIVE head FOLLOWS its npc: the reference resolves
+     * model type 6 against the npc on every draw (class308.method7279), so a
+     * HEAD_CUSTOM, its reset or a retype that arrives while the head is shown
+     * shows at once. The npc (server slot, spawn serial; slot -1: the head
+     * follows nothing) and what the head was set from: the npc's type, its
+     * customisation's serial (0: none) and whether that mirrors. */
+    int active_npc_slot;
+    uint32_t active_npc_spawn_serial;
+    int active_npc_id;
+    uint32_t active_custom_serial;
+    uint8_t active_mirror;
 };
 
 /* Revision-239 server-driven player-composition widgets. Each component owns
@@ -80,6 +112,10 @@ struct UIIfPlayerModel
     int built;            /* scene_id holds this composition, built whole */
     uint32_t applied_gen; /* tree generation scene_id was bound into */
     uint32_t close_serial; /* as UIIfHead's; com_id -1 = a free slot */
+    /* The composition the packets last committed (UIIfModels.
+     * composition_serial when it was committed). A build of an older one
+     * is stale and is not put into scene_id. */
+    uint32_t composition;
 };
 
 /* Live local-player model widgets (clientCode 328 -- the equipment-stats
@@ -104,6 +140,9 @@ struct UIIfModels
     struct UIIfPlayerModel* player_models;
     int player_model_count;
     int player_model_cap;
+    /* Counts every composition a player-model packet commits, for every
+     * component, so a composition number is never reused. */
+    uint32_t composition_serial;
     struct UIIfLocalPlayerModel local_player;
 };
 
@@ -119,7 +158,8 @@ UIIfModels_HeadIndex(
 
 /**
  * Set `com_id`'s head, adding an entry (with no animation) when it has none.
- * Pending again: applied_gen goes to 0. Answers the entry's index.
+ * Pending again: applied_gen goes to 0 and nothing has landed. Answers the
+ * entry's index.
  */
 int
 UIIfModels_SetHead(
@@ -135,6 +175,30 @@ void
 UIIfModels_RemoveHeadAt(
     struct UIIfModels* models,
     int index);
+
+/**
+ * The entry a head's task was made for, if it is still the one `com_id`
+ * holds: the same kind, source id, zoom and close serial, and not landed.
+ * -1 when the component's head was replaced, removed or has landed since --
+ * the task then has nothing to apply.
+ */
+int
+UIIfModels_HeadFor(
+    struct UIIfModels const* models,
+    int com_id,
+    enum UIIfHeadKind kind,
+    int npc_id,
+    int zoom,
+    uint32_t close_serial);
+
+/** Entry `index`'s task landed `scene_id` (-1: nothing to show), resolved to
+ *  `landed_npc_id`; it is bound again on the next pass (applied_gen 0). */
+void
+UIIfModels_HeadLanded(
+    struct UIIfModels* models,
+    int index,
+    int scene_id,
+    int landed_npc_id);
 
 /**
  * Give `com_id`'s head animation `anim_id` and make it pending again. False,

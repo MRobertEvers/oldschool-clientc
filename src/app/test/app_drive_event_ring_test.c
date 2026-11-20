@@ -42,7 +42,7 @@ static void
 test_ring_order_and_second_read_empty(void)
 {
     struct App app;
-    struct App_DriveEvent out[8];
+    struct RS_Event out[8];
     int count = -1;
     uint32_t serial = 0;
     enum DriveResult r;
@@ -51,24 +51,24 @@ test_ring_order_and_second_read_empty(void)
 
     memset(&app, 0, sizeof(app));
 
-    App_DriveEvent(&app, DRIVE_EVENT_SUB_OPENED, 100, 5, 0, 0);
-    App_DriveEvent(&app, DRIVE_EVENT_SUB_MOUNTED, 100, 5, 0, 0);
-    App_DriveEvent(&app, DRIVE_EVENT_SUB_CLOSED, 100, 7, 0, 0);
+    App_DriveEvent(&app, RS_EVENT_SUB_OPENED, 100, 5, 0, 0);
+    App_DriveEvent(&app, RS_EVENT_SUB_MOUNTED, 100, 5, 0, 0);
+    App_DriveEvent(&app, RS_EVENT_SUB_CLOSED, 100, 7, 0, 0);
 
     r = App_DriveEventsRead(&app, 0, out, 8, &count, &serial);
     assert(r == DRIVE_OK);
     assert(count == 3);
-    assert(out[0].kind == DRIVE_EVENT_SUB_OPENED);
+    assert(out[0].kind == RS_EVENT_SUB_OPENED);
     assert(out[0].a == 100 && out[0].b == 5);
-    assert(out[1].kind == DRIVE_EVENT_SUB_MOUNTED);
-    assert(out[2].kind == DRIVE_EVENT_SUB_CLOSED);
+    assert(out[1].kind == RS_EVENT_SUB_MOUNTED);
+    assert(out[2].kind == RS_EVENT_SUB_CLOSED);
     assert(out[2].a == 100 && out[2].b == 7);
     assert(out[0].serial < out[1].serial);
     assert(out[1].serial < out[2].serial);
     assert(serial == out[2].serial);
 
     {
-        struct App_DriveEvent out2[8];
+        struct RS_Event out2[8];
         int count2 = -1;
         uint32_t serial2 = 0;
 
@@ -84,7 +84,7 @@ static void
 test_ring_wraparound_refuses_stale_cursor(void)
 {
     struct App app;
-    struct App_DriveEvent out[8];
+    struct RS_Event out[8];
     int count = -1;
     uint32_t serial_after_first;
     uint32_t serial = 0;
@@ -95,20 +95,20 @@ test_ring_wraparound_refuses_stale_cursor(void)
 
     memset(&app, 0, sizeof(app));
 
-    App_DriveEvent(&app, DRIVE_EVENT_SERVER_TICK, 1, 0, 0, 0);
-    serial_after_first = app.drive_events.newest_serial;
+    App_DriveEvent(&app, RS_EVENT_SERVER_TICK, 1, 0, 0, 0);
+    serial_after_first = app.drive_events.ring.newest_serial;
     assert(serial_after_first != 0);
 
     /* One more than capacity: the first entry is guaranteed gone. */
     for( i = 0; i < APP_DRIVE_RING_CAPACITY + 1; i++ )
-        App_DriveEvent(&app, DRIVE_EVENT_SERVER_TICK, i + 2, 0, 0, 0);
-    assert(app.drive_events.dropped > 0);
+        App_DriveEvent(&app, RS_EVENT_SERVER_TICK, i + 2, 0, 0, 0);
+    assert(app.drive_events.ring.dropped > 0);
 
     r = App_DriveEventsRead(&app, serial_after_first, out, 8, &count, &serial);
     assert(r == DRIVE_REFUSED);
     printf(
         "PASS: %u dropped entries later, the first reader's cursor is refused\n",
-        app.drive_events.dropped);
+        app.drive_events.ring.dropped);
 
     /* A cursor of 0 ("everything still held") is never refused, even once
      * the ring has wrapped -- it is a fresh reader's start, not a stale one. */
@@ -118,57 +118,11 @@ test_ring_wraparound_refuses_stale_cursor(void)
     printf("PASS: cursor 0 still reads the survivors after the wrap\n");
 }
 
-/* A loc change note carries the loc lane ticket of the change it follows
- * (App_DriveLocChangeNote), replaces the pending note for its tile and layer,
- * and bumps the serial the route/plan collision view is cached on. */
-static void
-test_loc_change_note_carries_the_lane_ticket(void)
-{
-    static struct App app;
-    static struct World world;
-    struct App_DriveRing const* ring = &app.drive_events;
-    uint32_t serial;
-
-    printf("drive ring: a loc change note keeps its lane ticket\n");
-
-    memset(&app, 0, sizeof(app));
-    memset(&world, 0, sizeof(world));
-    world._base_tile_x = 3200;
-    world._base_tile_z = 3200;
-    app.world = &world;
-
-    while( LocLane_Newest(&app.loc_lane) < 7 )
-        (void)LocLane_Take(&app.loc_lane);
-    App_DriveLocChangeNote(&app, 10, 12, 0, 1234, 10, 2);
-    assert(ring->loc_change_count == 1);
-    assert(ring->loc_changes[0].x == 3210);
-    assert(ring->loc_changes[0].z == 3212);
-    assert(ring->loc_changes[0].lane_ticket == 7);
-    serial = ring->loc_change_serial;
-    assert(serial != 0);
-
-    /* The delete behind it on the same tile and layer replaces the note and
-     * takes the later ticket: the record is held until THAT change lands. */
-    (void)LocLane_Take(&app.loc_lane);
-    App_DriveLocChangeNote(&app, 10, 12, 0, -1, 10, 2);
-    assert(ring->loc_change_count == 1);
-    assert(ring->loc_changes[0].loc_id == -1);
-    assert(ring->loc_changes[0].lane_ticket == 8);
-    assert(ring->loc_change_serial != serial);
-
-    /* Another layer on the tile (a wall, shape 0) is its own record. */
-    (void)LocLane_Take(&app.loc_lane);
-    App_DriveLocChangeNote(&app, 10, 12, 0, 99, 0, 0);
-    assert(ring->loc_change_count == 2);
-    assert(ring->loc_changes[1].lane_ticket == 9);
-    printf("PASS: a note keeps the newest ticket for its tile and layer\n");
-}
-
 static int
 drive_ring_find(
-    struct App_DriveEvent const* events,
+    struct RS_Event const* events,
     int count,
-    enum App_DriveEventKind kind)
+    enum RS_EventKind kind)
 {
     int i;
     for( i = 0; i < count; i++ )
@@ -185,7 +139,7 @@ test_dat1_chat_open_close_stamps_the_ring(
 {
     struct App app;
     struct AppConfig cfg = { 0 };
-    struct App_DriveEvent out[32];
+    struct RS_Event out[32];
     int count = -1;
     uint32_t serial = 0;
     enum DriveResult r;
@@ -221,8 +175,8 @@ test_dat1_chat_open_close_stamps_the_ring(
     r = App_DriveEventsRead(&app, serial, out, 32, &count, &serial);
     assert(r == DRIVE_OK);
     {
-        int chat_opened_index = drive_ring_find(out, count, DRIVE_EVENT_CHAT_OPENED);
-        int slot_mounted_index = drive_ring_find(out, count, DRIVE_EVENT_SLOT_MOUNTED);
+        int chat_opened_index = drive_ring_find(out, count, RS_EVENT_CHAT_OPENED);
+        int slot_mounted_index = drive_ring_find(out, count, RS_EVENT_SLOT_MOUNTED);
 
         assert(chat_opened_index >= 0);
         assert(out[chat_opened_index].a == TEST_DAT1_MULTI2_INTERFACE_ID);
@@ -241,8 +195,8 @@ test_dat1_chat_open_close_stamps_the_ring(
     r = App_DriveEventsRead(&app, serial, out, 32, &count, &serial);
     assert(r == DRIVE_OK);
     {
-        int chat_opened_index = drive_ring_find(out, count, DRIVE_EVENT_CHAT_OPENED);
-        int slot_mounted_index = drive_ring_find(out, count, DRIVE_EVENT_SLOT_MOUNTED);
+        int chat_opened_index = drive_ring_find(out, count, RS_EVENT_CHAT_OPENED);
+        int slot_mounted_index = drive_ring_find(out, count, RS_EVENT_SLOT_MOUNTED);
 
         /* The close-not-mounted case, mirrored on this lane: clearing the
          * chat slot rides the same slot_mounted event a real mount does
@@ -269,7 +223,6 @@ main(
 
     test_ring_order_and_second_read_empty();
     test_ring_wraparound_refuses_stale_cursor();
-    test_loc_change_note_carries_the_lane_ticket();
     test_dat1_chat_open_close_stamps_the_ring(cache_dir, ui_ini, cache_ini);
 
     printf("app_drive_event_ring_test: all cases passed\n");

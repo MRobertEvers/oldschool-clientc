@@ -96,14 +96,13 @@ App_RunClientScript(
             (unsigned)request->long_mask);
 
     /* Held, not run — see `pending_clientscripts` in app.h for why, and
-     * `App_FlushPendingClientScripts` for where they go. A full queue runs it
-     * now: degrading to the old ordering is a cosmetic bug, losing a script is
-     * not. */
-    if( !RS_ClientScriptQueue_Hold(
-            &app->pending_clientscripts,
-            request,
-            (uint32_t)FrameClockSerial_LogicCycle(&app->frame_clock.serial)) )
-        app_dispatch_clientscript(app, &app->frame_runner, request);
+     * `App_FlushPendingClientScripts` for where they go. A full hold grows: a
+     * script run anywhere else now would run out of wire order, ahead of the
+     * scripts held before it and the packets it was held behind (U8). */
+    RS_ClientScriptQueue_Hold(
+        &app->pending_clientscripts,
+        request,
+        (uint32_t)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
 }
 
 /* Input-driven host effects are drained at the frame's CS2 fixed point.
@@ -227,7 +226,7 @@ app_cs2_flush_notifications(struct App* app)
         app->host.resume_pausebutton_component_id = -1;
         /* DRIVE_STAMP: resume_answered -- a=com_id. Scoped to the component
          * the verb armed (D6), never "a resume happened". */
-        App_DriveEvent(app, DRIVE_EVENT_RESUME_ANSWERED, com_id, 0, 0, 0);
+        App_DriveEvent(app, RS_EVENT_RESUME_ANSWERED, com_id, 0, 0, 0);
         if( app->button_sink.resume_pausebutton )
             app->button_sink.resume_pausebutton(app->button_sink.user, com_id);
         /* Same latch a minimenu resume sets (RS_IF1_ApplyButtonClick): the
@@ -693,23 +692,37 @@ app_cs2_enqueue_followups(struct App* app)
  * never frame boundaries: TaskRunner_SettleFrame crosses as many as needed.
  * A real outstanding platform read is the only reason this can return
  * PENDING, in which case App_RunOnce retains the previous emit list/frame and
- * resumes settlement on a later host turn. */
+ * resumes settlement on a later host turn.
+ *
+ * The scripts are render-blocking tasks on the parallel queue, and this is
+ * the packet side of the frame contract (app.h): it withholds the frame
+ * until they settle. It steps the whole parallel queue while it does (a
+ * script waits on loads that run there), and stops as soon as no script
+ * remains; App_PumpAsync drains the ordinary tasks after it. It never steps
+ * the background queue (App_QueueSiteEnter), and it has no deadline: the
+ * post-commit catch-up is paced at the packet pump (App_PacedDeadline in
+ * app_net.c), the scripts behind each packet settle whole. */
+static enum TaskRunnerStat
+app_settle_cs2_frame_body(struct App* app);
+
 enum TaskRunnerStat
 app_settle_cs2_frame(struct App* app)
 {
+    enum TaskRunnerStat stat;
+    char const* site = App_QueueSiteEnter("the script settle");
+
+    stat = app_settle_cs2_frame_body(app);
+    App_QueueSiteLeave(site);
+    return stat;
+}
+
+static enum TaskRunnerStat
+app_settle_cs2_frame_body(struct App* app)
+{
     for( ;; )
     {
-        /* Paced after a background rebuild's commit (App_PacedDeadline; 0
-         * otherwise): out of time between two tasks is TASK_RUNNER_SPENT,
-         * and the caller keeps the previous frame and resumes, as it does
-         * for a read that has not landed. */
-        enum TaskRunnerStat stat = TaskRunner_SettleFrameUntil(&app->frame_runner, App_PacedDeadline(app));
+        enum TaskRunnerStat stat = TaskRunner_SettleFrame(&app->frame_runner);
 
-        if( stat == TASK_RUNNER_SPENT )
-        {
-            RebuildPace_NoteSettleStop(&app->pace);
-            App_PaceNoteStop(app);
-        }
         if( stat != TASK_RUNNER_IDLE )
             return stat;
         /* Resize listeners and transmit painters must observe the geometry

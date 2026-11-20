@@ -29,6 +29,9 @@
  * client-only, test-only module that happens to live beside it.
  */
 
+#include "game/rs_effect_rules.h"
+#include "game/rs_event_ring.h"
+
 #include <stdint.h>
 
 struct UITree;
@@ -65,7 +68,9 @@ char const* DriveResultName(enum DriveResult result);
 /* ------------------------------------------------------------------- events */
 
 /*
- * Drive events.  One fixed ring on struct App, appended by App_DriveEvent()
+ * Drive events: game/rs_event_ring.h's vocabulary, which the headless client
+ * (SCRIPTRUN_EV_*) raises too.  One fixed ring on struct App (an RS_EventRing
+ * of APP_DRIVE_RING_CAPACITY entries), appended by App_DriveEvent()
  * from the stamp sites marked `DRIVE_STAMP:` in the tree (grep for them), read
  * by cursor by the scheduler.  The ring NEVER allocates and never blocks a
  * stamp: a full ring drops its oldest entry and a reader whose cursor fell off
@@ -74,28 +79,28 @@ char const* DriveResultName(enum DriveResult result);
  *
  * Payload per kind -- a, b, c, d are otherwise 0:
  *
- *   DRIVE_EVENT_SUB_OPENED      a=target_uid  b=interface_id  c=type
- *   DRIVE_EVENT_SUB_MOUNTED     a=target_uid  b=interface_id  c=type
- *   DRIVE_EVENT_SUB_CLOSED      a=target_uid  b=old group_id
- *   DRIVE_EVENT_CHAT_OPENED     a=component_id                     (dat1)
- *   DRIVE_EVENT_SLOT_MOUNTED    a=owner_index b=iface_id           (dat1)
- *   DRIVE_EVENT_RESUME_ANSWERED a=component_id
- *   DRIVE_EVENT_VARP_CHANGED    a=varp_id     b=value
- *   DRIVE_EVENT_INV_CHANGED     a=container_id
- *   DRIVE_EVENT_OBJ_ADDED       a=obj_id  b=count  c=tile_x  d=tile_z
- *   DRIVE_EVENT_OBJ_REMOVED     a=obj_id  b=0      c=tile_x  d=tile_z
- *   DRIVE_EVENT_MAP_FLAG        a=-1 when cleared, else a=tile_x b=tile_z
- *   DRIVE_EVENT_CHAT_MESSAGE    a=type    b=message serial (RS_ChatMessage)
- *   DRIVE_EVENT_SERVER_TICK     a=world cycle
- *   DRIVE_EVENT_NPC_SPAWN       a=npc slot  b=npc_id
- *   DRIVE_EVENT_NPC_DESPAWN     a=npc slot  b=npc_id
- *   DRIVE_EVENT_NPC_RETYPE      a=npc slot  b=npc_id  c=base_npc_id
- *   DRIVE_EVENT_INV_PACKET      a=container_id                     (dat1)
- *   DRIVE_EVENT_NPC_SEQ         a=npc SERVER slot (DriveNpcRow.slot, not
+ *   RS_EVENT_SUB_OPENED         a=target_uid  b=interface_id  c=type
+ *   RS_EVENT_SUB_MOUNTED        a=target_uid  b=interface_id  c=type
+ *   RS_EVENT_SUB_CLOSED         a=target_uid  b=old group_id
+ *   RS_EVENT_CHAT_OPENED        a=component_id                     (dat1)
+ *   RS_EVENT_SLOT_MOUNTED       a=owner_index b=iface_id           (dat1)
+ *   RS_EVENT_RESUME_ANSWERED    a=component_id
+ *   RS_EVENT_VARP_CHANGED       a=varp_id     b=value
+ *   RS_EVENT_INV_CHANGED        a=container_id
+ *   RS_EVENT_OBJ_ADDED          a=obj_id  b=count  c=tile_x  d=tile_z
+ *   RS_EVENT_OBJ_REMOVED        a=obj_id  b=0      c=tile_x  d=tile_z
+ *   RS_EVENT_MAP_FLAG           a=-1 when cleared, else a=tile_x b=tile_z
+ *   RS_EVENT_CHAT_MESSAGE       a=type    b=message serial (RS_ChatMessage)
+ *   RS_EVENT_SERVER_TICK        a=world cycle
+ *   RS_EVENT_NPC_SPAWN          a=npc slot  b=npc_id  c,d=scene tile
+ *   RS_EVENT_NPC_DESPAWN        a=npc slot  b=npc_id
+ *   RS_EVENT_NPC_RETYPE         a=npc slot  b=npc_id  c=base_npc_id
+ *   RS_EVENT_INV_PACKET         a=container_id                     (dat1)
+ *   RS_EVENT_NPC_SEQ            a=npc SERVER slot (DriveNpcRow.slot, not
  *                                 the world index NPC_SPAWN carries)
  *                               b=seq id (-1 = the server stopped it)
  *                               c=server tick (world cycle / 30) it arrived
- *   DRIVE_EVENT_NPC_FACE        a=npc SERVER slot  b=tile x  c=tile z
+ *   RS_EVENT_NPC_FACE           a=npc SERVER slot  b=tile x  c=tile z
  *                                 (absolute; the FACE_COORD op's wire
  *                                 half-tiles halved, so a sized square
  *                                 reads as its centre tile)
@@ -106,60 +111,25 @@ char const* DriveResultName(enum DriveResult result);
  * split it into two events rather than widening the record -- the ring is on
  * struct App and every byte is paid for by every client.
  */
-enum App_DriveEventKind
-{
-    DRIVE_EVENT_NONE = 0,
-    DRIVE_EVENT_SUB_OPENED,
-    DRIVE_EVENT_SUB_MOUNTED,
-    DRIVE_EVENT_SUB_CLOSED,
-    DRIVE_EVENT_CHAT_OPENED,
-    DRIVE_EVENT_SLOT_MOUNTED,
-    DRIVE_EVENT_RESUME_ANSWERED,
-    DRIVE_EVENT_VARP_CHANGED,
-    DRIVE_EVENT_INV_CHANGED,
-    DRIVE_EVENT_OBJ_ADDED,
-    DRIVE_EVENT_OBJ_REMOVED,
-    DRIVE_EVENT_MAP_FLAG,
-    DRIVE_EVENT_CHAT_MESSAGE,
-    DRIVE_EVENT_SERVER_TICK,
-    DRIVE_EVENT_NPC_SPAWN,
-    DRIVE_EVENT_NPC_DESPAWN,
-    DRIVE_EVENT_NPC_RETYPE,
-    DRIVE_EVENT_INV_PACKET,
-    DRIVE_EVENT_NPC_SEQ,
-    DRIVE_EVENT_NPC_FACE,
-    DRIVE_EVENT_KIND_COUNT
-};
-
-/** "sub_mounted", ... .  The name a Lua await predicate matches on.  Never
- *  NULL; an out-of-range kind asserts. */
-char const* DriveEventKindName(enum App_DriveEventKind kind);
-
-/** -1 when `name` is not an event kind.  A test's typo in an await
- *  descriptor is a legitimate runtime answer, not a contract violation. */
-int DriveEventKindFromName(char const* name);
-
+/* The client's ring: a full one drops its oldest entry and counts it
+ * (RS_EVENT_RING_COUNT_DROPS). An entry is a struct RS_Event: serial 1-based
+ * and monotonic for the life of the process (0 is "no event"; a cursor of 0
+ * means "everything the ring still holds"), cycle the world cycle at the stamp
+ * for deadline arithmetic, a..d per the table above. */
 #define APP_DRIVE_RING_CAPACITY 512
-
-struct App_DriveEvent
-{
-    /** 1-based and monotonic for the life of the process.  0 is "no event";
-     *  a cursor of 0 means "everything the ring still holds". */
-    uint32_t serial;
-    int32_t kind; /**< enum App_DriveEventKind */
-    int32_t cycle; /**< world cycle at the stamp, for deadline arithmetic */
-    int32_t a, b, c, d; /**< per-kind, per the table above */
-};
+/* The effect log's capacity (App_DriveRing.effects). */
+#define APP_DRIVE_EFFECT_LOG_CAPACITY RS_EFFECT_LOG_CAP
 
 /* A projectile as its MAP_PROJANIM packet said it, stamped with the world
- * cycle the packet was applied on. The world's projectile entity is spawned
- * by a task that first awaits the spotanim's assets (Task_AppSpawn), so a
- * first-seen spotanim's projectile reached the drive rows a tick late and a
- * tick into its flight -- where scriptrun, which keeps the packet, listed it
- * in the packet's tick (2026-10-09: the two tick logs parted on an urn one
- * lane carried and the other did not). The drive's projectile rows come
- * from these records, with scriptrun's arithmetic. Absolute tiles. */
-#define APP_DRIVE_PROJECTILE_CAP 256 /* = SCRIPTRUN_PROJECTILES */
+ * cycle the packet was applied on: a row of the effect log (App_DriveRing.
+ * effects, decoded by App_DriveEffectProjectiles). The drive reads the packet,
+ * not the world: the world's projectile exists from the packet but draws once
+ * its assets land, and a row from the pool once reached the drive a tick late
+ * and a tick into its flight -- where scriptrun, which keeps the packet,
+ * listed it in the packet's tick (2026-10-09: the two tick logs parted on an
+ * urn one lane carried and the other did not). The drive's projectile rows
+ * come from these records, with scriptrun's arithmetic. Absolute tiles. */
+#define APP_DRIVE_PROJECTILE_CAP RS_EFFECT_PROJECTILE_CAP /* = SCRIPTRUN_PROJECTILES */
 /* It was 64. Zebak's lobs (a projectile per acid tile and per jug, flying 3-5
  * ticks) put more than that in flight at once; the assert is gone in an OPT
  * build, so the 65th wrote past the ring, off the end of the global `app`,
@@ -172,32 +142,29 @@ struct App_DriveProjectile
     int32_t spotanim, target, start_delay, end_delay;
     int32_t cycle; /**< world cycle at the apply */
 };
-/* A loc change as its packet applied it (LOC_ADD_CHANGE; LOC_DEL is loc_id
- * -1), held until the world's scenery shows it. The world applies a change
- * through a task that first awaits the new loc's models (App_WorldLocChangeOps,
- * the reference's changeLocAvailable gate), so a first-seen loc type reached
- * api_drive.locs a tick late -- where scriptrun, which keeps the packet,
- * listed it in the packet's tick (2026-10-09: Maiden's first blood trail, one
- * tick apart, and the freezer's plan parted). The drive's loc rows answer
- * these tiles from the packet. Absolute tiles; `layer` is
- * World_LocShapeToLayer(shape); `base_x/z` the scene base it was applied in. */
-#define APP_DRIVE_LOC_CHANGE_CAP 256
+/* A loc change the scene has not caught up with (LOC_ADD_CHANGE; LOC_DEL is
+ * loc_id -1): the change is a parallel task that first awaits the new loc's
+ * models (app/app_tasks_locs.c, the reference's changeLocAvailable gate), so
+ * a first-seen loc type would reach api_drive.locs a tick late -- where
+ * scriptrun, which keeps the packet, lists it in the packet's tick
+ * (2026-10-09: Maiden's first blood trail, one tick apart, and the freezer's
+ * plan parted). The drive's loc rows answer these tiles from the pending
+ * change itself (App_DriveLocChangesPending). Absolute tiles; `layer` is
+ * World_LocShapeToLayer(shape); `base_x/z` the scene base it applies in. */
 struct App_DriveLocChange
 {
     int32_t x, z, level, layer;
     int32_t loc_id, shape, angle;
     int32_t base_x, base_z;
-    /* The loc lane ticket of the change this record notes (LocLane_Newest
-     * as the change was queued). The record is held at least until the lane
-     * has released it (LocLane_Pending on App.loc_lane), so an add and the
-     * delete behind it on one tile and layer cannot retire on the scene's
-     * empty layer while the add has yet to land. */
-    uint32_t lane_ticket;
+    /* 1 for a change a rebuild carried into this scene while it was still
+     * pending (it was read in the scene before). */
+    int32_t carried;
 };
 /* A map graphic as its MAP_ANIM packet said it, stamped with the world cycle
- * the packet was applied on. The world's graphic entity waits on its
- * spotanim's assets the way a projectile does, so a first-seen graphic reached
- * api_drive.spotanims a tick late -- where scriptrun, which keeps the packet,
+ * the packet was applied on: a row of the effect log (App_DriveEffectMapAnims).
+ * The world's graphic draws once its spotanim's assets land, the way a
+ * projectile does, and a row from it once reached api_drive.spotanims a tick
+ * late -- where scriptrun, which keeps the packet,
  * listed it in the packet's tick (2026-10-10: Bloat's falling flesh, seen a
  * tick apart, and the relay's two lanes walked apart in his room). The
  * drive's spotanim rows come from these records, with scriptrun's arithmetic:
@@ -205,8 +172,8 @@ struct App_DriveLocChange
  * retires a floor graphic 40 ticks after it lands), the cycles counted in
  * whole server ticks (App_DriveMapAnimElapsed), never off the client's own
  * cycle. Absolute tiles. */
-#define APP_DRIVE_MAP_ANIM_CAP 2048 /* = SCRIPTRUN_MAP_ANIMS */
-#define APP_DRIVE_MAP_ANIM_LIFE (40 * 30)
+#define APP_DRIVE_MAP_ANIM_CAP RS_EFFECT_MAP_ANIM_CAP /* = SCRIPTRUN_MAP_ANIMS */
+#define APP_DRIVE_MAP_ANIM_LIFE RS_EFFECT_MAP_ANIM_LIFE_CYCLES
 struct App_DriveMapAnim
 {
     int32_t x, z, level, spotanim;
@@ -219,8 +186,8 @@ struct App_DriveMapAnim
  * as scriptrun does (scriptrun_core.c, SCRIPTRUN_LOC_ANIMS). Rows are listed
  * for APP_DRIVE_LOC_ANIM_TICKS server ticks after the tick that sent them.
  * Absolute tiles. */
-#define APP_DRIVE_LOC_ANIM_CAP 4096 /* = SCRIPTRUN_LOC_ANIMS */
-#define APP_DRIVE_LOC_ANIM_TICKS 40
+#define APP_DRIVE_LOC_ANIM_CAP RS_EFFECT_LOC_ANIM_CAP /* = SCRIPTRUN_LOC_ANIMS */
+#define APP_DRIVE_LOC_ANIM_TICKS RS_EFFECT_LOC_ANIM_LIFE_TICKS
 struct App_DriveLocAnim
 {
     int32_t x, z, level, shape, seq;
@@ -228,17 +195,8 @@ struct App_DriveLocAnim
 };
 struct App_DriveRing
 {
-    struct App_DriveProjectile projectiles[APP_DRIVE_PROJECTILE_CAP];
-    int projectile_count;
-    struct App_DriveMapAnim map_anims[APP_DRIVE_MAP_ANIM_CAP];
-    int map_anim_count;
     struct App_DriveLocAnim loc_anims[APP_DRIVE_LOC_ANIM_CAP];
     int loc_anim_count;
-    struct App_DriveLocChange loc_changes[APP_DRIVE_LOC_CHANGE_CAP];
-    int loc_change_count;
-    /* Bumped whenever loc_changes is written or retired: the key the route
-     * and plan collision view (torirs_plugin_drive_ui.c) is cached on. */
-    uint32_t loc_change_serial;
     /* A server tick is HALF-APPLIED: the exec runner has started on a packet
      * of a tick whose fence (SERVER_TICK_END, or PLAYER_INFO on a revision
      * with none) has not run yet. Packets apply over several frames and the
@@ -263,18 +221,20 @@ struct App_DriveRing
     int cs2_pending;
     int cs2_pending_cycle;
     int cs2_waived;
-    struct App_DriveEvent entries[APP_DRIVE_RING_CAPACITY];
-    /** Serial of the newest entry; 0 before the first stamp. */
-    uint32_t newest_serial;
-    /** Serial of the oldest entry the ring still holds; 0 while empty. */
-    uint32_t oldest_serial;
-    /** Where the next append lands. */
-    int write_index;
-    /** How many entries are live, capped at APP_DRIVE_RING_CAPACITY. */
-    int count;
-    /** Entries dropped because a reader never came back.  Reported once by
-     *  the scheduler; a climbing number means the pump is not running. */
-    uint32_t dropped;
+    struct RS_Event entries[APP_DRIVE_RING_CAPACITY];
+    /** The entries' bookkeeping. `ring.dropped` counts entries dropped
+     *  because a reader never came back; a climbing number means the pump is
+     *  not running. */
+    struct RS_EventRing ring;
+    /** THE EFFECT LOG (game/rs_effect_rules.h): the projectiles and map
+     *  graphics the packets announced, written by the packet task
+     *  (App_DriveProjectileNote, App_DriveMapAnimNote) and read back as the
+     *  drive's effect rows (App_DriveEffectProjectiles / _MapAnims). A ring
+     *  of its own, not the await ring above: a raid puts hundreds of graphics
+     *  in a tick, which would run an await's cursor off the end of 512, and a
+     *  test that awaits on a match alone would be handed every one. */
+    struct RS_Event effect_entries[APP_DRIVE_EFFECT_LOG_CAPACITY];
+    struct RS_EventRing effects;
 };
 
 /*
@@ -287,9 +247,17 @@ struct App_DriveRing
  * every build, because a stamp guarded by an env var is a stamp nobody
  * notices has rotted.  Owner: core-events.
  */
+/*
+ * The drive ring bound as an RS_EventSink: what a stamp site that does not
+ * know struct App holds (the packet model, the chat store) to stamp into this
+ * same ring, with this ring's capacity, full-ring policy and world cycle.
+ * App_DriveEvent stamps through it too, so there is one stamp path.
+ */
+struct RS_EventSink App_DriveEventSink(struct App* app);
+
 void App_DriveEvent(
     struct App* app,
-    enum App_DriveEventKind kind,
+    enum RS_EventKind kind,
     int32_t a,
     int32_t b,
     int32_t c,
@@ -315,21 +283,24 @@ void App_DriveProjectileNote(
 /* Record a MAP_ANIM as applied (rs_gameproto_exec.c), absolute tiles. */
 void App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim);
 int App_DriveMapAnimElapsed(struct App_DriveMapAnim const* a);
+/* The effect log's projectiles (map graphics), decoded into `out`, oldest
+ * first: every one it still holds, alive or not -- the reader judges by its
+ * own clock. At most `cap`; returns how many. */
+int App_DriveEffectProjectiles(
+    struct App const* app, struct App_DriveProjectile* out, int cap);
+int App_DriveEffectMapAnims(struct App const* app, struct App_DriveMapAnim* out, int cap);
 /* Record a LOC_ANIM as applied (rs_gameproto_exec.c), scene tiles. */
 void App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, int shape, int seq);
-/* Record a LOC_ADD_CHANGE (or a LOC_DEL, loc_id -1) as applied
- * (rs_gameproto_exec.c), scene tiles at the loc's cache level: it replaces any
- * pending change for the same tile and layer, as the packet does. */
-void App_DriveLocChangeNote(
-    struct App* app, int scene_x, int scene_z, int level, int loc_id, int shape, int angle);
-/* Drop the held loc changes the scenery now shows, and those from another
- * scene base. The drive's loc reads call it; so does a full ring. */
-void App_DriveLocChangesRetire(struct App* app);
+/* The root's loc changes still pending (app/app_tasks_locs.c: a parallel
+ * task per tile and layer, waiting on the new loc's models), as rows, in
+ * arrival order. Writes up to `cap` (asserted to hold them); returns how
+ * many. */
+int App_DriveLocChangesPending(struct App* app, struct App_DriveLocChange* out, int cap);
 
 enum DriveResult App_DriveEventsRead(
     struct App* app,
     uint32_t after_serial,
-    struct App_DriveEvent* out,
+    struct RS_Event* out,
     int cap,
     int* out_count,
     uint32_t* out_serial);
@@ -571,7 +542,7 @@ int PluginDrive_PushResult(struct lua_State* L, enum DriveResult result, char co
  * with at least one of `match`/`level`.  An await with neither is a test bug
  * and raises.
  *
- * Deadlines are in SERVER TICKS, counted off DRIVE_EVENT_SERVER_TICK.  A
+ * Deadlines are in SERVER TICKS, counted off RS_EVENT_SERVER_TICK.  A
  * deadline of 0 means "level only, never yield".
  *
  * Owner: core-scheduler.  Everything else calls it from Lua.

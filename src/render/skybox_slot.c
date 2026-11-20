@@ -12,7 +12,6 @@ SkyboxSlot_Want(
 
     assert(slot);
     slot->id_plus1 = model_id < 0 ? 0 : model_id + 1;
-    slot->requested_plus1 = 0;
     if( slot->id_plus1 == 0 && slot->model )
     {
         old = slot->model;
@@ -34,20 +33,6 @@ SkyboxSlot_WantedId(struct SkyboxSlot const* slot)
 {
     assert(slot);
     return slot->id_plus1 - 1;
-}
-
-int
-SkyboxSlot_NeedsRequest(struct SkyboxSlot const* slot)
-{
-    assert(slot);
-    return SkyboxSlot_NeedsBuild(slot) && slot->requested_plus1 != slot->id_plus1;
-}
-
-void
-SkyboxSlot_NoteRequested(struct SkyboxSlot* slot)
-{
-    assert(slot);
-    slot->requested_plus1 = slot->id_plus1;
 }
 
 struct ToriDraw_Model*

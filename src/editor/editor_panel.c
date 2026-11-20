@@ -379,6 +379,8 @@ hook_floor_request(
     assert(app);
     if( !app->provider || id <= 0 )
         return;
+    /* An editor-only load (the floor swatch a panel shows): not the assets
+     * table's, which the game's packets, scripts and world map use. */
     task = is_overlay ? CreateTask_FlotypeLoad(app->provider, id - 1)
                       : CreateTask_UnderlayLoad(app->provider, id - 1);
     if( task )

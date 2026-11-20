@@ -209,9 +209,12 @@ low_res(Reader *r, RsprotBuf *b, int idx)
         fine_z = rsprot_gbits(b, 13);
         extended = rsprot_gbits(b, 1);
         level = (rough >> 28) & 0x3;
+        /* The reference's int arithmetic, in unsigned: ((rough << 13) + fine)
+         * << 14 leaves int for a rough x of 16 or more. */
         pi->coord[idx] =
-            (int32_t)((level << 28) | (((((rough >> 14) & 0xff) << 13) + fine_x) << 14) |
-                      ((((rough & 0xff) << 13) + fine_z) & 0x3fff));
+            (int32_t)(((uint32_t)level << 28)
+                      | ((((uint32_t)((rough >> 14) & 0xff) << 13) + (uint32_t)fine_x) << 14)
+                      | ((((uint32_t)(rough & 0xff) << 13) + (uint32_t)fine_z) & 0x3fffu));
         pi->high_res[idx] = 1;
         moved(r, idx, RSPROT_PLAYER_MOVE_ADD);
         if (extended)
@@ -232,7 +235,10 @@ low_res(Reader *r, RsprotBuf *b, int idx)
         int x = ((rough >> 14) & 0xff) + k_walk_dx[packed & 7];
         int z = (rough & 0xff) + k_walk_dz[packed & 7];
 
-        pi->low_res_pos[idx] = (int32_t)((x << 14) + z + (level << 28));
+        /* x is -1 for a walk west of rough x 0; the reference's int shift
+         * wraps, so this one is unsigned. */
+        pi->low_res_pos[idx] =
+            (int32_t)(((uint32_t)x << 14) + (uint32_t)z + ((uint32_t)level << 28));
         low_res_pos(r, idx, opcode);
         return 0;
     }

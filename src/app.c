@@ -188,7 +188,7 @@ App_Init(
      * structs took with them. @see tools/appc_map.py fields.
      */
     NetLinkWatch_Reset(&app->net_link);
-    RS_ClientScriptQueue_Reset(&app->pending_clientscripts);
+    RS_ClientScriptQueue_Init(&app->pending_clientscripts);
     app->dev_overlay = DevOverlay_Create();
 
     /* Before any subsystem: RS_CS2Host_Init wants its script ids, and the
@@ -247,6 +247,8 @@ App_Init(
     app->frame_runner.queue = ToriRS_TaskQueue_New();
     app->frame_runner.px = Platform_IO_New();
     assert(app->frame_runner.px != NULL);
+    /* TORIRS_IO_DEFER_FRAMES counts this client's frames. */
+    Platform_IO_SetFrameSource(app->frame_runner.px, &app->frame_clock.serial.run_once);
     /*
      * The asset pipeline runs its tasks in parallel.
      *
@@ -420,8 +422,12 @@ App_Init(
     else
         app->provider = CacheMounts_OpenDat2BuildCache(&app->cache_mounts);
     /* Every loader that fans out needs somewhere to put its siblings, and the
-     * parallel frame queue is that place -- see CacheProvider::asset_queue. */
+     * parallel frame queue is that place; what one then has to compute goes
+     * on the background queue -- CacheProvider::asset_queue, ::compute_queue. */
     CacheProvider_SetAssetQueue(app->provider, app->frame_runner.queue);
+    CacheProvider_SetComputeQueue(app->provider, app->background_runner.queue);
+    App_AssetsInit(app);
+    App_PendingInit(app);
     app_provider_set_cache_profile(app, cfg);
     if( !TorirsModelInstCache_Init(&app->model_inst_cache) )
         assert(0 && "model_inst_cache init");
@@ -450,6 +456,7 @@ App_Init(
     app->soft = ToriPlatform_Renderer_Soft3D_New();
     app->chrome_compositor = ChromeCompositor_Create(ToriPlatform_Renderer_Soft3D_New());
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
+    App_IfAssetsBindBridge(app);
     /* The seq the design/local-player previews are posed at. Stated here, once,
      * for both the boot bake and the runtime interface mount — they share the
      * bridge and nothing else. -1 when the profile does not name one, which
@@ -545,7 +552,7 @@ App_Init(
     app->ground_items_dirty.count = 0;
     app->ground_items_dirty.refresh_all = 0;
     RS_GroundItemsSettings_Reset(&app->ground_items_settings);
-    RS_WorldMapSurface_Init(&app->worldmap, RS_WorldMapRender_New());
+    RS_WorldMapSurface_Init(&app->worldmap, RS_WorldMapRender_New(app->assets));
     MinimapView_Reset(&app->minimap);
     /*
      * The plugin host.
@@ -641,6 +648,7 @@ App_Init(
     app->host.widget_npc_head_lazy = app_cs2_widget_npc_head_lazy;
     app->host.widget_model_direct = app_cs2_widget_model_direct;
     app->host.widget_obj_icon_lazy = app_cs2_widget_obj_icon_lazy;
+    app_tasks_scripts_bind_host(app);
     app->host.player_slot_by_name = app_cs2_player_slot_by_name;
     app->host.worldentity_config_name = app_cs2_worldentity_config_name;
     app->host.objs_on_coord = app_cs2_objs_on_coord;
@@ -688,8 +696,8 @@ App_Init(
     RS_CS2Host_SetChat(&app->host, &app->chat);
     /* Every RS_Chat_AddMessage call -- clan chat and the logout line included,
      * neither of which reaches App_NotifyChatMessage -- stamps chat_message
-     * onto the drive event ring through this. See RS_Chat_SetDriveApp. */
-    RS_Chat_SetDriveApp(&app->chat, app);
+     * onto the drive event ring through this. See RS_Chat_SetEventSink. */
+    RS_Chat_SetEventSink(&app->chat, App_DriveEventSink(app));
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
     /* Close the reactive loop: a varp update from the *server* flags a
      * var-transmit re-dispatch on the host, so interfaces react to value changes
@@ -1316,10 +1324,11 @@ void
 App_Shutdown(struct App* app)
 {
     assert(app);
+    App_PendingTrace(app, "at exit");
     app_prefs_flush(app);
     app_render_skip_shutdown(app);
-    /* The quest driver's Lua thread lives in the plugin host's state, and its
-     * buffers in PLUGINS and NET: it goes before the host. */
+    app_title_flames_stop(app); /* an exit from the title screen leaves them running */
+    /* The quest driver's Lua thread (host state; buffers in PLUGINS, NET) goes before the host. */
     PluginDrive_Shutdown();
     /* Plugins first: on_stop callbacks may still read world state and the
      * config store, and both are torn down below. */
@@ -1388,11 +1397,17 @@ App_Shutdown(struct App* app)
     CacheMounts_CloseBuildCaches(&app->cache_mounts);
     Platform_IO_Free(app->frame_runner.px);
     CacheMounts_CloseDisks(&app->cache_mounts);
+    /* Before the queues: a queue frees its tasks without ending their joins,
+     * and a loader freed with it must not end the table's either. */
+    Assets_Close(app->assets);
     app_background_runner_free(app);
     ToriRS_TaskQueue_Free(app->packet_runner.queue);
     ToriRS_IOBatch_Free(app->packet_runner.io);
     ToriRS_TaskQueue_Free(app->frame_runner.queue);
     ToriRS_IOBatch_Free(app->frame_runner.io);
+    App_PendingFree(app);
+    App_AssetsFree(app);
+    RS_ClientScriptQueue_Free(&app->pending_clientscripts);
     /* The scripted-projectile curve VM, before the pool is drained. */
     if( app->curve_vm )
         CS2VM2_Release(app->curve_vm);
@@ -1408,7 +1423,8 @@ App_Shutdown(struct App* app)
     RS_Preload_Free(&app->preload);
     RS_LoginReplies_Free(&app->login_replies);
     UIIfModels_Free(&app->if_models);
-    app_placeholder_park_free(app);
+    app_entity_spotanims_free(app);
+    app_tasks_ground_free(app);
     /* All three of these were leaked. Only the hide array was freed, and its
      * two siblings -- plus every string the text store strdup'd -- were not.
      * They have owners now. */

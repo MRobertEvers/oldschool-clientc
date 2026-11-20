@@ -3,6 +3,7 @@
 
 #include "entity_facets.h"
 #include "entity_tint.h"
+#include "entity_freeze.h"
 #include "entity_transparency.h"
 
 /* WorldEntity_Player.body.npc_id when the mounted model is not an npc's: built
@@ -13,11 +14,8 @@
 
 /* Attached-graphic slots: the rev-239 player wears one graphic per numbered
  * slot, as an npc does, and a SPOTANIM entry replaces only its own. The ToA
- * Kephri dung marker (slot 0) stays up under a ranged launch (slot 1). */
-enum
-{
-    WORLD_PLAYER_SPOTANIM_SLOTS = 8,
-};
+ * Kephri dung marker (slot 0) stays up under a ranged launch (slot 1). Every
+ * slot byte is its own (WorldEntityFacet_EntitySpotanims). */
 
 struct WorldEntity_Player
 {
@@ -37,17 +35,35 @@ struct WorldEntity_Player
     struct WorldEntityFacet_Chat chat;
     struct WorldEntityFacet_Appearance appearance;
     struct WorldEntityFacet_ExactMove exact_move;
-    struct WorldEntityFacet_EntitySpotanim spotanims[WORLD_PLAYER_SPOTANIM_SLOTS];
+    struct WorldEntityFacet_EntitySpotanims spotanims;
     char name[32];
+    /** The name decorations (NAME_EXTRAS, rev-239 0x2000: deob Statics
+     *  .method3160 into class60.field553): printed before the name, after it,
+     *  and after the combat level wherever the name is (the minimenu row,
+     *  Statics ~29047). Empty until sent; a RESET block empties them. */
+    char name_extras[3][64];
     int combat_level;
     int gender;
     int headicon;
+    /** The appearance block's "hidden" byte, 1 as sent (rev-239 class60
+     *  .field551, staff only): as the server said it, whoever looks. What a
+     *  client hides for it is the client's rule (the public-chat answer,
+     *  RS_ServerState_PublicChatShown). 0 until an appearance says so. */
+    int hidden;
+    /** The PK skull (rev-239 appearance's skull byte, deob class60.field530:
+     *  a frame of `headicons_pk`), -1 for none; drawn below the prayer icon
+     *  (app_overlay_build_player_headicons). A classic lane's skull rides in
+     *  `headicon`'s mask instead. */
+    int skull_icon;
     /** Team-cape id folded out of the worn equipment when the appearance was
      *  applied (reference ClientPlayer.team, ObjType.team opcode 115). 0 = no
      *  team. Read only by the "Attack" minimenu row. */
     int team;
     /** Server player slot (pid) this entity mirrors; -1 = local/unsynced. */
     int server_pid;
+    /** Unique for the World's life (World.entity_spawn_serial): with
+     *  server_pid it names this player, never a later one in the same slot. */
+    uint32_t spawn_serial;
     /** The npc type the appearance says this player is drawn as (the 239
      *  block's 0xffff first equipment entry, p_transmogrify); -1 = the
      *  player's own body. Reference ClientPlayer.transmog (LostCity
@@ -90,6 +106,8 @@ struct WorldEntity_Player
      *  same state an npc's fade lives in (deob class83.field844, class17).
      *  Applied per frame by app_world_sync_player_transparency. */
     struct WorldEntityTransparency transparency;
+    /** FREEZE windows and the frozen drawing (entity_freeze.h). */
+    struct WorldEntityFreeze freeze;
 
     int loc_start_cycle;
     int loc_stop_cycle;

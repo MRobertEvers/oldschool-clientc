@@ -13,14 +13,36 @@
  * (world/world.c, game/rs_entity_sync.c) as the store, mutated through the same
  * World_* calls the client's apply makes.
  *
- * WHAT IT MIRRORS. The client applies the entity streams in an async task
- * bound to the whole App (game/task_exec_entity_info.c): it awaits npc configs,
- * models and stances between ops. That cannot run here, so the target/apply
- * rules are restated in scriptrun_core.c, op for op, against the same World
- * and RS_EntitySync, with the App-only side effects (models, scene elements,
- * sounds, chat UI, drive events) left out. Keep the two in step: a change to
- * player_target_op / player_apply_op / npc_target_op / npc_apply_op there is a
- * change here.
+ * WHAT IT SHARES. Every packet the core decodes goes first through the packet
+ * model (game/rs_server_state.h RS_ServerState_Apply), the one copy of the
+ * rules the real client applies too, into `model` (scriptrun_model.h): varps,
+ * stats, inventories, chat lines, the interface text/hide/colour/event stores
+ * and the event ring are written there and read from there. What follows the
+ * apply here is the bot's PRESENTATION, as the real client's src/app follows
+ * it: re-resolving multinpcs on a varp, the mount table and the stores a
+ * leaving group takes with it (RS_ServerState_SlotGroupLeaves), and the
+ * stand-ins for what the real client's scripts would read (the last client
+ * script call, the make-X and skill-multi values, the count prompt).
+ *
+ * The zone families follow the real client's rules too, onto its own records
+ * (scriptrun_zone.h, ScriptrunCore_ZoneFamilies): ground rows as World obj
+ * stacks, the effect log the projectiles and map graphics are read from
+ * (game/rs_effect_log.h), the loc animations, and the root's loc change
+ * records, which a rebuild re-places. That unit also holds the one list of
+ * the real client's parallel task kinds and which this client runs, on its
+ * own parallel queue (scriptrun_tasks.h): the loc change and the loc merge.
+ *
+ * WHAT IT SHARES WITH THE ENTITY STREAMS. PLAYER_INFO and NPC_INFO are
+ * applied by the real client's rules, game/rs_entity_apply.h, the one copy
+ * both clients call, against the same World and RS_EntitySync. This client is
+ * that apply's host (scriptrun_core.c, "the entity streams"): its npc configs
+ * are the server's own records of the pack's client configs
+ * (ToriRSServer_NpcInfoRecord), its entities have no models, and of the
+ * App-only side effects it keeps the chat store, the npc_seq / npc_face
+ * stamps, its own sequence history and the wirelog. The interface mounts are
+ * restated (the real client's record of what is mounted is its UI tree), and
+ * the placed locs: the loc table below stands for the real client's scenery
+ * pool, which this client builds no scene for.
  *
  * WHAT IT DOES NOT KNOW. Anything the server never sent: other players'
  * stats, npc hitpoints (only the health bar's fill), server-only varps. The
@@ -28,127 +50,77 @@
  * REBUILD_NORMAL, and from the template zones of a REBUILD_REGION.
  */
 
-#include "ui/uitree_if_events.h"
+#include "game/entity_info_scratch.h"
+#include "game/rs_effect_rules.h"
+#include "game/rs_event_ring.h"
+#include "scriptrun/scriptrun_model.h"
+#include "scriptrun/scriptrun_zone.h"
+#include "ui/uitree_if_models.h"
+#include "ui/uitree_kept_mounts.h"
 
 #include <stdint.h>
 
 struct World;
 struct GameProtoRevTable;
+struct ScriptrunTasks;
+struct ToriRS_Location;
+struct ScriptrunShadow;
 struct PktLocAddChange;
+struct RevPacket;
 struct RSCache_Dat2Disk;
 
 enum
 {
-    SCRIPTRUN_VARPS = 8192,
-    SCRIPTRUN_STATS = 25,
-    SCRIPTRUN_INVS = 32,
-    SCRIPTRUN_INV_SLOTS = 512,
-    SCRIPTRUN_MESSAGES = 256,
     SCRIPTRUN_TEXT = 256,
-    SCRIPTRUN_PROJECTILES = 256,
-    /* Bloat's hand volleys below 40% put ~320 floor graphics in the
-     * 40-tick window (16 shadows + 16 splats every 4 ticks); a full ring
-     * is an assert, never a dropped graphic (the dropped one is the newest,
-     * the one a bot must dodge). */
-    /* The Path of Crondis sets the sizes: its beams draw up to 120 map
-     * graphics every 5 ticks, and Jagex re-sends its 80 trap locs' idles
-     * every tick before the room starts (~30 a tick after), all kept for 40
-     * ticks (docs/rsprox-analysis/toa/crondis.md). The live ring matches. */
-    SCRIPTRUN_MAP_ANIMS = 2048,
-    SCRIPTRUN_LOC_ANIMS = 4096,
-    SCRIPTRUN_LOCS = 1024,
-    SCRIPTRUN_OBJS = 512,
+    /* The effect lists' sizes, the live ring's too (game/rs_effect_rules.h
+     * says why each is what it is): what the zone's effect log and loc
+     * animations (scriptrun_zone.h) hold alive at once; more is an assert. */
+    SCRIPTRUN_PROJECTILES = RS_EFFECT_PROJECTILE_CAP,
+    SCRIPTRUN_MAP_ANIMS = RS_EFFECT_MAP_ANIM_CAP,
+    SCRIPTRUN_LOC_ANIMS = RS_EFFECT_LOC_ANIM_CAP,
     SCRIPTRUN_MOUNTS = 64,
-    SCRIPTRUN_SETTEXTS = 256,
-    SCRIPTRUN_SETHIDES = 1024,
     SCRIPTRUN_SCRIPT_ARGS = 32,
     /* Client logic cycles per server tick: the unit World and the drive's
      * tick() count in (game/rs_server_tick.h APP_SERVER_TICK_LOGIC_CYCLES). */
     SCRIPTRUN_CYCLES_PER_TICK = 30,
 };
 
-/* The client's drive events (app/app_plugin_drive_events.c), same order and
- * field meanings, raised from the same packets. */
-enum ScriptrunEventKind
+/* The drive events: game/rs_event_ring.h's one vocabulary, which the client
+ * stamps as RS_EVENT_*, raised from the same packets with the same field meanings
+ * (plugin/torirs_plugin_drive.h has the payload table). */
+enum
 {
-    SCRIPTRUN_EV_NONE = 0,
-    SCRIPTRUN_EV_SUB_OPENED,
-    SCRIPTRUN_EV_SUB_MOUNTED,
-    SCRIPTRUN_EV_SUB_CLOSED,
-    SCRIPTRUN_EV_CHAT_OPENED,
-    SCRIPTRUN_EV_SLOT_MOUNTED,
-    SCRIPTRUN_EV_RESUME_ANSWERED,
-    SCRIPTRUN_EV_VARP_CHANGED,
-    SCRIPTRUN_EV_INV_CHANGED,
-    SCRIPTRUN_EV_OBJ_ADDED,
-    SCRIPTRUN_EV_OBJ_REMOVED,
-    SCRIPTRUN_EV_MAP_FLAG,
-    SCRIPTRUN_EV_CHAT_MESSAGE,
-    SCRIPTRUN_EV_SERVER_TICK,
-    SCRIPTRUN_EV_NPC_SPAWN,
-    SCRIPTRUN_EV_NPC_DESPAWN,
-    SCRIPTRUN_EV_NPC_RETYPE,
-    SCRIPTRUN_EV_INV_PACKET,
-    SCRIPTRUN_EV_NPC_SEQ,
-    SCRIPTRUN_EV_NPC_FACE,
-    SCRIPTRUN_EV_KIND_COUNT,
+    SCRIPTRUN_EV_NONE = RS_EVENT_NONE,
+    SCRIPTRUN_EV_SUB_OPENED = RS_EVENT_SUB_OPENED,
+    SCRIPTRUN_EV_SUB_MOUNTED = RS_EVENT_SUB_MOUNTED,
+    SCRIPTRUN_EV_SUB_CLOSED = RS_EVENT_SUB_CLOSED,
+    SCRIPTRUN_EV_CHAT_OPENED = RS_EVENT_CHAT_OPENED,
+    SCRIPTRUN_EV_SLOT_MOUNTED = RS_EVENT_SLOT_MOUNTED,
+    SCRIPTRUN_EV_RESUME_ANSWERED = RS_EVENT_RESUME_ANSWERED,
+    SCRIPTRUN_EV_VARP_CHANGED = RS_EVENT_VARP_CHANGED,
+    SCRIPTRUN_EV_INV_CHANGED = RS_EVENT_INV_CHANGED,
+    SCRIPTRUN_EV_OBJ_ADDED = RS_EVENT_OBJ_ADDED,
+    SCRIPTRUN_EV_OBJ_REMOVED = RS_EVENT_OBJ_REMOVED,
+    SCRIPTRUN_EV_MAP_FLAG = RS_EVENT_MAP_FLAG,
+    SCRIPTRUN_EV_CHAT_MESSAGE = RS_EVENT_CHAT_MESSAGE,
+    SCRIPTRUN_EV_SERVER_TICK = RS_EVENT_SERVER_TICK,
+    SCRIPTRUN_EV_NPC_SPAWN = RS_EVENT_NPC_SPAWN,
+    SCRIPTRUN_EV_NPC_DESPAWN = RS_EVENT_NPC_DESPAWN,
+    SCRIPTRUN_EV_NPC_RETYPE = RS_EVENT_NPC_RETYPE,
+    SCRIPTRUN_EV_INV_PACKET = RS_EVENT_INV_PACKET,
+    SCRIPTRUN_EV_NPC_SEQ = RS_EVENT_NPC_SEQ,
+    SCRIPTRUN_EV_NPC_FACE = RS_EVENT_NPC_FACE,
+    SCRIPTRUN_EV_KIND_COUNT = RS_EVENT_KIND_COUNT,
+    /* The bot's ring: overwrites its oldest entry when full, uncounted
+     * (RS_EVENT_RING_OVERWRITE); the reader clamps its cursor to it. */
     SCRIPTRUN_EVENTS = 1024,
 };
 
-struct ScriptrunEvent
-{
-    int serial;
-    int kind;
-    int cycle;
-    int a, b, c, d;
-};
-
-struct ScriptrunInv
-{
-    int inv_id; /* -1: unused */
-    int size;
-    int obj[SCRIPTRUN_INV_SLOTS];   /* -1: empty */
-    int count[SCRIPTRUN_INV_SLOTS];
-};
-
-struct ScriptrunMessage
-{
-    int serial;
-    int type;
-    char name[64];
-    char text[SCRIPTRUN_TEXT];
-};
-
-struct ScriptrunProjectile
-{
-    int spotanim;
-    int src_x, src_z, dst_x, dst_z, level; /* absolute tiles */
-    int target;                            /* the wire's target field */
-    int launch_cycle;                      /* world cycle it was received */
-    int start_delay, end_delay;            /* cycles after receipt */
-};
-
-/* A LOC_ANIM as its packet said it: the sequence a placed loc started, on
- * the tick that sent it. Kept for SCRIPTRUN_LOC_ANIM_TICKS, the live ring's
- * APP_DRIVE_LOC_ANIM_LIFE. (The Great Olm's head is a loc: its facing and its
- * attacks are told only by these.) */
-enum { SCRIPTRUN_LOC_ANIM_TICKS = 40 };
-struct ScriptrunLocAnim
-{
-    int x, z, level; /* absolute */
-    int shape;
-    int seq;
-    int tick; /* core->tick at the apply: the tick that sent it */
-};
-
-struct ScriptrunMapAnim
-{
-    int spotanim;
-    int x, z, level; /* absolute */
-    int height;
-    int delay;
-    int cycle; /* world cycle it was received */
-};
+/* A LOC_ANIM is kept for SCRIPTRUN_LOC_ANIM_TICKS, the live ring's
+ * APP_DRIVE_LOC_ANIM_TICKS (both RS_EFFECT_LOC_ANIM_LIFE_TICKS); its row is
+ * struct ScriptrunLocAnim (scriptrun_zone.h). (The Great Olm's head is a loc:
+ * its facing and its attacks are told only by these.) */
+enum { SCRIPTRUN_LOC_ANIM_TICKS = RS_EFFECT_LOC_ANIM_LIFE_TICKS };
 
 struct ScriptrunLoc
 {
@@ -157,8 +129,8 @@ struct ScriptrunLoc
     int angle;
     int loc_id; /* -1: deleted */
     /* The map's placement this row stands for (its loc id), or -1 for a row a
-     * zone change appended. A map row a change deleted keeps it, so a zone's
-     * full reset (ScriptrunCore_ZoneResetLocs) can put the map's loc back. */
+     * zone change appended. A map row a change deleted keeps it
+     * (ScriptrunCore_MapLocAt reads it for a change's record). */
     int map_loc_id;
     /* The world view the row belongs to: 0 the root scene, 1..15 a boat's
      * deck (its staging-rectangle tiles). A root rebuild keeps deck rows, as
@@ -201,33 +173,11 @@ struct ScriptrunView
     int level;          /* the plane SET_ACTIVE_WORLD named for it */
 };
 
-struct ScriptrunObj
-{
-    int x, z, level; /* absolute */
-    int obj_id;
-    int count;
-};
-
 struct ScriptrunMount
 {
     int target_uid;
     int interface_id;
     int type;
-};
-
-struct ScriptrunSetText
-{
-    int component;
-    char text[SCRIPTRUN_TEXT];
-};
-
-/* The last IF_SETHIDE the server sent for a component of an open group. The
- * client keeps that flag on the component instance, so a group's entries die
- * with it: a close, or a fresh open of the same group, forgets them. */
-struct ScriptrunSetHide
-{
-    int component;
-    int hidden;
 };
 
 struct ScriptrunScriptCall
@@ -276,45 +226,31 @@ struct ScriptrunCore
     int next_element_id;
     int tick;
 
-    int32_t varps[SCRIPTRUN_VARPS];
-    int stat_level[SCRIPTRUN_STATS];
-    int stat_xp[SCRIPTRUN_STATS];
-
-    struct ScriptrunInv invs[SCRIPTRUN_INVS];
-
-    struct ScriptrunMessage messages[SCRIPTRUN_MESSAGES]; /* ring */
-    int message_serial;
-
-    struct ScriptrunProjectile projectiles[SCRIPTRUN_PROJECTILES];
-    int projectile_count;
-    struct ScriptrunMapAnim map_anims[SCRIPTRUN_MAP_ANIMS];
-    int map_anim_count;
-    struct ScriptrunLocAnim loc_anims[SCRIPTRUN_LOC_ANIMS];
-    int loc_anim_count;
     /* Every placed loc the bot knows: the map's (cache level, base id) and
      * every zone change since. loc_id -1 is a removed one. */
     struct ScriptrunLoc* locs;
     int loc_count;
     int loc_capacity;
-    struct ScriptrunObj objs[SCRIPTRUN_OBJS];
-    int obj_count;
+    /* The zone families (scriptrun_zone.h), applied by the real client's
+     * rules (ScriptrunCore_ZoneFamilies): the ground rows as World obj stacks
+     * (read with ScriptrunCore_Objs), the effect log the projectiles and map
+     * graphics are read from (game/rs_effect_log.h), the loc animations. */
+    struct ScriptrunZone zone;
 
     int toplevel;
     /* The component a resume was sent on and not yet answered (the client's
      * pause_pending): -1 none. Any interface mount or close answers it. */
     int resume_pending;
+    /* The group in each slot, as the bot's mounts stand: what an IF_OPENSUB
+     * or IF_CLOSESUB names as the group leaving (RS_ServerState_SlotGroupLeaves
+     * then drops its IF_SETEVENTS arming, and its texts, hides and colours
+     * when a different group takes the slot). IF_MOVESUB relinks a mount.
+     * IF_OPENTOP moves the table into `kept_mounts`, the real client's own
+     * store of the mounts kept under a top that is not the root, from which
+     * the IF_MOVESUBs after it, and a top that returns, take them back. */
     struct ScriptrunMount mounts[SCRIPTRUN_MOUNTS];
     int mount_count;
-    struct ScriptrunSetText settexts[SCRIPTRUN_SETTEXTS];
-    int settext_count;
-    struct ScriptrunSetHide sethides[SCRIPTRUN_SETHIDES];
-    int sethide_count;
-    /* IF_SETEVENTS, kept and dropped exactly as the client keeps them (the
-     * client's own table, ui/uitree_if_events.c): set per range, the group in
-     * a slot dropped when the slot is closed or reopened (a same-group remount
-     * included), everything cleared on IF_OPENTOP. A press the client would
-     * not send for want of an armed bit is refused here too. */
-    struct UIIfEventTable if_events;
+    struct UITreeKeptMounts kept_mounts;
     /* The last RUNCLIENTSCRIPT of `menu_script` (chatbox_multi_init, 58: the
      * chatmenu's title and rows), kept whatever runs after it -- a stat-boost
      * timer (4517, 4518) sent on the menu's tick used to replace it and empty
@@ -338,7 +274,6 @@ struct ScriptrunCore
     int count_script;
     int count_prompt;
 
-    int run_energy;
     int logged_out;
 
     /* Collision, built from the map files on each REBUILD_NORMAL
@@ -350,8 +285,24 @@ struct ScriptrunCore
     int collision_squares;
     int collision_locs;
 
-    struct ScriptrunEvent events[SCRIPTRUN_EVENTS]; /* ring, by serial */
-    int event_serial;
+    /* The drive events, SCRIPTRUN_EVENTS of them (RS_EVENT_RING_OVERWRITE):
+     * what the packet model stamps (its sink is this ring) and what the bot's
+     * presentation raises (ScriptrunCore_Event). */
+    struct RS_Event event_entries[SCRIPTRUN_EVENTS];
+    struct RS_EventRing events;
+
+    /* The packet model's records (scriptrun_model.h), bound to this core's
+     * World, entity sync and event ring. */
+    struct ScriptrunModel model;
+
+    /* The model each MODEL component was told to show (IF_SETNPCHEAD,
+     * IF_SETNPCHEAD_ACTIVE, IF_SETPLAYERHEAD, IF_SETOBJECT, IF_SETMODEL), in
+     * the real client's own store (ui/uitree_if_models.h): one entry per
+     * component, last write wins, forgotten when its group is unloaded (it
+     * leaves its slot for another group, RS_ServerState_SlotGroupLeaves), as
+     * the reference's close drops the group's IfType list. Nothing is drawn
+     * from it; the drive's widget_model reads it. */
+    struct UIIfModels if_models;
 
     /* The local player's own action seqs as its screen saw them start
      * (the drive's players() `me` row: seq_history, raid seam48). */
@@ -365,15 +316,21 @@ struct ScriptrunCore
      * keep one file-static table; see ScriptrunCore_Packet). */
     void* player_decoder_state;
 
-    /* Decoder scratch (the client's op lists): ops, and the byte arena
-     * whichever decode is running writes its strings into. */
-    void* npc_ops;
-    void* player_ops;
-    void* info_bytes;
-    int npc_old_list[2048];
-    int player_old_list[2048];
+    /* The decoders' op lists, the client's own (game/entity_info_scratch.h):
+     * each sized to its packet by EntityInfoScratch_Read. */
+    struct EntityInfoScratch info_scratch;
     int packets;
     int unhandled;
+
+    /* The parallel queue (scriptrun_tasks.h): the loc tasks both clients
+     * run, pumped after every packet. */
+    struct ScriptrunTasks* tasks;
+
+    /* The packet model's shadow (scriptrun_shadow.h): a second model fed the
+     * same packets and nothing else, compared with `model` after the bot's
+     * presentation. NULL unless TORIRS_SCRIPTRUN_SHADOW names a file; nothing
+     * above reads it. */
+    struct ScriptrunShadow* shadow;
 };
 
 /** A fresh core for one bot. `rev` is the world's wire revision. */
@@ -494,35 +451,84 @@ ScriptrunCore_DropViewLocs(
     int view);
 
 /**
- * A zone LOC_ADD_CHANGE (loc_id >= 0) or LOC_DEL (loc_id -1) at an absolute
- * tile on the zone's walked level: the loc in that shape's layer is replaced,
- * collision undone and restamped (WorldBuilder_ApplyLocChange).
+ * A loc change of `view` placed (the loc tasks' place, scriptrun_tasks.c) at
+ * an absolute tile and CACHE level, with the placement's own menu
+ * (`op_flags`, `ops`); `loc_id` -1 deletes. The loc in that shape's layer is
+ * replaced, its collision undone and the new one's stamped
+ * (WorldBuilder_ApplyLocChange) -- in the root's collision map only.
  */
 void
-ScriptrunCore_LocChange(
+ScriptrunCore_LocPlace(
     struct ScriptrunCore* core,
+    int view,
     int abs_x,
     int abs_z,
-    int zone_level,
+    int level,
     int shape,
     int angle,
     int loc_id,
-    struct PktLocAddChange const* menu);
+    int op_flags,
+    const char ops[5][32]);
+
+/** The cache level a loc on scene tile (`sx`, `sz`) of the root sits at when
+ *  a zone names walked plane `zone_level`: one above it on a bridge column
+ *  (World_LocCacheLevel; zone_loc_tile_at). */
+int
+ScriptrunCore_LocCacheLevel(
+    struct ScriptrunCore const* core,
+    int sx,
+    int sz,
+    int zone_level);
+
+/** The map's loc in `layer` at an absolute root tile and cache level (the
+ *  loc the scene was built with there, whatever has changed it since), its
+ *  shape and angle; -1 when the map put none there. */
+int
+ScriptrunCore_MapLocAt(
+    struct ScriptrunCore const* core,
+    int abs_x,
+    int abs_z,
+    int level,
+    int layer,
+    int* out_shape,
+    int* out_angle);
+
+/** Every ground row the bot knows (scriptrun_zone.h ScriptrunZone_Objs):
+ *  the root's, then each deck's, in arrival order, absolute tiles. At most
+ *  `cap`; returns how many. ScriptrunCore_ObjCount says how many there are. */
+int
+ScriptrunCore_Objs(
+    struct ScriptrunCore const* core,
+    struct ScriptrunObjRow* out,
+    int cap);
+
+int
+ScriptrunCore_ObjCount(struct ScriptrunCore const* core);
+
+/** The zone cursor as it stands (the last header's base and plane, the
+ *  SET_ACTIVE_WORLD view), as a ScriptrunZoneAt. */
+void
+ScriptrunCore_ZoneAt(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZoneAt* out);
 
 /**
- * UPDATE_ZONE_FULL_FOLLOWS for the zone whose south-west tile is (abs_x0,
- * abs_z0) on the walked level `zone_level`: every loc a zone change put in it
- * goes, and every map loc a change deleted comes back, collision undone and
- * restamped -- the client's zone_full_reset_locs (rs_gameproto_exec.c), which
- * reverts each changed (level, x, z, layer) to the map's loc before the
- * zone's state re-applies what still differs.
+ * Apply `packet`'s zone families (scriptrun_zone.h: ground rows, the effect
+ * log, loc animations) to `zone`, AFTER the core has applied the packet (so
+ * its cursor, its views and its scene base are the packet's): the zone
+ * sub-packets at the cursor, an enclosed zone's entries, UPDATE_ZONE_FULL_FOLLOWS's
+ * reset, the *_SPECIFIC forms at their own tiles, a rebuild's shift, and a
+ * deck that went. The core's own zone and its shadow's both go through here.
+ * `loc_records`: write the zone LOC_ADD_CHANGE / LOC_DEL records here, for a
+ * zone that runs no loc tasks (the shadow's); the core's are written by its
+ * loc tasks' place (scriptrun_tasks.c).
  */
 void
-ScriptrunCore_ZoneResetLocs(
-    struct ScriptrunCore* core,
-    int abs_x0,
-    int abs_z0,
-    int zone_level);
+ScriptrunCore_ZoneFamilies(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZone* zone,
+    struct RevPacket const* packet,
+    int loc_records);
 
 /** Release the collision scene (the builder and the loc table). */
 void
@@ -575,6 +581,11 @@ ScriptrunCore_LocOpName(
 int
 ScriptrunCore_LocConfigsInvalidate(void);
 
+/** Loc config `loc_id` decoded from the server's client record, shared by
+ *  every bot; NULL when there is none. */
+struct ToriRS_Location*
+ScriptrunCore_LocConfig(int loc_id);
+
 /* The label a placed loc's menu shows on slot `op` (1..5), or NULL when the
  * slot is empty or hidden: the placement's mask and labels over the
  * resolved loctype's, in the reference's order (mask, loctype, override). */
@@ -593,15 +604,26 @@ ScriptrunCore_NpcResolve(
     struct ScriptrunCore const* core,
     int npc_id);
 
-/** A varbit out of the varps this bot was sent. 0 when undefined. */
+/** A varbit out of the varps this bot was sent (the model's VarPManager).
+ *  0 when undefined or when its base varp is one the client cannot address
+ *  (ScriptrunCore_VarpAddressable). */
 int
 ScriptrunCore_Varbit(
     struct ScriptrunCore const* core,
     int varbit_id,
     int* value);
 
-/** The inventory record for `inv_id`, or NULL when never sent. */
-struct ScriptrunInv const*
+/** 1 when `varp_id` is a varp the client's array holds: below the count the
+ *  server transmits to (ToriRSServer_VarpClientCount, the cache's varps), or
+ *  one the model has been sent. The real client's drive answers not_found
+ *  past its VarPManager's count (DriveState_Varp). */
+int
+ScriptrunCore_VarpAddressable(
+    struct ScriptrunCore const* core,
+    int varp_id);
+
+/** The container the model holds for `inv_id`, or NULL when never sent. */
+struct InvContainer const*
 ScriptrunCore_Inv(
     struct ScriptrunCore const* core,
     int inv_id);
@@ -618,18 +640,29 @@ ScriptrunCore_InterfaceOpen(
     struct ScriptrunCore const* core,
     int interface_id);
 
-/** The text last set on `component`, or NULL. */
+/** The text the server set on `component` (the model's store: dropped when
+ *  its group leaves its slot for another group), or NULL. */
 char const*
 ScriptrunCore_Text(
     struct ScriptrunCore const* core,
     int component);
 
-/** 1 when the server's last IF_SETHIDE for `component` (since its group was
- *  opened) hid it, 0 when it showed it, -1 when it sent none. The cache's own
+/** 1 when the server's last IF_SETHIDE for `component` hid it, 0 when it
+ *  showed it, -1 when it sent none since the group was last unloaded (closed,
+ *  or replaced in its slot by another group; a group reopened in its own slot
+ *  keeps them, RS_ServerState_SlotGroupLeaves). The cache's own
  *  `hidden` flag and a hidden parent layer are not modelled: -1 is "no
  *  packet said", not "shown". */
 int
 ScriptrunCore_SetHide(
+    struct ScriptrunCore const* core,
+    int component);
+
+/** The model the server set on `component` (kind UI_IFHEAD_*, and the npc,
+ *  obj or cache model id), or NULL when none stands since its group was last
+ *  unloaded. */
+struct UIIfHead const*
+ScriptrunCore_Head(
     struct ScriptrunCore const* core,
     int component);
 

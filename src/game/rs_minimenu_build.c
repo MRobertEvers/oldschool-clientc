@@ -258,22 +258,20 @@ add_inv_obj_rows(
     }
 }
 
-/** Objtype for menu text; queue the load when not yet resident and return
- * NULL for now — hover text rebuilds every frame and the right-click menu
- * rebuilds on open, so the name self-heals a frame after the load lands
- * (callers already render an "item" placeholder for NULL). */
+/** Objtype for menu text; want it from the assets table when not yet
+ * resident and return NULL for now -- hover text rebuilds every frame and the
+ * right-click menu rebuilds on open, so the name self-heals a frame after the
+ * load lands (callers already render an "item" placeholder for NULL). The
+ * table holds the one load in flight: a hover held over an unseen item asked
+ * for a fresh ObjLoad every frame before. */
 static struct ToriRS_Objtype const*
 ensure_objtype(struct RS_MinimenuBuildCtx const* ctx, int obj_id)
 {
     struct ToriRS_Objtype const* obj = CacheProvider_ObjtypeGet(ctx->provider, obj_id);
     if( obj )
         return obj;
-    if( ctx->runner )
-    {
-        struct ToriRS_Task* task = CreateTask_ObjLoad(ctx->provider, obj_id);
-        if( task )
-            ToriRS_TaskQueue_Add(ctx->runner->queue, task);
-    }
+    if( ctx->assets && obj_id >= 0 )
+        (void)Assets_Want(ctx->assets, AssetKey_Make(ASSET_KIND_CONFIG, obj_id, ASSET_CONFIG_OBJ));
     return CacheProvider_ObjtypeGet(ctx->provider, obj_id);
 }
 

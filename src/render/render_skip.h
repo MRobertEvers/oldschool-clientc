@@ -51,6 +51,9 @@ struct RenderSkip
     uint64_t frames_caught_up;
     /** A replay seek holds the screen. Independent of `enabled`. */
     int hold;
+    /** The caller's stamp of the tree the latest committed emit list was
+     *  built from (RenderSkip_NoteEmit): a late draw needs the same tree. */
+    uint32_t emit_tree;
 };
 
 /** What a late draw would do now (RenderSkip_CatchUp). */
@@ -95,6 +98,22 @@ void
 RenderSkip_RequestDraw(
     struct RenderSkip* skip,
     int frames);
+
+/** A frame is being committed, its emit list built from the tree whose
+ *  mutation stamp is `tree` (the App's UITree dirty_gen). */
+void
+RenderSkip_NoteEmit(
+    struct RenderSkip* skip,
+    uint32_t tree);
+
+/** Before a late draw: the tree's stamp now. A tree that moved since the
+ *  skipped frame's list was built cannot be drawn under it -- the list
+ *  borrows the tree (a text command points at the node's own string) -- so
+ *  the catch-up is lost, as after an uncommitted frame. */
+void
+RenderSkip_NoteTree(
+    struct RenderSkip* skip,
+    uint32_t tree);
 
 /** Is a late draw needed, possible, or neither? */
 enum RenderSkipCatchUp

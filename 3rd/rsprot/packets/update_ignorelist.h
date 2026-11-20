@@ -29,8 +29,9 @@
 
 #include "../include/rsprot_exec.h"
 
-/** Removal bit. Set means "no longer ignored" and the entry stops after the
- *  name; clear means an add, whose low bit carries `added`. */
+/** The removal value. EQUAL means "no longer ignored" and the entry stops
+ *  after the name; any other value is an add, whose low bit carries `added`
+ *  (deob class428.method9746 tests `== 4`, so a 5 or a 6 is an add). */
 #define MSG_UPDATE_IGNORELIST_REMOVED 0x4
 
 typedef struct MsgUpdateIgnoreListEntry
@@ -38,7 +39,7 @@ typedef struct MsgUpdateIgnoreListEntry
     /** The discriminator AND the payload of an add. See the bit above. */
     int32_t flags;
     const char *name;
-    /* Present only when MSG_UPDATE_IGNORELIST_REMOVED is clear. */
+    /* Present only when `flags` is not MSG_UPDATE_IGNORELIST_REMOVED. */
     const char *previous_name;
     const char *note;
 } MsgUpdateIgnoreListEntry;
@@ -50,7 +51,12 @@ typedef struct MsgUpdateIgnoreList
     MsgUpdateIgnoreListEntry *entries;
 } MsgUpdateIgnoreList;
 
-#define MSG_UPDATE_IGNORELIST_MAX_ENTRIES 256
+/** Caller-supplied `entries` capacity: every entry a VARU16 payload (65535
+ *  bytes) can frame, the shortest being 2 (a removal: the flags byte and an
+ *  empty name). The reference reads to the end of the payload and keeps 400
+ *  (deob class428.method9746: a new name past 400 is read and skipped), so
+ *  the bound that may refuse a packet is the frame's, never the list's. */
+#define MSG_UPDATE_IGNORELIST_MAX_ENTRIES (65535 / 2)
 
 /* v1 -- revs 221-239. */
 void packet_update_ignorelist_v1_out(RsprotExec *x, MsgUpdateIgnoreList *m);

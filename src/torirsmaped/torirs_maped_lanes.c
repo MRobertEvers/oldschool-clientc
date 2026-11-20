@@ -69,6 +69,19 @@ enum lanes_settled
 #include <windows.h>
 #include <winioctl.h> /* FSCTL_SET_REPARSE_POINT: WIN32_LEAN_AND_MEAN leaves it out */
 
+/* Vista and later (CreateSymbolicLinkA and its flags): the XP lane's headers
+ * (_WIN32_WINNT 0x0501) have none of them, so they are stated here and the
+ * call resolved at run time; on XP it is absent and symlink() below links by
+ * junction and hard link, as it does for an account that may not make
+ * symbolic links. */
+#ifndef SYMBOLIC_LINK_FLAG_DIRECTORY
+#define SYMBOLIC_LINK_FLAG_DIRECTORY 0x1
+#endif
+#ifndef SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
+#define SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE 0x2
+#endif
+typedef BOOLEAN(WINAPI* LanesCreateSymbolicLinkFn)(LPCSTR, LPCSTR, DWORD);
+
 #ifndef S_IFLNK
 #define S_IFLNK 0120000
 #endif
@@ -168,6 +181,8 @@ symlink(
     const char* link_path)
 {
     static int symbolic_refused = 0;
+    static int resolved = 0;
+    static LanesCreateSymbolicLinkFn create_symbolic_link = NULL;
     char native[TORIRSMAPED_LANE_PATH];
     DWORD flags = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
     DWORD attrs;
@@ -182,9 +197,19 @@ symlink(
     is_dir = attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY);
     if( is_dir )
         flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
+    if( !resolved )
+    {
+        HMODULE const kernel = GetModuleHandleA("kernel32.dll");
+        resolved = 1;
+        if( kernel )
+            create_symbolic_link =
+                (LanesCreateSymbolicLinkFn)(void (*)(void))GetProcAddress(kernel, "CreateSymbolicLinkA");
+        if( !create_symbolic_link )
+            symbolic_refused = 1;
+    }
     if( !symbolic_refused )
     {
-        if( CreateSymbolicLinkA(link_path, native, flags) )
+        if( create_symbolic_link(link_path, native, flags) )
             return 0;
         if( GetLastError() != ERROR_PRIVILEGE_NOT_HELD )
         {

@@ -96,6 +96,23 @@ PlatformX_IO_ArchiveReprimePendingHook(
     void* user,
     int index);
 
+/** Call `hook(user)` after every tick of the JS5 link: the provider's
+ *  CacheProvider_ArchiveReprimeTick, which fires the re-prime trigger a
+ *  world gather waits on once the table has landed. NULL: nothing. */
+void
+PlatformX_IO_SetReprimeTickHook(
+    struct PlatformX_IO* px,
+    void (*hook)(void* user),
+    void* user);
+
+/** Where the client's frame count lives (App's FrameClockSerial run_once):
+ *  what TORIRS_IO_DEFER_FRAMES counts in (platform_x_io.c). An executor
+ *  never told has no frames and defers no read by frames. */
+void
+PlatformX_IO_SetFrameSource(
+    struct PlatformX_IO* px,
+    uint64_t const* frames);
+
 int
 PlatformX_IO_LoadItem(
     struct PlatformX_IO* px,

@@ -147,22 +147,11 @@ inv_manager_get_or_create_container(
     return c;
 }
 
-int
-InvManager_HasUnbakedIcon(struct InvManager const* mgr)
+bool
+InvManager_SlotWantsIcon(struct InvSlot const* slot)
 {
-    assert(mgr);
-    for( int ci = 0; ci < mgr->container_count; ci++ )
-    {
-        struct InvContainer const* container = &mgr->containers[ci];
-
-        if( !container->slots )
-            continue;
-        for( int slot = 0; slot < container->slot_count; slot++ )
-            if( container->slots[slot].obj_id > INV_MANAGER_EMPTY_OBJ_ID &&
-                container->slots[slot].scene_id == INV_MANAGER_NO_SCENE_ID )
-                return 1;
-    }
-    return 0;
+    assert(slot);
+    return slot->obj_id > INV_MANAGER_EMPTY_OBJ_ID && slot->scene_id == INV_MANAGER_NO_SCENE_ID;
 }
 
 void

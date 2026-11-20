@@ -25,14 +25,16 @@ proto_info_player_read(
     int len,
     RsprotInfoList* out);
 
-/** NPC_INFO through `read` (an npc_info_<size>_<version>_osrs<N>). There is no
- *  npc type lookup: a CUSTOM_TYPED block with recolours or retextures ends the
- *  tail, as it did in the hand-written readers. */
+/** NPC_INFO through `read` (an npc_info_<size>_<version>_osrs<N>), with the
+ *  host's npc type lookup for the typed customisation blocks (NULL: one with
+ *  recolours or retextures ends the tail; RsprotNpcTypeLengths). */
 int
 proto_info_npc_read(
     RsprotNpcInfoReadFn read,
     uint8_t const* data,
     int len,
+    RsprotNpcTypeLengths lengths,
+    void* ctx,
     RsprotInfoList* out);
 
 /** A fresh table owned by `local_index` (the login's player index). */

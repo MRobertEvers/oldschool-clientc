@@ -67,8 +67,6 @@ idset_add(
 }
 
 /* The dat2 index maps are read from, and how long a load waits for it. */
-#define WORLD_LOAD_MAPS_INDEX 5
-#define WORLD_LOAD_REPRIME_WAIT_MS 5000.0
 
 struct Task_WorldLoad
 {
@@ -133,7 +131,6 @@ struct Task_WorldLoad
     int pending;
 
     /* When the wait for a live reload's new map table gives up. */
-    double reprime_deadline_ms;
 
     /* TORIRS_REBUILD_TIMING=1: when the task first ran, when its assets were
      * all resident, and how many times the runner resumed it in between --
@@ -328,13 +325,16 @@ Task_WorldLoad_Run(
      * A live reload sends CACHE_INVALIDATE and the REBUILD together, and the
      * new map table comes over JS5 behind them. A square the reload ADDED is
      * in no table this client has yet, so loading now reads it as absent and
-     * nothing loads it again. Bounded, so a dead JS5 link cannot hold up the
-     * scene.
+     * nothing loads it again.
+     *
+     * Parked on the re-prime's trigger, which the invalidation primed and the
+     * link fires when the table lands -- or when the link dies, which ends
+     * the re-prime too (CacheProvider_ArchiveReprimeTick). Not a poll, and no
+     * deadline: a link that is alive and never answers is a hang upstream,
+     * and the chain says so.
      */
-    self->reprime_deadline_ms = WorldBuilder_TimingNowMs() + WORLD_LOAD_REPRIME_WAIT_MS;
-    PT_WAIT_UNTIL(&self->pt,
-        !CacheProvider_ArchiveReprimePending(p, WORLD_LOAD_MAPS_INDEX)
-            || WorldBuilder_TimingNowMs() >= self->reprime_deadline_ms);
+    while( ToriRS_Trigger_Primed(CacheProvider_MapsReprime(p)) )
+        TASK_AWAIT_TRIGGER(&self->task, &self->pt, TORIRS_TASK_WAIT_ASSET, CacheProvider_MapsReprime(p));
 
     /*
      * 0. Reclaim before preloading, not after.
@@ -461,23 +461,21 @@ Task_WorldLoad_Run(
     }
 
     /*
-     * 4. Every loc model the region needs, and every animated loc's sequence,
-     * ALL AT ONCE.
+     * 4. Every loc model the region needs, ALL AT ONCE.
      *
      * This is the big one: a region names hundreds of models, and awaiting
      * them one at a time cost a network round trip each, in a line, on a cache
-     * being streamed. The sequences are registered in the scene animation
-     * registry so scenery_load_animation can bind them during the rebuild;
-     * CreateTask_SequenceLoad answers NULL for one already registered. They
-     * used to be awaited one after another AFTER the models, each several
-     * reads deep -- a chain of round trips behind the biggest stage.
+     * being streamed.
+     *
+     * The animated locs' sequences are NOT waited for: a sequence's frames
+     * are only drawn, and every packet behind a REBUILD waits for the build.
+     * scenery_load_animation binds those already registered; the rest are
+     * wanted after the build and bound when they arrive
+     * (WorldBuilder_LocSequencesMissing / _BindLocSequence, and the client's
+     * finish, App_WorldViewLoadFinish). `seqs` is still collected, for the
+     * count below.
      */
     world_load_fanout(self, &self->models, CacheProvider_ModelHas, CreateTask_ModelLoad);
-    for( self->i = 0; self->i < self->seqs.count; self->i++ )
-        ToriRS_TaskQueue_AddParallelPoolSubTask(
-            self->queue,
-            CreateTask_SequenceLoad(p, self->builder->scene, self->seqs.items[self->i]),
-            &self->pending);
     PT_TASK_JOIN(pending);
     /* The face-texture walk below reads every face of every model just
      * landed. */

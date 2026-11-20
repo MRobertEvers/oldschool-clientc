@@ -87,11 +87,11 @@ struct RS_WorldMapOverview
 };
 
 struct RS_WorldMapOverview*
-RS_WorldMapOverview_New(void)
+RS_WorldMapOverview_New(struct Assets* assets)
 {
     struct RS_WorldMapOverview* overview = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*overview));
     assert(overview);
-    overview->render = RS_WorldMapRender_New();
+    overview->render = RS_WorldMapRender_New(assets);
     for( int i = 0; i < OVERVIEW_HI_SLOTS; i++ )
         overview->hi[i].key = -1;
     overview->hi_scratch = ToriMem_Alloc(ToriMem_Editor(),
@@ -566,7 +566,6 @@ overview_poll_area(
     struct RS_WorldMapOverview* overview,
     struct CacheProvider* provider,
     struct ToriDraw_Scene* scene,
-    struct ToriRS_TaskQueue* queue,
     struct ToriRS_WorldMapArea const* area,
     struct RS_WorldMapOverviewWindow const* window,
     double pixels_per_square)
@@ -596,7 +595,7 @@ overview_poll_area(
             continue;
         }
         baked = RS_WorldMapRender_RegionPixels(
-            overview->render, provider, scene, queue, area, source->dst_region_x, source->dst_region_y, 1,
+            overview->render, provider, scene, area, source->dst_region_x, source->dst_region_y, 1,
             overview->scratch, &complete, overview->icon_scratch, OVERVIEW_ICONS_PER_REGION, &icon_count);
         if( baked == 0 )
         {
@@ -663,7 +662,7 @@ overview_poll_area(
             continue;
         }
         hi_spent += (long)(bytes / 4);
-        baked = RS_WorldMapRender_RegionPixels(overview->render, provider, scene, queue, area, source->dst_region_x,
+        baked = RS_WorldMapRender_RegionPixels(overview->render, provider, scene, area, source->dst_region_x,
             source->dst_region_y, scale, overview->hi_scratch, &complete, overview->icon_scratch,
             OVERVIEW_ICONS_PER_REGION, &icon_count);
         if( baked < 0 )
@@ -700,7 +699,6 @@ RS_WorldMapOverview_Poll(
     struct RS_WorldMapOverview* overview,
     struct CacheProvider* provider,
     struct ToriDraw_Scene* scene,
-    struct ToriRS_TaskQueue* queue,
     int mapscene_scene_id,
     struct ToriRS_WorldMapArea const* area,
     struct RS_WorldMapOverviewWindow const* window,
@@ -713,7 +711,7 @@ RS_WorldMapOverview_Poll(
     overview->clock++;
     RS_WorldMapRender_BeginFrame(overview->render);
     RS_WorldMapRender_SetMapScenes(overview->render, mapscene_scene_id);
-    return overview_poll_area(overview, provider, scene, queue, area, window, pixels_per_square);
+    return overview_poll_area(overview, provider, scene, area, window, pixels_per_square);
 }
 
 /** The areas in drawing order: the main (surface) one first, the rest by
@@ -753,7 +751,6 @@ RS_WorldMapOverview_PollAll(
     struct RS_WorldMapOverview* overview,
     struct CacheProvider* provider,
     struct ToriDraw_Scene* scene,
-    struct ToriRS_TaskQueue* queue,
     int mapscene_scene_id,
     struct ToriRS_WorldMapAreas const* areas,
     struct RS_WorldMapOverviewWindow const* window,
@@ -772,7 +769,7 @@ RS_WorldMapOverview_PollAll(
     {
         struct ToriRS_WorldMapArea const* area = overview_area_in_order(areas, i);
         if( area && overview_area_in_window(area, window) )
-            missing += overview_poll_area(overview, provider, scene, queue, area, window, pixels_per_square);
+            missing += overview_poll_area(overview, provider, scene, area, window, pixels_per_square);
     }
     return missing;
 }

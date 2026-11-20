@@ -1,9 +1,14 @@
 #include "platform/platform_win32_timing.h"
+#include "platform/sleep_plan.h"
 
 #include <windows.h>
 #include <mmsystem.h>
+#include <intrin.h>
 
+#include <assert.h>
 #include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct Win32TimingState
@@ -183,35 +188,176 @@ request_fine_timer_period(void)
     }
 }
 
+/*
+ * The high-resolution waitable timer (platform/sleep_plan.h): resolved at run
+ * time, because CreateWaitableTimerExW is Vista and later and its
+ * high-resolution flag Windows 10 1803 and later -- an older system refuses
+ * the flag and the lane keeps the Sleep plan. One timer, made on the first
+ * sleep and kept for the process (the loop sleeps every frame).
+ */
+typedef HANDLE(WINAPI* Win32CreateWaitableTimerExWFn)(LPSECURITY_ATTRIBUTES, LPCWSTR, DWORD, DWORD);
+#define WIN32_TIMING_TIMER_HIGH_RESOLUTION 0x00000002u
+#define WIN32_TIMING_TIMER_ALL_ACCESS 0x001F0003u
+
+static struct
+{
+    int resolved;
+    HANDLE timer;
+} precise;
+
+static void
+precise_timer_resolve(void)
+{
+    HMODULE kernel;
+    Win32CreateWaitableTimerExWFn create;
+    char const* knob;
+
+    precise.resolved = 1;
+    /* TORIRS_WIN32_PRECISE_TIMER=0 keeps the Sleep plan, the one XP and
+     * Windows 10 before 1803 take, so it can be measured on a newer system;
+     * any value set says on stderr which plan this run sleeps on. */
+    knob = getenv("TORIRS_WIN32_PRECISE_TIMER");
+    if( !(knob && knob[0] == '0') )
+    {
+        kernel = GetModuleHandleA("kernel32.dll");
+        create = kernel ? (Win32CreateWaitableTimerExWFn)(void (*)(void))GetProcAddress(kernel, "CreateWaitableTimerExW")
+                        : NULL;
+        if( create )
+            precise.timer = create(NULL, NULL, WIN32_TIMING_TIMER_HIGH_RESOLUTION, WIN32_TIMING_TIMER_ALL_ACCESS);
+    }
+    if( knob )
+        fprintf(stderr, "win32 timing: %s (TORIRS_WIN32_PRECISE_TIMER=%s)\n",
+                precise.timer ? "naps and frame waits block on the high-resolution waitable timer"
+                              : "the Sleep plan: Sleep(ms - 1), then Sleep(0) rechecks for the last millisecond",
+                knob);
+}
+
+/* Wait `us` microseconds on the precise timer. False if the wait could not
+ * be armed (the caller falls back to the Sleep plan for good). */
+static int
+precise_timer_wait(uint64_t us)
+{
+    LARGE_INTEGER due;
+
+    /* Negative: relative, in 100 ns units. */
+    due.QuadPart = -(LONGLONG)(us * 10u);
+    if( !SetWaitableTimer(precise.timer, &due, 0, NULL, NULL, FALSE) )
+        return 0;
+    return WaitForSingleObject(precise.timer, INFINITE) == WAIT_OBJECT_0;
+}
+
 void
 PlatformWin32Timing_SleepUntilMs(uint64_t deadline_ms)
 {
+    uint64_t began_us;
+
     if( timing.references == 0 )
         PlatformWin32Timing_Init();
     request_fine_timer_period();
+    if( !precise.resolved )
+        precise_timer_resolve();
+    began_us = PlatformWin32Timing_NowUs();
     for( ;; )
     {
-        uint64_t now = PlatformWin32Timing_NowMs();
-        uint64_t remaining;
-        DWORD delay;
+        struct ToriRS_SleepStep const step =
+            ToriRS_SleepPlan_Next(PlatformWin32Timing_NowUs(), deadline_ms, began_us, precise.timer != NULL);
 
-        if( now >= deadline_ms )
+        if( step.kind == TORIRS_SLEEP_STEP_DONE )
             return;
-        remaining = deadline_ms - now;
-        /* Leave the final millisecond to a zero-duration yield/recheck. Even
-         * with timeBeginPeriod(1), Sleep(N) commonly returns around N+1 ms;
-         * sleeping the full residual turns a 50 fps deadline into ~46 fps. */
-        if( remaining > 1 )
+        if( step.kind == TORIRS_SLEEP_STEP_TIMER_US )
         {
-            remaining--;
-            delay = remaining >= (uint64_t)INFINITE ? INFINITE - 1u : (DWORD)remaining;
+            if( precise_timer_wait(step.amount) )
+                continue;
+            CloseHandle(precise.timer);
+            precise.timer = NULL;
+            continue;
         }
-        else
-        {
-            delay = 0;
-        }
-        Sleep(delay);
         /* Sleep may return early. Re-read the monotonic clock rather than
          * letting a short wait make the client run above its 50 fps cap. */
+        Sleep(step.kind == TORIRS_SLEEP_STEP_SLEEP_MS
+                  ? (step.amount >= (uint64_t)INFINITE ? INFINITE - 1u : (DWORD)step.amount)
+                  : 0u);
     }
+}
+
+/* --- the thread's processor time (PlatformWindow_ThreadCpuUs) -------------
+ *
+ * QueryThreadCycleTime is exact (no 15.6 ms scheduler granularity, which
+ * GetThreadTimes has and which would make a 4 ms check all-or-nothing), but
+ * it counts cycles. On every x86 Windows that has it, those are
+ * time-stamp-counter ticks, so the counter's rate converts them: measured
+ * once, as rdtsc against QueryPerformanceCounter over a 10 ms Sleep (both
+ * clocks run while the thread sleeps, so the ratio is the counter's rate and
+ * the sleep's own jitter does not matter). Resolved through GetProcAddress so
+ * the XP lane, which has no such call, still loads; there, and if the rate
+ * cannot be measured, the wall clock stands in. */
+typedef BOOL(WINAPI* Win32QueryThreadCycleTimeFn)(HANDLE, PULONG64);
+
+static struct
+{
+    int resolved;
+    Win32QueryThreadCycleTimeFn query;
+    double cycles_per_us;
+} cpu_clock;
+
+static void
+cpu_clock_resolve(void)
+{
+    HMODULE kernel;
+
+    cpu_clock.resolved = 1;
+    if( timing.references == 0 )
+        PlatformWin32Timing_Init();
+    if( !timing.qpc_valid )
+        return;
+    kernel = GetModuleHandleA("kernel32.dll");
+    if( !kernel )
+        return;
+    cpu_clock.query = (Win32QueryThreadCycleTimeFn)(void (*)(void))GetProcAddress(kernel, "QueryThreadCycleTime");
+    if( !cpu_clock.query )
+        return;
+    {
+        LARGE_INTEGER q0;
+        LARGE_INTEGER q1;
+        unsigned long long t0;
+        unsigned long long t1;
+        double us;
+
+        QueryPerformanceCounter(&q0);
+        t0 = __rdtsc();
+        Sleep(10);
+        QueryPerformanceCounter(&q1);
+        t1 = __rdtsc();
+        us = (double)(q1.QuadPart - q0.QuadPart) * 1000000.0 / (double)timing.qpc_frequency.QuadPart;
+        if( us > 0.0 && t1 > t0 )
+            cpu_clock.cycles_per_us = (double)(t1 - t0) / us;
+        else
+            cpu_clock.query = NULL;
+    }
+}
+
+int
+PlatformWin32Timing_ThreadCpuIsWall(void)
+{
+    if( !cpu_clock.resolved )
+        cpu_clock_resolve();
+    return cpu_clock.query == NULL;
+}
+
+uint64_t
+PlatformWin32Timing_ThreadCpuUs(void)
+{
+    ULONG64 cycles = 0;
+    BOOL ok;
+
+    if( !cpu_clock.resolved )
+        cpu_clock_resolve();
+    if( !cpu_clock.query )
+        return PlatformWin32Timing_NowUs();
+    /* The current thread's pseudo-handle always has the access it needs;
+     * a failure here would mix two clocks in one difference. */
+    ok = cpu_clock.query(GetCurrentThread(), &cycles);
+    assert(ok);
+    (void)ok;
+    return (uint64_t)((double)cycles / cpu_clock.cycles_per_us);
 }

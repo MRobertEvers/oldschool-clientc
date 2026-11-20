@@ -5866,12 +5866,21 @@ dbg_push_sprite(
     dbg_push_sprite_box(ui, x, y, 0, 0, slot, clip);
 }
 
+int
+ToriRSChrome_SkinAvailable(struct ToriRSChrome const* ui, int slot)
+{
+    assert(ui);
+    assert(slot >= 0);
+    assert(slot < TORIRS_CHROME_SKIN_SLOT_COUNT);
+    return (ui->skin_avail[slot >> 3] >> (slot & 7) & 1u) != 0;
+}
+
 static int
 dbg_skin_has(struct ToriRSChrome const* ui, int slot)
 {
     if( slot < 0 || slot >= TORIRS_CHROME_SKIN_SLOT_COUNT )
         return 0;
-    return (ui->skin_avail & ((uint64_t)1 << slot)) != 0;
+    return ToriRSChrome_SkinAvailable(ui, slot);
 }
 
 /**

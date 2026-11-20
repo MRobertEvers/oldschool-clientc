@@ -163,16 +163,16 @@ varp_mark_int(
         mgr->var_long_set[variable] = 0;
 }
 
-static void
+static bool
 apply_varp_value(
     struct VarPManager* mgr,
     int variable,
     int value)
 {
-    if( variable < 0 )
-        return;
-    if( variable >= mgr->varp_count && !ensure_untyped_var_capacity(mgr, variable) )
-        return;
+    /* A varp id is the wire's u16: a negative one is the caller's bug, and a
+     * silent refusal here used to make it a varp that never changed. */
+    assert(variable >= 0);
+    (void)ensure_untyped_var_capacity(mgr, variable);
 
     varp_mark_int(mgr, variable);
     mgr->var_serv[variable] = value;
@@ -187,6 +187,7 @@ apply_varp_value(
      * changed-varp ring for every server update, so a redundant resend still
      * re-runs the hooks that list it. */
     notify_server_update(mgr, variable);
+    return true;
 }
 
 static void
@@ -266,7 +267,7 @@ VarPManager_Init(struct VarPManager* mgr)
     memset(mgr, 0, sizeof(*mgr));
 
     for( int i = 0; i < VARP_MANAGER_READBIT_MAX; i++ )
-        mgr->readbit[i] = (1 << i) - 1;
+        mgr->readbit[i] = (int)((1u << i) - 1u); /* readbit[31]: 1 << 31 overflows an int */
 }
 
 void
@@ -530,24 +531,24 @@ VarPManager_SetServerUpdateCallback(
     mgr->server_update_userdata = userdata;
 }
 
-void
+bool
 VarPManager_ApplySmall(
     struct VarPManager* mgr,
     int variable,
     int value)
 {
     assert(mgr);
-    apply_varp_value(mgr, variable, value);
+    return apply_varp_value(mgr, variable, value);
 }
 
-void
+bool
 VarPManager_ApplyLarge(
     struct VarPManager* mgr,
     int variable,
     int value)
 {
     assert(mgr);
-    apply_varp_value(mgr, variable, value);
+    return apply_varp_value(mgr, variable, value);
 }
 
 static void
@@ -581,15 +582,15 @@ ensure_long_capacity(
     mgr->var_long_count = grown;
 }
 
-void
+bool
 VarPManager_ApplyLong(
     struct VarPManager* mgr,
     int variable,
     int64_t value)
 {
     assert(mgr);
-    if( variable < 0 )
-        return;
+    /* The wire's u16, as apply_varp_value's. */
+    assert(variable >= 0);
     ensure_long_capacity(mgr, variable);
     mgr->var_long_set[variable] = 1;
     mgr->var_long_serv[variable] = value;
@@ -600,6 +601,7 @@ VarPManager_ApplyLong(
     }
     /* As VARP_LARGE: a resend still re-runs the hooks that list the id. */
     notify_server_update(mgr, variable);
+    return true;
 }
 
 int64_t
@@ -675,13 +677,24 @@ VarPManager_SetVarbitOptimistic(
 
     int mask = mgr->readbit[bit_count];
     int base_val = mgr->var[vb->basevar];
-    int cleared = base_val & ~(mask << vb->startbit);
-    int updated = cleared | ((value & mask) << vb->startbit);
+    /* In uint32_t: a varbit ending at bit 31 (varb62, varb78) shifts its
+     * mask into the sign bit, which is undefined for an int. */
+    int cleared = (int)((uint32_t)base_val & ~((uint32_t)mask << vb->startbit));
+    int updated = (int)((uint32_t)cleared | ((uint32_t)(value & mask) << vb->startbit));
     VarPManager_SetVarpOptimistic(mgr, vb->basevar, updated);
 }
 
 void
 VarPManager_ApplySync(struct VarPManager* mgr)
+{
+    VarPManager_ApplySyncEach(mgr, NULL, NULL);
+}
+
+void
+VarPManager_ApplySyncEach(
+    struct VarPManager* mgr,
+    VarPManager_ServerUpdateFn each,
+    void* each_userdata)
 {
     assert(mgr);
 
@@ -692,6 +705,8 @@ VarPManager_ApplySync(struct VarPManager* mgr)
             mgr->var[i] = mgr->var_serv[i];
             notify_change(mgr, i);
             notify_server_update(mgr, i);
+            if( each )
+                each(each_userdata, i);
         }
     }
     for( int i = 0; i < mgr->var_long_count; i++ )
@@ -701,6 +716,8 @@ VarPManager_ApplySync(struct VarPManager* mgr)
             mgr->var_long[i] = mgr->var_long_serv[i];
             notify_change(mgr, i);
             notify_server_update(mgr, i);
+            if( each )
+                each(each_userdata, i);
         }
     }
 }

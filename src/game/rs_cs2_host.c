@@ -98,16 +98,30 @@ rs_cs2_tree(struct RS_CS2Host* host)
     return host->tree;
 }
 
+/* A newer set on this widget's model: the latest set wins, so whatever the
+ * app still holds or is still loading for it is dropped -- a stored request
+ * (RS_CS2Host.widget_model_direct) and a visual task still waiting
+ * (RS_CS2Host.widget_visual_cancel). */
+static void
+rs_cs2_model_superseded(
+    struct RS_CS2Host* host,
+    int component_id)
+{
+    if( host->widget_model_direct )
+        host->widget_model_direct(host->world_user, component_id);
+    if( host->widget_visual_cancel )
+        host->widget_visual_cancel(host->world_user, component_id);
+}
+
 /* Bind a resident model onto a widget, superseding any lazy request the app
- * still holds for it (RS_CS2Host.widget_model_direct): the latest set wins. */
+ * still holds for it: the latest set wins. */
 static bool
 rs_cs2_apply_model(
     struct RS_CS2Host* host,
     int component_id,
     int scene_model)
 {
-    if( host->widget_model_direct )
-        host->widget_model_direct(host->world_user, component_id);
+    rs_cs2_model_superseded(host, component_id);
     return UITree_ApplyModel(rs_cs2_tree(host), component_id, scene_model);
 }
 
@@ -1264,6 +1278,14 @@ RS_CS2Host_SetChat(
     assert(host);
     assert(chat);
     host->chat = chat;
+}
+
+void
+RS_CS2Host_NotifyChatAdded(struct RS_CS2Host* host)
+{
+    assert(host);
+    assert(host->chat);
+    host->chat_transmit_dirty = 1;
 }
 
 void
@@ -2484,6 +2506,11 @@ void
 RS_CS2Host_ResetSocialForLogin(struct RS_CS2Host* host)
 {
     assert(host);
+    assert(host->social);
+    /* The friend and ignore lists too (deob Statics.method9200 ->
+     * class58.method1166): the next session's lists arrive as changes to an
+     * empty list, and its first friend list is not a run of world changes. */
+    RS_Social_ResetForLogin(host->social);
     RS_FriendsChat_Init(&host->friends_chat);
     RS_ClanStore_Reset(&host->clan, false);
     memset(host->stockmarket, 0, sizeof(host->stockmarket));
@@ -2574,6 +2601,16 @@ RS_CS2Host_Tick(struct RS_CS2Host* host)
 {
     assert(host);
     host->client_clock++;
+    /* The friend login/logout notices due by now, every client cycle as the
+     * reference prints them (class58.method1165 from the in-game loop). A
+     * host with no social store or chatbox (a script harness) has none. */
+    if( host->social && host->chat )
+    {
+        char text[RS_CHAT_TEXT_LEN];
+
+        while( RS_Social_TakeDueNotice(host->social, host->client_clock, text, (int)sizeof(text)) )
+            RS_CS2Host_ChatAdd(host, RS_CHAT_TYPE_PRIVATE_SYSTEM, "", NULL, text);
+    }
 }
 
 /* =========================================================================
@@ -5174,11 +5211,12 @@ exec_set_feedback_sprite(
     return CS2VM_EXECNO_OK;
 }
 
-static int
-exec_set_object(
+/* cc_setobject's second half, once the obj's model is here (or will never
+ * be): on a MODEL widget the obj's 3D interface model and its 2D pose, else
+ * (or with no model) the obj's icon. */
+static void
+rs_cs2_set_object_resident(
     struct RS_CS2Host* host,
-    struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest const* exact_request,
     int component_id,
     int obj_id,
     int count,
@@ -5188,57 +5226,6 @@ exec_set_object(
     struct CacheProvider* provider = rs_cs2_provider(host);
     int scene_id = -1;
     int atlas_index = 0;
-    (void)thread;
-    if( getenv("TORIRS_OBJICON_DEBUG") )
-        TORIRS_LOG("OBJICON: enter com=0x%08x obj=%d count=%d needs=%d\n",
-            (unsigned)component_id,
-            obj_id,
-            count,
-            ObjModelLoad_NeedsWork(provider, obj_id, count));
-
-    if( obj_id < 0 )
-    {
-#if UITREE_CLICK_DEBUG
-        TORIRS_LOG("uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d (clear)\n",
-            component_id,
-            obj_id,
-            count);
-#endif
-        (void)UITree_ApplyObject(tree, component_id, UITREE_NO_OBJ, 0, -1, 0, 0);
-        return CS2VM_EXECNO_OK;
-    }
-
-    /* The icon needs the objtype, its count variant, the inventory model and
-     * that model's textures. Task_ObjModelLoad fetches all of them, so ask it
-     * once whether anything is missing rather than yielding per piece. */
-    if( ObjModelLoad_NeedsWork(provider, obj_id, count) )
-    {
-        /*
-         * An ICON cell does not wait. Store the obj on the node now — the
-         * row's ops, tooltip and stack number all read it, and only the
-         * picture is missing — and let the app bake and bind the icon off the
-         * script's back (see RS_CS2Host.widget_obj_icon_lazy).
-         *
-         * A MODEL widget keeps its yield: there is no 2D bake to land there,
-         * the cell draws the obj in 3D, and the angle/offset composition below
-         * is the only place that knows how. Same line loc models hold.
-         */
-        int32_t const pending_idx =
-            UITree_FindByComponentId(tree, component_id);
-        bool const draws_model =
-            pending_idx >= 0 && tree->components[pending_idx].type == UIELEM_RS_MODEL;
-
-        if( !draws_model && host->widget_obj_icon_lazy )
-        {
-            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
-            host->widget_obj_icon_lazy(host->world_user, component_id, obj_id, count);
-            return CS2VM_EXECNO_OK;
-        }
-        if( !rs_cs2_await_spent(thread, exact_request->kind, obj_id, count) )
-            return rs_cs2_yield_load(host, thread, exact_request, obj_id, count);
-        /* Still incomplete after the load — a texture that failed, say. Build
-         * the icon from what did arrive; the raster skips missing faces. */
-    }
 
     /*
      * A type-6 (MODEL) widget draws the obj in 3D, not as its 2D icon.
@@ -5270,7 +5257,7 @@ exec_set_object(
          * beside it drew fine, because `count` is ^max_32bit_int and the
          * loader had resolved the "many" variant. */
         int render_obj = ObjModelLoad_RenderObjId(provider, obj_id, count);
-        int obj_model = UITreeSceneBridge_EnsureObjModel(host->bridge, render_obj);
+        int obj_model = UITreeSceneBridge_EnsureObjModel(rs_cs2_bridge(host), render_obj);
 
         if( obj_model > 0 )
         {
@@ -5317,7 +5304,7 @@ exec_set_object(
                 (void)UITree_ApplyModelOffset(
                     tree, component_id, objtype->offset_x2d, objtype->offset_y2d);
             }
-            return CS2VM_EXECNO_OK;
+            return;
         }
         /* No model for this obj — fall through to the icon, which is at
          * least something the player can identify. */
@@ -5343,6 +5330,98 @@ exec_set_object(
             dbg >= 0 ? (int)tree->components[dbg].type : -1);
     }
     (void)UITree_ApplyObject(tree, component_id, obj_id, count, scene_id, atlas_index, num_mode);
+}
+
+void
+RS_CS2Host_SetObjectResident(
+    struct RS_CS2Host* host,
+    int component_id,
+    int obj_id,
+    int count,
+    int num_mode)
+{
+    assert(host);
+    rs_cs2_set_object_resident(host, component_id, obj_id, count, num_mode);
+}
+
+
+static int
+exec_set_object(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest const* exact_request,
+    int component_id,
+    int obj_id,
+    int count,
+    int num_mode)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    (void)thread;
+    if( getenv("TORIRS_OBJICON_DEBUG") )
+        TORIRS_LOG("OBJICON: enter com=0x%08x obj=%d count=%d needs=%d\n",
+            (unsigned)component_id,
+            obj_id,
+            count,
+            ObjModelLoad_NeedsWork(provider, obj_id, count));
+
+    if( obj_id < 0 )
+    {
+#if UITREE_CLICK_DEBUG
+        TORIRS_LOG("uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d (clear)\n",
+            component_id,
+            obj_id,
+            count);
+#endif
+        (void)UITree_ApplyObject(tree, component_id, UITREE_NO_OBJ, 0, -1, 0, 0);
+        return CS2VM_EXECNO_OK;
+    }
+
+    /* The icon needs the objtype, its count variant, the inventory model and
+     * that model's textures. Task_ObjModelLoad fetches all of them, so ask it
+     * once whether anything is missing rather than yielding per piece. */
+    if( ObjModelLoad_NeedsWork(provider, obj_id, count) )
+    {
+        /*
+         * An ICON cell does not wait. Store the obj on the node now — the
+         * row's ops, tooltip and stack number all read it, and only the
+         * picture is missing — and let the app bake and bind the icon off the
+         * script's back (see RS_CS2Host.widget_obj_icon_lazy).
+         *
+         * A MODEL widget draws the obj in 3D, and the angle/offset composition
+         * in rs_cs2_set_object_resident is the only place that knows how: its
+         * task calls that once the model is here (widget_obj_model_lazy, just
+         * below). A host with neither hook yields as before.
+         */
+        int32_t const pending_idx =
+            UITree_FindByComponentId(tree, component_id);
+        bool const draws_model =
+            pending_idx >= 0 && tree->components[pending_idx].type == UIELEM_RS_MODEL;
+
+        if( !draws_model && host->widget_obj_icon_lazy )
+        {
+            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
+            host->widget_obj_icon_lazy(host->world_user, component_id, obj_id, count);
+            return CS2VM_EXECNO_OK;
+        }
+        /* A MODEL widget is visual too (task_cs2_run.c, the yield table): the
+         * obj is on the node now, its model draws nothing until it is here,
+         * and the app finishes the composition below when it is
+         * (RS_CS2Host_SetObjectResident). */
+        if( draws_model && host->widget_obj_model_lazy )
+        {
+            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
+            (void)rs_cs2_apply_model(host, component_id, -1);
+            host->widget_obj_model_lazy(host->world_user, component_id, obj_id, count, num_mode);
+            return CS2VM_EXECNO_OK;
+        }
+        if( !rs_cs2_await_spent(thread, exact_request->kind, obj_id, count) )
+            return rs_cs2_yield_load(host, thread, exact_request, obj_id, count);
+        /* Still incomplete after the load — a texture that failed, say. Build
+         * the icon from what did arrive; the raster skips missing faces. */
+    }
+
+    rs_cs2_set_object_resident(host, component_id, obj_id, count, num_mode);
     return CS2VM_EXECNO_OK;
 }
 
@@ -6215,6 +6294,8 @@ exec_widget_set_model(
          * the script continues -- see RS_CS2Host.widget_model_lazy. */
         if( host->widget_model_lazy )
         {
+            if( host->widget_visual_cancel )
+                host->widget_visual_cancel(host->world_user, component_id);
             host->widget_model_lazy(host->world_user, component_id, model_id);
             return CS2VM_EXECNO_OK;
         }
@@ -6254,6 +6335,8 @@ exec_widget_set_model_kind(
          * the script continues -- see RS_CS2Host.widget_model_lazy. */
         if( host->widget_model_lazy )
         {
+            if( host->widget_visual_cancel )
+                host->widget_visual_cancel(host->world_user, component_id);
             host->widget_model_lazy(host->world_user, component_id, model_id);
             return CS2VM_EXECNO_OK;
         }
@@ -6273,6 +6356,16 @@ exec_widget_set_model_kind(
     {
         if( !rs_cs2_loc_model_ready(host, model_id) )
         {
+            /* Visual (task_cs2_run.c, the yield table): the widget's model is
+             * now the loc's, which draws nothing until its config and models
+             * are here -- the reference's IfType.getModel answers null and
+             * the draw skips it -- and the app binds it when they are. */
+            if( host->widget_loc_model_lazy )
+            {
+                (void)rs_cs2_apply_model(host, component_id, -1);
+                host->widget_loc_model_lazy(host->world_user, component_id, model_id);
+                return CS2VM_EXECNO_OK;
+            }
             if( !rs_cs2_await_spent(vm, exact_request->kind, model_id, -1) )
                 return rs_cs2_yield_load(host, vm, exact_request, model_id, -1);
             return CS2VM_EXECNO_OK;
@@ -6292,6 +6385,8 @@ exec_widget_set_model_kind(
         {
             if( host->widget_npc_head_lazy )
             {
+                if( host->widget_visual_cancel )
+                    host->widget_visual_cancel(host->world_user, component_id);
                 host->widget_npc_head_lazy(host->world_user, component_id, model_id);
                 return CS2VM_EXECNO_OK;
             }
@@ -9064,6 +9159,79 @@ exec_hiscores(
     }
 }
 
+/* A line the client prints itself (deob Statics.method6152: type 30, no
+ * name). */
+static void
+social_refuse(
+    struct RS_CS2Host* host,
+    char const* text)
+{
+    RS_CS2Host_ChatAdd(host, 30, "", NULL, text);
+}
+
+/* FRIEND_ADD as the rev-239 client's 3605 (class58.method1188): refused with
+ * a line when the list is full, the name is the local player's, already a
+ * friend, or ignored; otherwise FRIENDLIST_ADD is sent and nothing changes
+ * here until the server's UPDATE_FRIENDLIST names the friend. The reference
+ * also refuses a free account past 200 (method1180, the login's member
+ * byte); this client does not keep that byte, so only the 400 of a full
+ * list refuses. */
+static void
+social_friend_add(
+    struct RS_CS2Host* host,
+    char const* name)
+{
+    struct RS_Social const* social = host->social;
+    char text[RS_SOCIAL_NAME_LEN + 64];
+
+    assert(social);
+    if( social->friend_count >= RS_SOCIAL_FRIEND_MAX )
+        social_refuse(host, "Your friend list is full. Max of 200 for free users, and 400 for members");
+    else if( host->local_player_name[0] && RS_Social_SameName(host->local_player_name, name) )
+        social_refuse(host, "You can't add yourself to your own friend list");
+    else if( RS_Social_IsFriend(social, name) )
+    {
+        snprintf(text, sizeof(text), "%s is already on your friend list", name);
+        social_refuse(host, text);
+    }
+    else if( RS_Social_IsIgnored(social, name) )
+    {
+        snprintf(text, sizeof(text), "Please remove %s from your ignore list first", name);
+        social_refuse(host, text);
+    }
+    else
+        social_queue(host, RS_CS2_SOCIAL_SEND_FRIEND_ADD, name);
+}
+
+/* IGNORE_ADD as 3607 (class58.method1218): the same shape over the ignore
+ * list (a free account's 100 is method1182's, not modelled, as above). */
+static void
+social_ignore_add(
+    struct RS_CS2Host* host,
+    char const* name)
+{
+    struct RS_Social const* social = host->social;
+    char text[RS_SOCIAL_NAME_LEN + 64];
+
+    assert(social);
+    if( social->ignore_count >= RS_SOCIAL_IGNORE_MAX )
+        social_refuse(host, "Your ignore list is full. Max of 100 for free users, and 400 for members");
+    else if( host->local_player_name[0] && RS_Social_SameName(host->local_player_name, name) )
+        social_refuse(host, "You can't add yourself to your own ignore list");
+    else if( RS_Social_IsIgnored(social, name) )
+    {
+        snprintf(text, sizeof(text), "%s is already on your ignore list", name);
+        social_refuse(host, text);
+    }
+    else if( RS_Social_IsFriend(social, name) )
+    {
+        snprintf(text, sizeof(text), "Please remove %s from your friend list first", name);
+        social_refuse(host, text);
+    }
+    else
+        social_queue(host, RS_CS2_SOCIAL_SEND_IGNORE_ADD, name);
+}
+
 static int
 exec_social(
     struct RS_CS2Host* host,
@@ -9094,10 +9262,13 @@ exec_social(
         RS_Social_FriendPreviousName(social, index, name, (int)sizeof(name));
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
     case CS2_OP_IGNORE_GETNAME:
+        /* The name, then the previous name, as 3601 (deob 3622:
+         * class454.method10200 / method10201). */
         RS_Social_IgnoreName(social, index, name, (int)sizeof(name));
         if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name)) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+        RS_Social_IgnorePreviousName(social, index, name, (int)sizeof(name));
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
 
     case CS2_OP_FRIEND_GETWORLD:
         return CS2VM2_PushInt(vm, RS_Social_FriendWorld(social, index));
@@ -9105,19 +9276,18 @@ exec_social(
         /* The friends-chat rank UPDATE_FRIENDLIST carries. */
         return CS2VM2_PushInt(vm, RS_Social_FriendRank(social, index));
 
+    /* Both test the name past its crown image (deob 3609 and 3623:
+     * Statics.method11885 before the Username). */
     case CS2_OP_FRIEND_TEST:
-        return CS2VM2_PushInt(vm, RS_Social_IsFriend(social, request_name) ? 1 : 0);
+        return CS2VM2_PushInt(vm, RS_Social_IsFriend(social, RS_Chat_Uncrowned(request_name)) ? 1 : 0);
     case CS2_OP_IGNORE_TEST:
-        return CS2VM2_PushInt(vm, RS_Social_IsIgnored(social, request_name) ? 1 : 0);
+        return CS2VM2_PushInt(vm, RS_Social_IsIgnored(social, RS_Chat_Uncrowned(request_name)) ? 1 : 0);
 
+    /* An add only asks: the row appears when the server's update does. */
     case CS2_OP_FRIEND_ADD:
         if( !request_name || !request_name[0] )
             return CS2VM_EXECNO_OK;
-        /* World 0 until the server answers with the real one, exactly as the
-         * reference does — the row appears immediately, reading "Offline". */
-        if( social && RS_Social_AddFriend(social, request_name, 0) )
-            RS_CS2Host_NotifyFriendChanged(host);
-        social_queue(host, RS_CS2_SOCIAL_SEND_FRIEND_ADD, request_name);
+        social_friend_add(host, request_name);
         return CS2VM_EXECNO_OK;
     case CS2_OP_FRIEND_DEL:
         if( !request_name || !request_name[0] )
@@ -9129,9 +9299,7 @@ exec_social(
     case CS2_OP_IGNORE_ADD:
         if( !request_name || !request_name[0] )
             return CS2VM_EXECNO_OK;
-        if( social && RS_Social_AddIgnore(social, request_name) )
-            RS_CS2Host_NotifyFriendChanged(host);
-        social_queue(host, RS_CS2_SOCIAL_SEND_IGNORE_ADD, request_name);
+        social_ignore_add(host, request_name);
         return CS2VM_EXECNO_OK;
     case CS2_OP_IGNORE_DEL:
         if( !request_name || !request_name[0] )
@@ -13051,7 +13219,8 @@ rs_cs2_host_exec_dispatch(
     F(item_search) F(item_search_user)                                                             \
     F(coord_in_scene) F(player_slot_by_name) F(worldentity_config_name) F(npc_by_uid)               \
     F(widget_model_lazy) F(widget_npc_head_lazy) F(widget_model_direct) F(widget_obj_icon_lazy)    \
-    F(player_route) F(objs_on_coord) F(world_user) F(varcs) F(loot) F(worldmap) F(viewport_w)      \
+    F(widget_loc_model_lazy) F(widget_obj_model_lazy) F(pack_models_lazy) F(widget_visual_cancel)  \
+    F(assets) F(player_route) F(objs_on_coord) F(world_user) F(varcs) F(loot) F(worldmap) F(viewport_w)      \
     F(viewport_h) F(battery_percent) F(battery_charging) F(network_kind) F(renderer_active)        \
     F(renderer_available) F(renderer_refused) F(renderer_launch_flagged) F(renderer_picked)        \
     F(safe_area_px) F(safe_area_window_w) F(safe_area_window_h) F(mouse_x) F(mouse_y)              \

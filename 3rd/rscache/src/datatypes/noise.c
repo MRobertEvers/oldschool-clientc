@@ -1,6 +1,7 @@
 #include "noise.h"
 
 #include <assert.h>
+#include <stdint.h>
 
 // clang-format off
 #include "noise_cos_table.h"
@@ -26,11 +27,14 @@ cosine_interpolate(
     return ((cos_interp * y) >> 16) + (((65536 - cos_interp) * x) >> 16);
 }
 
+/* The reference's int hash wraps on purpose; in uint32_t the wrap is
+ * defined. The masked result is the same non-negative int. */
 static inline int
 fade(int n)
 {
-    n = (n << 13) ^ n;
-    return (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
+    uint32_t u = (uint32_t)n;
+    u = (u << 13) ^ u;
+    return (int)((u * (u * u * 15731u + 789221u) + 1376312589u) & 0x7fffffffu);
 }
 
 static inline int

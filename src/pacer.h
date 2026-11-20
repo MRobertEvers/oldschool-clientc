@@ -41,6 +41,19 @@ enum
 {
     /* GameShell's ring length. Its rate estimate therefore lags ten frames. */
     TORIRS_PACER_OTIM_COUNT = 10,
+    /*
+     * A loop that was not called for this long (a modal resize or move on
+     * Windows, a frozen app, a debugger) has STALLED; it was not running
+     * slowly. The GameShell estimator, which measures the last ten
+     * iterations, would read the stall as a rate of ten iterations that ran
+     * behind and pay it back at its catch-up ceiling for ten iterations --
+     * forty cycles of a two-second stall replayed at five a frame. The App
+     * already drops a stall past its catch-up bound (FrameClockStep_Pay: "a
+     * stall costs the movers and the cycles the same"; at most 5 cycles paid);
+     * the pacer re-seeds, as the reference does when its loop starts, so the
+     * stall is not paid again over the frames after it.
+     */
+    TORIRS_PACER_STALL_MS = 1000,
 
     /*
      * The draw budget to fall back to when the base one cannot be met: 33 ms,
@@ -99,6 +112,9 @@ struct ToriRS_Pacer
     int count;
     uint64_t logic_ms;
     int seeded;
+    /** When the last iteration began (BeginFrame): a gap past
+     *  TORIRS_PACER_STALL_MS since it is a stall, not a rate. */
+    uint64_t last_begin_ms;
 
     int last_logic_ticks;
 
@@ -203,5 +219,109 @@ void ToriRS_Pacer_SetCapFps(struct ToriRS_Pacer* pacer, int fps);
  * request back to itself would have missed it.
  */
 void ToriRS_Pacer_NoteFrame(struct ToriRS_Pacer* pacer, uint64_t now_us, uint64_t wait_us);
+
+/*
+ * What a native frame loop does between one App_RunOnce and the next
+ * (main.c frame_loop_step): the loop's half of the frame contract (app.h,
+ * beside the runners). Every lane that runs the shared loop -- macos, linux,
+ * win32, win64, android -- decides here; the browser has no wait of its own
+ * (its pacing is the event loop's).
+ *
+ *   NONE   straight into the next frame. A mode with no cap to keep
+ *          (--uncapped, a replay, a content test), or work queued that can
+ *          run now (the boot asked for its next frame): sleeping through it
+ *          would pace the work instead of the screen.
+ *   SLEEP  the ordinary wait: the background queue is given the slack before
+ *          the deadline (App_RunBackground), then the loop sleeps out what
+ *          is left.
+ *   NAP    work is queued that only WAITS -- a read the platform has not
+ *          answered, a join on one, another queue's state -- or the main
+ *          queue's head waits on a read (a packet). Nothing can move
+ *          it but the answer, so going straight on would spin the parallel
+ *          queue against reads still on the wire; sleeping out the whole wait
+ *          would leave a landed answer untaken until the next frame. The
+ *          background queue is given the slack, then the wait is slept in
+ *          naps of TORIRS_LOOP_NAP_MS with a pump between them (App_PumpAsync,
+ *          what the browser's torirs_web_io_pump does when a batch lands),
+ *          and the wait ends the moment a pump moves anything.
+ *
+ * Every frame, whichever it is, has already given the background queue its
+ * floor slice inside App_RunOnce, so a mode with no wait still feeds it.
+ */
+enum ToriRS_LoopWait
+{
+    TORIRS_LOOP_WAIT_NONE = 0,
+    TORIRS_LOOP_WAIT_SLEEP,
+    TORIRS_LOOP_WAIT_NAP,
+};
+
+/* One nap of a NAP wait, in ms: the most a landed answer waits to be taken
+ * up between frames. The pre-loop JS5 and launch waits in main.c nap the
+ * same 1 ms. */
+#define TORIRS_LOOP_NAP_MS 1u
+
+struct ToriRS_LoopWaitInput
+{
+    /** --uncapped: no artificial wait at all. */
+    int uncapped;
+    /** An RSProx or command-bus replay, which paces itself. */
+    int replay;
+    /** A content test (ContentTest_Enabled), which runs as fast as it can. */
+    int content_test;
+    /** The last pump left work queued (App_AsyncPending). */
+    int async_pending;
+    /** ...some of which can run at once (App_AsyncRunnable). */
+    int async_runnable;
+    /** The main queue's head waits on a read (App_MainQueueWaitsOnRead): a
+     *  packet the next frame's pump resumes the moment its answer lands. */
+    int main_waits_on_read;
+};
+
+enum ToriRS_LoopWait ToriRS_Pacer_LoopWait(struct ToriRS_LoopWaitInput const* in);
+char const* ToriRS_Pacer_LoopWaitName(enum ToriRS_LoopWait wait);
+
+/*
+ * THE DISPLAY'S PERIOD, where the platform paces the loop to it and does not
+ * say what it is: the browser's requestAnimationFrame. The period between two
+ * callbacks is one vsync (16.7 ms at 60 Hz, 8.3 ms at 120 Hz) or a whole
+ * number of them when a frame overran, so the shortest period of a window of
+ * frames is the display's own. A window rather than all time, so one flukey
+ * pair of callbacks does not shrink the estimate for the rest of the session
+ * and a display that changes rate (a laptop dropping to 60 Hz on battery) is
+ * followed within a window. 0 until the first window has closed.
+ */
+enum
+{
+    TORIRS_DISPLAY_PERIOD_WINDOW = 32,
+    /* Shorter than any display this client meets (240 Hz is 4.2 ms): a period
+     * under it is two callbacks the browser ran back to back, not a vsync. */
+    TORIRS_DISPLAY_PERIOD_MIN_US = 4000,
+};
+
+struct ToriRS_DisplayPeriod
+{
+    uint64_t estimate_us;
+    uint64_t window_min_us;
+    int window_count;
+};
+
+/* One period between two display-paced frame starts. */
+void ToriRS_DisplayPeriod_Note(struct ToriRS_DisplayPeriod* display, uint64_t period_us);
+
+/*
+ * Where a loop the platform paces (the browser's) may give the background
+ * queue its slack until, or 0 when there is no slack left this frame.
+ *
+ * The slack is what is left before the next frame is due: the draw period
+ * from the frame's start, and, when the loop is paced to a display whose
+ * period is known (`display_period_us` > 0), no later than that period's
+ * start less a quarter of it -- the browser composites after the callback
+ * returns, and a callback still running at the next vsync costs the next
+ * frame (at 60 Hz a 20 ms draw period runs 3 ms past it, every frame). A frame
+ * that has overrun has none: 0, and the background queue has had its floor in
+ * App_RunOnce, which steps every task once whatever the clock says.
+ */
+uint64_t ToriRS_Pacer_SlackEndUs(
+    uint64_t frame_start_us, uint64_t draw_period_us, uint64_t display_period_us, uint64_t now_us);
 
 #endif /* PACER_H */

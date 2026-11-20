@@ -938,6 +938,40 @@ struct RS_CS2Host
         int component_id,
         int obj_id,
         int count);
+    /*
+     * The rest of what a script only PUTS ON SCREEN (game/task_cs2_run.c, the
+     * yield table's VISUAL rows), by the same bargain: the operation writes
+     * what it can onto the widget now and returns, and the app adds one
+     * parallel task that waits for the asset and binds it
+     * (app/app_tasks_scripts.c). Optional, each: with NULL the host yields the
+     * script as before (a host with no app: the tests, the tools).
+     *
+     *   widget_loc_model_lazy: cc_setlocmodel / if_setlocmodel whose loc
+     *     config or models are not resident.
+     *   widget_obj_model_lazy: cc_setobject on a MODEL widget whose obj model
+     *     is not resident (an icon cell is widget_obj_icon_lazy's).
+     *   pack_models_lazy: a pack the script's COMPONENT yield baked; its
+     *     models (and the npc configs and player kit its widgets name) load
+     *     and bind after the bake instead of before it.
+     *   widget_visual_cancel: a newer set on this widget's model: drop the
+     *     visual work still pending for it (the latest set wins).
+     */
+    void (*widget_loc_model_lazy)(void* user, int component_id, int loc_id);
+    void (*widget_obj_model_lazy)(
+        void* user,
+        int component_id,
+        int obj_id,
+        int count,
+        int num_mode);
+    void (*pack_models_lazy)(void* user, int group_id);
+    void (*widget_visual_cancel)(void* user, int component_id);
+    /*
+     * The assets table (engine/asset_requests.h) a script's REQUIRED reads
+     * wait through: one load in flight per asset, shared with every other
+     * waiter, its failures and back-off remembered. NULL (a host with no app)
+     * waits on the provider's own load task instead.
+     */
+    struct Assets* assets;
     /**
      * One player's queued ROUTE, for ACTIVEPLAYER_GETROUTELENGTH and
      * ACTIVEPLAYER_GETROUTECOORD.
@@ -1857,6 +1891,13 @@ RS_CS2Host_ExecClientOp(
     struct CS2VM2_Thread* vm,
     struct CS2VM_HostSignatureArgs const* args);
 
+/** A line the packet model has already put in the chat store
+ *  (game/rs_server_state.c): raise the chat-transmit channel, as
+ *  RS_CS2Host_ChatAdd does after its own store write. Nothing when no store
+ *  is bound (a headless harness), as there. */
+void
+RS_CS2Host_NotifyChatAdded(struct RS_CS2Host* host);
+
 void
 RS_CS2Host_ChatAdd(
     struct RS_CS2Host* host,
@@ -1926,6 +1967,20 @@ RS_CS2Host_QueueSettingsMirror(
     struct RS_CS2Host* host,
     int varbit_id,
     int value);
+
+/**
+ * cc_setobject's resident half: on a MODEL widget the obj's 3D interface
+ * model posed as its icon is, else (or with no model) the obj's icon. What
+ * the app's visual task calls once the obj model it waited for is here (or
+ * failed: the icon is built from what arrived, as a script that waited did).
+ */
+void
+RS_CS2Host_SetObjectResident(
+    struct RS_CS2Host* host,
+    int component_id,
+    int obj_id,
+    int count,
+    int num_mode);
 
 /**
  * A clientscript is about to run, with its arguments already in its locals.

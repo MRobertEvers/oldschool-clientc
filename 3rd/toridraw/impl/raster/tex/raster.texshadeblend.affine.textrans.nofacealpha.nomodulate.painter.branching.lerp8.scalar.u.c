@@ -67,19 +67,19 @@ raster_texshadeblend_affine_textrans_branching_lerp8_ordered(
     int step_x01_ish16 = 0;
     if( y1 != y0 )
     {
-        step_x01_ish16 = ((x1 - x0) << 16) / (y1 - y0);
+        step_x01_ish16 = toridraw_wrap_shl(x1 - x0, 16) / (y1 - y0);
     }
 
     int step_x12_ish16 = 0;
     if( y2 != y1 )
     {
-        step_x12_ish16 = ((x2 - x1) << 16) / (y2 - y1);
+        step_x12_ish16 = toridraw_wrap_shl(x2 - x1, 16) / (y2 - y1);
     }
 
     int step_x02_ish16 = 0;
     if( y0 != y2 )
     {
-        step_x02_ish16 = ((x0 - x2) << 16) / (y0 - y2);
+        step_x02_ish16 = toridraw_wrap_shl(x0 - x2, 16) / (y0 - y2);
     }
 
     int area = dx01 * dy02 - dx02 * dy01;
@@ -91,8 +91,8 @@ raster_texshadeblend_affine_textrans_branching_lerp8_ordered(
     // Solution to a barycentric equation system for dy and dx
     int dshade01 = shade1 - shade0;
     int dshade02 = shade2 - shade0;
-    int shade_step_x_ish9 = ((dy02 * dshade01 - dy01 * dshade02) << 9) / area;
-    int shade_step_y_ish9 = ((dx01 * dshade02 - dx02 * dshade01) << 9) / area;
+    int shade_step_x_ish9 = toridraw_wrap_shl(dy02 * dshade01 - dy01 * dshade02, 9) / area;
+    int shade_step_y_ish9 = toridraw_wrap_shl(dx01 * dshade02 - dx02 * dshade01, 9) / area;
 
     // Java: var33 = u0 - u1, var34 = v0 - v1, var35 = w0 - w1
     // Java: var36 = u2 - u0, var37 = v2 - v0, var38 = w2 - w0
@@ -106,23 +106,23 @@ raster_texshadeblend_affine_textrans_branching_lerp8_ordered(
     // Java: var39 = v0 * var36 - u0 * var37 << 14
     // Java: var40 = w0 * var37 - v0 * var38 << 5
     // Java: var41 = u0 * var38 - w0 * var36 << 5
-    int u_plane_x = (v0 * du1 - u0 * dv1) << 14;
-    int u_plane_y = (w0 * dv1 - v0 * dw1) << 5;
-    int u_plane_z = (u0 * dw1 - w0 * du1) << 5;
+    int u_plane_x = toridraw_wrap_shl(v0 * du1 - u0 * dv1, 14);
+    int u_plane_y = toridraw_wrap_shl(w0 * dv1 - v0 * dw1, 5);
+    int u_plane_z = toridraw_wrap_shl(u0 * dw1 - w0 * du1, 5);
 
     // Java: var42 = v0 * var33 - u0 * var34 << 14
     // Java: var43 = w0 * var34 - v0 * var35 << 5
     // Java: var44 = u0 * var35 - w0 * var33 << 5
-    int v_plane_x = (v0 * du0 - u0 * dv0) << 14;
-    int v_plane_y = (w0 * dv0 - v0 * dw0) << 5;
-    int v_plane_z = (u0 * dw0 - w0 * du0) << 5;
+    int v_plane_x = toridraw_wrap_shl(v0 * du0 - u0 * dv0, 14);
+    int v_plane_y = toridraw_wrap_shl(w0 * dv0 - v0 * dw0, 5);
+    int v_plane_z = toridraw_wrap_shl(u0 * dw0 - w0 * du0, 5);
 
     // Java: var45 = var34 * var36 - var33 * var37 << 14
     // Java: var46 = var35 * var37 - var34 * var38 << 5
     // Java: var47 = var33 * var38 - var35 * var36 << 5
-    int w_plane_x = (dv0 * du1 - du0 * dv1) << 14;
-    int w_plane_y = (dw0 * dv1 - dv0 * dw1) << 5;
-    int w_plane_z = (du0 * dw1 - dw0 * du1) << 5;
+    int w_plane_x = toridraw_wrap_shl(dv0 * du1 - du0 * dv1, 14);
+    int w_plane_y = toridraw_wrap_shl(dw0 * dv1 - dv0 * dw1, 5);
+    int w_plane_z = toridraw_wrap_shl(du0 * dw1 - dw0 * du1, 5);
 
     // This is a very large function with many branches. The Java code has
     // three main cases based on which vertex is topmost (y0 <= y1 && y0 <= y2,
@@ -150,7 +150,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8_ordered(
             shade_step_x_ish9);
 
         int x_left_ish16;
-        int x_right_ish16 = x_left_ish16 = x0 << 16;
+        int x_right_ish16 = x_left_ish16 = toridraw_wrap_shl(x0, 16);
         if( y0 < 0 )
         {
             x_right_ish16 -= y0 * step_x02_ish16;
@@ -159,7 +159,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8_ordered(
             y0 = 0;
         }
 
-        int x_mid_ish16 = x1 << 16;
+        int x_mid_ish16 = toridraw_wrap_shl(x1, 16);
         if( y1 < 0 )
         {
             x_mid_ish16 -= y1 * step_x12_ish16;

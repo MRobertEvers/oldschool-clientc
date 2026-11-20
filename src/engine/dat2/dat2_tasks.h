@@ -3,6 +3,9 @@
 
 #include "engine/cache_provider.h"
 
+struct Assets;
+struct Dat2BuildCache;
+
 struct ToriRS_Task*
 CreateTask_Dat2ModelLoad(
     struct CacheProvider* provider,
@@ -68,6 +71,17 @@ struct ToriRS_Task*
 CreateTask_Dat2IdkLoad(
     struct CacheProvider* provider,
     int idk_id);
+
+/**
+ * Use `assets` for this cache's shared prerequisites: register the
+ * ASSET_KIND_REF_TABLE loader (a reference table fetched and decoded once
+ * while every task that needs it awaits it) and keep the table for the
+ * loaders that await it.
+ */
+void
+Dat2BuildCache_AttachAssets(
+    struct Dat2BuildCache* bc,
+    struct Assets* assets);
 
 struct ToriRS_Task*
 CreateTask_Dat2MapTerrainLoad(

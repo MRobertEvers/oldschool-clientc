@@ -18,7 +18,10 @@ typedef struct MsgUpdateIgnoreListRs {
 	int32_t count;
 } MsgUpdateIgnoreListRs;
 
-#define MSG_UPDATE_IGNORELIST_RS_MAX_NAMES 400
+/** Caller-supplied `names37` capacity: every 8-byte key a VARU16 payload
+ *  (65535 bytes) can frame. What is kept is the client store's to decide
+ *  (400, as the rev-239 lists); a frame the wire can carry always reads. */
+#define MSG_UPDATE_IGNORELIST_RS_MAX_NAMES (65535 / 8)
 
 /* v1 -- revs rs245.2, rs254, rs289. */
 void packet_update_ignorelist_rs_v1_out(RsprotExec *x, MsgUpdateIgnoreListRs *m);

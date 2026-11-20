@@ -2,6 +2,7 @@
 #include "mem/torirs_mem.h"
 
 #include "game/rs_chat.h" /* RS_CHAT_TYPE_PUBLIC: the client chatbox's type */
+#include "game/rs_entity_apply.h"
 #include "game/rs_entity_sync.h"
 #include "net/rev/gameproto_revisions.h"
 #include "streams/rsprot_info.h"
@@ -13,6 +14,8 @@
 #include "world/world.h"
 #include "net/net_capture.h"
 #include "net/torirs_control.h"
+#include "scriptrun/scriptrun_shadow.h"
+#include "scriptrun/scriptrun_tasks.h"
 #include "torirsserver/wire/osrs242/osrs242_prots.h" /* the opcode names, for the wirelog's every-packet line */
 
 #include <assert.h>
@@ -21,19 +24,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* game/task_exec_entity_info.c's constants, restated: the decoder's array
- * size and the local-player sentinel while no UPDATE_PID has arrived (rev 239
- * never sends one). */
+/* The local-player sentinel while no UPDATE_PID has arrived (rev 239 never
+ * sends one), as game/rs_entity_apply.c reads it. */
 enum
 {
-    CORE_ENTITY_OPS_MAX = 2048,
-    /* An op list's strings and blobs: the payload and a NUL per op at most. */
-    CORE_ENTITY_BYTES_MAX = 65536 + CORE_ENTITY_OPS_MAX,
     CORE_LOCAL_SENTINEL = 2047,
 };
 
 static FILE*
 core_wirelog_file(void);
+
+static char const*
+core_pkt_name(int pkt_name);
 
 /* world/world.h's hitmark defaults: the values the client falls back to when
  * the hitsplat config has no record (game/rs_hitsplat.c). */
@@ -42,6 +44,13 @@ core_wirelog_file(void);
 #endif
 
 /* ------------------------------------------------------------------ setup */
+
+static int
+core_npc_head_icon(
+    void* ctx,
+    int npc_id,
+    int* out_group,
+    int* out_index);
 
 struct ScriptrunCore*
 ScriptrunCore_New(struct GameProtoRevTable const* rev)
@@ -60,26 +69,49 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     core->esync = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*core->esync));
     assert(core->esync);
     RS_EntitySync_Init(core->esync);
-    core->npc_ops =
-        ToriMem_Calloc(ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct RsprotInfoOp));
-    assert(core->npc_ops);
-    core->player_ops = ToriMem_Calloc(
-        ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct RsprotInfoOp));
-    assert(core->player_ops);
-    core->info_bytes = ToriMem_Alloc(ToriMem_ServerPlayers(), CORE_ENTITY_BYTES_MAX);
-    assert(core->info_bytes);
-    for( int i = 0; i < SCRIPTRUN_INVS; i++ )
-        core->invs[i].inv_id = -1;
+    /* The lists are allocated on their first packet. */
+    core->info_scratch.npc.group = ToriMem_ServerPlayers();
+    core->info_scratch.player.group = ToriMem_ServerPlayers();
+    ScriptrunModel_Init(&core->model,
+        rev->number,
+        &core->world->cycle,
+        core->world,
+        core->esync,
+        (struct RS_EventSink){
+            .ring = &core->events,
+            .entries = core->event_entries,
+            .capacity = SCRIPTRUN_EVENTS,
+            .full = RS_EVENT_RING_OVERWRITE,
+            .cycle = &core->world->cycle,
+        });
+    core->model.state.npc_head_icon = core_npc_head_icon;
+    core->model.state.npc_head_icon_ctx = core;
+    ScriptrunZone_Init(&core->zone,
+        (struct RS_EventSink){
+            .ring = &core->events,
+            .entries = core->event_entries,
+            .capacity = SCRIPTRUN_EVENTS,
+            .full = RS_EVENT_RING_OVERWRITE,
+            .cycle = &core->world->cycle,
+        });
     core->toplevel = -1;
     core->resume_pending = -1;
     core->next_element_id = 1;
+    core->tasks = ScriptrunTasks_New(core);
     if( rev->player_info_state_size )
     {
         core->player_decoder_state =
             ToriMem_Calloc(ToriMem_ServerPlayers(), 1, rev->player_info_state_size());
         assert(core->player_decoder_state);
     }
-    core->run_energy = 10000;
+    {
+        /* Unset or empty: no shadow. */
+        char const* shadow_path = getenv("TORIRS_SCRIPTRUN_SHADOW");
+
+        if( shadow_path && shadow_path[0] )
+            core->shadow = ScriptrunShadow_New(
+                shadow_path, rev->number, &core->world->cycle, core_pkt_name);
+    }
     return core;
 }
 
@@ -88,15 +120,19 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
 {
     if( !core )
         return;
+    /* First: a task still queued (a merge waiting out its time) is its own
+     * host's, and frees itself through the core. */
+    ScriptrunTasks_Free(core->tasks);
+    ScriptrunShadow_Free(core->shadow);
     ScriptrunCore_FreeCollision(core);
     ToriMem_Free(ToriMem_ServerPlayers(), core->locs);
-    UIIfEventTable_Free(&core->if_events);
+    ScriptrunModel_Free(&core->model);
+    UIIfModels_Free(&core->if_models);
+    ScriptrunZone_Free(&core->zone);
     RS_EntitySync_Free(core->esync);
     ToriMem_Free(ToriMem_ServerPlayers(), core->esync);
     World_Free(core->world);
-    ToriMem_Free(ToriMem_ServerPlayers(), core->npc_ops);
-    ToriMem_Free(ToriMem_ServerPlayers(), core->player_ops);
-    ToriMem_Free(ToriMem_ServerPlayers(), core->info_bytes);
+    EntityInfoScratch_Free(&core->info_scratch);
     ToriMem_Free(ToriMem_ServerPlayers(), core->player_decoder_state);
     ToriMem_Free(ToriMem_ServerPlayers(), core);
 }
@@ -128,19 +164,15 @@ ScriptrunCore_Event(
     int c,
     int d)
 {
-    struct ScriptrunEvent* ev;
+    struct RS_Event ev;
 
     assert(core);
-    assert(kind > SCRIPTRUN_EV_NONE && kind < SCRIPTRUN_EV_KIND_COUNT);
-    core->event_serial++;
-    ev = &core->events[core->event_serial % SCRIPTRUN_EVENTS];
-    ev->serial = core->event_serial;
-    ev->kind = kind;
-    ev->cycle = (int)core->world->cycle;
-    ev->a = a;
-    ev->b = b;
-    ev->c = c;
-    ev->d = d;
+    assert(kind > SCRIPTRUN_EV_NONE);
+    assert(kind < SCRIPTRUN_EV_KIND_COUNT);
+    ev = (struct RS_Event){
+        .kind = kind, .cycle = (int32_t)core->world->cycle, .a = a, .b = b, .c = c, .d = d
+    };
+    RS_EventRing_Push(&core->events, core->event_entries, SCRIPTRUN_EVENTS, RS_EVENT_RING_OVERWRITE, &ev);
 }
 
 void
@@ -149,41 +181,19 @@ ScriptrunCore_BeginTick(
     int server_tick)
 {
     int now;
-    int kept;
 
     assert(core);
     core->tick = server_tick;
     core->world->cycle = (uint64_t)server_tick * SCRIPTRUN_CYCLES_PER_TICK;
     now = (int)core->world->cycle;
-
-    /* A projectile the client would no longer draw: past its end cycle. */
-    kept = 0;
-    for( int i = 0; i < core->projectile_count; i++ )
-    {
-        struct ScriptrunProjectile const* p = &core->projectiles[i];
-        if( p->launch_cycle + p->end_delay >= now )
-            core->projectiles[kept++] = *p;
-    }
-    core->projectile_count = kept;
-    /* Map graphics: kept for 40 ticks, the longest the floor graphics this
-     * runner is built for last (Verzik's pools, 14 ticks). A spotanim's own
-     * sequence length would be exact; the consumers judge by id and tile. */
-    kept = 0;
-    for( int i = 0; i < core->map_anim_count; i++ )
-    {
-        struct ScriptrunMapAnim const* a = &core->map_anims[i];
-        if( now - a->cycle <= 40 * SCRIPTRUN_CYCLES_PER_TICK )
-            core->map_anims[kept++] = *a;
-    }
-    core->map_anim_count = kept;
-    kept = 0;
-    for( int i = 0; i < core->loc_anim_count; i++ )
-    {
-        struct ScriptrunLocAnim const* a = &core->loc_anims[i];
-        if( core->tick - a->tick <= SCRIPTRUN_LOC_ANIM_TICKS )
-            core->loc_anims[kept++] = *a;
-    }
-    core->loc_anim_count = kept;
+    ScriptrunZone_BeginTick(&core->zone, server_tick, now);
+    if( core->shadow )
+        ScriptrunShadow_BeginTick(core->shadow, server_tick, now);
+    /* The cycle clock moves: a loc merge due by now hides or restores. */
+    ScriptrunTasks_BeginTick(core->tasks, (uint32_t)now);
+    /* And a friend's login/logout notice due by now is a chatbox line, as
+     * the real client files it (once a cycle there, once a tick here). */
+    RS_ServerState_FriendNotices(&core->model.social, &core->model.chat, now);
 }
 
 /* ------------------------------------------------------------------ helpers */
@@ -291,29 +301,6 @@ core_npc_origin(
     }
 }
 
-static struct WorldEntity_Headbar
-core_headbar(
-    struct ScriptrunCore* core,
-    int type,
-    int duration,
-    int start_delay,
-    int start_fill,
-    int end_fill)
-{
-    struct WorldEntity_Headbar bar;
-
-    memset(&bar, 0, sizeof(bar));
-    bar.type = type;
-    bar.start_cycle = (int)core->world->cycle + start_delay;
-    bar.duration = duration;
-    bar.start_fill = start_fill;
-    bar.end_fill = end_fill;
-    /* The type's persist cycles are a render nicety; the fill is what the
-     * drive reports. */
-    bar.end_cycle = bar.start_cycle + duration;
-    return bar;
-}
-
 int
 ScriptrunCore_InstanceZone(
     struct ScriptrunCore const* core,
@@ -383,528 +370,18 @@ ScriptrunCore_LocalTile(
     return 1;
 }
 
-/* ------------------------------------------------------------ player info */
+/* ---------------------------------------------------- the entity streams */
 
-struct PlayerApply
-{
-    struct ScriptrunCore* core;
-    int cur_pid;
-    int old_count;
-    int need_ensure;
-};
-
-static int
-player_target(
-    struct PlayerApply* self,
-    int* out_element_id)
-{
-    int world_idx = -1;
-    int element_id = -1;
-
-    if( self->cur_pid >= 0 )
-        RS_EntitySync_FindPlayer(self->core->esync, self->cur_pid, &world_idx, &element_id);
-    if( out_element_id )
-        *out_element_id = element_id;
-    return world_idx;
-}
-
-/* game/task_exec_entity_info.c player_target_op. */
-static int
-player_target_op(
-    struct PlayerApply* self,
-    struct RsprotInfoOp const* op)
-{
-    struct ScriptrunCore* core = self->core;
-    struct RS_EntitySync* esync = core->esync;
-
-    switch( op->kind )
-    {
-    case RSPROT_OP_SET_LOCAL_PLAYER:
-        self->cur_pid = core_local_pid(core);
-        break;
-    case RSPROT_OP_ADD_OLD:
-        self->cur_pid =
-            (int)op->value < self->old_count ? core->player_old_list[op->value] : -1;
-        if( esync->active_player_count < RS_ENTITY_SYNC_MAX_PLAYERS )
-            esync->active_players[esync->active_player_count++] = self->cur_pid;
-        break;
-    case RSPROT_OP_ADD_NEW:
-        self->cur_pid = (int)op->value;
-        if( esync->active_player_count < RS_ENTITY_SYNC_MAX_PLAYERS )
-            esync->active_players[esync->active_player_count++] = self->cur_pid;
-        break;
-    case RSPROT_OP_SET_EXT:
-        self->cur_pid = (int)op->value < esync->active_player_count
-                            ? esync->active_players[op->value]
-                            : -1;
-        break;
-    case RSPROT_OP_CLEAR_OLD:
-    {
-        int pid =
-            (int)op->value < self->old_count ? core->player_old_list[op->value] : -1;
-        if( pid >= 0 )
-            RS_EntitySync_RemovePlayer(esync, core->world, pid);
-        self->cur_pid = -1;
-        return 1;
-    }
-    case RSPROT_OP_REMOVE_PID:
-        RS_EntitySync_RemovePlayer(esync, core->world, (int)op->value);
-        self->cur_pid = -1;
-        return 1;
-    case RSPROT_OP_COUNT_RESET:
-    {
-        int keep = (int)op->value;
-        for( int i = keep; i < self->old_count; i++ )
-            RS_EntitySync_RemovePlayer(esync, core->world, core->player_old_list[i]);
-        esync->active_player_count = 0;
-        return 1;
-    }
-    case RSPROT_OP_INFO:
-        return 1;
-    default:
-        return 0;
-    }
-    self->need_ensure = (self->cur_pid >= 0 && player_target(self, NULL) < 0) ? 1 : 0;
-    return 1;
-}
-
-/* player_ensure_now: a player entity with no body. */
-static void
-player_ensure_now(struct PlayerApply* self)
-{
-    struct ScriptrunCore* core = self->core;
-    struct WorldEntityFacet_IdleAnimations idle;
-    int tile_x, tile_z, level;
-    int idx;
-    int element_id;
-
-    self->need_ensure = 0;
-    core_player_local_tile(core, &tile_x, &tile_z, &level);
-    memset(&idle, 0, sizeof(idle));
-    element_id = core->next_element_id++;
-    idx = World_PlayerSpawn(core->world, element_id, level, tile_x, tile_z, idle);
-    if( idx < 0 )
-        return;
-    {
-        struct WorldEntity_Player* player = World_EntityPoolGet(&core->world->entities.player, idx);
-        if( player )
-        {
-            player->server_pid = self->cur_pid;
-            RS_EntitySync_RegisterPlayer(core->esync, self->cur_pid, element_id, idx);
-        }
-    }
-}
-
-/* A group's instance was replaced or closed: its IF_SETHIDE flags go with it
- * (the client reloads the cache's components on every open). */
-static void
-core_forget_hides(
-    struct ScriptrunCore* core,
-    int group)
-{
-    int kept = 0;
-    for( int i = 0; i < core->sethide_count; i++ )
-        if( ((core->sethides[i].component >> 16) & 0xffff) != group )
-            core->sethides[kept++] = core->sethides[i];
-    core->sethide_count = kept;
-}
-
-static void
-core_message(
-    struct ScriptrunCore* core,
-    int type,
-    char const* name,
-    char const* text);
-
-/* game/task_exec_entity_info.c player_apply_op, applied at once (no awaits). */
-static void
-player_apply_op(
-    struct PlayerApply* self,
-    struct RsprotInfoOp const* op)
-{
-    struct ScriptrunCore* core = self->core;
-    struct World* world = core->world;
-    int idx = player_target(self, NULL);
-
-    if( idx < 0 )
-        return;
-
-    switch( op->kind )
-    {
-    case RSPROT_OP_WALKDIR:
-        World_PlayerPathPushStep(world, idx, WORLD_PATHSTEP_WALK, (int)op->value);
-        break;
-    case RSPROT_OP_RUNDIR:
-        World_PlayerPathPushStep(world, idx, WORLD_PATHSTEP_RUN, (int)op->value);
-        break;
-    case RSPROT_OP_LOCAL_XZLEVEL:
-    {
-        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
-        World_PlayerPathJump(
-            world, idx, op->xz_level.jump, op->xz_level.x, op->xz_level.z);
-        if( player )
-            player->grid_position.level = op->xz_level.level;
-        break;
-    }
-    case RSPROT_OP_ABS_XZLEVEL:
-    {
-        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
-        int next_x = op->xz_level.x - core_base_x(core);
-        int next_z = op->xz_level.z - core_base_z(core);
-        int step_type = WORLD_PATHSTEP_WALK;
-        /* task_exec_entity_info.c: a coordinate inside a live view's staging
-         * rectangle is a rider on a deck, rebased into the view's own space
-         * (root-relative it overflows the uint8_t route queue). */
-        int home_view =
-            core_home_view(core, op->xz_level.x, op->xz_level.z);
-
-        if( home_view > 0 )
-        {
-            next_x = op->xz_level.x - core->views[home_view].base_x;
-            next_z = op->xz_level.z - core->views[home_view].base_z;
-        }
-        if( player )
-            player->view_placement.home_view = home_view;
-        if( self->cur_pid == core_local_pid(core) )
-            core->local_view = home_view;
-
-        /* class174: 2 run, 0 crawl, anything else the walk default. */
-        if( op->xz_level.has_move_speed &&
-            op->xz_level.move_speed == RSPROT_TRAVERSAL_RUN )
-            step_type = WORLD_PATHSTEP_RUN;
-        else if( op->xz_level.has_move_speed &&
-                 op->xz_level.move_speed == RSPROT_TRAVERSAL_CRAWL )
-            step_type = WORLD_PATHSTEP_CRAWL;
-        World_PlayerPathJumpCollisionAware(
-            world, idx, NULL, op->xz_level.jump, next_x, next_z, step_type);
-        if( player )
-            player->grid_position.level = op->xz_level.level;
-        break;
-    }
-    case RSPROT_OP_DELTA_XZ:
-    {
-        int lx, lz, llevel;
-        core_player_local_tile(core, &lx, &lz, &llevel);
-        World_PlayerPathJump(
-            world, idx, op->delta_xz.jump, lx + op->delta_xz.dx, lz + op->delta_xz.dz);
-        break;
-    }
-    case RSPROT_OP_APPEARANCE:
-    {
-        /* The name is what a client draws over a player and what the drive's
-         * players() reports; the body is not modelled here. */
-        struct PktPlayerAppearance decoded;
-        int ok;
-
-        memset(&decoded, 0, sizeof(decoded));
-        ok = core->rev->appearance_decode
-                 ? core->rev->appearance_decode(
-                       op->appearance.appearance, op->appearance.len, &decoded)
-                 : PktPlayerAppearance_Decode(
-                       &decoded, op->appearance.appearance, op->appearance.len);
-        if( ok )
-        {
-            struct WorldEntity_Player* player =
-                World_EntityPoolGet(&world->entities.player, idx);
-            if( player )
-            {
-                strncpy(player->name, decoded.name, sizeof(player->name) - 1);
-                player->name[sizeof(player->name) - 1] = '\0';
-                /* The walk set the server chose (a held crate's carry, a
-                 * weapon's stance): what the drive's players() reports. */
-                player->idle_animations.readyanim = decoded.readyanim;
-                player->idle_animations.walkanim = decoded.walkanim;
-                player->idle_animations.runanim = decoded.runanim;
-            }
-        }
-        break;
-    }
-    case RSPROT_OP_SEQUENCE:
-        World_PlayerSetPrimaryAnimation(
-            world, idx, op->sequence.sequence_id, op->sequence.delay);
-        if( self->cur_pid == core_local_pid(core) && op->sequence.sequence_id >= 0 )
-        {
-            int k = core->own_seq_count < 16 ? core->own_seq_count++ : 15;
-            if( k == 15 && core->own_seq_count == 16 )
-            {
-                memmove(core->own_seq, core->own_seq + 1, 15 * sizeof(int));
-                memmove(core->own_seq_tick, core->own_seq_tick + 1, 15 * sizeof(int));
-                memmove(core->own_seq_n, core->own_seq_n + 1, 15 * sizeof(int));
-            }
-            core->own_seq_starts++;
-            core->own_seq[k] = op->sequence.sequence_id;
-            core->own_seq_tick[k] = core->tick;
-            core->own_seq_n[k] = core->own_seq_starts;
-        }
-        break;
-    case RSPROT_OP_FACE_ENTITY:
-    {
-        int entity_id = op->face_entity.entity_id == 65535 ? -1 : op->face_entity.entity_id;
-        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
-            fprintf(core_wirelog_file(), "%d\tface_entity\t%d\n", core->tick, entity_id);
-        if( op->face_entity.modern )
-            World_PlayerBeginModernFacing(world, idx, op->face_entity.movement_mode);
-        /* A world entity has no registry here: the gamepack's missing-target
-         * path turns to the fallback angle. */
-        if( op->face_entity.target_type == RSPROT_FACE_TARGET_WORLD_ENTITY && op->face_entity.modern )
-        {
-            World_PlayerFaceAngle(world, idx, op->face_entity.fallback_angle, op->face_entity.instant);
-            break;
-        }
-        World_PlayerFaceEntityDetailed(
-            world,
-            idx,
-            entity_id,
-            op->face_entity.has_fallback_angle ? op->face_entity.fallback_angle : -1,
-            op->face_entity.has_fallback_angle && op->face_entity.instant);
-        break;
-    }
-    case RSPROT_OP_FACE_COORD:
-        /* A rev-241 face is printed as the wire states it, the way RSProx
-         * does: the loc's south-west tile, and its size when bigger than one
-         * (`coord=(3302, 3163, 3), sizex=3`). */
-        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() && op->face_coord.modern &&
-            (op->face_coord.size_x > 1 || op->face_coord.size_z > 1) )
-            fprintf(core_wirelog_file(), "%d\tface_coord\t%d\t%d\t%d\t%d\n", core->tick,
-                    op->face_coord.tile_x, op->face_coord.tile_z, op->face_coord.size_x,
-                    op->face_coord.size_z);
-        else if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
-            fprintf(core_wirelog_file(), "%d\tface_coord\t%d\t%d\n", core->tick,
-                    op->face_coord.modern ? op->face_coord.tile_x : op->face_coord.x >> 1,
-                    op->face_coord.modern ? op->face_coord.tile_z : op->face_coord.z >> 1);
-        if( op->face_coord.modern )
-            World_PlayerBeginModernFacing(world, idx, op->face_coord.movement_mode);
-        World_PlayerFaceCoord(world, idx, op->face_coord.x, op->face_coord.z);
-        break;
-    case RSPROT_OP_SAY:
-        if( op->say.text )
-        {
-            /* the client's arm: a chatbox row (public, the speaker's name)
-             * and the overhead line */
-            struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
-            core_message(core, RS_CHAT_TYPE_PUBLIC, player && player->name[0] ? player->name : "Player",
-                         op->say.text);
-            ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, RS_CHAT_TYPE_PUBLIC, core->message_serial, 0, 0);
-            World_PlayerSetChat(world, idx, op->say.text, 0, 0);
-        }
-        break;
-    case RSPROT_OP_CHAT:
-        /* Public chat (the player-info chat block, the sender's own included:
-         * the server echoes a line only this way). The client's arm in
-         * game/task_exec_entity_info.c, minus the UI: unpack, a chatbox row of
-         * type RS_CHAT_TYPE_PUBLIC under the speaker's name, the overhead. */
-        if( op->chat.data && op->chat.length > 0 )
-        {
-            char* text;
-            assert(core->rev->chat_unpack);
-            text = core->rev->chat_unpack(op->chat.data, op->chat.length);
-            if( text )
-            {
-                struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
-                core_message(core, RS_CHAT_TYPE_PUBLIC, player && player->name[0] ? player->name : "Player", text);
-                ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, RS_CHAT_TYPE_PUBLIC, core->message_serial, 0,
-                                    0);
-                World_PlayerSetChat(world, idx, text, op->chat.colour_effect >> 8, op->chat.colour_effect & 0xff);
-                ToriMem_Free(ToriMem_Net(), text); /* chat_unpack's */
-            }
-        }
-        break;
-    case RSPROT_OP_DAMAGE:
-    case RSPROT_OP_DAMAGE2:
-        /* A soaked hit draws its soak as a second splat on the same delay; a
-         * delay-only hit (type -1) draws nothing. */
-        for( int part = 0; part < (op->damage.soaked ? 2 : 1); part++ )
-        {
-            int type = part ? op->damage.soak_type : op->damage.damage_type;
-            if( type < 0 )
-                continue;
-            World_PlayerAddHitmarkTimed(
-                world,
-                idx,
-                type,
-                part ? op->damage.soak_damage : op->damage.damage,
-                op->damage.health,
-                op->damage.total_health,
-                op->damage.delay,
-                part ? 0 : op->damage.slots,
-                WORLD_HITMARK_DEFAULT_DURATION,
-                WORLD_HITMARK_POLICY_DISCARD);
-        }
-        break;
-    case RSPROT_OP_HEADBAR:
-        /* The entity draws one bar: a block's first. */
-        if( op->headbar.index != 0 )
-            break;
-        if( op->headbar.remove )
-            World_PlayerClearHealthbar(world, idx);
-        else
-            World_PlayerSetHealthbar(
-                world,
-                idx,
-                core_headbar(
-                    core, op->headbar.type, op->headbar.duration, op->headbar.start_delay,
-                    op->headbar.start_fill, op->headbar.end_fill));
-        break;
-    case RSPROT_OP_SPOTANIM:
-        World_PlayerSetSpotanim(
-            world,
-            idx,
-            op->spotanim.slot,
-            op->spotanim.spotanim_id,
-            op->spotanim.height_delay >> 16,
-            op->spotanim.height_delay & 0xffff,
-            op->spotanim.loop);
-        break;
-    case RSPROT_OP_EXACT_MOVE:
-    {
-        int sx = op->exact_move.start_x;
-        int sz = op->exact_move.start_z;
-        int ex = op->exact_move.end_x;
-        int ez = op->exact_move.end_z;
-
-        if( op->exact_move.relative )
-        {
-            struct WorldEntity_Player* player =
-                World_EntityPoolGet(&world->entities.player, idx);
-            sx += player->pathing.route_x[0];
-            sz += player->pathing.route_z[0];
-            ex += player->pathing.route_x[0];
-            ez += player->pathing.route_z[0];
-        }
-        /* Absolute tiles, and the delays in wire order: the 241 decoder files
-         * the wire's delay1 as end_cycle_delta (osrs241_entity_info.c). */
-        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
-            fprintf(core_wirelog_file(), "%d\texactmove\t%d,%d\t%d,%d\t%d\t%d\t%d\n", core->tick,
-                    sx + world->_base_tile_x, sz + world->_base_tile_z, ex + world->_base_tile_x,
-                    ez + world->_base_tile_z, op->exact_move.end_cycle_delta, op->exact_move.start_cycle_delta,
-                    op->exact_move.facing);
-        World_PlayerSetExactMoveDetailed(
-            world,
-            idx,
-            sx,
-            sz,
-            ex,
-            ez,
-            op->exact_move.start_cycle_delta,
-            op->exact_move.end_cycle_delta,
-            op->exact_move.facing,
-            op->exact_move.facing_is_yaw);
-        break;
-    }
-    case RSPROT_OP_FACE_ANGLE:
-        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
-            fprintf(core_wirelog_file(), "%d\tface_angle\t%d\t%d\n", core->tick, op->face_angle.angle,
-                    op->face_angle.instant ? 1 : 0);
-        if( op->face_angle.modern )
-            World_PlayerBeginModernFacing(world, idx, op->face_angle.movement_mode);
-        World_PlayerFaceAngle(world, idx, op->face_angle.angle, op->face_angle.instant);
-        break;
-    case RSPROT_OP_TRANSPARENCY:
-        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
-            fprintf(core_wirelog_file(), "%d\ttransparency\t%d\t%d\t%d\t%d\t%d\n", core->tick,
-                    (int16_t)op->transparency.start_cycle_delta, (int16_t)op->transparency.end_cycle_delta,
-                    (uint8_t)op->transparency.from, (uint8_t)op->transparency.to, op->transparency.use_start ? 1 : 0);
-        World_PlayerSetTransparency(
-            world,
-            idx,
-            (int16_t)op->transparency.start_cycle_delta,
-            (int16_t)op->transparency.end_cycle_delta,
-            (uint8_t)op->transparency.from,
-            (uint8_t)op->transparency.to,
-            op->transparency.use_start);
-        break;
-    default:
-        break;
-    }
-}
-
-static void
-core_player_info(
-    struct ScriptrunCore* core,
-    uint8_t const* data,
-    int length)
-{
-    struct RsprotInfoOp* ops = core->player_ops;
-    struct PlayerApply self;
-    RsprotInfoList list;
-    int op_count;
-
-    assert(core->rev->player_info_read);
-    rsprot_info_list_init(&list, ops, CORE_ENTITY_OPS_MAX, core->info_bytes, CORE_ENTITY_BYTES_MAX);
-    op_count = core->rev->player_info_read(data, length, &list);
-
-    memset(&self, 0, sizeof(self));
-    self.core = core;
-    self.old_count = core->esync->active_player_count;
-    memcpy(core->player_old_list, core->esync->active_players,
-           (size_t)self.old_count * sizeof(core->player_old_list[0]));
-    core->esync->active_player_count = 0;
-    self.cur_pid = -1;
-
-    for( int i = 0; i < op_count; i++ )
-    {
-        int consumed = player_target_op(&self, &ops[i]);
-        if( self.need_ensure )
-            player_ensure_now(&self);
-        if( !consumed )
-            player_apply_op(&self, &ops[i]);
-    }
-}
-
-/* --------------------------------------------------------------- npc info */
-
-struct NpcApply
-{
-    struct ScriptrunCore* core;
-    int cur_slot;
-    int old_count;
-    int pending_base_type;
-    /* The world this NPC_INFO describes (the SET_ACTIVE_WORLD cursor), and
-     * that world's positional npc list -- the client's per-World lists. */
-    int view;
-    int* list;
-    int* count;
-    int cap;
-};
-
-/* The origin of this NPC_INFO's deltas: the root's (core_npc_origin), or for a
- * deck's own stream SET_NPC_UPDATE_ORIGIN as sent -- deck-local tiles -- on the
- * deck's plane (the rider's own when they ride it; decks are authored at 1). */
-static void
-npc_apply_origin(
-    struct NpcApply* self,
-    int* out_x,
-    int* out_z,
-    int* out_level)
-{
-    struct ScriptrunCore* core = self->core;
-    int px, pz, plevel;
-
-    if( self->view == 0 )
-    {
-        core_npc_origin(core, out_x, out_z, out_level);
-        return;
-    }
-    core_player_local_tile(core, &px, &pz, &plevel);
-    *out_x = core->npc_origin_x;
-    *out_z = core->npc_origin_z;
-    *out_level = core->local_view == self->view ? plevel : 1;
-}
-
-static int
-npc_target(
-    struct NpcApply* self,
-    int* out_element_id)
-{
-    int world_idx = -1;
-    int element_id = -1;
-
-    if( self->cur_slot >= 0 )
-        RS_EntitySync_FindNpc(self->core->esync, self->cur_slot, &world_idx, &element_id);
-    if( out_element_id )
-        *out_element_id = element_id;
-    return world_idx;
-}
+/*
+ * PLAYER_INFO and NPC_INFO go through the real client's rules
+ * (game/rs_entity_apply.h). What is this client's: the lookups, answered from
+ * the server's own records of the pack's CLIENT npc configs
+ * (ToriRSServer_NpcInfoRecord, the same bytes the client codec reads), the
+ * makers (an entity with a counted element id and no model), and the
+ * presentation: the chat store, the drive events this client stamps
+ * (npc_seq, npc_face), its own player's sequence history, its home view, and
+ * the wirelog of what its own player was told.
+ */
 
 int
 ScriptrunCore_NpcResolve(
@@ -927,8 +404,8 @@ ScriptrunCore_NpcResolve(
             if( !ScriptrunCore_Varbit(core, row->transform_varbit, &index) )
                 index = 0;
         }
-        else if( row->transform_varp >= 0 && row->transform_varp < SCRIPTRUN_VARPS )
-            index = core->varps[row->transform_varp];
+        else if( row->transform_varp >= 0 )
+            index = VarPManager_GetVarp(&core->model.varps, row->transform_varp);
         if( index >= 0 && index < row->transform_count - 1 )
             resolved = row->transforms[index];
         else
@@ -942,97 +419,360 @@ ScriptrunCore_NpcResolve(
     return npc_id;
 }
 
-/* The npc's config as the client's cache carries it: name and combat level
- * off the RUNG this client's varps select, size off the shell the wire named
- * (torirs_types.h ToriRS_NpcEntityFacts: verzik_initial's rung states no
- * size, its shell says 5). Read through the server's table of the pack's
- * CLIENT records -- the same bytes the client codec reads. */
-static void
-npc_type_config(
-    struct ScriptrunCore const* core,
-    int wire_id,
-    int* out_live_id,
-    char* name,
-    int name_cap,
-    int* size,
-    int* combat_level)
+static int
+core_host_npc_resolve(
+    void* ctx,
+    int base_type)
 {
-    int live = ScriptrunCore_NpcResolve(core, wire_id);
-    const struct ToriRSServerNpcInfo* rung = ToriRSServer_NpcInfoRecord(live >= 0 ? live : wire_id);
-    const struct ToriRSServerNpcInfo* shell = ToriRSServer_NpcInfoRecord(wire_id);
-
-    *out_live_id = live >= 0 ? live : wire_id;
-    snprintf(name, (size_t)name_cap, "%s", rung && rung->name ? rung->name : "");
-    /* ToriRS_NpctypeEntityFacts' rule, word for word. */
-    {
-        const struct ToriRSServerNpcInfo* src = shell ? shell : rung;
-        *size = src && src->size > 0 ? src->size : 1;
-    }
-    *combat_level = rung ? rung->combat_level : 0;
+    return ScriptrunCore_NpcResolve((struct ScriptrunCore const*)ctx, base_type);
 }
 
-/* npc_spawn_now: a model-less npc entity registered under its slot. */
-static void
-npc_spawn_now(struct NpcApply* self)
+/*
+ * An npc type's facts as this client's records carry them: name, ops and
+ * combat level off the drawn RUNG, size and turn speed off the shell the
+ * wire named (torirs_types.h ToriRS_NpcEntityFacts: verzik_initial's rung
+ * states no size, its shell says 5). The server's record carries no stance
+ * set and no draw flags: the stances are -1 (none, as an absent record
+ * decodes) and the flags the defaults a spawn starts with.
+ */
+static int
+core_host_npc_type(
+    void* ctx,
+    int npc_type,
+    int base_type,
+    struct RS_EntityNpcType* out)
 {
-    struct ScriptrunCore* core = self->core;
-    struct WorldEntityFacet_IdleAnimations idle;
-    char name[64];
-    int size, combat_level;
-    int tile_x, tile_z, level;
-    int element_id;
-    int idx;
-    int live;
+    const struct ToriRSServerNpcInfo* rung;
+    const struct ToriRSServerNpcInfo* shell;
+    const struct ToriRSServerNpcInfo* src;
 
-    npc_type_config(core, self->pending_base_type, &live, name, (int)sizeof(name), &size, &combat_level);
-    npc_apply_origin(self, &tile_x, &tile_z, &level);
-    memset(&idle, 0, sizeof(idle));
-    element_id = core->next_element_id++;
-    /* The client spawns the RUNG (app_world_spawn.c) and keeps the wire's id
-     * as base_npc_id. */
-    idx = World_NpcSpawn(core->world, element_id, live, level, tile_x, tile_z, size, idle);
-    if( idx < 0 )
+    (void)ctx;
+    rung = npc_type >= 0 ? ToriRSServer_NpcInfoRecord(npc_type) : NULL;
+    if( !rung )
+        return 0;
+    shell = base_type >= 0 ? ToriRSServer_NpcInfoRecord(base_type) : NULL;
+    src = shell ? shell : rung;
+    memset(out, 0, sizeof(*out));
+    out->size = src->size > 0 ? src->size : 1;
+    out->turn_speed = src->turnspeed;
+    memset(&out->idle, 0xff, sizeof(out->idle));
+    out->idle.idle_anim_restart = 0;
+    out->name = rung->name ? rung->name : "";
+    for( int i = 0; i < 5; i++ )
+        out->actions[i] = rung->ops[i] ? rung->ops[i] : "";
+    out->combat_level = rung->combat_level;
+    out->alwaysontop = false;
+    out->minimap_visible = true;
+    out->interactable = true;
+    out->no_rotation_flag = false;
+    return 1;
+}
+
+/* No hitsplat configs here: the reference's own defaults (70, discard), what
+ * the client falls back to when the config has no record. */
+static void
+core_host_hitsplat(
+    void* ctx,
+    int type,
+    int* out_duration,
+    int* out_policy)
+{
+    (void)ctx;
+    (void)type;
+    *out_duration = WORLD_HITMARK_DEFAULT_DURATION;
+    *out_policy = WORLD_HITMARK_POLICY_DISCARD;
+}
+
+/* No healthbar configs here: a bar ends with its duration. */
+static int
+core_host_headbar_persist(
+    void* ctx,
+    int type)
+{
+    (void)ctx;
+    (void)type;
+    return 0;
+}
+
+static int
+core_host_home_view(
+    void* ctx,
+    int abs_x,
+    int abs_z,
+    int* out_x,
+    int* out_z)
+{
+    struct ScriptrunCore const* core = ctx;
+    int view = core_home_view(core, abs_x, abs_z);
+
+    if( view > 0 )
+    {
+        *out_x = abs_x - core->views[view].base_x;
+        *out_z = abs_z - core->views[view].base_z;
+    }
+    return view;
+}
+
+/* The root's origin: SET_NPC_UPDATE_ORIGIN when one was sent, else the local
+ * player's route (RS_EntityInfo_NpcOrigin, less the sailing level). A deck's
+ * own stream: SET_NPC_UPDATE_ORIGIN as sent -- deck-local tiles -- on the
+ * deck's plane (the rider's own when they ride it; decks are authored at 1). */
+/* The headless client records every public line the server sent: a test
+ * reads what was said, so nothing here is hidden by the ignore list, the
+ * tutorial gate or a speaker's hidden flag, all of which the real client
+ * applies (RS_ServerState_PublicChatShown). */
+static bool
+core_host_public_chat_shown(
+    void* ctx,
+    char const* sender,
+    bool ignorable,
+    bool hidden)
+{
+    (void)ctx;
+    (void)sender;
+    (void)ignorable;
+    (void)hidden;
+    return true;
+}
+
+static void
+core_host_npc_origin(
+    void* ctx,
+    int view,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    struct ScriptrunCore* core = ctx;
+    int px, pz, plevel;
+
+    if( view == 0 )
+    {
+        core_npc_origin(core, out_x, out_z, out_level);
         return;
+    }
+    core_player_local_tile(core, &px, &pz, &plevel);
+    *out_x = core->npc_origin_x;
+    *out_z = core->npc_origin_z;
+    *out_level = core->local_view == view ? plevel : 1;
+}
+
+static int
+core_host_player_spawn(
+    void* ctx,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct ScriptrunCore* core = ctx;
+
+    return World_PlayerSpawn(
+        core->world, core->next_element_id++, level, tile_x, tile_z, RS_EntityApply_PlayerSpawnIdle());
+}
+
+/* The client spawns the RUNG (app_world_spawn.c) with the type's facts, and
+ * an npc whose type it has no config for as one tile with no stances. */
+static int
+core_host_npc_spawn(
+    void* ctx,
+    int npc_type,
+    int base_type,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct ScriptrunCore* core = ctx;
+    struct RS_EntityNpcType type;
+    int idx;
+
+    if( !core_host_npc_type(ctx, npc_type, base_type, &type) )
+    {
+        struct WorldEntityFacet_IdleAnimations idle;
+
+        memset(&idle, 0xff, sizeof(idle));
+        idle.idle_anim_restart = 0;
+        idx = World_NpcSpawn(core->world, core->next_element_id++, npc_type, level, tile_x, tile_z, 1, idle);
+    }
+    else
+    {
+        idx = World_NpcSpawn(
+            core->world, core->next_element_id++, npc_type, level, tile_x, tile_z, type.size, type.idle);
+        RS_EntityApply_NpcSpawned(core->world, idx, &type);
+    }
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&core->world->entities.npc, idx);
-        if( npc )
-        {
-            npc->base_npc_id = self->pending_base_type;
-            npc->server_slot = self->cur_slot;
-            npc->view_placement.home_view = self->view;
-            npc->combat_level = combat_level;
-            snprintf(npc->name, sizeof(npc->name), "%s", name);
-            RS_EntitySync_RegisterNpc(core->esync, self->cur_slot, element_id, idx);
-        }
+
+        assert(npc);
+        npc->server_slot = -1;
+        if( base_type >= 0 )
+            npc->base_npc_id = base_type;
     }
+    return idx;
 }
 
-/* A server retype (CHANGE_TYPE, and an add over a live slot's new type). */
+/* App_WorldApplyNpcType's World half: a type this client has no config for
+ * leaves the npc as it is (the real client mounts it no body). */
 static void
-npc_retype_now(
-    struct NpcApply* self,
-    int idx)
+core_host_npc_retype(
+    void* ctx,
+    int idx,
+    int element_id,
+    int npc_type,
+    int base_type)
 {
-    struct ScriptrunCore* core = self->core;
-    char name[64];
-    int size, combat_level;
-    struct WorldEntity_NPC* npc;
+    struct ScriptrunCore* core = ctx;
+    struct RS_EntityNpcType type;
 
-    int live;
+    (void)element_id;
+    if( core_host_npc_type(ctx, npc_type, base_type, &type) )
+        RS_EntityApply_NpcRetyped(core->world, idx, npc_type, &type);
+}
 
-    npc_type_config(core, self->pending_base_type, &live, name, (int)sizeof(name), &size, &combat_level);
-    World_NpcSetType(core->world, idx, live, size, NULL);
-    npc = World_EntityPoolGet(&core->world->entities.npc, idx);
-    if( npc )
+/* What the bot's own player was told, for the wirelog (TORIRS_SCRIPTRUN_WIRELOG). */
+static void
+core_wirelog_own_op(
+    struct ScriptrunCore* core,
+    struct RS_EntityNote const* n)
+{
+    FILE* f = core_wirelog_file();
+    struct RsprotInfoOp const* op = n->op;
+
+    if( !f || n->pid != core_local_pid(core) )
+        return;
+    switch( op->kind )
     {
-        npc->base_npc_id = self->pending_base_type;
-        npc->combat_level = combat_level;
-        snprintf(npc->name, sizeof(npc->name), "%s", name);
+    case RSPROT_OP_FACE_ENTITY:
+        fprintf(f, "%d\tface_entity\t%d\n", core->tick,
+            op->face_entity.entity_id == 65535 ? -1 : op->face_entity.entity_id);
+        break;
+    case RSPROT_OP_FACE_COORD:
+        /* A rev-241 face is printed as the wire states it, the way RSProx
+         * does: the loc's south-west tile, and its size when bigger than one
+         * (`coord=(3302, 3163, 3), sizex=3`). */
+        if( op->face_coord.modern && (op->face_coord.size_x > 1 || op->face_coord.size_z > 1) )
+            fprintf(f, "%d\tface_coord\t%d\t%d\t%d\t%d\n", core->tick, op->face_coord.tile_x,
+                op->face_coord.tile_z, op->face_coord.size_x, op->face_coord.size_z);
+        else
+            fprintf(f, "%d\tface_coord\t%d\t%d\n", core->tick,
+                op->face_coord.modern ? op->face_coord.tile_x : op->face_coord.x >> 1,
+                op->face_coord.modern ? op->face_coord.tile_z : op->face_coord.z >> 1);
+        break;
+    case RSPROT_OP_EXACT_MOVE:
+        /* Absolute tiles, and the delays in wire order: the 241 decoder files
+         * the wire's delay1 as end_cycle_delta (osrs241_entity_info.c). */
+        fprintf(f, "%d\texactmove\t%d,%d\t%d,%d\t%d\t%d\t%d\n", core->tick, n->x0 + core->world->_base_tile_x,
+            n->z0 + core->world->_base_tile_z, n->x1 + core->world->_base_tile_x,
+            n->z1 + core->world->_base_tile_z, op->exact_move.end_cycle_delta,
+            op->exact_move.start_cycle_delta, op->exact_move.facing);
+        break;
+    case RSPROT_OP_FACE_ANGLE:
+        fprintf(f, "%d\tface_angle\t%d\t%d\n", core->tick, op->face_angle.angle, op->face_angle.instant ? 1 : 0);
+        break;
+    case RSPROT_OP_TRANSPARENCY:
+        fprintf(f, "%d\ttransparency\t%d\t%d\t%d\t%d\t%d\n", core->tick,
+            (int16_t)op->transparency.start_cycle_delta, (int16_t)op->transparency.end_cycle_delta,
+            (uint8_t)op->transparency.from, (uint8_t)op->transparency.to, op->transparency.use_start ? 1 : 0);
+        break;
+    default:
+        break;
     }
 }
 
-/* app_varp_transforms.c: a varp change re-resolves every multinpc in view
- * (its rung, name and size), the wire id kept as base. */
+/* The bot's own sequences, newest last (the drive's own_seq rows). */
+static void
+core_own_seq(
+    struct ScriptrunCore* core,
+    int seq)
+{
+    int k = core->own_seq_count < 16 ? core->own_seq_count++ : 15;
+
+    if( k == 15 && core->own_seq_count == 16 )
+    {
+        memmove(core->own_seq, core->own_seq + 1, 15 * sizeof(int));
+        memmove(core->own_seq_tick, core->own_seq_tick + 1, 15 * sizeof(int));
+        memmove(core->own_seq_n, core->own_seq_n + 1, 15 * sizeof(int));
+    }
+    core->own_seq_starts++;
+    core->own_seq[k] = seq;
+    core->own_seq_tick[k] = core->tick;
+    core->own_seq_n[k] = core->own_seq_starts;
+}
+
+static void
+core_host_present(
+    void* ctx,
+    struct RS_EntityNote const* n)
+{
+    struct ScriptrunCore* core = ctx;
+
+    switch( n->kind )
+    {
+    case RS_ENTITY_NOTE_NPC_SEQ:
+        /* DRIVE_STAMP npc_seq: a=slot b=seq c=tick, on the op's arrival. */
+        if( n->slot >= 0 )
+            ScriptrunCore_Event(core, SCRIPTRUN_EV_NPC_SEQ, n->slot, n->seq, core->tick, 0);
+        break;
+    case RS_ENTITY_NOTE_NPC_FACE:
+        /* DRIVE_STAMP npc_face: a=slot b=x c=z d=tick (tiles, halved). */
+        if( n->slot >= 0 )
+            ScriptrunCore_Event(core, SCRIPTRUN_EV_NPC_FACE, n->slot, n->x >> 1, n->z >> 1, core->tick);
+        break;
+    case RS_ENTITY_NOTE_PLAYER_SEQ:
+        if( n->pid == core_local_pid(core) && n->seq >= 0 )
+            core_own_seq(core, n->seq);
+        break;
+    case RS_ENTITY_NOTE_CHAT:
+        /* A chatbox row; the store stamps chat_message (RS_Chat_AddMessage). */
+        RS_Chat_AddMessage(&core->model.chat, n->chat_type, n->sender, n->sender_key, n->text, core->world->cycle);
+        break;
+    case RS_ENTITY_NOTE_PLAYER_PLACED:
+        if( n->pid == core_local_pid(core) )
+            core->local_view = n->view;
+        break;
+    case RS_ENTITY_NOTE_PLAYER_OP:
+        core_wirelog_own_op(core, n);
+        break;
+    case RS_ENTITY_NOTE_NPC_GONE:
+    case RS_ENTITY_NOTE_NPC_SPAWNED:
+    case RS_ENTITY_NOTE_NPC_ADDED:
+    case RS_ENTITY_NOTE_PLAYER_APPEARANCE:
+    case RS_ENTITY_NOTE_SPOTANIM:
+        break;
+    }
+}
+
+static void
+core_entity_apply_in(
+    struct ScriptrunCore* core,
+    struct RS_EntityApplyHost* host,
+    struct RS_EntityApplyIn* in)
+{
+    *host = (struct RS_EntityApplyHost){
+        .ctx = core,
+        .npc_resolve = core_host_npc_resolve,
+        .npc_type = core_host_npc_type,
+        .hitsplat = core_host_hitsplat,
+        .headbar_persist = core_host_headbar_persist,
+        .home_view = core_host_home_view,
+        .npc_origin = core_host_npc_origin,
+        .public_chat_shown = core_host_public_chat_shown,
+        .player_spawn = core_host_player_spawn,
+        .npc_spawn = core_host_npc_spawn,
+        .npc_retype = core_host_npc_retype,
+        .present = core_host_present,
+    };
+    *in = (struct RS_EntityApplyIn){
+        .world = core->world,
+        .esync = core->esync,
+        .rev = core->rev,
+        .host = host,
+        .scene_base_x = core_base_x(core),
+        .scene_base_z = core_base_z(core),
+    };
+}
+
+/* app_varp_transforms.c: a varp change re-resolves every multinpc in view,
+ * the server's overrides kept (app_npc_varp_retype_apply). */
 static void
 core_npcs_reresolve(struct ScriptrunCore* core)
 {
@@ -1042,333 +782,86 @@ core_npcs_reresolve(struct ScriptrunCore* core)
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
         const struct ToriRSServerNpcInfo* shell;
-        char name[64];
-        int size, combat_level, live;
+        int resolved;
+        int effective;
 
         if( !npc || npc->server_slot < 0 )
             continue;
         shell = ToriRSServer_NpcInfoRecord(npc->base_npc_id);
         if( !shell || shell->transform_count <= 0 )
             continue;
-        npc_type_config(core, npc->base_npc_id, &live, name, (int)sizeof(name), &size, &combat_level);
-        if( live == npc->npc_id )
-            continue;
-        World_NpcSetType(core->world, i, live, size, NULL);
-        npc->combat_level = combat_level;
-        snprintf(npc->name, sizeof(npc->name), "%s", name);
+        resolved = ScriptrunCore_NpcResolve(core, npc->base_npc_id);
+        effective = resolved < 0 ? npc->base_npc_id : resolved;
+        if( npc->npc_id != effective )
+            core_host_npc_retype(core, i, npc->element_id, effective, npc->base_npc_id);
+        npc = World_EntityPoolGet(pool, i);
+        npc->multinpc_hidden = resolved < 0;
     }
 }
 
-/* game/task_exec_entity_info.c npc_target_op. */
-static int
-npc_target_op(
-    struct NpcApply* self,
-    struct RsprotInfoOp const* op)
+static void
+core_player_info(
+    struct ScriptrunCore* core,
+    uint8_t const* data,
+    int length)
 {
-    struct ScriptrunCore* core = self->core;
-    struct RS_EntitySync* esync = core->esync;
+    struct RS_EntityApplyHost host;
+    struct RS_EntityApplyIn in;
+    struct EntityInfoReader reader = { 0 };
+    RsprotInfoList list;
+    int op_count;
 
-    switch( op->kind )
+    assert(core->rev->player_info_read);
+    reader.read = core->rev->player_info_read;
+    reader.state_size = core->rev->player_info_state_size;
+    reader.state_save = core->rev->player_info_state_save;
+    reader.state_load = core->rev->player_info_state_load;
+    EntityInfoScratch_Borrow(&core->info_scratch.player, &list);
+    op_count = EntityInfoScratch_Read(&core->info_scratch.player, &list, &reader, data, length);
+    core_entity_apply_in(core, &host, &in);
+    RS_EntityApply_PlayerInfo(&in, list.ops, op_count);
+    EntityInfoScratch_Release(&core->info_scratch.player, &list);
+}
+
+/* What a typed customisation block's lookup reads: this client and the view
+ * the packet is for. */
+struct CoreNpcTypeLookup
+{
+    struct ScriptrunCore* core;
+    int view;
+};
+
+/* The typed customisation blocks' question (GameProtoNpcTypeLengths), from
+ * the server's own records, which hold every type: a type it has no record
+ * of has no lists, as the reference's default type. */
+static int
+core_npc_type_lengths(
+    void* ctx,
+    int old,
+    int npc_type,
+    int head,
+    int* recolours,
+    int* retextures)
+{
+    struct CoreNpcTypeLookup const* lookup = ctx;
+    struct ToriRSServerNpcInfo const* record;
+
+    (void)head;
+    *recolours = 0;
+    *retextures = 0;
+    if( npc_type < 0 && old >= 0 )
     {
-    case RSPROT_OP_ADD_OLD:
-        self->cur_slot =
-            (int)op->value < self->old_count ? core->npc_old_list[op->value] : -1;
-        if( *self->count < self->cap )
-            self->list[(*self->count)++] = self->cur_slot;
-        break;
-    case RSPROT_OP_ADD_NEW:
-    {
-        int stale_world_idx = -1;
-        int stale_element_id = -1;
-        self->cur_slot = (int)op->value;
-        if( self->cur_slot >= 0 &&
-            RS_EntitySync_FindNpc(esync, self->cur_slot, &stale_world_idx, &stale_element_id) )
-            RS_EntitySync_RemoveNpc(esync, core->world, self->cur_slot);
-        if( *self->count < self->cap )
-            self->list[(*self->count)++] = self->cur_slot;
-        break;
+        npc_type = RS_EntityApply_NpcOldType(lookup->core->world, lookup->core->esync, lookup->view, old);
+        if( npc_type < 0 )
+            return 0; /* no npc this side has: nothing to read the arrays by */
     }
-    case RSPROT_OP_SET_EXT:
-        self->cur_slot = (int)op->value < *self->count
-                             ? self->list[op->value]
-                             : -1;
-        break;
-    case RSPROT_OP_CLEAR_OLD:
+    record = npc_type >= 0 ? ToriRSServer_NpcInfoRecord(npc_type) : NULL;
+    if( record )
     {
-        int slot = (int)op->value < self->old_count ? core->npc_old_list[op->value] : -1;
-        if( slot >= 0 )
-            RS_EntitySync_RemoveNpc(esync, core->world, slot);
-        self->cur_slot = -1;
-        return 1;
-    }
-    case RSPROT_OP_COUNT_RESET:
-    {
-        int keep = (int)op->value;
-        for( int i = keep; i < self->old_count; i++ )
-            RS_EntitySync_RemoveNpc(esync, core->world, core->npc_old_list[i]);
-        *self->count = 0;
-        return 1;
-    }
-    case RSPROT_OP_INFO:
-        return 1;
-    default:
-        return 0;
+        *recolours = record->recolour_count;
+        *retextures = record->retexture_count;
     }
     return 1;
-}
-
-/* game/task_exec_entity_info.c npc_apply_op, with its awaits resolved at once:
- * a spawn or a retype is applied in place (no multinpc rung is resolved; the
- * wire type is drawn), a SEQUENCE is applied immediately as the client does. */
-static void
-npc_apply_op(
-    struct NpcApply* self,
-    struct RsprotInfoOp const* op)
-{
-    struct ScriptrunCore* core = self->core;
-    struct World* world = core->world;
-    int idx = npc_target(self, NULL);
-
-    switch( op->kind )
-    {
-    case RSPROT_OP_NPCTYPE:
-        self->pending_base_type = (int)op->value;
-        if( self->cur_slot >= 0 && idx < 0 )
-            npc_spawn_now(self);
-        break;
-    case RSPROT_OP_WALKDIR:
-        if( idx >= 0 )
-            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_WALK, (int)op->value);
-        break;
-    case RSPROT_OP_RUNDIR:
-        if( idx >= 0 )
-            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_RUN, (int)op->value);
-        break;
-    case RSPROT_OP_CRAWLDIR:
-        if( idx >= 0 )
-            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_CRAWL, (int)op->value);
-        break;
-    case RSPROT_OP_DELTA_XZ:
-        if( idx >= 0 )
-        {
-            int lx, lz, llevel;
-            npc_apply_origin(self, &lx, &lz, &llevel);
-            /* TORIRS_SCRIPTRUN_NPC_MOVE_TRACE=1: every add record's placement
-             * as the bot read it, with the jump bit (`[teleport]` is 0,
-             * `[telejump]` and a fresh add 1). */
-            if( getenv("TORIRS_SCRIPTRUN_NPC_MOVE_TRACE") )
-                fprintf(stderr, "scriptrun_npc_move: slot=%d tile=%d,%d jump=%d\n", self->cur_slot,
-                        lx + op->delta_xz.dx, lz + op->delta_xz.dz, op->delta_xz.jump ? 1 : 0);
-            World_NpcPathJump(
-                world, idx, op->delta_xz.jump, lx + op->delta_xz.dx, lz + op->delta_xz.dz);
-        }
-        break;
-    case RSPROT_OP_SEQUENCE:
-        if( idx >= 0 )
-        {
-            World_NpcSetPrimaryAnimation(
-                world, idx, op->sequence.sequence_id, op->sequence.delay);
-            /* DRIVE_STAMP npc_seq: a=slot b=seq c=tick, on the op's arrival. */
-            ScriptrunCore_Event(core, SCRIPTRUN_EV_NPC_SEQ, self->cur_slot,
-                                op->sequence.sequence_id, core->tick, 0);
-        }
-        break;
-    case RSPROT_OP_FACE_ENTITY:
-        if( idx >= 0 )
-        {
-            int entity_id = op->face_entity.entity_id == 65535 ? -1 : op->face_entity.entity_id;
-            if( op->face_entity.modern )
-                World_NpcBeginModernFacing(world, idx, op->face_entity.movement_mode);
-            /* A world entity has no registry here: the gamepack's
-             * missing-target path turns to the fallback angle. */
-            if( op->face_entity.target_type == RSPROT_FACE_TARGET_WORLD_ENTITY &&
-                op->face_entity.modern )
-            {
-                World_NpcFaceAngle(world, idx, op->face_entity.fallback_angle, op->face_entity.instant);
-                break;
-            }
-            World_NpcFaceEntityDetailed(
-                world,
-                idx,
-                entity_id,
-                op->face_entity.has_fallback_angle ? op->face_entity.fallback_angle : -1,
-                op->face_entity.has_fallback_angle && op->face_entity.instant);
-        }
-        break;
-    case RSPROT_OP_FACE_COORD:
-        if( idx >= 0 )
-        {
-            struct WorldEntity_NPC* npc;
-            if( op->face_coord.modern )
-                World_NpcBeginModernFacing(world, idx, op->face_coord.movement_mode);
-            World_NpcFaceCoord(world, idx, op->face_coord.x, op->face_coord.z);
-            npc = World_EntityPoolAt(&world->entities.npc, idx);
-            /* `instant` is as sent: it means nothing without a target. */
-            if( op->face_coord.instant && (op->face_coord.x != 0 || op->face_coord.z != 0) )
-                npc->facing.instant = true;
-            npc->face_sent_x = op->face_coord.x;
-            npc->face_sent_z = op->face_coord.z;
-            npc->face_sent_cycle = (int)world->cycle;
-            /* DRIVE_STAMP npc_face: a=slot b=x c=z d=tick (tiles, halved). */
-            ScriptrunCore_Event(core, SCRIPTRUN_EV_NPC_FACE, self->cur_slot,
-                                op->face_coord.x >> 1, op->face_coord.z >> 1, core->tick);
-        }
-        break;
-    case RSPROT_OP_SAY:
-        if( idx >= 0 && op->say.text )
-            World_NpcSetChat(world, idx, op->say.text, 0, 0);
-        break;
-    case RSPROT_OP_DAMAGE:
-        /* As the player's: a soak is a second splat, a type of -1 none. */
-        for( int part = 0; idx >= 0 && part < (op->damage.soaked ? 2 : 1); part++ )
-        {
-            int type = part ? op->damage.soak_type : op->damage.damage_type;
-            if( type < 0 )
-                continue;
-            World_NpcAddHitmarkTimed(
-                world,
-                idx,
-                type,
-                part ? op->damage.soak_damage : op->damage.damage,
-                op->damage.health,
-                op->damage.total_health,
-                op->damage.delay,
-                part ? 0 : op->damage.slots,
-                WORLD_HITMARK_DEFAULT_DURATION,
-                WORLD_HITMARK_POLICY_DISCARD);
-        }
-        break;
-    case RSPROT_OP_HEADBAR:
-        /* The npc draws one bar: a block's first. */
-        if( idx >= 0 && op->headbar.index == 0 )
-        {
-            if( op->headbar.remove )
-                World_NpcClearHealthbar(world, idx);
-            else
-                World_NpcSetHealthbar(
-                    world,
-                    idx,
-                    core_headbar(
-                        core, op->headbar.type, op->headbar.duration, op->headbar.start_delay,
-                        op->headbar.start_fill, op->headbar.end_fill));
-        }
-        break;
-    case RSPROT_OP_CHANGE_TYPE:
-        self->pending_base_type = op->change_type.npc_type;
-        if( idx >= 0 )
-            npc_retype_now(self, idx);
-        break;
-    case RSPROT_OP_SPOTANIM:
-        if( idx >= 0 )
-            World_NpcSetSpotanim(
-                world,
-                idx,
-                op->spotanim.slot,
-                op->spotanim.spotanim_id,
-                op->spotanim.height_delay >> 16,
-                op->spotanim.height_delay & 0xffff,
-                op->spotanim.loop);
-        break;
-    case RSPROT_OP_EXACT_MOVE:
-        if( idx >= 0 )
-        {
-            struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
-            int sx = op->exact_move.start_x;
-            int sz = op->exact_move.start_z;
-            int ex = op->exact_move.end_x;
-            int ez = op->exact_move.end_z;
-
-            if( op->exact_move.relative )
-            {
-                sx += npc->pathing.route_x[0];
-                sz += npc->pathing.route_z[0];
-                ex += npc->pathing.route_x[0];
-                ez += npc->pathing.route_z[0];
-            }
-            World_NpcSetExactMoveDetailed(
-                world, idx, sx, sz, ex, ez, op->exact_move.start_cycle_delta,
-                op->exact_move.end_cycle_delta, op->exact_move.facing,
-                op->exact_move.facing_is_yaw);
-        }
-        break;
-    case RSPROT_OP_FACE_ANGLE:
-        if( idx >= 0 )
-        {
-            struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
-            int angle;
-            if( op->face_angle.modern )
-                World_NpcBeginModernFacing(world, idx, op->face_angle.movement_mode);
-            angle = op->face_angle.spawn && npc->facing.turn_speed == 0 ? 0
-                                                                         : op->face_angle.angle;
-            World_NpcFaceAngle(world, idx, angle, op->face_angle.instant);
-        }
-        break;
-    case RSPROT_OP_SPAWN_CYCLE:
-        if( idx >= 0 )
-            ((struct WorldEntity_NPC*)World_EntityPoolAt(&world->entities.npc, idx))->spawn_cycle =
-                (uint32_t)op->value;
-        break;
-    case RSPROT_OP_VISIBLE_OPS:
-        if( idx >= 0 )
-            ((struct WorldEntity_NPC*)World_EntityPoolAt(&world->entities.npc, idx))->visible_ops =
-                (uint8_t)op->value;
-        break;
-    case RSPROT_OP_NAME_CHANGE:
-        if( idx >= 0 && op->name_change.name )
-        {
-            struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
-            snprintf(npc->name, sizeof(npc->name), "%s", op->name_change.name);
-        }
-        break;
-    case RSPROT_OP_LEVEL_CHANGE:
-        if( idx >= 0 )
-            ((struct WorldEntity_NPC*)World_EntityPoolAt(&world->entities.npc, idx))->combat_level =
-                (int)(uint32_t)op->value;
-        break;
-    case RSPROT_OP_HEADICON_CUSTOM:
-        if( idx >= 0 )
-        {
-            int group[WORLD_NPC_HEADICON_SLOTS];
-            int index[WORLD_NPC_HEADICON_SLOTS];
-
-            for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
-            {
-                group[i] = op->headicon.group[i];
-                index[i] = op->headicon.index[i];
-            }
-            World_NpcSetHeadiconCustom(world, idx, op->headicon.mask != 0, group, index);
-        }
-        break;
-    case RSPROT_OP_BODY_CUSTOM:
-        if( idx >= 0 )
-            World_NpcSetBodyModels(
-                world, idx, op->body.models, op->body.reset ? 0 : op->body.model_count);
-        break;
-    case RSPROT_OP_BAS_CHANGE:
-        if( idx >= 0 )
-        {
-            struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
-            uint32_t mask = op->bas_change.mask;
-            if( mask & (1u << 0) ) npc->idle_animations.turnanim = op->bas_change.turnanim;
-            if( mask & (1u << 1) ) npc->idle_animations.turnanim_r = op->bas_change.turnanim_r;
-            if( mask & (1u << 2) ) npc->idle_animations.walkanim = op->bas_change.walkanim;
-            if( mask & (1u << 3) ) npc->idle_animations.walkanim_b = op->bas_change.walkanim_b;
-            if( mask & (1u << 4) ) npc->idle_animations.walkanim_l = op->bas_change.walkanim_l;
-            if( mask & (1u << 5) ) npc->idle_animations.walkanim_r = op->bas_change.walkanim_r;
-            if( mask & (1u << 6) ) npc->idle_animations.runanim = op->bas_change.runanim;
-            if( mask & (1u << 7) ) npc->idle_animations.runanim_b = op->bas_change.runanim_b;
-            if( mask & (1u << 8) ) npc->idle_animations.runanim_l = op->bas_change.runanim_l;
-            if( mask & (1u << 9) ) npc->idle_animations.runanim_r = op->bas_change.runanim_r;
-            if( mask & (1u << 10) ) npc->idle_animations.crawlanim = op->bas_change.crawlanim;
-            if( mask & (1u << 11) ) npc->idle_animations.crawlanim_b = op->bas_change.crawlanim_b;
-            if( mask & (1u << 12) ) npc->idle_animations.crawlanim_l = op->bas_change.crawlanim_l;
-            if( mask & (1u << 13) ) npc->idle_animations.crawlanim_r = op->bas_change.crawlanim_r;
-            if( mask & (1u << 14) ) npc->idle_animations.readyanim = op->bas_change.readyanim;
-        }
-        break;
-    default:
-        break;
-    }
 }
 
 static void
@@ -1377,32 +870,30 @@ core_npc_info(
     uint8_t const* data,
     int length)
 {
-    struct RsprotInfoOp* ops = core->npc_ops;
-    struct NpcApply self;
+    struct RS_EntityApplyHost host;
+    struct RS_EntityApplyIn in;
+    /* The npc stream keeps no state across packets. */
+    struct EntityInfoReader reader = { 0 };
     RsprotInfoList list;
     int op_count;
+    int view = core->active_world;
+    struct CoreNpcTypeLookup lookup = { core, view };
 
     assert(core->rev->npc_info_read);
-    rsprot_info_list_init(&list, ops, CORE_ENTITY_OPS_MAX, core->info_bytes, CORE_ENTITY_BYTES_MAX);
-    op_count = core->rev->npc_info_read(data, length, &list);
-
-    memset(&self, 0, sizeof(self));
-    self.core = core;
-    self.view = core->active_world;
-    if( self.view > 0 && !core->views[self.view].live )
-        return;
-    RS_EntitySync_NpcList(core->esync, self.view, &self.list, &self.count, &self.cap);
-    self.old_count = *self.count;
-    memcpy(core->npc_old_list, self.list, (size_t)self.old_count * sizeof(core->npc_old_list[0]));
-    *self.count = 0;
-    self.cur_slot = -1;
-    self.pending_base_type = -1;
-
-    for( int i = 0; i < op_count; i++ )
+    reader.npc_read = core->rev->npc_info_read;
+    reader.lengths = core_npc_type_lengths;
+    reader.lengths_ctx = &lookup;
+    EntityInfoScratch_Borrow(&core->info_scratch.npc, &list);
+    op_count = EntityInfoScratch_Read(&core->info_scratch.npc, &list, &reader, data, length);
+    /* A deck view that is not live has no npcs to describe. */
+    if( view > 0 && !core->views[view].live )
     {
-        if( !npc_target_op(&self, &ops[i]) )
-            npc_apply_op(&self, &ops[i]);
+        EntityInfoScratch_Release(&core->info_scratch.npc, &list);
+        return;
     }
+    core_entity_apply_in(core, &host, &in);
+    RS_EntityApply_NpcInfo(&in, view, list.ops, op_count);
+    EntityInfoScratch_Release(&core->info_scratch.npc, &list);
 }
 
 /* ------------------------------------------------------------ zone packets */
@@ -1435,74 +926,61 @@ core_zone_header_level(
 }
 
 
+/* A zone loc packet's tile in the cursor's view: its scene tile and the
+ * CACHE level it means there (zone_loc_tile_at's bridge climb). */
+static void
+core_zone_loc_tile(
+    struct ScriptrunCore const* core,
+    struct RS_LocHost const* host,
+    int pos,
+    int* scene_x,
+    int* scene_z,
+    int* level)
+{
+    *scene_x = core->zone_base_x + ((pos >> 4) & 7);
+    *scene_z = core->zone_base_z + (pos & 7);
+    *level = host->ops->cache_level(host->ctx, core->active_world, *scene_x, *scene_z, core->zone_level);
+}
+
 static void
 core_zone_sub(
     struct ScriptrunCore* core,
     int name,
     void const* payload)
 {
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+    struct RS_LocHost const host = ScriptrunTasks_LocHost(core->tasks);
+    struct RS_LocChange c;
     int x, z, level;
 
     switch( name )
     {
+    /* The loc kinds are the tasks both clients run (game/rs_loc_tasks.h),
+     * on this bot's parallel queue; a change applies in the pump after its
+     * packet, a merge at its cycles. */
     case PKT_NAME_LOC_ADD_CHANGE:
     {
         struct PktLocAddChange const* pkt = payload;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        ScriptrunCore_LocChange(core, x, z, level, pkt->info >> 2, pkt->info & 3, pkt->loc_id, pkt);
+        core_zone_loc_tile(core, &host, pkt->pos, &x, &z, &level);
+        RS_LocChange_Fill(&c, x, z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 3,
+            pkt->op_flags & 0x1f, pkt->ops);
+        (void)RS_LocChange_Add(&host, core->active_world, &c, NULL, (unsigned)core->tick, 1);
         break;
     }
     case PKT_NAME_LOC_DEL:
     {
         struct PktLocDel const* pkt = payload;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        ScriptrunCore_LocChange(core, x, z, level, pkt->info >> 2, pkt->info & 3, -1, NULL);
+        core_zone_loc_tile(core, &host, pkt->pos, &x, &z, &level);
+        RS_LocChange_Fill(&c, x, z, level, -1, pkt->info >> 2, pkt->info & 3, 0x1f, none);
+        (void)RS_LocChange_Add(&host, core->active_world, &c, NULL, (unsigned)core->tick, 1);
         break;
     }
-    case PKT_NAME_OBJ_ADD:
+    case PKT_NAME_LOC_MERGE:
     {
-        struct PktObjAdd const* pkt = payload;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        if( core->obj_count < SCRIPTRUN_OBJS )
-        {
-            struct ScriptrunObj* o = &core->objs[core->obj_count++];
-            o->x = x;
-            o->z = z;
-            o->level = level;
-            o->obj_id = pkt->obj_id;
-            o->count = pkt->count;
-        }
-        break;
-    }
-    case PKT_NAME_OBJ_DEL:
-    {
-        struct PktObjDel const* pkt = payload;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        for( int i = 0; i < core->obj_count; i++ )
-        {
-            struct ScriptrunObj* o = &core->objs[i];
-            if( o->x == x && o->z == z && o->level == level && o->obj_id == pkt->obj_id )
-            {
-                core->objs[i] = core->objs[--core->obj_count];
-                break;
-            }
-        }
-        break;
-    }
-    case PKT_NAME_LOC_ANIM:
-    {
-        struct PktLocAnim const* pkt = payload;
-        struct ScriptrunLocAnim* a;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        /* the live ring asserts the same capacity (APP_DRIVE_LOC_ANIM_CAP) */
-        assert(core->loc_anim_count < SCRIPTRUN_LOC_ANIMS);
-        a = &core->loc_anims[core->loc_anim_count++];
-        a->x = x;
-        a->z = z;
-        a->level = level;
-        a->shape = pkt->info >> 2;
-        a->seq = pkt->seq_id;
-        a->tick = core->tick;
+        /* The loc model riding with the player is drawn, not kept. */
+        struct PktLocMerge const* pkt = payload;
+        core_zone_loc_tile(core, &host, pkt->pos, &x, &z, &level);
+        RS_LocMerge_Add(&host, core->active_world, x, z, level, pkt->info >> 2, pkt->start, pkt->end);
         break;
     }
     case PKT_NAME_SOUND_AREA:
@@ -1517,74 +995,19 @@ core_zone_sub(
                     pkt->loops, pkt->delay, pkt->radius, pkt->inner, x, z);
         break;
     }
-    case PKT_NAME_MAP_ANIM:
-    {
-        struct PktMapAnim const* pkt = payload;
-        if( pkt->id == 65535 )
-            break;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        assert(core->map_anim_count < SCRIPTRUN_MAP_ANIMS);
-        {
-            struct ScriptrunMapAnim* a = &core->map_anims[core->map_anim_count++];
-            a->spotanim = pkt->id;
-            a->x = x;
-            a->z = z;
-            a->level = level;
-            a->height = pkt->height;
-            a->delay = pkt->delay;
-            a->cycle = (int)core->world->cycle;
-        }
-        break;
-    }
     case PKT_NAME_MAP_PROJANIM:
     {
+        /* Logged only: the projectile is the zone's effect log's
+         * (ScriptrunCore_ZoneFamilies). */
         struct PktMapProjAnim const* pkt = payload;
-        struct ScriptrunProjectile* p;
-        assert(core->projectile_count < SCRIPTRUN_PROJECTILES);
+        int dst_x, dst_z;
         core_zone_tile(core, pkt->pos, &x, &z, &level);
-        p = &core->projectiles[core->projectile_count++];
-        p->spotanim = pkt->spotanim;
-        p->src_x = x;
-        p->src_z = z;
-        if( pkt->dst_abs )
-        {
-            p->dst_x = pkt->dst_abs_x;
-            p->dst_z = pkt->dst_abs_z;
-            level = pkt->dst_abs_level;
-        }
-        else
-        {
-            p->dst_x = x + pkt->dx_offset;
-            p->dst_z = z + pkt->dz_offset;
-        }
-        p->level = level;
-        p->target = pkt->target;
-        p->launch_cycle = (int)core->world->cycle;
-        p->start_delay = pkt->start_delay;
-        p->end_delay = pkt->end_delay;
+        dst_x = pkt->dst_abs ? pkt->dst_abs_x : x + pkt->dx_offset;
+        dst_z = pkt->dst_abs ? pkt->dst_abs_z : z + pkt->dz_offset;
         if( core_wirelog_file() )
             fprintf(core_wirelog_file(), "%d\tprojectile\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
-                    core->tick, pkt->spotanim, x, z, p->dst_x, p->dst_z, pkt->target, pkt->src_height,
+                    core->tick, pkt->spotanim, x, z, dst_x, dst_z, pkt->target, pkt->src_height,
                     pkt->dst_height, pkt->start_delay, pkt->end_delay, pkt->peak, pkt->arc);
-        break;
-    }
-    case PKT_NAME_SCRIPTEDPROJ_ADD:
-    {
-        struct PktScriptedProjAdd const* pkt = payload;
-        struct ScriptrunProjectile* p;
-        assert(core->projectile_count < SCRIPTRUN_PROJECTILES);
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        p = &core->projectiles[core->projectile_count++];
-        p->spotanim = pkt->spotanim;
-        p->src_x = x;
-        p->src_z = z;
-        p->dst_x = pkt->target_x;
-        p->dst_z = pkt->target_z;
-        p->level = pkt->target_level;
-        p->target = pkt->target;
-        p->launch_cycle = (int)core->world->cycle;
-        p->start_delay = pkt->start_delay;
-        p->end_delay = pkt->end_delay;
         break;
     }
     default:
@@ -1592,48 +1015,395 @@ core_zone_sub(
     }
 }
 
-/* -------------------------------------------------------------- the rest */
+/* ------------------------------------------------------ the zone families */
 
-static struct ScriptrunInv*
-core_inv(
-    struct ScriptrunCore* core,
-    int inv_id)
+enum
 {
-    struct ScriptrunInv* free_slot = NULL;
+    CORE_SCENE_SIZE = 104,
+};
 
-    for( int i = 0; i < SCRIPTRUN_INVS; i++ )
+/* A ScriptrunZoneAt for a zone at scene tile (`base_x`, `base_z`) of `view`
+ * on walked plane `level`. */
+static void
+core_zone_at_for(
+    struct ScriptrunCore const* core,
+    int view,
+    int base_x,
+    int base_z,
+    int level,
+    struct ScriptrunZoneAt* at)
+{
+    memset(at, 0, sizeof(*at));
+    at->view = view;
+    at->base_x = base_x;
+    at->base_z = base_z;
+    at->level = level;
+    at->local_pid = core->esync->local_pid;
+    if( view > 0 )
     {
-        if( core->invs[i].inv_id == inv_id )
-            return &core->invs[i];
-        if( core->invs[i].inv_id < 0 && !free_slot )
-            free_slot = &core->invs[i];
+        struct ScriptrunView const* v = &core->views[view];
+
+        at->origin_x = v->base_x;
+        at->origin_z = v->base_z;
+        at->scene_size = v->size_x > v->size_z ? v->size_x : v->size_z;
+        return;
     }
-    assert(free_slot);
-    free_slot->inv_id = inv_id;
-    free_slot->size = 0;
-    for( int s = 0; s < SCRIPTRUN_INV_SLOTS; s++ )
-    {
-        free_slot->obj[s] = -1;
-        free_slot->count[s] = 0;
-    }
-    return free_slot;
+    at->origin_x = core_base_x(core);
+    at->origin_z = core_base_z(core);
+    at->scene_size = CORE_SCENE_SIZE;
+    for( int dx = 0; dx < 8; dx++ )
+        for( int dz = 0; dz < 8; dz++ )
+            at->loc_climb[dx][dz] =
+                (uint8_t)(ScriptrunCore_LocCacheLevel(core, base_x + dx, base_z + dz, level) != level);
 }
 
-static void
-core_message(
-    struct ScriptrunCore* core,
-    int type,
-    char const* name,
-    char const* text)
+int
+ScriptrunCore_Objs(
+    struct ScriptrunCore const* core,
+    struct ScriptrunObjRow* out,
+    int cap)
 {
-    struct ScriptrunMessage* m;
+    int deck_x[SCRIPTRUN_ZONE_VIEWS];
+    int deck_z[SCRIPTRUN_ZONE_VIEWS];
 
-    core->message_serial++;
-    m = &core->messages[core->message_serial % SCRIPTRUN_MESSAGES];
-    m->serial = core->message_serial;
-    m->type = type;
-    snprintf(m->name, sizeof(m->name), "%s", name ? name : "");
-    snprintf(m->text, sizeof(m->text), "%s", text ? text : "");
+    assert(core);
+    for( int v = 0; v < SCRIPTRUN_ZONE_VIEWS && v < SCRIPTRUN_VIEWS; v++ )
+    {
+        deck_x[v] = core->views[v].base_x;
+        deck_z[v] = core->views[v].base_z;
+    }
+    return ScriptrunZone_Objs(&core->zone, deck_x, deck_z, out, cap);
+}
+
+int
+ScriptrunCore_ObjCount(struct ScriptrunCore const* core)
+{
+    assert(core);
+    return ScriptrunZone_ObjCount(&core->zone);
+}
+
+void
+ScriptrunCore_ZoneAt(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZoneAt* out)
+{
+    assert(core);
+    assert(out);
+    core_zone_at_for(
+        core, core->active_world, core->zone_base_x, core->zone_base_z, core->zone_level, out);
+}
+
+/* The local player's plane: a *_SPECIFIC form's (zone_player_level). */
+static int
+core_player_level(struct ScriptrunCore const* core)
+{
+    int x, z, level;
+
+    if( ScriptrunCore_LocalTile(core, &x, &z, &level) )
+        return level;
+    return 0;
+}
+
+/* exec_obj_specific: an absolute tile of the root, through the zone OBJ arms
+ * with its zone as the base. Outside the scene: refused. */
+static void
+core_zone_obj_specific(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZone* zone,
+    int name,
+    struct PktObjSpecific const* pkt)
+{
+    union
+    {
+        struct PktObjAdd add;
+        struct PktObjDel del;
+        struct PktObjCount count;
+        struct PktObjReveal reveal;
+    } sub;
+    struct ScriptrunZoneAt at;
+    int const lx = pkt->x - core_base_x(core);
+    int const lz = pkt->z - core_base_z(core);
+    int const pos = ((lx & 7) << 4) | (lz & 7);
+    int sub_name;
+
+    if( lx < 0 || lz < 0 || lx >= CORE_SCENE_SIZE || lz >= CORE_SCENE_SIZE )
+        return;
+    memset(&sub, 0, sizeof(sub));
+    if( name == PKT_NAME_OBJ_ADD_SPECIFIC )
+    {
+        sub_name = PKT_NAME_OBJ_ADD;
+        sub.add.pos = pos;
+        sub.add.obj_id = pkt->obj_id;
+        sub.add.count = pkt->count;
+    }
+    else if( name == PKT_NAME_OBJ_DEL_SPECIFIC )
+    {
+        sub_name = PKT_NAME_OBJ_DEL;
+        sub.del.pos = pos;
+        sub.del.obj_id = pkt->obj_id;
+    }
+    else if( name == PKT_NAME_OBJ_ENABLED_OPS_SPECIFIC )
+    {
+        sub_name = PKT_NAME_OBJ_REVEAL;
+        sub.reveal.pos = pos;
+        sub.reveal.obj_id = pkt->obj_id;
+        sub.reveal.receiver = -1;
+        sub.reveal.has_enabled_ops = 1;
+        sub.reveal.enabled_ops = pkt->op_flags;
+    }
+    else
+    {
+        assert(name == PKT_NAME_OBJ_COUNT_SPECIFIC);
+        sub_name = PKT_NAME_OBJ_COUNT;
+        sub.count.pos = pos;
+        sub.count.obj_id = pkt->obj_id;
+        sub.count.old_count = pkt->old_count;
+        sub.count.new_count = pkt->count;
+    }
+    core_zone_at_for(core, 0, lx & ~7, lz & ~7, pkt->level, &at);
+    ScriptrunZone_Apply(zone, &at, core->tick, (int)core->world->cycle, sub_name, &sub);
+}
+
+/* A zone LOC_ADD_CHANGE / LOC_DEL's record in a zone that runs no loc tasks
+ * (the shadow's), the root's only: what the tasks' place writes
+ * (ScriptrunTasks_LocRecord). */
+static void
+core_zone_loc(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZone* zone,
+    struct ScriptrunZoneAt const* at,
+    int name,
+    void const* payload)
+{
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+    struct PktLocAddChange const* add = payload;
+    struct PktLocDel const* del = payload;
+    int const pos = name == PKT_NAME_LOC_ADD_CHANGE ? add->pos : del->pos;
+    int const info = name == PKT_NAME_LOC_ADD_CHANGE ? add->info : del->info;
+    int const tx = (pos >> 4) & 7;
+    int const tz = pos & 7;
+    struct RS_LocChange c;
+
+    assert(name == PKT_NAME_LOC_ADD_CHANGE || name == PKT_NAME_LOC_DEL);
+    if( at->view != 0 )
+        return;
+    if( name == PKT_NAME_LOC_ADD_CHANGE )
+        RS_LocChange_Fill(&c, at->base_x + tx, at->base_z + tz, at->level + at->loc_climb[tx][tz],
+            add->loc_id, info >> 2, info & 3, add->op_flags & 0x1f, add->ops);
+    else
+        RS_LocChange_Fill(&c, at->base_x + tx, at->base_z + tz, at->level + at->loc_climb[tx][tz],
+            -1, info >> 2, info & 3, 0x1f, none);
+    ScriptrunTasks_LocRecord(core, zone, zone->world, 0, &c, -1);
+}
+
+/*
+ * A rebuild of the root put the map's locs back: every change that stood
+ * before it and is still on the scene is a loc change again, on the new scene
+ * -- the real client's carry-over (App_WorldViewLoadFinish,
+ * World_LocChangesTakeStanding, deob client.method2278). The server does not
+ * resend a zone that stayed in view.
+ */
+static void
+core_replace_standing(struct ScriptrunCore* core)
+{
+    static struct World_LocChange standing[WORLD_LOC_CHANGE_MAX];
+    struct RS_LocHost const host = ScriptrunTasks_LocHost(core->tasks);
+    int const count =
+        World_LocChangesTakeStanding(core->zone.world, standing, WORLD_LOC_CHANGE_MAX);
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct World_LocChange const* rec = &standing[i];
+        struct RS_LocChange c;
+
+        RS_LocChange_Fill(&c, rec->x, rec->z, rec->level, rec->new_type, rec->new_shape,
+            rec->new_angle, rec->op_flags, rec->ops);
+        (void)RS_LocChange_Add(&host, 0, &c, NULL, (unsigned)core->tick, 0);
+    }
+}
+
+void
+ScriptrunCore_ZoneFamilies(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZone* zone,
+    struct RevPacket const* packet,
+    int loc_records)
+{
+    struct ScriptrunZoneAt at;
+    int const name = packet->packet_type;
+    int const tick = core->tick;
+    int const now = (int)core->world->cycle;
+
+    assert(core);
+    assert(zone);
+    assert(packet);
+    if( name == PKT_NAME_REBUILD_NORMAL || name == PKT_NAME_REBUILD_REGION )
+    {
+        /* The real client skips a REBUILD_NORMAL to the centre it already
+         * shows (App_WorldRebuild's checkSame); an instance never is. */
+        if( name == PKT_NAME_REBUILD_NORMAL && zone->have_base && zone->base_x == core_base_x(core) &&
+            zone->base_z == core_base_z(core) )
+            return;
+        ScriptrunZone_Rebuild(zone, core_base_x(core), core_base_z(core), CORE_SCENE_SIZE);
+        return;
+    }
+    if( name == PKT_NAME_WORLDENTITY_INFO || name == PKT_NAME_REBUILD_WORLDENTITY )
+    {
+        /* A deck that went takes its rows; a rebuilt deck is a new world. */
+        for( int v = 1; v < SCRIPTRUN_ZONE_VIEWS && v < SCRIPTRUN_VIEWS; v++ )
+            if( zone->decks[v] && (!core->views[v].live ||
+                                     (name == PKT_NAME_REBUILD_WORLDENTITY && v == core->active_world)) )
+                ScriptrunZone_DropView(zone, v);
+        return;
+    }
+    if( name == PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS )
+    {
+        ScriptrunCore_ZoneAt(core, &at);
+        /* The bot's own records were reset with its loc tasks (the packet's
+         * switch, RS_LocTasks_ZoneReset). A zone that keeps its records here
+         * (`loc_records`, the shadow's) takes the same rule's records half,
+         * and records each put-back as the bot's apply does. */
+        if( loc_records && at.view == 0 )
+        {
+            static struct RS_LocChange restores[RS_LOC_ZONE_KEYS];
+            int levels[8][8];
+            int count;
+
+            for( int dx = 0; dx < 8; dx++ )
+                for( int dz = 0; dz < 8; dz++ )
+                    levels[dx][dz] = at.level + at.loc_climb[dx][dz];
+            count = RS_LocZone_ResetRecords(zone->world, at.base_x, at.base_z, levels, true, restores);
+            for( int i = 0; i < count; i++ )
+                ScriptrunTasks_LocRecord(core, zone, zone->world, 0, &restores[i], -1);
+        }
+        ScriptrunZone_Apply(zone, &at, tick, now, name, NULL);
+        return;
+    }
+    if( name == PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED )
+    {
+        struct PktUpdateZoneEnclosed const* enc = &packet->_update_zone_enclosed;
+
+        ScriptrunCore_ZoneAt(core, &at);
+        for( int i = 0; i < enc->count; i++ )
+        {
+            int const sub = enc->entries[i].name;
+
+            if( sub == PKT_NAME_LOC_ADD_CHANGE || sub == PKT_NAME_LOC_DEL )
+            {
+                if( loc_records )
+                    core_zone_loc(core, zone, &at, sub, &enc->entries[i]._loc_add_change);
+            }
+            else
+                ScriptrunZone_Apply(zone, &at, tick, now, sub, &enc->entries[i]._loc_add_change);
+        }
+        return;
+    }
+    if( name == PKT_NAME_LOC_ADD_CHANGE || name == PKT_NAME_LOC_DEL )
+    {
+        if( !loc_records )
+            return;
+        ScriptrunCore_ZoneAt(core, &at);
+        core_zone_loc(core, zone, &at, name,
+            name == PKT_NAME_LOC_DEL ? (void const*)&packet->_loc_del : (void const*)&packet->_loc_add_change);
+        return;
+    }
+    if( name == PKT_NAME_OBJ_ADD || name == PKT_NAME_OBJ_DEL || name == PKT_NAME_OBJ_COUNT ||
+        name == PKT_NAME_OBJ_REVEAL || name == PKT_NAME_MAP_ANIM || name == PKT_NAME_MAP_PROJANIM ||
+        name == PKT_NAME_SCRIPTEDPROJ_ADD || name == PKT_NAME_LOC_ANIM )
+    {
+        void const* payload = &packet->_obj_add;
+
+        if( name == PKT_NAME_OBJ_DEL )
+            payload = &packet->_obj_del;
+        else if( name == PKT_NAME_OBJ_COUNT )
+            payload = &packet->_obj_count;
+        else if( name == PKT_NAME_OBJ_REVEAL )
+            payload = &packet->_obj_reveal;
+        else if( name == PKT_NAME_MAP_ANIM )
+            payload = &packet->_map_anim;
+        else if( name == PKT_NAME_MAP_PROJANIM )
+            payload = &packet->_map_projanim;
+        else if( name == PKT_NAME_SCRIPTEDPROJ_ADD )
+            payload = &packet->_scriptedproj_add;
+        else if( name == PKT_NAME_LOC_ANIM )
+            payload = &packet->_loc_anim;
+        ScriptrunCore_ZoneAt(core, &at);
+        ScriptrunZone_Apply(zone, &at, tick, now, name, payload);
+        return;
+    }
+    if( name == PKT_NAME_MAP_ANIM_SPECIFIC || name == PKT_NAME_LOC_ANIM_SPECIFIC )
+    {
+        /* exec_map_anim_specific / exec_loc_anim_specific: a build-area tile
+         * of the cursor's view on the player's plane, through the MAP_ANIM /
+         * LOC_ANIM arm with its zone as the base. */
+        union
+        {
+            struct PktMapAnim map;
+            struct PktLocAnim loc;
+        } sub;
+        int x, z;
+
+        memset(&sub, 0, sizeof(sub));
+        if( name == PKT_NAME_MAP_ANIM_SPECIFIC )
+        {
+            struct PktMapAnimSpecific const* pkt = &packet->_map_anim_specific;
+
+            x = pkt->x;
+            z = pkt->z;
+            sub.map.pos = ((x & 7) << 4) | (z & 7);
+            sub.map.id = pkt->id;
+            sub.map.height = pkt->height;
+            sub.map.delay = pkt->delay;
+        }
+        else
+        {
+            struct PktLocAnimSpecific const* pkt = &packet->_loc_anim_specific;
+
+            x = pkt->x;
+            z = pkt->z;
+            sub.loc.pos = ((x & 7) << 4) | (z & 7);
+            sub.loc.info = pkt->info;
+            sub.loc.seq_id = pkt->seq_id;
+        }
+        core_zone_at_for(core, core->active_world, x & ~7, z & ~7, core_player_level(core), &at);
+        ScriptrunZone_Apply(zone, &at, tick, now,
+            name == PKT_NAME_MAP_ANIM_SPECIFIC ? PKT_NAME_MAP_ANIM : PKT_NAME_LOC_ANIM, &sub);
+        return;
+    }
+    if( name == PKT_NAME_PROJANIM_SPECIFIC )
+    {
+        /* exec_projanim_specific: both ends absolute, the root's scene; the
+         * source's zone is the base. */
+        struct PktProjAnimSpecific const* pkt = &packet->_projanim_specific;
+        struct PktMapProjAnim sub;
+        int const lx = pkt->x - core_base_x(core);
+        int const lz = pkt->z - core_base_z(core);
+
+        if( pkt->spotanim == 65535 || lx < 0 || lz < 0 || lx >= CORE_SCENE_SIZE ||
+            lz >= CORE_SCENE_SIZE )
+            return;
+        memset(&sub, 0, sizeof(sub));
+        sub.pos = ((lx & 7) << 4) | (lz & 7);
+        sub.target = pkt->target;
+        sub.source = pkt->source;
+        sub.spotanim = pkt->spotanim;
+        sub.src_height = pkt->src_height;
+        sub.dst_height = pkt->dst_height;
+        sub.start_delay = pkt->start_delay;
+        sub.end_delay = pkt->end_delay;
+        sub.peak = pkt->peak;
+        sub.arc = pkt->arc;
+        sub.dst_abs = 1;
+        sub.dst_abs_level = pkt->dst_level;
+        sub.dst_abs_x = pkt->dst_x;
+        sub.dst_abs_z = pkt->dst_z;
+        core_zone_at_for(core, 0, lx & ~7, lz & ~7, pkt->level, &at);
+        ScriptrunZone_Apply(zone, &at, tick, now, PKT_NAME_MAP_PROJANIM, &sub);
+        return;
+    }
+    if( name == PKT_NAME_OBJ_ADD_SPECIFIC || name == PKT_NAME_OBJ_DEL_SPECIFIC ||
+        name == PKT_NAME_OBJ_COUNT_SPECIFIC || name == PKT_NAME_OBJ_ENABLED_OPS_SPECIFIC )
+        core_zone_obj_specific(core, zone, name, &packet->_obj_specific);
 }
 
 /* ------------------------------------------------------- world entities */
@@ -1682,6 +1452,7 @@ core_view_despawn(
 
     assert(id > 0 && id < SCRIPTRUN_VIEWS);
     ScriptrunCore_DropViewLocs(core, id);
+    ScriptrunTasks_SceneBuilt(core->tasks, id);
     RS_EntitySync_ClearViewNpcs(core->esync, core->world, id);
     memset(&core->views[id], 0, sizeof(core->views[id]));
     for( int i = 0; i < core->view_list_count; i++ )
@@ -1805,6 +1576,7 @@ core_rebuild_worldentity(
     v->base_x = pkt->base_x;
     v->base_z = pkt->base_z;
     ScriptrunCore_LoadViewLocs(core, id, zones, v->size_x / 8, v->size_z / 8);
+    ScriptrunTasks_SceneBuilt(core->tasks, id);
     ToriMem_Free(ToriMem_ServerPlayers(), zones);
 }
 
@@ -1832,6 +1604,7 @@ core_rebuild(
     core->world->_base_tile_x = core_base_x(core);
     core->world->_base_tile_z = core_base_z(core);
     core->world->load_complete = true;
+    ScriptrunTasks_SceneBuilt(core->tasks, 0);
 }
 
 static void
@@ -2141,6 +1914,263 @@ ScriptrunCore_Control(
     }
 }
 
+/* The packets the bot takes from the packet model: every one it applies,
+ * except UPDATE_UID192, which writes the process's login state
+ * (net/login/login_osrs.c), the server's here, shared by every bot. The
+ * per-player entity setters (ANIM_SPECIFIC, NPC_ANIM_SPECIFIC, the two
+ * SPOTANIM_SPECIFICs, NPC_HEADICON_SPECIFIC) apply to this core's World, which
+ * the bot's entity stream fills by the shared rules (game/rs_entity_apply.c);
+ * the headicon's first write reads the type through core_npc_head_icon. */
+static int
+core_model_feeds(int pkt_name)
+{
+    return pkt_name != PKT_NAME_UPDATE_UID192;
+}
+
+/* The npc type's own head icons, every slot, for NPC_HEADICON_SPECIFIC's
+ * first write (RS_ServerState.npc_head_icon): the server's record of them. */
+static int
+core_npc_head_icon(
+    void* ctx,
+    int npc_id,
+    int* out_group,
+    int* out_index)
+{
+    const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfoRecord(npc_id);
+
+    (void)ctx;
+    assert(out_group);
+    assert(out_index);
+    if( !info )
+        return 0;
+    _Static_assert(TORIRSSERVER_NPC_HEADICON_SLOTS == WORLD_NPC_HEADICON_SLOTS, "one slot count");
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        out_group[i] = info->head_icon_group[i];
+        out_index[i] = info->head_icon_index[i];
+    }
+    return 1;
+}
+
+/* `group` leaves the slot it was mounted in for `incoming_group` (0: a close),
+ * by the packet model's rule; when that unloads it (another group takes the
+ * slot), the models its components were told to show go with it, as the real
+ * client's close-serial expiry drops them (app_if_forget_closed). */
+static void
+core_slot_group_leaves(
+    struct ScriptrunCore* core,
+    int group,
+    int incoming_group)
+{
+    int i = 0;
+
+    if( !RS_ServerState_SlotGroupLeaves(&core->model.state, group, incoming_group) )
+        return;
+    while( i < core->if_models.head_count )
+    {
+        if( ((core->if_models.heads[i].com_id >> 16) & 0xffff) == group )
+            UIIfModels_RemoveHeadAt(&core->if_models, i);
+        else
+            i++;
+    }
+}
+
+/* IF_SETNPCHEAD_ACTIVE: the head of the npc in server slot `slot`, as the
+ * real client resolves it (App_SetInterfaceNpcHeadActive): a chathead
+ * customisation that mirrors shows the local player, anything else the npc's
+ * type. An npc this bot does not track sets nothing, as the client's lookup
+ * misses. */
+static void
+core_set_npc_head_active(
+    struct ScriptrunCore* core,
+    int component,
+    int slot)
+{
+    struct WorldEntity_NPC const* npc;
+    int idx;
+
+    if( !RS_EntitySync_FindNpc(core->esync, slot, &idx, NULL) )
+        return;
+    npc = World_EntityPoolGet(&core->world->entities.npc, idx);
+    assert(npc);
+    if( npc->head_custom.active && npc->head_custom.mirror )
+        (void)UIIfModels_SetHead(&core->if_models, component, UI_IFHEAD_PLAYER, -1, 0, 0);
+    else
+        (void)UIIfModels_SetHead(&core->if_models, component, UI_IFHEAD_NPC, npc->npc_id, 0, 0);
+}
+
+/* The bot's mount under `target_uid`, or -1. */
+static int
+core_mount_index(
+    struct ScriptrunCore const* core,
+    int target_uid)
+{
+    for( int i = 0; i < core->mount_count; i++ )
+        if( core->mounts[i].target_uid == target_uid )
+            return i;
+    return -1;
+}
+
+/* IF_OPENSUB's mount: the group leaving the slot loses its armed events, even
+ * when the same group goes straight back in, and its texts, hides, colours
+ * and models when another group takes the slot (the real client's
+ * app_close_slot). */
+static void
+core_open_sub(
+    struct ScriptrunCore* core,
+    int target,
+    int group,
+    int type)
+{
+    int i = core_mount_index(core, target);
+
+    if( i >= 0 && core->mounts[i].interface_id > 0 )
+        core_slot_group_leaves(core, core->mounts[i].interface_id, group);
+    if( i < 0 && core->mount_count < SCRIPTRUN_MOUNTS )
+        i = core->mount_count++;
+    if( i >= 0 )
+    {
+        core->mounts[i].target_uid = target;
+        core->mounts[i].interface_id = group;
+        core->mounts[i].type = type;
+    }
+    /* The client raises sub_opened on the packet and sub_mounted once the
+     * group is loaded; the bot's group is loaded the moment it is named. */
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_OPENED, target, group, type, 0);
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_MOUNTED, target, group, type, 0);
+}
+
+/* IF_CLOSESUB's close of the slot `target` (nothing when it holds nothing). */
+static void
+core_close_sub(
+    struct ScriptrunCore* core,
+    int target)
+{
+    int const i = core_mount_index(core, target);
+
+    if( i < 0 )
+        return;
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_CLOSED, target, core->mounts[i].interface_id, 0, 0);
+    if( core->mounts[i].interface_id > 0 )
+        core_slot_group_leaves(core, core->mounts[i].interface_id, 0);
+    core->mounts[i] = core->mounts[--core->mount_count];
+}
+
+/* What was kept in `group`'s own slots comes back with it, each after the
+ * group it lives in (the real client's app_reopen_detached_under). */
+static void
+core_reopen_kept_under(
+    struct ScriptrunCore* core,
+    int group)
+{
+    int i = 0;
+
+    while( i < UITreeKeptMounts_Count(&core->kept_mounts) )
+    {
+        struct UITreeInterfaceParent const inner = *UITreeKeptMounts_At(&core->kept_mounts, i);
+
+        if( ((inner.container_uid >> 16) & 0xffff) != group )
+        {
+            i++;
+            continue;
+        }
+        (void)UITreeKeptMounts_Take(&core->kept_mounts, inner.container_uid);
+        core_open_sub(core, inner.container_uid, inner.group_id, inner.type);
+        core_reopen_kept_under(core, inner.group_id);
+        i = 0;
+    }
+}
+
+/* IF_OPENTOP: the old top's mounts are kept, not closed (the reference keeps
+ * its InterfaceParent table, App_RootMountsDetach), for the IF_MOVESUBs that
+ * relink them into the new top; what was kept in the new top's own slots
+ * comes back with it. */
+static void
+core_open_top(
+    struct ScriptrunCore* core,
+    int top)
+{
+    struct UITreeInterfaceParent live[UITREE_INTERFACE_PARENT_MAX];
+    struct UITreeInterfaceParent forgotten[UITREE_INTERFACE_PARENT_MAX];
+    int live_count = 0;
+    int forgotten_count;
+
+    /* The kept table holds what the real client's tree can (its interface
+     * parents); a mount past that is forgotten, as a full table forgets. */
+    for( int i = 0; i < core->mount_count; i++ )
+    {
+        if( live_count == UITREE_INTERFACE_PARENT_MAX )
+        {
+            fprintf(stderr, "scriptrun: if-opentop: kept mount table full; iface=%d at 0x%08x is forgotten\n",
+                    core->mounts[i].interface_id, (unsigned)core->mounts[i].target_uid);
+            continue;
+        }
+        live[live_count].container_uid = core->mounts[i].target_uid;
+        live[live_count].group_id = core->mounts[i].interface_id;
+        live[live_count].type = core->mounts[i].type;
+        live_count++;
+    }
+    forgotten_count = UITreeKeptMounts_Detach(&core->kept_mounts, live, live_count, forgotten);
+    for( int i = 0; i < forgotten_count; i++ )
+        fprintf(stderr, "scriptrun: if-opentop: kept mount table full; iface=%d at 0x%08x is forgotten\n",
+                forgotten[i].group_id, (unsigned)forgotten[i].container_uid);
+    core->mount_count = 0;
+    core->toplevel = top;
+    core_reopen_kept_under(core, top);
+}
+
+/*
+ * IF_MOVESUB (class415.method9481), as the real client applies it
+ * (App_MoveSubInterface): close what the destination holds, unloading it
+ * unless it is the moved group, and relink the source's group there with its
+ * arming, its stores and the subs open inside it; the group is not unloaded.
+ * A source this top does not hold is a sub of the top an IF_OPENTOP replaced
+ * (reopened at the destination with what was open inside it) or an empty
+ * slot, whose move still closes what it lands on.
+ */
+static void
+core_move_sub(
+    struct ScriptrunCore* core,
+    int source,
+    int dest)
+{
+    int const s = core_mount_index(core, source);
+    int d;
+    int group;
+    int type;
+
+    if( s < 0 )
+    {
+        struct UITreeInterfaceParent const kept = UITreeKeptMounts_Take(&core->kept_mounts, source);
+
+        d = core_mount_index(core, dest);
+        if( kept.group_id > 0 )
+        {
+            core_open_sub(core, dest, kept.group_id, kept.type);
+            core_reopen_kept_under(core, kept.group_id);
+        }
+        else if( d >= 0 )
+            core_close_sub(core, dest);
+        return;
+    }
+    group = core->mounts[s].interface_id;
+    type = core->mounts[s].type;
+    d = core_mount_index(core, dest);
+    if( d >= 0 && d != s )
+    {
+        if( core->mounts[d].interface_id > 0 )
+            core_slot_group_leaves(core, core->mounts[d].interface_id, group);
+        core->mounts[d] = core->mounts[--core->mount_count];
+    }
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_OPENED, dest, group, type, 0);
+    /* The removal above may have moved the source's record. */
+    d = core_mount_index(core, source);
+    assert(d >= 0);
+    core->mounts[d].target_uid = dest;
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_CLOSED, source, group, 0, 0);
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_MOUNTED, dest, group, type, 0);
+}
+
 static void
 core_packet(
     struct ScriptrunCore* core,
@@ -2151,6 +2181,7 @@ core_packet(
 {
     struct RevPacket packet;
     int parsed;
+    int rebuilt;
 
     core_wirelog_every(core, pkt_name, len);
     /* PLAYER_INFO / NPC_INFO: the client decodes the raw stream itself. */
@@ -2178,10 +2209,27 @@ core_packet(
         return;
     }
     core_wirelog(core, pkt_name, &packet);
+    if( core->shadow )
+        ScriptrunShadow_Before(core->shadow, core, &packet);
+    /* The model first, as the real client applies it (RS_GameProto_Exec):
+     * what follows is this bot's presentation of what it wrote. */
+    if( core_model_feeds(pkt_name) )
+        (void)RS_ServerState_Apply(&core->model.state, &packet);
+    rebuilt = pkt_name == PKT_NAME_REBUILD_NORMAL || pkt_name == PKT_NAME_REBUILD_REGION;
 
     switch( pkt_name )
     {
     case PKT_NAME_REBUILD_NORMAL:
+        /* The real client skips a REBUILD_NORMAL to the centre it already
+         * shows (App_WorldRebuild's checkSame): its scene, its loc changes and
+         * its collision stand. ScriptrunCore_ZoneFamilies makes the same
+         * test. */
+        if( core->have_scene && packet._map_rebuild.zonex == core->rebuild_zone_x &&
+            packet._map_rebuild.zonez == core->rebuild_zone_z )
+        {
+            rebuilt = 0;
+            break;
+        }
         core_rebuild(core, packet._map_rebuild.zonex, packet._map_rebuild.zonez);
         core->instance_active = 0;
         ScriptrunCore_BuildCollision(core);
@@ -2200,9 +2248,6 @@ core_packet(
         core->npc_origin_z = packet._set_npc_update_origin.z;
         core->npc_origin_valid = 1;
         break;
-    case PKT_NAME_UPDATE_PID:
-        core->esync->local_pid = packet._update_pid.local_player_index;
-        break;
     case PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS:
         core->zone_base_x = packet._update_zone_partial_follows.base_x;
         core->zone_base_z = packet._update_zone_partial_follows.base_z;
@@ -2211,27 +2256,20 @@ core_packet(
         break;
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
     {
-        int x0, z0, level;
+        struct RS_LocHost const host = ScriptrunTasks_LocHost(core->tasks);
+
         core->zone_base_x = packet._update_zone_full_follows.base_x;
         core->zone_base_z = packet._update_zone_full_follows.base_z;
         core->zone_level = core_zone_header_level(core, packet._update_zone_full_follows.level);
-        /* A full zone resend restates every obj in it: forget the old ones. */
-        x0 = core_cursor_base_x(core) + core->zone_base_x;
-        z0 = core_cursor_base_z(core) + core->zone_base_z;
-        level = core->zone_level;
-        /* ...and resets its locs to the map's, as the client's
-         * zone_full_reset_locs does: the state behind this header names only
-         * what still differs from the map, so a change the server has since
-         * reverted would otherwise stand here and not on the client. */
-        ScriptrunCore_ZoneResetLocs(core, x0, z0, level);
-        for( int i = 0; i < core->obj_count; )
-        {
-            struct ScriptrunObj* o = &core->objs[i];
-            if( o->level == level && o->x >= x0 && o->x < x0 + 8 && o->z >= z0 && o->z < z0 + 8 )
-                core->objs[i] = core->objs[--core->obj_count];
-            else
-                i++;
-        }
+        /* A full zone resend restates every obj in it: the zone families
+         * forget the old ones (ScriptrunCore_ZoneFamilies, below). And it
+         * resets its locs to the map's by the loc core's rule, the real
+         * client's (RS_LocTasks_ZoneReset): the zone's pending changes go,
+         * its records say the map's loc stands, and the map's loc is put back
+         * through a loc change wherever one left something else -- placed,
+         * key by key, in the pump after this packet. */
+        (void)RS_LocTasks_ZoneReset(&host, core->active_world, core->zone_base_x,
+            core->zone_base_z, core->zone_level, (unsigned)core->tick);
         break;
     }
     case PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED:
@@ -2250,62 +2288,17 @@ core_packet(
     case PKT_NAME_LOC_DEL:
         core_zone_sub(core, pkt_name, &packet._loc_del);
         break;
-    case PKT_NAME_OBJ_ADD:
-        core_zone_sub(core, pkt_name, &packet._obj_add);
-        break;
-    case PKT_NAME_OBJ_DEL:
-        core_zone_sub(core, pkt_name, &packet._obj_del);
-        break;
-    case PKT_NAME_MAP_ANIM:
-        core_zone_sub(core, pkt_name, &packet._map_anim);
-        break;
-    case PKT_NAME_MAP_ANIM_SPECIFIC:
-    {
-        /* MAP_ANIM for this player alone: a build-area tile, no zone header,
-         * on the player's own plane -- recorded as the map anim it plays as. */
-        struct PktMapAnimSpecific const* pkt = &packet._map_anim_specific;
-        int px, pz, plevel;
-
-        if( pkt->id == 65535 )
-            break;
-        if( !ScriptrunCore_LocalTile(core, &px, &pz, &plevel) )
-            plevel = 0;
-        assert(core->map_anim_count < SCRIPTRUN_MAP_ANIMS);
-        {
-            struct ScriptrunMapAnim* a = &core->map_anims[core->map_anim_count++];
-            a->spotanim = pkt->id;
-            a->x = core_cursor_base_x(core) + pkt->x;
-            a->z = core_cursor_base_z(core) + pkt->z;
-            a->level = plevel;
-            a->height = pkt->height;
-            a->delay = pkt->delay;
-            a->cycle = (int)core->world->cycle;
-        }
-        break;
-    }
-    case PKT_NAME_LOC_ANIM:
-        core_zone_sub(core, pkt_name, &packet._loc_anim);
-        break;
     case PKT_NAME_MAP_PROJANIM:
         core_zone_sub(core, pkt_name, &packet._map_projanim);
         break;
     case PKT_NAME_VARP_SMALL:
-        if( packet._varp_small.variable >= 0 && packet._varp_small.variable < SCRIPTRUN_VARPS )
-        {
-            core->varps[packet._varp_small.variable] = packet._varp_small.value;
-            ScriptrunCore_Event(core, SCRIPTRUN_EV_VARP_CHANGED, packet._varp_small.variable,
-                                packet._varp_small.value, 0, 0);
-            core_npcs_reresolve(core);
-        }
-        break;
     case PKT_NAME_VARP_LARGE:
-        if( packet._varp_large.variable >= 0 && packet._varp_large.variable < SCRIPTRUN_VARPS )
-        {
-            core->varps[packet._varp_large.variable] = packet._varp_large.value;
-            ScriptrunCore_Event(core, SCRIPTRUN_EV_VARP_CHANGED, packet._varp_large.variable,
-                                packet._varp_large.value, 0, 0);
-            core_npcs_reresolve(core);
-        }
+    case PKT_NAME_VARP_SYNC:
+    case PKT_NAME_VARP_RESET:
+        /* The model wrote the varps and stamped varp_changed; a multinpc
+         * whose rung reads one shows its new rung (the client's varp change
+         * callback, app/app_varp_transforms.c). */
+        core_npcs_reresolve(core);
         break;
     case PKT_NAME_SET_ACTIVE_WORLD:
         core_set_active_world(core, &packet._set_active_world);
@@ -2317,161 +2310,65 @@ core_packet(
         core_rebuild_worldentity(core, &packet._rebuild_wev);
         break;
     case PKT_NAME_SERVER_TICK_END:
-        /* SET_ACTIVE_WORLD lasts until the fence (rs_gameproto_exec.c). */
+        /* SET_ACTIVE_WORLD lasts until the fence (rs_gameproto_exec.c); the
+         * model stamped server_tick. */
         core->active_world = 0;
         core->active_world_level = 0;
-        /* DRIVE_STAMP server_tick: a=world cycle. Every packet of the tick is
-         * applied by now. */
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_SERVER_TICK, (int)core->world->cycle, 0, 0, 0);
-        break;
-    case PKT_NAME_VARP_RESET:
-        memset(core->varps, 0, sizeof(core->varps));
-        core_npcs_reresolve(core);
-        break;
-    case PKT_NAME_UPDATE_STAT:
-        if( packet._update_stat.stat >= 0 && packet._update_stat.stat < SCRIPTRUN_STATS )
-        {
-            core->stat_level[packet._update_stat.stat] = packet._update_stat.level;
-            core->stat_xp[packet._update_stat.stat] = packet._update_stat.xp;
-        }
-        break;
-    case PKT_NAME_UPDATE_RUNENERGY:
-        core->run_energy = packet._update_run_energy.run_energy_raw;
-        break;
-    case PKT_NAME_UPDATE_INV_FULL:
-    {
-        struct PktUpdateInvFull const* pkt = &packet._update_inv_full;
-        struct ScriptrunInv* inv = core_inv(core, pkt->inv_id);
-        for( int s = 0; s < SCRIPTRUN_INV_SLOTS; s++ )
-        {
-            inv->obj[s] = -1;
-            inv->count[s] = 0;
-        }
-        inv->size = pkt->size < SCRIPTRUN_INV_SLOTS ? pkt->size : SCRIPTRUN_INV_SLOTS;
-        for( int s = 0; s < inv->size; s++ )
-        {
-            /* Parsed ids are 0-based, -1 empty (osrs239_parse: g2 - 1), as
-             * the client's InvManager stores them. */
-            inv->obj[s] = pkt->obj_ids[s];
-            inv->count[s] = inv->obj[s] >= 0 ? pkt->obj_counts[s] : 0;
-        }
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_INV_CHANGED, pkt->inv_id, 0, 0, 0);
-        break;
-    }
-    case PKT_NAME_UPDATE_INV_PARTIAL:
-    {
-        struct PktUpdateInvPartial const* pkt = &packet._update_inv_partial;
-        struct ScriptrunInv* inv = core_inv(core, pkt->inv_id);
-        for( int i = 0; i < pkt->count; i++ )
-        {
-            int s = pkt->entries[i].slot;
-            if( s < 0 || s >= SCRIPTRUN_INV_SLOTS )
-                continue;
-            inv->obj[s] = pkt->entries[i].obj_id;
-            inv->count[s] = inv->obj[s] >= 0 ? pkt->entries[i].count : 0;
-            if( s + 1 > inv->size )
-                inv->size = s + 1;
-        }
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_INV_CHANGED, pkt->inv_id, 0, 0, 0);
-        break;
-    }
-    case PKT_NAME_MESSAGE_GAME:
-        core_message(core, packet._message_game.type, packet._message_game.name,
-                     packet._message_game.text);
-        /* a = type, b = serial: the client's DRIVE_STAMP (rs_chat.c
-         * RS_Chat_AddMessage), which QD.player._line_by_serial reads. */
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, packet._message_game.type,
-                            core->message_serial, 0, 0);
         break;
     case PKT_NAME_IF_OPENTOP:
+        /* The arming and the stores stay, as the real client keeps them
+         * (rs_gameproto_exec.c IF_OPENTOP: the reference's open-top never
+         * touches the flags table, RSProx index 4378). Any interface mount or
+         * close answers a pause. */
         core->resume_pending = -1;
-        core->toplevel = packet._if_opentop.interface_id;
-        core->sethide_count = 0;
-        core->mount_count = 0;
-        UIIfEventTable_Clear(&core->if_events);
+        core_open_top(core, packet._if_opentop.interface_id);
         break;
     case PKT_NAME_IF_OPENSUB:
-    {
         core->resume_pending = -1;
-        int target = packet._if_opensub.target_uid;
-        int i;
-        for( i = 0; i < core->mount_count; i++ )
-            if( core->mounts[i].target_uid == target )
-                break;
-        /* The group leaving the slot loses its armed events, even when the
-         * same group goes straight back in (UIIfEventTable_DropGroup). */
-        if( i < core->mount_count )
-            UIIfEventTable_DropGroup(&core->if_events, core->mounts[i].interface_id);
-        if( i == core->mount_count && core->mount_count < SCRIPTRUN_MOUNTS )
-            core->mount_count++;
-        core_forget_hides(core, packet._if_opensub.interface_id);
-        if( i < core->mount_count )
-        {
-            core->mounts[i].target_uid = target;
-            core->mounts[i].interface_id = packet._if_opensub.interface_id;
-            core->mounts[i].type = packet._if_opensub.type;
-        }
-        /* The client raises sub_opened on the packet and sub_mounted once the
-         * group is loaded; the bot's group is loaded the moment it is named. */
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_OPENED, target, packet._if_opensub.interface_id,
-                            packet._if_opensub.type, 0);
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_MOUNTED, target, packet._if_opensub.interface_id,
-                            packet._if_opensub.type, 0);
+        core_open_sub(core, packet._if_opensub.target_uid, packet._if_opensub.interface_id,
+                      packet._if_opensub.type);
         break;
-    }
     case PKT_NAME_IF_CLOSESUB:
         core->resume_pending = -1;
-        for( int i = 0; i < core->mount_count; i++ )
+        /* A kept mount at the slot goes too: the reference's table is one
+         * table (App_CloseSubInterface). */
+        (void)UITreeKeptMounts_Take(&core->kept_mounts, packet._if_closesub.target_uid);
+        core_close_sub(core, packet._if_closesub.target_uid);
+        break;
+    case PKT_NAME_IF_MOVESUB:
+        core->resume_pending = -1;
+        /* Wire data: a component uid is never negative; the real client
+         * refuses one, in one place, with a line (exec_if_movesub). */
+        if( packet._if_movesub.source_uid < 0 || packet._if_movesub.dest_uid < 0 )
         {
-            if( core->mounts[i].target_uid == packet._if_closesub.target_uid )
-            {
-                ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_CLOSED, packet._if_closesub.target_uid,
-                                    core->mounts[i].interface_id, 0, 0);
-                core_forget_hides(core, core->mounts[i].interface_id);
-                UIIfEventTable_DropGroup(&core->if_events, core->mounts[i].interface_id);
-                core->mounts[i] = core->mounts[--core->mount_count];
-                break;
-            }
+            fprintf(stderr, "scriptrun: IF_MOVESUB 0x%08x -> 0x%08x names no component, refused\n",
+                    (unsigned)packet._if_movesub.source_uid, (unsigned)packet._if_movesub.dest_uid);
+            break;
         }
+        core_move_sub(core, packet._if_movesub.source_uid, packet._if_movesub.dest_uid);
         break;
-    case PKT_NAME_IF_SETEVENTS:
-        UIIfEventTable_Set(&core->if_events, packet._if_setevents.component_id,
-                           packet._if_setevents.from, packet._if_setevents.to,
-                           packet._if_setevents.events);
+    /* The models the server tells MODEL components to show: recorded as the
+     * real client records them (UIIfModels_SetHead), for widget_model. */
+    case PKT_NAME_IF_SETNPCHEAD:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setnpchead.component_id, UI_IFHEAD_NPC,
+                                 packet._if_setnpchead.npc_id, 0, 0);
         break;
-    case PKT_NAME_IF_SETTEXT:
-    {
-        int comp = packet._if_settext.component_id;
-        int i;
-        for( i = 0; i < core->settext_count; i++ )
-            if( core->settexts[i].component == comp )
-                break;
-        if( i == core->settext_count && core->settext_count < SCRIPTRUN_SETTEXTS )
-            core->settext_count++;
-        if( i < core->settext_count )
-        {
-            core->settexts[i].component = comp;
-            snprintf(core->settexts[i].text, sizeof(core->settexts[i].text), "%s",
-                     packet._if_settext.text ? packet._if_settext.text : "");
-        }
+    case PKT_NAME_IF_SETNPCHEAD_ACTIVE:
+        core_set_npc_head_active(core, packet._if_setnpchead_active.component_id,
+                                 packet._if_setnpchead_active.index);
         break;
-    }
-    case PKT_NAME_IF_SETHIDE:
-    {
-        int comp = packet._if_sethide.component_id;
-        int i;
-        for( i = 0; i < core->sethide_count; i++ )
-            if( core->sethides[i].component == comp )
-                break;
-        if( i == core->sethide_count )
-        {
-            assert(core->sethide_count < SCRIPTRUN_SETHIDES);
-            core->sethide_count++;
-        }
-        core->sethides[i].component = comp;
-        core->sethides[i].hidden = packet._if_sethide.hide ? 1 : 0;
+    case PKT_NAME_IF_SETPLAYERHEAD:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setplayerhead.component_id, UI_IFHEAD_PLAYER,
+                                 -1, 0, 0);
         break;
-    }
+    case PKT_NAME_IF_SETOBJECT:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setobject.component_id, UI_IFHEAD_OBJ,
+                                 packet._if_setobject.obj_id, packet._if_setobject.zoom, 0);
+        break;
+    case PKT_NAME_IF_SETMODEL:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setmodel.component_id, UI_IFHEAD_MODEL,
+                                 packet._if_setmodel.model_id, 0, 0);
+        break;
     case PKT_NAME_RUNCLIENTSCRIPT:
         if( packet._runclientscript )
         {
@@ -2508,9 +2405,29 @@ core_packet(
         break;
     case PKT_NAME_LOGOUT:
         core->logged_out = 1;
+        /* The real client goes to its title screen, which forgets them. */
+        UITreeKeptMounts_Clear(&core->kept_mounts);
+        ScriptrunTasks_CancelAll(core->tasks);
         break;
     default:
         break;
+    }
+    /* The zone families, by the real client's rules, after the switch has
+     * moved the cursor and the scene (scriptrun_zone.h); then a rebuilt
+     * root's standing loc changes, on the new scene. */
+    ScriptrunCore_ZoneFamilies(core, &core->zone, &packet, 0);
+    if( rebuilt )
+        core_replace_standing(core);
+    /* The parallel queue, until every task is done or parked: the loc
+     * changes this packet made are placed here. At the tick's end nothing
+     * may be left but a wait for a cycle. */
+    ScriptrunTasks_Pump(core->tasks);
+    if( pkt_name == PKT_NAME_SERVER_TICK_END )
+        ScriptrunTasks_AssertIdle(core->tasks);
+    if( core->shadow )
+    {
+        ScriptrunCore_ZoneFamilies(core, ScriptrunShadow_Zone(core->shadow), &packet, 1);
+        ScriptrunShadow_After(core->shadow, core, &packet);
     }
     gameproto_free(&packet);
 }
@@ -2526,7 +2443,18 @@ ScriptrunCore_IfEvents(
 {
     assert(core);
     assert(out_events);
-    return UIIfEventTable_Lookup(&core->if_events, com_id, sub_id, out_events);
+    return UIIfEventTable_Lookup(&core->model.if_events, com_id, sub_id, out_events);
+}
+
+int
+ScriptrunCore_VarpAddressable(
+    struct ScriptrunCore const* core,
+    int varp_id)
+{
+    assert(core);
+    if( varp_id < 0 )
+        return 0;
+    return varp_id < ToriRSServer_VarpClientCount() || varp_id < core->model.varps.varp_count;
 }
 
 int
@@ -2543,24 +2471,21 @@ ScriptrunCore_Varbit(
     assert(value);
     if( !ToriRSServer_VarbitRange(varbit_id, &basevar, &startbit, &endbit) )
         return 0;
-    if( basevar < 0 || basevar >= SCRIPTRUN_VARPS )
+    if( !ScriptrunCore_VarpAddressable(core, basevar) )
         return 0;
     width = endbit - startbit + 1;
     mask = width >= 32 ? 0xffffffffu : ((1u << width) - 1u);
-    *value = (int)(((uint32_t)core->varps[basevar] >> startbit) & mask);
+    *value = (int)(((uint32_t)VarPManager_GetVarp(&core->model.varps, basevar) >> startbit) & mask);
     return 1;
 }
 
-struct ScriptrunInv const*
+struct InvContainer const*
 ScriptrunCore_Inv(
     struct ScriptrunCore const* core,
     int inv_id)
 {
     assert(core);
-    for( int i = 0; i < SCRIPTRUN_INVS; i++ )
-        if( core->invs[i].inv_id == inv_id )
-            return &core->invs[i];
-    return NULL;
+    return InvManager_FindContainer(&core->model.invs, inv_id);
 }
 
 int
@@ -2595,10 +2520,7 @@ ScriptrunCore_Text(
     int component)
 {
     assert(core);
-    for( int i = 0; i < core->settext_count; i++ )
-        if( core->settexts[i].component == component )
-            return core->settexts[i].text;
-    return NULL;
+    return UIIfTextStore_Get(&core->model.if_texts, component);
 }
 
 int
@@ -2607,8 +2529,17 @@ ScriptrunCore_SetHide(
     int component)
 {
     assert(core);
-    for( int i = 0; i < core->sethide_count; i++ )
-        if( core->sethides[i].component == component )
-            return core->sethides[i].hidden;
-    return -1;
+    return UIIfIntStore_Get(&core->model.if_hides, component, -1);
+}
+
+struct UIIfHead const*
+ScriptrunCore_Head(
+    struct ScriptrunCore const* core,
+    int component)
+{
+    int i;
+
+    assert(core);
+    i = UIIfModels_HeadIndex(&core->if_models, component);
+    return i >= 0 ? &core->if_models.heads[i] : NULL;
 }

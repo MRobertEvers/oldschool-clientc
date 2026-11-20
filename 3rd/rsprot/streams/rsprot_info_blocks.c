@@ -196,6 +196,9 @@ rsprot_info_flags(RsprotInfoBlocks *t, int who, const uint32_t ext[3], uint32_t 
     }
     t->who = who;
     t->flag = flag;
+    t->move_speed_read = 0;
+    t->retyped = 0;
+    t->retyped_type = -1;
     return 1;
 }
 
@@ -361,8 +364,10 @@ move_speed(RsprotInfoBlocks *t, uint32_t bit, RsprotInfoKind kind, const RsprotI
         return block_end(t, before, kind, bit);
     rsprot_info_emit_value(t->out, persistent ? RSPROT_OP_MOVE_SPEED : RSPROT_OP_TEMP_MOVE_SPEED,
                            (uint64_t)(int64_t)value);
-    if (persistent)
+    if (persistent) {
         pp->pi->move_speed[t->who] = speed;
+        t->move_speed_read = 1;
+    }
     op_index = pp->movement_op[t->who];
     if (op_index >= 0 && op_index < t->out->count) {
         RsprotInfoXZLevel *m = &t->out->ops[op_index].xz_level;
@@ -392,7 +397,17 @@ rsprot_info_reset(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoValueEnc *e
 {
     int before = begin(t, RSPROT_IK_RESET, bit);
     int32_t value = RD(value);
+    RsprotPlayerPacket *pp = t->player;
 
+    /* The value is read and dropped (deob class109.method3804, flag 0x2: one
+     * g1 nothing reads). The block's effect is the actor reset
+     * (class95.method3110), which puts the slot's persistent traversal back
+     * to walk (field1344 = class174.field2476) -- the decoder's half; the
+     * executor applies the rest at the start of the record. The reset comes
+     * first there, so a move speed this record already sent stands. */
+    assert(pp);
+    if (!t->b->err && !t->move_speed_read)
+        pp->pi->move_speed[t->who] = RSPROT_TRAVERSAL_WALK;
     rsprot_info_emit_value(t->out, RSPROT_OP_RESET, (uint64_t)(int64_t)value);
     return block_end(t, before, RSPROT_IK_RESET, bit);
 }
@@ -404,6 +419,10 @@ rsprot_info_transformation(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoVa
     int32_t type = RD(value);
 
     rsprot_info_emit(t->out, RSPROT_OP_CHANGE_TYPE)->change_type.npc_type = id_or_none(type);
+    if (!t->b->err) {
+        t->retyped = 1;
+        t->retyped_type = id_or_none(type);
+    }
     return block_end(t, before, RSPROT_IK_TRANSFORMATION, bit);
 }
 
@@ -635,7 +654,7 @@ rsprot_info_facing(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFacingEnc 
         op = rsprot_info_emit(t->out, RSPROT_OP_FACE_ENTITY);
         op->face_entity.entity_id = type == RSPROT_FACE_TARGET_NPC ? index
                                     : type == RSPROT_FACE_TARGET_PLAYER && index >= 0
-                                        ? 32768 + index
+                                        ? (int32_t)(32768u + (uint32_t)index) /* Java's int add */
                                         : -1;
         op->face_entity.fallback_angle = (uint16_t)angle;
         op->face_entity.has_fallback_angle = true;
@@ -895,18 +914,61 @@ rsprot_info_bas_change(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoBasCha
     return block_end(t, before, RSPROT_IK_BAS_CHANGE, bit);
 }
 
-/* A customisation op: 0x1 resets to the type's models, and so does a block
- * with no model list. */
+/* A customisation op: 0x1 alone is the reset (deob class86.method2907 /
+ * Statics.method2951). Any other block is a new override, and one with no
+ * model list (no 0x2) still carries its recolours and retextures over the
+ * type's own models (Statics.method9224 takes the type's models when the
+ * override has none). */
 static RsprotInfoBodyCustom *
 body(RsprotInfoBlocks *t, RsprotInfoOpKind kind, int32_t flag)
 {
     RsprotInfoBodyCustom *b = &rsprot_info_emit(t->out, kind)->body;
 
     b->flag = (uint8_t)flag;
-    b->reset = (flag & 1) != 0 || (flag & 2) == 0;
+    b->reset = (flag & 1) != 0;
     b->mirror = -1;
     b->body_type = -1;
     return b;
+}
+
+/* The recolour and retexture counts of the type a typed block reads against:
+ * the type this record's TRANSFORMATION named if it came first, else the
+ * newcomer's or the kept npc's (the reference reads its npc's type field as
+ * it stands when the block is read: deob Statics ~47320, field1237.field5139
+ * / field5158, which the transformation block writes in record order). 0 and
+ * the counts when the host answered; 0 when it cannot yet. A count is a
+ * config's g1, so one past 255 is not a type's, and neither array may claim
+ * more bytes than the payload has left. */
+static int
+typed_lengths(RsprotInfoBlocks *t, int head, int flag, int *recol, int *retex)
+{
+    int old = -1;
+    int type = -1;
+    int need = 0;
+
+    *recol = 0;
+    *retex = 0;
+    if (!t->lengths || !t->npc)
+        return 0;
+    if (t->retyped)
+        type = t->retyped_type;
+    else {
+        old = t->npc->old;
+        type = t->npc->type;
+    }
+    if (!t->lengths(t->ctx, old, type, head, recol, retex))
+        return 0;
+    if (*recol < 0 || *recol > 255 || *retex < 0 || *retex > 255)
+        return 0;
+    if ((flag & 0x4) != 0)
+        need += 2 * *recol;
+    if ((flag & 0x8) != 0)
+        need += 2 * *retex;
+    if (need > rsprot_buf_readable(t->b)) {
+        t->b->err |= RSPROT_BUF_ERR_UNDERFLOW;
+        return 0;
+    }
+    return 1;
 }
 
 /* Flag byte: 0x1 reset (nothing follows), 0x2 counted models, 0x4 / 0x8
@@ -940,9 +1002,7 @@ custom_typed_block(RsprotInfoBlocks *t, uint32_t bit, RsprotInfoKind kind,
         int recol = 0;
         int retex = 0;
 
-        if (!t->lengths ||
-            !t->lengths(t->ctx, t->who, kind == RSPROT_IK_HEAD_CUSTOM_TYPED, &recol, &retex) ||
-            recol < 0 || retex < 0) {
+        if (!typed_lengths(t, kind == RSPROT_IK_HEAD_CUSTOM_TYPED, flag, &recol, &retex)) {
             t->b->err |= RSPROT_BUF_ERR_RANGE; /* no way to step an array of unknown length */
             return block_end(t, before, kind, bit);
         }

@@ -11,6 +11,9 @@
 #include "app/app_internal.h"
 #include "boot_telemetry.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
 /* The title frame every era centres on the canvas: the deob's titleX is
  * (canvasW - 765) / 2. Its braziers, and so the fire, sit at this frame's
  * edges whatever backdrop is drawn behind it. */
@@ -1233,6 +1236,19 @@ app_title_tick(struct App* app)
     if( RS_TitleSession_LoginSucceeded(app_title_phase(app), app_title_link_state(app)) )
     {
         ToriRS_BootTelemetry_Mark("login_ok");
+        /* A logout's cancelled tasks have all exited by the next login. */
+        App_PendingTrace(app, "at login");
+        /* TORIRS_MEM_DUMP_AT_LOGIN=1: ToriMem's group tree at every login,
+         * after the last session is torn down -- what a relog leaves behind,
+         * session by session (a leak audit over many relogs). */
+        {
+            static int dump = -1;
+
+            if( dump < 0 )
+                dump = getenv("TORIRS_MEM_DUMP_AT_LOGIN") != NULL;
+            if( dump )
+                ToriMem_DumpTree(stderr);
+        }
         /*
          * The one moment these credentials are known to work.
          *

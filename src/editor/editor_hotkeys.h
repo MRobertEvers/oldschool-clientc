@@ -477,6 +477,34 @@ struct Editor_Hotkeys
 const struct Editor_HotkeyActionInfo*
 Editor_HotkeyInfo(enum Editor_HotkeyAction action);
 
+/** Groups the table can hold (it has 15). */
+#define EDITOR_HK_GROUP_MAX 24
+
+/** The table's groups, derived from the actions themselves: the action table
+ *  is the one source, so a group added to an action is a group of the Hotkeys
+ *  panel's filter with nothing else to edit. */
+struct Editor_HotkeyGroups
+{
+    int count;
+    /** In the order the actions first name them (the enum's order). */
+    const char* name[EDITOR_HK_GROUP_MAX];
+    /** Each action's index in `name`. */
+    unsigned char of[EDITOR_HK_COUNT];
+};
+
+/** Fills `out` from the table. Each group is one run of enum
+ *  Editor_HotkeyAction (so a sort by action keeps a group together): a group
+ *  named again after another asserts, as does a table past
+ *  EDITOR_HK_GROUP_MAX groups. */
+void
+Editor_HotkeyGroupsDerive(struct Editor_HotkeyGroups* out);
+
+/** The index of group `name` in `groups`, or -1. */
+int
+Editor_HotkeyGroupsFind(
+    const struct Editor_HotkeyGroups* groups,
+    const char* name);
+
 /** The action whose id is `id`, or -1. */
 int
 Editor_HotkeyFind(const char* id);

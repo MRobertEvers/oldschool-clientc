@@ -176,10 +176,8 @@ app_plugin_fill_player(
      * reports itself as its own destination, which is what "not walking
      * anywhere I can see" has to look like.
      */
-    if( player == app_local_player(app) && app->minimap.flag_tile_x >= 0 )
+    if( player == app_local_player(app) && app_minimap_flag_abs(app, &out->flag_x, &out->flag_z) )
     {
-        out->flag_x = base_x + app->minimap.flag_tile_x;
-        out->flag_z = base_z + app->minimap.flag_tile_z;
         out->dest_x = out->flag_x;
         out->dest_z = out->flag_z;
     }
@@ -5649,9 +5647,9 @@ app_plugin_obj_image(
      * they were written for exactly this reason: a goblin's coins and bones
      * are not in your backpack, so nobody had loaded their models.
      *
-     * The inventory does not rely on the bridge either -- Task_InvIconReconcile
-     * runs CreateTask_ObjModelLoad over its pending slots before it rasterises
-     * anything. This is that step, for the plugin lane.
+     * The inventory does not rely on the bridge either -- a slot's Task_InvIcon
+     * awaits its obj's whole model chain (ASSET_KIND_OBJ_MODEL) before it
+     * rasterises anything. This is that step, for the plugin lane.
      *
      * The request is made from a plugin's COMPOSE, which runs at the plugin's
      * own cadence rather than per frame, and CreateTask_ObjModelLoad answers
@@ -6032,7 +6030,7 @@ app_plugin_world_op(struct App* app, enum DrivePickKind kind, int element_id, in
 /*
  * OPLOC `option` (1..5) on a loc the SERVER has placed at (`abs_x`,`abs_z`)
  * that this client's scenery does not show yet: a zone change waits on its
- * models before the scene lands it (App_DriveLocChangeNote), so there is no
+ * models before the scene lands it (App_DriveLocChangesPending), so there is no
  * element to pick and app_plugin_world_op cannot reach it. The wire wants only
  * the op, the tile and the id (net_out_oploc); the server paths, as it does for
  * every op under the server-authoritative era (app_try_move_op sends no route
@@ -6587,7 +6585,7 @@ app_widget_ref(struct UITree const* tree, int32_t index)
 static void app_widget_actions(struct App* app,int32_t node,struct UIMinimenu* menu)
 {
     struct RS_MinimenuBuildCtx ctx={.tree=app->tree,.ui_host=&app->ui_host,
-        .provider=app->provider,.runner=&app->frame_runner,.invs=&app->invs,
+        .provider=app->provider,.assets=app->assets,.invs=&app->invs,
         .events_for_component=app_minimenu_events_for_component,.events_user=app};
     UIMinimenu_Reset(menu);
     RS_Minimenu_AddWidgetRows(&ctx,node,menu);

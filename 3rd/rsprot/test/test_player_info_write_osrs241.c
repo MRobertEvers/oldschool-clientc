@@ -259,6 +259,12 @@ main(void)
         CHECK(f && f->value == 7, "player reset (%d)", f ? (int)f->value : -1);
         f = find(ops, n, RSPROT_OP_MOVE_SPEED);
         CHECK(f && f->value == 2, "move speed beside them");
+        /* The reset puts the player's traversal back to walk BEFORE the
+         * record's blocks (deob 241 class81.method2126: flag 0x8 first, the
+         * move speed's field806 after), so the run the same record sends is
+         * what the slot keeps, though 241 writes the reset after it. */
+        CHECK(g_pi.move_speed[LOCAL_INDEX] == RSPROT_TRAVERSAL_RUN,
+              "the slot keeps the record's run past its reset (%d)", (int)g_pi.move_speed[LOCAL_INDEX]);
     }
 
     if( g_failures )

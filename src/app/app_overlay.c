@@ -256,6 +256,13 @@ app_overlay_chat_colour(
  * above the model top (reference drawEntities, Client.ts:4871/4958). Effects
  * (wave/scroll) fall back to plain centred text — the styled variants need
  * per-glyph font passes the overlay descs don't carry yet. */
+bool
+app_overlay_chat_shown(struct WorldEntityFacet_Chat const* chat)
+{
+    assert(chat);
+    return chat->timer > 0 && chat->message[0] != '\0';
+}
+
 void
 app_overlay_build_chat(
     struct App* app,
@@ -270,7 +277,7 @@ app_overlay_build_chat(
     int screen_x, screen_y;
 
     assert(chat);
-    if( chat->timer <= 0 || chat->message[0] == '\0' || font_id < 0 )
+    if( !app_overlay_chat_shown(chat) || font_id < 0 )
         return;
     if( !app_world_project_actor_footprint(
             app,
@@ -300,32 +307,102 @@ app_overlay_build_chat(
     app_overlay_push(app, &body);
 }
 
-/* Overhead prayer/skull headicons (reference drawEntities, Client.ts:4849).
- * `headicons` is a bitmask; each set bit plots sprite[icon] from the headicons
- * pack stacked upward above the model top (start 30px up, 25px per icon).
- * Projection is at `entity.height + 15`, same as the health bar.
- *
- * The mask is walked to 31, not to 8. Eight was the width of the classic wire
- * field, but the pack it indexes is 24 frames deep at rev 239 and 30 with the
- * Ancient Curses lane's six overheads appended (Deflect ×4, Wrath, Soul Split
- * at 24..29). A loop that stops at 8 does not draw a smaller icon for those —
- * it draws nothing, and the curse reads as having no overhead at all. */
-void
+int
+app_overlay_player_hint_lift(
+    int art_height,
+    int player_lift)
+{
+    assert(art_height >= 0);
+    return art_height + player_lift;
+}
+
+int
+app_overlay_overhead_lift(
+    bool chat_shown,
+    int bars_lift)
+{
+    int lift = -2;
+
+    assert(bars_lift >= 0);
+    /* The chat line's slot (deob: field683 = sy - var27, then var27 += 12). */
+    if( chat_shown )
+        lift += 12;
+    /* Each bar: var27 += its height, drawn, var27 += 2. */
+    lift += bars_lift;
+    /* `if (var27 == -2) var27 += 7`. */
+    if( lift == -2 )
+        lift += 7;
+    return lift;
+}
+
+int
+app_overlay_player_headicon_stack(
+    int skull,
+    int prayer_mask,
+    int* io_lift,
+    struct AppPlayerHeadicon out[32])
+{
+    int n = 0;
+
+    assert(io_lift);
+    assert(out);
+    /* `var27 += 25; field679[skull].draw(x - 12, y - var27)`. */
+    if( skull >= 0 )
+    {
+        *io_lift += 25;
+        out[n].pk = true;
+        out[n].frame = skull;
+        out[n].lift = *io_lift;
+        n++;
+    }
+    /*
+     * Then the prayer icon, the same way (`field145[prayer]`). The rev-239
+     * wire carries one index, here a one-bit mask; a classic lane's mask can
+     * carry several, and each takes the next 25 up. The mask is walked to
+     * 31, not to 8: the pack is 24 frames deep at rev 239 and 30 with the
+     * Ancient Curses lane's six overheads appended (24..29).
+     */
+    for( int icon = 0; icon < 31; icon++ )
+    {
+        if( (prayer_mask & (0x1 << icon)) == 0 )
+            continue;
+        *io_lift += 25;
+        out[n].pk = false;
+        out[n].frame = icon;
+        out[n].lift = *io_lift;
+        n++;
+    }
+    return n;
+}
+
+/*
+ * A player's overhead icons (deob Statics.method6709, the player branch):
+ * projected at the actor's height + 15, as the health bar, each at
+ * (x - 12, y - lift) by app_overlay_player_headicon_stack. The skull comes
+ * from the PK pack (`headicons_pk`) and the prayer icons from the prayer
+ * pack; an older cache's one `headicons` pack holds both, in the mask.
+ */
+int
 app_overlay_build_player_headicons(
     struct App* app,
     int anchor_height,
     int footprint,
+    int skull,
     int headicons,
+    int lift,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
     int actor_level,
-    int headicons_scene)
+    int headicons_scene,
+    int pk_scene)
 {
+    struct AppPlayerHeadicon icons[32];
     int screen_x, screen_y;
-    int y_off = 30;
+    int count;
 
-    if( headicons == 0 || headicons_scene <= 0 )
-        return;
+    count = app_overlay_player_headicon_stack(skull, headicons, &lift, icons);
+    if( count == 0 )
+        return lift;
     if( !app_world_project_actor_footprint(
             app,
             placement,
@@ -336,24 +413,28 @@ app_overlay_build_player_headicons(
             anchor_height + 15,
             &screen_x,
             &screen_y) )
-        return;
+        return lift;
 
-    for( int icon = 0; icon < 31; icon++ )
+    for( int i = 0; i < count; i++ )
     {
-        if( (headicons & (0x1 << icon)) == 0 )
+        int const scene = icons[i].pk ? pk_scene : headicons_scene;
+
+        if( scene <= 0 )
             continue;
-        struct UITreeEntityOverlay spr = {
-            .kind = UITREE_ENTITY_OVERLAY_SPRITE,
-            .x = screen_x - 12,
-            .y = screen_y - y_off,
-            .w = 0,
-            .h = 0,
-            .scene_id = headicons_scene,
-            .atlas_index = icon,
-        };
-        app_overlay_push(app, &spr);
-        y_off -= 25;
+        {
+            struct UITreeEntityOverlay spr = {
+                .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+                .x = screen_x - 12,
+                .y = screen_y - icons[i].lift,
+                .w = 0,
+                .h = 0,
+                .scene_id = scene,
+                .atlas_index = icons[i].frame,
+            };
+            app_overlay_push(app, &spr);
+        }
     }
+    return lift;
 }
 
 /*
@@ -396,15 +477,18 @@ app_overlay_build_player_headicons(
  *   npc.method2908() + 15)`, the same anchor as its health bar and headicon
  *   (type height override, else the model's, plus the seq's vertical offset;
  *   projected over the npc's footprint), then frame 0 at (sx - 12, sy - 28).
- * - PLAYER: the same `method2908() + 15` anchor, but FRAME 1, stacked above
- *   whatever headicons the player shows (`var27`, 25 per icon), and it does
- *   NOT blink.
+ * - PLAYER: the same `method2908() + 15` anchor, but FRAME 1, its art's
+ *   height above the lift the player's overhead stack left (`field1034[1]
+ *   .field6911 + var27`: app_overlay_overhead_lift and the icons above it),
+ *   and it does NOT blink.
  *
  * NPC and COORD arrows blink: drawn only while `getGameCycle() % 20 < 10`
  * (`logic_cycle` here, as the minimap hint does).
  */
 void
-app_overlay_build_hint_arrow(struct App* app)
+app_overlay_build_hint_arrow(
+    struct App* app,
+    int player_lift)
 {
     int const type = app->hint_arrow.type;
     int hint_scene;
@@ -467,9 +551,13 @@ app_overlay_build_hint_arrow(struct App* app)
     {
         struct WorldEntity_Player* player =
             World_PlayerGetByServerPid(app->world, app->hint_arrow.target);
-        int icons = 0;
+        int frame_count = 0;
+        struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->scene, hint_scene, &frame_count);
 
         if( !player || player->element_id < 0 )
+            return;
+        /* Placed by frame 1's art: not resident yet, it draws nothing. */
+        if( !frames || frame_count < 2 || !frames[1] )
             return;
         world_x = (int)player->draw_position.x;
         world_z = (int)player->draw_position.z;
@@ -477,12 +565,10 @@ app_overlay_build_hint_arrow(struct App* app)
         actor_level = player->grid_position.level;
         height = app_entity_overlay_height(app, player->element_id, -1) +
                  app_actor_seq_vertical_offset(app, &player->animation) + 15;
-        for( int icon = 0; icon < 31; icon++ )
-            if( player->headicon & (0x1 << icon) )
-                icons++;
-        /* field1034[1].height + var27: the frame is 25 tall, each icon 25. */
+        /* `field1034[1].field6911 + var27`: frame 1's art height above the
+         * lift the player's overhead stack left. */
         frame = 1;
-        y_lift = 25 + icons * 25;
+        y_lift = app_overlay_player_hint_lift(frames[1]->trim_height, player_lift);
         break;
     }
     default:
@@ -521,21 +607,71 @@ app_overlay_build_hint_arrow(struct App* app)
 }
 
 /*
- * Overhead prayer icon for an NPC (reference drawEntities, NpcType.headicon).
+ * Overhead icons for an NPC (deob Statics ~24626, drawActor2d's npc branch).
  *
- * Where a player carries an eight-bit MASK and stacks every set bit, an npc
- * carries ONE frame from one sprite group and plots it in the first slot. That
- * asymmetry is the reference's, not a simplification: the player's icons are a
- * live prayer set, the npc's is a property of which record it currently is.
- * Which is exactly how a prayer-switching npc works — `npc_changetype` between
- * records that differ only in this field is what makes the overhead change.
- *
- * The group is a sprite-archive id. 440 (`headicons_prayer`) is the only one
- * cache.osrs239 uses on an npc, and the client already resolves that pack for
- * the player pass, so it is passed in rather than looked up again here; a
- * record naming any other group draws nothing rather than drawing the wrong
- * pack's frame.
+ * The npc's slots are the server's headicon customisation when it set one
+ * (class86.method2901 / method2902: the override's arrays, else the type's),
+ * and EVERY slot whose group and frame are both set is drawn, each at its own
+ * slot's place (app_overlay_npc_headicon_place). The type carries every slot
+ * its opcode 102 states. A group is a sprite-archive id: 440
+ * (`headicons_prayer`) is the client's own static pack, passed in; any other
+ * is bound by its id and loads through the assets table, so a server naming a
+ * group of its own draws it once it lands.
  */
+int
+app_overlay_npc_headicons(
+    struct App* app,
+    struct ToriRS_Npctype const* npctype,
+    struct WorldEntity_NPC const* npc,
+    int prayer_scene,
+    int prayer_group,
+    struct AppNpcHeadicon out[WORLD_NPC_HEADICON_SLOTS])
+{
+    int group[WORLD_NPC_HEADICON_SLOTS];
+    int index[WORLD_NPC_HEADICON_SLOTS];
+    int n = 0;
+
+    assert(app);
+    assert(npc);
+    assert(out);
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        group[i] = npc->headicon_custom ? npc->headicon_group[i] : -1;
+        index[i] = npc->headicon_custom ? npc->headicon_index[i] : -1;
+    }
+    if( !npc->headicon_custom && npctype )
+    {
+        _Static_assert(TORIRS_NPCTYPE_HEADICON_SLOTS == WORLD_NPC_HEADICON_SLOTS, "one slot count");
+        for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+        {
+            /* An older cache's opcode 102 names only the frame, of the one
+             * headicons pack: the prayer pack here. */
+            group[i] = npctype->head_icon_group[i] >= 0 ? npctype->head_icon_group[i] : prayer_group;
+            index[i] = npctype->head_icon_index[i];
+        }
+    }
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        int scene_id;
+        int frames = 0;
+
+        if( group[i] < 0 || index[i] < 0 )
+            continue;
+        scene_id = group[i] == prayer_group ? prayer_scene : UITreeSceneBridge_BindSprite(&app->bridge, group[i]);
+        if( scene_id <= 0 )
+            continue;
+        /* Resident and without that frame: nothing (the reference's bound
+         * test). A reservation not filled yet draws as nothing anyway. */
+        if( ToriDraw_SceneSpriteGet(app->scene, scene_id, &frames) && index[i] >= frames )
+            continue;
+        out[n].scene_id = scene_id;
+        out[n].frame = index[i];
+        out[n].slot = i;
+        n++;
+    }
+    return n;
+}
+
 void
 app_overlay_build_npc_headicon(
     struct App* app,
@@ -548,29 +684,13 @@ app_overlay_build_npc_headicon(
     int prayer_scene,
     int prayer_group)
 {
+    struct AppNpcHeadicon icons[WORLD_NPC_HEADICON_SLOTS];
     int screen_x, screen_y;
-    int group = npctype ? npctype->head_icon_group : -1;
-    int index = npctype ? npctype->head_icon_index : -1;
+    int count;
 
     assert(npc);
-    /* The server's headicon customisation replaces the type's slots (deob
-     * class112.getOverheadArchiveIds: the override when set, else the type's).
-     * Its first filled slot is the one drawn, as for the type. */
-    if( npc->headicon_custom )
-    {
-        group = -1;
-        index = -1;
-        for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
-            if( npc->headicon_group[i] >= 0 )
-            {
-                group = npc->headicon_group[i];
-                index = npc->headicon_index[i];
-                break;
-            }
-    }
-    if( index < 0 || prayer_scene <= 0 )
-        return;
-    if( group >= 0 && group != prayer_group )
+    count = app_overlay_npc_headicons(app, npctype, npc, prayer_scene, prayer_group, icons);
+    if( count == 0 )
         return;
     if( !app_world_project_actor_footprint(
             app,
@@ -584,18 +704,62 @@ app_overlay_build_npc_headicon(
             &screen_y) )
         return;
 
+    for( int i = 0; i < count; i++ )
     {
-        struct UITreeEntityOverlay spr = {
-            .kind = UITREE_ENTITY_OVERLAY_SPRITE,
-            .x = screen_x - 12,
-            .y = screen_y - 30,
-            .w = 0,
-            .h = 0,
-            .scene_id = prayer_scene,
-            .atlas_index = index,
-        };
-        app_overlay_push(app, &spr);
+        int frame_count = 0;
+        struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->scene, icons[i].scene_id, &frame_count);
+        struct ToriDraw_Sprite const* art;
+        int x;
+        int y;
+
+        /* Placed by the frame's art: a group whose pixels have not come
+         * draws nothing yet, wherever it would go. */
+        if( !frames || icons[i].frame >= frame_count || !frames[icons[i].frame] )
+            continue;
+        art = frames[icons[i].frame];
+        assert(art->trim_width > 0);
+        assert(art->trim_height > 0);
+        app_overlay_npc_headicon_place(
+            screen_x, screen_y, app->world_views.emit_desc.y, icons[i].slot, art->trim_width,
+            art->trim_height, &x, &y);
+        {
+            struct UITreeEntityOverlay spr = {
+                .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+                /* The sprite is drawn on its canvas, at the offset of its art:
+                 * the reference's draw(x, y) adds the art's offset itself. */
+                .x = x,
+                .y = y,
+                .w = 0,
+                .h = 0,
+                .scene_id = icons[i].scene_id,
+                .atlas_index = icons[i].frame,
+            };
+            app_overlay_push(app, &spr);
+        }
     }
+}
+
+void
+app_overlay_npc_headicon_place(
+    int screen_x,
+    int screen_y,
+    int viewport_y,
+    int slot,
+    int art_width,
+    int art_height,
+    int* out_x,
+    int* out_y)
+{
+    int const sy = screen_y - viewport_y;
+
+    assert(slot >= 0);
+    assert(slot < WORLD_NPC_HEADICON_SLOTS);
+    assert(art_width >= 0);
+    assert(art_height >= 0);
+    assert(out_x);
+    assert(out_y);
+    *out_x = screen_x - (art_width >> 1);
+    *out_y = sy + ((viewport_y - art_height - 2) * (slot + 1) - art_height) - 4;
 }
 
 /**
