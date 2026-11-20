@@ -337,6 +337,11 @@ ToriRS_Network_PopPacket(
     struct ToriRS_Network* net,
     struct RevPacket* out);
 
+/** 1 when ToriRS_Network_PopPacket would hand out a packet now: a whole
+ *  packet has arrived from the server and waits for the client to pop it. */
+int
+ToriRS_Network_HasPacket(struct ToriRS_Network const* net);
+
 /** Drain the outbound ring into a socket-facing consumer. Returns 1 and
  *  fills header/payload when a frame was popped. payload must hold
  *  TORIRS_CMD_MAX_PAYLOAD bytes. */

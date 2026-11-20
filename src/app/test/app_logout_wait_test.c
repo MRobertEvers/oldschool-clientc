@@ -25,9 +25,11 @@
 
 #include "app.h"
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 #include "net/rev/gameproto_revisions.h"
 #include "test_harness.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -293,6 +295,60 @@ test_no_session_means_no_wait(void)
     free_app(app);
 }
 
+/*
+ * A client too busy to read its packets is not a server that went quiet.
+ *
+ * The 15 s silence bound (NET_LINK_TIMEOUT_MS) is about the SERVER: it is
+ * measured from the last packet popped, and a client that pops nothing --
+ * booting the gameframe after IF_OPENTOP, or a REBUILD holding the packet
+ * queue on its reads -- while the server's packets keep arriving used to read
+ * its own backlog as silence: with every cache read 400 ms late
+ * (TORIRS_IO_DEFER_MS) the gameframe bake took longer than 15 s and the
+ * session was dropped and refused. The reference counts its silence in
+ * gameState 30's cycles and resets it on every packet it has read off the
+ * socket (deob client.java, field709.field1553 > 750); a whole packet that is
+ * waiting to be popped has been read. The control: the same watch with the
+ * queue empty still declares the link lost 15 s after that packet.
+ */
+static void
+test_a_backlog_is_not_silence(void)
+{
+    struct ToriRS_Network* net = make_net_in_game();
+    struct App* app = make_app(net);
+    struct RevPacketItem* item = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*item));
+    uint64_t const heard = 1000;
+    uint64_t const busy_until = heard + NET_LINK_TIMEOUT_MS + 5000;
+
+    printf("TEST: a backlog the client has not popped is not a silent server\n");
+    assert(item);
+
+    NetLinkWatch_NotePacket(&app->net_link, heard);
+    net->packets_head = item;
+    net->packets_tail = item;
+    app_net_link_watch(app, busy_until);
+    TEST_ASSERT(
+        !NetLinkWatch_Lost(&app->net_link),
+        "a packet waited 20 s to be popped and the watch called the server silent");
+
+    if( net->packets_head == item )
+    {
+        net->packets_head = NULL;
+        net->packets_tail = NULL;
+        ToriMem_Free(ToriMem_Net(), item);
+    }
+    if( !NetLinkWatch_Lost(&app->net_link) )
+    {
+        app_net_link_watch(app, busy_until + NET_LINK_TIMEOUT_MS - 1);
+        TEST_ASSERT(!NetLinkWatch_Lost(&app->net_link), "the silence is counted from the waiting packet");
+        app_net_link_watch(app, busy_until + NET_LINK_TIMEOUT_MS);
+        TEST_ASSERT(
+            NetLinkWatch_Lost(&app->net_link), "15 s with nothing waiting is still a lost link");
+    }
+
+    free_app(app);
+    free(net);
+}
+
 int
 main(void)
 {
@@ -305,6 +361,7 @@ main(void)
     test_a_logout_forgets_the_resumable_session();
     test_a_lost_connection_keeps_the_resumable_session();
     test_no_session_means_no_wait();
+    test_a_backlog_is_not_silence();
 
     if( g_failures )
     {

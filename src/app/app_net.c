@@ -501,6 +501,18 @@ app_net_link_watch(
         }
     }
 
+    /*
+     * The server has spoken if a whole packet is waiting to be popped. The
+     * silence bound is about the server: a client too busy to pop -- booting
+     * the gameframe after IF_OPENTOP, a REBUILD holding the packet queue on
+     * its reads -- is reading a backlog, not hearing nothing. The reference
+     * resets its count on every packet read off the socket (deob client.java,
+     * field709.field1553 > 750), which is this, not the later pop.
+     */
+    if( app->net_link.last_recv_ms && !NetLinkWatch_Lost(&app->net_link) &&
+        ToriRS_Network_HasPacket(app->net) && now_ms > app->net_link.last_recv_ms )
+        NetLinkWatch_NotePacket(&app->net_link, now_ms);
+
     memset(&seen, 0, sizeof(seen));
     seen.now_ms = now_ms;
     last_frame_ms = FrameClockSerial_LastFrameMs(&app->frame_clock.serial);
