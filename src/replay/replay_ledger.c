@@ -1489,7 +1489,13 @@ ledger_kf_fixup(struct ReplayWorldKeyframe* kf)
             op->appearance.appearance = kf_ptr(kf, op->appearance.appearance);
         else if( op->kind == RSPROT_OP_NAME_CHANGE )
             op->name_change.name = kf_ptr(kf, op->name_change.name);
-        else if( op->kind == RSPROT_OP_BODY_CUSTOM )
+        else if( op->kind == RSPROT_OP_NAME_EXTRAS )
+        {
+            op->name_extras.before_name = kf_ptr(kf, op->name_extras.before_name);
+            op->name_extras.after_name = kf_ptr(kf, op->name_extras.after_name);
+            op->name_extras.after_combat_level = kf_ptr(kf, op->name_extras.after_combat_level);
+        }
+        else if( op->kind == RSPROT_OP_BODY_CUSTOM || op->kind == RSPROT_OP_HEAD_CUSTOM )
         {
             op->body.models = kf_ptr(kf, op->body.models);
             op->body.recolours = kf_ptr(kf, op->body.recolours);

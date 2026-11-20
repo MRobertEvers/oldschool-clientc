@@ -44,8 +44,21 @@
  *   TEMP_MOVE_SPEED     it into ABS_XZLEVEL from the
  *                       table's move_speed, which the
  *                       key carries in the table bytes)
- *   NAME_EXTRAS, RESET, not consumed                    not consumed
- *   FREEZE, HEAD_CUSTOM
+ *   NAME_EXTRAS         sticky (NAME_EXTRAS)            -
+ *   HEAD_CUSTOM         -                               sticky (HEAD)
+ *   FREEZE              sticky (FREEZE)                 sticky (FREEZE)
+ *   RESET               clears NAME_EXTRAS and          -
+ *                       FACE_ENTITY set before its
+ *                       record (player_reset runs at
+ *                       the record's start)
+ *
+ * A FREEZE window counts in client cycles from its packet. The keyframe hands
+ * the last one over re-timed to the keyframe's tick (freeze_retime): its
+ * delay less the cycles since, or, once started, a window from now to its
+ * end, so the restored window covers the same cycles as one played from the
+ * start; one that is over is not handed over. A cancel (delay or duration
+ * 65535) drops it. One window per entity is kept: a second open at once, the
+ * rare case, keeps only the newer.
  *
  * Within one sticky slot the latest op replaces the earlier (each setter writes
  * the whole field: World_NpcSetBodyCustom, World_NpcSetHeadiconCustom, the BAS
@@ -210,6 +223,56 @@ blob_natural(
         rsprot_gdata(&b, out, len);
 }
 
+/* `len` bytes into the ledger's own blobs; their offset. */
+static uint32_t
+blob_put(
+    struct ReplayLedger* building,
+    void const* src,
+    int len)
+{
+    uint32_t at;
+
+    assert(len >= 0);
+    if( building->blob_used + (size_t)len > building->blob_cap )
+    {
+        while( building->blob_used + (size_t)len > building->blob_cap )
+            building->blob_cap = building->blob_cap ? building->blob_cap * 2 : 65536;
+        building->blobs = realloc(building->blobs, building->blob_cap);
+        assert(building->blobs);
+    }
+    if( len > 0 )
+        memcpy(building->blobs + building->blob_used, src, (size_t)len);
+    at = (uint32_t)building->blob_used;
+    building->blob_used += (size_t)len;
+    return at;
+}
+
+/* NAME_EXTRAS' three strings point into the decode list: copied into the
+ * blobs, end to end, each with its NUL. */
+static void
+record_name_extras(
+    struct ReplayLedger* building,
+    struct ReplayLedgerPlayerOp* copy,
+    RsprotInfoOp const* op)
+{
+    char const* parts[3] = { op->name_extras.before_name, op->name_extras.after_name,
+                             op->name_extras.after_combat_level };
+
+    copy->blob_offset = (uint32_t)building->blob_used;
+    copy->blob_len = 0;
+    for( int k = 0; k < 3; k++ )
+    {
+        char const* text = parts[k] ? parts[k] : "";
+        int n = (int)strlen(text) + 1;
+
+        (void)blob_put(building, text, n);
+        copy->blob_len += n;
+    }
+    copy->op.name_extras.before_name = NULL;
+    copy->op.name_extras.after_name = NULL;
+    copy->op.name_extras.after_combat_level = NULL;
+}
+
 static void
 record_player_op(
     struct ReplayLedger* building,
@@ -234,6 +297,11 @@ record_player_op(
     copy->ref = REPLAY_STICKY_REF(f, op_index);
     copy->op = *op;
     copy->blob_order = -1;
+    if( op->kind == RSPROT_OP_NAME_EXTRAS )
+    {
+        record_name_extras(building, copy, op);
+        return;
+    }
     if( op->kind != RSPROT_OP_APPEARANCE )
         return;
     copy->op.appearance.appearance = NULL;
@@ -271,16 +339,15 @@ record_player_op(
         return;
     }
     building->stats.appearance_copies++;
-    if( building->blob_used + (size_t)len > building->blob_cap )
-    {
-        while( building->blob_used + (size_t)len > building->blob_cap )
-            building->blob_cap = building->blob_cap ? building->blob_cap * 2 : 65536;
-        building->blobs = realloc(building->blobs, building->blob_cap);
-        assert(building->blobs);
-    }
-    memcpy(building->blobs + building->blob_used, op->appearance.appearance, (size_t)len);
-    copy->blob_offset = (uint32_t)building->blob_used;
-    building->blob_used += (size_t)len;
+    copy->blob_offset = blob_put(building, op->appearance.appearance, len);
+}
+
+/* A FREEZE that cancels every window (65535 in either field: the apply's
+ * -1, World_NpcFreeze / World_PlayerFreeze). */
+static int
+freeze_cancels(RsprotInfoOp const* op)
+{
+    return op->freeze.delay == 65535 || op->freeze.duration == 65535;
 }
 
 /* --- PLAYER_INFO ---------------------------------------------------------- */
@@ -306,6 +373,8 @@ player_info(
         if( !rsprot_info_list_complete(&list) )
             building->stats.player_info_incomplete++;
     }
+    int record_first = 0;
+
     for( int i = 0; i < count; i++ )
     {
         RsprotInfoOp const* op = &list.ops[i];
@@ -315,10 +384,38 @@ player_info(
         {
         case RSPROT_OP_SET_LOCAL_PLAYER:
             cur = state->pi.local_index;
+            record_first = i;
             continue;
         case RSPROT_OP_ADD_NEW:
             cur = (int)op->value;
+            record_first = i;
             continue;
+        case RSPROT_OP_RESET:
+            /* player_reset, at the start of its record: what was set before
+             * the record goes; what the record itself sets stays. */
+            if( cur >= 0 && cur < REPLAY_LEDGER_PLAYER_SLOTS )
+            {
+                uint64_t const record = REPLAY_STICKY_REF(f, record_first);
+                uint64_t* sticky = state->player_sticky[cur];
+
+                if( sticky[REPLAY_PLAYER_NAME_EXTRAS] < record )
+                    sticky[REPLAY_PLAYER_NAME_EXTRAS] = REPLAY_STICKY_NONE;
+                if( sticky[REPLAY_PLAYER_FACE_ENTITY] < record )
+                    sticky[REPLAY_PLAYER_FACE_ENTITY] = REPLAY_STICKY_NONE;
+            }
+            continue;
+        case RSPROT_OP_NAME_EXTRAS:
+            slot = REPLAY_PLAYER_NAME_EXTRAS;
+            break;
+        case RSPROT_OP_FREEZE:
+            if( freeze_cancels(op) )
+            {
+                if( cur >= 0 && cur < REPLAY_LEDGER_PLAYER_SLOTS )
+                    state->player_sticky[cur][REPLAY_PLAYER_FREEZE] = REPLAY_STICKY_NONE;
+                continue;
+            }
+            slot = REPLAY_PLAYER_FREEZE;
+            break;
         case RSPROT_OP_REMOVE_PID:
             if( op->value < REPLAY_LEDGER_PLAYER_SLOTS )
                 sticky_clear(state->player_sticky[op->value], REPLAY_PLAYER_STICKY_COUNT);
@@ -589,6 +686,18 @@ npc_info(
             break;
         case RSPROT_OP_BAS_CHANGE:
             slot = REPLAY_NPC_BAS;
+            break;
+        case RSPROT_OP_HEAD_CUSTOM:
+            slot = REPLAY_NPC_HEAD;
+            break;
+        case RSPROT_OP_FREEZE:
+            if( freeze_cancels(op) )
+            {
+                if( npc && npc->slot >= 0 )
+                    npc->sticky[REPLAY_NPC_FREEZE] = REPLAY_STICKY_NONE;
+                continue;
+            }
+            slot = REPLAY_NPC_FREEZE;
             break;
         default:
             continue;
@@ -1072,6 +1181,37 @@ player_op_find(
     return NULL;
 }
 
+/*
+ * A FREEZE op handed over at keyframe `kf`, re-timed from its packet's tick
+ * to the keyframe's (the header's note): 1 and `op` re-timed, or 0 when its
+ * window is over by then. Delays and durations are client cycles, the
+ * packet's apply and the keyframe's both at a tick boundary.
+ */
+static int
+freeze_retime(
+    struct ReplayLedger const* ledger,
+    uint64_t ref,
+    struct ReplayWorldKeyframe const* kf,
+    RsprotInfoOp* op)
+{
+    int const tick = ledger->rec->frames[REPLAY_STICKY_FRAME(ref)].tick;
+    int const elapsed = (kf->tick - tick) * REPLAY_LEDGER_CYCLES_PER_TICK;
+    int const delay = op->freeze.delay;
+    int const end = op->freeze.delay + op->freeze.duration;
+
+    assert(kf->tick >= tick);
+    if( delay >= elapsed )
+    {
+        op->freeze.delay = delay - elapsed;
+        return 1;
+    }
+    if( end <= elapsed )
+        return 0;
+    op->freeze.delay = 0;
+    op->freeze.duration = end - elapsed;
+    return 1;
+}
+
 /* The NPC_INFO frame last decoded for a keyframe: the npc stream is
  * stateless, so a frame decodes the same way whenever it is asked. */
 struct NpcDecode
@@ -1118,7 +1258,12 @@ npc_op_resolve(
     if( src->kind == RSPROT_OP_NAME_CHANGE )
         op->name_change.name = (char const*)ledger_kf_put(
             kf, src->name_change.name, src->name_change.name ? strlen(src->name_change.name) + 1 : 0);
-    else if( src->kind == RSPROT_OP_BODY_CUSTOM )
+    else if( src->kind == RSPROT_OP_FREEZE )
+    {
+        if( !freeze_retime(ledger, ref, kf, op) )
+            kf->op_count--; /* over by the keyframe: nothing to hand over */
+    }
+    else if( src->kind == RSPROT_OP_BODY_CUSTOM || src->kind == RSPROT_OP_HEAD_CUSTOM )
     {
         RsprotInfoBodyCustom const* b = &src->body;
 
@@ -1147,6 +1292,24 @@ player_op_resolve(
         return 0;
     op = ledger_kf_op(kf);
     *op = copy->op;
+    if( copy->op.kind == RSPROT_OP_FREEZE && !freeze_retime(ledger, ref, kf, op) )
+    {
+        kf->op_count--; /* over by the keyframe: nothing to hand over */
+        return 1;
+    }
+    if( copy->op.kind == RSPROT_OP_NAME_EXTRAS )
+    {
+        uintptr_t const at = ledger_kf_put(kf, ledger->blobs + copy->blob_offset, (size_t)copy->blob_len);
+        char const* base = (char const*)(ledger->blobs + copy->blob_offset);
+        size_t const first = strlen(base) + 1;
+        size_t const second = first + strlen(base + first) + 1;
+
+        /* Arena offsets, as every pointer here until ledger_kf_fixup. */
+        op->name_extras.before_name = (char const*)at;
+        op->name_extras.after_name = (char const*)(at + first);
+        op->name_extras.after_combat_level = (char const*)(at + second);
+        return 1;
+    }
     if( copy->op.kind == RSPROT_OP_APPEARANCE && copy->blob_len > 0 )
     {
         /* Into the keyframe's arena, in natural order, as the reader gave it. */

@@ -83,6 +83,10 @@ struct GameProtoRevTable;
 #define REPLAY_STICKY_FRAME(ref) ((uint32_t)((ref) >> 16))
 #define REPLAY_STICKY_OP(ref) ((int)((ref) & 0xffffu))
 
+/** Client cycles in a server tick (the reference's 50 Hz field742 against a
+ *  600 ms tick): a FREEZE window counts in them. */
+#define REPLAY_LEDGER_CYCLES_PER_TICK 30
+
 /* ------------------------------------------------------------------------ */
 /* Scenes                                                                     */
 /* ------------------------------------------------------------------------ */
@@ -164,6 +168,10 @@ enum ReplayPlayerSticky
     REPLAY_PLAYER_FACE_ENTITY,
     /** FACE_COORD or FACE_ANGLE, whichever came last. */
     REPLAY_PLAYER_FACE_DIR,
+    /** NAME_EXTRAS; a RESET in a later record clears it. */
+    REPLAY_PLAYER_NAME_EXTRAS,
+    /** The last FREEZE that opened a window; a cancel clears it. */
+    REPLAY_PLAYER_FREEZE,
     REPLAY_PLAYER_STICKY_COUNT
 };
 
@@ -182,6 +190,10 @@ enum ReplayNpcSticky
     REPLAY_NPC_HEADICON,
     REPLAY_NPC_BODY,
     REPLAY_NPC_BAS,
+    /** HEAD_CUSTOM (the chathead override), its arrays copied as BODY's. */
+    REPLAY_NPC_HEAD,
+    /** The last FREEZE that opened a window; a cancel clears it. */
+    REPLAY_NPC_FREEZE,
     /** NPC_HEADICON_SPECIFIC, one per head-icon slot: the last since the npc
      *  entered view or since its last HEADICON_CUSTOM (which writes every
      *  slot). Its reference is (frame, 0) of that packet, not an NPC_INFO op;
