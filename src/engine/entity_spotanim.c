@@ -31,7 +31,15 @@ EntitySpotanims_Free(struct EntitySpotanims* table)
     if( !table )
         return;
     for( int i = 0; i < table->capacity; i++ )
+    {
+        struct EntitySpotanim const* entry = &table->entries[i];
+
+        /* Every model is the caller's to free first (the header). */
+        assert(!entry->body);
+        for( int k = 0; k < entry->slot_count; k++ )
+            assert(!entry->slots[k].spot);
         ToriMem_Free(ToriMem_Session(), table->entries[i].slots);
+    }
     ToriMem_Free(ToriMem_Session(), table->entries);
     table->entries = NULL;
     table->capacity = 0;

@@ -16,6 +16,9 @@
  * costs nothing next to the split it avoids, and it keeps eviction to one pass.
  */
 #define DAT2_GROUP_CACHE_SLOTS 48
+/* Groups being split a step at a time at once: the background queue's
+ * record loads (locs). Full is an assert. */
+#define DAT2_GROUP_SPLITS_MAX 8
 
 struct Dat2GroupCacheSlot
 {
@@ -24,9 +27,20 @@ struct Dat2GroupCacheSlot
     int occupied;
 };
 
+/* A split in flight: the archive it reads (owned) and how far it is. */
+struct Dat2GroupSplitting
+{
+    int used;
+    int table;
+    int group;
+    struct RSCache_Dat2DiskArchive* archive;
+    struct RSCache_FileListSplit split;
+};
+
 struct Dat2GroupCache
 {
     struct Dat2GroupCacheSlot slots[DAT2_GROUP_CACHE_SLOTS];
+    struct Dat2GroupSplitting splits[DAT2_GROUP_SPLITS_MAX];
     size_t bytes;
     size_t budget;
     uint64_t clock;
@@ -61,6 +75,32 @@ dat2_group_cache_release(struct Dat2GroupCacheSlot* slot, size_t* bytes)
     assert(*bytes >= slot->group.bytes);
     *bytes -= slot->group.bytes;
     memset(slot, 0, sizeof(*slot));
+}
+
+/* End a split in flight without a result: its archive and its tables go. */
+static void
+dat2_group_splitting_drop(struct Dat2GroupSplitting* s)
+{
+    if( !s->used )
+        return;
+    RSCache_FileListSplitAbandon(&s->split);
+    RSCache_Dat2DiskArchiveFree(s->archive);
+    memset(s, 0, sizeof(*s));
+}
+
+static struct Dat2GroupSplitting*
+dat2_group_splitting_find(
+    struct Dat2GroupCache const* cache,
+    int table,
+    int group)
+{
+    for( int i = 0; i < DAT2_GROUP_SPLITS_MAX; i++ )
+    {
+        struct Dat2GroupSplitting const* s = &cache->splits[i];
+        if( s->used && s->table == table && s->group == group )
+            return (struct Dat2GroupSplitting*)s;
+    }
+    return NULL;
 }
 
 static void
@@ -114,6 +154,10 @@ Dat2GroupCache_Clear(struct Dat2GroupCache* cache)
     for( int i = 0; i < DAT2_GROUP_CACHE_SLOTS; i++ )
         dat2_group_cache_release(&cache->slots[i], &cache->bytes);
     assert(cache->bytes == 0);
+    /* A split in flight reads an archive that may be stale too; a task
+     * stepping it finds it gone and reads the group again. */
+    for( int i = 0; i < DAT2_GROUP_SPLITS_MAX; i++ )
+        dat2_group_splitting_drop(&cache->splits[i]);
 }
 
 int
@@ -123,6 +167,11 @@ Dat2GroupCache_Evict(
     int group)
 {
     assert(cache);
+    {
+        struct Dat2GroupSplitting* s = dat2_group_splitting_find(cache, table, group);
+        if( s )
+            dat2_group_splitting_drop(s);
+    }
     for( int i = 0; i < DAT2_GROUP_CACHE_SLOTS; i++ )
     {
         struct Dat2GroupCacheSlot* slot = &cache->slots[i];
@@ -227,6 +276,16 @@ dat2_group_filelist_bytes(struct RSCache_FileList const* filelist)
     return total;
 }
 
+static struct Dat2Group const*
+dat2_group_cache_install(
+    struct Dat2GroupCache* cache,
+    int table,
+    int group,
+    struct RSCache_Dat2DiskArchive const* archive,
+    struct RSCache_FileList* filelist,
+    char* blob,
+    size_t filelist_bytes);
+
 struct Dat2Group const*
 Dat2GroupCache_Put(
     struct Dat2GroupCache* cache,
@@ -237,8 +296,6 @@ Dat2GroupCache_Put(
     struct Dat2GroupCacheSlot* slot;
     struct RSCache_FileList* filelist;
     char* blob = NULL;
-    int* file_ids = NULL;
-    size_t bytes;
 
     assert(cache);
     assert(archive);
@@ -254,6 +311,27 @@ Dat2GroupCache_Put(
         archive->data, archive->data_size, archive->file_count, &blob);
     if( !filelist )
         return NULL;
+    return dat2_group_cache_install(
+        cache, table, group, archive, filelist, blob, dat2_group_filelist_bytes(filelist));
+}
+
+/* Keep a finished split of `archive` resident (its file ids, count and
+ * revision are copied; the archive stays the caller's). `filelist_bytes` is
+ * dat2_group_filelist_bytes(filelist), which a caller that knows it passes
+ * instead of walking every member again. */
+static struct Dat2Group const*
+dat2_group_cache_install(
+    struct Dat2GroupCache* cache,
+    int table,
+    int group,
+    struct RSCache_Dat2DiskArchive const* archive,
+    struct RSCache_FileList* filelist,
+    char* blob,
+    size_t filelist_bytes)
+{
+    struct Dat2GroupCacheSlot* slot;
+    int* file_ids = NULL;
+    size_t bytes;
 
     if( archive->file_ids && archive->file_count > 0 )
     {
@@ -265,8 +343,7 @@ Dat2GroupCache_Put(
             (size_t)archive->file_count * sizeof(*file_ids));
     }
 
-    bytes = dat2_group_filelist_bytes(filelist)
-            + (file_ids ? (size_t)archive->file_count * sizeof(*file_ids) : 0);
+    bytes = filelist_bytes + (file_ids ? (size_t)archive->file_count * sizeof(*file_ids) : 0);
 
     /* Evict until this fits, but never evict past empty: a single group larger
      * than the whole budget is still worth holding for the run of lookups that
@@ -301,6 +378,83 @@ Dat2GroupCache_Put(
 }
 
 int
+Dat2GroupCache_Splitting(
+    struct Dat2GroupCache const* cache,
+    int table,
+    int group)
+{
+    assert(cache);
+    return dat2_group_splitting_find(cache, table, group) != NULL;
+}
+
+void
+Dat2GroupCache_SplitOffer(
+    struct Dat2GroupCache* cache,
+    int table,
+    int group,
+    struct RSCache_Dat2DiskArchive* archive)
+{
+    struct Dat2GroupSplitting* s = NULL;
+
+    assert(cache);
+    assert(archive);
+    if( dat2_group_cache_find(cache, table, group) || dat2_group_splitting_find(cache, table, group) )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return;
+    }
+    for( int i = 0; i < DAT2_GROUP_SPLITS_MAX && !s; i++ )
+        if( !cache->splits[i].used )
+            s = &cache->splits[i];
+    assert(s);
+    if( RSCache_FileListSplitBegin(&s->split, archive->data, archive->data_size, archive->file_count) != 0 )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return;
+    }
+    s->used = 1;
+    s->table = table;
+    s->group = group;
+    s->archive = archive;
+}
+
+struct Dat2Group const*
+Dat2GroupCache_SplitStep(
+    struct Dat2GroupCache* cache,
+    int table,
+    int group)
+{
+    struct Dat2GroupSplitting* s;
+    struct RSCache_FileList* filelist;
+    struct Dat2Group const* resident;
+    char* blob = NULL;
+    int done;
+
+    assert(cache);
+    s = dat2_group_splitting_find(cache, table, group);
+    if( !s )
+        return Dat2GroupCache_Get(cache, table, group);
+    done = RSCache_FileListSplitStep(&s->split, DAT2_GROUP_SPLIT_ENTRIES);
+    if( done == 0 )
+        return NULL;
+    if( done < 0 )
+    {
+        /* Malformed after all: nothing resident, nothing in flight. */
+        TORIRS_ERR("dat2 group %d/%d: malformed member table; not split\n", table, group);
+        dat2_group_splitting_drop(s);
+        return NULL;
+    }
+    filelist = RSCache_FileListSplitTake(&s->split, &blob);
+    /* dat2_group_filelist_bytes, from what the split already summed. */
+    resident = dat2_group_cache_install(
+        cache, table, group, s->archive, filelist, blob,
+        sizeof(struct RSCache_FileList) +
+            (size_t)filelist->file_count * (sizeof(char*) + sizeof(int)) + (size_t)s->split.blob_bytes);
+    dat2_group_splitting_drop(s);
+    return resident;
+}
+
+int
 Dat2Group_IndexOf(
     struct Dat2Group const* group,
     int file_id)
@@ -317,6 +471,11 @@ Dat2Group_IndexOf(
         return file_id;
     }
 
+    /* Ids are unique in a group, and most groups number their members
+     * densely from 0 (the 63,476 locs do): then the id is its own index, and
+     * a loc load does not walk the whole group to find its record. */
+    if( file_id >= 0 && file_id < group->file_count && group->file_ids[file_id] == file_id )
+        return file_id < group->filelist->file_count ? file_id : -1;
     for( int i = 0; i < group->file_count; i++ )
     {
         if( group->file_ids[i] == file_id )

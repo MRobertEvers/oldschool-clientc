@@ -67,9 +67,42 @@ Task_Dat2LocLoad_Run(
     task->group_id = task->addr.group_shift
                          ? (task->loc_id >> task->addr.group_shift)
                          : RSCACHE_DAT2_CONFIG_KIND_LOCS;
-    DAT2_GROUP_AWAIT(
-        &task->pt, io, 0, task->bc->group_cache,
-        task->group_table, task->group_id, task->group);
+    /*
+     * The group, split a step at a time with the slice asked in between. In a
+     * world build this task runs on the time-sliced background queue, and the
+     * loc group (56,000 members) split in one call was one 5.7 ms unit under
+     * UBSan ('background task Dat2LocLoad ran 5.71 ms between two slice
+     * checks'). One split per group is in flight, and every load waiting for
+     * the group steps the same one (dat2_group_cache.h). On a queue with no
+     * slice the ask never stops it and the split ends in this step.
+     *
+     * Not DAT2_GROUP_AWAIT: its read and this loop's slice check are two
+     * suspension points, and a macro puts both on one __LINE__.
+     */
+    task->group = Dat2GroupCache_Get(task->bc->group_cache, task->group_table, task->group_id);
+    while( !task->group )
+    {
+        if( !Dat2GroupCache_Splitting(task->bc->group_cache, task->group_table, task->group_id) )
+        {
+            ToriRS_IO_QueueCache(io, 0, 0, task->group_table, task->group_id, TORIRS_IO_CACHE_DAT2);
+            PT_YIELD(&task->pt);
+            {
+                struct RSCache_Dat2DiskArchive* archive = Dat2Group_TakeArchive(io, 0);
+
+                if( !archive )
+                    break;
+                Dat2GroupCache_SplitOffer(task->bc->group_cache, task->group_table, task->group_id, archive);
+            }
+        }
+        task->group = Dat2GroupCache_SplitStep(task->bc->group_cache, task->group_table, task->group_id);
+        if( task->group )
+            break;
+        /* Malformed, or dropped by a live reload and read again next pass. */
+        if( !Dat2GroupCache_Splitting(task->bc->group_cache, task->group_table, task->group_id) &&
+            !Dat2GroupCache_Get(task->bc->group_cache, task->group_table, task->group_id) )
+            break;
+        TASK_YIELD_IF_SPENT(&task->task, &task->pt, io);
+    }
 
     if( !task->group )
     {

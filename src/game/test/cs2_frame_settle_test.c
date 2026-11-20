@@ -281,13 +281,18 @@ test_external_wait_retains_last_frame(void)
 
     /* The task has already hidden Equipment when the external wait begins.
      * That partial state must not replace the stable published frame -- and
-     * the settle ends after exactly ONE pass: its read is on the wire, and
-     * nothing this queue does can answer it. */
+     * the settle ends after TWO passes, the same shape as the cross-queue
+     * wait below: the pass that ran the task and sent its read, then one that
+     * lands what the wire answered (Pump) and finds the read still out. A
+     * settle steps while a pass PROGRESSED (TaskRunner_SettleFrame), and the
+     * pass that ran the task did; only the next can see it waiting. On the
+     * desktop that second Pump is what lands a read answered in Process, so
+     * the task goes on in the same frame. */
     TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 0);
     assert(px.pending == 1);
     assert(px.parked == &task->io);
     assert(task->io.pending == 1);
-    assert(px.process_calls == 1);
+    assert(px.process_calls == 2);
     assert(runner.queue->head == task);
     assert(widgets.equipment_visible == 0);
     assert(widgets.familiar_visible == 0);
@@ -302,7 +307,7 @@ test_external_wait_retains_last_frame(void)
     px.pending = 0;
     TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 1);
     assert(px.parked == NULL);
-    assert(px.process_calls == 2);
+    assert(px.process_calls == 3);
     assert(runner.queue->head == NULL);
     assert(widgets.completed == 1);
     assert(widgets.mutation_count == 2);
