@@ -111,6 +111,21 @@ app_frame_latch_note(
  * napping through it. */
 static uint32_t g_wakes_at_pump;
 
+/* This frame's content-test clock is held (App_LogicClockHold). */
+static int s_logic_clock_held = 0;
+
+void
+App_LogicClockHold(int held)
+{
+    s_logic_clock_held = held != 0;
+}
+
+int
+App_LogicClockHeld(void)
+{
+    return s_logic_clock_held;
+}
+
 static int
 app_woken_since_pump(const struct App* app)
 {

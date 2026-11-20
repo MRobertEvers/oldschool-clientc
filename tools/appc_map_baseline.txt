@@ -443,4 +443,7 @@ src/replay/replay_world_apply.c
 # Raised to 1431 by the lo-tables step: the scene bridge's sprite
 # reservations are filled by the interface-assets family's tasks, bound once
 # beside the bridge (App_IfAssetsBindBridge).
-app.c-lines: 1431
+# Raised to 1434 by the slow-read tool: the frame queue's executor is told the
+# client's frame count (TORIRS_IO_DEFER_FRAMES), and App_Shutdown traces the
+# pending index once (App_PendingTrace, at exit).
+app.c-lines: 1434
