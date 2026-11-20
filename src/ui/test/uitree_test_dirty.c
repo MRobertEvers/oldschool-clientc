@@ -250,3 +250,96 @@ test_dirty_marking(void)
 
     UITree_Free(tree);
 }
+
+/* A layout invalidation that knows its node names it, so the resolve walks
+ * that node's subtree and not the tree. Opening the bank used to sweep ten
+ * thousand nodes four times: twice because a reparent named no node, twice
+ * because a scroll extent invalidated every box. */
+void
+test_layout_named_invalidation(void)
+{
+    printf("TEST: layout invalidations name their node\n");
+
+    struct UITree* tree = UITree_New(16);
+    TEST_ASSERT(tree != NULL, "UITree_New");
+
+    int32_t const a = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 200, 10, 20, 100, 100);
+    int32_t const b = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 201, 300, 40, 100, 100);
+    int32_t const child = UITree_TestPushXy(tree, a, UIELEM_RS_LAYER, 202, 5, 6, 50, 50);
+    int32_t const grand = UITree_TestPushXy(tree, child, UIELEM_RS_RECT, 203, 1, 2, 10, 10);
+    int32_t const other = UITree_TestPushXy(tree, b, UIELEM_RS_RECT, 204, 7, 8, 10, 10);
+    TEST_ASSERT(a >= 0 && b >= 0 && child >= 0 && grand >= 0 && other >= 0, "push nodes");
+    UITree_TestResolve(tree);
+    TEST_ASSERT(tree->components[child].position.abs_x == 15 &&
+                    tree->components[child].position.abs_y == 26 &&
+                    tree->components[grand].position.abs_x == 16 &&
+                    tree->components[grand].position.abs_y == 28 &&
+                    tree->components[other].position.abs_x == 307 &&
+                    tree->components[other].position.abs_y == 48,
+                "boxes before");
+
+    /* A reparent: the node that moved and its descendants, and no sweep. */
+    TEST_ASSERT(UITree_Reparent(tree, child, b), "reparent");
+    TEST_ASSERT(tree->layout_stale && !tree->layout_dirty_overflow,
+                "a reparent names its node");
+    TEST_ASSERT(tree->components[other].position.layout_resolved &&
+                    tree->components[a].position.layout_resolved,
+                "a reparent leaves every other box resolved");
+    UITree_TestResolve(tree);
+    TEST_ASSERT(tree->components[child].position.abs_x == 305 &&
+                    tree->components[child].position.abs_y == 46 &&
+                    tree->components[grand].position.abs_x == 306 &&
+                    tree->components[grand].position.abs_y == 48,
+                "the reparented subtree takes its new parent's box");
+    TEST_ASSERT(tree->components[other].position.abs_x == 307 &&
+                    tree->components[other].position.abs_y == 48 && !tree->layout_stale,
+                "its new siblings keep theirs");
+
+    /* A scroll extent: the layer and its direct children, and no sweep. */
+    TEST_ASSERT(UITree_SetScrollSizeAt(tree, b, 300, 400), "set scroll size");
+    TEST_ASSERT(tree->layout_stale && !tree->layout_dirty_overflow,
+                "a scroll extent names its layer");
+    TEST_ASSERT(!tree->components[b].position.layout_resolved &&
+                    !tree->components[child].position.layout_resolved &&
+                    !tree->components[other].position.layout_resolved,
+                "the layer and its children read as unresolved");
+    TEST_ASSERT(tree->components[a].position.layout_resolved,
+                "a layer elsewhere in the tree does not");
+    UITree_TestResolve(tree);
+    TEST_ASSERT(tree->components[b].position.layout_resolved &&
+                    tree->components[child].position.layout_resolved &&
+                    tree->components[other].position.layout_resolved &&
+                    tree->components[grand].position.layout_resolved && !tree->layout_stale,
+                "one resolve settles them");
+
+    /* Two hundred seeds, deepest first and then an ancestor of all of them:
+     * the seed sort is linear now, and its order is still shallowest first. */
+    {
+        int32_t rows[200];
+        for( int i = 0; i < 200; i++ )
+        {
+            rows[i] = UITree_TestPushXy(tree, child, UIELEM_RS_RECT, 1000 + i, i, 2 * i, 4, 4);
+            TEST_ASSERT(rows[i] >= 0, "push row");
+        }
+        UITree_TestResolve(tree);
+        for( int i = 0; i < 200; i++ )
+            TEST_ASSERT(UITree_SetPositionAt(tree, rows[i], i + 1, 2 * i + 1), "move row");
+        TEST_ASSERT(UITree_SetPositionAt(tree, b, 400, 50), "move their grandparent");
+        TEST_ASSERT(!tree->layout_dirty_overflow && tree->layout_dirty_count == 201,
+                    "201 seeds, none of them a sweep");
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[child].position.abs_x == 405 &&
+                        tree->components[child].position.abs_y == 56,
+                    "the moved ancestor's child follows it");
+        TEST_ASSERT(tree->components[rows[0]].position.abs_x == 406 &&
+                        tree->components[rows[0]].position.abs_y == 57 &&
+                        tree->components[rows[199]].position.abs_x == 605 &&
+                        tree->components[rows[199]].position.abs_y == 455,
+                    "every seeded row lands under the ancestor's new box");
+        TEST_ASSERT(tree->components[other].position.abs_x == 407 &&
+                        tree->components[other].position.abs_y == 58,
+                    "and so does a node that was not a seed");
+    }
+
+    UITree_Free(tree);
+}

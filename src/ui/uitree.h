@@ -1558,6 +1558,15 @@ struct UITree
      *  they count against the load factor or probing could never terminate. */
     uint32_t id_index_tombs;
     uint8_t id_index_valid; /* 0 until first successful build */
+    /** The last id UITree_FindByComponentId answered with a live node, and the
+     *  id_generation it answered at. A client script sets a dozen properties
+     *  of one component in a row, each naming it by id; this answers all but
+     *  the first without touching the map. id + 1, so a zeroed tree holds
+     *  none. Any id assignment or reclaim moves id_generation and so drops
+     *  it. */
+    int32_t id_last_id_plus1;
+    int32_t id_last_idx;
+    uint32_t id_last_gen;
     /** Cached layout scratch (see UITree_LayoutResolve). `order`/`depth` depend
      *  only on tree topology and are recomputed only when `generation` changes;
      *  `changed` carries "this node's box moved in this pass" down to the

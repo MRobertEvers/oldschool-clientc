@@ -294,8 +294,18 @@ UITree_BuildFromSource(
     int32_t* index_map = (int32_t*)ToriMem_Calloc(ToriMem_Ui(), (size_t)src->count, sizeof(int32_t));
     assert(index_map);
 
+    /* Each source component's id, as pass 1 read it; -1 where the source had
+     * none. Pass 2 finds a parent by scanning this. It used to ask the source
+     * for every candidate again, and a source builds a whole 1.4 KB record
+     * per ask: 8,000 records to link the bank's 130 components. */
+    int* source_ids = (int*)ToriMem_Calloc(ToriMem_Ui(), (size_t)src->count, sizeof(int));
+    assert(source_ids);
+
     for( int i = 0; i < src->count; i++ )
+    {
         index_map[i] = -1;
+        source_ids[i] = -1;
+    }
 
     /* Pass 1: allocate every component unlinked so forward parents exist in
      * index_map without O(n^2) root-list walks (large packs like 161). */
@@ -304,6 +314,7 @@ UITree_BuildFromSource(
         struct UIBuildComponent const* comp = src->get_component(src->ud, i);
         if( !comp )
             continue;
+        source_ids[i] = comp->id;
 
         int32_t idx = UITree_PushBuildComponent(
             tree,
@@ -326,10 +337,11 @@ UITree_BuildFromSource(
             continue;
 
         int32_t parent_tree_idx = -1;
+        /* parent_id is >= 0 here, so a source slot with no component (-1)
+         * never matches, as a NULL candidate never did. */
         for( int j = 0; j < src->count; j++ )
         {
-            struct UIBuildComponent const* candidate = src->get_component(src->ud, j);
-            if( candidate && candidate->id == parent_id )
+            if( source_ids[j] == parent_id )
             {
                 parent_tree_idx = index_map[j];
                 break;
@@ -356,6 +368,7 @@ UITree_BuildFromSource(
         UITree_LinkUnderParent(tree, -1, idx);
     }
 
+    ToriMem_Free(ToriMem_Ui(), source_ids);
     ToriMem_Free(ToriMem_Ui(), index_map);
     return src->count;
 }

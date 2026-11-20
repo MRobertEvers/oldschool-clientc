@@ -77,6 +77,13 @@ UITree_LayoutInvalidate(struct UITree* tree);
 void
 UITree_LayoutInvalidateNode(struct UITree* tree, int32_t idx);
 
+/** What `idx`'s children lay out against changed (a layer's scroll extent).
+ *  `idx` and its direct children read as unresolved; the next resolve
+ *  recomputes them, and the descendants of each child that moves, and nothing
+ *  else in the tree. */
+void
+UITree_LayoutInvalidateChildrenOf(struct UITree* tree, int32_t idx);
+
 /** Mark every node's resolved box as possibly out of date, in O(1). Every write
  *  to a layout input must call this (or UITree_LayoutInvalidate, which also
  *  clears the per-node resolved flags), because UITree_LayoutResolve skips the

@@ -1700,7 +1700,10 @@ UITree_Reparent(
     child->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
     child->position.layout_resolved = 0;
-    UITree_LayoutInvalidateBoxes(tree);
+    /* The node that moved is known, and a box depends only on its ancestors:
+     * the resolve recomputes it and its descendants. Without a node this cost
+     * a sweep of the whole tree for every interface mounted. */
+    UITree_LayoutInvalidateNode(tree, child_index);
 
     if( new_parent_index < 0 )
     {
@@ -3115,6 +3118,8 @@ UITree_FindByComponentId(
      * so mutate through the const handle. Keyed on id_generation (id assignments
      * and reclaims only) — topology churn does not invalidate id lookups. */
     struct UITree* t = (struct UITree*)tree;
+    if( t->id_last_id_plus1 == component_id + 1 && t->id_last_gen == t->id_generation )
+        return t->id_last_idx;
     if( !t->id_index_valid || t->id_index_gen != t->id_generation )
         UITree_RebuildIdIndex(t);
 
@@ -3154,6 +3159,12 @@ UITree_FindByComponentId(
 #ifdef UITREE_ID_INDEX_VERIFY
     assert(result == UITree_FindByComponentId_Linear(tree, component_id));
 #endif
+    if( result >= 0 )
+    {
+        t->id_last_id_plus1 = component_id + 1;
+        t->id_last_idx = result;
+        t->id_last_gen = t->id_generation;
+    }
     return result;
 }
 
@@ -6702,11 +6713,10 @@ UITree_SetScrollSizeAt(
         com->u.rs_layer.scroll_width = scroll_width;
         com->u.rs_layer.scroll_height = scroll_height;
         /* The scroll extent is what this layer's children lay out against
-         * (layout_parent_box), so it is a layout input like a position field. */
-        uitree_note_mutation(
-            tree,
-            idx,
-            UITREE_IMPACT_LAYOUT_TREE | UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_GEOMETRY_STATE);
+         * (layout_parent_box), so it is a layout input for them and for no
+         * other node: their boxes are recomputed, not the tree's. */
+        uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_GEOMETRY_STATE);
+        UITree_LayoutInvalidateChildrenOf(tree, idx);
     }
 
     /* Extent changes can make the old canonical offset invalid. The layer box

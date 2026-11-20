@@ -55,9 +55,9 @@ UITree_LayoutSetSafeBottomInset(int inset)
  * this at OPT=0 to read it -- with LTO the frame that returns here is often
  * not the frame you wanted named.
  */
-/* Past this many distinct seeds in one frame the full sweep is cheaper
- * than the worklist, and the fallback keeps the worst case at exactly the
- * old behaviour. */
+/* The floor of the seed limit. Past half the tree's nodes, and never below
+ * this many, the full sweep is taken instead of the worklist
+ * (UITree_LayoutInvalidateNode). */
 #define UITREE_LAYOUT_DIRTY_MAX 256
 
 /* Debug builds only. OPT=1 defines NDEBUG and links with LTO, and under LTO
@@ -188,22 +188,48 @@ UITree_LayoutInvalidateNode(struct UITree* tree, int32_t idx)
 
     if( tree->layout_dirty_overflow )
         return;
+    {
+        /* More seeds than half the tree (and never fewer than the floor): the
+         * sweep wins. The rule used to be "the buffer is full", and the
+         * buffer's size was whatever an earlier resolve had grown it to, so
+         * the same edits swept on a fresh tree and did not on a warm one. */
+        uint32_t const half = tree->component_count / 2u;
+        uint32_t const limit = half > UITREE_LAYOUT_DIRTY_MAX ? half : UITREE_LAYOUT_DIRTY_MAX;
+        if( tree->layout_dirty_count >= limit )
+        {
+            tree->layout_dirty_overflow = 1;
+            return;
+        }
+    }
     if( tree->layout_dirty_count == tree->layout_dirty_cap )
     {
         uint32_t const cap = tree->layout_dirty_cap ? tree->layout_dirty_cap * 2u : 32u;
         int32_t* grown;
-        if( cap > UITREE_LAYOUT_DIRTY_MAX )
-        {
-            /* More distinct nodes than the list is worth: the sweep wins. */
-            tree->layout_dirty_overflow = 1;
-            return;
-        }
         grown = ToriMem_Realloc(ToriMem_Ui(), tree->layout_dirty, (size_t)cap * sizeof(*grown));
         assert(grown);
         tree->layout_dirty = grown;
         tree->layout_dirty_cap = cap;
     }
     tree->layout_dirty[tree->layout_dirty_count++] = idx;
+}
+
+void
+UITree_LayoutInvalidateChildrenOf(struct UITree* tree, int32_t idx)
+{
+    assert(tree);
+    assert(idx >= 0);
+    assert((uint32_t)idx < tree->component_count);
+
+    /* The node and its direct children read as unresolved, and the node is
+     * the seed: recomputing an unresolved node always counts as a move, so
+     * both resolves go on to its children, and from each one that moves to
+     * theirs. No other box in the tree is touched. */
+    tree->components[idx].position.layout_resolved = 0;
+    for( int32_t child = tree->components[idx].first_child;
+         child >= 0 && (uint32_t)child < tree->component_count;
+         child = tree->components[child].next_sibling )
+        tree->components[child].position.layout_resolved = 0;
+    UITree_LayoutInvalidateNode(tree, idx);
 }
 
 void
@@ -589,6 +615,37 @@ layout_depth_of(struct UITree const* tree, int32_t idx)
     return d;
 }
 
+/* Deepest seed the counting sort below files; real trees nest far shallower. */
+#define UITREE_LAYOUT_SEED_DEPTH_MAX 63
+
+/* Sort the seeds by depth into the buffer's scratch run and back. The caller
+ * has sized the buffer for it. false when a seed is deeper than the table. */
+static bool
+layout_sort_seeds_by_depth(struct UITree* tree)
+{
+    uint32_t const k = tree->layout_dirty_count;
+    int32_t* const seeds = tree->layout_dirty;
+    int32_t* const scratch = seeds + k;
+    uint32_t start[UITREE_LAYOUT_SEED_DEPTH_MAX + 2] = { 0 };
+
+    if( k < 2 )
+        return true;
+    assert(tree->layout_dirty_cap >= 2u * k);
+    for( uint32_t i = 0; i < k; i++ )
+    {
+        int const d = layout_depth_of(tree, seeds[i]);
+        if( d > UITREE_LAYOUT_SEED_DEPTH_MAX )
+            return false;
+        start[d + 1]++;
+    }
+    for( int d = 1; d <= UITREE_LAYOUT_SEED_DEPTH_MAX + 1; d++ )
+        start[d] += start[d - 1];
+    for( uint32_t i = 0; i < k; i++ )
+        scratch[start[layout_depth_of(tree, seeds[i])]++] = seeds[i];
+    memcpy(seeds, scratch, (size_t)k * sizeof(*seeds));
+    return true;
+}
+
 /*
  * Resolve only what the seeds can reach.
  *
@@ -620,29 +677,15 @@ layout_resolve_dirty(
     assert(tree);
     assert(!tree->layout_dirty_overflow);
 
-    /* Insertion sort by depth: the seed list is a handful of entries (a busy
-     * frame produced one), so this beats anything with a better bound. */
-    for( uint32_t i = 1; i < tree->layout_dirty_count; i++ )
-    {
-        int32_t const v = tree->layout_dirty[i];
-        int const dv = layout_depth_of(tree, v);
-        uint32_t j = i;
-        while( j > 0 && layout_depth_of(tree, tree->layout_dirty[j - 1]) > dv )
-        {
-            tree->layout_dirty[j] = tree->layout_dirty[j - 1];
-            j--;
-        }
-        tree->layout_dirty[j] = v;
-    }
-
     /* The seed list doubles as the work queue: children are appended past
      * layout_dirty_count.  A node can enter it twice -- once as a seed, once
      * because its parent moved and pushed it -- and every node has exactly
      * one parent, so n + seeds is the ceiling and cannot be exceeded.  Which
      * is what makes the append below an assertion rather than a drop: a
-     * dropped append is a subtree silently left on last frame's box. */
+     * dropped append is a subtree silently left on last frame's box.  A
+     * second run of `seeds` slots past that is the sort's scratch. */
     {
-        uint32_t const need = n + tree->layout_dirty_count + 1u;
+        uint32_t const need = n + 2u * tree->layout_dirty_count + 1u;
         if( tree->layout_dirty_cap < need )
         {
             int32_t* grown =
@@ -650,6 +693,27 @@ layout_resolve_dirty(
             assert(grown);
             tree->layout_dirty = grown;
             tree->layout_dirty_cap = need;
+        }
+    }
+
+    /* Shallowest first. A counting sort, stable, so the order is the one the
+     * insertion sort it replaces gave: that one was written for a handful of
+     * seeds and is quadratic, and an interface that builds itself in one
+     * script (the bank creates 1,494 children) leaves thousands. A chain
+     * deeper than the table falls back to it. */
+    if( !layout_sort_seeds_by_depth(tree) )
+    {
+        for( uint32_t i = 1; i < tree->layout_dirty_count; i++ )
+        {
+            int32_t const v = tree->layout_dirty[i];
+            int const dv = layout_depth_of(tree, v);
+            uint32_t j = i;
+            while( j > 0 && layout_depth_of(tree, tree->layout_dirty[j - 1]) > dv )
+            {
+                tree->layout_dirty[j] = tree->layout_dirty[j - 1];
+                j--;
+            }
+            tree->layout_dirty[j] = v;
         }
     }
 

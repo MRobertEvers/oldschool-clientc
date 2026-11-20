@@ -79,6 +79,7 @@ main(void)
     test_canvas_floor_measures();
     test_overlay_retention();
     test_dirty_marking();
+    test_layout_named_invalidation();
     test_walk_topology();
     test_mounted_world_resize();
     test_hover_input();
