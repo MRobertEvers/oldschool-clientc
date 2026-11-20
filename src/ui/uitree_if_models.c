@@ -66,6 +66,11 @@ UIIfModels_SetHead(
     models->heads[i].custom_serial = 0;
     models->heads[i].custom_npc_slot = -1;
     models->heads[i].custom_npc_spawn_serial = 0;
+    models->heads[i].active_npc_slot = -1;
+    models->heads[i].active_npc_spawn_serial = 0;
+    models->heads[i].active_npc_id = -1;
+    models->heads[i].active_custom_serial = 0;
+    models->heads[i].active_mirror = 0;
     return i;
 }
 
