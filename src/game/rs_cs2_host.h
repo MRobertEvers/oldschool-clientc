@@ -811,6 +811,10 @@ struct RS_CS2Host
     /** The login response's staffModLevel (ToriRS_Network.staff_mod_level),
      * copied in each frame by the app: STAFFMODLEVEL answers it. */
     int staff_mod_level;
+    /** The login response's member byte (ToriRS_Network.member), copied in
+     *  each frame by the app: a free account's friend and ignore lists are
+     *  full at 200 and 100 (RS_Social_FriendListFull). */
+    int member;
     struct UITreeSceneBridge* bridge; /* may be NULL until set */
 
     /*

@@ -582,6 +582,7 @@ app_pump_net_packets(struct App* app)
 
     /* What the login response said this account is; CS2 STAFFMODLEVEL. */
     app->host.staff_mod_level = app->net ? app->net->staff_mod_level : 0;
+    app->host.member = app->net ? app->net->member : 0;
 
     int drained = 0;
     int fence_queued = 0;

@@ -90,6 +90,8 @@ struct LoginOsrs
     int local_index;
     /* LoginResponse.Ok's staffModLevel: 2 is a moderator (the crown). */
     int staff_mod_level;
+    /* LoginResponse.Ok's member byte: 1 is a members account. */
+    int member;
 
     /* Inbound accumulator. The shapes it has to hold are the 9-byte seed
      * reply, a var-short proof-of-work challenge, and RECONNECT_OK's
@@ -370,6 +372,7 @@ login_osrs_new(struct ToriRS_Network* net, char const* username, char const* pas
         memcpy(h->prev_seed, net->prev_seed, sizeof(h->prev_seed));
         h->local_index = net->local_index;
         h->staff_mod_level = net->staff_mod_level;
+        h->member = net->member;
     }
     else if( net->reconnect )
     {
@@ -409,6 +412,7 @@ publish_seed(struct LoginOsrs* h)
     h->net->has_prev_seed = 1;
     h->net->local_index = h->local_index;
     h->net->staff_mod_level = h->staff_mod_level;
+    h->net->member = h->member;
 }
 
 static int
@@ -493,6 +497,9 @@ login_osrs_recv(void* handle, uint8_t const* data, int size)
                 (void)g1(&rbuf); /* playerMod */
                 int index = g2(&rbuf);
                 h->local_index = index;
+                /* deob client.field770: kept, as the reference keeps it, for
+                 * the free account's friend and ignore limits. */
+                h->member = g1(&rbuf);
                 TORIRS_LOG("osrs login: OK, local player index %d\n", index);
                 h->state = LOGIN_OSRS_DONE;
                 publish_seed(h);

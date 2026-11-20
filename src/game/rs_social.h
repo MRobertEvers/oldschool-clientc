@@ -24,10 +24,14 @@
 
 /* What the reference's readers keep: an entry past 400 is skipped (deob
  * Statics.method10091 `method10590() >= 400`, class428.method9746 `< 400`).
- * The 200 / 100 a free account may ADD is the scripts' and the server's
- * limit, not the store's. */
+ * The 200 / 100 a free account may ADD is the add's limit, not the store's
+ * (RS_Social_FriendListFull). */
 #define RS_SOCIAL_FRIEND_MAX 400
 #define RS_SOCIAL_IGNORE_MAX 400
+/* A free account's lists are full at these (deob Statics.method1180
+ * `< 200`, class58.method1182 `< 100`). */
+#define RS_SOCIAL_FRIEND_FREE_MAX 200
+#define RS_SOCIAL_IGNORE_FREE_MAX 100
 #define RS_SOCIAL_NAME_LEN 64
 /* The client's chain is a linked list with no bound; scripts build chains of
  * two or three. A step past this many is dropped like a step after a terminal
@@ -327,6 +331,20 @@ RS_Social_MessageSeenOrRemember(
  */
 int
 RS_Social_FriendCount(struct RS_Social const* social);
+
+/**
+ * Whether FRIEND_ADD is refused for a full list ("Your friend list is full.
+ * Max of 200 for free users, and 400 for members"), as deob
+ * Statics.method1180 decides: the list holds 400, or it holds 200 and the
+ * login response's member byte (`member`, deob client.field770) is not 1.
+ */
+bool
+RS_Social_FriendListFull(struct RS_Social const* social, int member);
+
+/** The same for IGNORE_ADD (class58.method1182): 400, or 100 for an account
+ *  that is not a member. */
+bool
+RS_Social_IgnoreListFull(struct RS_Social const* social, int member);
 
 /** Ignore count as 3621 answers it: -1 until the friend server status is 2,
  *  the real count after. Script 129 reads `< 0` as "Loading ignore list" and
