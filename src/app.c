@@ -420,8 +420,10 @@ App_Init(
     else
         app->provider = CacheMounts_OpenDat2BuildCache(&app->cache_mounts);
     /* Every loader that fans out needs somewhere to put its siblings, and the
-     * parallel frame queue is that place -- see CacheProvider::asset_queue. */
+     * parallel frame queue is that place; what one then has to compute goes
+     * on the background queue -- CacheProvider::asset_queue, ::compute_queue. */
     CacheProvider_SetAssetQueue(app->provider, app->frame_runner.queue);
+    CacheProvider_SetComputeQueue(app->provider, app->background_runner.queue);
     App_AssetsInit(app);
     App_PendingInit(app);
     app_provider_set_cache_profile(app, cfg);

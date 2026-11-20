@@ -6143,7 +6143,16 @@ test-loc-tasks: $(OBJ_DIR) $(OBJS)
 # The scripts family's parallel tasks (app/app_tasks_scripts.c): a visual
 # script operation is one listed task that a newer set cancels and a closed
 # interface drops; and TRIGGER_ONDIALOGABORT's listeners keep wire order (U9).
-.PHONY: test-tasks-scripts
+.PHONY: test-music-load test-tasks-scripts
+# A song's loader reads on the asset queue and decodes on the compute queue
+# (the background queue), and the song is installed only after the decode
+# job: engine/dat2/task_dat2_music_load.c, against the real osrs239 cache.
+test-music-load: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/music_load_split_test \
+		engine/dat2/test/music_load_split_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/music_load_split_test ..
+
 test-tasks-scripts: $(OBJ_DIR) $(OBJS)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/app_tasks_scripts_test \
 		app/test/app_tasks_scripts_test.c \

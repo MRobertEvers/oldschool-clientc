@@ -3551,6 +3551,16 @@ CacheProvider_SetAssetQueue(
     provider->asset_queue = queue;
 }
 
+void
+CacheProvider_SetComputeQueue(
+    struct CacheProvider* provider,
+    struct ToriRS_TaskQueue* queue)
+{
+    assert(provider);
+    assert(queue);
+    provider->compute_queue = queue;
+}
+
 bool
 CacheProvider_TextureHas(
     struct CacheProvider* provider,

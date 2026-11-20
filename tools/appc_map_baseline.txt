@@ -425,4 +425,6 @@ src/replay/replay_world_apply.c
 # App_PendingFree moves after the frame queue is freed (its tasks unlist).
 # Raised to 1428 by the scripts step: the CS2 host takes the scripts family's
 # hooks in one call, and the client-script hold, which grows now, is freed.
-app.c-lines: 1428
+# Raised to 1430 by the music decode step: the provider is told its compute
+# queue (the background queue) beside its asset queue, and the comment names it.
+app.c-lines: 1430

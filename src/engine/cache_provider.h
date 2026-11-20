@@ -148,6 +148,18 @@ struct CacheProvider
     struct ToriRS_TaskQueue* asset_queue;
 
     /**
+     * Where a loader puts the work it has to COMPUTE once its reads are in,
+     * when that is more than a frame's worth: the background queue (App's
+     * `background_runner`), which is given time and time-sliced, where the
+     * asset queue is drained. The frame contract's split: reads on the asset
+     * queue, CPU-heavy decoding here. A loader that hands work here joins it
+     * like any fan-out (ToriRS_TaskQueue_AddParallelPoolSubTask / a join), and
+     * asserts this is set: today only the music loader does
+     * (task_dat2_music_load.c, the sample decode). NULL until named.
+     */
+    struct ToriRS_TaskQueue* compute_queue;
+
+    /**
      * Told of every archive a CACHE_INVALIDATE evicts (CacheProvider_SetArchiveInvalidateHook):
      * the IO layer's half -- its decompressed-archive LRU and the JS5 client's
      * reference table (Js5ClientInvalidateArchive) -- which the provider cannot
@@ -197,6 +209,12 @@ struct CacheProvider
 /** Name the queue loaders fan their siblings out on. See `asset_queue`. */
 void
 CacheProvider_SetAssetQueue(
+    struct CacheProvider* provider,
+    struct ToriRS_TaskQueue* queue);
+
+/** Name the queue loaders hand their decoding to. See `compute_queue`. */
+void
+CacheProvider_SetComputeQueue(
     struct CacheProvider* provider,
     struct ToriRS_TaskQueue* queue);
 
