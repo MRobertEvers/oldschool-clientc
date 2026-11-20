@@ -12,6 +12,7 @@
 #include "graphics/alpha.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/shared_tables.h"
+#include "graphics/int_wrap.h"
 
 /*
  * Blending uses the scalar alpha_blend() rather than the 4-wide
@@ -96,7 +97,7 @@ scanline_span_gouraudhsllightness_opaque(
     }
 
     int quads = count >> 2;
-    int step4 = color_step_hsl16_ish8 << 2;
+    int step4 = toridraw_wrap_shl(color_step_hsl16_ish8, 2);
 
     while( quads-- > 0 )
     {
@@ -139,7 +140,7 @@ scanline_span_gouraudhsllightness_alpha(
     }
 
     int quads = count >> 2;
-    int step4 = color_step_hsl16_ish8 << 2;
+    int step4 = toridraw_wrap_shl(color_step_hsl16_ish8, 2);
 
     while( quads-- > 0 )
     {

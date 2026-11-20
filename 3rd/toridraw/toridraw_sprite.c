@@ -13,6 +13,7 @@
 #include "bmp.h"
 #endif
 #include "graphics/dash_restrict.h"
+#include "graphics/int_wrap.h"
 #include "toridraw_math.h"
 
 #include <assert.h>
@@ -657,8 +658,8 @@ ToriDraw2D_BlitSpriteRotated(
 
     int center_x = (-width / 2);
     int center_y = (-height / 2);
-    int left_x = (anchor_x << 16) + center_y * sin_zoom + center_x * cos_zoom;
-    int left_y = (anchor_y << 16) + (center_y * cos_zoom - center_x * sin_zoom);
+    int left_x = toridraw_wrap_shl(anchor_x, 16) + center_y * sin_zoom + center_x * cos_zoom;
+    int left_y = toridraw_wrap_shl(anchor_y, 16) + (center_y * cos_zoom - center_x * sin_zoom);
     int left_off = x + y * stride;
 
     for( int i = 0; i < height; i++ )

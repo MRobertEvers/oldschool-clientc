@@ -289,14 +289,14 @@ draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
              * far endpoint to fit to at all. */
             if( w_n != 0 && tex_span_lerp8_fits(curr_v, next_v, texture_width) )
             {
-                int step_u = (next_u - curr_u) << (texture_shift - 3);
-                int step_v = (next_v - curr_v) << (texture_shift - 3);
+                int step_u = toridraw_wrap_shl(next_u - curr_u, texture_shift - 3);
+                int step_v = toridraw_wrap_shl(next_v - curr_v, texture_shift - 3);
 
                 raster_linear_opaque_blend_lerp8(
                     pixel_buffer,
                     offset,
                     (uint32_t*)texels,
-                    curr_u << texture_shift,
+                    toridraw_wrap_shl(curr_u, texture_shift),
                     tex_span_wrapped_scan_start(curr_v, texture_width, texture_shift),
                     step_u,
                     step_v,
@@ -382,10 +382,10 @@ draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
         return;
     }
 
-    int step_u = (next_u - curr_u) << (texture_shift - 3);
-    int step_v = (next_v - curr_v) << (texture_shift - 3);
+    int step_u = toridraw_wrap_shl(next_u - curr_u, texture_shift - 3);
+    int step_v = toridraw_wrap_shl(next_v - curr_v, texture_shift - 3);
 
-    int u_scan = curr_u << texture_shift;
+    int u_scan = toridraw_wrap_shl(curr_u, texture_shift);
     int v_scan = tex_span_wrapped_scan_start(curr_v, texture_width, texture_shift);
 
     for( int i = 0; i < lerp8_last_steps; i++ )
@@ -516,14 +516,14 @@ draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
              * far endpoint to fit to at all. */
             if( w_n != 0 && tex_span_lerp8_fits(curr_v, next_v, texture_width) )
             {
-                int step_u = (next_u - curr_u) << (texture_shift - 3);
-                int step_v = (next_v - curr_v) << (texture_shift - 3);
+                int step_u = toridraw_wrap_shl(next_u - curr_u, texture_shift - 3);
+                int step_v = toridraw_wrap_shl(next_v - curr_v, texture_shift - 3);
 
                 raster_linear_transparent_blend_lerp8(
                     pixel_buffer,
                     offset,
                     (uint32_t*)texels,
-                    curr_u << texture_shift,
+                    toridraw_wrap_shl(curr_u, texture_shift),
                     tex_span_wrapped_scan_start(curr_v, texture_width, texture_shift),
                     step_u,
                     step_v,
@@ -609,10 +609,10 @@ draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
         return;
     }
 
-    int step_u = (next_u - curr_u) << (texture_shift - 3);
-    int step_v = (next_v - curr_v) << (texture_shift - 3);
+    int step_u = toridraw_wrap_shl(next_u - curr_u, texture_shift - 3);
+    int step_v = toridraw_wrap_shl(next_v - curr_v, texture_shift - 3);
 
-    int u_scan = curr_u << texture_shift;
+    int u_scan = toridraw_wrap_shl(curr_u, texture_shift);
     int v_scan = tex_span_wrapped_scan_start(curr_v, texture_width, texture_shift);
 
     for( int i = 0; i < lerp8_last_steps; i++ )
@@ -833,7 +833,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
                 raster_linear_opaque_blend_lerp8_v3(
                     &pixel_buffer[offset],
                     (uint32_t*)texels,
-                    cur_u << texture_shift,
+                    toridraw_wrap_shl(cur_u, texture_shift),
                     tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift),
                     s_u,
                     s_v,
@@ -922,7 +922,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
         int s_u = (int)((unsigned int)(nxt_u - cur_u) << (texture_shift - 3));
         int s_v = (int)((unsigned int)(nxt_v - cur_v) << (texture_shift - 3));
 
-        int u_scan = cur_u << texture_shift;
+        int u_scan = toridraw_wrap_shl(cur_u, texture_shift);
         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
 
         for( int i = 0; i < remaining; i++ )
@@ -1030,7 +1030,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
                 raster_linear_transparent_blend_lerp8_v3(
                     &pixel_buffer[offset],
                     (uint32_t*)texels,
-                    cur_u << texture_shift,
+                    toridraw_wrap_shl(cur_u, texture_shift),
                     tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift),
                     s_u,
                     s_v,
@@ -1119,7 +1119,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
         int s_u = (int)((unsigned int)(nxt_u - cur_u) << (texture_shift - 3));
         int s_v = (int)((unsigned int)(nxt_v - cur_v) << (texture_shift - 3));
 
-        int u_scan = cur_u << texture_shift;
+        int u_scan = toridraw_wrap_shl(cur_u, texture_shift);
         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
 
         for( int i = 0; i < remaining; i++ )
@@ -1210,11 +1210,11 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ordered(
         v_coord_end = v_end / w_div_end;
     }
 
-    int uv_packed = (u_coord << 18) + v_coord;
-    int uv_step = ((u_coord_end - u_coord) / width << 18) + (v_coord_end - v_coord) / width;
+    int uv_packed = toridraw_wrap_add(toridraw_wrap_shl(u_coord, 18), v_coord);
+    int uv_step = toridraw_wrap_add(toridraw_wrap_shl((u_coord_end - u_coord) / width, 18), (v_coord_end - v_coord) / width);
 
     int steps_8 = width >> 3;
-    int shade_step_8 = shade_step_ish8 << 3;
+    int shade_step_8 = toridraw_wrap_shl(shade_step_ish8, 3);
     int shade = shade_accum >> 8;
 
     if( steps_8 > 0 )
@@ -1223,28 +1223,28 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ordered(
         {
             int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
             pixel_buffer[offset++] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
-            int uv_next = uv_packed + uv_step;
+            int uv_next = toridraw_wrap_add(uv_packed, uv_step);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             pixel_buffer[offset++] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             pixel_buffer[offset++] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             pixel_buffer[offset++] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             pixel_buffer[offset++] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             pixel_buffer[offset++] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             pixel_buffer[offset++] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             pixel_buffer[offset++] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
-            uv_packed = uv_step + uv_next;
+            uv_packed = toridraw_wrap_add(uv_step, uv_next);
             shade_accum += shade_step_8;
             shade = shade_accum >> 8;
             steps_8--;
@@ -1258,7 +1258,7 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ordered(
         {
             int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
             pixel_buffer[offset++] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
-            uv_packed += uv_step;
+            uv_packed = toridraw_wrap_add(uv_packed, uv_step);
             remaining--;
         } while( remaining > 0 );
     }
@@ -1338,11 +1338,11 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
         v_coord_end = v_end / w_div_end;
     }
 
-    int uv_packed = (u_coord << 18) + v_coord;
-    int uv_step = ((u_coord_end - u_coord) / width << 18) + (v_coord_end - v_coord) / width;
+    int uv_packed = toridraw_wrap_add(toridraw_wrap_shl(u_coord, 18), v_coord);
+    int uv_step = toridraw_wrap_add(toridraw_wrap_shl((u_coord_end - u_coord) / width, 18), (v_coord_end - v_coord) / width);
 
     int steps_8 = width >> 3;
-    int shade_step_8 = shade_step_ish8 << 3;
+    int shade_step_8 = toridraw_wrap_shl(shade_step_ish8, 3);
     int shade = shade_accum >> 8;
 
     if( steps_8 > 0 )
@@ -1353,50 +1353,50 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
             if( texel != 0 )
                 pixel_buffer[offset] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
             offset += 1;
-            int uv_next = uv_packed + uv_step;
+            int uv_next = toridraw_wrap_add(uv_packed, uv_step);
 
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             if( texel != 0 )
                 pixel_buffer[offset] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
             offset += 1;
 
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             if( texel != 0 )
                 pixel_buffer[offset] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
             offset += 1;
 
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             if( texel != 0 )
                 pixel_buffer[offset] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
             offset += 1;
 
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             if( texel != 0 )
                 pixel_buffer[offset] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
             offset += 1;
 
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             if( texel != 0 )
                 pixel_buffer[offset] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
             offset += 1;
 
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             if( texel != 0 )
                 pixel_buffer[offset] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
             offset += 1;
 
-            uv_next = uv_step + uv_next;
+            uv_next = toridraw_wrap_add(uv_step, uv_next);
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
             if( texel != 0 )
                 pixel_buffer[offset] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
             offset += 1;
 
-            uv_packed = uv_step + uv_next;
+            uv_packed = toridraw_wrap_add(uv_step, uv_next);
             shade_accum += shade_step_8;
             shade = shade_accum >> 8;
             steps_8--;
@@ -1412,7 +1412,7 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
             if( texel != 0 )
                 pixel_buffer[offset] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
             offset += 1;
-            uv_packed += uv_step;
+            uv_packed = toridraw_wrap_add(uv_packed, uv_step);
             remaining--;
         } while( remaining > 0 );
     }
@@ -1490,10 +1490,10 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ish16_ordered(
     }
     u_coord_end = clamp(u_coord_end, 0, texture_width - 1);
 
-    int u_scan = u_coord << texture_shift;
+    int u_scan = toridraw_wrap_shl(u_coord, texture_shift);
     int v_scan = (int)((unsigned int)v_coord << texture_shift);
-    int step_u = ((u_coord_end - u_coord) << texture_shift) / width;
-    int step_v = ((v_coord_end - v_coord) << texture_shift) / width;
+    int step_u = toridraw_wrap_shl(u_coord_end - u_coord, texture_shift) / width;
+    int step_v = toridraw_wrap_shl(v_coord_end - v_coord, texture_shift) / width;
 
     int blocks = width >> 3;
     int remaining = width & 7;
@@ -1603,10 +1603,10 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ish16_ordered(
     }
     u_coord_end = clamp(u_coord_end, 0, texture_width - 1);
 
-    int u_scan = u_coord << texture_shift;
+    int u_scan = toridraw_wrap_shl(u_coord, texture_shift);
     int v_scan = (int)((unsigned int)v_coord << texture_shift);
-    int step_u = ((u_coord_end - u_coord) << texture_shift) / width;
-    int step_v = ((v_coord_end - v_coord) << texture_shift) / width;
+    int step_u = toridraw_wrap_shl(u_coord_end - u_coord, texture_shift) / width;
+    int step_v = toridraw_wrap_shl(v_coord_end - v_coord, texture_shift) / width;
 
     int blocks = width >> 3;
     int remaining = width & 7;

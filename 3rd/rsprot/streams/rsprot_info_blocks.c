@@ -654,7 +654,7 @@ rsprot_info_facing(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFacingEnc 
         op = rsprot_info_emit(t->out, RSPROT_OP_FACE_ENTITY);
         op->face_entity.entity_id = type == RSPROT_FACE_TARGET_NPC ? index
                                     : type == RSPROT_FACE_TARGET_PLAYER && index >= 0
-                                        ? 32768 + index
+                                        ? (int32_t)(32768u + (uint32_t)index) /* Java's int add */
                                         : -1;
         op->face_entity.fallback_angle = (uint16_t)angle;
         op->face_entity.has_fallback_angle = true;

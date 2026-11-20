@@ -37,6 +37,7 @@
 #include "graphics/dash_restrict.h"
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
 #include "graphics/shared_tables.h"
+#include "graphics/int_wrap.h"
 
 /** Screen triangle sorted top-to-bottom (ya <= yb <= yc). */
 struct ScanlineTri
@@ -172,13 +173,13 @@ scanline_edges_build(
         return 0;
 
     int dy_ac = yc - ya;
-    int step_ac = ((t->xc - t->xa) << 16) / dy_ac;
-    int step_ab = (yb > ya) ? (((t->xb - t->xa) << 16) / (yb - ya)) : 0;
-    int step_bc = (yc > yb) ? (((t->xc - t->xb) << 16) / (yc - yb)) : 0;
+    int step_ac = toridraw_wrap_shl(t->xc - t->xa, 16) / dy_ac;
+    int step_ab = (yb > ya) ? (toridraw_wrap_shl(t->xb - t->xa, 16) / (yb - ya)) : 0;
+    int step_bc = (yc > yb) ? (toridraw_wrap_shl(t->xc - t->xb, 16) / (yc - yb)) : 0;
 
-    int x_ac = t->xa << 16;
-    int x_ab = t->xa << 16;
-    int x_bc = t->xb << 16;
+    int x_ac = toridraw_wrap_shl(t->xa, 16);
+    int x_ab = toridraw_wrap_shl(t->xa, 16);
+    int x_bc = toridraw_wrap_shl(t->xb, 16);
 
     int y_seg1 = ya;
     int y_seg2 = yb;
