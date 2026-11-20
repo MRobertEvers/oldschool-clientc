@@ -24,13 +24,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The decoder's array size, and the local-player sentinel while no UPDATE_PID
- * has arrived (rev 239 never sends one), as game/rs_entity_apply.c reads it. */
+/* The local-player sentinel while no UPDATE_PID has arrived (rev 239 never
+ * sends one), as game/rs_entity_apply.c reads it. */
 enum
 {
-    CORE_ENTITY_OPS_MAX = 2048,
-    /* An op list's strings and blobs: the payload and a NUL per op at most. */
-    CORE_ENTITY_BYTES_MAX = 65536 + CORE_ENTITY_OPS_MAX,
     CORE_LOCAL_SENTINEL = 2047,
 };
 
@@ -65,14 +62,9 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     core->esync = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*core->esync));
     assert(core->esync);
     RS_EntitySync_Init(core->esync);
-    core->npc_ops =
-        ToriMem_Calloc(ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct RsprotInfoOp));
-    assert(core->npc_ops);
-    core->player_ops = ToriMem_Calloc(
-        ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct RsprotInfoOp));
-    assert(core->player_ops);
-    core->info_bytes = ToriMem_Alloc(ToriMem_ServerPlayers(), CORE_ENTITY_BYTES_MAX);
-    assert(core->info_bytes);
+    /* The lists are allocated on their first packet. */
+    core->info_scratch.npc.group = ToriMem_ServerPlayers();
+    core->info_scratch.player.group = ToriMem_ServerPlayers();
     ScriptrunModel_Init(&core->model,
         rev->number,
         &core->world->cycle,
@@ -130,9 +122,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
     RS_EntitySync_Free(core->esync);
     ToriMem_Free(ToriMem_ServerPlayers(), core->esync);
     World_Free(core->world);
-    ToriMem_Free(ToriMem_ServerPlayers(), core->npc_ops);
-    ToriMem_Free(ToriMem_ServerPlayers(), core->player_ops);
-    ToriMem_Free(ToriMem_ServerPlayers(), core->info_bytes);
+    EntityInfoScratch_Free(&core->info_scratch);
     ToriMem_Free(ToriMem_ServerPlayers(), core->player_decoder_state);
     ToriMem_Free(ToriMem_ServerPlayers(), core);
 }
@@ -783,17 +773,22 @@ core_player_info(
     uint8_t const* data,
     int length)
 {
-    struct RsprotInfoOp* ops = core->player_ops;
     struct RS_EntityApplyHost host;
     struct RS_EntityApplyIn in;
+    struct EntityInfoReader reader;
     RsprotInfoList list;
     int op_count;
 
     assert(core->rev->player_info_read);
-    rsprot_info_list_init(&list, ops, CORE_ENTITY_OPS_MAX, core->info_bytes, CORE_ENTITY_BYTES_MAX);
-    op_count = core->rev->player_info_read(data, length, &list);
+    reader.read = core->rev->player_info_read;
+    reader.state_size = core->rev->player_info_state_size;
+    reader.state_save = core->rev->player_info_state_save;
+    reader.state_load = core->rev->player_info_state_load;
+    EntityInfoScratch_Borrow(&core->info_scratch.player, &list);
+    op_count = EntityInfoScratch_Read(&core->info_scratch.player, &list, &reader, data, length);
     core_entity_apply_in(core, &host, &in);
-    RS_EntityApply_PlayerInfo(&in, ops, op_count);
+    RS_EntityApply_PlayerInfo(&in, list.ops, op_count);
+    EntityInfoScratch_Release(&core->info_scratch.player, &list);
 }
 
 static void
@@ -802,21 +797,27 @@ core_npc_info(
     uint8_t const* data,
     int length)
 {
-    struct RsprotInfoOp* ops = core->npc_ops;
     struct RS_EntityApplyHost host;
     struct RS_EntityApplyIn in;
+    /* The npc stream keeps no state across packets. */
+    struct EntityInfoReader reader = { 0 };
     RsprotInfoList list;
     int op_count;
     int view = core->active_world;
 
     assert(core->rev->npc_info_read);
-    rsprot_info_list_init(&list, ops, CORE_ENTITY_OPS_MAX, core->info_bytes, CORE_ENTITY_BYTES_MAX);
-    op_count = core->rev->npc_info_read(data, length, &list);
+    reader.read = core->rev->npc_info_read;
+    EntityInfoScratch_Borrow(&core->info_scratch.npc, &list);
+    op_count = EntityInfoScratch_Read(&core->info_scratch.npc, &list, &reader, data, length);
     /* A deck view that is not live has no npcs to describe. */
     if( view > 0 && !core->views[view].live )
+    {
+        EntityInfoScratch_Release(&core->info_scratch.npc, &list);
         return;
+    }
     core_entity_apply_in(core, &host, &in);
-    RS_EntityApply_NpcInfo(&in, view, ops, op_count);
+    RS_EntityApply_NpcInfo(&in, view, list.ops, op_count);
+    EntityInfoScratch_Release(&core->info_scratch.npc, &list);
 }
 
 /* ------------------------------------------------------------ zone packets */
@@ -1182,8 +1183,23 @@ ScriptrunCore_ZoneFamilies(
     if( name == PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS )
     {
         ScriptrunCore_ZoneAt(core, &at);
-        if( at.view == 0 )
-            ScriptrunZone_LocZoneReset(zone, at.base_x, at.base_z, at.level, at.loc_climb);
+        /* The bot's own records were reset with its loc tasks (the packet's
+         * switch, RS_LocTasks_ZoneReset). A zone that keeps its records here
+         * (`loc_records`, the shadow's) takes the same rule's records half,
+         * and records each put-back as the bot's apply does. */
+        if( loc_records && at.view == 0 )
+        {
+            static struct RS_LocChange restores[RS_LOC_ZONE_KEYS];
+            int levels[8][8];
+            int count;
+
+            for( int dx = 0; dx < 8; dx++ )
+                for( int dz = 0; dz < 8; dz++ )
+                    levels[dx][dz] = at.level + at.loc_climb[dx][dz];
+            count = RS_LocZone_ResetRecords(zone->world, at.base_x, at.base_z, levels, true, restores);
+            for( int i = 0; i < count; i++ )
+                ScriptrunTasks_LocRecord(core, zone, zone->world, 0, &restores[i], -1);
+        }
         ScriptrunZone_Apply(zone, &at, tick, now, name, NULL);
         return;
     }
@@ -1926,28 +1942,20 @@ core_packet(
         break;
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
     {
-        int x0, z0, level;
+        struct RS_LocHost const host = ScriptrunTasks_LocHost(core->tasks);
+
         core->zone_base_x = packet._update_zone_full_follows.base_x;
         core->zone_base_z = packet._update_zone_full_follows.base_z;
         core->zone_level = core_zone_header_level(core, packet._update_zone_full_follows.level);
         /* A full zone resend restates every obj in it: the zone families
-         * forget the old ones (ScriptrunCore_ZoneFamilies, below). */
-        x0 = core_cursor_base_x(core) + core->zone_base_x;
-        z0 = core_cursor_base_z(core) + core->zone_base_z;
-        level = core->zone_level;
-        /* ...and resets its locs to the map's, as the client's
-         * zone_full_reset_locs does: the state behind this header names only
-         * what still differs from the map, so a change the server has since
-         * reverted would otherwise stand here and not on the client. */
-        {
-            /* A merge pending in the zone is cancelled first, as the real
-             * client's zone_full_reset_locs cancels its zone's tasks. */
-            struct RS_LocHost const host = ScriptrunTasks_LocHost(core->tasks);
-
-            (void)RS_LocTasks_CancelZone(&host, core->active_world, core->zone_base_x,
-                core->zone_base_z, level);
-        }
-        ScriptrunCore_ZoneResetLocs(core, x0, z0, level);
+         * forget the old ones (ScriptrunCore_ZoneFamilies, below). And it
+         * resets its locs to the map's by the loc core's rule, the real
+         * client's (RS_LocTasks_ZoneReset): the zone's pending changes go,
+         * its records say the map's loc stands, and the map's loc is put back
+         * through a loc change wherever one left something else -- placed,
+         * key by key, in the pump after this packet. */
+        (void)RS_LocTasks_ZoneReset(&host, core->active_world, core->zone_base_x,
+            core->zone_base_z, core->zone_level, (unsigned)core->tick);
         break;
     }
     case PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED:

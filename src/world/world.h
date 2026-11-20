@@ -1599,6 +1599,13 @@ World_NpcSetExactMoveDetailed(
     int facing,
     bool facing_is_yaw);
 
+/* The graphic an actor wears in wire slot `slot`, or NULL when that slot was
+ * never sent (WorldEntityFacet_EntitySpotanims). */
+struct WorldEntityFacet_EntitySpotanim const*
+World_EntitySpotanimInSlot(
+    struct WorldEntityFacet_EntitySpotanims const* spotanims,
+    int slot);
+
 /* `slot`: the rev-239 graphic slot, as World_NpcSetSpotanim's; `loop`, as
  * its. */
 void
@@ -1663,10 +1670,10 @@ World_NpcSetTransparency(
     int to,
     bool use_start);
 
-/* `slot`: the rev-239 graphic slot; a graphic replaces only its own slot's
- * (slots past WORLD_NPC_SPOTANIM_SLOTS - 1 share the last). `loop`: rev
- * 241's byte -- the graphic replays from its first frame each time its seq
- * ends, until the slot is sent again (Moia's binders' empower glow). */
+/* `slot`: the rev-239 graphic slot, the wire's byte (0..255, each its own);
+ * a graphic replaces only its own slot's, -1 clears it. `loop`: rev 241's
+ * byte -- the graphic replays from its first frame each time its seq ends,
+ * until the slot is sent again (Moia's binders' empower glow). */
 void
 World_NpcSetSpotanim(
     struct World* world,

@@ -96,12 +96,33 @@ struct WorldEntityFacet_ExactMove
 /* Entity-attached graphic (reference spotanimId/Frame/Cycle/LastCycle). */
 struct WorldEntityFacet_EntitySpotanim
 {
+    int slot;       /* the wire's graphic slot, 0..255 */
     int id;         /* -1 = none */
     int height;
     int last_cycle; /* absolute world cycle the graphic starts at */
     int frame;      /* -1 while delayed */
     int cycle;
     bool loop;      /* rev 241: replay from frame 0 when the seq ends */
+};
+
+/* The wire's graphic slot is a byte. */
+#define WORLD_SPOTANIM_SLOT_MAX 256
+
+/*
+ * An actor's attached graphics, one per graphic slot the wire has named for
+ * it: the rev-239 actor keeps them in a table keyed by the slot byte
+ * (class105.field1512, a class622 of class453, written by method3677: the
+ * slot's graphic is replaced, or removed by -1 / 65535), any of the 256, as
+ * many as are sent. Here a list sorted by slot, grown on ToriMem_Scene as
+ * slots are named (at most WORLD_SPOTANIM_SLOT_MAX entries); a graphic that
+ * ended or was cleared keeps its slot's entry with id -1. The row owns it:
+ * freed at its despawn and World_Free.
+ */
+struct WorldEntityFacet_EntitySpotanims
+{
+    struct WorldEntityFacet_EntitySpotanim* items;
+    int count;
+    int cap;
 };
 
 /**

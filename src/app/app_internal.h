@@ -2760,6 +2760,15 @@ app_wev_cycle_views(struct App* app);
 void
 app_wev_advance_bobs(struct App* app);
 
+/* A hull's one-shot sequence (WORLDENTITY_INFO's seq): set from `seq_delay`
+ * cycles away and wanted once, here, where it changes. */
+void
+app_wev_set_seq(
+    struct App* app,
+    struct Wev* wev,
+    int seq_id,
+    int seq_delay);
+
 
 /* ---- app_world_apply.c ---- */
 /* Attach `seq_id` to the loc standing on the tile's layer now (deob
@@ -3115,6 +3124,16 @@ app_npc_entity_facts(
     int base_npc_id,
     struct ToriRS_Npctype const* drawn,
     struct ToriRS_NpcEntityFacts* out);
+
+struct RS_EntityNpcType;
+
+/* The shared rule's record of a resident type (App_WorldNpcTypeRecord without
+ * the lookup): `facts` from app_npc_entity_facts for `npctype`. */
+void
+app_npc_type_record(
+    struct ToriRS_NpcEntityFacts const* facts,
+    struct ToriRS_Npctype const* npctype,
+    struct RS_EntityNpcType* out);
 
 int
 app_world_spawn_npc_now(

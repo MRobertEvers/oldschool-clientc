@@ -2,6 +2,7 @@
 #include "../rscache_alloc.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -229,273 +230,447 @@ mul16(
     return (int32_t)(((int64_t)sample * (int64_t)coefficient) >> 16);
 }
 
-/**
- * Run the tone's filter over the rendered samples in place.
- *
- * Ported from rt4 SynthInstrument.getSamples' filter block: an IIR sweep whose
- * coefficients are recomputed every 128 samples from the filter envelope, with
- * three phases (priming while there is no history, steady state, then a tail
- * where the look-ahead runs past the end of the buffer).
- */
-static void
-filter_apply(
-    const struct RSCache_SoundTone* tone,
-    struct filter_ctx* ctx,
-    int32_t* samples,
-    int count)
-{
-    const struct RSCache_SoundFilter* filter = &tone->filter;
-    struct env_state envelope_state;
-    int level;
-    int forward;
-    int feedback;
-    int index;
-    int limit;
-
-    if( filter->pairs[0] <= 0 && filter->pairs[1] <= 0 )
-        return;
-
-    env_reset(&envelope_state);
-    level = env_eval(&filter->envelope, &envelope_state, count + 1);
-    forward = filter_compute(filter, ctx, 0, (float)level / 65536.0f);
-    feedback = filter_compute(filter, ctx, 1, (float)level / 65536.0f);
-    if( count < forward + feedback )
-        return;
-
-    /* Priming pass: fewer output samples exist than the feedback taps want, so
-     * the inner feedback sum runs only over what has been written. */
-    index = 0;
-    limit = feedback > count - forward ? count - forward : feedback;
-    while( index < limit )
-    {
-        int32_t accumulator = mul16(samples[index + forward], ctx->inverse_a0);
-        for( int tap = 0; tap < forward; tap++ )
-            accumulator += mul16(samples[index + forward - tap - 1], ctx->coefficients[0][tap]);
-        for( int tap = 0; tap < index; tap++ )
-            accumulator -= mul16(samples[index - tap - 1], ctx->coefficients[1][tap]);
-        samples[index] = accumulator;
-        level = env_eval(&filter->envelope, &envelope_state, count + 1);
-        index++;
-    }
-
-    /* Steady state in 128-sample blocks, recomputing the coefficients from the
-     * envelope between blocks, then a tail where the look-ahead tap runs past
-     * the end of the buffer and only the in-range taps contribute. */
-    limit = 128;
-    while( true )
-    {
-        if( limit > count - forward )
-            limit = count - forward;
-        while( index < limit )
-        {
-            int32_t accumulator = mul16(samples[index + forward], ctx->inverse_a0);
-            for( int tap = 0; tap < forward; tap++ )
-                accumulator +=
-                    mul16(samples[index + forward - tap - 1], ctx->coefficients[0][tap]);
-            for( int tap = 0; tap < feedback; tap++ )
-                accumulator -= mul16(samples[index - tap - 1], ctx->coefficients[1][tap]);
-            samples[index] = accumulator;
-            level = env_eval(&filter->envelope, &envelope_state, count + 1);
-            index++;
-        }
-        if( index >= count - forward )
-        {
-            while( index < count )
-            {
-                int32_t accumulator = 0;
-                for( int tap = index + forward - count; tap < forward; tap++ )
-                    accumulator +=
-                        mul16(samples[index + forward - tap - 1], ctx->coefficients[0][tap]);
-                for( int tap = 0; tap < feedback; tap++ )
-                    accumulator -= mul16(samples[index - tap - 1], ctx->coefficients[1][tap]);
-                samples[index] = accumulator;
-                env_eval(&filter->envelope, &envelope_state, count + 1);
-                index++;
-            }
-            break;
-        }
-        forward = filter_compute(filter, ctx, 0, (float)level / 65536.0f);
-        feedback = filter_compute(filter, ctx, 1, (float)level / 65536.0f);
-        limit += 128;
-    }
-}
-
 /* --- tone synthesis ------------------------------------------------------ */
 
-/* Reference Tone.generate / SynthInstrument.getSamples. */
-static void
-tone_render(
-    const struct RSCache_SoundTone* tone,
-    int sample_count,
-    int length_ms,
-    int32_t* samples,
-    struct filter_ctx* filter_scratch)
+/*
+ * One tone's render, kept between steps (tone_run_begin, tone_run_step).
+ *
+ * The reference renders a tone in one call (rt4 SynthInstrument.getSamples /
+ * Client-TS Tone.generate): the oscillators sample by sample, then the gate,
+ * the reverb, the filter and the clamp, each a pass over the tone's samples.
+ * A long tone with a filter is tens of milliseconds of processor time, so a
+ * caller that must stop between bounded pieces of work (a background job that
+ * checks its clock) needs to stop INSIDE a tone. Every pass here is that
+ * loop with its variables kept in the run instead of in locals, and a step
+ * does at most `*budget` samples of work, across passes, before it returns.
+ * The arithmetic is the one-call loops' own, in their order, so the samples
+ * are the same however the work is cut (RSCache_SoundEffectRender is these
+ * steps with an unbounded budget).
+ */
+enum tone_pass
 {
+    TONE_SYNTH,
+    TONE_GATE,
+    TONE_REVERB,
+    TONE_FILTER,
+    TONE_CLAMP,
+    TONE_DONE,
+};
+
+/* The filter's own phases (filter_apply in the reference's three loops). */
+enum filter_pass
+{
+    FILTER_BEGIN,
+    FILTER_PRIME,
+    FILTER_BLOCK,
+    FILTER_STEADY,
+    FILTER_TAIL,
+};
+
+struct tone_run
+{
+    const struct RSCache_SoundTone* tone;
+    int32_t* samples;
+    struct filter_ctx* filter;
+    int sample_count;
+    int pass;
+    int cursor;
+
+    /* The oscillators. */
+    double samples_per_step;
     struct env_state frequency_state;
     struct env_state amplitude_state;
     struct env_state frequency_mod_rate_state;
     struct env_state frequency_mod_range_state;
     struct env_state amplitude_mod_rate_state;
     struct env_state amplitude_mod_range_state;
-    double samples_per_step;
-    int frequency_start = 0;
-    int frequency_duration = 0;
-    int frequency_phase = 0;
-    int amplitude_start = 0;
-    int amplitude_duration = 0;
-    int amplitude_phase = 0;
+    int frequency_start;
+    int frequency_duration;
+    int frequency_phase;
+    int amplitude_start;
+    int amplitude_duration;
+    int amplitude_phase;
     int harmonic_phase[RSCACHE_SOUND_HARMONICS];
     int harmonic_delay[RSCACHE_SOUND_HARMONICS];
     int harmonic_scaled_volume[RSCACHE_SOUND_HARMONICS];
     int harmonic_step[RSCACHE_SOUND_HARMONICS];
     int harmonic_base_step[RSCACHE_SOUND_HARMONICS];
-    /* The reference's oscillator arrays are five long and its render loop only
-     * ever sums five, even though the wire can carry more. */
-    const int harmonics = 5;
 
+    /* The gate. */
+    struct env_state release_state;
+    struct env_state attack_state;
+    int gate_counter;
+    bool muted;
+
+    /* The reverb's delay, in samples. */
+    int reverb_delay;
+
+    /* The filter. */
+    int filter_pass;
+    struct env_state filter_state;
+    int level;
+    int forward;
+    int feedback;
+    int limit;
+};
+
+/* The reference's oscillator arrays are five long and its render loop only
+ * ever sums five, even though the wire can carry more. */
+#define TONE_HARMONICS 5
+
+/* The pass after `pass` that this tone has (a gate, a reverb and a filter
+ * only when it carries one), with that pass's state set up. */
+static void
+tone_run_next(struct tone_run* r)
+{
+    const struct RSCache_SoundTone* tone = r->tone;
+
+    r->cursor = 0;
+    if( r->pass < TONE_GATE && tone->has_gate )
+    {
+        r->pass = TONE_GATE;
+        env_reset(&r->release_state);
+        env_reset(&r->attack_state);
+        r->gate_counter = 0;
+        r->muted = true;
+        return;
+    }
+    if( r->pass < TONE_REVERB && tone->reverb_delay > 0 && tone->reverb_volume > 0 )
+    {
+        int const delay = (int)((double)tone->reverb_delay * r->samples_per_step);
+
+        if( delay > 0 )
+        {
+            r->pass = TONE_REVERB;
+            r->reverb_delay = delay;
+            r->cursor = delay;
+            return;
+        }
+    }
+    if( r->pass < TONE_FILTER && tone->has_filter )
+    {
+        r->pass = TONE_FILTER;
+        r->filter_pass = FILTER_BEGIN;
+        return;
+    }
+    r->pass = r->pass < TONE_CLAMP ? TONE_CLAMP : TONE_DONE;
+}
+
+/* Reference Tone.generate / SynthInstrument.getSamples' set-up. */
+static void
+tone_run_begin(
+    struct tone_run* r,
+    const struct RSCache_SoundTone* tone,
+    int sample_count,
+    int length_ms,
+    int32_t* samples,
+    struct filter_ctx* filter_scratch)
+{
+    memset(r, 0, sizeof(*r));
+    r->tone = tone;
+    r->samples = samples;
+    r->filter = filter_scratch;
+    r->sample_count = sample_count;
     memset(samples, 0, (size_t)sample_count * sizeof(int32_t));
     if( length_ms < 10 )
+    {
+        r->pass = TONE_DONE;
         return;
+    }
 
-    samples_per_step = (double)sample_count / (double)length_ms;
-
-    env_reset(&frequency_state);
-    env_reset(&amplitude_state);
-
+    r->samples_per_step = (double)sample_count / (double)length_ms;
     if( tone->has_frequency_mod )
     {
-        env_reset(&frequency_mod_rate_state);
-        env_reset(&frequency_mod_range_state);
-        frequency_start =
+        r->frequency_start =
             (int)((double)(tone->frequency_mod_rate.end - tone->frequency_mod_rate.start) *
-                  32.768 / samples_per_step);
-        frequency_duration =
-            (int)((double)tone->frequency_mod_rate.start * 32.768 / samples_per_step);
+                  32.768 / r->samples_per_step);
+        r->frequency_duration =
+            (int)((double)tone->frequency_mod_rate.start * 32.768 / r->samples_per_step);
     }
     if( tone->has_amplitude_mod )
     {
-        env_reset(&amplitude_mod_rate_state);
-        env_reset(&amplitude_mod_range_state);
-        amplitude_start =
+        r->amplitude_start =
             (int)((double)(tone->amplitude_mod_rate.end - tone->amplitude_mod_rate.start) *
-                  32.768 / samples_per_step);
-        amplitude_duration =
-            (int)((double)tone->amplitude_mod_rate.start * 32.768 / samples_per_step);
+                  32.768 / r->samples_per_step);
+        r->amplitude_duration =
+            (int)((double)tone->amplitude_mod_rate.start * 32.768 / r->samples_per_step);
     }
-
-    memset(harmonic_phase, 0, sizeof(harmonic_phase));
-    memset(harmonic_delay, 0, sizeof(harmonic_delay));
-    memset(harmonic_scaled_volume, 0, sizeof(harmonic_scaled_volume));
-    memset(harmonic_step, 0, sizeof(harmonic_step));
-    memset(harmonic_base_step, 0, sizeof(harmonic_base_step));
-    for( int harmonic = 0; harmonic < harmonics; harmonic++ )
+    for( int harmonic = 0; harmonic < TONE_HARMONICS; harmonic++ )
     {
         if( tone->harmonic_volume[harmonic] == 0 )
             continue;
-        harmonic_phase[harmonic] = 0;
-        harmonic_delay[harmonic] =
-            (int)((double)tone->harmonic_delay[harmonic] * samples_per_step);
-        harmonic_scaled_volume[harmonic] = (tone->harmonic_volume[harmonic] << 14) / 100;
-        harmonic_step[harmonic] =
+        r->harmonic_delay[harmonic] =
+            (int)((double)tone->harmonic_delay[harmonic] * r->samples_per_step);
+        r->harmonic_scaled_volume[harmonic] = (tone->harmonic_volume[harmonic] << 14) / 100;
+        r->harmonic_step[harmonic] =
             (int)((double)(tone->frequency_base.end - tone->frequency_base.start) * 32.768 *
                   pow(1.0057929410678534, (double)tone->harmonic_semitone[harmonic]) /
-                  samples_per_step);
-        harmonic_base_step[harmonic] =
-            (int)((double)tone->frequency_base.start * 32.768 / samples_per_step);
+                  r->samples_per_step);
+        r->harmonic_base_step[harmonic] =
+            (int)((double)tone->frequency_base.start * 32.768 / r->samples_per_step);
     }
+    r->pass = TONE_SYNTH;
+}
 
-    for( int sample = 0; sample < sample_count; sample++ )
+/* The oscillators over samples [cursor, end). */
+static void
+tone_synth(
+    struct tone_run* r,
+    int end)
+{
+    const struct RSCache_SoundTone* tone = r->tone;
+    int32_t* samples = r->samples;
+    int const sample_count = r->sample_count;
+
+    for( int sample = r->cursor; sample < end; sample++ )
     {
-        int frequency = env_eval(&tone->frequency_base, &frequency_state, sample_count);
-        int amplitude = env_eval(&tone->amplitude_base, &amplitude_state, sample_count);
+        int frequency = env_eval(&tone->frequency_base, &r->frequency_state, sample_count);
+        int amplitude = env_eval(&tone->amplitude_base, &r->amplitude_state, sample_count);
 
         if( tone->has_frequency_mod )
         {
             int rate =
-                env_eval(&tone->frequency_mod_rate, &frequency_mod_rate_state, sample_count);
+                env_eval(&tone->frequency_mod_rate, &r->frequency_mod_rate_state, sample_count);
             int range =
-                env_eval(&tone->frequency_mod_range, &frequency_mod_range_state, sample_count);
-            frequency += waveform(range, frequency_phase, tone->frequency_mod_rate.form) >> 1;
-            frequency_phase += (rate * frequency_start >> 16) + frequency_duration;
+                env_eval(&tone->frequency_mod_range, &r->frequency_mod_range_state, sample_count);
+            frequency += waveform(range, r->frequency_phase, tone->frequency_mod_rate.form) >> 1;
+            r->frequency_phase += (rate * r->frequency_start >> 16) + r->frequency_duration;
         }
         if( tone->has_amplitude_mod )
         {
             int rate =
-                env_eval(&tone->amplitude_mod_rate, &amplitude_mod_rate_state, sample_count);
+                env_eval(&tone->amplitude_mod_rate, &r->amplitude_mod_rate_state, sample_count);
             int range =
-                env_eval(&tone->amplitude_mod_range, &amplitude_mod_range_state, sample_count);
+                env_eval(&tone->amplitude_mod_range, &r->amplitude_mod_range_state, sample_count);
             amplitude = amplitude *
-                        ((waveform(range, amplitude_phase, tone->amplitude_mod_rate.form) >> 1) +
+                        ((waveform(range, r->amplitude_phase, tone->amplitude_mod_rate.form) >> 1) +
                          32768) >>
                         15;
-            amplitude_phase += (rate * amplitude_start >> 16) + amplitude_duration;
+            r->amplitude_phase += (rate * r->amplitude_start >> 16) + r->amplitude_duration;
         }
 
-        for( int harmonic = 0; harmonic < harmonics; harmonic++ )
+        for( int harmonic = 0; harmonic < TONE_HARMONICS; harmonic++ )
         {
             int position;
             if( tone->harmonic_volume[harmonic] == 0 )
                 continue;
-            position = sample + harmonic_delay[harmonic];
+            position = sample + r->harmonic_delay[harmonic];
             if( position >= sample_count )
                 continue;
             samples[position] += waveform(
-                amplitude * harmonic_scaled_volume[harmonic] >> 15,
-                harmonic_phase[harmonic],
+                amplitude * r->harmonic_scaled_volume[harmonic] >> 15,
+                r->harmonic_phase[harmonic],
                 tone->frequency_base.form);
-            harmonic_phase[harmonic] +=
-                (frequency * harmonic_step[harmonic] >> 16) + harmonic_base_step[harmonic];
+            r->harmonic_phase[harmonic] +=
+                (frequency * r->harmonic_step[harmonic] >> 16) + r->harmonic_base_step[harmonic];
         }
     }
+    r->cursor = end;
+}
 
-    /* Gate: chop the tone into pulses whose on/off lengths sweep with the
-     * release (closed) and attack (open) envelopes. */
-    if( tone->has_gate )
+/* Gate: chop the tone into pulses whose on/off lengths sweep with the
+ * release (closed) and attack (open) envelopes. Samples [cursor, end). */
+static void
+tone_gate(
+    struct tone_run* r,
+    int end)
+{
+    const struct RSCache_SoundTone* tone = r->tone;
+
+    for( int sample = r->cursor; sample < end; sample++ )
     {
-        struct env_state release_state;
-        struct env_state attack_state;
-        int counter = 0;
-        bool muted = true;
-
-        env_reset(&release_state);
-        env_reset(&attack_state);
-        for( int sample = 0; sample < sample_count; sample++ )
+        int release_value = env_eval(&tone->release, &r->release_state, r->sample_count);
+        int attack_value = env_eval(&tone->attack, &r->attack_state, r->sample_count);
+        int threshold = tone->release.start + ((tone->release.end - tone->release.start) *
+                                                   (r->muted ? release_value : attack_value) >>
+                                               8);
+        r->gate_counter += 256;
+        if( r->gate_counter >= threshold )
         {
-            int release_value = env_eval(&tone->release, &release_state, sample_count);
-            int attack_value = env_eval(&tone->attack, &attack_state, sample_count);
-            int threshold =
-                tone->release.start + ((tone->release.end - tone->release.start) *
-                                       (muted ? release_value : attack_value) >>
-                                       8);
-            counter += 256;
-            if( counter >= threshold )
-            {
-                counter = 0;
-                muted = !muted;
-            }
-            if( muted )
-                samples[sample] = 0;
+            r->gate_counter = 0;
+            r->muted = !r->muted;
         }
+        if( r->muted )
+            r->samples[sample] = 0;
     }
+    r->cursor = end;
+}
 
-    if( tone->reverb_delay > 0 && tone->reverb_volume > 0 )
+/*
+ * The tone's filter, at most `*budget` output samples of it.
+ *
+ * Ported from rt4 SynthInstrument.getSamples' filter block: an IIR sweep whose
+ * coefficients are recomputed every 128 samples from the filter envelope, with
+ * three phases (priming while there is no history, steady state, then a tail
+ * where the look-ahead runs past the end of the buffer). `cursor` is the
+ * reference's `index`. Returns true once the filter is done.
+ */
+static bool
+tone_filter(
+    struct tone_run* r,
+    int* budget)
+{
+    const struct RSCache_SoundFilter* filter = &r->tone->filter;
+    struct filter_ctx* ctx = r->filter;
+    int32_t* samples = r->samples;
+    int const count = r->sample_count;
+
+    while( *budget > 0 )
     {
-        int delay = (int)((double)tone->reverb_delay * samples_per_step);
-        if( delay > 0 )
-            for( int sample = delay; sample < sample_count; sample++ )
-                samples[sample] += samples[sample - delay] * tone->reverb_volume / 100;
+        if( r->filter_pass == FILTER_BEGIN )
+        {
+            if( filter->pairs[0] <= 0 && filter->pairs[1] <= 0 )
+                return true;
+            env_reset(&r->filter_state);
+            r->level = env_eval(&filter->envelope, &r->filter_state, count + 1);
+            r->forward = filter_compute(filter, ctx, 0, (float)r->level / 65536.0f);
+            r->feedback = filter_compute(filter, ctx, 1, (float)r->level / 65536.0f);
+            if( count < r->forward + r->feedback )
+                return true;
+            r->cursor = 0;
+            r->limit = r->feedback > count - r->forward ? count - r->forward : r->feedback;
+            r->filter_pass = FILTER_PRIME;
+            continue;
+        }
+        if( r->filter_pass == FILTER_PRIME )
+        {
+            /* Fewer output samples exist than the feedback taps want, so the
+             * inner feedback sum runs only over what has been written. */
+            while( r->cursor < r->limit && *budget > 0 )
+            {
+                int const index = r->cursor;
+                int32_t accumulator = mul16(samples[index + r->forward], ctx->inverse_a0);
+                for( int tap = 0; tap < r->forward; tap++ )
+                    accumulator +=
+                        mul16(samples[index + r->forward - tap - 1], ctx->coefficients[0][tap]);
+                for( int tap = 0; tap < index; tap++ )
+                    accumulator -= mul16(samples[index - tap - 1], ctx->coefficients[1][tap]);
+                samples[index] = accumulator;
+                r->level = env_eval(&filter->envelope, &r->filter_state, count + 1);
+                r->cursor++;
+                (*budget)--;
+            }
+            if( r->cursor < r->limit )
+                return false;
+            r->limit = 128;
+            r->filter_pass = FILTER_BLOCK;
+            continue;
+        }
+        if( r->filter_pass == FILTER_BLOCK )
+        {
+            /* A 128-sample block of the steady state, cut short where the
+             * look-ahead tap would run past the end. */
+            if( r->limit > count - r->forward )
+                r->limit = count - r->forward;
+            r->filter_pass = FILTER_STEADY;
+            continue;
+        }
+        if( r->filter_pass == FILTER_STEADY )
+        {
+            while( r->cursor < r->limit && *budget > 0 )
+            {
+                int const index = r->cursor;
+                int32_t accumulator = mul16(samples[index + r->forward], ctx->inverse_a0);
+                for( int tap = 0; tap < r->forward; tap++ )
+                    accumulator +=
+                        mul16(samples[index + r->forward - tap - 1], ctx->coefficients[0][tap]);
+                for( int tap = 0; tap < r->feedback; tap++ )
+                    accumulator -= mul16(samples[index - tap - 1], ctx->coefficients[1][tap]);
+                samples[index] = accumulator;
+                r->level = env_eval(&filter->envelope, &r->filter_state, count + 1);
+                r->cursor++;
+                (*budget)--;
+            }
+            if( r->cursor < r->limit )
+                return false;
+            if( r->cursor >= count - r->forward )
+            {
+                r->filter_pass = FILTER_TAIL;
+                continue;
+            }
+            /* The next block's coefficients, from the envelope. */
+            r->forward = filter_compute(filter, ctx, 0, (float)r->level / 65536.0f);
+            r->feedback = filter_compute(filter, ctx, 1, (float)r->level / 65536.0f);
+            r->limit += 128;
+            r->filter_pass = FILTER_BLOCK;
+            continue;
+        }
+        /* FILTER_TAIL: only the in-range look-ahead taps contribute. */
+        while( r->cursor < count && *budget > 0 )
+        {
+            int const index = r->cursor;
+            int32_t accumulator = 0;
+            for( int tap = index + r->forward - count; tap < r->forward; tap++ )
+                accumulator +=
+                    mul16(samples[index + r->forward - tap - 1], ctx->coefficients[0][tap]);
+            for( int tap = 0; tap < r->feedback; tap++ )
+                accumulator -= mul16(samples[index - tap - 1], ctx->coefficients[1][tap]);
+            samples[index] = accumulator;
+            env_eval(&filter->envelope, &r->filter_state, count + 1);
+            r->cursor++;
+            (*budget)--;
+        }
+        return r->cursor >= count;
     }
+    return false;
+}
 
-    if( tone->has_filter )
-        filter_apply(tone, filter_scratch, samples, sample_count);
-
-    for( int sample = 0; sample < sample_count; sample++ )
+/* At most `*budget` samples of the tone's passes. True once it is rendered. */
+static bool
+tone_run_step(
+    struct tone_run* r,
+    int* budget)
+{
+    while( r->pass != TONE_DONE && *budget > 0 )
     {
-        if( samples[sample] < -32768 )
-            samples[sample] = -32768;
-        else if( samples[sample] > 32767 )
-            samples[sample] = 32767;
+        int const count = r->sample_count;
+        int n;
+        int end;
+
+        if( r->pass == TONE_FILTER )
+        {
+            if( !tone_filter(r, budget) )
+                return false;
+            tone_run_next(r);
+            continue;
+        }
+        n = count - r->cursor;
+        if( n <= 0 )
+        {
+            tone_run_next(r);
+            continue;
+        }
+        if( n > *budget )
+            n = *budget;
+        end = r->cursor + n;
+        *budget -= n;
+        if( r->pass == TONE_SYNTH )
+            tone_synth(r, end);
+        else if( r->pass == TONE_GATE )
+            tone_gate(r, end);
+        else if( r->pass == TONE_REVERB )
+        {
+            for( int sample = r->cursor; sample < end; sample++ )
+                r->samples[sample] +=
+                    r->samples[sample - r->reverb_delay] * r->tone->reverb_volume / 100;
+            r->cursor = end;
+        }
+        else
+        {
+            assert(r->pass == TONE_CLAMP);
+            for( int sample = r->cursor; sample < end; sample++ )
+            {
+                if( r->samples[sample] < -32768 )
+                    r->samples[sample] = -32768;
+                else if( r->samples[sample] > 32767 )
+                    r->samples[sample] = 32767;
+            }
+            r->cursor = end;
+        }
+        if( r->cursor >= count )
+            tone_run_next(r);
     }
+    return r->pass == TONE_DONE;
 }
 
 /* --- effect mixing ------------------------------------------------------- */
@@ -525,6 +700,16 @@ struct RSCache_SoundRender
     struct filter_ctx filter_scratch;
     /* The next tone slot to render. */
     int slot;
+    /* The tone being rendered (`tone_active`), where it mixes in, and how far
+     * its mix has got. */
+    struct tone_run tone;
+    bool tone_active;
+    int tone_start;
+    int tone_sample_count;
+    int mix_cursor;
+    /* Every tone is in: the bias pass (SYNTH only) up to here. */
+    bool tones_done;
+    int bias_cursor;
     bool finished;
 };
 
@@ -626,19 +811,45 @@ RSCache_SoundRenderNew(
     return render;
 }
 
-bool
-RSCache_SoundRenderStep(struct RSCache_SoundRender* render)
+/* Mix samples [mix_cursor, end) of the current tone into the PCM. */
+static void
+render_mix(
+    struct RSCache_SoundRender* render,
+    int end)
 {
-    const struct RSCache_SoundEffect* effect;
-    uint8_t* pcm;
+    uint8_t* pcm = render->pcm;
+    int32_t const* tone_samples = render->tone_samples;
+    int const start = render->tone_start;
 
-    assert(render);
-    if( render->finished )
-        return true;
-    effect = render->effect;
-    pcm = render->pcm;
+    if( render->codec == RSCACHE_CODEC_SOUND_WAVE )
+    {
+        /* Wrapping 8-bit add, as Client-TS's Uint8Array += does. */
+        for( int sample = render->mix_cursor; sample < end; sample++ )
+            pcm[sample + start] = (uint8_t)(pcm[sample + start] + (uint8_t)(tone_samples[sample] >> 8));
+    }
+    else
+    {
+        /* Clamping signed add (rt4). The buffer holds signed values until
+         * the bias is applied at the end. */
+        for( int sample = render->mix_cursor; sample < end; sample++ )
+        {
+            int mixed = (int8_t)pcm[sample + start] + (tone_samples[sample] >> 8);
+            if( mixed < -128 )
+                mixed = -128;
+            else if( mixed > 127 )
+                mixed = 127;
+            pcm[sample + start] = (uint8_t)(int8_t)mixed;
+        }
+    }
+    render->mix_cursor = end;
+}
 
-    /* One tone a step: the next slot that renders anything. */
+/* Start the next tone slot that renders anything; false when none is left. */
+static bool
+render_next_tone(struct RSCache_SoundRender* render)
+{
+    const struct RSCache_SoundEffect* effect = render->effect;
+
     while( render->slot < RSCACHE_SOUND_TONES )
     {
         const struct RSCache_SoundTone* tone = effect->tones[render->slot++];
@@ -654,41 +865,67 @@ RSCache_SoundRenderStep(struct RSCache_SoundRender* render)
             tone_sample_count = render->sample_count - start;
         if( tone_sample_count <= 0 )
             continue;
+        tone_run_begin(
+            &render->tone, tone, tone_sample_count, tone->length, render->tone_samples,
+            &render->filter_scratch);
+        render->tone_active = true;
+        render->tone_start = start;
+        render->tone_sample_count = tone_sample_count;
+        render->mix_cursor = 0;
+        return true;
+    }
+    return false;
+}
 
-        tone_render(
-            tone, tone_sample_count, tone->length, render->tone_samples, &render->filter_scratch);
+bool
+RSCache_SoundRenderStep(
+    struct RSCache_SoundRender* render,
+    int budget)
+{
+    assert(render);
+    assert(budget > 0);
+    while( !render->finished && budget > 0 )
+    {
+        if( !render->tones_done )
+        {
+            int n;
 
+            if( !render->tone_active && !render_next_tone(render) )
+            {
+                render->tones_done = true;
+                continue;
+            }
+            if( !tone_run_step(&render->tone, &budget) )
+                continue;
+            n = render->tone_sample_count - render->mix_cursor;
+            if( n > budget )
+                n = budget;
+            budget -= n;
+            render_mix(render, render->mix_cursor + n);
+            if( render->mix_cursor >= render->tone_sample_count )
+                render->tone_active = false;
+            continue;
+        }
         if( render->codec == RSCACHE_CODEC_SOUND_WAVE )
         {
-            /* Wrapping 8-bit add, as Client-TS's Uint8Array += does. */
-            for( int sample = 0; sample < tone_sample_count; sample++ )
-                pcm[sample + start] =
-                    (uint8_t)(pcm[sample + start] + (uint8_t)(render->tone_samples[sample] >> 8));
+            render->finished = true;
+            break;
         }
-        else
         {
-            /* Clamping signed add (rt4). The buffer holds signed values until
-             * the bias is applied below. */
-            for( int sample = 0; sample < tone_sample_count; sample++ )
-            {
-                int mixed = (int8_t)pcm[sample + start] + (render->tone_samples[sample] >> 8);
-                if( mixed < -128 )
-                    mixed = -128;
-                else if( mixed > 127 )
-                    mixed = 127;
-                pcm[sample + start] = (uint8_t)(int8_t)mixed;
-            }
-        }
-        break;
-    }
-    if( render->slot < RSCACHE_SOUND_TONES )
-        return false;
+            /* signed -> unsigned bias */
+            int n = render->allocated_count - render->bias_cursor;
 
-    if( render->codec != RSCACHE_CODEC_SOUND_WAVE )
-        for( int sample = 0; sample < render->allocated_count; sample++ )
-            pcm[sample] = (uint8_t)(pcm[sample] ^ 0x80); /* signed -> unsigned bias */
-    render->finished = true;
-    return true;
+            if( n > budget )
+                n = budget;
+            budget -= n;
+            for( int sample = render->bias_cursor; sample < render->bias_cursor + n; sample++ )
+                render->pcm[sample] = (uint8_t)(render->pcm[sample] ^ 0x80);
+            render->bias_cursor += n;
+            if( render->bias_cursor >= render->allocated_count )
+                render->finished = true;
+        }
+    }
+    return render->finished;
 }
 
 void
@@ -731,7 +968,7 @@ RSCache_SoundEffectRender(
     render = RSCache_SoundRenderNew(cache, effect);
     if( !render )
         return false;
-    while( !RSCache_SoundRenderStep(render) )
+    while( !RSCache_SoundRenderStep(render, INT_MAX) )
         ;
     RSCache_SoundRenderTake(render, out);
     RSCache_SoundRenderFree(render);

@@ -3307,6 +3307,19 @@ void
 App_LocChangesCancelAll(struct App* app);
 
 /**
+ * UPDATE_ZONE_FULL_FOLLOWS's loc half for view `view`'s 8x8 zone at
+ * (`base_x`, `base_z`) on walked plane `zone_level`: the loc core's rule
+ * (RS_LocTasks_ZoneReset). Returns how many map locs it puts back.
+ */
+int
+App_LocChangesZoneReset(
+    struct App* app,
+    int view,
+    int base_x,
+    int base_z,
+    int zone_level);
+
+/**
  * The finish every rebuilt view runs once its scene is built (the root's from
  * App_WorldLoadFinish, a deck's from REBUILD_WORLDENTITY): LOC_ADD triggers
  * for its locs, its ground stacks' models, and -- server-driven only -- the

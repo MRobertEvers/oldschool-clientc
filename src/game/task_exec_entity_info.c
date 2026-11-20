@@ -425,13 +425,22 @@ Task_ExecPlayerInfo_Run(
      * (CreateTask_ExecPlayerInfoOps); a packet is read here. */
     if( !self->ops )
     {
+        struct GameProtoRevTable const* rev;
+        struct EntityInfoReader reader;
+
         EntityInfoScratch_Borrow(&app->entity_info_scratch.player, &self->info);
-        self->ops = self->info.ops;
         /* The revision's reader (GameProtoRevTable.player_info_read). Every
-         * reader writes the same op list. */
+         * reader writes the same op list, sized to the packet. */
         assert(app->net);
-        assert(app->net->rev->player_info_read);
-        self->op_count = app->net->rev->player_info_read(self->data, self->length, &self->info);
+        rev = app->net->rev;
+        assert(rev->player_info_read);
+        reader.read = rev->player_info_read;
+        reader.state_size = rev->player_info_state_size;
+        reader.state_save = rev->player_info_state_save;
+        reader.state_load = rev->player_info_state_load;
+        self->op_count = EntityInfoScratch_Read(
+            &app->entity_info_scratch.player, &self->info, &reader, self->data, self->length);
+        self->ops = self->info.ops;
     }
     {
         struct EntityInfoHost h = { 0 };
@@ -554,22 +563,18 @@ Task_ExecNpcInfo_Run(
     if( !self->ops )
     {
         struct GameProtoRevTable const* rev;
+        /* The npc stream keeps no state across packets. */
+        struct EntityInfoReader reader = { 0 };
 
         EntityInfoScratch_Borrow(&app->entity_info_scratch.npc, &self->info);
-        self->ops = self->info.ops;
         assert(app->net);
         rev = app->net->rev;
-        if( self->large )
-        {
-            /* Only a table that names NPC_INFO_LARGE routes one here. */
-            assert(rev->npc_info_read_large);
-            self->op_count = rev->npc_info_read_large(self->data, self->length, &self->info);
-        }
-        else
-        {
-            assert(rev->npc_info_read);
-            self->op_count = rev->npc_info_read(self->data, self->length, &self->info);
-        }
+        /* Only a table that names NPC_INFO_LARGE routes one here. */
+        reader.read = self->large ? rev->npc_info_read_large : rev->npc_info_read;
+        assert(reader.read);
+        self->op_count = EntityInfoScratch_Read(
+            &app->entity_info_scratch.npc, &self->info, &reader, self->data, self->length);
+        self->ops = self->info.ops;
     }
     self->bd_decode = BD_T0();
 

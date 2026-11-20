@@ -30,6 +30,8 @@ EntitySpotanims_Free(struct EntitySpotanims* table)
 {
     if( !table )
         return;
+    for( int i = 0; i < table->capacity; i++ )
+        ToriMem_Free(ToriMem_Session(), table->entries[i].slots);
     ToriMem_Free(ToriMem_Session(), table->entries);
     table->entries = NULL;
     table->capacity = 0;
@@ -84,12 +86,12 @@ EntitySpotanims_Claim(
         spotanims_mark_free(table, old);
         entry = &table->entries[old];
     }
+    /* A free entry holds no slots (EntitySpotanim_Clear released them). */
+    assert(!entry->slots);
     *entry = (struct EntitySpotanim){
         .body_element_id = body_element_id,
         .owner_entity_id = owner_entity_id,
     };
-    for( int i = 0; i < ENTITY_SPOTANIM_SLOTS; i++ )
-        entry->slots[i] = (struct EntitySpotanimSlot){ .spotanim_id = -1, .applied_frame = -1 };
     return entry;
 }
 
@@ -97,7 +99,27 @@ void
 EntitySpotanim_Clear(struct EntitySpotanim* entry)
 {
     assert(entry);
+    ToriMem_Free(ToriMem_Session(), entry->slots);
     *entry = (struct EntitySpotanim){ .body_element_id = -1, .owner_entity_id = 0 };
+}
+
+struct EntitySpotanimSlot*
+EntitySpotanim_Slots(
+    struct EntitySpotanim* entry,
+    int count)
+{
+    assert(entry);
+    assert(count >= 0);
+    if( count > entry->slot_count )
+    {
+        entry->slots = ToriMem_Realloc(
+            ToriMem_Session(), entry->slots, (size_t)count * sizeof(*entry->slots));
+        assert(entry->slots);
+        for( int i = entry->slot_count; i < count; i++ )
+            entry->slots[i] = (struct EntitySpotanimSlot){ .spotanim_id = -1, .applied_frame = -1 };
+        entry->slot_count = count;
+    }
+    return entry->slots;
 }
 
 struct ToriDraw_Model*
@@ -111,7 +133,11 @@ EntitySpotanim_SlotWant(
     if( slot->spotanim_id == spotanim_id )
         return NULL;
     old = slot->spot;
-    *slot = (struct EntitySpotanimSlot){ .spotanim_id = spotanim_id, .applied_frame = -1 };
+    /* `merged` stays: whether `combined` holds this position is the merge's
+     * to say, and the next one is rebuilt (its frame no longer matches). */
+    *slot = (struct EntitySpotanimSlot){
+        .spotanim_id = spotanim_id, .applied_frame = -1, .merged = slot->merged
+    };
     return old;
 }
 
@@ -120,45 +146,58 @@ EntitySpotanim_ForgetMerge(struct EntitySpotanim* entry)
 {
     assert(entry);
     entry->combined = NULL;
-    entry->merged_mask = 0;
-    for( int i = 0; i < ENTITY_SPOTANIM_SLOTS; i++ )
+    for( int i = 0; i < entry->slot_count; i++ )
+    {
         entry->slots[i].applied_frame = -1;
+        entry->slots[i].merged = false;
+    }
 }
 
 int
 EntitySpotanim_NeedsMerge(
     struct EntitySpotanim const* entry,
-    int draw_mask,
+    bool const* draw,
     int const* frames,
     int spot_count)
 {
-    int changed;
-
     assert(entry);
+    assert(draw);
     assert(frames);
-    assert(spot_count <= ENTITY_SPOTANIM_SLOTS);
-    changed = !entry->combined || entry->merged_mask != draw_mask;
-    for( int i = 0; i < spot_count && !changed; i++ )
-        if( (draw_mask & (1 << i)) && frames[i] != entry->slots[i].applied_frame )
-            changed = 1;
-    return changed;
+    assert(spot_count <= entry->slot_count);
+    if( !entry->combined )
+        return 1;
+    for( int i = 0; i < entry->slot_count; i++ )
+    {
+        bool const drawn = i < spot_count && draw[i];
+
+        if( drawn != entry->slots[i].merged )
+            return 1;
+        if( drawn && frames[i] != entry->slots[i].applied_frame )
+            return 1;
+    }
+    return 0;
 }
 
 void
 EntitySpotanim_NoteMerged(
     struct EntitySpotanim* entry,
     struct ToriDraw_Model* merged,
-    int draw_mask,
+    bool const* draw,
     int const* frames,
     int spot_count)
 {
     assert(entry);
     assert(merged);
+    assert(draw);
     assert(frames);
-    assert(spot_count <= ENTITY_SPOTANIM_SLOTS);
+    assert(spot_count <= entry->slot_count);
     entry->combined = merged;
-    entry->merged_mask = draw_mask;
-    for( int i = 0; i < spot_count; i++ )
-        if( draw_mask & (1 << i) )
+    for( int i = 0; i < entry->slot_count; i++ )
+    {
+        bool const drawn = i < spot_count && draw[i];
+
+        entry->slots[i].merged = drawn;
+        if( drawn )
             entry->slots[i].applied_frame = frames[i];
+    }
 }

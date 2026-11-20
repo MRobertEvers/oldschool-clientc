@@ -2914,6 +2914,18 @@ test-entity-info-scratch: $(OBJ_DIR)
 		$(TORIMEM_SRCS) game/test/entity_info_scratch_test.c game/entity_info_scratch.c $(LDFLAGS)
 	./$(OBJ_DIR)/entity_info_scratch_test$(PLATFORM_EXE_SUFFIX)
 
+# The read both clients fill an entity-info op list with
+# (EntityInfoScratch_Read): a legal crowded PLAYER_INFO (the server's own
+# writer, 255 players entering view with a busy tick's blocks) and a crowded
+# NPC_INFO need more than a default list; the read grows it, reads the packet
+# again from the stream state before it, and hands back every op.
+.PHONY: test-entity-info-read
+test-entity-info-read: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/entity_info_read_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) game/test/entity_info_read_test.c game/entity_info_scratch.c \
+		$(RSPROT_INFO_OBJS) -lm $(LDFLAGS)
+	./$(OBJ_DIR)/entity_info_read_test$(PLATFORM_EXE_SUFFIX)
+
 # A replay seek's chase: the tile it states until the world comes back, and
 # the client cycles each chase tick charges -- whole on the first tick, then
 # the gap less the cycles this client ran, never below zero. A wrong charge
@@ -4933,6 +4945,21 @@ test-npc-body-models: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 		$(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/npc_body_models_test
 
+# An actor's attached graphics are kept per wire slot, every slot byte its own
+# (the rev-239 actor's table keyed by slot): slots 0, 7, 8, 9, 12 and 255 read
+# back apart, replace and clear singly, and the lists go with both despawns and
+# World_Free. CFLAGS as given, so OPT=1 runs it with asserts compiled out.
+.PHONY: test-spotanim-slots
+test-spotanim-slots: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/spotanim_slots_test $(TORIMEM_SRCS) \
+		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
+		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
+		features/features.c world/test/spotanim_slots_test.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/spotanim_slots_test
+
 test-pick: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/pick_face_test \
 		render/test/pick_face_test.c \
@@ -6205,6 +6232,16 @@ test-loc-tasks: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/app_loc_tasks_test
 
+# A hull's sequences are wanted where they change, not every frame
+# (app/app_wev.c): a spawn wants its idle once, a one-shot is wanted where it
+# is set, and steady frames want nothing.
+.PHONY: test-wev-seq-wants
+test-wev-seq-wants: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
+		-o $(OBJ_DIR)/app_wev_seq_want_test app/test/app_wev_seq_want_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_wev_seq_want_test
+
 # The scripts family's parallel tasks (app/app_tasks_scripts.c): a visual
 # script operation is one listed task that a newer set cancels and a closed
 # interface drops; and TRIGGER_ONDIALOGABORT's listeners keep wire order (U9).
@@ -6238,6 +6275,17 @@ test-loc-seq-bind: $(OBJ_DIR) $(OBJS)
 		engine/world_builder/test/loc_seq_late_bind_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/loc_seq_late_bind_test ..
+
+# A sound effect's loader reads on the asset queue and renders on the compute
+# queue (the background queue), in bounded steps, and adds the sound the moment
+# the render ends: engine/dat2/task_dat2_sound_load.c, against the real
+# osrs242 cache (the longest render, 8787, and three short effects).
+.PHONY: test-sound-load
+test-sound-load: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/sound_load_split_test \
+		engine/dat2/test/sound_load_split_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/sound_load_split_test ..
 
 # The music install (app/app_tick.c, Task_MusicInstall): a parallel task that
 # awaits the song; a newer song cancels the older task and loads after the
@@ -6411,6 +6459,7 @@ SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core
 	net/rev/packets/pkt_player_appearance.c \
 	world/world.c world/world_cycle.c world/entity_pool.c world/world_entity.c \
 	world/entity_pathing.c world/entity_registry.c game/rs_entity_sync.c game/rs_entity_apply.c \
+	game/entity_info_scratch.c \
 	scriptrun/scriptrun_collision.c engine/torirs_types.c engine/torirs_map_from_rscache.c \
 	engine/torirs_location_from_rscache.c \
 	scriptrun/scriptrun_tasks.c game/rs_loc_tasks.c game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c \

@@ -13,11 +13,8 @@
 
 /* Attached-graphic slots: the rev-239 player wears one graphic per numbered
  * slot, as an npc does, and a SPOTANIM entry replaces only its own. The ToA
- * Kephri dung marker (slot 0) stays up under a ranged launch (slot 1). */
-enum
-{
-    WORLD_PLAYER_SPOTANIM_SLOTS = 8,
-};
+ * Kephri dung marker (slot 0) stays up under a ranged launch (slot 1). Every
+ * slot byte is its own (WorldEntityFacet_EntitySpotanims). */
 
 struct WorldEntity_Player
 {
@@ -37,7 +34,7 @@ struct WorldEntity_Player
     struct WorldEntityFacet_Chat chat;
     struct WorldEntityFacet_Appearance appearance;
     struct WorldEntityFacet_ExactMove exact_move;
-    struct WorldEntityFacet_EntitySpotanim spotanims[WORLD_PLAYER_SPOTANIM_SLOTS];
+    struct WorldEntityFacet_EntitySpotanims spotanims;
     char name[32];
     /** The name decorations (NAME_EXTRAS, rev-239 0x2000: deob Statics
      *  .method3160 into class60.field553): printed before the name, after it,

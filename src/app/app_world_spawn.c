@@ -786,13 +786,13 @@ app_world_spawn_npc_now(
     /* Spawn does not carry menu data; the minimenu rows read it off the
      * entity, so copy name/actions/level from the config here. */
     {
-        /* The shared rule (game/rs_entity_apply.h), the headless client's too. */
+        /* The shared rule (game/rs_entity_apply.h), the headless client's too,
+         * from the type and facts this spawn already holds: a fresh lookup
+         * could miss (App_WorldNpcTypeRecord answers 0), and that 0 was only
+         * asserted, so a release build saw an unwritten record. */
         struct RS_EntityNpcType record;
-        /* `npctype` is resident: looked up above. */
-        int const known = App_WorldNpcTypeRecord(app, npc_id, base_npc_id, &record);
 
-        assert(known);
-        (void)known;
+        app_npc_type_record(&facts, npctype, &record);
         RS_EntityApply_NpcSpawned(app->world, idx, &record);
     }
     /* Was unconditional. stderr is unbuffered, so this is a synchronous write

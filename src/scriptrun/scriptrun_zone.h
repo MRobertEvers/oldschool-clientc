@@ -209,22 +209,6 @@ ScriptrunZone_Apply(
     int name,
     void const* payload);
 
-/* ---- loc change records (the root's) -------------------------------------- */
-
-/**
- * UPDATE_ZONE_FULL_FOLLOWS for the root zone at scene tile (`x0`, `z0`) on
- * walked plane `level` (with `climb`, the bridge columns): every key in it
- * stands as the map's loc again and keeps one record saying so
- * (zone_full_reset_locs).
- */
-void
-ScriptrunZone_LocZoneReset(
-    struct ScriptrunZone* zone,
-    int x0,
-    int z0,
-    int level,
-    uint8_t const climb[8][8]);
-
 /* ---- readers ------------------------------------------------------------- */
 
 /* A ground row, absolute tile. */

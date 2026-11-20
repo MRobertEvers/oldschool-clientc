@@ -594,6 +594,95 @@ RS_LocTasks_CancelZone(
     return cancelled;
 }
 
+int
+RS_LocZone_ResetRecords(
+    struct World* world,
+    int base_x,
+    int base_z,
+    int const levels[8][8],
+    bool built,
+    struct RS_LocChange out[RS_LOC_ZONE_KEYS])
+{
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+    int count;
+    int write = 0;
+    int restores = 0;
+
+    assert(world);
+    assert(levels);
+    assert(out);
+    count = world->loc_change_count;
+    for( int i = 0; i < count; i++ )
+    {
+        struct World_LocChange* rec = &world->loc_changes[i];
+        int const dx = rec->x - base_x;
+        int const dz = rec->z - base_z;
+        int in_zone = dx >= 0 && dx < 8 && dz >= 0 && dz < 8 && rec->level == levels[dx][dz];
+        int shape;
+
+        if( in_zone && !built )
+            continue; /* dropped: the rebuild is the map's */
+        if( in_zone )
+        {
+            shape = rec->old_shape >= 0 ? rec->old_shape : rec->new_shape;
+            if( !(rec->old_type < 0 && rec->new_type < 0) &&
+                !(rec->old_type == rec->new_type && rec->old_angle == rec->new_angle &&
+                  shape == rec->new_shape) )
+            {
+                assert(restores < RS_LOC_ZONE_KEYS);
+                RS_LocChange_Fill(
+                    &out[restores++], rec->x, rec->z, rec->level, rec->old_type, shape,
+                    rec->old_angle, 0x1f, none);
+            }
+            rec->old_shape = shape;
+            rec->new_type = rec->old_type;
+            rec->new_angle = rec->old_angle;
+            rec->new_shape = shape;
+            rec->start_time = -1;
+            rec->end_time = -1;
+        }
+        if( write != i )
+            world->loc_changes[write] = world->loc_changes[i];
+        write++;
+    }
+    world->loc_change_count = write;
+    return restores;
+}
+
+int
+RS_LocTasks_ZoneReset(
+    struct RS_LocHost const* host,
+    int view,
+    int base_x,
+    int base_z,
+    int zone_level,
+    unsigned tick)
+{
+    static struct RS_LocChange restores[RS_LOC_ZONE_KEYS];
+    int levels[8][8];
+    struct World* world;
+    bool built;
+    int count;
+
+    assert(host);
+    world = host->ops->view_world(host->ctx, view);
+    assert(world);
+    built = !host->ops->built_trigger || world->load_complete;
+    for( int dx = 0; dx < 8; dx++ )
+        for( int dz = 0; dz < 8; dz++ )
+            levels[dx][dz] =
+                host->ops->cache_level(host->ctx, view, base_x + dx, base_z + dz, zone_level);
+    /* A change still pending in the zone never reached the scene or the
+     * records: cancelled, so it cannot land after the reset and the state
+     * behind it. */
+    if( built )
+        (void)RS_LocTasks_CancelZone(host, view, base_x, base_z, zone_level);
+    count = RS_LocZone_ResetRecords(world, base_x, base_z, levels, built, restores);
+    for( int i = 0; i < count; i++ )
+        (void)RS_LocChange_Add(host, view, &restores[i], NULL, tick, 1);
+    return count;
+}
+
 void
 RS_LocTasks_CancelAll(struct RS_LocHost const* host)
 {

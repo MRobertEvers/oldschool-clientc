@@ -50,6 +50,7 @@
  * REBUILD_NORMAL, and from the template zones of a REBUILD_REGION.
  */
 
+#include "game/entity_info_scratch.h"
 #include "game/rs_effect_rules.h"
 #include "game/rs_event_ring.h"
 #include "scriptrun/scriptrun_model.h"
@@ -126,8 +127,8 @@ struct ScriptrunLoc
     int angle;
     int loc_id; /* -1: deleted */
     /* The map's placement this row stands for (its loc id), or -1 for a row a
-     * zone change appended. A map row a change deleted keeps it, so a zone's
-     * full reset (ScriptrunCore_ZoneResetLocs) can put the map's loc back. */
+     * zone change appended. A map row a change deleted keeps it
+     * (ScriptrunCore_MapLocAt reads it for a change's record). */
     int map_loc_id;
     /* The world view the row belongs to: 0 the root scene, 1..15 a boat's
      * deck (its staging-rectangle tiles). A root rebuild keeps deck rows, as
@@ -301,11 +302,9 @@ struct ScriptrunCore
      * keep one file-static table; see ScriptrunCore_Packet). */
     void* player_decoder_state;
 
-    /* Decoder scratch (the client's op lists): ops, and the byte arena
-     * whichever decode is running writes its strings into. */
-    void* npc_ops;
-    void* player_ops;
-    void* info_bytes;
+    /* The decoders' op lists, the client's own (game/entity_info_scratch.h):
+     * each sized to its packet by EntityInfoScratch_Read. */
+    struct EntityInfoScratch info_scratch;
     int packets;
     int unhandled;
 
@@ -456,21 +455,6 @@ ScriptrunCore_LocPlace(
     int loc_id,
     int op_flags,
     const char ops[5][32]);
-
-/**
- * UPDATE_ZONE_FULL_FOLLOWS for the zone whose south-west tile is (abs_x0,
- * abs_z0) on the walked level `zone_level`: every loc a zone change put in it
- * goes, and every map loc a change deleted comes back, collision undone and
- * restamped -- the client's zone_full_reset_locs (rs_gameproto_exec.c), which
- * reverts each changed (level, x, z, layer) to the map's loc before the
- * zone's state re-applies what still differs.
- */
-void
-ScriptrunCore_ZoneResetLocs(
-    struct ScriptrunCore* core,
-    int abs_x0,
-    int abs_z0,
-    int zone_level);
 
 /** The cache level a loc on scene tile (`sx`, `sz`) of the root sits at when
  *  a zone names walked plane `zone_level`: one above it on a bridge column

@@ -68,13 +68,24 @@ test_claim_and_find(void)
     TEST_ASSERT(a == &g_table.entries[0], "first claim takes the first entry");
     TEST_ASSERT(a->body_element_id == 0, "element 0 can be claimed");
     TEST_ASSERT(a->owner_entity_id == 100, "the owner is kept");
-    TEST_ASSERT(a->merged_mask == 0 && a->combined == NULL && a->body == NULL, "nothing merged");
-    for( int i = 0; i < ENTITY_SPOTANIM_SLOTS; i++ )
+    TEST_ASSERT(a->combined == NULL && a->body == NULL, "nothing merged");
+    TEST_ASSERT(a->slots == NULL && a->slot_count == 0, "no slots until the entity has graphics");
+    EntitySpotanim_Slots(a, 3);
+    TEST_ASSERT(a->slot_count == 3, "slots for the entity's three graphics");
+    for( int i = 0; i < a->slot_count; i++ )
     {
         TEST_ASSERT(a->slots[i].spotanim_id == -1, "every slot empty");
         TEST_ASSERT(a->slots[i].applied_frame == -1, "no frame baked");
+        TEST_ASSERT(!a->slots[i].merged, "none merged");
         TEST_ASSERT(a->slots[i].spot == NULL, "no spot model");
     }
+    a->slots[1].spotanim_id = 44;
+    EntitySpotanim_Slots(a, 20);
+    TEST_ASSERT(a->slot_count == 20 && a->slots[1].spotanim_id == 44,
+        "the slots grow to twenty graphics and keep the first three");
+    TEST_ASSERT(a->slots[19].spotanim_id == -1, "a grown slot is empty");
+    EntitySpotanim_Slots(a, 2);
+    TEST_ASSERT(a->slot_count == 20, "never shrinks");
     b = EntitySpotanims_Claim(&g_table, 5, 200);
     TEST_ASSERT(b == &g_table.entries[1], "second claim takes the next free entry");
 
@@ -135,40 +146,53 @@ test_slot_want(void)
 static void
 test_merge_rule(void)
 {
+    enum
+    {
+        N = 12
+    };
     struct EntitySpotanim* e;
-    int frames[ENTITY_SPOTANIM_SLOTS] = { 0 };
+    int frames[N] = { 0 };
+    bool draw[N] = { 0 };
 
     fresh();
     e = EntitySpotanims_Claim(&g_table, 3, 7);
+    EntitySpotanim_Slots(e, N);
     frames[0] = 4;
     frames[2] = 9;
-    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, 0x5, frames, 8), "no merge yet: rebuild");
-    EntitySpotanim_NoteMerged(e, MODEL(1), 0x5, frames, 8);
-    TEST_ASSERT(e->combined == MODEL(1) && e->merged_mask == 0x5, "merge noted");
-    TEST_ASSERT(e->slots[0].applied_frame == 4 && e->slots[2].applied_frame == 9, "frames baked");
+    frames[11] = 6;
+    draw[0] = draw[2] = draw[11] = true;
+    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, draw, frames, N), "no merge yet: rebuild");
+    EntitySpotanim_NoteMerged(e, MODEL(1), draw, frames, N);
+    TEST_ASSERT(e->combined == MODEL(1), "merge noted");
+    TEST_ASSERT(e->slots[0].merged && e->slots[2].merged && e->slots[11].merged && !e->slots[1].merged,
+        "the drawn slots are the merged ones, the twelfth too");
+    TEST_ASSERT(e->slots[0].applied_frame == 4 && e->slots[2].applied_frame == 9 &&
+                    e->slots[11].applied_frame == 6,
+        "frames baked");
     TEST_ASSERT(e->slots[1].applied_frame == -1, "undrawn slot bakes nothing");
-    TEST_ASSERT(!EntitySpotanim_NeedsMerge(e, 0x5, frames, 8), "same slots, same frames: keep");
+    TEST_ASSERT(!EntitySpotanim_NeedsMerge(e, draw, frames, N), "same slots, same frames: keep");
 
     /* A frame in a slot that is not drawn is never read. */
     frames[1] = 77;
-    TEST_ASSERT(!EntitySpotanim_NeedsMerge(e, 0x5, frames, 8), "undrawn frame is not read");
-    frames[2] = 10;
-    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, 0x5, frames, 8), "a drawn frame moved: rebuild");
-    frames[2] = 9;
-    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, 0x1, frames, 8), "a slot left the set: rebuild");
-    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, 0x7, frames, 8), "a slot joined the set: rebuild");
+    TEST_ASSERT(!EntitySpotanim_NeedsMerge(e, draw, frames, N), "undrawn frame is not read");
+    frames[11] = 10;
+    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, draw, frames, N), "a drawn frame moved: rebuild");
+    frames[11] = 6;
+    draw[2] = false;
+    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, draw, frames, N), "a slot left the set: rebuild");
+    draw[2] = true;
+    draw[7] = true;
+    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, draw, frames, N), "a slot joined the set: rebuild");
+    draw[7] = false;
 
-    /* The frames compared stop at spot_count (a player has one slot). */
-    TEST_ASSERT(!EntitySpotanim_NeedsMerge(e, 0x5, frames, 1), "slot 0 at its frame: keep");
-    frames[2] = 11;
-    TEST_ASSERT(!EntitySpotanim_NeedsMerge(e, 0x5, frames, 1), "frames past spot_count unread");
-    frames[2] = 9;
+    /* A slot past spot_count is not drawn: a merged one there is a rebuild. */
+    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, draw, frames, 3), "the twelfth left: rebuild");
 
     EntitySpotanim_ForgetMerge(e);
-    TEST_ASSERT(e->combined == NULL && e->merged_mask == 0, "forgotten merge");
-    for( int i = 0; i < ENTITY_SPOTANIM_SLOTS; i++ )
-        TEST_ASSERT(e->slots[i].applied_frame == -1, "forgotten frames");
-    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, 0x5, frames, 8), "forgotten merge: rebuild");
+    TEST_ASSERT(e->combined == NULL, "forgotten merge");
+    for( int i = 0; i < e->slot_count; i++ )
+        TEST_ASSERT(e->slots[i].applied_frame == -1 && !e->slots[i].merged, "forgotten frames");
+    TEST_ASSERT(EntitySpotanim_NeedsMerge(e, draw, frames, N), "forgotten merge: rebuild");
 }
 
 int

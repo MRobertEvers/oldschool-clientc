@@ -1474,8 +1474,8 @@ World_CycleUpdatePlayers(
                 World_CycleActor(
                     &info,
                     &player->exact_move,
-                    player->spotanims,
-                    WORLD_PLAYER_SPOTANIM_SLOTS,
+                    player->spotanims.items,
+                    player->spotanims.count,
                     world->local_pid >= 0 && player->server_pid == world->local_pid,
                     player->transmog_size);
             }
@@ -1517,7 +1517,7 @@ World_CycleUpdateNpcs(
                     .size_z = size,
                 };
                 World_CycleActor(
-                    &info, &npc->exact_move, npc->spotanims, WORLD_NPC_SPOTANIM_SLOTS, false,
+                    &info, &npc->exact_move, npc->spotanims.items, npc->spotanims.count, false,
                     size);
             }
             /* Overhead chat expiry (reference Client.ts:3174). */

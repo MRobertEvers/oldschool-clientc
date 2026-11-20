@@ -79,10 +79,13 @@ RSCache_SoundEffectRender(
  * The same render in steps, for a caller that must stop between them (a
  * background job that checks its clock): New sizes and allocates it (NULL
  * when the effect has no audible tone, as the one-call render's false),
- * each Step renders and mixes ONE tone and answers whether every tone is in,
- * and Take hands over the PCM, as the one-call render fills `out`. The effect
- * is borrowed: the caller keeps it alive until Free. The one-call render above
- * is these four.
+ * each Step does at most `budget` samples of work -- of a tone's oscillators,
+ * gate, reverb, filter and clamp, its mix, and the final bias, in that order,
+ * stopping inside a tone where the budget runs out -- and answers whether the
+ * render is finished, and Take hands over the PCM, as the one-call render
+ * fills `out`. The samples do not depend on the budget. The effect is
+ * borrowed: the caller keeps it alive until Free. The one-call render above is
+ * these four with an unbounded budget.
  */
 struct RSCache_SoundRender;
 
@@ -92,7 +95,9 @@ RSCache_SoundRenderNew(
     const struct RSCache_SoundEffect* effect);
 
 bool
-RSCache_SoundRenderStep(struct RSCache_SoundRender* render);
+RSCache_SoundRenderStep(
+    struct RSCache_SoundRender* render,
+    int budget);
 
 void
 RSCache_SoundRenderTake(

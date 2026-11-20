@@ -450,156 +450,48 @@ App_GameProto_ApplyHeldZoneOp(
     exec_zone_sub_packet_at(&ctx, pkt->name, &pkt->_loc_add_change, &at);
 }
 
-/* One loc-change record's key: the reference's locChanges identity
- * (Client-TS locChangeCreate matches level, x, z and layer). */
-static int
-zone_loc_change_same_key(
-    struct World_LocChange const* a,
-    struct World_LocChange const* b)
-{
-    assert(a);
-    assert(b);
-    return a->level == b->level && a->layer == b->layer && a->x == b->x && a->z == b->z;
-}
-
-static int
-zone_loc_change_in_zone(
-    struct World const* world,
-    struct World_LocChange const* rec,
-    int base_x,
-    int base_z,
-    int zone_level)
-{
-    assert(world);
-    assert(rec);
-    if( rec->x < base_x || rec->x >= base_x + 8 || rec->z < base_z || rec->z >= base_z + 8 )
-        return 0;
-    /* Records keep the level the loc was applied at, which is the CACHE level
-     * (zone_loc_tile_at's bridge climb); the header names the walked plane. */
-    return rec->level == World_LocCacheLevel(world, rec->x, rec->z, zone_level);
-}
-
 /*
  * UPDATE_ZONE_FULL_FOLLOWS resets the client's memory of the zone's LOCS as
  * well as its obj stacks: every loc this client changed inside the 8x8, on the
  * header's plane, goes back to what the map put there, and the state the
  * server writes behind the header re-applies whatever still differs.
  *
+ * The rule is the loc core's, the headless client's too
+ * (RS_LocTasks_ZoneReset, game/rs_loc_tasks.h): the zone's pending changes are
+ * cancelled, its records say the map's loc stands, and the map's loc is put
+ * back through a loc change wherever a change left something else -- it lands
+ * behind the map loc's models, and the driver reads it from the pending change
+ * as it reads a LOC_DEL or LOC_ADD_CHANGE (App_DriveLocChangesPending).
+ *
  * Reference: Client-TS Client.ts, UPDATE_ZONE_FULL_FOLLOWS (~7463), sets
  * `endTime = 0` on every locChanges entry in the zone on minusedlevel, and the
  * next locChangeDoQueue puts that entry's oldType/oldAngle/oldShape back and
  * unlinks it. The server half is the zone catch-up (Engine-TS
- * src/engine/zone/Zone.ts writeFullFollows: "this completely resets the client
- * zones to default ... the original locs"; here torirs_server_zone.c
+ * src/engine/zone/Zone.ts writeFullFollows; here torirs_server_zone.c
  * write_state): it describes only what differs from the map, so a loc that
- * changed AND CHANGED BACK while this client was not being
- * told about the zone is described by nothing at all, and without the reset
- * the client keeps whatever it last drew. That was the Miscellania castle gate
- * (2510,3860): opened, its 500-tick revert fired while the player was ~40 tiles
- * away -- outside the 7x7 zone window, same scene -- and on the way back the
- * client still had the closed leaf deleted; the state named only the open
- * leaf's tile, so the doorway drew neither leaf while the server's door was
- * shut and every walk stalled against it. A revert landing on the tick the
- * player changes plane is the same hole (the new plane's zones are
- * FULL_FOLLOWSed and that tick's events skipped): the level-1 landing door
- * 2506,3851.
- *
- * Our list differs from the reference's in the one way that matters here: the
- * reference keys locChanges by (level, x, z, layer) and keeps the FIRST
- * change's old loc, while World_LocChangePush appends a record per applied
- * change that remembers what stood there just before it. So the map's own loc
- * is the OLDEST record's old_* for the key, and the restore is taken from it.
- *
- * A change still PENDING in the zone (its models loading) never reached the
- * scene or the records: it is cancelled here, so it cannot land after the
- * reset and the state behind it (App_LocChangesCancelZone). The restore goes
- * through App_WorldLocChange, a change like any other: it waits for the map
- * loc's models, and a LOC_* the state behind this header sends for the same
- * tile and layer replaces it. Its apply pushes one more record (old = what it
- * replaced, new = the map's loc). So that record is never read as "the map's loc" by the next
- * reset, the key keeps ONE record ahead of it, rewritten to old = new = the
- * map's loc; the rest of the key's records are dropped.
- *
- * A world still loading is being rebuilt from the cache, so its zone already
- * IS the map's: the records are dropped and nothing is queued.
+ * changed AND CHANGED BACK while this client was not being told about the zone
+ * is described by nothing at all, and without the reset the client keeps
+ * whatever it last drew. That was the Miscellania castle gate (2510,3860):
+ * opened, its 500-tick revert fired while the player was ~40 tiles away --
+ * outside the 7x7 zone window, same scene -- and on the way back the client
+ * still had the closed leaf deleted; the state named only the open leaf's
+ * tile, so the doorway drew neither leaf while the server's door was shut and
+ * every walk stalled against it. A revert landing on the tick the player
+ * changes plane is the same hole (the new plane's zones are FULL_FOLLOWSed
+ * and that tick's events skipped): the level-1 landing door 2506,3851.
  */
 static void
 zone_full_reset_locs(
     struct App* app,
     struct ZoneAt const* at)
 {
-    struct World* world;
-    unsigned char drop[WORLD_LOC_CHANGE_MAX];
-    int count;
-    int write = 0;
-
     assert(app);
     assert(app->world);
     assert(at);
     /* The view the header addressed is the cursor (exec_zone_sub_packet_at,
      * App_GameProto_ReplayClearScene). */
     assert(WorldviewRegistry_Active(&app->worldviews) == at->view);
-    world = App_ActiveWorldview(app)->world;
-    if( world->load_complete )
-        (void)App_LocChangesCancelZone(app, at->view, at->base_x, at->base_z, at->level);
-    count = world->loc_change_count;
-    memset(drop, 0, sizeof(drop));
-    for( int i = 0; i < count; i++ )
-    {
-        struct World_LocChange* rec = &world->loc_changes[i];
-        struct World_LocChange const* latest = rec;
-        int first = 1;
-
-        if( !zone_loc_change_in_zone(world, rec, at->base_x, at->base_z, at->level) )
-            continue;
-        for( int j = 0; j < i; j++ )
-        {
-            if( zone_loc_change_same_key(&world->loc_changes[j], rec) )
-            {
-                first = 0;
-                break;
-            }
-        }
-        if( !first || !world->load_complete )
-        {
-            drop[i] = 1;
-            continue;
-        }
-        /* Where no loc stood, World_LocChangePush records old_shape -1; the
-         * delete still needs a shape, and only for its LAYER, which every
-         * record of the key shares -- so the change's own shape stands in,
-         * and is kept on the record for the next reset. */
-        int shape = rec->old_shape >= 0 ? rec->old_shape : rec->new_shape;
-
-        for( int k = i + 1; k < count; k++ )
-            if( zone_loc_change_same_key(&world->loc_changes[k], rec) )
-                latest = &world->loc_changes[k];
-        if( !(rec->old_type < 0 && latest->new_type < 0) &&
-            !(rec->old_type == latest->new_type && rec->old_angle == latest->new_angle &&
-              shape == latest->new_shape) )
-        {
-            /* The driver reads the restore from the pending change, as it
-             * reads a LOC_DEL or LOC_ADD_CHANGE (App_DriveLocChangesPending):
-             * it lands behind the map loc's models, and scriptrun
-             * (ScriptrunCore_ZoneResetLocs) reverts on this packet's tick. */
-            App_WorldLocChange(app, rec->x, rec->z, rec->level, rec->old_type, shape, rec->old_angle);
-        }
-        rec->old_shape = shape;
-        rec->new_type = rec->old_type;
-        rec->new_angle = rec->old_angle;
-        rec->new_shape = shape;
-        rec->start_time = -1;
-        rec->end_time = -1;
-    }
-    for( int i = 0; i < count; i++ )
-    {
-        if( drop[i] )
-            continue;
-        if( write != i )
-            world->loc_changes[write] = world->loc_changes[i];
-        write++;
-    }
-    world->loc_change_count = write;
+    (void)App_LocChangesZoneReset(app, at->view, at->base_x, at->base_z, at->level);
 }
 
 /* The zone base and plane the latest header named, in the view the cursor
@@ -1670,13 +1562,7 @@ exec_worldentity_info(
         if( up->has_op_mask )
             wev->op_mask = (unsigned)up->op_mask;
         if( up->has_seq )
-        {
-            wev->seq_id = up->seq_id;
-            wev->seq_delay = up->seq_delay;
-            /* One animaya frame per 20 ms cycle; the delay holds frame 0
-             * that many cycles away (deob field5699). */
-            wev->seq_start_cycle = app->wevs.clock + up->seq_delay;
-        }
+            app_wev_set_seq(app, wev, up->seq_id, up->seq_delay);
     }
 
     for( int i = 0; i < despawn_count; i++ )
@@ -1723,11 +1609,7 @@ exec_worldentity_info(
             continue; /* refused (bad config/size) — App_WevSpawn logged it */
 
         if( sp->has_seq )
-        {
-            wev->seq_id = sp->seq_id;
-            wev->seq_delay = sp->seq_delay;
-            wev->seq_start_cycle = app->wevs.clock + sp->seq_delay;
-        }
+            app_wev_set_seq(app, wev, sp->seq_id, sp->seq_delay);
     }
     RedrawRequest_Raise(&app->redraw_request);
 }

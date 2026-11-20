@@ -318,6 +318,9 @@ src/app/test/app_plugin_chat_kinds_test.c
 # Added 2026-11-19 (lo-tables step): the trackers moved onto the assets table
 # and the pending index, run on a stack App's queue, table and index.
 src/app/test/app_trackers_test.c
+# Added 2026-11-20 (bt-left step): a hull's sequence wants, on a calloc'd App's
+# assets table, scene and world-entity tables.
+src/app/test/app_wev_seq_want_test.c
 src/engine/uitree_builder/task_slot_mount.c
 src/game/task_entity_assets.c
 src/plugin/torirs_plugin_drive.c

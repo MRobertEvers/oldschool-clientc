@@ -378,6 +378,70 @@ RS_LocTasks_CancelZone(
 void
 RS_LocTasks_CancelAll(struct RS_LocHost const* host);
 
+/* ---- a zone's reset (UPDATE_ZONE_FULL_FOLLOWS) ------------------------------ */
+
+/*
+ * UPDATE_ZONE_FULL_FOLLOWS resets the client's memory of the zone's LOCS: every
+ * loc this client changed inside the 8x8, on the header's plane, goes back to
+ * what the map put there, and the state the server writes behind the header
+ * re-applies whatever still differs. The state describes only what differs
+ * from the map, so a loc that changed AND CHANGED BACK while the client was not
+ * told about the zone is described by nothing, and without the reset the client
+ * keeps whatever it last drew (the Miscellania castle gate, 2510,3860).
+ *
+ * The rule, ONE copy for both clients: a key's record holds the map's loc as
+ * its old one (World_LocChangePushOps keeps one record per key, its FIRST
+ * change's old loc). Each record in the zone, at the cache level a loc packet
+ * means on its tile, is rewritten to say the map's loc stands (old = new, no
+ * timing), and where the record's change left something else the map's loc is
+ * put back by a loc change like any other: it waits for the map loc's models on
+ * the real client, a LOC_* behind the header for the same key replaces it, and
+ * its apply writes the record it already has. A record with no old loc
+ * (old_shape -1: nothing stood) keeps its change's shape, which every record
+ * of a key shares, for the delete's layer. A world still loading is being
+ * rebuilt from the map, so its zone already IS the map's: its records in the
+ * zone are dropped and nothing is put back.
+ */
+
+/* At most one record per key: 8 x 8 tiles, 4 layers. */
+#define RS_LOC_ZONE_KEYS (8 * 8 * 4)
+
+/**
+ * The rule's records half, for a client with no loc tasks to put the map's
+ * loc back with (the headless client's shadow): rewrite `world`'s records in
+ * the zone at its scene tile (`base_x`, `base_z`), `levels[dx][dz]` the cache
+ * level of tile (base_x + dx, base_z + dz) on the header's plane, as above --
+ * dropped when the view's scene is not `built` (still loading) -- and write
+ * the changes that put the map's locs back to `out`. Returns how many.
+ */
+int
+RS_LocZone_ResetRecords(
+    struct World* world,
+    int base_x,
+    int base_z,
+    int const levels[8][8],
+    bool built,
+    struct RS_LocChange out[RS_LOC_ZONE_KEYS]);
+
+/**
+ * The whole rule for live view `view`'s zone at scene tile (`base_x`,
+ * `base_z`) on walked plane `zone_level`, read on server tick `tick`. The
+ * view's scene is built when its world says so, or always for a client that
+ * builds a scene at its packet (no `built_trigger` op). A built view's
+ * pending changes and merges in the zone are cancelled
+ * (RS_LocTasks_CancelZone), its records are reset (RS_LocZone_ResetRecords),
+ * and each put-back is added as a loc change, a driver row. Returns how many
+ * put-backs were added.
+ */
+int
+RS_LocTasks_ZoneReset(
+    struct RS_LocHost const* host,
+    int view,
+    int base_x,
+    int base_z,
+    int zone_level,
+    unsigned tick);
+
 /* ---- the carried sequence --------------------------------------------------- */
 
 /* A LOC_ANIM read while `pending` waits: hand it the sequence the way the deob

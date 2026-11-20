@@ -35,6 +35,9 @@ World_SetScene(
     world->scene = scene;
 }
 
+static void
+world_spotanims_free(struct WorldEntityFacet_EntitySpotanims* spotanims);
+
 void
 World_Free(struct World* world)
 {
@@ -68,7 +71,12 @@ World_Free(struct World* world)
         ToriMem_Free(ToriMem_Scene(), npc->body_models);
         npc->body_models = NULL;
         npc->body_model_count = 0;
+        world_spotanims_free(&npc->spotanims);
     }
+    for( int pi = World_EntityPoolHead(&world->entities.player); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(&world->entities.player, pi) )
+        world_spotanims_free(
+            &((struct WorldEntity_Player*)World_EntityPoolAt(&world->entities.player, pi))->spotanims);
     World_EntityListFree(&world->entities);
     for( int i = 0; i < world->scenery_info.count; i++ )
         ToriMem_Free(ToriMem_Scene(), world->scenery_info.entries[i]);
@@ -1201,10 +1209,9 @@ World_PlayerSpawn(
         .combat = { .healthbar_type = -1 },
         .seq_sent_id = -1,
     };
-    /* Reference ClientEntity default: no attached graphic in any slot
-     * (spotanimId -1). */
-    for( int i = 0; i < WORLD_PLAYER_SPOTANIM_SLOTS; i++ )
-        player->spotanims[i] = (struct WorldEntityFacet_EntitySpotanim){ .id = -1, .frame = -1 };
+    /* Reference ClientEntity default: no attached graphic in any slot (the
+     * row's list is empty: the compound literal zeroed it). */
+    assert(!player->spotanims.items);
     return idx;
 }
 
@@ -1220,6 +1227,7 @@ World_PlayerDespawn(
         return;
 
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+    world_spotanims_free(&player->spotanims);
     World_EmitEntityRemoved(world, player->element_id);
     World_EntityPoolRelease(pool, idx);
 }
@@ -1277,14 +1285,9 @@ World_NpcSpawn(
         .spotanim_sent_id = -1,
         .spotanim_packet_id = -1,
     };
-    {
-        struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-
-        /* Reference ClientEntity default: no attached graphic in any slot
-         * (spotanimId -1). */
-        for( int i = 0; i < WORLD_NPC_SPOTANIM_SLOTS; i++ )
-            npc->spotanims[i] = (struct WorldEntityFacet_EntitySpotanim){ .id = -1, .frame = -1 };
-    }
+    /* Reference ClientEntity default: no attached graphic in any slot (the
+     * row's list is empty: the compound literal zeroed it). */
+    assert(!((struct WorldEntity_NPC*)World_EntityPoolAt(pool, idx))->spotanims.items);
     return idx;
 }
 
@@ -1300,6 +1303,9 @@ World_NpcDespawn(
         return;
 
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    /* Its graphics go with the row: no reader of the removal's snapshot
+     * reads them. */
+    world_spotanims_free(&npc->spotanims);
     /* The body models go with the snapshot when one is queued; otherwise
      * nothing else holds them. */
     if( !World_EmitNpcRemoved(world, npc) )
@@ -3450,6 +3456,63 @@ World_LocChangesClear(struct World* world)
     world->loc_change_count = 0;
 }
 
+/* The row's graphic list owns nothing but its array. */
+static void
+world_spotanims_free(struct WorldEntityFacet_EntitySpotanims* spotanims)
+{
+    ToriMem_Free(ToriMem_Scene(), spotanims->items);
+    spotanims->items = NULL;
+    spotanims->count = 0;
+    spotanims->cap = 0;
+}
+
+struct WorldEntityFacet_EntitySpotanim const*
+World_EntitySpotanimInSlot(
+    struct WorldEntityFacet_EntitySpotanims const* spotanims,
+    int slot)
+{
+    assert(spotanims);
+    for( int i = 0; i < spotanims->count; i++ )
+        if( spotanims->items[i].slot == slot )
+            return &spotanims->items[i];
+    return NULL;
+}
+
+/* The entry for wire slot `slot`: found, or inserted in slot order (the list
+ * grows on ToriMem_Scene). NULL for a clear (`spotanim_id` -1) of a slot that
+ * was never sent: there is nothing to clear. */
+static struct WorldEntityFacet_EntitySpotanim*
+world_spotanim_slot(
+    struct WorldEntityFacet_EntitySpotanims* spotanims,
+    int slot,
+    int spotanim_id)
+{
+    int at = 0;
+
+    assert(slot >= 0);
+    assert(slot < WORLD_SPOTANIM_SLOT_MAX);
+    while( at < spotanims->count && spotanims->items[at].slot < slot )
+        at++;
+    if( at < spotanims->count && spotanims->items[at].slot == slot )
+        return &spotanims->items[at];
+    if( spotanim_id < 0 )
+        return NULL;
+    if( spotanims->count == spotanims->cap )
+    {
+        spotanims->cap = spotanims->cap ? spotanims->cap * 2 : 4;
+        assert(spotanims->cap <= WORLD_SPOTANIM_SLOT_MAX);
+        spotanims->items = ToriMem_Realloc(
+            ToriMem_Scene(), spotanims->items, (size_t)spotanims->cap * sizeof(*spotanims->items));
+        assert(spotanims->items);
+    }
+    memmove(
+        &spotanims->items[at + 1], &spotanims->items[at],
+        (size_t)(spotanims->count - at) * sizeof(*spotanims->items));
+    spotanims->count++;
+    spotanims->items[at] = (struct WorldEntityFacet_EntitySpotanim){ .slot = slot, .id = -1, .frame = -1 };
+    return &spotanims->items[at];
+}
+
 static void
 world_set_entity_spotanim(
     struct World* world,
@@ -3459,6 +3522,8 @@ world_set_entity_spotanim(
     int cycle_delay,
     bool loop)
 {
+    if( !spot )
+        return; /* a clear of a slot never sent */
     spot->id = spotanim_id;
     spot->height = height;
     spot->last_cycle = world->cycle + cycle_delay;
@@ -3482,10 +3547,9 @@ World_PlayerSetSpotanim(
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
-    if( slot >= WORLD_PLAYER_SPOTANIM_SLOTS )
-        slot = WORLD_PLAYER_SPOTANIM_SLOTS - 1;
-    world_set_entity_spotanim(world, &player->spotanims[slot], spotanim_id, height, cycle_delay,
-                              loop);
+    world_set_entity_spotanim(
+        world, world_spotanim_slot(&player->spotanims, slot, spotanim_id), spotanim_id, height,
+        cycle_delay, loop);
 }
 
 void
@@ -3591,16 +3655,15 @@ World_NpcSetSpotanim(
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-    if( slot >= WORLD_NPC_SPOTANIM_SLOTS )
-        slot = WORLD_NPC_SPOTANIM_SLOTS - 1;
     if( spotanim_id >= 0 )
     {
         npc->spotanim_sent_id = spotanim_id;
         npc->spotanim_sent_cycle = world->cycle;
     }
     npc->spotanim_packet_id = (spotanim_id >= 0 && spotanim_id != 65535) ? spotanim_id : -1;
-    world_set_entity_spotanim(world, &npc->spotanims[slot], spotanim_id, height, cycle_delay,
-                              loop);
+    world_set_entity_spotanim(
+        world, world_spotanim_slot(&npc->spotanims, slot, spotanim_id), spotanim_id, height,
+        cycle_delay, loop);
 }
 
 void

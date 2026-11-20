@@ -310,6 +310,43 @@ test_a_zone_reset_and_a_newer_change_cancel_a_merge(void)
 }
 
 static void
+test_a_zone_reset_puts_the_map_back_key_by_key(void)
+{
+    struct RS_LocHost host;
+    struct World_LocChange const* rec;
+
+    printf("scriptrun tasks: a zone reset puts the map's loc back through a loc change\n");
+    bot_new();
+    host = ScriptrunTasks_LocHost(s_core->tasks);
+    tick(10);
+    change(17, 18, 1020);  /* in the zone: changed from the map's */
+    change(19, 18, MAP_LOC); /* in the zone: changed back to the map's */
+    change(40, 40, 1021);  /* outside it */
+    ScriptrunTasks_Pump(s_core->tasks);
+    CHECK(s_placed_count == 3, "the three changes placed");
+    merge(20, 20, 200, 400); /* pending in the zone */
+    tick_end();
+
+    tick(11);
+    s_placed_count = 0;
+    CHECK(RS_LocTasks_ZoneReset(&host, 0, 16, 16, 0, (unsigned)s_core->tick) == 1,
+        "one key needs the map's loc back");
+    CHECK(!RS_LocMerge_Pending(&host, 0, 20, 20, 0, LAYER_WALL), "the zone's pending merge is cancelled");
+    rec = record_at(17, 18, 0, LAYER_WALL);
+    CHECK(rec && rec->new_type == MAP_LOC && rec->old_type == MAP_LOC,
+        "the changed key's record says the map's loc stands");
+    CHECK(s_placed_count == 0, "the put-back is a loc change: added, not yet run");
+    ScriptrunTasks_Pump(s_core->tasks);
+    CHECK(s_placed_count == 1 && s_placed[0].x == BASE_X + 17 && s_placed[0].z == BASE_Z + 18 &&
+              s_placed[0].loc_id == MAP_LOC,
+        "placed in the pump after the packet: the map's loc, collision with it");
+    rec = record_at(40, 40, 0, LAYER_WALL);
+    CHECK(rec && rec->new_type == 1021, "a key outside the zone is left alone");
+    tick_end();
+    bot_free();
+}
+
+static void
 test_a_loc_the_cache_cannot_serve_is_dropped(void)
 {
     printf("scriptrun tasks: a loc whose config the cache cannot serve is dropped\n");
@@ -344,6 +381,7 @@ main(void)
     test_a_merge_hides_at_start_and_restores_at_end();
     test_a_rebuild_drops_a_pending_merge();
     test_a_zone_reset_and_a_newer_change_cancel_a_merge();
+    test_a_zone_reset_puts_the_map_back_key_by_key();
     test_a_loc_the_cache_cannot_serve_is_dropped();
     test_freeing_the_bot_frees_a_waiting_merge();
     printf("scriptrun_tasks_test: all passed\n");
