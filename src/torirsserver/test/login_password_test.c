@@ -813,6 +813,27 @@ check_display_names(void)
 {
     char owner[64];
 
+    /* The exclusive create both of these rest on. fopen's "wbx" failed every
+     * time under msvcrt.dll (the Windows lanes' C runtime), so on Windows the
+     * service key could not be made and the server aborted at boot. */
+    {
+        char path[1100];
+        FILE* file;
+
+        snprintf(path, sizeof(path), "%s/exclusive_create_probe.txt", ToriRSServer_SaveDir());
+        ToriRSServer_SaveMkdirParent(path);
+        remove(path);
+        file = ToriRSServer_SaveCreateExclusive(path);
+        check(file != NULL, "files: an exclusive create makes a file that is not there");
+        if( file )
+            fclose(file);
+        file = ToriRSServer_SaveCreateExclusive(path);
+        check(file == NULL, "files: and refuses one that is");
+        if( file )
+            fclose(file);
+        remove(path);
+    }
+
     check(!ToriRSServer_DisplayNameOwner("Mara Vell", owner, sizeof(owner)),
           "names: a name nobody holds is free");
     check(ToriRSServer_DisplayNameClaim("Mara Vell", "kit"), "names: an account reserves one");

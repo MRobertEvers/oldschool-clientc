@@ -398,7 +398,9 @@ ToriRSServer_TicklogEnable(
     {
         g_ticklog.path = ToriMem_Strdup(ToriMem_ServerWorld(), path);
         assert(g_ticklog.path);
-        g_ticklog.out = fopen(path, "w");
+        /* Binary: the log is compared byte for byte across platforms, and a
+         * text-mode stream on Windows writes every row's end as CRLF. */
+        g_ticklog.out = fopen(path, "wb");
         /* A log the test cannot write to a file is still a log: the rows are
          * kept in memory and read back through the driver. Say so once. */
         if( !g_ticklog.out )

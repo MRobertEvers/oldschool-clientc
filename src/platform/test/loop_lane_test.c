@@ -226,9 +226,11 @@ fake_sleep_until(
     uint64_t deadline_ms,
     int precise)
 {
+    uint64_t const began_us = win->now_us;
+
     for( int guard = 0; guard < 1000000; guard++ )
     {
-        struct ToriRS_SleepStep const step = ToriRS_SleepPlan_Next(win->now_us, deadline_ms, precise);
+        struct ToriRS_SleepStep const step = ToriRS_SleepPlan_Next(win->now_us, deadline_ms, began_us, precise);
         if( step.kind == TORIRS_SLEEP_STEP_DONE )
             return;
         if( step.kind == TORIRS_SLEEP_STEP_TIMER_US )
@@ -268,9 +270,17 @@ test_windows_sleeps(void)
         printf("   %s: a %u ms nap took %d Sleep(n), %d Sleep(0), %d timer wait(s), ended %llu us past it\n",
             precise ? "high-resolution timer" : "Sleep plan", TORIRS_LOOP_NAP_MS, win.sleeps, win.yields,
             win.timer_waits, (unsigned long long)(win.now_us - deadline * 1000));
+        /* Before: the Sleep plan's nap was all Sleep(0) rechecks, a spin --
+         * 94-100% of a core on Windows 11 with the timer off. Now one
+         * Sleep(1), which may end a millisecond late, as a nap is allowed. */
         if( !precise )
-            CHECK(win.yields > 10 && win.sleeps == 0, "the Sleep plan's nap is not the spin (%d yields)",
-                win.yields);
+        {
+            CHECK(win.yields == 0 && win.sleeps == 1, "the Sleep plan's nap spun: %d yields, %d sleeps",
+                win.yields, win.sleeps);
+            CHECK(win.now_us >= deadline * 1000, "the Sleep plan's nap woke before its deadline");
+            CHECK(win.now_us - deadline * 1000 <= 1500, "the Sleep plan's nap overslept by %llu us",
+                (unsigned long long)(win.now_us - deadline * 1000));
+        }
         else
             CHECK(win.yields == 0 && win.sleeps == 0 && win.timer_waits == 1,
                 "the timer's nap spun: %d yields, %d sleeps, %d waits", win.yields, win.sleeps,

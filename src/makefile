@@ -6787,12 +6787,18 @@ endif
 # none of which is linked here. -flto drops them at OPT=1; without LTO only
 # the dead-code strip does, as it does for the client and the world tests,
 # so an asserts-live (OPT=0) server links on macOS too.
+# One file on Windows, as the client is (platform.mk's -static note): the
+# repository MinGW is threads=posix, so without -static the server imports
+# libwinpthread-1.dll and, run from anywhere but a shell with the toolchain's
+# bin/ on PATH, dies before main with STATUS_DLL_NOT_FOUND (0xC0000135, exit
+# 3221225781) -- what a run on Windows 11 found.
+TORIRSSERVER_STATIC_LDFLAGS := $(if $(filter win32 win64,$(PLATFORM)),-static -static-libgcc)
 $(TORIRSSERVER_BIN): $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
 	@mkdir -p $(TORIRSSERVER_OBJ_DIR) $(if $(TORIRSSERVER_LTO_CACHE),$(TORIRSSERVER_LTO_CACHE_DIR))
 	$(file >$(TORIRSSERVER_OBJ_DIR)/link_objs.rsp,$(TORIRSSERVER_OBJS))
 	$(LTO_CACHE_LINK) $(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_OBJS_ARG) \
 		$(TORIRSSERVER_LINK_OBJS) \
-		-lm $(JS5_SOCKET_LIBS) $(PLATFORM_STRIP_LDFLAGS) $(TORIRSSERVER_LTO_CACHE)
+		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_STATIC_LDFLAGS) $(PLATFORM_STRIP_LDFLAGS) $(TORIRSSERVER_LTO_CACHE)
 	@echo "built $(TORIRSSERVER_BIN)"
 
 # The headless client's core fed the server's own osrs242 wire bytes (encoded
@@ -8558,7 +8564,7 @@ test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $
 		$(SERVICE_SRCS) torirsserver/torirs_server_history.c \
 		torirsserver/torirs_server_hiscoreslink.c platform/platform_x_http.c platform/sockstream.c \
 		platform/platform_mdns.c \
-		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(SERVERS_SQLITE_OBJ)
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(SERVERS_SQLITE_OBJ) $(JS5_SOCKET_LIBS)
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest
 
 # mDNS response parser: name compression (including a pointer chain and a
@@ -9126,7 +9132,7 @@ endif
 .PHONY: test-win32-platform
 ifneq ($(filter $(PLATFORM),win32 win64),)
 WIN32_PLATFORM_TEST_CFLAGS := -std=c11 -O2 -Wall -Wextra -g \
-	-DTORIRS_PERF_DISABLE=1 -I$(SRC_DIR) \
+	-DTORIRS_PERF_DISABLE=1 -I$(SRC_DIR) -I$(REPO_ROOT) -I$(BMP_DIR) \
 	$(PLATFORM_CFLAGS)
 WIN32_PLATFORM_TEST_LDFLAGS := -static -static-libgcc \
 	-lgdi32 -luser32 -lole32 -loleaut32 -luuid -lwinmm -lkernel32
@@ -9144,7 +9150,7 @@ test-win32-platform: $(OBJ_DIR)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) -DTORIRS_WIN32_GDI_TEST_API=1 \
 		-o $(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
 		platform/test/win32_gdi_test.c platform/platform_win32gdi.c \
-		platform/test/win32_browser_backend_fake.c \
+		platform/test/win32_browser_backend_fake.c $(BMP_DIR)/bmp.c \
 		platform/platform_win32_timing.c platform/platform_app_icon.c \
 		cmd/cmdbus.c cmd/cmdring.c \
 		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(WIN32_PLATFORM_TEST_LDFLAGS)

@@ -93,9 +93,9 @@ ServiceAuth_Load(void)
         ToriRSServer_AuthHex(fresh, sizeof(fresh), text);
         strcat(text, "\n");
         ToriRSServer_SaveMkdirParent(path);
-        /* "x": of several servers making it at once, one writes it and the
-         * rest find it there and read it. */
-        file = fopen(path, "wbx");
+        /* Exclusive: of several servers making it at once, one writes it and
+         * the rest find it there and read it. */
+        file = ToriRSServer_SaveCreateExclusive(path);
         if( file )
         {
             if( fputs(text, file) < 0 || fclose(file) != 0 )

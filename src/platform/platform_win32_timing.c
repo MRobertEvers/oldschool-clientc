@@ -7,6 +7,8 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct Win32TimingState
@@ -208,15 +210,26 @@ precise_timer_resolve(void)
 {
     HMODULE kernel;
     Win32CreateWaitableTimerExWFn create;
+    char const* knob;
 
     precise.resolved = 1;
-    kernel = GetModuleHandleA("kernel32.dll");
-    if( !kernel )
-        return;
-    create = (Win32CreateWaitableTimerExWFn)(void (*)(void))GetProcAddress(kernel, "CreateWaitableTimerExW");
-    if( !create )
-        return;
-    precise.timer = create(NULL, NULL, WIN32_TIMING_TIMER_HIGH_RESOLUTION, WIN32_TIMING_TIMER_ALL_ACCESS);
+    /* TORIRS_WIN32_PRECISE_TIMER=0 keeps the Sleep plan, the one XP and
+     * Windows 10 before 1803 take, so it can be measured on a newer system;
+     * any value set says on stderr which plan this run sleeps on. */
+    knob = getenv("TORIRS_WIN32_PRECISE_TIMER");
+    if( !(knob && knob[0] == '0') )
+    {
+        kernel = GetModuleHandleA("kernel32.dll");
+        create = kernel ? (Win32CreateWaitableTimerExWFn)(void (*)(void))GetProcAddress(kernel, "CreateWaitableTimerExW")
+                        : NULL;
+        if( create )
+            precise.timer = create(NULL, NULL, WIN32_TIMING_TIMER_HIGH_RESOLUTION, WIN32_TIMING_TIMER_ALL_ACCESS);
+    }
+    if( knob )
+        fprintf(stderr, "win32 timing: %s (TORIRS_WIN32_PRECISE_TIMER=%s)\n",
+                precise.timer ? "naps and frame waits block on the high-resolution waitable timer"
+                              : "the Sleep plan: Sleep(ms - 1), then Sleep(0) rechecks for the last millisecond",
+                knob);
 }
 
 /* Wait `us` microseconds on the precise timer. False if the wait could not
@@ -236,15 +249,18 @@ precise_timer_wait(uint64_t us)
 void
 PlatformWin32Timing_SleepUntilMs(uint64_t deadline_ms)
 {
+    uint64_t began_us;
+
     if( timing.references == 0 )
         PlatformWin32Timing_Init();
     request_fine_timer_period();
     if( !precise.resolved )
         precise_timer_resolve();
+    began_us = PlatformWin32Timing_NowUs();
     for( ;; )
     {
         struct ToriRS_SleepStep const step =
-            ToriRS_SleepPlan_Next(PlatformWin32Timing_NowUs(), deadline_ms, precise.timer != NULL);
+            ToriRS_SleepPlan_Next(PlatformWin32Timing_NowUs(), deadline_ms, began_us, precise.timer != NULL);
 
         if( step.kind == TORIRS_SLEEP_STEP_DONE )
             return;

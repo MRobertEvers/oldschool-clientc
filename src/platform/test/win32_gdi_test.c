@@ -18,6 +18,10 @@
 extern uint32_t
 PlatformWindow_Win32TestPaintCount(struct PlatformWindow* platform);
 
+/* win32_browser_backend_fake.c */
+extern int g_fake_browser_refuse;
+extern int g_fake_browser_new_calls;
+
 struct TestSurface
 {
     HDC dc;
@@ -385,6 +389,25 @@ main(void)
 
     surface_free(&target);
     PlatformWindow_Free(platform);
+
+    /* A browser that cannot be made is asked for once. The chrome executor
+     * calls Ensure on every rail sync, every frame while its theme is unsent,
+     * and each retry staged the whole bundle again (fifty file copies): a
+     * quest test on Windows 11 with no WebView2 loader ran 25x slower. */
+    platform = PlatformWindow_New();
+    if( !platform || !PlatformWindow_Init(platform, logical_w, logical_h, "torirs-gdi-test-nobrowser") )
+        fail("second platform initialization failed");
+    g_fake_browser_refuse = 1;
+    g_fake_browser_new_calls = 0;
+    for( int i = 0; i < 5; i++ )
+        if( PlatformWindow_PluginBrowserEnsure(platform) )
+            fail("a refused browser was reported made");
+    if( g_fake_browser_new_calls != 1 )
+        fail("a refused browser was asked for again: the bundle is re-staged on every call");
+    if( !PlatformWindow_PluginBrowserFailed(platform) )
+        fail("a refused browser does not read as failed");
+    PlatformWindow_Free(platform);
+    g_fake_browser_refuse = 0;
     SetEnvironmentVariableA("TORIRS_WIN32_HIDDEN", NULL);
     puts("win32_gdi_test: ok (retained game paint, one attached browser, stable collapse)");
     return 0;
