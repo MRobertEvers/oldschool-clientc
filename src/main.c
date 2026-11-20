@@ -4034,6 +4034,9 @@ static struct
     uint64_t slack_us;
     /* When the first summarised frame ran, for the line's elapsed time. */
     uint64_t start_us;
+    /* The logic cycle before the window's first App_RunOnce: the line says
+     * how many cycles its frames ran (TORIRS_LOGIC_CYCLES_PER_FRAME). */
+    uint64_t cycle_start;
 } main_loop_trace;
 
 static void
@@ -4051,7 +4054,7 @@ main_loop_trace_flush(int at_end)
     fprintf(
         stderr,
         "queue_contract: loop t=%.2fs frames=%d committed=%d wait none=%d sleep=%d nap=%d naps=%d (moved %d) "
-        "slack=%d (%.1f ms); %s\n",
+        "slack=%d (%.1f ms) cycles=%llu (%.2f a frame); %s\n",
         (double)(PlatformWindow_TicksUs() - main_loop_trace.start_us) / 1e6,
         main_loop_trace.frames,
         main_loop_trace.committed,
@@ -4062,6 +4065,9 @@ main_loop_trace_flush(int at_end)
         main_loop_trace.nap_pumps_moved,
         main_loop_trace.slack_calls,
         (double)main_loop_trace.slack_us / 1000.0,
+        (unsigned long long)(FrameClockSerial_LogicCycle(&app.frame_clock.serial) - main_loop_trace.cycle_start),
+        (double)(FrameClockSerial_LogicCycle(&app.frame_clock.serial) - main_loop_trace.cycle_start) /
+            (double)main_loop_trace.frames,
         app_line);
     {
         uint64_t const start_us = main_loop_trace.start_us;
@@ -6345,6 +6351,8 @@ frame_loop_step(void)
     }
 
     app_redraw = 0;
+    if( main_loop_trace.frames == 0 )
+        main_loop_trace.cycle_start = FrameClockSerial_LogicCycle(&app.frame_clock.serial);
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
     {
         app_redraw = App_RunOnce(&app, logic_now, input);

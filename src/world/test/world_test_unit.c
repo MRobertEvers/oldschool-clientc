@@ -424,16 +424,16 @@ test_obj_stack_placeholder(void)
     World_EventsClear(world);
     idx = World_ObjStackAdd(world, -1, 11, 12, 0, 526 /* bones */, 1, "", none);
     {
-        uint32_t const serial = World_EntityPoolGet(&world->entities.obj_stack, idx)->serial;
+        struct WorldEntity_ObjStack const* row = World_EntityPoolGet(&world->entities.obj_stack, idx);
+        uint32_t const serial = row->serial;
         int again;
         TEST_ASSERT(serial != 0 && serial != stack->serial, "every row has its own serial");
         World_ObjStackDel(world, idx);
         TEST_ASSERT(World_EventsCount(world) == 0, "a removed placeholder has no element for the drain to free");
         again = World_ObjStackAdd(world, -1, 11, 12, 0, 526, 1, "", none);
         TEST_ASSERT(again == idx, "the freed slot is reused");
-        TEST_ASSERT(
-            World_EntityPoolGet(&world->entities.obj_stack, again)->serial != serial,
-            "by a row with another serial");
+        row = World_EntityPoolGet(&world->entities.obj_stack, again);
+        TEST_ASSERT(row->serial != serial, "by a row with another serial");
     }
     World_EventsClear(world);
     World_Free(world);
@@ -588,6 +588,9 @@ test_projectile_scripted(void)
     TEST_ASSERT(World_ProjectileFindScriptedSlot(world, 7) == idx, "the slot finds it");
     TEST_ASSERT(World_ProjectileFindScriptedSlot(world, 8) == -1, "no other slot does");
     struct WorldEntity_Projectile* proj = World_EntityPoolGet(&world->entities.projectile, idx);
+    /* Its curve scripts are resident (test_curve_fn answers them): what the
+     * client's body task sets once they load (app_tasks_effects.c). */
+    proj->curves_ready = true;
 
     for( int t = 0; t < 3; t++ )
         World_TestCycle(world, 1);

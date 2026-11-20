@@ -3671,6 +3671,15 @@ world_square_loaded(
     world_apply_deck_rules(srv);
 }
 
+/* The tick breakdown (TORIRS_SERVER_BREAKDOWN), defined with the tick below;
+ * a window build reports its own cost through it. */
+static int g_tick_bd_ms;
+static FILE* g_tick_bd_out;
+static int
+tick_bd_on(void);
+static uint64_t
+tick_bd_now_us(void);
+
 static void
 world_window_scene_build(
     struct ToriRSServer* srv,
@@ -3896,6 +3905,8 @@ world_player_scene_build(
 {
     int anchor_x;
     int anchor_z;
+    int const bd_on = tick_bd_on();
+    uint64_t const bd_t0 = bd_on ? tick_bd_now_us() : 0;
 
     player_scene_anchor(srv, player, &anchor_x, &anchor_z);
     player->zone_x = anchor_x >> 3;
@@ -3911,6 +3922,19 @@ world_player_scene_build(
     world_window_scene_build(srv, ToriRSServer_PlayerSceneWindow(player), player->zone_x,
                              player->zone_z);
     player->scene_built_generation = zone_centre_generation(player->zone_x, player->zone_z);
+    /* TORIRS_SERVER_BREAKDOWN: a window build reads and collides every map
+     * square it does not hold yet, inside whichever tick phase moved the
+     * player (maybe_rebuild); the line names that cost apart from the
+     * phase's own. */
+    if( bd_on )
+    {
+        uint64_t const us = tick_bd_now_us() - bd_t0;
+
+        if( us >= (uint64_t)g_tick_bd_ms * 1000u )
+            fprintf(g_tick_bd_out,
+                    "server_scene_build: tick %d pid %d zone %d,%d %.2f ms\n",
+                    srv->tick, player->pid, player->zone_x, player->zone_z, us / 1000.0);
+    }
 }
 
 void
@@ -18188,8 +18212,7 @@ enum
 
 static int g_tick_bd_init;
 static int g_tick_bd_on;
-static int g_tick_bd_ms;
-static FILE* g_tick_bd_out;
+/* g_tick_bd_ms and g_tick_bd_out are declared above world_window_scene_build. */
 static uint64_t g_pp[PP_COUNT];
 
 /* Two costs that cut across the phases rather than sitting inside one: script
