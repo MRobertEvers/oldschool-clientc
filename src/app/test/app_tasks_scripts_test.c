@@ -39,6 +39,7 @@
 #include "net/rev/revpacket.h"
 #include "ui/uitree.h"
 #include "ui/uitree_hook.h"
+#include "world/world.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -241,6 +242,50 @@ test_a_server_set_cancels_a_loc_model(void)
         "the script's loc model is still pending after the server's IF_SETMODEL; it would bind "
         "over the newer model when it lands");
     CHECK(App_IfModelPending(fx.app, WIDGET), "the server's model has no task");
+    fixture_free(&fx);
+}
+
+/*
+ * IF_SETPLAYERMODEL_* is the server's set too, and it reaches the widget
+ * through neither the CS2 host nor the head store: the composition is the
+ * widget's model from the packet (its build lands later, and the poll binds
+ * it). A script's loc or obj model still loading for the widget must not land
+ * over it. At 1528fc3a1 the script was held until its model was here, so its
+ * set always came first and the player model last.
+ */
+static void
+test_a_server_player_model_cancels_script_models(void)
+{
+    struct Fixture fx;
+    int world_idx;
+
+    printf("TEST: a server IF_SETPLAYERMODEL_SELF cancels a script's loc and obj model on the widget\n");
+    fixture_init(&fx);
+    fx.app->world = World_New();
+    RS_EntitySync_Init(&fx.app->esync);
+    fx.app->esync.local_pid = 3;
+    world_idx = World_PlayerSpawn(fx.app->world, 7, 0, 20, 20, (struct WorldEntityFacet_IdleAnimations){ 0 });
+    RS_EntitySync_RegisterPlayer(&fx.app->esync, 3, 7, world_idx);
+
+    app_cs2_widget_loc_model_lazy(fx.app, WIDGET, 77);
+    CHECK(App_ScriptVisualPending(fx.app, APP_SCRIPT_TASK_LOC_MODEL, WIDGET),
+        "the loc model is not pending");
+    App_SetInterfacePlayerModelSelf(fx.app, WIDGET, 1);
+    CHECK(!App_ScriptVisualPending(fx.app, APP_SCRIPT_TASK_LOC_MODEL, WIDGET),
+        "the script's loc model is still pending after the server's IF_SETPLAYERMODEL_SELF; it "
+        "would bind over the player's model when it lands");
+
+    app_cs2_widget_obj_model_lazy(fx.app, WIDGET, 4151, 1, 0);
+    CHECK(App_ScriptVisualPending(fx.app, APP_SCRIPT_TASK_OBJ_MODEL, WIDGET),
+        "the obj model is not pending");
+    App_SetInterfacePlayerModelBaseColour(fx.app, WIDGET, 0, 3);
+    CHECK(!App_ScriptVisualPending(fx.app, APP_SCRIPT_TASK_OBJ_MODEL, WIDGET),
+        "the script's obj model is still pending after the server's IF_SETPLAYERMODEL_BASECOLOUR");
+
+    step_parallel(&fx);
+    RS_EntitySync_Free(&fx.app->esync);
+    World_Free(fx.app->world);
+    fx.app->world = NULL;
     fixture_free(&fx);
 }
 
@@ -537,6 +582,7 @@ main(void)
 {
     test_a_newer_set_cancels_a_loc_model();
     test_a_server_set_cancels_a_loc_model();
+    test_a_server_player_model_cancels_script_models();
     test_a_second_loc_set_replaces_the_first();
     test_a_closed_group_drops_the_loc_model();
     test_a_pack_hands_its_models_to_one_task();

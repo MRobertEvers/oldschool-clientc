@@ -416,6 +416,12 @@ app_if_player_model_op(
 {
     struct Task_AppIfPlayerModel* task;
 
+    /* The latest set wins over a script's visual task, as in the head store:
+     * a loc or obj model a script set still loading for this widget would
+     * bind over the composition when it lands. Cancelled here, in wire
+     * order, whether the op composes now or waits for its config. */
+    if( app->tree )
+        app_cs2_widget_visual_cancel(app, component_id);
     if( op == APP_IFPLAYER_SELF || op == APP_IFPLAYER_BASECOLOUR ||
         (op == APP_IFPLAYER_OBJ && (CacheProvider_ObjtypeHas(app->provider, arg0) ||
                                     CacheProvider_ObjtypeAbsent(app->provider, arg0))) )
