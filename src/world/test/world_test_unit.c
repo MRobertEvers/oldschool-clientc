@@ -2010,7 +2010,14 @@ test_exact_move_across_far_teleport(void)
     }
 
     /* The 1536..11776 band is the local player's alone: a remote player whose
-     * exact move ends 5 tiles from the scene edge still glides there. */
+     * exact move ends 5 tiles from the scene edge still glides there. The
+     * local player's glide is cut the cycle it crosses into the band, and it
+     * snaps to route[0] -- which the exact move itself set to its END tile
+     * (class95.method3132 -> Statics.method1301), so the reference drops it
+     * on the end tile at once instead of gliding through the band. That tile
+     * is inside the band; the band only forbids the glide, it does not keep
+     * the player out (keeping the player away from the edge is the server's
+     * rebuild, and there is no server here). */
     {
         struct World* world = World_TestMakeReady(104);
         world->local_pid = 7;
@@ -2025,13 +2032,24 @@ test_exact_move_across_far_teleport(void)
         World_PlayerSetExactMove(world, rp, 14, 60, 5, 60, 20, 0, 3);
         /* One cycle per call: World_Cycle advances the clock by the whole
          * count before it steps, so a 25-cycle call would skip the window. */
+        uint32_t const end_fine = (uint32_t)(5 * 128 + 64);
+        int cut_cycle = -1;
         for( int c = 0; c < 25; c++ )
         {
             World_Cycle(world, 1);
-            TEST_ASSERT(local->draw_position.x >= 1536u,
-                        "the local player never stands inside the 12-tile edge band");
+            if( local->draw_position.x < 1536u && cut_cycle < 0 )
+            {
+                cut_cycle = c;
+                TEST_ASSERT(remote->draw_position.x > end_fine,
+                            "the local glide is cut while the remote one is still in flight");
+            }
+            TEST_ASSERT(local->draw_position.x >= 1536u || local->draw_position.x == end_fine,
+                        "inside the 12-tile edge band the local player stands only on route[0], "
+                        "the move's end tile, never mid-glide");
         }
-        TEST_ASSERT(remote->draw_position.x == (uint32_t)(5 * 128 + 64),
+        TEST_ASSERT(cut_cycle >= 0 && cut_cycle < 19,
+                    "the local player's glide was cut at the band, before its window closed");
+        TEST_ASSERT(remote->draw_position.x == end_fine,
                     "a remote player's exact move reaches the edge band");
         TEST_ASSERT(local->exact_move.move_start == 0,
                     "the local player's exact move was dropped at the edge band");
