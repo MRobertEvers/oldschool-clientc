@@ -5024,7 +5024,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
             request.u.name.int_args[i] = int_args[i];                 \
         request.u.name.int_arg_count = int_arg_count;                  \
         request.u.name.str_arg_mask = str_arg_mask;                    \
-        for( int i = 0; i < CS2VM_SETON_INT_ARG_MAX; i++ )             \
+        for( int i = 0; str_arg_mask != 0 && i < CS2VM_SETON_INT_ARG_MAX; i++ ) \
         {                                                              \
             if( !(str_arg_mask & ((uint64_t)1 << i)) )                 \
                 continue;                                              \
@@ -5215,7 +5215,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
             request.u.name.int_args[i] = int_args[i];                 \
         request.u.name.int_arg_count = int_arg_count;                  \
         request.u.name.str_arg_mask = str_arg_mask;                    \
-        for( int i = 0; i < CS2VM_SETON_INT_ARG_MAX; i++ )             \
+        for( int i = 0; str_arg_mask != 0 && i < CS2VM_SETON_INT_ARG_MAX; i++ ) \
         {                                                              \
             if( !(str_arg_mask & ((uint64_t)1 << i)) )                 \
                 continue;                                              \
@@ -5832,7 +5832,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         request.u.IF_SETONINVTRANSMIT.int_args[i] = int_args[i];
     request.u.IF_SETONINVTRANSMIT.int_arg_count = int_arg_count;
     request.u.IF_SETONINVTRANSMIT.str_arg_mask = str_arg_mask;
-    for( int i = 0; i < CS2VM_SETON_INT_ARG_MAX; i++ )
+    for( int i = 0; str_arg_mask != 0 && i < CS2VM_SETON_INT_ARG_MAX; i++ )
     {
         if( !(str_arg_mask & ((uint64_t)1 << i)) )
             continue;
@@ -16117,94 +16117,156 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
          */
         if( !observed && !(frame->script->dialect && frame->script->dialect->rs2_commands) )
         {
-            int const top = vm->ints_stack_top;
+            /* A run of these stays here: the program counter and the int
+             * stack's top are kept in registers for the whole run and written
+             * back once, when it ends. Left in the frame and the thread they
+             * were a store and a reload per instruction, each instruction
+             * waiting on the one before it. `more` is cleared by the first
+             * opcode that is not one of these, or whose stack is wrong; that
+             * instruction has changed nothing and goes down the full path. */
+            uint16_t const* const ops = frame->script->opcodes;
+            int const* const args = frame->script->int_operands;
+            int const op_count = frame->script->op_count;
+            int top = vm->ints_stack_top;
+            int pc = frame->pc;
+            int more = 1;
 
-            switch( opcode )
+            for( ;; )
             {
-            case CS2_OP_PUSH_CONSTANT_INT:
-                if( top >= CS2VM_STACK_MAX )
+                switch( opcode )
+                {
+                case CS2_OP_PUSH_CONSTANT_INT:
+                    if( top >= CS2VM_STACK_MAX )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    vm->ints_stack[top++] = operand;
+                    pc += 1;
                     break;
-                vm->ints_stack[top] = operand;
-                vm->ints_stack_top = top + 1;
-                frame->pc += 1;
-                continue;
-            case CS2_OP_PUSH_INT_LOCAL:
-                if( top >= CS2VM_STACK_MAX || operand < 0 || operand >= CS2VM_MAX_LOCALS )
+                case CS2_OP_PUSH_INT_LOCAL:
+                    if( top >= CS2VM_STACK_MAX || operand < 0 || operand >= CS2VM_MAX_LOCALS )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    vm->ints_stack[top++] = cs2vm2_frame_int_local(frame, operand);
+                    pc += 1;
                     break;
-                vm->ints_stack[top] = cs2vm2_frame_int_local(frame, operand);
-                vm->ints_stack_top = top + 1;
-                frame->pc += 1;
-                continue;
-            case CS2_OP_POP_INT_LOCAL:
-                if( top <= 0 || operand < 0 || operand >= CS2VM_MAX_LOCALS )
+                case CS2_OP_POP_INT_LOCAL:
+                    if( top <= 0 || operand < 0 || operand >= CS2VM_MAX_LOCALS )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    *cs2vm2_frame_int_local_ref(frame, operand) = vm->ints_stack[--top];
+                    pc += 1;
                     break;
-                *cs2vm2_frame_int_local_ref(frame, operand) = vm->ints_stack[top - 1];
-                vm->ints_stack_top = top - 1;
-                frame->pc += 1;
-                continue;
-            case CS2_OP_ADD:
-                if( top < 2 )
+                case CS2_OP_ADD:
+                    if( top < 2 )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    vm->ints_stack[top - 2] = vm->ints_stack[top - 2] + vm->ints_stack[top - 1];
+                    top -= 1;
+                    pc += 1;
                     break;
-                vm->ints_stack[top - 2] = vm->ints_stack[top - 2] + vm->ints_stack[top - 1];
-                vm->ints_stack_top = top - 1;
-                frame->pc += 1;
-                continue;
-            case CS2_OP_SUB:
-                if( top < 2 )
+                case CS2_OP_SUB:
+                    if( top < 2 )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    vm->ints_stack[top - 2] = vm->ints_stack[top - 2] - vm->ints_stack[top - 1];
+                    top -= 1;
+                    pc += 1;
                     break;
-                vm->ints_stack[top - 2] = vm->ints_stack[top - 2] - vm->ints_stack[top - 1];
-                vm->ints_stack_top = top - 1;
-                frame->pc += 1;
-                continue;
-            case CS2_OP_MULTIPLY:
-                if( top < 2 )
+                case CS2_OP_MULTIPLY:
+                    if( top < 2 )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    vm->ints_stack[top - 2] = vm->ints_stack[top - 2] * vm->ints_stack[top - 1];
+                    top -= 1;
+                    pc += 1;
                     break;
-                vm->ints_stack[top - 2] = vm->ints_stack[top - 2] * vm->ints_stack[top - 1];
-                vm->ints_stack_top = top - 1;
-                frame->pc += 1;
-                continue;
-            case CS2_OP_BRANCH:
-                frame->pc += 1 + operand;
-                continue;
-            case CS2_OP_BRANCH_EQUALS:
-                if( top < 2 )
+                case CS2_OP_BRANCH:
+                    pc += 1 + operand;
                     break;
-                vm->ints_stack_top = top - 2;
-                frame->pc += 1 + (vm->ints_stack[top - 2] == vm->ints_stack[top - 1] ? operand : 0);
-                continue;
-            case CS2_OP_BRANCH_NOT:
-                if( top < 2 )
+                case CS2_OP_BRANCH_EQUALS:
+                    if( top < 2 )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    top -= 2;
+                    pc += 1 + (vm->ints_stack[top] == vm->ints_stack[top + 1] ? operand : 0);
                     break;
-                vm->ints_stack_top = top - 2;
-                frame->pc += 1 + (vm->ints_stack[top - 2] != vm->ints_stack[top - 1] ? operand : 0);
-                continue;
-            case CS2_OP_BRANCH_LESS_THAN:
-                if( top < 2 )
+                case CS2_OP_BRANCH_NOT:
+                    if( top < 2 )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    top -= 2;
+                    pc += 1 + (vm->ints_stack[top] != vm->ints_stack[top + 1] ? operand : 0);
                     break;
-                vm->ints_stack_top = top - 2;
-                frame->pc += 1 + (vm->ints_stack[top - 2] < vm->ints_stack[top - 1] ? operand : 0);
-                continue;
-            case CS2_OP_BRANCH_GREATER_THAN:
-                if( top < 2 )
+                case CS2_OP_BRANCH_LESS_THAN:
+                    if( top < 2 )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    top -= 2;
+                    pc += 1 + (vm->ints_stack[top] < vm->ints_stack[top + 1] ? operand : 0);
                     break;
-                vm->ints_stack_top = top - 2;
-                frame->pc += 1 + (vm->ints_stack[top - 2] > vm->ints_stack[top - 1] ? operand : 0);
-                continue;
-            case CS2_OP_BRANCH_LESS_THAN_OR_EQUALS:
-                if( top < 2 )
+                case CS2_OP_BRANCH_GREATER_THAN:
+                    if( top < 2 )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    top -= 2;
+                    pc += 1 + (vm->ints_stack[top] > vm->ints_stack[top + 1] ? operand : 0);
                     break;
-                vm->ints_stack_top = top - 2;
-                frame->pc += 1 + (vm->ints_stack[top - 2] <= vm->ints_stack[top - 1] ? operand : 0);
-                continue;
-            case CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS:
-                if( top < 2 )
+                case CS2_OP_BRANCH_LESS_THAN_OR_EQUALS:
+                    if( top < 2 )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    top -= 2;
+                    pc += 1 + (vm->ints_stack[top] <= vm->ints_stack[top + 1] ? operand : 0);
                     break;
-                vm->ints_stack_top = top - 2;
-                frame->pc += 1 + (vm->ints_stack[top - 2] >= vm->ints_stack[top - 1] ? operand : 0);
-                continue;
-            default:
-                break;
+                case CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS:
+                    if( top < 2 )
+                    {
+                        more = 0;
+                        break;
+                    }
+                    top -= 2;
+                    pc += 1 + (vm->ints_stack[top] >= vm->ints_stack[top + 1] ? operand : 0);
+                    break;
+                default:
+                    more = 0;
+                    break;
+                }
+                if( !more )
+                    break;
+                /* The script's end and the cycle limit are the loop head's to
+                 * report; it counts this next instruction itself. */
+                if( pc >= op_count || cycles >= CS2VM_MAX_CYCLES )
+                    break;
+                cycles++;
+                opcode = ops[pc];
+                operand = args[pc];
             }
+            vm->ints_stack_top = top;
+            frame->pc = pc;
+            if( more )
+                continue;
         }
 
         char const* str_operand_str = NULL;
