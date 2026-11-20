@@ -182,6 +182,10 @@ fixture_init(void)
     app->scene = g_fx.scene;
     VarPManager_Init(&app->varps);
     RS_EntitySync_Init(&app->esync);
+    /* A held zone packet applies through the packet executor, whose context
+     * names the tree (app_exec_ctx asserts it). */
+    app->tree = UITree_New(2);
+    assert(app->tree);
     App_AssetsInit(app);
     App_PendingInit(app);
     loader.start = fake_start;
