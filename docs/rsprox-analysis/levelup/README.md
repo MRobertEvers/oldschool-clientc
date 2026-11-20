@@ -64,6 +64,42 @@ Rules, with the counts behind them:
 - `levelup_list_<skill>` is NOT the old level: it is set once at the first
   level-up of a run and stays (Prayer 10 for 11..21, index 4343).
 
+## Against an op's dialogue
+
+Sources: all 214 sessions holding interface 233 (`rsprox_index.py search
+interface 233`), about 1,440 boxes; scanned for every chatbox (162:568)
+transition that touches a box.
+
+- **A queued box waits behind any open modal**, chat or main, and opens the
+  tick after the last one closes: index 4360, Mining xp with Plague City's
+  reward [1176], then the quest scroll (closed [1180]), Edmond's next page, an
+  objectbox (closed [1183]); the box [1184]. Index 4364: the Magic xp [239],
+  the scroll [241] (closed [244]), the box [245].
+- **No box ever opens while another chat modal is up**, nor replaces one: 0
+  of the ~1,440.
+- **An op's dialogue closes a box first**: `if_closesub chatbox:chatmodal`,
+  then the op's own page, in every recorded case (index 4360 [1185], 4439
+  [328], 4457 [974], 4529 [763], 4603 [594], 4353 [455]).
+- **A latched op closes a box the queue opened after it.** The box opens and
+  is shut on the tick the op lands, with no input from the client and without
+  the `if_sethide` the box's continue sends: the combat box as a ground item
+  is taken (index 4521 [281]), the Hitpoints box under a swing (index 4517
+  [3992]).
+
+Ours: the op's packet closes what is up (`ToriRSServer_WorldClearPendingAction`),
+and an op that fires closes the chat modal a queue opened behind it
+(`interaction_close_chat_behind`, torirs_server_world.c). Before that, an op
+whose script opened a page while a box's script was parked on its continue
+had its script dropped (one parked script per player), and the page's continue
+resumed the level-up script instead, whose end closed the page for the next
+queued box (`::maxstats` in cox_lobby and makeover_tour). Test:
+`test/levelup/levelup_op.lua` (scriptrun, 8 of 8; 4 of 8 before).
+
+Content, not engine: `questscroll.rs2` shows the scroll from a queue, so a box
+due on the scroll's tick (an earlier queue slot) opens first and the scroll
+waits behind it, the reverse of index 4364 [241]/[245] (test/quests/imp.lua
+`quest.scroll_title`).
+
 ## Ours
 
 `levelup/scripts/levelup.rs2`; the engine passes the base level before the drop

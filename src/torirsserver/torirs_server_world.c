@@ -2135,6 +2135,50 @@ interaction_reach_position(
  *
  * Returns 1 when the interaction ran and was cleared.
  */
+/*
+ * An op that fires takes the chatbox from whatever a queue put there while the
+ * op was latched.
+ *
+ * The op's packet already closed what was up when it arrived
+ * (`ToriRSServer_WorldClearPendingAction`). What it cannot close is a chat box
+ * a queued script opens AFTER it, while the player walks to the target or on
+ * the very tick it is reached (the queue phase runs before the interaction).
+ * Jagex closes that one when the op fires: a queued level-up box opens and is
+ * shut, with no input from the client, on the tick a latched op lands -- the
+ * combat level-up as a ground item is taken (RSProx index 4521 [281]: the box,
+ * then `if_closesub chatbox:chatmodal` with no `if_sethide` the box's own
+ * continue would send), the Hitpoints box under a swing (index 4517 [3992]).
+ * And no recorded level-up box ever shares the chatbox with another chat
+ * modal, or replaces one (214 sessions, about 1,440 boxes): an op's dialogue
+ * is preceded by the box's close in every recording of one (index 4360
+ * [1185], 4439 [328], 4457 [974], 4529 [763], 4603 [594], 4353 [455]).
+ *
+ * Without this the op's script ran while the box's script was parked on its
+ * continue: an op that opens a dialogue (`~mesbox`) put its page over the box
+ * and was dropped by the one-parked-script rule, and the page's continue then
+ * resumed the LEVEL-UP script, whose end closed the op's page and let the next
+ * queued box replace it (cox_lobby after `::maxstats`).
+ *
+ * Only the chat modal and a parked dialogue: a main modal open under a latched
+ * op is a case no recording shows.
+ */
+static void
+interaction_close_chat_behind(struct ToriRSServer* srv)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+    struct SSVM_State const* parked = player->active_script;
+    int dialogue_parked;
+
+    dialogue_parked = parked && (parked->execution == SSVM_PAUSEBUTTON ||
+                                 parked->execution == SSVM_COUNTDIALOG ||
+                                 parked->execution == SSVM_NAMEDIALOG);
+    if( player->mainmodal_group > 0 || player->sidemodal_group > 0 )
+        return;
+    if( player->chatmodal_group <= 0 && !dialogue_parked )
+        return;
+    ToriRSServer_WorldCloseModal(srv);
+}
+
 static int
 interaction_try(
     struct ToriRSServer* srv,
@@ -2325,6 +2369,8 @@ interaction_try(
          * reads the interaction — and the clear a few lines down is what this
          * copy survives. Same reason the ap rung above snapshots. */
         struct ToriRSServerInteraction snapshot = *interaction;
+
+        interaction_close_chat_behind(srv);
 
         /* Multiloc: scene entity / find stays BASE; the trigger lookup tries the
          * varbit-resolved child first (LostCity OpLocHandler + getOpTrigger gap
