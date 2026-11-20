@@ -808,6 +808,65 @@ test_npc_type_headicon_slots(void)
     fixture_free(&fx);
 }
 
+/*
+ * I2: a player's overhead icons (deob Statics.method6709, the player branch;
+ * javap of injected-client-1.12.33-deob.jar agrees). var27 starts at -2; the
+ * overhead chat line, when up, takes 12; each health bar its height and 2;
+ * a var27 still at -2 then becomes 5. The skull (field530) and the prayer
+ * icon (field533) each do `var27 += 25` and draw at (x - 12, y - var27); the
+ * hint arrow on that player draws frame 1 at y - (its art height + var27),
+ * and that art is 25 tall (cache.osrs242 headicons_hint frame 1, 23 x 25).
+ * Numbers, as lifts above the anchor (y = anchor y - lift):
+ *   one prayer icon: 30;  skull and prayer: the skull 30, the prayer 55
+ *   (above it; 85fbd0d4f drew no skull, and a second mask icon at 5, below);
+ *   one icon under an overhead chat line: 35 (85fbd0d4f: 30, over the text);
+ *   a default (5-pixel) health bar: 30; chat and that bar: 42;
+ *   the hint arrow: 30 with no icon, 55 over one, 80 over two
+ *   (85fbd0d4f: 25, 50, 75).
+ */
+static void
+test_player_headicon_lifts(void)
+{
+    struct AppPlayerHeadicon icons[32];
+    int lift;
+    int n;
+
+    printf("TEST: a player's overhead icons stack as the reference's var27\n");
+    lift = app_overlay_overhead_lift(false, 0);
+    TEST_ASSERT(lift == 5, "nothing above the head: the stack starts at 5");
+    n = app_overlay_player_headicon_stack(-1, 1 << 2, &lift, icons);
+    TEST_ASSERT(n == 1 && !icons[0].pk && icons[0].frame == 2 && icons[0].lift == 30, "one prayer icon at 30");
+    TEST_ASSERT(app_overlay_player_hint_lift(25, lift) == 55, "the hint arrow over it at 55");
+
+    lift = app_overlay_overhead_lift(false, 0);
+    n = app_overlay_player_headicon_stack(0, 1 << 1, &lift, icons);
+    TEST_ASSERT(n == 2, "skull and prayer: two icons");
+    TEST_ASSERT(n >= 1 && icons[0].pk && icons[0].frame == 0 && icons[0].lift == 30, "the skull first, at 30");
+    TEST_ASSERT(n >= 2 && !icons[1].pk && icons[1].frame == 1 && icons[1].lift == 55,
+        "the prayer icon above it, at 55");
+    TEST_ASSERT(app_overlay_player_hint_lift(25, lift) == 80, "the hint arrow over both at 80");
+
+    lift = app_overlay_overhead_lift(false, 0);
+    n = app_overlay_player_headicon_stack(-1, (1 << 0) | (1 << 2), &lift, icons);
+    TEST_ASSERT(n == 2 && icons[0].lift == 30 && icons[1].lift == 55, "a mask's second icon stacks above, at 55");
+
+    lift = app_overlay_overhead_lift(true, 0);
+    TEST_ASSERT(lift == 10, "an overhead chat line takes 12 from -2");
+    n = app_overlay_player_headicon_stack(-1, 1 << 2, &lift, icons);
+    TEST_ASSERT(n == 1 && icons[0].lift == 35, "an icon under chat at 35");
+
+    lift = app_overlay_overhead_lift(false, 5 + 2);
+    n = app_overlay_player_headicon_stack(-1, 1 << 2, &lift, icons);
+    TEST_ASSERT(n == 1 && icons[0].lift == 30, "over a 5-pixel health bar at 30");
+    lift = app_overlay_overhead_lift(true, 5 + 2);
+    n = app_overlay_player_headicon_stack(-1, 1 << 2, &lift, icons);
+    TEST_ASSERT(n == 1 && icons[0].lift == 42, "over chat and that bar at 42");
+
+    lift = app_overlay_overhead_lift(false, 0);
+    n = app_overlay_player_headicon_stack(-1, 0, &lift, icons);
+    TEST_ASSERT(n == 0 && app_overlay_player_hint_lift(25, lift) == 30, "a hint arrow over no icon at 30");
+}
+
 /* E12 HEAD_CUSTOM: an IF_SETNPCHEAD_ACTIVE head of an npc carrying a
  * chathead customisation loads the override's models, not the type's heads,
  * keyed by the override (a second override is a second head). */
@@ -1413,6 +1472,7 @@ main(void)
     test_npc_headicon_groups_load();
     test_npc_headicon_placement();
     test_npc_type_headicon_slots();
+    test_player_headicon_lifts();
     test_npc_head_custom_loads_its_models();
     test_a_close_seen_after_the_last_pump_publishes();
     test_npc_head_custom_empty_list_shows_nothing();

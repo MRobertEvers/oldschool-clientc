@@ -1205,6 +1205,8 @@ World_PlayerSpawn(
         .spawn_serial = ++world->entity_spawn_serial,
         /* npc id 0 is a real npc type, so "no transmog" is spelled. */
         .transmog_npc_id = -1,
+        /* Skull 0 is a real frame, so "no skull" is spelled too. */
+        .skull_icon = -1,
         .transmog_size = 1,
         .body = { .npc_id = WORLD_PLAYER_BODY_FROM_SLOTS },
         .loc_merge_id = -1,
