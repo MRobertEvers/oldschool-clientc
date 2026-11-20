@@ -615,8 +615,13 @@ absorb_social(
     {
     case PKT_NAME_UPDATE_FRIENDLIST:
         peer->saw_friend_count++;
-        peer->saw_friend_name37 = packet->_update_friendlist.name37;
-        peer->saw_friend_world = packet->_update_friendlist.world;
+        /* The first entry, keyed as the friend list keys it. */
+        peer->saw_friend_name37 = packet->_update_friendlist.count > 0
+                                      ? (int64_t)strtobase37(packet->_update_friendlist.entries[0].name)
+                                      : 0;
+        peer->saw_friend_world = packet->_update_friendlist.count > 0
+                                     ? packet->_update_friendlist.entries[0].world
+                                     : 0;
         return 1;
     case PKT_NAME_FRIENDLIST_LOADED:
         peer->saw_friendlist_loaded = packet->_friendlist_loaded.status;
@@ -627,7 +632,7 @@ absorb_social(
         return 1;
     case PKT_NAME_MESSAGE_PRIVATE:
         peer->saw_pm_count++;
-        peer->saw_pm_from = packet->_message_private.from;
+        peer->saw_pm_from = (int64_t)strtobase37(packet->_message_private.sender);
         peer->saw_pm_id = packet->_message_private.message_id;
         snprintf(peer->saw_pm_text, sizeof(peer->saw_pm_text), "%s",
                  packet->_message_private.text ? packet->_message_private.text : "");

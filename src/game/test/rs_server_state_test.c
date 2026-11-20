@@ -496,7 +496,7 @@ test_chat(void)
 
     /* A private message is deduped by id: the second copy writes nothing. */
     p = packet(PKT_NAME_MESSAGE_PRIVATE);
-    p._message_private.from = strtobase37("bob");
+    snprintf(p._message_private.sender, sizeof(p._message_private.sender), "bob");
     p._message_private.message_id = 77;
     p._message_private.text = text;
     CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "the first copy is a line");
@@ -539,7 +539,7 @@ test_chat(void)
         p._message_friendchannel.text = fc_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "on the island the line is not shown");
         p = packet(PKT_NAME_MESSAGE_PRIVATE);
-        p._message_private.from = strtobase37("dave");
+        snprintf(p._message_private.sender, sizeof(p._message_private.sender), "dave");
         p._message_private.message_id = 78;
         p._message_private.text = fc_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "nor a private one");
@@ -554,7 +554,7 @@ test_chat(void)
         p._message_friendchannel.text = fc_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "off it the same line is, not seen before");
         p = packet(PKT_NAME_MESSAGE_PRIVATE);
-        p._message_private.from = strtobase37("dave");
+        snprintf(p._message_private.sender, sizeof(p._message_private.sender), "dave");
         p._message_private.message_id = 78;
         p._message_private.text = fc_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "and the private one");
@@ -577,16 +577,19 @@ test_social(void)
     struct Fixture* fx = fixture_new();
     struct RevPacket p;
     int64_t names[2];
+    struct PktUpdateFriendListEntry friend_entry;
 
+    memset(&friend_entry, 0, sizeof(friend_entry));
+    snprintf(friend_entry.name, sizeof(friend_entry.name), "alice");
+    friend_entry.world = 302;
+    friend_entry.rank = 2;
     p = packet(PKT_NAME_UPDATE_FRIENDLIST);
-    p._update_friendlist.present = 1;
-    p._update_friendlist.name37 = strtobase37("alice");
-    p._update_friendlist.world = 302;
-    p._update_friendlist.rank = 2;
+    p._update_friendlist.count = 1;
+    p._update_friendlist.entries = &friend_entry;
     apply(fx, &p);
     CHECK(fx->social.server_status == 2, "a friend update marks the list loaded");
     CHECK(fx->social.friend_count == 1, "the friend is added");
-    p._update_friendlist.world = 330;
+    friend_entry.world = 330;
     apply(fx, &p);
     CHECK(fx->social.friend_count == 1, "a second update for her is an update");
     CHECK(RS_Social_FriendWorld(&fx->social, 0) == 330, "of her world");
@@ -608,7 +611,7 @@ test_social(void)
         int const count = fx->chat.message_count;
 
         p = packet(PKT_NAME_MESSAGE_PRIVATE);
-        p._message_private.from = strtobase37("dave");
+        snprintf(p._message_private.sender, sizeof(p._message_private.sender), "dave");
         p._message_private.message_id = 91;
         p._message_private.text = pm_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "an ignored sender's private line is dropped");
@@ -618,7 +621,7 @@ test_social(void)
         p._update_ignorelist.names37 = names;
         apply(fx, &p);
         p = packet(PKT_NAME_MESSAGE_PRIVATE);
-        p._message_private.from = strtobase37("dave");
+        snprintf(p._message_private.sender, sizeof(p._message_private.sender), "dave");
         p._message_private.message_id = 91;
         p._message_private.text = pm_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "unignored, the same message is shown: its id was not kept");
@@ -637,7 +640,7 @@ test_social(void)
         char pm_text[] = "a <col=ff0000>red</col> word";
 
         p = packet(PKT_NAME_MESSAGE_PRIVATE);
-        p._message_private.from = strtobase37("iron_erin");
+        snprintf(p._message_private.sender, sizeof(p._message_private.sender), "iron_erin");
         p._message_private.message_id = 92;
         p._message_private.staff_mod = 3; /* an ironman's crown */
         p._message_private.text = pm_text;

@@ -321,13 +321,8 @@ prep_update_friendlist(MsgUpdateFriendList* m)
     m->entries = entries;
 }
 
-/*
- * PktUpdateFriendList holds ONE friend, not a list, and the hand-written arm
- * required the payload to hold exactly one entry. Keeping that: the first entry
- * wins and `present` says whether there was one, which is what the consumer
- * already reads. A multi-entry payload decodes, and the extra entries are
- * dropped -- a gap in the canonical struct, not in this decode.
- */
+/* Every entry, by the name the wire sends: the deob (Statics.method10091)
+ * loops to the end of the payload and keys each friend by that name. */
 int
 adapt_update_friendlist(MsgUpdateFriendList const* m, struct RevPacket* out)
 {
@@ -337,14 +332,26 @@ adapt_update_friendlist(MsgUpdateFriendList const* m, struct RevPacket* out)
     /* An empty payload is legal and completes initial sync. */
     if( m->count <= 0 )
         return 1;
-    if( !m->entries[0].name )
-        return 0;
-    p->name37 = (int64_t)strtobase37(m->entries[0].name);
-    p->world = m->entries[0].world_id;
-    p->rank = m->entries[0].rank;
-    snprintf(p->previous_name, sizeof(p->previous_name), "%s",
-        m->entries[0].previous_name ? m->entries[0].previous_name : "");
-    p->present = 1;
+    for( int i = 0; i < m->count; i++ )
+    {
+        if( !m->entries[i].name || strlen(m->entries[i].name) >= sizeof(p->entries[i].name) )
+            return 0;
+    }
+    p->entries = (struct PktUpdateFriendListEntry*)ToriMem_Alloc(
+        ToriMem_Net(), (size_t)m->count * sizeof(*p->entries));
+    assert(p->entries);
+    p->count = m->count;
+    for( int i = 0; i < m->count; i++ )
+    {
+        struct PktUpdateFriendListEntry* e = &p->entries[i];
+
+        memset(e, 0, sizeof(*e));
+        snprintf(e->name, sizeof(e->name), "%s", m->entries[i].name);
+        snprintf(e->previous_name, sizeof(e->previous_name), "%s",
+            m->entries[i].previous_name ? m->entries[i].previous_name : "");
+        e->world = m->entries[i].world_id;
+        e->rank = m->entries[i].rank;
+    }
     return 1;
 }
 
@@ -978,9 +985,11 @@ adapt_message_private(MsgMessagePrivate const* m, struct RevPacket* out)
     struct PktMessagePrivate* p = &out->_message_private;
 
     memset(p, 0, sizeof(*p));
-    if( !m->sender )
+    /* The name as sent, not its base37 key: the reference shows it with its
+     * capitals and spaces (deob client.java class243.field2953). */
+    if( !m->sender || strlen(m->sender) >= sizeof(p->sender) )
         return 0;
-    p->from = (int64_t)strtobase37(m->sender);
+    memcpy(p->sender, m->sender, strlen(m->sender) + 1);
     p->message_id = m->world_message_counter;
     p->staff_mod = m->chat_crown_type;
     p->text = chat_huffman_unpack(m->huffman, m->huffman_length);
@@ -3150,7 +3159,8 @@ adapt_message_game_rs(MsgMessageGameRs const* m, struct RevPacket* out)
 int
 adapt_message_private_rs(MsgMessagePrivateRs const* m, struct RevPacket* out)
 {
-    out->_message_private.from = m->from37;
+    base37tostr((uint64_t)m->from37, out->_message_private.sender,
+        (int)sizeof(out->_message_private.sender));
     out->_message_private.message_id = m->message_id;
     out->_message_private.staff_mod = m->staff_mod;
     out->_message_private.text = wordpack_unpack_bytes(m->text, m->text_length);
@@ -3205,8 +3215,16 @@ adapt_friendlist_loaded_rs(MsgFriendlistLoadedRs const* m, struct RevPacket* out
 int
 adapt_update_friendlist_rs(MsgUpdateFriendlistRs const* m, struct RevPacket* out)
 {
-    out->_update_friendlist.name37 = m->name37;
-    out->_update_friendlist.world = m->world;
+    struct PktUpdateFriendList* p = &out->_update_friendlist;
+
+    /* One friend per packet on these wires, keyed by base37. */
+    memset(p, 0, sizeof(*p));
+    p->entries = (struct PktUpdateFriendListEntry*)ToriMem_Alloc(ToriMem_Net(), sizeof(*p->entries));
+    assert(p->entries);
+    memset(p->entries, 0, sizeof(*p->entries));
+    p->count = 1;
+    base37tostr((uint64_t)m->name37, p->entries[0].name, (int)sizeof(p->entries[0].name));
+    p->entries[0].world = m->world;
     return 1;
 }
 

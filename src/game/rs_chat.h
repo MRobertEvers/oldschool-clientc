@@ -295,6 +295,12 @@ RS_Chat_CrownedName(
     char* out,
     size_t cap);
 
+/** `name` past a leading crown image (`<img=N>` for a crown's N), as the
+ *  reference strips one before a friend or ignore test (Statics.method11885);
+ *  `name` itself when it has none. */
+char const*
+RS_Chat_Uncrowned(char const* name);
+
 /** Release the per-type store. The 254-era ring is inline and needs nothing. */
 void
 RS_Chat_Free(struct RS_Chat* chat);

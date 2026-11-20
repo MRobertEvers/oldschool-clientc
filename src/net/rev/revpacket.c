@@ -517,6 +517,11 @@ gameproto_free(struct RevPacket* p)
         p->_update_zone_enclosed.entries = NULL;
         p->_update_zone_enclosed.count = 0;
         break;
+    case PKT_NAME_UPDATE_FRIENDLIST:
+        ToriMem_Free(ToriMem_Net(), p->_update_friendlist.entries);
+        p->_update_friendlist.entries = NULL;
+        p->_update_friendlist.count = 0;
+        break;
     case PKT_NAME_UPDATE_IGNORELIST:
         ToriMem_Free(ToriMem_Net(), p->_update_ignorelist.names37);
         p->_update_ignorelist.names37 = NULL;

@@ -24,9 +24,10 @@ RS_Social_Init(struct RS_Social* social)
 }
 
 /* Base-37 key for a name in any of the forms this store is handed one:
- * lowercase-with-underscores from a packet, "Bob" from a chat line, "B o b"
- * from a typed prompt. strtobase37 folds case and maps every character it does
- * not know (space, underscore) onto the same slot, so all three agree. */
+ * lowercase-with-underscores from a base37 packet, "Eden\xa0Cosine" as a
+ * jstr packet spells it, "Bob" from a chat line, "B o b" from a typed prompt.
+ * strtobase37 folds case and maps every character it does not know (space,
+ * underscore, the cp1252 NBSP) onto the same slot, so all of them agree. */
 static int64_t
 name_hash(char const* name)
 {
@@ -495,6 +496,16 @@ RS_Social_IsFriend(
     assert(social);
     assert(name);
     return find_hash(social->friend_hash, social->friend_name, social->friend_count, name) >= 0;
+}
+
+int
+RS_Social_FriendIndex(
+    struct RS_Social const* social,
+    char const* name)
+{
+    assert(social);
+    assert(name);
+    return find_hash(social->friend_hash, social->friend_name, social->friend_count, name);
 }
 
 int

@@ -17,6 +17,9 @@
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_server_state.h"
+#include "game/rs_social.h"
+#include "net/chat_huffman.h"
+#include "net/jbase37.h"
 #include "game/task_gameproto_exec.h"
 #include "inv/inv_manager.h"
 #include "net/rev/gameproto_revisions.h"
@@ -81,6 +84,56 @@ queued_open(
             return 1;
     }
     return 0;
+}
+
+/* Wire bytes, as a rev-242 server writes them. */
+static int
+test_put_jstr(uint8_t* out, int at, char const* text)
+{
+    size_t const n = strlen(text);
+
+    memcpy(out + at, text, n);
+    out[at + (int)n] = 0;
+    return at + (int)n + 1;
+}
+
+/* One UPDATE_FRIENDLIST entry (rsprot update_friendlist.c, deob
+ * Statics.method10091): added, name, previous name, world, rank, properties,
+ * the online-only world name, platform and flags, the notes. */
+static int
+test_put_friend(uint8_t* out, int at, char const* name, int world)
+{
+    out[at++] = 0;
+    at = test_put_jstr(out, at, name);
+    at = test_put_jstr(out, at, "");
+    out[at++] = (uint8_t)(world >> 8);
+    out[at++] = (uint8_t)world;
+    out[at++] = 0;
+    out[at++] = 0;
+    if( world > 0 )
+    {
+        at = test_put_jstr(out, at, "");
+        out[at++] = 0;
+        memset(out + at, 0, 4);
+        at += 4;
+    }
+    return test_put_jstr(out, at, "");
+}
+
+/* MESSAGE_PRIVATE (rsprot message_private.c): sender, world, the world's
+ * message counter, the crown, the huffman text. */
+static int
+test_put_private(uint8_t* out, int cap, char const* sender, int counter, int crown, char const* text)
+{
+    int at = test_put_jstr(out, 0, sender);
+
+    out[at++] = 0;
+    out[at++] = 1;
+    out[at++] = (uint8_t)(counter >> 16);
+    out[at++] = (uint8_t)(counter >> 8);
+    out[at++] = (uint8_t)counter;
+    out[at++] = (uint8_t)crown;
+    return at + chat_huffman_pack(out + at, cap - at, text);
 }
 
 int
@@ -607,6 +660,120 @@ main(void)
         assert(chat.message_count == 1);
         assert(strcmp(chat.messages[0].text, "A goblin appears.") == 0);
         printf("ok - MESSAGE_GAME applied\n");
+    }
+
+    /* A private message from a friend reaches the private filter as a
+     * friend's line. The recording-96 regression: a login's UPDATE_FRIENDLIST
+     * carries the whole list (94 friends there) and only its first entry was
+     * kept, so a non-staff crowned friend's line (type 3, since 98aca9e6b)
+     * read as a stranger's and script 91 (pm_filtertest) hid it under
+     * "Friends". The sender is the wire's spelling, capitals and NBSP kept
+     * (deob client.java class243.field2953): "From <img=22>Eden Cosine:". */
+    {
+        struct GameProtoRevTable const* rev = GameProtoRev_Osrs(242);
+        struct RS_ServerState pm_state = bare_state;
+        struct RS_Social* pm_social = calloc(1, sizeof(*pm_social));
+        struct RS_Chat* pm_chat = calloc(1, sizeof(*pm_chat));
+        int pm_filters[3] = { 0, 1, 0 }; /* public on, private friends, trade on */
+        int64_t ignored[1];
+        uint8_t wire[512];
+        int len = 0;
+        struct RevPacket p;
+        struct RS_ChatFilters filters;
+
+        assert(rev);
+        assert(pm_social);
+        assert(pm_chat);
+        RS_Social_Init(pm_social);
+        RS_Chat_Init(pm_chat, "Player");
+        pm_state.social = pm_social;
+        pm_state.chat = pm_chat;
+        pm_state.chat_filter_mode = pm_filters;
+
+        /* The friend is the list's second entry, online. */
+        len = test_put_friend(wire, len, "FaravinIron", 0);
+        len = test_put_friend(wire, len, "Eden\xa0" "Cosine", 435);
+        len = test_put_friend(wire, len, "Bills\xa0" "Late", 0);
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_FRIENDLIST), wire, len, &p),
+            "a three-friend UPDATE_FRIENDLIST parses");
+        TEST_EXEC_ASSERT(p._update_friendlist.count == 3, "every entry of the payload is carried");
+        App_GameProto_Exec(base_app, &pm_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(pm_social->friend_count == 3, "the whole list is the friend list");
+        TEST_EXEC_ASSERT(RS_Social_IsFriend(pm_social, "eden_cosine"), "she is a friend");
+        {
+            int const i = RS_Social_FriendIndex(pm_social, "Eden Cosine");
+
+            TEST_EXEC_ASSERT(i >= 0, "found by any spelling of her name");
+            TEST_EXEC_ASSERT(strcmp(pm_social->friend_name[i], "Eden\xa0" "Cosine") == 0,
+                "kept as the wire spells her");
+            TEST_EXEC_ASSERT(RS_Social_FriendWorld(pm_social, i) == 435, "with her world");
+        }
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_UPDATE_IGNORELIST;
+        ignored[0] = (int64_t)strtobase37("spam_bot");
+        p._update_ignorelist.count = 1;
+        p._update_ignorelist.names37 = ignored;
+        App_GameProto_Exec(base_app, &pm_state, &p);
+
+        filters = (struct RS_ChatFilters){ .public_mode = 0, .private_mode = 1, .trade_mode = 0, .social = pm_social };
+
+        /* Crown 6 (image 22) is not a staff crown: typed 3, the crown's image
+         * before the name, the friend's line under "Friends". */
+        len = test_put_private(wire, (int)sizeof(wire), "Eden\xa0" "Cosine", 101, 6, "hi there");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_MESSAGE_PRIVATE), wire, len, &p),
+            "MESSAGE_PRIVATE parses");
+        TEST_EXEC_ASSERT(strcmp(p._message_private.sender, "Eden\xa0" "Cosine") == 0,
+            "the sender is the name as sent, not its base37 key");
+        App_GameProto_Exec(base_app, &pm_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(pm_chat->message_count == 1, "the friend's line is stored");
+        TEST_EXEC_ASSERT(pm_chat->newest->type == RS_CHAT_TYPE_PRIVATE_FROM, "typed 3: crown 6 is not staff");
+        TEST_EXEC_ASSERT(strcmp(pm_chat->newest->name, "<img=22>Eden\xa0" "Cosine") == 0,
+            "shown as From <img=22>Eden Cosine");
+        TEST_EXEC_ASSERT(RS_Chat_NodeFriendState(pm_chat->newest, pm_social) == 1,
+            "script 91 reads the line as a friend's");
+        TEST_EXEC_ASSERT(RS_Chat_MessagePasses(&filters, &pm_chat->messages[0]),
+            "shown under the friends-only private filter");
+
+        /* The same from an ignored sender is dropped (class243.field2953's
+         * ignore test, for any crown). */
+        len = test_put_private(wire, (int)sizeof(wire), "Spam\xa0" "Bot", 102, 6, "buy gold");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_MESSAGE_PRIVATE), wire, len, &p),
+            "the ignored sender's MESSAGE_PRIVATE parses");
+        App_GameProto_Exec(base_app, &pm_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(pm_chat->message_count == 1, "an ignored sender's line is hidden");
+
+        /* The same from a stranger: stored, hidden under "Friends", shown
+         * under "On". */
+        len = test_put_private(wire, (int)sizeof(wire), "Stranger\xa0" "Ed", 103, 6, "hello");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_MESSAGE_PRIVATE), wire, len, &p),
+            "the stranger's MESSAGE_PRIVATE parses");
+        App_GameProto_Exec(base_app, &pm_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(pm_chat->message_count == 2, "a stranger's line is stored");
+        TEST_EXEC_ASSERT(RS_Chat_NodeFriendState(pm_chat->newest, pm_social) == 0,
+            "script 91 reads a stranger's line as neither friend nor ignored");
+        TEST_EXEC_ASSERT(!RS_Chat_MessagePasses(&filters, &pm_chat->messages[0]),
+            "a stranger's line is hidden under the friends-only private filter");
+        filters.private_mode = 0;
+        TEST_EXEC_ASSERT(RS_Chat_MessagePasses(&filters, &pm_chat->messages[0]),
+            "and shown under \"On\"");
+
+        RS_Chat_Free(pm_chat);
+        free(pm_chat);
+        free(pm_social);
+        printf("ok - a private message from a crowned friend passes the friends-only filter\n");
     }
 
     /* REBUILD_NORMAL square rect: classic (zone-6)*8 scene covers at most 3x3

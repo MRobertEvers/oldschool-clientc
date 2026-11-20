@@ -9159,10 +9159,12 @@ exec_social(
         /* The friends-chat rank UPDATE_FRIENDLIST carries. */
         return CS2VM2_PushInt(vm, RS_Social_FriendRank(social, index));
 
+    /* Both test the name past its crown image (deob 3609 and 3623:
+     * Statics.method11885 before the Username). */
     case CS2_OP_FRIEND_TEST:
-        return CS2VM2_PushInt(vm, RS_Social_IsFriend(social, request_name) ? 1 : 0);
+        return CS2VM2_PushInt(vm, RS_Social_IsFriend(social, RS_Chat_Uncrowned(request_name)) ? 1 : 0);
     case CS2_OP_IGNORE_TEST:
-        return CS2VM2_PushInt(vm, RS_Social_IsIgnored(social, request_name) ? 1 : 0);
+        return CS2VM2_PushInt(vm, RS_Social_IsIgnored(social, RS_Chat_Uncrowned(request_name)) ? 1 : 0);
 
     case CS2_OP_FRIEND_ADD:
         if( !request_name || !request_name[0] )

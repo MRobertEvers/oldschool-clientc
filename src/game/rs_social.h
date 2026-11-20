@@ -256,6 +256,12 @@ RS_Social_FriendWorld(struct RS_Social const* social, int index);
 int
 RS_Social_IsFriend(struct RS_Social const* social, char const* name);
 
+/** The friend list index of `name`, matched as RS_Social_IsFriend matches it
+ *  (the reference's Username: case, space, underscore and NBSP fold); -1 when
+ *  `name` is not a friend. */
+int
+RS_Social_FriendIndex(struct RS_Social const* social, char const* name);
+
 /** True when `name` is on the ignore list. */
 int
 RS_Social_IsIgnored(struct RS_Social const* social, char const* name);

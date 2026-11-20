@@ -238,6 +238,26 @@ RS_Chat_CrownedName(
         snprintf(out, cap, "%s", name);
 }
 
+char const*
+RS_Chat_Uncrowned(char const* name)
+{
+    int const count = (int)(sizeof(k_chat_crowns) / sizeof(k_chat_crowns[0]));
+    char prefix[16];
+
+    assert(name);
+    for( int i = 0; i < count; i++ )
+    {
+        int n;
+
+        if( k_chat_crowns[i].image < 0 )
+            continue;
+        n = snprintf(prefix, sizeof(prefix), "<img=%d>", k_chat_crowns[i].image);
+        if( strncmp(name, prefix, (size_t)n) == 0 )
+            return name + n;
+    }
+    return name;
+}
+
 void
 RS_Chat_Free(struct RS_Chat* chat)
 {
@@ -376,12 +396,10 @@ is_friend(
     assert(name);
     if( !filters->social || !name[0] )
         return 0;
-    for( int i = 0; i < filters->social->friend_count; i++ )
-    {
-        if( strcasecmp(filters->social->friend_name[i], name) == 0 )
-            return 1;
-    }
-    return 0;
+    /* As the reference tests a line's speaker (class76.method2620): the name
+     * without its crown, by the store's key, so "<img=22>eden_cosine" is the
+     * friend the list spells "Eden\xa0Cosine". */
+    return RS_Social_IsFriend(filters->social, RS_Chat_Uncrowned(name));
 }
 
 /* Does this message occupy a chat line under the current filters?

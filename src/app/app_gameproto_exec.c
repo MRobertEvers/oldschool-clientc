@@ -2912,15 +2912,12 @@ exec_message_private(
 {
     if( ctx->modelled == RS_SERVER_STATE_APPLIED )
     {
-        char name[16];
-
         exec_chat_presented(ctx);
-        base37tostr((uint64_t)p->from, name, sizeof(name));
         App_NotifyChatMessage(
             ctx->app,
             RS_Chat_CrownIsStaff(p->staff_mod) ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
                                                : RS_CHAT_TYPE_PRIVATE_FROM,
-            name,
+            p->sender,
             p->text);
     }
 }

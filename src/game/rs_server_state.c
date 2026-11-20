@@ -321,36 +321,37 @@ state_message_friendchannel(
 
 /* ---- social ---------------------------------------------------------------- */
 
+/* deob Statics.method10091: each entry finds its friend by name (the
+ * Username, so case and space/underscore/NBSP do not tell two apart), takes
+ * the wire's spelling of it, and its world, rank and previous name. */
 static void
 state_update_friendlist(
     struct RS_ServerState const* state,
     struct PktUpdateFriendList const* p)
 {
-    char name[16];
     struct RS_Social* social = state->social;
-    int found = 0;
 
     assert(social);
     social->server_status = 2;
-    if( !p->present )
+    if( p->count == 0 )
         return;
-    base37tostr((uint64_t)p->name37, name, sizeof(name));
-    for( int i = 0; i < social->friend_count; i++ )
+    assert(p->entries);
+    for( int e = 0; e < p->count; e++ )
     {
-        if( strcmp(social->friend_name[i], name) == 0 )
+        struct PktUpdateFriendListEntry const* entry = &p->entries[e];
+        int index = RS_Social_FriendIndex(social, entry->name);
+
+        if( index >= 0 )
         {
-            RS_Social_SetFriendWorld(social, i, p->world);
-            social->friend_rank[i] = p->rank;
-            snprintf(social->friend_previous_name[i], RS_SOCIAL_NAME_LEN, "%s", p->previous_name);
-            found = 1;
-            break;
+            snprintf(social->friend_name[index], RS_SOCIAL_NAME_LEN, "%s", entry->name);
+            RS_Social_SetFriendWorld(social, index, entry->world);
         }
-    }
-    if( !found && RS_Social_AddFriend(social, name, p->world) )
-    {
-        int const added = social->friend_count - 1;
-        social->friend_rank[added] = p->rank;
-        snprintf(social->friend_previous_name[added], RS_SOCIAL_NAME_LEN, "%s", p->previous_name);
+        else if( RS_Social_AddFriend(social, entry->name, entry->world) )
+            index = social->friend_count - 1;
+        else
+            continue;
+        social->friend_rank[index] = entry->rank;
+        snprintf(social->friend_previous_name[index], RS_SOCIAL_NAME_LEN, "%s", entry->previous_name);
     }
     /* The client re-applies the scripts' sort chain on every friend update
      * (class476.java:207), so a world change re-orders the list without the
@@ -768,7 +769,6 @@ state_message_private(
     struct RS_ServerState const* state,
     struct PktMessagePrivate const* p)
 {
-    char name[16];
     char crowned[RS_CHAT_SENDER_LEN];
     char escaped[RS_CHAT_TEXT_LEN];
 
@@ -781,22 +781,25 @@ state_message_private(
         return RS_SERVER_STATE_UNCHANGED;
     if( RS_Social_MessageSeen(state->social, p->message_id) )
         return RS_SERVER_STATE_UNCHANGED;
-    base37tostr((uint64_t)p->from, name, sizeof(name));
-    if( RS_Social_IsIgnored(state->social, name) )
+    if( RS_Social_IsIgnored(state->social, p->sender) )
         return RS_SERVER_STATE_UNCHANGED;
     RS_Social_MessageRemember(state->social, p->message_id);
     /* As the reference files it: typed 7 for a staff crown only
      * (class278.field3430), the crown's image before the name
      * (method6324(field3451) + name), the text's tags escaped
-     * (class671.method14451). `staff_mod` is the wire's crown index. */
-    RS_Chat_CrownedName(p->staff_mod, name, crowned, sizeof(crowned));
+     * (class671.method14451). `staff_mod` is the wire's crown index. The
+     * sender, the line's friend and ignore key, is the name as sent: the
+     * reference keys the line by Username(name without its crown)
+     * (class76.method2620), so a friend whose name has capitals or an NBSP
+     * still reads as one to the private filter (script 91, pm_filtertest). */
+    RS_Chat_CrownedName(p->staff_mod, p->sender, crowned, sizeof(crowned));
     RS_ServerState_EscapeTags(p->text ? p->text : "", escaped, sizeof(escaped));
     state_chat_add(
         state,
         RS_Chat_CrownIsStaff(p->staff_mod) ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
                                            : RS_CHAT_TYPE_PRIVATE_FROM,
         crowned,
-        name,
+        p->sender,
         escaped);
     return RS_SERVER_STATE_APPLIED;
 }

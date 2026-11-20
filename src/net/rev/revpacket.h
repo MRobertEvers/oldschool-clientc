@@ -304,9 +304,12 @@ struct PktMessageGame
 
 struct PktMessagePrivate
 {
-    int64_t from;       /* g8: base37 username */
+    /** The sender's display name as the wire carries it (rev 222+: a jstr,
+     *  capitals and NBSPs kept; the deob shows it and ignore-tests it as
+     *  sent). The base37 wires give the decoded key, lowercase. */
+    char sender[32];
     int message_id;    /* g4 */
-    int staff_mod;     /* g1 */
+    int staff_mod;     /* g1: the crown index */
     char* text;        /* WordPack.unpack(psize-13) */
 };
 
@@ -977,15 +980,25 @@ struct PktUpdateIgnoreList
     int64_t* names37; /* heap-allocated, count entries */
 };
 
-struct PktUpdateFriendList
+struct PktUpdateFriendListEntry
 {
-    int64_t name37; /* g8 */
-    int world;      /* g1: 0=offline, >0 world/node id */
-    int present;    /* 239 permits an empty update to complete initial sync */
-    /** The friend's friends-chat rank (rev 239 g1; 0 on the older wires). */
-    int rank;
+    /** The display name as the wire carries it (rev 221+: a jstr, capitals
+     *  and NBSPs kept); the base37 wires give the decoded key, lowercase. */
+    char name[64];
     /** The friend's previous display name, "" when none (rev 239 only). */
     char previous_name[64];
+    int world; /* 0=offline, >0 world/node id */
+    /** The friend's friends-chat rank (rev 239 g1; 0 on the older wires). */
+    int rank;
+};
+
+/* Every entry the payload carries: the deob (Statics.method10091) reads them
+ * until the packet ends, and a login's first update holds the whole list. A
+ * count of 0 is legal and completes initial sync. */
+struct PktUpdateFriendList
+{
+    int count;
+    struct PktUpdateFriendListEntry* entries; /* heap-allocated, count entries */
 };
 
 struct PktSetNpcUpdateOrigin
