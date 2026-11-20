@@ -654,10 +654,10 @@ test_npc_headicon_groups_load(void)
     sprite_fixture_init(&fx);
     memset(&npc, 0, sizeof(npc));
     memset(&type, 0, sizeof(type));
-    type.head_icon_group = -1;
-    type.head_icon_index = -1;
     for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
     {
+        type.head_icon_group[i] = -1;
+        type.head_icon_index[i] = -1;
         npc.headicon_group[i] = -1;
         npc.headicon_index[i] = -1;
     }
@@ -694,7 +694,7 @@ test_npc_headicon_groups_load(void)
     /* No customisation: the type's one icon, an older cache's frame-only
      * icon from the prayer pack. */
     npc.headicon_custom = false;
-    type.head_icon_index = 4;
+    type.head_icon_index[0] = 4;
     n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
     TEST_ASSERT(n == 1 && icons[0].scene_id == prayer_scene && icons[0].frame == 4, "the type's icon");
     fixture_free(&fx);
@@ -739,6 +739,73 @@ test_npc_headicon_placement(void)
     TEST_ASSERT(y == 102, "slot 2, fixed: 23 above slot 1");
     app_overlay_npc_headicon_place(300, 200, 0, 0, 30, 21, &x, &y);
     TEST_ASSERT(x == 285 && y == 152, "a 30 x 21 icon is centred and lifted by its own size");
+}
+
+/*
+ * I1: a TYPE with several headicon slots draws every one, each at its own
+ * slot (deob Statics.method6709's npc branch walks the type's arrays,
+ * class405.method9179 / method9181, when the server set none). No record in
+ * cache.osrs239 or cache.osrs242 states more than slot 0, so the type is
+ * stated here: slot 0 (prayer pack, frame 1) and slot 2 (frame 2). Placed by
+ * A2's formula, a 25 x 25 icon over the anchor (300, 200) of a resizable
+ * viewport: slot 0 at (288, 144), slot 2 at (288, 90) -- two steps of 27
+ * above, not the next one up. A HEADICON_CUSTOM block then replaces all
+ * eight slots (deob Statics ~47373, class86.method2903: the block's arrays,
+ * -1 where its mask has no bit), so slot 2 is gone while it stands, and a
+ * mask of 0 (method2904) gives the type's back.
+ */
+static void
+test_npc_type_headicon_slots(void)
+{
+    struct Fixture fx;
+    struct WorldEntity_NPC npc;
+    struct ToriRS_Npctype type;
+    struct AppNpcHeadicon icons[WORLD_NPC_HEADICON_SLOTS];
+    int const prayer_scene = 4321;
+    int x;
+    int y;
+    int n;
+
+    printf("TEST: a type with several headicon slots draws each at its own slot\n");
+    sprite_fixture_init(&fx);
+    memset(&npc, 0, sizeof(npc));
+    memset(&type, 0, sizeof(type));
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        type.head_icon_group[i] = -1;
+        type.head_icon_index[i] = -1;
+        npc.headicon_group[i] = -1;
+        npc.headicon_index[i] = -1;
+    }
+    type.head_icon_group[0] = APP_HEADICONS_PRAYER_GROUP;
+    type.head_icon_index[0] = 1;
+    type.head_icon_group[2] = APP_HEADICONS_PRAYER_GROUP;
+    type.head_icon_index[2] = 2;
+
+    n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
+    TEST_ASSERT(n == 2, "both of the type's slots are drawn");
+    TEST_ASSERT(n >= 1 && icons[0].slot == 0 && icons[0].frame == 1 && icons[0].scene_id == prayer_scene,
+        "slot 0, frame 1");
+    TEST_ASSERT(n >= 2 && icons[1].slot == 2 && icons[1].frame == 2 && icons[1].scene_id == prayer_scene,
+        "slot 2, frame 2");
+    if( n >= 2 )
+    {
+        app_overlay_npc_headicon_place(300, 200, 0, icons[0].slot, 25, 25, &x, &y);
+        TEST_ASSERT(x == 288 && y == 144, "slot 0 at (288, 144)");
+        app_overlay_npc_headicon_place(300, 200, 0, icons[1].slot, 25, 25, &x, &y);
+        TEST_ASSERT(x == 288 && y == 90, "slot 2 at (288, 90): placed by its slot");
+    }
+
+    /* HEADICON_CUSTOM with slot 1 only: the block's eight slots stand. */
+    npc.headicon_custom = true;
+    npc.headicon_group[1] = APP_HEADICONS_PRAYER_GROUP;
+    npc.headicon_index[1] = 0;
+    n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
+    TEST_ASSERT(n == 1 && icons[0].slot == 1 && icons[0].frame == 0, "the block's slot 1 alone");
+    npc.headicon_custom = false;
+    n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
+    TEST_ASSERT(n == 2 && icons[0].slot == 0 && icons[1].slot == 2, "a cleared block gives the type's back");
+    fixture_free(&fx);
 }
 
 /* E12 HEAD_CUSTOM: an IF_SETNPCHEAD_ACTIVE head of an npc carrying a
@@ -1345,6 +1412,7 @@ main(void)
     test_bind_without_a_loader_is_unbound();
     test_npc_headicon_groups_load();
     test_npc_headicon_placement();
+    test_npc_type_headicon_slots();
     test_npc_head_custom_loads_its_models();
     test_a_close_seen_after_the_last_pump_publishes();
     test_npc_head_custom_empty_list_shows_nothing();

@@ -112,8 +112,9 @@ struct RS_ServerState
     /** Npc configs, for NPC_HEADICON_SPECIFIC's first write (the type's own
      *  icons). A client that reads its npc records elsewhere (the headless
      *  client: the server's) names `npc_head_icon` instead: true with the
-     *  type's first head icon (sprite group and index, -1 for none) when it
-     *  knows the type. */
+     *  type's head icons, every slot (sprite group and index, -1 for an empty
+     *  one; the arrays are WORLD_NPC_HEADICON_SLOTS long), when it knows the
+     *  type. */
     struct CacheProvider* provider;
     int (*npc_head_icon)(void* ctx, int npc_id, int* out_group, int* out_index);
     void* npc_head_icon_ctx;

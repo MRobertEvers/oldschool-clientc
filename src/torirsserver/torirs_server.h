@@ -1705,13 +1705,13 @@ struct ToriRSServerNpcInfo
     int transform_varp;
     int* transforms;
     int transform_count;
-    /** The overhead icon the type carries (config opcode 102, its first
-     *  entry: a sprite group and an index in it, -1 for none), as the client
-     *  reads it (torirs_npctype_from_rscache.c). The headless client's
-     *  NPC_HEADICON_SPECIFIC starts from it, as the real client's does from
-     *  its NpcType. */
-    int head_icon_group;
-    int head_icon_index;
+    /** The overhead icons the type carries (config opcode 102, every slot it
+     *  states: a sprite group and an index in it, -1 for an empty slot), as
+     *  the client reads them (torirs_npctype_from_rscache.c). The headless
+     *  client's NPC_HEADICON_SPECIFIC starts from them, as the real client's
+     *  does from its NpcType. */
+    int head_icon_group[TORIRSSERVER_NPC_HEADICON_SLOTS];
+    int head_icon_index[TORIRSSERVER_NPC_HEADICON_SLOTS];
     /** NpcType recolour and retexture source counts (config opcodes 40, 41):
      *  how many colours a typed NPC_INFO customisation block carries for the
      *  type, which the headless client's reader asks. */

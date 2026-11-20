@@ -86,6 +86,32 @@ test_dat2_no_multinpc_leaves_transform_count_zero(void)
  * exactly as it already did for a loc, and the hop from the decoded record to
  * ToriRS_Npctype is the half that was missing.
  */
+/* I1: every headicon slot the record states, as opcode 102's mask laid them
+ * out (slots 0 and 2: count 3, slot 1 empty), and -1 past them. */
+static void
+test_dat2_carries_every_headicon_slot(void)
+{
+    struct RSCache_Dat2ConfigNpc src;
+    int groups[3] = { 440, -1, 440 };
+    short frames[3] = { 1, -1, 2 };
+    struct ToriRS_Npctype* npctype;
+
+    memset(&src, 0, sizeof(src));
+    src.varbit_id = -1;
+    src.varp_index = -1;
+    src.head_icon_archive_ids = groups;
+    src.head_icon_sprite_index = frames;
+    src.head_icon_count = 3;
+    npctype = ToriRS_NpctypeFromRSCacheDat2(1, &src);
+    TEST_ASSERT(npctype != NULL, "decode succeeds");
+    TEST_ASSERT(npctype->head_icon_group[0] == 440 && npctype->head_icon_index[0] == 1, "slot 0");
+    TEST_ASSERT(npctype->head_icon_group[1] == -1 && npctype->head_icon_index[1] == -1, "slot 1 empty");
+    TEST_ASSERT(npctype->head_icon_group[2] == 440 && npctype->head_icon_index[2] == 2, "slot 2");
+    for( int i = 3; i < TORIRS_NPCTYPE_HEADICON_SLOTS; i++ )
+        TEST_ASSERT(npctype->head_icon_group[i] == -1 && npctype->head_icon_index[i] == -1, "past them: none");
+    ToriRS_NpctypeFree(npctype);
+}
+
 static void
 test_dat2_carries_the_examine_string(void)
 {
@@ -412,6 +438,7 @@ main(void)
     test_dat2_carries_the_movement_animation_set();
     test_dat2_carries_idle_anim_restart();
     test_dat2_carries_the_examine_string();
+    test_dat2_carries_every_headicon_slot();
     test_dat2_without_examine_leaves_desc_empty();
     test_dat2_no_multinpc_leaves_transform_count_zero();
     test_dat1_has_no_multinpc();

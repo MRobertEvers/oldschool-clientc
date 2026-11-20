@@ -178,8 +178,9 @@ drive_record_push_client(
     drive_record_push_int(L, "width_scale", type->width_scale);
     drive_record_push_int(L, "height_scale", type->height_scale);
     drive_record_push_int(L, "height", type->height);
-    drive_record_push_int(L, "head_icon_group", type->head_icon_group);
-    drive_record_push_int(L, "head_icon_index", type->head_icon_index);
+    /* The first slot, under the names scripts read. */
+    drive_record_push_int(L, "head_icon_group", type->head_icon_group[0]);
+    drive_record_push_int(L, "head_icon_index", type->head_icon_index[0]);
     drive_record_push_bool(L, "interactable", type->interactable);
     drive_record_push_bool(L, "minimap_visible", type->minimap_visible);
     /* Movement sounds (npc opcode 134): the only sounds an npc RECORD

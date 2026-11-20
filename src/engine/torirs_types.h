@@ -365,6 +365,10 @@ struct ToriRS_Location
  * cannot disagree about which child a shell names. */
 #define TORIRS_NPC_MULTI_MAX_DEPTH 4
 
+/** Npc overhead icon slots a type carries (npc config opcode 102's mask is a
+ *  byte; the reference's override, class629, has eight). */
+#define TORIRS_NPCTYPE_HEADICON_SLOTS 8
+
 struct ToriRS_Npctype
 {
     int id;
@@ -508,13 +512,16 @@ struct ToriRS_Npctype
      * 2 magic, matching the player overhead pass). Both -1 when the record
      * states no icon, which is all but 77 of this cache's 16,292 npcs.
      *
-     * Only the FIRST icon is carried. The record's field is a list (a
-     * multi-icon npc is legal on the wire), but the reference plots one frame
-     * for an npc where a player gets an eight-bit mask, and nothing in this
-     * cache states more than one.
+     * Every slot the record states (up to TORIRS_NPCTYPE_HEADICON_SLOTS; the
+     * record's field is a bit mask of slots), each slot its own group and
+     * frame, -1 for a slot it leaves empty: the reference's npc overhead
+     * draws every slot whose group and frame are set, each placed by its
+     * slot (deob class405.method9179 / method9181, Statics.method6709), and
+     * NPC_HEADICON_SPECIFIC's first write copies all of them (class629). No
+     * record in cache.osrs239 or cache.osrs242 states more than slot 0.
      */
-    int head_icon_group;
-    int head_icon_index;
+    int head_icon_group[TORIRS_NPCTYPE_HEADICON_SLOTS];
+    int head_icon_index[TORIRS_NPCTYPE_HEADICON_SLOTS];
     /** NpcType ambient/contrast (opcodes 100/101). Contrast arrives pre-scaled
      *  by 5 from the decoder. Used when the era/manifest enables
      *  npc_light_uses_type_ambient_contrast (xrsps); Client-TS ignores them. */

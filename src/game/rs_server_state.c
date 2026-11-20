@@ -594,9 +594,9 @@ state_spotanim_specific(
 
 /*
  * NPC_HEADICON_SPECIFIC: one slot of one npc's head icons, for this player
- * (deob class86.method2936). The first write copies the type's icons in
- * (`new class629(type)`); an npc this client does not track is skipped, as the
- * reference's lookup misses.
+ * (deob class86.method2936). The first write copies every slot of the type's
+ * icons in (`new class629(type)`: the type's arrays, -1 past them); an npc
+ * this client does not track is skipped, as the reference's lookup misses.
  */
 static enum RS_ServerStateApply
 state_npc_headicon_specific(
@@ -630,14 +630,18 @@ state_npc_headicon_specific(
 
         if( type )
         {
-            group[0] = type->head_icon_group;
-            index[0] = type->head_icon_index;
+            _Static_assert(TORIRS_NPCTYPE_HEADICON_SLOTS == WORLD_NPC_HEADICON_SLOTS, "one slot count");
+            for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+            {
+                group[i] = type->head_icon_group[i];
+                index[i] = type->head_icon_index[i];
+            }
         }
     }
     else if( !npc->headicon_custom )
     {
         assert(state->npc_head_icon);
-        (void)state->npc_head_icon(state->npc_head_icon_ctx, npc->npc_id, &group[0], &index[0]);
+        (void)state->npc_head_icon(state->npc_head_icon_ctx, npc->npc_id, group, index);
     }
     group[pkt->slot] = pkt->group;
     index[pkt->slot] = pkt->index;

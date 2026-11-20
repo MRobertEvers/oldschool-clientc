@@ -525,9 +525,9 @@ app_overlay_build_hint_arrow(struct App* app)
  *
  * The npc's slots are the server's headicon customisation when it set one
  * (class86.method2901 / method2902: the override's arrays, else the type's),
- * and EVERY slot whose group and frame are both set is drawn, the first at
- * the overhead anchor and each later one above it. The type here carries one
- * slot (NpcType opcode 102's first). A group is a sprite-archive id: 440
+ * and EVERY slot whose group and frame are both set is drawn, each at its own
+ * slot's place (app_overlay_npc_headicon_place). The type carries every slot
+ * its opcode 102 states. A group is a sprite-archive id: 440
  * (`headicons_prayer`) is the client's own static pack, passed in; any other
  * is bound by its id and loads through the assets table, so a server naming a
  * group of its own draws it once it lands.
@@ -555,10 +555,14 @@ app_overlay_npc_headicons(
     }
     if( !npc->headicon_custom && npctype )
     {
-        /* An older cache's opcode 102 names only the frame, of the one
-         * headicons pack: the prayer pack here. */
-        group[0] = npctype->head_icon_group >= 0 ? npctype->head_icon_group : prayer_group;
-        index[0] = npctype->head_icon_index;
+        _Static_assert(TORIRS_NPCTYPE_HEADICON_SLOTS == WORLD_NPC_HEADICON_SLOTS, "one slot count");
+        for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+        {
+            /* An older cache's opcode 102 names only the frame, of the one
+             * headicons pack: the prayer pack here. */
+            group[i] = npctype->head_icon_group[i] >= 0 ? npctype->head_icon_group[i] : prayer_group;
+            index[i] = npctype->head_icon_index[i];
+        }
     }
     for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
     {

@@ -198,8 +198,11 @@ npc_row_defaults(struct ToriRSServerNpcInfo* row)
     row->attackrate = 4;
     row->transform_varbit = -1;
     row->transform_varp = -1;
-    row->head_icon_group = -1;
-    row->head_icon_index = -1;
+    for( int i = 0; i < TORIRSSERVER_NPC_HEADICON_SLOTS; i++ )
+    {
+        row->head_icon_group[i] = -1;
+        row->head_icon_index[i] = -1;
+    }
 }
 
 struct NpcLoad
@@ -276,14 +279,16 @@ npc_load_record(
     /* Config opcode 106. Copied rather than borrowed: `RSCache_Dat2ConfigNpcFree`
      * below owns `npc->configs`. Stored above the name gate with `category`, for
      * the same reason — every record that carries a transform table is nameless. */
-    /* Config opcode 102: the first head icon, read as the client reads it
+    /* Config opcode 102: every head icon slot, read as the client reads them
      * (torirs_npctype_from_rscache.c): a pre-210 record's bare index is in
      * no group. */
-    if( npc->head_icon_count > 0 && npc->head_icon_sprite_index )
+    assert(npc->head_icon_count <= TORIRSSERVER_NPC_HEADICON_SLOTS);
+    for( int i = 0; i < npc->head_icon_count; i++ )
     {
-        g_npcs[id].head_icon_index = npc->head_icon_sprite_index[0];
+        assert(npc->head_icon_sprite_index);
+        g_npcs[id].head_icon_index[i] = npc->head_icon_sprite_index[i];
         if( npc->head_icon_archive_ids )
-            g_npcs[id].head_icon_group = npc->head_icon_archive_ids[0];
+            g_npcs[id].head_icon_group[i] = npc->head_icon_archive_ids[i];
     }
     g_npcs[id].transform_varbit = npc->varbit_id;
     g_npcs[id].transform_varp = npc->varp_index;
