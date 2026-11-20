@@ -83,11 +83,10 @@ obj_model_resolve_count_obj_id(
      * "no variant" (count_obj defaults to 0) and stays. */
     if( obj_id < 0 || count <= 1 )
         return -1;
-    if( !CacheProvider_ObjtypeHas(provider, obj_id) )
-        return -1;
-
+    /* One lookup: CacheProvider_ObjtypeHas is ObjtypeGet != NULL. */
     obj = CacheProvider_ObjtypeGet(provider, obj_id);
-    assert(obj);
+    if( !obj )
+        return -1;
     for( i = 0; i < 10; i++ )
     {
         if( count >= obj->count_co[i] && obj->count_co[i] != 0 )
@@ -107,10 +106,11 @@ obj_model_render_obj_id(
 {
     struct ToriRS_Objtype* obj;
 
-    if( resolved_id < 0 || !CacheProvider_ObjtypeHas(provider, resolved_id) )
+    if( resolved_id < 0 )
         return -1;
     obj = CacheProvider_ObjtypeGet(provider, resolved_id);
-    assert(obj);
+    if( !obj )
+        return -1;
     if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
         return obj->cert_template;
     /* A bank placeholder has no model of its own either; unlike a note it has
@@ -137,10 +137,11 @@ obj_model_cert_link_id(
 {
     struct ToriRS_Objtype* obj;
 
-    if( resolved_id < 0 || !CacheProvider_ObjtypeHas(provider, resolved_id) )
+    if( resolved_id < 0 )
         return -1;
     obj = CacheProvider_ObjtypeGet(provider, resolved_id);
-    assert(obj);
+    if( !obj )
+        return -1;
     if( obj->inventory_model_id <= 0 && obj->cert_template > 0 && obj->cert_link >= 0 )
         return obj->cert_link;
     return -1;
@@ -154,10 +155,11 @@ obj_model_objtype_model_id(
 {
     struct ToriRS_Objtype* obj;
 
-    if( obj_id < 0 || !CacheProvider_ObjtypeHas(provider, obj_id) )
+    if( obj_id < 0 )
         return -1;
     obj = CacheProvider_ObjtypeGet(provider, obj_id);
-    assert(obj);
+    if( !obj )
+        return -1;
     return obj->inventory_model_id > 0 ? obj->inventory_model_id : -1;
 }
 
@@ -173,11 +175,12 @@ obj_model_resolve_inventory_model_id(
 
     assert(provider);
     render_id = obj_model_render_obj_id(provider, resolved_id);
-    if( render_id < 0 || !CacheProvider_ObjtypeHas(provider, render_id) )
+    if( render_id < 0 )
         return -1;
 
     obj = CacheProvider_ObjtypeGet(provider, render_id);
-    assert(obj);
+    if( !obj )
+        return -1;
     if( obj->inventory_model_id <= 0 )
         return -1;
     return obj->inventory_model_id;
@@ -192,7 +195,7 @@ obj_model_face_texture(
 {
     struct ToriRS_Model* model;
 
-    if( model_id <= 0 || !CacheProvider_ModelHas(provider, model_id) )
+    if( model_id <= 0 )
         return -1;
     model = CacheProvider_ModelGet(provider, model_id);
     if( !model || !model->face_textures || face < 0 || face >= model->face_count )
@@ -207,12 +210,41 @@ obj_model_face_count(
 {
     struct ToriRS_Model* model;
 
-    if( model_id <= 0 || !CacheProvider_ModelHas(provider, model_id) )
+    if( model_id <= 0 )
         return 0;
     model = CacheProvider_ModelGet(provider, model_id);
     if( !model || !model->face_textures )
         return 0;
     return model->face_count;
+}
+
+/* Whether a resident model names a texture that is not resident. The model is
+ * looked up once, not twice per face, and a run of faces on one texture asks
+ * about that texture once: cc_setobject asks this for every bank cell. */
+static int
+obj_model_textures_missing(
+    struct CacheProvider* provider,
+    int model_id)
+{
+    struct ToriRS_Model* model;
+    int last = -1;
+    int f;
+
+    if( model_id <= 0 )
+        return 0;
+    model = CacheProvider_ModelGet(provider, model_id);
+    if( !model || !model->face_textures )
+        return 0;
+    for( f = 0; f < model->face_count; f++ )
+    {
+        int const texture_id = (int)model->face_textures[f];
+        if( texture_id < 0 || texture_id == last )
+            continue;
+        if( !CacheProvider_TextureHas(provider, texture_id) )
+            return 1;
+        last = texture_id;
+    }
+    return 0;
 }
 
 int
@@ -239,8 +271,6 @@ ObjModelLoad_NeedsWork(
     int count_obj_id;
     int render_obj_id;
     int model_id;
-    int face_count;
-    int f;
 
     assert(provider);
     if( obj_id < 0 ) /* obj 0 (Dwarf remains) is a real item */
@@ -266,7 +296,6 @@ ObjModelLoad_NeedsWork(
         if( base_obj_id >= 0 )
         {
             int base_model_id;
-            int base_faces;
 
             if( !CacheProvider_ObjtypeHas(provider, base_obj_id) )
                 return 1;
@@ -281,13 +310,8 @@ ObjModelLoad_NeedsWork(
             base_model_id = obj_model_objtype_model_id(provider, base_obj_id);
             if( base_model_id > 0 && !CacheProvider_ModelHas(provider, base_model_id) )
                 return 1;
-            base_faces = obj_model_face_count(provider, base_model_id);
-            for( f = 0; f < base_faces; f++ )
-            {
-                int texture_id = obj_model_face_texture(provider, base_model_id, f);
-                if( texture_id >= 0 && !CacheProvider_TextureHas(provider, texture_id) )
-                    return 1;
-            }
+            if( obj_model_textures_missing(provider, base_model_id) )
+                return 1;
         }
     }
 
@@ -296,14 +320,7 @@ ObjModelLoad_NeedsWork(
         return 1;
 
     /* Icon raster reads face textures; they load with the model batch. */
-    face_count = obj_model_face_count(provider, model_id);
-    for( f = 0; f < face_count; f++ )
-    {
-        int texture_id = obj_model_face_texture(provider, model_id, f);
-        if( texture_id >= 0 && !CacheProvider_TextureHas(provider, texture_id) )
-            return 1;
-    }
-    return 0;
+    return obj_model_textures_missing(provider, model_id);
 }
 
 static int

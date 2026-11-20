@@ -1026,9 +1026,17 @@ Task_InterfaceOpen_Run(
         layout_tree(self);
     }
 
-    /* 9. Inv + var transmit hooks registered during onLoad/onSubChange. */
-    PT_TASK_AWAITSELF_IF(CreateTask_CS2InvTransmitDispatch(self->host, -1));
-    PT_TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(self->host, -1));
+    /* 9. The listeners onLoad and onSubChange registered are due, once, with
+     * every other listener's next look: the tick's pass (RS_CS2_PumpTransmits),
+     * not here. The reference's open runs onLoad only (rev-239
+     * class415.method9495) and checks listeners once a cycle, after the
+     * cycle's packets (class415.method9488 from client.java:9288); a fresh
+     * listener is due there because it has never looked
+     * (RS_CS2_TransmitHookDue). Dispatching them at the mount as well ran each
+     * one a second time when the tick's own inventory and varp packets
+     * followed the open, as the bank's do. */
+    self->host->inv_transmit_dirty = 1;
+    self->host->var_transmit_dirty = 1;
 
     /* 9b. Player-preview components idle with the player readyanim, not whatever
      * sequence an onLoad script set (TS parity — see uitree_builder_bake.h). */

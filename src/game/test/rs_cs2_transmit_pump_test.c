@@ -922,6 +922,65 @@ test_var_trigger_ids_are_not_reinterpreted_as_varbits(void)
         "varp 1055 still matches its exact trigger");
 }
 
+/* The reference's per-listener rule (RS_CS2_TransmitHookDue): a listener reads
+ * the changes since ITS OWN last look, not "something changed". */
+static void
+test_listener_reads_the_changes_since_its_own_look(void)
+{
+    static struct RS_CS2Host host;
+    int const triggers[2] = { 304, 115 };
+    uint32_t looked;
+    int i;
+
+    printf("pump: a listener is due by the changes since its own last look\n");
+
+    memset(&host, 0, sizeof(host));
+    host.var_change_serial = 1;
+    host.inv_change_serial = 1;
+
+    for( i = 0; i < 40; i++ )
+        RS_CS2Host_NotifyVarChanged(&host, 7);
+    CHECK(
+        RS_CS2_TransmitHookDue(triggers, 2, 0, host.var_change_serial, host.var_changed_ring),
+        "a listener that has never looked is due, whatever changed");
+
+    looked = host.var_change_serial;
+    RS_CS2Host_NotifyVarChanged(&host, 7);
+    CHECK(
+        !RS_CS2_TransmitHookDue(triggers, 2, looked, host.var_change_serial, host.var_changed_ring),
+        "a varp outside its list does not make it due");
+    CHECK(
+        RS_CS2_TransmitHookDue(NULL, 0, looked, host.var_change_serial, host.var_changed_ring),
+        "a listener with no list is due on any change");
+    RS_CS2Host_NotifyVarChanged(&host, 115);
+    CHECK(
+        RS_CS2_TransmitHookDue(triggers, 2, looked, host.var_change_serial, host.var_changed_ring),
+        "a varp in its list, two changes back, makes it due");
+
+    looked = host.var_change_serial;
+    for( i = 0; i < RS_CS2_HOST_CHANGE_RING; i++ )
+        RS_CS2Host_NotifyVarChanged(&host, 7);
+    CHECK(
+        !RS_CS2_TransmitHookDue(triggers, 2, looked, host.var_change_serial, host.var_changed_ring),
+        "a whole ring of other varps behind, it is still told which changed");
+    RS_CS2Host_NotifyVarChanged(&host, 7);
+    CHECK(
+        RS_CS2_TransmitHookDue(triggers, 2, looked, host.var_change_serial, host.var_changed_ring),
+        "one more than the ring holds, and it is simply due");
+
+    looked = host.var_change_serial;
+    RS_CS2Host_NotifyVarChanged(&host, -1);
+    CHECK(
+        RS_CS2_TransmitHookDue(triggers, 2, looked, host.var_change_serial, host.var_changed_ring),
+        "a change that does not say what it was makes every listener due");
+
+    looked = host.inv_change_serial;
+    RS_CS2Host_NotifyInvChanged(&host, 93);
+    CHECK(
+        !RS_CS2_TransmitHookDue(triggers, 2, looked, host.inv_change_serial, host.inv_changed_ring),
+        "containers go by the same rule: another container is not this listener's");
+}
+
 /* Execute a real cooperative CS2 task after queue-time identity changes. */
 static void
 test_queued_callback_identity(void)
@@ -1652,6 +1711,7 @@ main(void)
     test_dynamic_drag_target_uses_parent_address();
     test_script_varp_write_notifies_on_change_only();
     test_var_trigger_ids_are_not_reinterpreted_as_varbits();
+    test_listener_reads_the_changes_since_its_own_look();
 
     if( g_fail )
     {

@@ -59,6 +59,18 @@ torirs_trace_drag(void)
     return cached;
 }
 
+/* TORIRS_OBJICON_DEBUG, resolved once for the same reason: cc_setobject asks
+ * twice a call, and the bank's build script sets all 1,410 of its slots on
+ * every run. Unresolved, the two lookups were 1.8 ms of a bank-open frame. */
+static int
+torirs_objicon_debug(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+        cached = getenv("TORIRS_OBJICON_DEBUG") != NULL;
+    return cached;
+}
+
 /* Resolved once: getenv locks and scans the whole environment, and this gate sits
  * on cc_create, which a container rebuild issues once per row. */
 static int
@@ -1103,6 +1115,7 @@ RS_CS2Host_NotifyVarChanged(
      * per-tick pump to re-dispatch (TS parity: value changes bump changedVarpCount,
      * processed once per cycle rather than synchronously mid-script). */
     host->var_change_serial++;
+    host->var_changed_ring[host->var_change_serial & (RS_CS2_HOST_CHANGE_RING - 1)] = var_id;
     host->var_transmit_dirty = 1;
     if( torirs_cc_debug() )
         TORIRS_LOG("VAR_CHANGED id=%d serial=%u\n", var_id, host->var_change_serial);
@@ -1185,6 +1198,7 @@ RS_CS2Host_NotifyInvChanged(
 {
     assert(host);
     host->inv_change_serial++;
+    host->inv_changed_ring[host->inv_change_serial & (RS_CS2_HOST_CHANGE_RING - 1)] = container_id;
     host->inv_transmit_dirty = 1;
     if( torirs_cc_debug() )
         TORIRS_LOG("INV_CHANGED container=%d serial=%u\n",
@@ -5141,10 +5155,7 @@ exec_set_graphic(
     struct UITree* tree = rs_cs2_tree(host);
     (void)thread;
 
-    static int objicon_debug = -1;
-    if( objicon_debug < 0 )
-        objicon_debug = getenv("TORIRS_OBJICON_DEBUG") != NULL;
-    if( objicon_debug )
+    if( torirs_objicon_debug() )
         TORIRS_LOG("GFXDBG: com=0x%08x gfx=%d\n",
             (unsigned)component_id,
             graphic_id);
@@ -5340,7 +5351,7 @@ rs_cs2_bind_object_model(
         count,
         scene_id);
 #endif
-    if( getenv("TORIRS_OBJICON_DEBUG") )
+    if( torirs_objicon_debug() )
     {
         int32_t dbg = UITree_FindByComponentId(tree, component_id);
         TORIRS_LOG("OBJICON: apply com=0x%08x obj=%d scene=%d idx=%d type=%d\n",
@@ -5396,7 +5407,7 @@ exec_set_object(
     struct UITree* tree = rs_cs2_tree(host);
     struct CacheProvider* provider = rs_cs2_provider(host);
     (void)thread;
-    if( getenv("TORIRS_OBJICON_DEBUG") )
+    if( torirs_objicon_debug() )
         TORIRS_LOG("OBJICON: enter com=0x%08x obj=%d count=%d needs=%d\n",
             (unsigned)component_id,
             obj_id,
@@ -6841,7 +6852,15 @@ rs_cs2_copy_hook_str_args(
     *out_count = str_arg_count;
     if( *out_count > CS2VM_SETON_STR_ARG_MAX )
         *out_count = CS2VM_SETON_STR_ARG_MAX;
-    memcpy(out_args, str_args, sizeof(char[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN]));
+    if( *out_count < 0 )
+        *out_count = 0;
+    /* The rows below the count are the request's; the rows past it were never
+     * written by the VM (CS2VM_SETON_ZERO_HEAD) and are zeroed here, so a
+     * stored hook is the same bytes whatever was on the VM's stack -- the
+     * checkpoint compares these entries bytewise. */
+    memcpy(out_args, str_args, (size_t)*out_count * CS2VM_SETON_STR_ARG_LEN);
+    memset(out_args[*out_count], 0,
+        (size_t)(CS2VM_SETON_STR_ARG_MAX - *out_count) * CS2VM_SETON_STR_ARG_LEN);
 }
 
 /*
@@ -10020,7 +10039,12 @@ exec_widget_set_scroll_pos(
     int const requested_y = scroll_y;
     if( node && node->type == UIELEM_RS_LAYER )
     {
-        UITree_EnsureLayout(tree);
+        /* The clamp reads this layer's own box and nothing else, and a box
+         * depends only on its ancestors: resolve that chain, not the tree. A
+         * script that has just created a thousand children (bankmain_build
+         * ends on if_setscrollsize) otherwise pays for laying every one of
+         * them out here, and the settle pass lays them out again. */
+        UITree_EnsureLayoutFor(tree, rs_cs2_find_node(host, component_id));
         int const max_x = UITree_ScrollMaxX(node);
         int const max_y = UITree_ScrollMaxY(node);
         if( scroll_x < 0 )
@@ -10067,7 +10091,8 @@ exec_widget_set_scroll_size(
             int32_t const idx = rs_cs2_find_node(host, component_id);
             int scroll_x;
             int scroll_y;
-            UITree_EnsureLayout(tree);
+            /* The layer's own box only; see exec_widget_set_scroll_pos. */
+            UITree_EnsureLayoutFor(tree, idx);
             UITree_ScrollGetClamped(node, &scroll_x, &scroll_y);
             (void)UITree_SetScrollPosAt(tree, idx, scroll_x, scroll_y);
         }
@@ -13246,7 +13271,8 @@ rs_cs2_host_exec_dispatch(
     F(active_offers_transmit_dirty) F(clan_settings_transmit_dirty) F(clan_channel_transmit_dirty) \
     F(chat_transmit_dirty) F(inv_changed_ids) F(inv_changed_count) F(inv_changed_all) \
     F(var_changed_ids) F(var_changed_count) F(var_changed_all) F(var_change_serial) \
-    F(inv_change_serial) F(stat_change_serial) F(item_search_count) F(item_search_index) \
+    F(inv_change_serial) F(stat_change_serial) F(var_changed_ring) F(inv_changed_ring)        \
+    F(item_search_count) F(item_search_index) \
     F(db_find_count) F(db_find_cursor) F(social_send) F(social_send_count) F(social_send_head) \
     F(call_on_resize_count) F(call_on_resize_head) F(trigger_op_count) F(trigger_op_head) F(sound) \
     F(sound_count) F(sound_head) F(triggeroplocal_count) F(triggeroplocal_head)
