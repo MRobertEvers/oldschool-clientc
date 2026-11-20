@@ -316,6 +316,25 @@ App_IfModelCancel(
     struct App* app,
     int com_id);
 
+/** Load and composite head (`kind`, `npc_id`) -- the npc, obj or model id;
+ *  ignored for the player's head -- for a caller with no component, which
+ *  binds the composite itself once the bridge has it: a parallel task keyed
+ *  on what it loads, added once however often it is asked for while on its
+ *  way. `component_id` is -1 (a component's head is App_IfModelWant's). */
+void
+app_if_head_enqueue(
+    struct App* app,
+    enum UIIfHeadKind kind,
+    int component_id,
+    int npc_id);
+
+/** Is the loose head (`kind`, `id`) on its way (app_if_head_enqueue)? */
+bool
+App_IfModelLoosePending(
+    struct App const* app,
+    enum UIIfHeadKind kind,
+    int id);
+
 /** Is a head task pending for `com_id`'s entry? */
 bool
 App_IfModelPending(
