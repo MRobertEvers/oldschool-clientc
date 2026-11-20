@@ -191,6 +191,52 @@ App_ViewRebuildKey(
         view, 0, 0, 0, 0, (uint32_t)WorldviewRegistry_Get(&app->worldviews, view)->wire_id);
 }
 
+/*
+ * TORIRS_QUEUE_CONTRACT_TRACE: one line when a rebuild primes its view's
+ * built trigger and one when it ends, naming the owner and, at the end, every
+ * task parked on the trigger then -- the run-time evidence that a parallel
+ * task reaching its apply during the rebuild waits on the trigger, and is
+ * woken by the commit rather than polled.
+ */
+static void
+app_view_rebuild_trace(
+    struct App const* app,
+    int view,
+    char const* what)
+{
+    struct ToriRS_Trigger const* trigger;
+    struct ToriRS_Task const* sub;
+    char names[256];
+    int len = 0;
+    int n = 0;
+
+    assert(app);
+    assert(what);
+    if( !TaskRunner_ContractTrace() )
+        return;
+    assert(view >= 0);
+    assert(view < WORLDVIEW_MAX);
+    trigger = &app->triggers.view_built[view];
+    names[0] = '\0';
+    for( sub = trigger->subs; sub; sub = sub->park_next )
+    {
+        n++;
+        if( len < (int)sizeof(names) - 40 )
+            len += snprintf(
+                names + len, sizeof(names) - (size_t)len, " %s", sub->name[0] ? sub->name : "(unnamed)");
+    }
+    fprintf(
+        stderr,
+        "queue_contract: trace rebuild view %d %s '%s' owner %s, %d parked on it%s%s\n",
+        view,
+        what,
+        trigger->name ? trigger->name : "?",
+        trigger->owner ? ToriRS_TriggerOwner_Name(trigger->owner) : "(none)",
+        n,
+        n ? ":" : "",
+        names);
+}
+
 void
 App_ViewRebuildBegin(
     struct App* app,
@@ -221,6 +267,7 @@ App_ViewRebuildBegin(
      * commit. A prime the view held for its first scene, or an older
      * rebuild's, is abandoned by this one (its waiters wait again). */
     ToriRS_Trigger_Prime(&app->triggers.view_built[view], owner);
+    app_view_rebuild_trace(app, view, "primed");
 }
 
 void
@@ -243,6 +290,8 @@ App_ViewRebuildEnd(
     /* Built: the waiters' scene is here. Not built: the owner's end abandons
      * the trigger (task_free, ToriRS_TaskJob_End), which is what the
      * waiters need -- they find the view as it is and go on or exit. */
+    if( view >= 0 && view < WORLDVIEW_MAX )
+        app_view_rebuild_trace(app, view, built ? "built, firing" : "ended unbuilt (its owner's end abandons)");
     if( built && view >= 0 && view < WORLDVIEW_MAX )
         ToriRS_Trigger_FireIfPrimed(&app->triggers.view_built[view]);
 }
