@@ -1312,6 +1312,87 @@ test_the_chain_bottoms_out_in_a_read(void)
     runner_free(&runner);
 }
 
+/* --- 12b. a long chain is a chain, not a loop --------------------------------- */
+
+/*
+ * `n` tasks in a line behind one reader, each waiting on the end of the one
+ * before it (the turn behind an earlier task, n deep): every wait is on a
+ * primed trigger whose owner is alive, and the line bottoms out in a read.
+ * Nothing about its length makes it a loop. Returns the chain's end for the
+ * last task; the tasks are left on `runner`.
+ */
+static int
+long_chain(
+    struct TaskRunner* runner,
+    int n,
+    char* chain,
+    size_t chain_size)
+{
+    struct Reader* reader = calloc(1, sizeof(*reader));
+    struct ToriRS_Task* prev;
+    struct ToriRS_Task* last = NULL;
+
+    assert(reader);
+    reader->task.vtable = &k_reader_vtable;
+    strcpy(reader->task.name, "reader");
+    PT_INIT(&reader->pt);
+    ToriRS_TaskQueue_Add(runner->queue, &reader->task);
+    prev = &reader->task;
+    for( int i = 0; i < n; i++ )
+    {
+        struct EndWaiter* w = calloc(1, sizeof(*w));
+
+        assert(w);
+        w->task.vtable = &k_end_waiter_vtable;
+        snprintf(w->task.name, sizeof(w->task.name), "turn%d", i);
+        w->other = prev;
+        PT_INIT(&w->pt);
+        ToriRS_TaskQueue_Add(runner->queue, &w->task);
+        prev = &w->task;
+        last = &w->task;
+    }
+    CHECK(pump(runner) == TASK_RUNNER_WAITING);
+    CHECK(last->parked);
+    return ToriRS_TaskChainFormat(last, chain, chain_size);
+}
+
+/* Parks 5000 tasks in one line: each wait walks the owners behind it. */
+static void
+park_a_line_of_5000(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    char chain[256];
+
+    runner_init(&runner, &px, TASK_RUNNER_ROLE_PARALLEL);
+    (void)long_chain(&runner, 5000, chain, sizeof(chain));
+    _exit(0);
+}
+
+static void
+test_a_long_chain_is_not_a_loop(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    char chain[512];
+    char said[1024];
+
+    printf("TEST: a line of 100 turns behind a read bottoms out in the read; 5000 park without a loop\n");
+    runner_init(&runner, &px, TASK_RUNNER_ROLE_PARALLEL);
+    /* What the strict audit (TaskRunner_PumpEnd) reads: UNSOUND here aborts
+     * a TORIRS_QUEUE_CONTRACT_STRICT run over a state that is legitimate. */
+    CHECK(long_chain(&runner, 100, chain, sizeof(chain)) == TORIRS_CHAIN_READ);
+    CHECK(strstr(chain, "turn99") != NULL);
+    /* The text is bounded by its buffer, not by refusing to look further. */
+    CHECK(strlen(chain) < sizeof(chain));
+    runner_free(&runner);
+    /* A wait is refused as a loop only when it closes one. */
+    CHECK(!dies_by_abort_saying(park_a_line_of_5000, said, sizeof(said)));
+    CHECK(strstr(said, "closes a loop") == NULL);
+    if( said[0] )
+        fprintf(stderr, "  the line of 5000 said: %.200s\n", said);
+}
+
 /* --- 13. a task woken behind the walk still gets its turn -------------------- */
 
 struct Clocked
@@ -1439,6 +1520,7 @@ main(void)
     test_the_rebuild_trigger();
     test_a_childs_park_is_the_parents();
     test_the_chain_bottoms_out_in_a_read();
+    test_a_long_chain_is_not_a_loop();
     test_a_task_woken_behind_the_walk_gets_its_turn();
     if( g_failures )
     {

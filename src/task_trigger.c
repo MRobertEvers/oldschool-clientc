@@ -417,6 +417,22 @@ chain_put(
     return len + (size_t)n;
 }
 
+/* The next link of a chain: the task that owns the trigger `task` is parked
+ * on, or NULL where the chain bottoms out (not parked, parked on a count or a
+ * cycle, an unprimed trigger, a job or an outside owner). */
+static struct ToriRS_Task const*
+chain_next(struct ToriRS_Task const* task)
+{
+    struct ToriRS_TriggerOwner const* owner;
+
+    if( !task->parked || task->park.on != TORIRS_PARK_TRIGGER )
+        return NULL;
+    owner = task->park.trigger->owner;
+    if( !owner || owner->kind != TORIRS_OWNER_TASK )
+        return NULL;
+    return owner->task;
+}
+
 int
 ToriRS_TaskChainFormat(
     struct ToriRS_Task const* task,
@@ -426,6 +442,10 @@ ToriRS_TaskChainFormat(
     char piece[192];
     size_t len = 0;
     int hops = 0;
+    /* Floyd's tortoise: one link for every two the walk takes. Meeting it
+     * again is a loop; nothing else ends the walk but the chain's bottom
+     * (the text is bounded by `out`, not by how far the walk looks). */
+    struct ToriRS_Task const* tortoise = task;
 
     assert(task);
     assert(out);
@@ -502,36 +522,47 @@ ToriRS_TaskChainFormat(
         len = chain_put(out, out_size, len, " -> ");
         task = owner->task;
         /* A loop is refused when it is made; this is the backstop. */
-        if( ++hops > 64 )
+        if( (++hops & 1) == 0 )
+            tortoise = chain_next(tortoise);
+        if( task == tortoise )
         {
-            chain_put(out, out_size, len, "...");
+            chain_put(out, out_size, len, "... (a loop)");
             return TORIRS_CHAIN_UNSOUND;
         }
     }
 }
 
 /* Would parking `waiter` on `trigger` close a loop? Walk the owners: a task
- * owner parked on a trigger leads to that trigger's owner. */
+ * owner parked on a trigger leads to that trigger's owner. The walk ends at
+ * the waiter (a loop), at the chain's bottom (none), or -- the backstop, for
+ * a loop already standing below it -- where Floyd's tortoise is met again.
+ * Never at a length: a long line of turns is a chain, not a loop. */
 static int
 closes_loop(
     struct ToriRS_Task const* waiter,
     struct ToriRS_Trigger const* trigger)
 {
-    int hops = 0;
+    struct ToriRS_Task const* hare;
+    struct ToriRS_Task const* tortoise;
 
-    while( trigger && trigger->owner && trigger->owner->kind == TORIRS_OWNER_TASK )
+    if( !trigger->owner || trigger->owner->kind != TORIRS_OWNER_TASK )
+        return 0;
+    hare = trigger->owner->task;
+    tortoise = hare;
+    for( ;; )
     {
-        struct ToriRS_Task const* owner = trigger->owner->task;
-
-        if( owner == waiter )
-            return 1;
-        if( !owner->parked || owner->park.on != TORIRS_PARK_TRIGGER )
-            return 0;
-        trigger = owner->park.trigger;
-        if( ++hops > 4096 )
+        for( int i = 0; i < 2; i++ )
+        {
+            if( hare == waiter )
+                return 1;
+            hare = chain_next(hare);
+            if( !hare )
+                return 0;
+        }
+        tortoise = chain_next(tortoise);
+        if( hare == tortoise )
             return 1;
     }
-    return 0;
 }
 
 void
