@@ -78,6 +78,7 @@ rsprot_player_info_seed(RsprotPlayerInfo *pi, int32_t coord,
         return;
     pi->coord[local] = coord;
     pi->high_res[local] = 1;
+    pi->local_unplaced = 1;
     for (int idx = 1; idx < RSPROT_INFO_PLAYER_SLOTS; idx++) {
         int32_t packed = positions[idx];
 
@@ -145,6 +146,8 @@ moved(Reader *r, int idx, int how)
     int32_t coord = r->pi->coord[idx];
     RsprotInfoXZLevel *m;
 
+    if (idx == r->pi->local_index)
+        r->pi->local_unplaced = 0;
     rsprot_info_player_target(r->out, r->pi, idx);
     r->pp->movement_op[idx] = (int16_t)r->out->count;
     m = &rsprot_info_emit(r->out, RSPROT_OP_ABS_XZLEVEL)->xz_level;
@@ -262,8 +265,18 @@ high_res(Reader *r, RsprotBuf *b, int idx)
     opcode = rsprot_gbits(b, 2);
 
     if (opcode == 0) {
+        /* A stationary slot with extended info did not move: the reference
+         * clears its moved flag (class109.method3799, field1582 = false) and
+         * queues nothing. Only the local player's first update after the GPI
+         * seed carries its position, which nothing else has placed yet.
+         * Emitting a placement on every such update (a MOVE_SPEED toggle, a
+         * chat line, an anim) teleported the player onto its server tile,
+         * cutting short the step it was still drawing. */
         if (extended) {
-            moved(r, idx, RSPROT_PLAYER_MOVE_ADD);
+            if (idx == pi->local_index && pi->local_unplaced)
+                moved(r, idx, RSPROT_PLAYER_MOVE_ADD);
+            else
+                rsprot_info_player_target(r->out, pi, idx);
             return;
         }
         /* Opcode 0 with nothing to say drops the slot to low resolution --

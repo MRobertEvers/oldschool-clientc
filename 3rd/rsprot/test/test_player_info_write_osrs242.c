@@ -234,6 +234,12 @@ main(void)
           op ? op->name_extras.after_name : "-", op ? op->name_extras.after_combat_level : "-");
     op = find_nth(ops, n, RSPROT_OP_RESET, 0);
     CHECK(op && op->value == 7, "player reset (%d)", op ? (int)op->value : -1);
+    /* The first update after the GPI seed places the stationary local player
+     * on the seed's tile: nothing else carries it. */
+    op = find_nth(ops, n, RSPROT_OP_ABS_XZLEVEL, 0);
+    CHECK(op && op->xz_level.x == 3200 && op->xz_level.z == 3200,
+          "the first update places the local player at the seed (%d,%d)",
+          op ? op->xz_level.x : -1, op ? op->xz_level.z : -1);
 
     /* MOVE_SPEED alone: the run orb switched off on a tick nothing else
      * changed. The extended bit must still go up, or the client keeps the old
@@ -245,6 +251,12 @@ main(void)
     n = roundtrip(&server, &ext, NULL, 0, ops, 64);
     op = find_nth(ops, n, RSPROT_OP_MOVE_SPEED, 0);
     CHECK(op && op->value == 1, "move speed on its own (%d)", op ? (int)op->value : -1);
+    /* ...and a stationary player with extended info did not move: the
+     * reference clears its moved flag and queues nothing (class109.method3799).
+     * A placement here snapped a player still drawing its last step onto the
+     * server tile whenever the run orb was toggled. */
+    CHECK(find_nth(ops, n, RSPROT_OP_ABS_XZLEVEL, 0) == NULL,
+          "a later stationary update carries no position");
 
     if( g_failures )
     {
