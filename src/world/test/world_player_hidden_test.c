@@ -3,7 +3,9 @@
  * .field551, WorldEntity_Player.hidden) is not put in the scene: deob
  * Statics.method10053 returns before the tile claim and the scene add, for
  * every player the local one included. So it is not painted, and it claims no
- * tile, so a visible player standing on its square is painted.
+ * tile, so a visible player standing on its square is painted. And the pass
+ * stamps each player it does put in the scene (field1463), which the overhead
+ * name reads.
  */
 #include "mem/torirs_mem.h"
 #include "world/world.h"
@@ -96,6 +98,31 @@ main(void)
     {
         fprintf(stderr, "FAIL: the visible player on the hidden one's square was not painted\n");
         failures++;
+    }
+
+    /* N2: the pass stamps who it put in the scene (deob field1463), which is
+     * what an overhead name asks. Two visible players on one square: the
+     * first claims it, the second is not put in the scene. */
+    {
+        struct WorldEntity_Player* first = spawn(world, 934, 11, 11, 5);
+        struct WorldEntity_Player* second = spawn(world, 935, 12, 11, 5);
+
+        paint(world, &b);
+        if( local->drawn_scene_cycle != world->scene_cycle || first->drawn_scene_cycle != world->scene_cycle )
+        {
+            fprintf(stderr, "FAIL: a drawn player is not stamped with the pass\n");
+            failures++;
+        }
+        if( second->drawn_scene_cycle == world->scene_cycle || painted(&b, 935) )
+        {
+            fprintf(stderr, "FAIL: the second player on a claimed square counts as drawn\n");
+            failures++;
+        }
+        if( hidden->drawn_scene_cycle == world->scene_cycle )
+        {
+            fprintf(stderr, "FAIL: a hidden player is stamped as drawn\n");
+            failures++;
+        }
     }
 
     local->hidden = 1;

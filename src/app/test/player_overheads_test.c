@@ -8,6 +8,14 @@
  *     the method's last call). It applies to the local player as to anyone,
  *     and no viewer is excepted: the staff exception is the chat line's alone.
  *
+ *   - N2: with "show names" on (client.field777, CS2 3120..3124, set only by
+ *     the deadman spectator scripts 2070/2071), a drawn player's name goes
+ *     between the bars and the icons: `var27 += 4`, white p12_full over a
+ *     black shadow at the anchor minus var27, `var27 += 18`. Who: the local
+ *     player by bit 8; anyone else by bit 4, by bit 1 as an online friend, by
+ *     bit 2 as a friends-chat member. A player not put in the scene this pass
+ *     (stacked on a claimed tile, or hidden) has no name.
+ *
  * The builders run for real: a world, a camera looking north at the player,
  * the sprite packs named by scene id. Each kind of item is told apart by the
  * scene it draws from.
@@ -19,6 +27,7 @@
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_entity_sync.h"
 #include "game/rs_hint_arrow.h"
+#include "game/rs_social.h"
 #include "mem/torirs_mem.h"
 #include "render/overlay_stage.h"
 #include "test_harness.h"
@@ -38,6 +47,7 @@ enum
     SCENE_PRAYER = 92,
     SCENE_PK = 93,
     SCENE_HINT = 94,
+    SCENE_NAME_FONT = 95,
 };
 
 struct Fixture
@@ -125,6 +135,9 @@ fixture_init(struct Fixture* fx)
     fx->assets.hitmarks_scene = SCENE_HITMARKS;
     fx->assets.headicons_scene = SCENE_PRAYER;
     fx->assets.pk_scene = SCENE_PK;
+    fx->assets.name_font = SCENE_NAME_FONT;
+    RS_Social_Init(&fx->app.social);
+    snprintf(fx->local->name, sizeof(fx->local->name), "%s", "Me");
     add_hint_frames(fx);
 }
 
@@ -178,6 +191,48 @@ items_of_scene(
             fx->app.overlays.world[i].scene_id == scene_id )
             n++;
     return n;
+}
+
+/* The name's two text items, shadow first; NULL when there are none. */
+static struct UITreeEntityOverlay const*
+name_items(
+    struct Fixture* fx,
+    int* out_count)
+{
+    struct UITreeEntityOverlay const* first = NULL;
+    int n = 0;
+
+    for( int i = 0; i < fx->app.overlays.world_count; i++ )
+        if( fx->app.overlays.world[i].kind == UITREE_ENTITY_OVERLAY_TEXT &&
+            fx->app.overlays.world[i].font_id == SCENE_NAME_FONT )
+        {
+            if( !first )
+                first = &fx->app.overlays.world[i];
+            n++;
+        }
+    *out_count = n;
+    return first;
+}
+
+static struct UITreeEntityOverlay const*
+first_of_scene(
+    struct Fixture* fx,
+    int scene_id)
+{
+    for( int i = 0; i < fx->app.overlays.world_count; i++ )
+        if( fx->app.overlays.world[i].kind == UITREE_ENTITY_OVERLAY_SPRITE &&
+            fx->app.overlays.world[i].scene_id == scene_id )
+            return &fx->app.overlays.world[i];
+    return NULL;
+}
+
+static struct UITreeEntityOverlay const*
+first_rect(struct Fixture* fx)
+{
+    for( int i = 0; i < fx->app.overlays.world_count; i++ )
+        if( fx->app.overlays.world[i].kind == UITREE_ENTITY_OVERLAY_RECT )
+            return &fx->app.overlays.world[i];
+    return NULL;
 }
 
 static int
@@ -257,6 +312,141 @@ test_no_hint_arrow_over_a_hidden_player(void)
     fixture_free(&fx);
 }
 
+static void
+test_who_has_a_name(void)
+{
+    int const self = RS_CS2_DRAW_NAMES_SELF;
+    int const others = RS_CS2_DRAW_NAMES_OTHERS;
+    int const friends = RS_CS2_DRAW_NAMES_FRIENDS;
+    int const clan = RS_CS2_DRAW_NAMES_CLAN;
+
+    printf("TEST: who a player name is drawn over (client.field777)\n");
+    TEST_ASSERT(!app_overlay_player_name_shown(0, false, true, true), "mask 0: nobody");
+    TEST_ASSERT(!app_overlay_player_name_shown(0, true, false, false), "not the local player either");
+    TEST_ASSERT(app_overlay_player_name_shown(self, true, false, false), "bit 8: the local player");
+    TEST_ASSERT(!app_overlay_player_name_shown(self, false, true, true), "and only the local player");
+    TEST_ASSERT(!app_overlay_player_name_shown(others | friends | clan, true, false, false),
+        "the others' bits never name the local player");
+    TEST_ASSERT(app_overlay_player_name_shown(others, false, false, false), "bit 4: anyone else");
+    TEST_ASSERT(app_overlay_player_name_shown(friends, false, true, false), "bit 1: an online friend");
+    TEST_ASSERT(!app_overlay_player_name_shown(friends, false, false, true), "not a stranger");
+    TEST_ASSERT(app_overlay_player_name_shown(clan, false, false, true), "bit 2: a friends-chat member");
+    TEST_ASSERT(!app_overlay_player_name_shown(clan, false, true, false), "not a friend outside it");
+}
+
+static void
+test_the_name_lift(void)
+{
+    int lift = 5;
+    int baseline;
+
+    printf("TEST: a name takes 4 below its baseline and 18 above\n");
+    baseline = app_overlay_player_name_lift(&lift);
+    TEST_ASSERT(baseline == 9 && lift == 27, "over nothing (5): baseline 9, the stack at 27");
+    lift = app_overlay_overhead_lift(true, 5 + 2);
+    baseline = app_overlay_player_name_lift(&lift);
+    TEST_ASSERT(baseline == 21 && lift == 39, "over a chat line and a 5-px bar (17): baseline 21, 39");
+}
+
+static void
+test_a_named_player_overhead(void)
+{
+    struct Fixture fx;
+    struct WorldEntity_Player* player;
+    struct UITreeEntityOverlay const* name;
+    struct UITreeEntityOverlay const* bar;
+    struct UITreeEntityOverlay const* skull;
+    struct UITreeEntityOverlay const* prayer;
+    int count = 0;
+    int lift = 0;
+    int sy;
+
+    printf("TEST: a drawn player's name sits between its bar and its icons\n");
+    fixture_init(&fx);
+    player = spawn_marked(&fx, 9);
+    snprintf(player->name, sizeof(player->name), "%s", "Zezima");
+    fx.app.world->scene_cycle = 40;
+    player->drawn_scene_cycle = 40;
+    fx.local->drawn_scene_cycle = 40;
+
+    build(&fx, player, &lift);
+    (void)name_items(&fx, &count);
+    TEST_ASSERT(count == 0, "names off (mask 0): no name");
+    TEST_ASSERT(lift == 55, "and the icons where they were: 5 + 25 + 25");
+
+    fx.app.host.client.draw_player_names = RS_CS2_DRAW_NAMES_OTHERS;
+    build(&fx, player, &lift);
+    name = name_items(&fx, &count);
+    bar = first_rect(&fx);
+    skull = first_of_scene(&fx, SCENE_PK);
+    prayer = first_of_scene(&fx, SCENE_PRAYER);
+    TEST_ASSERT(count == 2 && name && bar && skull && prayer, "names on: the bar, the name, the skull, the icon");
+    if( count == 2 && name && bar && skull && prayer )
+    {
+        sy = bar->y + 3; /* the bar's top is the anchor less 3 */
+        TEST_ASSERT(strcmp(name[0].text, "Zezima") == 0 && strcmp(name[1].text, "Zezima") == 0,
+            "the name as sent");
+        TEST_ASSERT(name[1].y == sy - 9 && name[1].color == 0xFFFFFFFFu, "white, its baseline at the anchor less 9");
+        TEST_ASSERT(name[1].x == bar->x + 15, "centred on the anchor (the 30-px bar's middle)");
+        TEST_ASSERT(name[0].x == name[1].x + 1 && name[0].y == name[1].y + 1 && name[0].color == 0xFF000000u,
+            "over a black shadow one px down-right");
+        TEST_ASSERT(skull->y == sy - 52, "the skull 25 above the name's 18: anchor less 52");
+        TEST_ASSERT(prayer->y == sy - 77, "the prayer icon above it: less 77");
+    }
+    TEST_ASSERT(lift == 77, "the stack leaves 77 for a hint arrow");
+
+    /* Stacked on a tile another player claimed this pass: not put in the
+     * scene (no field1463 stamp), so no name, and the icons drop back. */
+    player->drawn_scene_cycle = 39;
+    build(&fx, player, &lift);
+    (void)name_items(&fx, &count);
+    TEST_ASSERT(count == 0 && lift == 55, "a player not drawn this pass has no name");
+    player->drawn_scene_cycle = 40;
+    player->hidden = 1;
+    build(&fx, player, &lift);
+    (void)name_items(&fx, &count);
+    TEST_ASSERT(count == 0, "nor a hidden one");
+    player->hidden = 0;
+
+    /* Friends (bit 1): on the list AND on a world. */
+    fx.app.host.client.draw_player_names = RS_CS2_DRAW_NAMES_FRIENDS;
+    build(&fx, player, &lift);
+    (void)name_items(&fx, &count);
+    TEST_ASSERT(count == 0, "friends only: a stranger has none");
+    RS_Social_AddFriend(&fx.app.social, "zezima", 0);
+    build(&fx, player, &lift);
+    (void)name_items(&fx, &count);
+    TEST_ASSERT(count == 0, "nor an offline friend");
+    RS_Social_SetFriendWorld(&fx.app.social, RS_Social_FriendIndex(&fx.app.social, "zezima"), 301);
+    build(&fx, player, &lift);
+    (void)name_items(&fx, &count);
+    TEST_ASSERT(count == 2, "an online friend has one");
+
+    /* The friends chat (bit 2). */
+    fx.app.host.client.draw_player_names = RS_CS2_DRAW_NAMES_CLAN;
+    build(&fx, player, &lift);
+    (void)name_items(&fx, &count);
+    TEST_ASSERT(count == 0, "chat members only: a friend outside the channel has none");
+    fx.app.host.friends_chat.in_channel = true;
+    snprintf(fx.app.host.friends_chat.members[0].name, sizeof(fx.app.host.friends_chat.members[0].name), "%s",
+        "Zezima");
+    fx.app.host.friends_chat.member_count = 1;
+    build(&fx, player, &lift);
+    (void)name_items(&fx, &count);
+    TEST_ASSERT(count == 2, "a member has one");
+
+    /* The local player: bit 8 only. */
+    fx.app.host.client.draw_player_names = RS_CS2_DRAW_NAMES_OTHERS;
+    build(&fx, fx.local, &lift);
+    (void)name_items(&fx, &count);
+    TEST_ASSERT(count == 0, "the others' bit does not name the local player");
+    fx.app.host.client.draw_player_names = RS_CS2_DRAW_NAMES_SELF;
+    build(&fx, fx.local, &lift);
+    name = name_items(&fx, &count);
+    TEST_ASSERT(count == 2 && name && strcmp(name[1].text, "Me") == 0, "bit 8 does");
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -264,6 +454,9 @@ main(void)
     g_failures = 0;
     test_a_hidden_player_keeps_only_its_bars();
     test_no_hint_arrow_over_a_hidden_player();
+    test_who_has_a_name();
+    test_the_name_lift();
+    test_a_named_player_overhead();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

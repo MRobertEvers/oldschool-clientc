@@ -50,6 +50,13 @@ struct WorldEntity_Player
      *  client hides for it is the client's rule (the public-chat answer,
      *  RS_ServerState_PublicChatShown). 0 until an appearance says so. */
     int hidden;
+    /** The World's scene_cycle of the last dynamics pass that put this player
+     *  in the scene (deob Actor.field1463, set by Statics.method10053 after
+     *  its tile claim), -1 before any. A player stacked on a tile another
+     *  claimed this pass, out of the scene or hidden is not stamped: the
+     *  reference draws a name only over a player whose stamp is the current
+     *  cycle (app_overlay_player_drawn). */
+    int drawn_scene_cycle;
     /** The PK skull (rev-239 appearance's skull byte, deob class60.field530:
      *  a frame of `headicons_pk`), -1 for none; drawn below the prayer icon
      *  (app_overlay_build_player_headicons). A classic lane's skull rides in

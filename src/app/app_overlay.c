@@ -343,6 +343,39 @@ app_overlay_overhead_lift(
     return lift;
 }
 
+bool
+app_overlay_player_name_shown(
+    int mask,
+    bool is_local,
+    bool friend_online,
+    bool in_friends_chat)
+{
+    if( mask == 0 )
+        return false;
+    /* `client.field767 == player.field1472`: the local player, bit 8. */
+    if( is_local )
+        return (mask & RS_CS2_DRAW_NAMES_SELF) != 0;
+    /* Bit 4, else bit 1 and a friend (method6721 && method1321), else bit 2
+     * and a friends-chat member (method1363). */
+    if( mask & RS_CS2_DRAW_NAMES_OTHERS )
+        return true;
+    if( (mask & RS_CS2_DRAW_NAMES_FRIENDS) && friend_online )
+        return true;
+    return (mask & RS_CS2_DRAW_NAMES_CLAN) && in_friends_chat;
+}
+
+int
+app_overlay_player_name_lift(int* io_lift)
+{
+    int baseline;
+
+    assert(io_lift);
+    *io_lift += 4;
+    baseline = *io_lift;
+    *io_lift += 18;
+    return baseline;
+}
+
 int
 app_overlay_player_headicon_stack(
     int skull,

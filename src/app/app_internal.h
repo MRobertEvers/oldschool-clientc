@@ -1998,12 +1998,47 @@ struct AppOverheadAssets
     int hitmarks_scene;  /* the dat1 hitmarks archive, 0 none */
     int headicons_scene; /* the prayer icons */
     int pk_scene;        /* headicons_pk: the skull */
+    int name_font;       /* p12_full, for the names; -1 none or not resident */
 };
 
 /*
+ * Whether a player's name is drawn over its head (deob Statics.method6709,
+ * the mask client.field777 that CS2 3120..3124 SETDRAWPLAYERNAMES_* set, kept
+ * as RS_CS2ClientState.draw_player_names): none at mask 0; the local player
+ * by RS_CS2_DRAW_NAMES_SELF; anyone else by _OTHERS, or by _FRIENDS when on
+ * the friend list and on a world (method1321), or by _CLAN when in the
+ * friends chat channel (method1363). Only the deadman spectator scripts set
+ * the mask (clientscripts 2070/2071, deadman_spectator_enable / _update,
+ * through proc 2179 deadman_spectator_names: 1 friends, 2 others).
+ */
+bool
+app_overlay_player_name_shown(
+    int mask,
+    bool is_local,
+    bool friend_online,
+    bool in_friends_chat);
+
+/* A name's place in the overhead stack: `var27 += 4`, the text's baseline
+ * at the anchor minus that, `var27 += 18`. Returns the baseline's lift;
+ * `*io_lift` becomes the lift after the name. */
+int
+app_overlay_player_name_lift(int* io_lift);
+
+/* Whether the player was put in the scene by the last dynamics pass (deob
+ * field1463 == the cycle): not hidden, and for a root player stamped by
+ * this pass (WorldEntity_Player.drawn_scene_cycle) -- one stacked on a tile
+ * another claimed is not. A rider on a deck is drawn by the deck's pass,
+ * which claims no tiles. */
+bool
+app_overlay_player_drawn(
+    struct App* app,
+    struct WorldEntity_Player const* player);
+
+/*
  * One player's overheads, as deob Statics.method6709's player branch: its
- * health bars over its chat line, its splats, its skull and prayer icons
- * stacked above them. A hidden player (WorldEntity_Player.hidden, class60
+ * health bars over its chat line, its splats, its name when names are shown
+ * (app_overlay_player_name_shown) and it was drawn, its skull and prayer
+ * icons stacked above them. A hidden player (WorldEntity_Player.hidden, class60
  * .field551) keeps its bars and chat line and draws nothing after them.
  * Returns the stack's lift after the last icon, which a hint arrow on the
  * player stacks on.

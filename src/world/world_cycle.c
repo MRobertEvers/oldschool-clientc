@@ -2287,6 +2287,9 @@ world_dyn_register_players(struct World* world, bool only_local, int local_level
                 1,
                 is_local) )
             continue;
+        /* deob field1463 = the cycle, between the tile claim and the scene
+         * add: what an overhead name asks ("was it put in the scene"). */
+        player->drawn_scene_cycle = world->scene_cycle;
         world_dyn_register_mover(
             world,
             player->element_id,

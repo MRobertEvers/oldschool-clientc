@@ -34,6 +34,8 @@ struct AppOverlayPos
 
 /* Private to this unit, declared up front so definition order is free. */
 static int
+app_overlay_name_font(struct App* app);
+static int
 app_overlay_build_entity(
     struct App* app,
     int element_id,
@@ -794,6 +796,122 @@ app_build_canvas_overlays(
     return app_overlay_build_watch_canvas(app, OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_CANVAS));
 }
 
+/* p12_full, the names' font (deob field3328): its scene id, -1 while it is
+ * not resident (wanted through the assets table, one read however many
+ * frames ask, as the hitsplat font is). */
+static int
+app_overlay_name_font(struct App* app)
+{
+    int font_cache_id = app_font_cache_id(app, APP_FONT_P12);
+    int scene_id;
+
+    if( font_cache_id < 0 )
+        return -1;
+    scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
+    if( scene_id < 0 )
+        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_CONFIG, font_cache_id, ASSET_CONFIG_FONT));
+    return scene_id;
+}
+
+bool
+app_overlay_player_drawn(
+    struct App* app,
+    struct WorldEntity_Player const* player)
+{
+    assert(app);
+    assert(app->world);
+    assert(player);
+    if( player->hidden )
+        return false;
+    if( player->view_placement.view_id != WORLDVIEW_ROOT )
+        return true;
+    return player->drawn_scene_cycle == app->world->scene_cycle;
+}
+
+/* method1321: on the friend list and on a world (class460.method10220,
+ * `world > 0`). */
+static bool
+app_overlay_friend_online(
+    struct App* app,
+    char const* name)
+{
+    int index = RS_Social_FriendIndex(&app->social, name);
+
+    return index >= 0 && RS_Social_FriendWorld(&app->social, index) > 0;
+}
+
+/* method1363 / method1309: in the friends chat channel's member list
+ * (Statics.field1130, the FriendsChatManager). */
+static bool
+app_overlay_in_friends_chat(
+    struct App* app,
+    char const* name)
+{
+    struct RS_FriendsChat const* fc = &app->host.friends_chat;
+
+    if( !fc->in_channel )
+        return false;
+    for( int i = 0; i < fc->member_count; i++ )
+    {
+        if( RS_FriendsChat_NamesEqual(fc->members[i].name, name) )
+            return true;
+    }
+    return false;
+}
+
+/*
+ * The name over a player's head (deob Statics.method6709): projected at the
+ * actor's height + 15 like the bars, `var27 += 4`, the display name (field531
+ * .method35, the name as sent) in p12_full centred on the anchor, white over
+ * a black shadow one px down-right (class671.method14554 with shadow 0), its
+ * baseline at the anchor minus var27, then `var27 += 18`. The lift moves
+ * whether or not the text could be drawn, as the reference's does.
+ */
+static int
+app_overlay_build_player_name(
+    struct App* app,
+    struct WorldEntity_Player const* player,
+    int lift,
+    int name_font)
+{
+    int screen_x, screen_y;
+    int const baseline = app_overlay_player_name_lift(&lift);
+
+    if( name_font < 0 || !player->name[0] )
+        return lift;
+    if( !app_world_project_actor_footprint(
+            app,
+            &player->view_placement,
+            player->grid_position.level,
+            (int)player->draw_position.x,
+            (int)player->draw_position.z,
+            0,
+            app_entity_overlay_height(app, player->element_id, -1) +
+                app_actor_seq_vertical_offset(app, &player->animation) + 15,
+            &screen_x,
+            &screen_y) )
+        return lift;
+    {
+        struct UITreeEntityOverlay shadow = {
+            .kind = UITREE_ENTITY_OVERLAY_TEXT,
+            .x = screen_x + 1,
+            .y = screen_y - baseline + 1,
+            .font_id = name_font,
+            .color = 0xFF000000u,
+        };
+        struct UITreeEntityOverlay text;
+
+        snprintf(shadow.text, sizeof(shadow.text), "%s", player->name);
+        app_overlay_push(app, &shadow);
+        text = shadow;
+        text.x = screen_x;
+        text.y = screen_y - baseline;
+        text.color = 0xFFFFFFFFu;
+        app_overlay_push(app, &text);
+    }
+    return lift;
+}
+
 int
 app_overlay_build_player(
     struct App* app,
@@ -827,6 +945,21 @@ app_overlay_build_player(
         &player->animation,
         0);
     lift = app_overlay_overhead_lift(chat_shown, lift);
+    /* The name, between the bars and the icons, over a player put in the
+     * scene this pass (a hidden one never is). */
+    {
+        int const mask = app->host.client.draw_player_names;
+
+        if( mask != 0 && app_overlay_player_drawn(app, player) )
+        {
+            bool const is_local = app->world->local_pid >= 0 && player->server_pid == app->world->local_pid;
+            bool const friend_online = !is_local && app_overlay_friend_online(app, player->name);
+            bool const member = !is_local && app_overlay_in_friends_chat(app, player->name);
+
+            if( app_overlay_player_name_shown(mask, is_local, friend_online, member) )
+                lift = app_overlay_build_player_name(app, player, lift, assets->name_font);
+        }
+    }
     if( player->hidden )
         return lift;
     return app_overlay_build_player_headicons(
@@ -939,6 +1072,8 @@ app_build_entity_overlays(
             .hitmarks_scene = hitmarks_scene,
             .headicons_scene = headicons_scene,
             .pk_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HEADICONS_PK),
+            /* Wanted only while some name can show. */
+            .name_font = app->host.client.draw_player_names != 0 ? app_overlay_name_font(app) : -1,
         };
         int hint_lift = 0;
 
