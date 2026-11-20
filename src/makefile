@@ -8063,6 +8063,18 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_ReconnectClaimTest
 
+# The socket host keeps a player whose link went in the world, and a reconnect
+# re-attaches it instead of reloading it from the save; a reloaded page (a
+# fresh boot with a resume key) still gets a whole login. The real server
+# binary on a loopback port against the real client login machine over TCP.
+.PHONY: test-torirsserver-host-reattach
+test-torirsserver-host-reattach: $(TORIRSSERVER_BIN) $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_HostReattachTest \
+		torirsserver/test/host_reattach_test.c $(filter-out net/proto/proto_info.c,$(TORIRSSERVER_CORE_SRCS)) \
+		net/net_out.c \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_HostReattachTest ./src/$(TORIRSSERVER_BIN) ./src/$(OBJ_DIR)
+
 # Passwords (torirs_server_auth.h): PBKDF2-HMAC-SHA256 against published
 # vectors, then logins through the real client login machine -- a first login
 # sets the password, a wrong one is refused with response 3 and does not take

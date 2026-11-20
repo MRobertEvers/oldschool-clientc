@@ -84,6 +84,13 @@ ToriRSServer_ClaimNoteDeparted(
  * player: the host must kill its connection and call
  * ToriRSServer_WorldRemovePlayer on it -- which writes the save the new login
  * then loads -- BEFORE seating. It is NULL otherwise, including on a refusal.
+ *
+ * `out_attach` (NULL: the host never re-attaches) is set instead for a
+ * reconnect presenting the key of a player still in the world -- connected or
+ * detached -- from a client that kept its game state (not
+ * ToriRSServerSession::client_fresh). The returned pid is that player's, and
+ * the host hands it the new session with ToriRSServer_WorldAttachPlayer
+ * rather than seating anything: no removal, no save, no load.
  */
 int
 ToriRSServer_ClaimSlot(
@@ -91,6 +98,7 @@ ToriRSServer_ClaimSlot(
     const struct ToriRSServer* srv,
     const struct ToriRSServerSession* session,
     long now_ms,
-    struct ToriRSServerPlayer** out_evict);
+    struct ToriRSServerPlayer** out_evict,
+    struct ToriRSServerPlayer** out_attach);
 
 #endif

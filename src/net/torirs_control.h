@@ -67,6 +67,17 @@
 /** The login block's subVersion from a ToriRS client: "TORI", big-endian. */
 #define TORIRS_CONTROL_LOGIN_SUBVERSION 0x544F5249
 
+/**
+ * The same flag from a ToriRS client that booted fresh and presents a seed it
+ * was handed (a reloaded page's resume token, ToriRS_Network_ArmResume):
+ * "TORF". A GAMERECONNECT normally comes from a client that kept its widgets,
+ * varps and inventories across the lost link, which is what lets the server
+ * re-attach it to the player still in the world with a resync rather than a
+ * login burst (ToriRSServer_WorldAttachPlayer). This one holds nothing, so the
+ * server gives it the whole login instead.
+ */
+#define TORIRS_CONTROL_LOGIN_SUBVERSION_FRESH 0x544F5246
+
 enum TorirsControlType
 {
     /**

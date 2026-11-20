@@ -277,8 +277,11 @@ build_login_block(struct LoginOsrs* h)
     p2(&obuf, header_len + 2 + enclen + (int)bbuf.position);
     p4(&obuf, h->net->rev->client_version);
     /* subVersion: the ToriRS flag (net/torirs_control.h). The server sends
-     * control frames only to a session whose login carried it. */
-    p4(&obuf, TORIRS_CONTROL_LOGIN_SUBVERSION);
+     * control frames only to a session whose login carried it. A reloaded
+     * page presenting its resume token says it holds no game state, so the
+     * server answers with a login burst rather than a resync. */
+    p4(&obuf, h->reconnect && h->net->resume_in_flight ? TORIRS_CONTROL_LOGIN_SUBVERSION_FRESH
+                                                       : TORIRS_CONTROL_LOGIN_SUBVERSION);
     p4(&obuf, 0); /* serverVersion */
     p1(&obuf, h->net->client_type);   /* clientType (LoginClientType) */
     p1(&obuf, h->net->platform_type); /* platformType (LoginPlatformType) */

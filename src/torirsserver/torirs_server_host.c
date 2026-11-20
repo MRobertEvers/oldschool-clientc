@@ -42,6 +42,7 @@
 #include "torirs_server_session.h"
 #include "torirs_server_transport.h"
 #include "torirs_server_ws.h"
+#include "net/rev/pktnames.h"
 
 #include <assert.h>
 #include <signal.h>
@@ -281,6 +282,21 @@ struct ToriRSServerHost
 
     /* Recently ended sessions, for a GAMERECONNECT to reclaim. */
     struct ToriRSServerClaims claims;
+
+    /*
+     * A detached player's hold on its character's lease, by pid
+     * (ToriRSServerPlayer::detached). The connection that held it is gone;
+     * its count in the lease's `refs` stays, moved here, so the save goes back
+     * only when the player finally leaves the world (host_parked_logout) --
+     * or stays with the connection that takes the player back. "" for a pid
+     * with nothing parked, and always in development mode, which takes none.
+     */
+    struct
+    {
+        char key[ACCOUNT_KEY_MAX];
+    } parked[TORIRSSERVER_PLAYER_MAX];
+    /* Set at the top of a shutdown: every session's end is then a logout. */
+    int shutting_down;
 
     /* The characters this world holds leases on; empty in development mode,
      * which takes none. At most one per connection. */
@@ -913,6 +929,97 @@ host_lease_drop(
     return 1;
 }
 
+/* host_lease_drop for the hold a detached player parked (host->parked):
+ * the same answer, with the key the hold was under in `out_key`. */
+static int
+host_park_drop(
+    struct ToriRSServerHost* host,
+    int pid,
+    char out_key[ACCOUNT_KEY_MAX],
+    char out_token[ACCOUNT_LEASE_TOKEN_HEX + 1])
+{
+    struct ToriRSServerHostLease* lease;
+
+    out_key[0] = '\0';
+    out_token[0] = '\0';
+    if( !host->parked[pid].key[0] )
+        return 0;
+    snprintf(out_key, ACCOUNT_KEY_MAX, "%s", host->parked[pid].key);
+    host->parked[pid].key[0] = '\0';
+    lease = host_lease_find(host, out_key);
+    assert(lease);
+    assert(lease->refs > 0);
+    lease->refs--;
+    if( lease->refs > 0 || lease->pending > 0 )
+        return 0;
+    assert(lease->token[0]);
+    snprintf(out_token, ACCOUNT_LEASE_TOKEN_HEX + 1, "%s", lease->token);
+    lease->kept = 1;
+    lease->returning = 1;
+    return 1;
+}
+
+/*
+ * A detached player leaves the world: the idle logout, a login that took the
+ * character over, a shutdown. The same teardown host_conn_release gives a
+ * connected one -- `[logout]`, the save, and the save's lease back when this
+ * was the character's last hold -- with no connection to free.
+ */
+static void
+host_parked_logout(
+    struct ToriRSServerHost* host,
+    int pid,
+    const char* why)
+{
+    struct ToriRSServerPlayer* player = &host->srv->players[pid];
+    char key[ACCOUNT_KEY_MAX];
+    char token[ACCOUNT_LEASE_TOKEN_HEX + 1];
+    int last_hold;
+
+    assert(player->active);
+    assert(player->detached);
+    assert(!player->session);
+    last_hold = host_park_drop(host, pid, key, token);
+    if( last_hold )
+    {
+        snprintf(host->release_key, sizeof(host->release_key), "%s", key);
+        snprintf(host->release_token, sizeof(host->release_token), "%s", token);
+    }
+    fprintf(stderr, "torirsserver: %s logged out (%s, pid %d)\n", player->display_name, why,
+            pid);
+    ToriRSServer_WorldRemovePlayer(host->srv, player);
+    /* Not taken by a save: the return goes on its own. */
+    if( last_hold && host->release_key[0] )
+        host_return_submit(host, key, token);
+    host->release_key[0] = '\0';
+    host->release_token[0] = '\0';
+}
+
+/*
+ * Whether this connection's end leaves its player in the world.
+ *
+ * A lost link does -- a hidden phone tab, a dropped socket, a client that
+ * redials -- and only a logout ends the session: the button's p_logout, the
+ * idle logout, the control link, a shutdown. A login whose own burst never
+ * finished is removed as before: its client never had the player, and nothing
+ * of it can be resumed.
+ */
+static int
+host_conn_parks(
+    const struct ToriRSServerHost* host,
+    const struct ToriRSServerHostConn* c)
+{
+    const struct ToriRSServerPlayer* player = c->session.player;
+
+    if( !player || host->shutting_down || player->logout_requested )
+        return 0;
+    if( player->session != &c->session )
+        return 0;
+    if( player->login_scene_pending && !player->resume_burst )
+        return 0;
+    return 1;
+}
+
 /* ------------------------------------------------------------------ */
 /* Connection lifecycle                                                */
 /* ------------------------------------------------------------------ */
@@ -998,6 +1105,24 @@ host_conn_release(
     int armed;
 
     assert(c);
+    /*
+     * A lost link: the player stays in the world, detached, and the
+     * connection's hold on the lease moves to it. Everything below then sees
+     * a connection with no player and no hold, and only frees it.
+     */
+    if( host_conn_parks(host, c) )
+    {
+        struct ToriRSServerPlayer* player = c->session.player;
+
+        if( c->lease_held )
+        {
+            snprintf(host->parked[player->pid].key, sizeof(host->parked[player->pid].key), "%s",
+                     c->lease_key);
+            c->lease_held = 0;
+        }
+        ToriRSServer_WorldDetachPlayer(host->srv, player);
+        c->session.player = NULL;
+    }
     /* The character's last hold on this world: its save goes back from the
      * save job the removal below composes (host_save_sink), or on its own
      * when there is no player to save. */
@@ -1438,6 +1563,7 @@ host_stage_login(
     struct ToriRSServerHostConn* c = host->conns[index];
     struct ToriRSServerPlayer* player;
     struct ToriRSServerPlayer* evict;
+    struct ToriRSServerPlayer* attach = NULL;
     int claim;
 
     /* The peer can leave between raising the login and this stage running. */
@@ -1456,7 +1582,16 @@ host_stage_login(
         c->claim_held = 0;
     }
     else
-        claim = ToriRSServer_ClaimSlot(&host->claims, host->srv, &c->session, now_ms(), &evict);
+        claim = ToriRSServer_ClaimSlot(&host->claims, host->srv, &c->session, now_ms(), &evict,
+                                       &attach);
+    if( evict && evict->detached )
+    {
+        /* A fresh login for a character standing in the world detached: it
+         * leaves as a logout would, and this login loads the save that
+         * writes (the refetch below waits for it). */
+        host_parked_logout(host, evict->pid, "logged in again");
+        evict = NULL;
+    }
     if( evict )
     {
         /* Kill before removing, the order host_conn_release keeps: the session
@@ -1477,6 +1612,62 @@ host_stage_login(
          * with its password instead (ToriRS_Network_TakeResumeRefused). */
         c->awaiting_login = 0;
         host_conn_kill(host, c);
+        return;
+    }
+
+    if( attach )
+    {
+        char key[ACCOUNT_KEY_MAX];
+        char token[ACCOUNT_LEASE_TOKEN_HEX + 1];
+
+        c->awaiting_login = 0;
+        /*
+         * The same player, taken back: nothing is seated, saved or loaded.
+         *
+         * Still connected, it is a reconnect that beat the old socket's close:
+         * that connection lets go of it (and of its lease hold, which this
+         * one's grant now covers) and goes. Detached, the hold it parked is
+         * this connection's now.
+         */
+        if( attach->session )
+        {
+            for( int other = 0; other < TORIRSSERVER_HOST_CONN_CAP; other++ )
+            {
+                if( !host->conns[other] || host->conns[other]->session.player != attach )
+                    continue;
+                host->conns[other]->session.player = NULL;
+                host_conn_kill(host, host->conns[other]);
+            }
+            ToriRSServer_WorldDetachPlayer(host->srv, attach);
+        }
+        if( host_park_drop(host, attach->pid, key, token) )
+        {
+            /* Only possible when this connection holds no grant of its own;
+             * every login with a lease does (host_lease_answer). */
+            fprintf(stderr, "torirsserver: %s re-attached without a lease of its own; "
+                            "returning the parked one\n",
+                    attach->display_name);
+            host_return_submit(host, key, token);
+        }
+        /* The save this login read is not wanted: the character never left. */
+        if( c->session.save_bytes )
+            ToriMem_Free(ToriMem_ServerPlayers(), c->session.save_bytes);
+        c->session.save_bytes = NULL;
+        c->session.save_len = 0;
+        c->session.save_prefetched = 0;
+        c->session.player = attach;
+        attach->staff_level = c->session.staff_level;
+        attach->account_admin = c->session.account_admin;
+        attach->account_record = c->session.account_record;
+        ToriRSServer_WorldAttachPlayer(attach, &c->session);
+        fprintf(stderr, "torirsserver: %s re-attached (pid %d)\n", attach->display_name,
+                attach->pid);
+        if( !ToriRSServer_SessionPump(&c->session, host->srv) )
+        {
+            host_conn_kill(host, c);
+            return;
+        }
+        ToriRSServer_CoreReady(&host->core, &c->co);
         return;
     }
 
@@ -1519,6 +1710,9 @@ host_stage_login(
     }
     c->session.player = player;
     ToriRSServer_WorldPlayerInit(player);
+    /* What a GAMERECONNECT presents to have this player back, kept on the
+     * player because the session goes with the connection. */
+    memcpy(player->session_seed, c->session.seed, sizeof(player->session_seed));
     ToriRSServer_WorldSetDisplayName(player, c->session.display_name);
     player->staff_level = c->session.staff_level;
     player->account_admin = c->session.account_admin;
@@ -1621,6 +1815,7 @@ host_logout_everyone(struct ToriRSServerHost* host)
 {
     int live = 0;
 
+    host->shutting_down = 1;
     for( int i = 0; i < TORIRSSERVER_HOST_CONN_CAP; i++ )
     {
         struct ToriRSServerHostConn* c = host->conns[i];
@@ -1631,8 +1826,15 @@ host_logout_everyone(struct ToriRSServerHost* host)
             live++;
         host_conn_kill(host, c);
     }
+    for( int pid = 0; pid < host->srv->player_count; pid++ )
+        if( host->srv->players[pid].active && host->srv->players[pid].detached )
+            live++;
     fprintf(stderr, "torirsserver: shutting down — saving %d player(s)\n", live);
     host_drain_queue(host);
+    /* And the players with no connection to kill. */
+    for( int pid = 0; pid < host->srv->player_count; pid++ )
+        if( host->srv->players[pid].active && host->srv->players[pid].detached )
+            host_parked_logout(host, pid, "shutdown");
     /* Their logouts, which the loop will not reach to send: a moment to hand
      * them to the account server, and what it does not take waits in the
      * spool for the next start. */
@@ -1640,6 +1842,75 @@ host_logout_everyone(struct ToriRSServerHost* host)
     {
         ToriRSServer_HiscoresLinkWrite(host->srv->hiscores_link, host->srv->hiscores_log);
         ToriRSServer_HiscoresLinkDrain(host->srv->hiscores_link, 2000);
+    }
+}
+
+/*
+ * The idle logout, once per tick: TORIRSSERVER_IDLE_LOGOUT_TICKS with no input
+ * of the player's own ends the session, whether a client is attached or the
+ * player stands in the world detached -- the connection is not what decides
+ * it. Content may hold it off (`[proc,idle_logout_allowed]`: combat, a locked
+ * wave), as it holds the button off; asked again every tick until it says yes.
+ *
+ * A connected player is sent LOGOUT, which its client answers as its own
+ * Logout button -- back to the title, no reconnect -- and the session is
+ * ended; the teardown that follows removes rather than detaches it
+ * (logout_requested). A detached one has nothing to tell, and goes now.
+ */
+static int
+host_idle_logout_ticks(void)
+{
+    /* TORIRSSERVER_IDLE_LOGOUT_TICKS=<n>: a shorter clock for a test that
+     * would otherwise wait five minutes (test-torirsserver-host-reattach). */
+    static int ticks = -1;
+
+    if( ticks < 0 )
+    {
+        const char* configured = getenv("TORIRSSERVER_IDLE_LOGOUT_TICKS");
+
+        ticks = configured && atoi(configured) > 0 ? atoi(configured)
+                                                   : TORIRSSERVER_IDLE_LOGOUT_TICKS;
+    }
+    return ticks;
+}
+
+static void
+host_idle_logouts(struct ToriRSServerHost* host)
+{
+    struct ToriRSServer* srv = host->srv;
+    int const idle_ticks = host_idle_logout_ticks();
+
+    for( int pid = 0; pid < srv->player_count; pid++ )
+    {
+        struct ToriRSServerPlayer* player = &srv->players[pid];
+        struct ToriRSServerPlayer* was_active;
+        int32_t allowed = 1;
+
+        if( !player->active || player->logout_requested )
+            continue;
+        /* A slot with no client behind it at all (a selftest's, a bot's) has
+         * no clock; a detached one keeps the clock its client left. */
+        if( !player->session && !player->detached )
+            continue;
+        if( player->last_input_tick == TORIRSSERVER_INPUT_TICK_NEVER ||
+            (int32_t)srv->tick - player->last_input_tick < idle_ticks )
+            continue;
+        was_active = srv->active_player;
+        ToriRSServer_WorldSetActive(srv, player);
+        ToriRSServer_ScriptsRunProcInt(srv, "[proc,idle_logout_allowed]", NULL, 0, &allowed);
+        ToriRSServer_WorldSetActive(srv, was_active == player ? NULL : was_active);
+        if( !allowed )
+            continue;
+        player->logout_requested = 1;
+        if( player->detached )
+        {
+            host_parked_logout(host, pid, "idle");
+            continue;
+        }
+        fprintf(stderr, "torirsserver: %s idle for %d ticks; logging out (pid %d)\n",
+                player->display_name, (int)srv->tick - player->last_input_tick, pid);
+        ToriRSServer_Send(player, PKT_NAME_LOGOUT, NULL, 0, 0);
+        ToriRSServer_SessionKill(player->session);
     }
 }
 
@@ -1766,7 +2037,10 @@ ToriRSServer_HostRun(
              * and instance linger windows are owed it.
              */
             if( host->srv->world_built )
+            {
                 ToriRSServer_WorldTick(host->srv);
+                host_idle_logouts(host);
+            }
             else
                 /* The control link still answers before the first login (who
                  * is online: nobody), or a tool asking right after a restart

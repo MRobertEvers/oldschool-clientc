@@ -1276,6 +1276,23 @@ enum
 #define TORIRSSERVER_AFK_COMBAT_TICKS 2000
 
 /*
+ * How long a player stays logged in with no input of their own: the idle
+ * logout.
+ *
+ * The rev-239 client asks for it after 15000 client cycles (20 ms) without
+ * mouse or keyboard -- five minutes, `client.field983`'s default, which
+ * setIdleTimeout clamps to 15000..90000 -- and the reference's logout phase
+ * honours it once nothing prevents the logout (World.processLogouts,
+ * `requestIdleLogout` against `preventLogoutUntil`). Here the server keeps the
+ * clock itself, off `last_input_tick`, so it runs the same whether a client is
+ * attached or its connection went: a player whose tab was hidden stays in the
+ * world (ToriRSServerPlayer::detached) until this ends the session, not until
+ * the socket closes. 300 s / 600 ms = 500 ticks. Content may defer it,
+ * `[proc,idle_logout_allowed]` (combat, a locked minigame wave).
+ */
+#define TORIRSSERVER_IDLE_LOGOUT_TICKS 500
+
+/*
  * How long a swing keeps a player and an npc in combat with each other, for
  * single-way combat: content's `add(%lastcombat, 8) > map_clock`
  * (skill_combat/combat.rs2). The engine needs the number for the reads it
@@ -4059,6 +4076,26 @@ struct ToriRSServerPlayer
      */
     struct ToriRSServer* world;
     struct ToriRSServerSession* session;
+    /**
+     * In the world with no client: its connection went and nothing has logged
+     * it out. The reference keeps an x-logged player standing where it was
+     * (World.processLogouts) and a GAMERECONNECT re-attaches the new socket
+     * to it (World.ts "reconnect a new socket with player in the world");
+     * here the same is ToriRSServer_WorldDetachPlayer /
+     * ToriRSServer_WorldAttachPlayer. What ends it is the idle logout
+     * (TORIRSSERVER_IDLE_LOGOUT_TICKS), as for a player still connected.
+     */
+    int detached;
+    /** The cipher seed of the session last attached: what a GAMERECONNECT
+     *  must present to have this player back, connected or not. */
+    int32_t session_seed[4];
+    /** The session's end is a logout -- the button's p_logout, the idle
+     *  logout, the control link -- and not a lost link: the host removes
+     *  the player rather than detaching it. */
+    int logout_requested;
+    /** The scene barrier (`login_scene_pending`) is a re-attach's: its
+     *  MAP_BUILD_COMPLETE sends the resync, not the login burst. */
+    int resume_burst;
     /** The account's session recording, when its record says `record = 1`
      *  (torirs_server_recording.h); NULL otherwise. Set at login after the
      *  init clears the slot, cleared when the player leaves it. */
@@ -6477,6 +6514,37 @@ void
 ToriRSServer_WorldRemovePlayer(
     struct ToriRSServer* srv,
     struct ToriRSServerPlayer* player);
+
+/**
+ * The player's connection went, and nothing logged it out: it stays in the
+ * world, as it was, with no client (ToriRSServerPlayer::detached). No
+ * `[logout]`, no save, no slot freed -- the session is still the player's
+ * until the idle logout ends it (TORIRSSERVER_IDLE_LOGOUT_TICKS) or a
+ * reconnect takes it back (ToriRSServer_WorldAttachPlayer). Every send to it
+ * is dropped meanwhile, as for any sessionless player.
+ */
+void
+ToriRSServer_WorldDetachPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player);
+
+/**
+ * A reconnect takes back a player that is still in the world: the reference's
+ * "reconnect a new socket with player in the world" and Player.onReconnect.
+ *
+ * Nothing is loaded and no script runs: not `[logout]`, not `[login]`. The
+ * client kept its widgets, varps and inventories across the lost link and
+ * dropped its entities and scene (App_NetSessionReset), so the server forgets
+ * what it told that client about the world, answers RECONNECT_OK with the
+ * player-info init, rebuilds the scene and, once the client has built it,
+ * restates the player's own state (varps from a VARP_RESET, stats, the run
+ * orb, every bound container) and closes any modal, as the reference does.
+ * `player` must have no session: the host detaches it from any old one first.
+ */
+void
+ToriRSServer_WorldAttachPlayer(
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerSession* session);
 
 /**
  * The despawn choke point for players — the exact `ToriRSServer_WorldNpcFree`

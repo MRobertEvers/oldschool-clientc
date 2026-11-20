@@ -230,6 +230,10 @@ struct ToriRSServerSession
      *  ToriRS client, which reads control frames (net/torirs_control.h). A
      *  stock client is never sent one. */
     int torirs_control;
+    /** 1 when it was TORIRS_CONTROL_LOGIN_SUBVERSION_FRESH: a ToriRS client
+     *  booted fresh, holding no game state, so a reconnect from it is not
+     *  re-attached with a resync (torirs_server_claim.h). */
+    int client_fresh;
 };
 
 /*

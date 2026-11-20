@@ -15874,6 +15874,9 @@ script_command(
          * A selftest player has no session; that is a real state, not a
          * contract violation. */
         assert(player);
+        /* A logout, not a lost link: the host removes the player rather than
+         * leaving it in the world detached (torirs_server_host.c). */
+        player->logout_requested = 1;
         if( player->session )
             ToriRSServer_SessionKill(player->session);
         return 1;

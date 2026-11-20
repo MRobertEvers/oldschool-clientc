@@ -785,8 +785,15 @@ step_login(
      */
     rsprot_buf_wrap_read(&in, session->in + 3, (size_t)payload_len);
     (void)rsprot_g4_1234(&in); /* version */
-    /* subVersion: our client's flag that it reads control frames. */
-    session->torirs_control = rsprot_g4_1234(&in) == TORIRS_CONTROL_LOGIN_SUBVERSION;
+    /* subVersion: our client's flag that it reads control frames, and whether
+     * it booted fresh (net/torirs_control.h). */
+    {
+        int32_t sub = rsprot_g4_1234(&in);
+
+        session->client_fresh = sub == TORIRS_CONTROL_LOGIN_SUBVERSION_FRESH;
+        session->torirs_control =
+            sub == TORIRS_CONTROL_LOGIN_SUBVERSION || session->client_fresh;
+    }
     if( login_is_239(srv) )
         (void)rsprot_g4_1234(&in); /* serverVersion, new at revision 237 */
     session->client_type = rsprot_g1(&in);   /* clientType (LoginClientType) */
