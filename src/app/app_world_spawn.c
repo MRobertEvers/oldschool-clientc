@@ -1009,6 +1009,16 @@ app_spawn_wanted(struct Task_AppSpawn* self)
     return App_ParallelTaskWorld(self->app, &self->par, "spawn") != NULL;
 }
 
+/* Count one part the spawn waits for on its join: a load of its own task
+ * through the assets table, so the spawn's step does not decode it. */
+static void
+app_spawn_await_part(
+    struct Task_AppSpawn* self,
+    struct AssetKey key)
+{
+    (void)Assets_Await(self->app->assets, key, &self->pending);
+}
+
 static int
 Task_AppSpawn_Run(
     struct ToriRS_Task* base,
@@ -1022,8 +1032,8 @@ Task_AppSpawn_Run(
     if( self->kind == APP_SPAWN_PLAYER )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-        PT_TASK_AWAITSELF_IF(
-            CreateTask_SequenceLoad(app->provider, app->scene, APP_PLAYER_SEQ_READY));
+        app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_SEQUENCE, APP_PLAYER_SEQ_READY, 0));
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
         if( !app_spawn_wanted(self) )
             PT_EXIT(&self->pt);
         app_world_spawn_player_now(app, self->tile_x, self->tile_z, self->level);
@@ -1051,7 +1061,8 @@ Task_AppSpawn_Run(
     }
     else if( self->kind == APP_SPAWN_OBJ )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->obj_id));
+        app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_CONFIG, self->obj_id, ASSET_CONFIG_OBJ));
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
         {
             struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->obj_id);
             if( obj && obj->inventory_model_id > 0 )
@@ -1059,7 +1070,8 @@ Task_AppSpawn_Run(
         }
         if( self->model_id > 0 )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+            app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_MODEL, self->model_id, 0));
+            TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
             if( !app_spawn_wanted(self) )
                 PT_EXIT(&self->pt);
             /* The applicator resolves the cursor itself, so re-arm it with the
@@ -1107,10 +1119,13 @@ Task_AppSpawn_Run(
             self->model_id = obj ? app_plugin_object_model_id(app, obj) : -1;
             self->seq_id = obj ? app_plugin_object_seq_id(app, obj) : -1;
         }
+        /* Together, through the assets table: the loads are their own tasks,
+         * so this one's step is the apply alone. */
         if( self->model_id >= 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+            app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_MODEL, self->model_id, 0));
         if( self->seq_id >= 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+            app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_SEQUENCE, self->seq_id, 0));
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
         if( !app_spawn_wanted(self) )
         {
             /* Its record still says a load is on its way: a later sync asks
