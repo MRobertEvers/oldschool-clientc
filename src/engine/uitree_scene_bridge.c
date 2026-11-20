@@ -1697,6 +1697,97 @@ UITreeSceneBridge_EnsureNpcHead(
 }
 
 int
+UITreeSceneBridge_EnsureNpcHeadCustom(
+    struct UITreeSceneBridge* bridge,
+    int npc_id,
+    uint32_t serial,
+    int const* models,
+    int model_count,
+    int const* recolours,
+    int recolour_count,
+    int const* retextures,
+    int retexture_count)
+{
+    struct ToriRS_Npctype* npc;
+    struct ToriDraw_Model** parts;
+    struct ToriDraw_Model* merged;
+    struct ToriDraw_ModelHandle hnd;
+    int const key = -1 - (int)(serial & UITREE_SCENE_NPC_HEAD_CUSTOM_MASK);
+    int part_count = 0;
+    int scene_id;
+
+    assert(bridge && bridge->scene && bridge->provider);
+    assert(serial > 0);
+    assert(model_count >= 0);
+    assert(recolour_count >= 0);
+    assert(retexture_count >= 0);
+    if( npc_id < 0 )
+        return -1;
+    scene_id = bridge_map_get(bridge->npc_head_map, key);
+    if( scene_id > 0 )
+        return scene_id;
+    if( !CacheProvider_NpctypeHas(bridge->provider, npc_id) )
+        return -1;
+    npc = CacheProvider_NpctypeGet(bridge->provider, npc_id);
+    if( !npc )
+        return -1;
+    if( !models )
+    {
+        models = npc->heads;
+        model_count = npc->heads ? npc->heads_count : 0;
+    }
+    /* Every part or none, as EnsureNpcHead (NpcType.getHead's two passes). */
+    for( int i = 0; i < model_count; i++ )
+        if( models[i] >= 0 && !CacheProvider_ModelHas(bridge->provider, models[i]) )
+            return -1;
+    if( model_count == 0 )
+        return -1;
+    /* As many parts as the override sent (a byte's worth): sized from it. */
+    parts = ToriMem_Alloc(ToriMem_Frame(), (size_t)model_count * sizeof(*parts));
+    assert(parts);
+    for( int i = 0; i < model_count; i++ )
+    {
+        struct ToriRS_Model* rs;
+
+        if( models[i] < 0 )
+            continue;
+        rs = CacheProvider_ModelGet(bridge->provider, models[i]);
+        assert(rs);
+        parts[part_count] = ToriDraw_ModelFromToriRS(rs);
+        assert(parts[part_count]);
+        part_count++;
+    }
+    merged = part_count > 0 ? ToriDraw_ModelNewMerge(parts, part_count) : NULL;
+    for( int i = 0; i < part_count; i++ )
+        ToriDraw_ModelFree(parts[i]);
+    ToriMem_Free(ToriMem_Frame(), parts);
+    if( !merged )
+        return -1;
+    /* Statics.method9224: the type's source colours, each to the override's
+     * value at that index where it sent one, else the type's own. */
+    for( int r = 0; r < npc->recolor_count; r++ )
+        ToriDraw_ModelRecolor(
+            merged, npc->recolors_from[r], r < recolour_count ? recolours[r] : npc->recolors_to[r]);
+    for( int r = 0; r < npc->retexture_count; r++ )
+        ToriDraw_ModelRetexture(
+            merged, npc->retextures_from[r], r < retexture_count ? retextures[r] : npc->retextures_to[r]);
+    ToriDraw_ModelSetBoundsCylinder(merged);
+    ToriDraw_ModelCaptureOriginalVertices(merged);
+    ToriDraw_ModelDropNonSdTextures(bridge->provider, merged);
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = merged;
+    if( bridge->npc_light_uses_type_ambient_contrast )
+        ToriDraw_LightModelActor(hnd, npc->contrast, npc->ambient);
+    else
+        ToriDraw_LightModelScene(hnd, 0, 0);
+    scene_id = (int)(UITREE_SCENE_NPC_HEAD_CUSTOM_BASE | (serial & UITREE_SCENE_NPC_HEAD_CUSTOM_MASK));
+    ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
+    bridge_map_put(bridge, bridge->npc_head_map, key, scene_id);
+    return scene_id;
+}
+
+int
 UITreeSceneBridge_EnsurePlayerHead(
     struct UITreeSceneBridge* bridge,
     int const slots[12],

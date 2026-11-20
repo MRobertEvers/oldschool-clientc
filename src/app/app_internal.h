@@ -3107,6 +3107,18 @@ app_world_build_npc_model(
 
 /* An npc's body under its server customisation `o` (active), cached under the
  * type and the override's serial. NULL while a model is not resident. */
+/* IF_SETNPCHEAD_ACTIVE for an npc (pool index `world_idx`) that carries a
+ * chathead customisation (head_custom.active, not a mirror): the head of its
+ * drawn type under that override (deob class37.method627: the npc's
+ * transformed type and method2919's override, built by class405.method9172),
+ * composited by the head task from the override as it was when the packet
+ * came; the override's serial keys it. */
+void
+App_SetInterfaceNpcHeadCustom(
+    struct App* app,
+    int component_id,
+    int world_idx);
+
 /* The local player's body changed: every npc whose body customisation mirrors
  * the local player (0x10) is remounted from it. */
 void

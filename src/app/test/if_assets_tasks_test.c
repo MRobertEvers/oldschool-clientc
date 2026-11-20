@@ -37,6 +37,9 @@
 #include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/uitree_scene_bridge.h"
+#include "world/entity_npc.h"
+#include "world/world.h"
+#include "game/rs_entity_sync.h"
 #include "mem/torirs_mem.h"
 #include "toridraw_scene.h"
 
@@ -675,7 +678,8 @@ test_npc_headicon_groups_load(void)
 
     /* It lands with one frame: frame 0 draws, frame 1 of it would not. */
     CacheProvider_SpriteAdd(&fx.provider, 88, drawable_sprite());
-    Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_SPRITE, 88, 0), true);
+    if( loads_of(ASSET_KIND_SPRITE, 88, 0) == 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_SPRITE, 88, 0), true);
     pump(&fx);
     TEST_ASSERT(!App_SpriteFillPending(&fx.app, 88), "and it landed");
     npc.headicon_index[1] = 1;
@@ -691,6 +695,76 @@ test_npc_headicon_groups_load(void)
     fixture_free(&fx);
 }
 
+/* E12 HEAD_CUSTOM: an IF_SETNPCHEAD_ACTIVE head of an npc carrying a
+ * chathead customisation loads the override's models, not the type's heads,
+ * keyed by the override (a second override is a second head). */
+static void
+test_npc_head_custom_loads_its_models(void)
+{
+    struct Fixture fx;
+    struct ToriRS_Npctype* type;
+    struct WorldEntity_NPC* npc;
+    struct UIIfHead const* head;
+    int const com = 0x00e70002;
+    int const models[2] = { 71, 72 };
+    int idx;
+
+    printf("TEST: a chathead customisation's head loads the override's models\n");
+    fixture_init(&fx);
+    type = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*type));
+    assert(type);
+    type->transform_varbit = -1;
+    type->transform_varp = -1;
+    type->heads_count = 1;
+    type->heads = ToriMem_Alloc(ToriMem_Assets(), sizeof(*type->heads));
+    assert(type->heads);
+    type->heads[0] = 70;
+    CacheProvider_NpctypeAdd(&fx.provider, 500, type);
+    fx.app.world = World_New();
+    RS_EntitySync_Init(&fx.app.esync);
+    idx = World_NpcSpawn(fx.app.world, 9, 500, 0, 10, 10, 1, (struct WorldEntityFacet_IdleAnimations){ 0 });
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, idx);
+    npc->server_slot = 12;
+    RS_EntitySync_RegisterNpc(&fx.app.esync, 12, 9, idx);
+    {
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 2, .models = models };
+        World_NpcSetHeadCustom(fx.app.world, idx, &in);
+    }
+
+    App_SetInterfaceNpcHeadCustom(&fx.app, com, idx);
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 71, 0) == 1, "it wants the override's first model");
+    if( loads_of(ASSET_KIND_MODEL, 71, 0) == 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 71, 0), false);
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 72, 0) == 1, "then its second");
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 70, 0) == 0, "and not the type's head");
+    head = head_of(&fx, com);
+    TEST_ASSERT(head && head->custom_serial == npc->head_custom.serial && head->npc_id == 500,
+        "the head names the override");
+
+    /* A new override of the same npc is a new head. */
+    {
+        int const other[1] = { 73 };
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = other };
+        World_NpcSetHeadCustom(fx.app.world, idx, &in);
+    }
+    App_SetInterfaceNpcHeadCustom(&fx.app, com, idx);
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 73, 0) == 1, "a new override wants its own models");
+    if( loads_of(ASSET_KIND_MODEL, 72, 0) == 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 72, 0), false);
+    if( loads_of(ASSET_KIND_MODEL, 73, 0) == 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 73, 0), false);
+    pump(&fx);
+    head = head_of(&fx, com);
+    TEST_ASSERT(head && head->landed && head->scene_id < 0, "parts that did not come land nothing to show");
+    RS_EntitySync_Free(&fx.app.esync);
+    World_Free(fx.app.world);
+    fx.app.world = NULL;
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -703,6 +777,7 @@ main(void)
     test_sprite_reservation_outlives_a_logout();
     test_bind_without_a_loader_is_unbound();
     test_npc_headicon_groups_load();
+    test_npc_head_custom_loads_its_models();
     if( g_failures )
     {
         printf("if_assets_tasks: %d failure(s)\n", g_failures);

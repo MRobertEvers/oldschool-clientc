@@ -2237,6 +2237,8 @@ exec_if_setnpchead_active(
              * with field5094 is type 3). */
             if( npc && npc->head_custom.active && npc->head_custom.mirror )
                 App_SetInterfacePlayerHead(ctx->app, p->component_id);
+            else if( npc && npc->head_custom.active )
+                App_SetInterfaceNpcHeadCustom(ctx->app, p->component_id, world_idx);
             else if( npc )
                 App_SetInterfaceNpcHead(
                     ctx->app,

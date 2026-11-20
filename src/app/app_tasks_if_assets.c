@@ -107,6 +107,25 @@ struct Task_IfModel
     int texture_ids[APP_IFMODEL_TEXTURES_MAX];
     int texture_count;
     int i;
+    /* The models it awaits and draws its textures from: model_ids, or the
+     * chathead customisation's own list. */
+    int const* await_ids;
+    int await_count;
+
+    /* IF_SETNPCHEAD_ACTIVE of an npc with a chathead customisation: the
+     * override's serial (0: none) and its arrays, copied from the npc when
+     * the task was made, each sized from the wire (owned, ToriMem_Process).
+     * `custom_found` 0: the npc or that override was gone by then, and the
+     * head shows nothing (the reference's npc lookup answering null). */
+    uint32_t custom_serial;
+    int custom_found;
+    int custom_models_sent;
+    int* custom_models;
+    int custom_model_count;
+    int* custom_recolours;
+    int custom_recolour_count;
+    int* custom_retextures;
+    int custom_retexture_count;
 };
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -173,13 +192,13 @@ if_model_collect_textures(struct Task_IfModel* self)
     struct App* app = self->app;
 
     self->texture_count = 0;
-    for( int m = 0; m < self->model_count; m++ )
+    for( int m = 0; m < self->await_count; m++ )
     {
         struct ToriRS_Model* model;
 
-        if( !CacheProvider_ModelHas(app->provider, self->model_ids[m]) )
+        if( !CacheProvider_ModelHas(app->provider, self->await_ids[m]) )
             continue;
-        model = CacheProvider_ModelGet(app->provider, self->model_ids[m]);
+        model = CacheProvider_ModelGet(app->provider, self->await_ids[m]);
         if( !model || !model->face_textures )
             continue;
         for( int f = 0; f < model->face_count; f++ )
@@ -206,6 +225,19 @@ if_model_compose(struct Task_IfModel* self)
 {
     struct App* app = self->app;
 
+    if( self->kind == UI_IFHEAD_NPC && self->custom_serial )
+        return self->resolved_npc_id < 0 || !self->custom_found
+                   ? -1
+                   : UITreeSceneBridge_EnsureNpcHeadCustom(
+                         &app->bridge,
+                         self->resolved_npc_id,
+                         self->custom_serial,
+                         self->custom_models_sent ? self->custom_models : NULL,
+                         self->custom_model_count,
+                         self->custom_recolours,
+                         self->custom_recolour_count,
+                         self->custom_retextures,
+                         self->custom_retexture_count);
     if( self->kind == UI_IFHEAD_NPC )
         return self->resolved_npc_id < 0
                    ? -1
@@ -308,10 +340,25 @@ Task_IfModel_Run(
                                 : 0;
     }
 
-    for( self->i = 0; self->i < self->model_count; self->i++ )
+    self->await_ids = self->model_ids;
+    self->await_count = self->model_count;
+    /* A chathead customisation's own models replace the type's heads. */
+    if( self->kind == UI_IFHEAD_NPC && self->custom_serial )
     {
+        if( !self->custom_found )
+            self->await_count = 0;
+        else if( self->custom_models_sent )
+        {
+            self->await_ids = self->custom_models;
+            self->await_count = self->custom_model_count;
+        }
+    }
+    for( self->i = 0; self->i < self->await_count; self->i++ )
+    {
+        if( self->await_ids[self->i] < 0 )
+            continue;
         PT_PARALLEL_AWAIT_ASSET(
-            app->assets, AssetKey_Make(ASSET_KIND_MODEL, self->model_ids[self->i], 0));
+            app->assets, AssetKey_Make(ASSET_KIND_MODEL, self->await_ids[self->i], 0));
         if( RS_ParallelTask_Cancelled(&self->par) )
             PT_EXIT(&self->pt);
     }
@@ -373,7 +420,57 @@ Task_IfModel_Free(struct ToriRS_Task* base)
 {
     struct Task_IfModel* self = (struct Task_IfModel*)base;
     App_ParallelTaskRelease(self->app, &self->par);
+    ToriMem_Free(ToriMem_Process(), self->custom_models);
+    ToriMem_Free(ToriMem_Process(), self->custom_recolours);
+    ToriMem_Free(ToriMem_Process(), self->custom_retextures);
     ToriMem_Free(ToriMem_Process(), self);
+}
+
+/* A copy of `n` ints (NULL for none), owned by the task. */
+static int*
+if_model_ints(
+    int const* src,
+    int n)
+{
+    int* owned;
+
+    if( n == 0 )
+        return NULL;
+    assert(src);
+    owned = ToriMem_Alloc(ToriMem_Process(), (size_t)n * sizeof(*owned));
+    assert(owned);
+    memcpy(owned, src, (size_t)n * sizeof(*owned));
+    return owned;
+}
+
+/* The chathead customisation a head names, copied from its npc as it is now:
+ * the npc in that server slot with that spawn serial, still carrying that
+ * override. */
+static void
+if_model_copy_custom(
+    struct Task_IfModel* task,
+    struct App* app,
+    struct UIIfHead const* head)
+{
+    struct WorldEntity_NPC const* npc = NULL;
+    int idx = -1;
+
+    task->custom_serial = head->custom_serial;
+    if( !head->custom_serial )
+        return;
+    if( app->world && RS_EntitySync_FindNpc(&app->esync, head->custom_npc_slot, &idx, NULL) )
+        npc = World_EntityPoolGet(&app->world->entities.npc, idx);
+    if( !npc || npc->spawn_serial != head->custom_npc_spawn_serial || !npc->head_custom.active ||
+        npc->head_custom.serial != head->custom_serial )
+        return;
+    task->custom_found = 1;
+    task->custom_models_sent = npc->head_custom.models_sent;
+    task->custom_model_count = npc->head_custom.model_count;
+    task->custom_models = if_model_ints(npc->head_custom.models, npc->head_custom.model_count);
+    task->custom_recolour_count = npc->head_custom.recolour_count;
+    task->custom_recolours = if_model_ints(npc->head_custom.recolours, npc->head_custom.recolour_count);
+    task->custom_retexture_count = npc->head_custom.retexture_count;
+    task->custom_retextures = if_model_ints(npc->head_custom.retextures, npc->head_custom.retexture_count);
 }
 
 void
@@ -408,6 +505,8 @@ App_IfModelWant(
     task->shown_obj_id = head->npc_id;
     if( task->kind == UI_IFHEAD_PLAYER )
         if_model_copy_appearance(task, app);
+    if( task->kind == UI_IFHEAD_NPC )
+        if_model_copy_custom(task, app, head);
     PT_INIT(&task->pt);
     /* The parallel queue, as an ordinary task: the request is already stored
      * and the bind shows it on whichever frame it lands, so nothing orders
