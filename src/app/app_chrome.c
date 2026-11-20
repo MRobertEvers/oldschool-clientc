@@ -247,7 +247,7 @@ app_chrome_skin_tile(struct App* app)
 
     assert(app);
     /* A build without the skin draws the flat look and tiles nothing. */
-    if( !(app->dev_overlay->ui.skin_avail & ((uint64_t)1 << TORIRS_CHROME_SKIN_PANEL_BODY)) )
+    if( !ToriRSChrome_SkinAvailable(&app->dev_overlay->ui, TORIRS_CHROME_SKIN_PANEL_BODY) )
         return;
     body = ToriRSChromeBake_Skin(
         TORIRS_CHROME_SKIN_PANEL_BODY, ToriRSChrome_ScaleQ(&app->dev_overlay->ui));
