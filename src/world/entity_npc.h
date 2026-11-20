@@ -60,6 +60,13 @@ struct WorldNpcOverride
     int* recolours;
     int retexture_count;
     int* retextures;
+    /** The V4 form's recolour-all (osrs242: 0x4 then a 1 flag byte and a
+     *  g2): every face of the body takes `recolour_all`, in place of the
+     *  index-for-index recolours; 65535 (-1 as the reference's short) is none
+     *  and the list follows instead (rev-242 deob class454.method10217:
+     *  `if (var10 != -1) var9.method4694(var10)` else the per-colour list). */
+    bool has_recolour_all;
+    int recolour_all;
     /** 0x10: draw the local player instead (class399.field5094). */
     bool mirror;
     /** 0x20 (the counted forms): draw a player composition built from

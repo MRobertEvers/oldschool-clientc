@@ -444,6 +444,16 @@ app_world_build_npc_override_model(
             .retextures_to = retextures_to,
             .retexture_count = npctype->retexture_count,
         };
+
+        /* The V4 form's recolour-all: every face that colour, and the
+         * per-colour list is not applied (rev-242 deob
+         * class454.method10217); the retextures still are. */
+        if( World_NpcOverrideRecolourAll(o) >= 0 )
+        {
+            recolors.has_tint = true;
+            recolors.tint = World_NpcOverrideRecolourAll(o);
+            recolors.recolor_count = 0;
+        }
         model = app_world_build_model(
             app,
             o->models_sent ? o->models : npctype->models,

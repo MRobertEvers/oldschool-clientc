@@ -3864,6 +3864,8 @@ world_override_set(
         next.recolours = world_override_ints(in->recolours, in->recolour_count);
         next.retexture_count = in->retexture_count;
         next.retextures = world_override_ints(in->retextures, in->retexture_count);
+        next.has_recolour_all = in->has_recolour_all;
+        next.recolour_all = in->recolour_all;
         next.mirror = in->mirror;
         next.player = in->player;
         next.body_type = in->body_type;
@@ -3910,6 +3912,17 @@ World_NpcOverrideRecolour(
     assert(o);
     assert(i >= 0);
     return o->active && i < o->recolour_count ? o->recolours[i] : type_value;
+}
+
+int
+World_NpcOverrideRecolourAll(struct WorldNpcOverride const* o)
+{
+    assert(o);
+    if( !o->active || !o->has_recolour_all )
+        return -1;
+    if( (o->recolour_all & 0xffff) == 0xffff )
+        return -1;
+    return o->recolour_all & 0xffff;
 }
 
 int64_t

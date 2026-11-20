@@ -12,6 +12,7 @@
 #include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/uitree_scene_bridge.h"
+#include "engine/torirs_model_inst_cache.h"
 #include "game/rs_entity_sync.h"
 #include "game/task_exec_entity_info.h"
 #include "game/task_entity_assets.h"
@@ -1458,6 +1459,114 @@ test_npc_typed_custom_waits_for_its_type(void)
     g_a1_fx = NULL;
 }
 
+/*
+ * A6: osrs242's BodyCustomisationV4 (0x2000) can send a recolour-all: 0x4,
+ * then a flag byte of 1 and a colour. The rev-242 reference paints every face
+ * of the body that colour and does not apply the per-colour list
+ * (class454.method10217: `if (var10 != -1) var9.method4694(var10)` else the
+ * list); 65535 is -1 as its short, and then the list follows on the wire and
+ * is applied.
+ */
+static int
+a6_npc_info_v4(
+    uint8_t* out,
+    int cap,
+    int colour)
+{
+    RsprotBuf b;
+
+    rsprot_buf_wrap(&b, out, cap);
+    rsprot_p1(&b, 0x01);
+    rsprot_p1(&b, 0x9F);
+    rsprot_p1(&b, 0xFF);
+    rsprot_p1(&b, 0xE0);
+    rsprot_p1(&b, 0x04); /* a second flag byte */
+    rsprot_p1(&b, 0x20); /* BIT_BODY_CUSTOMISATION_V4 (0x2000) */
+    rsprot_p1_add128(&b, 0x4);
+    rsprot_p1_add128(&b, 1); /* a recolour-all */
+    rsprot_p2_12_add128(&b, colour);
+    if( colour == 65535 )
+    {
+        rsprot_p1_add128(&b, 1);
+        rsprot_p2_21(&b, 4321);
+    }
+    TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+    return b.wpos;
+}
+
+/* One triangle of colour 500, the cache's model 9000. */
+static void
+a6_triangle(struct EntityFixture* fx)
+{
+    struct ToriRS_Model* m = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m));
+
+    m->vertex_count = 3;
+    m->face_count = 1;
+    m->vertices_x = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_x));
+    m->vertices_y = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_y));
+    m->vertices_z = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_z));
+    m->vertices_x[1] = 64;
+    m->vertices_z[2] = 64;
+    m->face_indices_a = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_a));
+    m->face_indices_b = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_b));
+    m->face_indices_c = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_c));
+    m->face_indices_b[0] = 1;
+    m->face_indices_c[0] = 2;
+    m->face_colors = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors));
+    m->face_colors[0] = 500;
+    m->face_colors_a = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_a));
+    m->face_colors_b = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_b));
+    m->face_colors_c = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_c));
+    CacheProvider_ModelAdd(&fx->provider, 9000, m);
+}
+
+static void
+test_npc_body_custom_v4_recolour_all(void)
+{
+    static uint8_t packet[64];
+    static struct ToriRS_Network net242;
+    struct EntityFixture fx;
+    struct ToriRS_Npctype* type;
+    struct WorldEntity_NPC* npc;
+    struct ToriDraw_Model* model;
+    int len;
+
+    printf("TEST: a V4 body customisation's recolour-all paints the whole body\n");
+    net242.rev = GameProtoRev_OSRS242();
+    fixture_init(&fx);
+    fx.app.net = &net242;
+    type = fixture_npctype(&fx, 520, 9000);
+    a1_npctype_lists(type, 1, 0);
+    type->recolors_from[0] = 500;
+    type->recolors_to[0] = 600;
+    a6_triangle(&fx);
+    register_npc(&fx.app, 301, 520, 6, 30, 30);
+    TEST_ASSERT(TorirsModelInstCache_Init(&fx.app.model_inst_cache), "the built bodies' cache");
+
+    len = a6_npc_info_v4(packet, (int)sizeof(packet), 1234);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && World_NpcOverrideRecolourAll(&npc->body_custom) == 1234, "the override keeps its colour");
+    model = npc ? app_world_build_npc_override_model(&fx.app, 520, type, &npc->body_custom) : NULL;
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 1234,
+        "every face is that colour, not the type's recolour");
+    if( model )
+        ToriDraw_ModelFree(model);
+
+    len = a6_npc_info_v4(packet, (int)sizeof(packet), 65535);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && World_NpcOverrideRecolourAll(&npc->body_custom) == -1, "65535 is none");
+    TEST_ASSERT(npc && npc->body_custom.recolour_count == 1 && npc->body_custom.recolours[0] == 4321,
+        "and the list that follows is the override's");
+    model = npc ? app_world_build_npc_override_model(&fx.app, 520, type, &npc->body_custom) : NULL;
+    TEST_ASSERT(model && model->face_colors && model->face_colors[0] == 4321, "applied index for index");
+    if( model )
+        ToriDraw_ModelFree(model);
+    TorirsModelInstCache_Free(&fx.app.model_inst_cache);
+    fixture_free(&fx);
+}
+
 /* E12, flags 0x10 and 0x20: a body customisation that mirrors the local
  * player is remounted when the local player's body changes, and one that is
  * a player composition draws nothing of the npc's type and does not follow
@@ -1926,6 +2035,7 @@ main(void)
     test_npc_body_custom_recolours_without_models();
     test_npc_typed_custom_reads_the_rest_of_the_packet();
     test_npc_typed_custom_waits_for_its_type();
+    test_npc_body_custom_v4_recolour_all();
     test_npc_body_custom_mirror_and_player();
     test_npc_body_custom_player_draws_its_models();
     test_npc_freeze_reaches_the_world();

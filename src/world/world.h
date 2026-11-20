@@ -1708,6 +1708,8 @@ struct WorldNpcOverrideIn
     int const* recolours;
     int retexture_count;
     int const* retextures;
+    bool has_recolour_all;
+    int recolour_all;
     bool mirror;
     bool player;
     int body_type;
@@ -1777,6 +1779,12 @@ World_NpcOverrideRecolour(
     struct WorldNpcOverride const* o,
     int i,
     int type_value);
+
+/* The colour every face of an override's body takes (the V4 form's
+ * recolour-all), or -1 when it sent none or sent 65535, the reference's -1 as
+ * a short (rev-242 deob class454.method10217). */
+int
+World_NpcOverrideRecolourAll(struct WorldNpcOverride const* o);
 
 /* The key a built npc body is cached under (deob Statics.method9204: the type
  * id, and an override's serial above it): the type's own body is `npc_id`, a

@@ -1424,6 +1424,8 @@ npc_apply_custom(
         .recolours = b->recolours,
         .retexture_count = b->retexture_count,
         .retextures = b->retextures,
+        .has_recolour_all = b->has_recolour_all,
+        .recolour_all = b->recolour_all,
         .mirror = b->mirror >= 0 ? b->mirror == 1 : (b->flag & 0x10) != 0,
         .player = (b->flag & 0x20) != 0 && b->body_type >= 0,
         .body_type = b->body_type,
