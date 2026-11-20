@@ -319,6 +319,7 @@ Task_ScriptObjModel_Run(
 {
     struct Task_ScriptObjModel* self = (struct Task_ScriptObjModel*)base;
     struct App* app = self->app;
+    int32_t idx;
 
     (void)io;
     PT_BEGIN(&self->pt);
@@ -330,7 +331,15 @@ Task_ScriptObjModel_Run(
 
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
-    if( app_script_widget_live(app, &self->widget) < 0 )
+    idx = app_script_widget_live(app, &self->widget);
+    if( idx < 0 )
+        PT_EXIT(&self->pt);
+    /* A later set that made no task of its own -- a clear (`cc_setobject`
+     * with -1), or an obj drawn at once from its icon -- wrote the node
+     * without cancelling this one. The node holds what the latest set put
+     * there; this task's obj is not it any more. */
+    if( app->tree->components[idx].item_id != self->obj_id ||
+        app->tree->components[idx].item_count != self->count )
         PT_EXIT(&self->pt);
     /* Failed or not, finish as a script that waited would have: the model
      * from what arrived, else the obj's icon. */

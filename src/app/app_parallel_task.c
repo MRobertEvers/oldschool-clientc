@@ -96,8 +96,14 @@ App_ViewReleased(
     int view)
 {
     assert(app);
+    assert(app->pending);
     assert(view >= 0);
     assert(view < WORLDVIEW_MAX);
+    /* Everything still pending for the view goes with it. Its tasks check
+     * the scene by slot and serial, and the next boat to take the slot gets
+     * a fresh world whose first scene has the serial this one's had: left
+     * listed, a loc change made on this deck would land on that one. */
+    (void)RS_Pending_Cancel(app->pending, RS_PendingScope_View(view));
     ToriRS_Trigger_Retire(&app->triggers.view_built[view]);
     ToriRS_TriggerOwner_End(&app->triggers.view_awaits[view], 0);
 }

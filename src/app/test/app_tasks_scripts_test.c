@@ -357,6 +357,83 @@ test_dialog_abort_runs_on_the_packet_queue(void)
     fixture_free(&fx);
 }
 
+/* ---- an obj model a later set made stale --------------------------------- */
+
+#define COLD_OBJ 4151
+
+static int
+host_set_object(
+    struct CS2VM2_Thread* t,
+    int component_id,
+    int obj_id,
+    int count)
+{
+    struct CS2VM_HostRequest req;
+
+    memset(&req, 0, sizeof(req));
+    req.kind = CS2VM_HOST_REQUEST_IF_SETOBJECT;
+    req.u.IF_SETOBJECT.component_id = component_id;
+    req.u.IF_SETOBJECT.obj_id = obj_id;
+    req.u.IF_SETOBJECT.count = count;
+    req.u.IF_SETOBJECT.num_mode = 0;
+    return RS_CS2Host_Exec(t, &req);
+}
+
+/*
+ * A script sets a cold obj on a MODEL widget (one parallel task waits for its
+ * model) and then clears the widget, `if_setobject(-1)`: a set that needs no
+ * task, so it cancels none. The older task must not put its obj back when its
+ * model lands -- the latest set wins. At 1528fc3a1 the first set held the
+ * script until the model was here, so the clear always came last.
+ */
+static void
+test_a_clear_outlives_an_obj_model(void)
+{
+    struct Fixture fx;
+    struct AssetLoader loader = { .start = fake_start, .resident = fake_resident, .data = NULL };
+    struct CS2VM2 vm;
+    struct CS2VM2_Thread* t;
+    int32_t idx;
+
+    printf("TEST: a clear after a cold obj model on a MODEL widget is not undone when the model lands\n");
+    fixture_init(&fx);
+    Assets_SetLoader(fx.app->assets, ASSET_KIND_OBJ_MODEL, &loader);
+    fx.app->scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
+        TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
+    if( !fx.app->scene )
+        abort();
+    UITreeSceneBridge_Init(&fx.app->bridge, fx.app->scene, fx.app->provider);
+    RS_CS2Host_SetBridge(&fx.app->host, &fx.app->bridge);
+    fx.app->host.world_user = fx.app;
+    app_tasks_scripts_bind_host(fx.app);
+    CS2VM2_Init(&vm);
+    CS2VM2_BindHost(&vm, &fx.app->host, RS_CS2Host_Exec);
+    t = CS2VM2_ThreadMain(&vm);
+    idx = UITree_FindByComponentId(fx.app->tree, WIDGET);
+
+    CHECK(host_set_object(t, WIDGET, COLD_OBJ, 1) == CS2VM_EXECNO_OK, "the cold set stopped the script");
+    CHECK(App_ScriptVisualPending(fx.app, APP_SCRIPT_TASK_OBJ_MODEL, WIDGET),
+        "the cold obj's model has no task");
+    step_parallel(&fx);
+    CHECK(host_set_object(t, WIDGET, -1, 0) == CS2VM_EXECNO_OK, "the clear stopped the script");
+    CHECK(fx.app->tree->components[idx].item_id == UITREE_NO_OBJ, "the clear did not clear the node");
+
+    /* The older set's model comes. */
+    Assets_Finished(fx.app->assets, AssetKey_Make(ASSET_KIND_OBJ_MODEL, COLD_OBJ, 1), true);
+    step_parallel(&fx);
+    CHECK(queued(fx.app->frame_runner.queue) == 0, "the obj model task did not end");
+    CHECK(fx.app->tree->components[idx].item_id == UITREE_NO_OBJ,
+        "the widget holds obj %d again: the older set's task undid the later clear",
+        fx.app->tree->components[idx].item_id);
+
+    CS2VM2_Free(&vm);
+    UITreeSceneBridge_Free(&fx.app->bridge);
+    ToriDraw_SceneFree(fx.app->scene);
+    fx.app->scene = NULL;
+    fixture_free(&fx);
+}
+
 /* ---- a script that goes away mid-read is forgotten by the table ---------- */
 
 #define MISSING_CALLEE 99996
@@ -465,6 +542,7 @@ main(void)
     test_a_pack_hands_its_models_to_one_task();
     test_dialog_abort_runs_on_the_packet_queue();
     test_a_script_gone_mid_read_is_forgotten();
+    test_a_clear_outlives_an_obj_model();
 
     if( g_failures )
     {

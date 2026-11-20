@@ -621,6 +621,61 @@ test_a_rebuild_carries_a_pending_change_over(void)
     world->_base_tile_x = old_base_x;
 }
 
+/* ---- a view's slot reused by another boat -------------------------------- */
+
+/* A boat despawns, as App_WevDespawn has it: its built trigger goes with the
+ * slot, then the registry frees its world and builder. */
+static void
+deck_despawn(void)
+{
+    App_ViewReleased(g_fx.app, DECK_VIEW);
+    WorldviewRegistry_Release(&g_fx.app->worldviews, DECK_VIEW);
+    g_fx.deck = NULL;
+    g_fx.deck_builder = NULL;
+}
+
+/* A boat spawns in the slot: a fresh world (its scene serial starts again at
+ * 0) awaiting its first REBUILD_WORLDENTITY. */
+static void
+deck_spawn(int wire_id)
+{
+    g_fx.deck = make_world(&g_fx.deck_builder);
+    World_SetLoadComplete(g_fx.deck, false);
+    WorldviewRegistry_Register(
+        &g_fx.app->worldviews, DECK_VIEW, wire_id, g_fx.deck, g_fx.deck_builder, 6400, 6400, 64, 64,
+        WORLDVIEW_ROOT);
+    App_ViewAwaitsScene(g_fx.app, DECK_VIEW);
+}
+
+/* A change made in one boat's deck whose config comes after that boat left
+ * and another took its view slot: both decks' first scenes have serial 1, so
+ * the scene check alone cannot tell them apart. The change is the old boat's
+ * and goes with it. */
+static void
+test_a_change_for_a_despawned_view_stays_out_of_the_next_one(void)
+{
+    struct App* app = g_fx.app;
+
+    printf("loc tasks: a change pending for a boat that despawned does not land on the next boat in its slot\n");
+    deck_despawn();
+    deck_spawn(DECK_WIRE + 1);
+    deck_built();
+    WorldviewRegistry_SetActive(&app->worldviews, DECK_VIEW);
+    App_WorldLocChange(app, 7, 8, 0, 1020, SHAPE_WALL, 0);
+    WorldviewRegistry_SetActive(&app->worldviews, WORLDVIEW_ROOT);
+    pump();
+    T_ASSERT(app_loc_change_pending(app, DECK_VIEW, 7, 8, 0, LAYER_WALL) != NULL, "pending on the first boat");
+
+    deck_despawn();
+    deck_spawn(DECK_WIRE + 2);
+    deck_built();
+    config_arrives(1020);
+    pump();
+    T_ASSERT(record_at(g_fx.deck, 7, 8, 0, LAYER_WALL) == NULL,
+        "the first boat's loc change landed on the second boat's deck");
+    T_ASSERT(RS_Pending_Count(app->pending, 0) == 0, "and nothing is left pending");
+}
+
 /* ---- teardown ------------------------------------------------------------- */
 
 static void
@@ -650,6 +705,7 @@ main(void)
     test_a_merge_fires_in_its_own_view();
     test_held_zone_packets_wait_for_their_own_view();
     test_a_rebuild_carries_a_pending_change_over();
+    test_a_change_for_a_despawned_view_stays_out_of_the_next_one();
     test_a_logout_cancels_every_pending_change();
     if( g_failures )
     {

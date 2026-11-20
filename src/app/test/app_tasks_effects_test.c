@@ -132,6 +132,10 @@ fixture_init(struct Fixture* fx)
         8,
         WORLDVIEW_ROOT);
 
+    /* The executor's context asserts a tree (app_exec_ctx): every App has
+     * one from boot. */
+    fx->app->tree = UITree_New(16);
+    assert(fx->app->tree);
     App_ServerStateBind(fx->app, &fx->state);
 }
 
@@ -147,6 +151,7 @@ fixture_free(struct Fixture* fx)
     ToriRS_IOBatch_Free(fx->io);
     World_Free(fx->root);
     World_Free(fx->deck);
+    UITree_Free(fx->app->tree);
     free(fx->app);
 }
 
@@ -410,6 +415,44 @@ test_deck_map_anim_uses_the_deck(void)
     printf("PASS\n");
 }
 
+/* A deck's scene is rebuilt while a MAP_ANIM's body loads. A deck rebuild
+ * keeps its world's spotanim rows (only the root's shift clears them,
+ * App_WorldRebuildShift), and a bodiless row's lifetime is not known
+ * (WORLD_SPOTANIM_LIFETIME_PENDING): the task that drops it must take the row,
+ * or the graphic -- which will never draw -- stays listed for the session. */
+static void
+test_deck_map_anim_dropped_by_a_rebuild_takes_its_row(void)
+{
+    struct Fixture fx;
+    struct RevPacket p;
+
+    printf("a deck MAP_ANIM whose scene is rebuilt before its body lands takes its row\n");
+    fixture_init(&fx);
+    WorldviewRegistry_SetActive(&fx.app->worldviews, 3);
+    fx.app->zone_base = (struct App_ZoneBase){ .base_x = 0, .base_z = 8, .level = 0 };
+    memset(&p, 0, sizeof(p));
+    p.packet_type = PKT_NAME_MAP_ANIM;
+    p._map_anim.pos = (5 << 4) | 1;
+    p._map_anim.id = 93;
+    exec(&fx, &p);
+    CHECK(count_active(&fx.deck->entities.spotanim) == 1, "the deck's row");
+    pump(&fx);
+
+    /* REBUILD_WORLDENTITY rebuilt the deck in place: a new scene serial, the
+     * same world. */
+    World_SetLoadComplete(fx.deck, false);
+    World_SetLoadComplete(fx.deck, true);
+    Assets_Finished(fx.app->assets, AssetKey_Make(ASSET_KIND_SPOTANIM, 93, 0), true);
+    pump(&fx);
+    CHECK(RS_Pending_Count(fx.app->pending, App_EffectsMapAnimBodyKind()) == 0, "the body task ended");
+    CHECK(count_active(&fx.deck->entities.spotanim) == 0,
+        "the bodiless row outlived the task that would have dressed it: it never draws, never ends, and is cycled every frame");
+    WorldviewRegistry_SetActive(&fx.app->worldviews, WORLDVIEW_ROOT);
+    fixture_free(&fx);
+    g_started_count = 0;
+    printf("PASS\n");
+}
+
 static void
 test_projanim_specific_held_for_the_new_scene(void)
 {
@@ -492,6 +535,7 @@ main(void)
     test_scripted_projectile_exists_at_its_add();
     test_projanim_and_map_anim_exist_at_once();
     test_deck_map_anim_uses_the_deck();
+    test_deck_map_anim_dropped_by_a_rebuild_takes_its_row();
     test_projanim_specific_held_for_the_new_scene();
     test_obj_specific_held_for_the_new_scene();
     if( g_failures )

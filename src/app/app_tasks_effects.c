@@ -714,6 +714,10 @@ Task_MapAnimBody_Run(
         if( !world )
         {
             app_effects_trace("map anim body: spotanim %d: its scene is gone\n", self->spotanim_id);
+            /* Rebuilt or mid-rebuild: the root's shift clears its rows, but a
+             * deck keeps its world's rows across its rebuild, and this one
+             * has no lifetime to end it. */
+            app_effects_map_anim_drop(self);
             PT_EXIT(&self->pt);
         }
         s = World_SpotanimFind(world, self->idx, self->serial);
