@@ -160,6 +160,7 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #endif
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
+#include <emscripten/html5.h>
 #include <malloc.h>
 
 #endif
@@ -4164,6 +4165,49 @@ main_boot_bar_report(int committed)
         last_caption);
 }
 
+/*
+ * May this frame go undrawn because nobody can see it? Only on the web lane,
+ * only while the document is hidden, and only where a frame that is not drawn
+ * still spends what the draw would have: Soft3D (ToriDraw_SceneFrameEnd, as a
+ * render-skipped frame does) and WebGL2, which is handed the scene's load
+ * events without a draw (renderer_learn_held_frame). WebGL1 has no such path,
+ * so a hidden WebGL1 tab keeps drawing -- at the hidden timer's rate -- rather
+ * than let its scene events pile up against the queue's cap. A content test's
+ * forced draw is always drawn. TORIRS_QUEUE_CONTRACT_TRACE prints how many
+ * frames ran hidden, and how many of them were drawn, when the tab is shown.
+ */
+static int
+main_hidden_skip_draw(
+    int content_draw,
+    int retained)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    static int hidden_frames;
+    static int hidden_drawn;
+    int const hidden = web_document_hidden();
+    int skip;
+
+    if( !hidden )
+    {
+        if( hidden_frames && TaskRunner_ContractTrace() )
+            fprintf(stderr, "queue_contract: trace web tab shown: %d frames ran while hidden, %d of them drawn\n",
+                    hidden_frames, hidden_drawn);
+        hidden_frames = 0;
+        hidden_drawn = 0;
+        return 0;
+    }
+    skip = !content_draw && (!retained || renderer_can_learn_held_frame());
+    hidden_frames++;
+    if( !skip )
+        hidden_drawn++;
+    return skip;
+#else
+    (void)content_draw;
+    (void)retained;
+    return 0;
+#endif
+}
+
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
 frame_loop_step(void)
@@ -4305,6 +4349,8 @@ frame_loop_step(void)
     /* A replay seek's held frame on a renderer that is handed its scene
      * events without a draw (renderer_learn_held_frame). */
     int held_learns = 0;
+    /* A hidden browser tab's frame: run whole, not drawn (main_hidden_skip_draw). */
+    int hidden_skip = 0;
 #if !defined(__EMSCRIPTEN__)
     enum ToriRS_LoopWait loop_wait;
 #endif
@@ -6504,8 +6550,11 @@ frame_loop_step(void)
          * drawn on that lane either. */
         int const retained = !renderer_is_software(renderer_active);
 
-        held_learns = RenderSkip_Held(&app.render_skip) && retained && renderer_can_learn_held_frame();
+        hidden_skip = main_hidden_skip_draw(content_draw, retained);
+        held_learns = (RenderSkip_Held(&app.render_skip) || hidden_skip) && retained && renderer_can_learn_held_frame();
         app_redraw = App_RenderSkipFrame(&app, app_redraw, content_draw || (retained && !held_learns));
+        if( hidden_skip )
+            app_redraw = 0;
     }
     /* The runner camera split: the offscreen runner frame a driver push owed
      * is drawn here, BEFORE the presented one (one branch while detached). */
@@ -6526,7 +6575,7 @@ frame_loop_step(void)
         }
         app.world_views.frame = App_RunnerView(&app);
     }
-    else if( App_RenderSkipEnabled(&app) || RenderSkip_Held(&app.render_skip) )
+    else if( hidden_skip || App_RenderSkipEnabled(&app) || RenderSkip_Held(&app.render_skip) )
     {
         /* Not drawn, on a lane that learns the scene from its draws: what the
          * draw would have handed it, without the draw. */
@@ -7868,6 +7917,64 @@ torirs_web_io_pump(void)
     App_PumpAsync(&app, 0);
     return 1;
 }
+
+#if defined(TORIRS_PLATFORM_WEB)
+/* Loop restarts web_visibility_changed made (the contract trace's count). */
+static int web_hidden_restarts;
+
+/*
+ * The tab was hidden: keep the loop running, on a timer.
+ *
+ * frame_loop_step paces a hidden tab with settimeout(50) (the pacing block:
+ * "keep the socket drained, don't draw"), but it can only choose that from
+ * inside a frame, and a tab hidden while the loop is on requestAnimationFrame
+ * has no next frame: the browser never fires the callback it has already
+ * registered. Measured (pf_web_run, 2026-11-19, headless Chrome, window
+ * minimized): every runner's pass count stood still for the whole 40 s hide
+ * -- no packet popped, no parallel or background step, nothing drained from
+ * the socket -- and on return the link watch dropped the session
+ * (NET_LINK_STALL_MS) and the client came back through GAMERECONNECT and a
+ * full rebuild.
+ *
+ * So the switch is made here, on the visibilitychange event, which a hidden
+ * tab still gets: the timing goes to settimeout(50) and the loop is paused and
+ * resumed, which retires the rAF callback that will not fire (a resumed loop
+ * is a new loop id, so the old callback returns at once if the tab comes back
+ * before the timer) and schedules the timer's. From then on each frame runs
+ * App_RunOnce whole -- the logic ticks and their packets on the main queue,
+ * the parallel queue drained, the background floor -- and is not drawn
+ * (main_hidden_skip_draw). The browser clamps a hidden tab's timers (about
+ * 1 Hz), which still outpaces the 600 ms server tick's needs, and the
+ * between-frames pump keeps taking reads as they land. When the tab is shown
+ * again the next timer frame finds it visible and goes back to rAF itself.
+ * An event that finds the loop already on a timer changes nothing: timers
+ * keep firing for a hidden tab.
+ */
+static EM_BOOL
+web_visibility_changed(
+    int event_type,
+    EmscriptenVisibilityChangeEvent const* event,
+    void* user)
+{
+    (void)event_type;
+    (void)user;
+    assert(event);
+    if( !web_pump_armed || !event->hidden || main_pacing.paced_mode != EM_TIMING_RAF )
+        return EM_FALSE;
+    main_pacing.paced_mode = EM_TIMING_SETTIMEOUT;
+    main_pacing.paced_value = 50;
+    /* The next callback is a timer's: its period is not a vsync. */
+    main_pacing.prev_paced_mode = EM_TIMING_SETTIMEOUT;
+    emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, 50);
+    emscripten_pause_main_loop();
+    emscripten_resume_main_loop();
+    web_hidden_restarts++;
+    if( TaskRunner_ContractTrace() )
+        fprintf(stderr, "queue_contract: trace web tab hidden: loop moved from raf to settimeout(50) (restart %d)\n",
+                web_hidden_restarts);
+    return EM_FALSE;
+}
+#endif
 
 /*
  * The replay's controls, for the page that embeds a replaying client
@@ -11120,6 +11227,9 @@ main(
         web_announce_ready();
 #endif
         web_pump_armed = 1;
+#if defined(TORIRS_PLATFORM_WEB)
+        emscripten_set_visibilitychange_callback(NULL, EM_FALSE, web_visibility_changed);
+#endif
         emscripten_set_main_loop(frame_loop_tick, 0, 1);
         return 0;
 #else
