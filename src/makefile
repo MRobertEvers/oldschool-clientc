@@ -649,12 +649,13 @@ TORIDRAW_CFLAGS += -DNEON_DISABLED=1 -DAVX2_DISABLED=1 -DSSE41_DISABLED=1 \
 endif
 
 ifeq ($(ENABLE_UBSAN),1)
-# Deliberately not `shift`: ToriDraw's fixed-point code left-shifts negative
-# values in several places (toridraw_lighting.c:170 among them), which is UB by
-# the letter of the standard but wraps as intended on every target here. Those
-# reports fire first and hide the arithmetic ones. UBSAN_CHECKS is overridable
-# on the command line when that class is what is being investigated.
-UBSAN_CHECKS ?= signed-integer-overflow
+# `shift` too: a left shift of a negative value, or into or past the sign bit,
+# is as undefined as an overflowing add, and an optimiser may assume neither
+# happens. ToriDraw's fixed-point code does both on purpose (Java's int wraps);
+# it says so with the wrap helpers in graphics/int_wrap.h or in unsigned, so
+# a report here is a site that does not (fx-ub, fx3-toolchain L3, fx4-build
+# O4/O5). UBSAN_CHECKS is overridable on the command line.
+UBSAN_CHECKS ?= signed-integer-overflow,shift
 TORIDRAW_CFLAGS += -fsanitize=$(UBSAN_CHECKS) -fno-sanitize-recover=$(UBSAN_CHECKS)
 # Only ToriDraw is instrumented, but the runtime still has to be linked in.
 LDFLAGS += -fsanitize=undefined

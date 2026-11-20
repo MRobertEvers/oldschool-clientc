@@ -158,7 +158,7 @@ TSFA_ORDERED(
     /* Modular: the reference client relies on int wraparound here, and an edge-on
      * triangle reaches the overflow. See graphics/int_wrap.h. */
     int shade8bit_edge_ish8 = toridraw_wrap_add(
-        toridraw_wrap_sub(shade7bit_a << 9, toridraw_wrap_mul(shade8bit_xhat_ish8, x0)),
+        toridraw_wrap_sub(toridraw_wrap_shl(shade7bit_a, 9), toridraw_wrap_mul(shade8bit_xhat_ish8, x0)),
         shade8bit_xhat_ish8);
 
     int au = 0;

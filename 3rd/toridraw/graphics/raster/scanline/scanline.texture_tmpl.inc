@@ -408,12 +408,12 @@ SLT_FN(
     shades[2] = shade7bit_c;
 
     int shade_base_ish8 = toridraw_wrap_add(
-        toridraw_wrap_sub(shades[tri.perm[0]] << 9, toridraw_wrap_mul(shade_xhat_ish8, tri.xa)),
+        toridraw_wrap_sub(toridraw_wrap_shl(shades[tri.perm[0]], 9), toridraw_wrap_mul(shade_xhat_ish8, tri.xa)),
         shade_xhat_ish8);
 #else
     int shade_xhat_ish8 = 0;
     int shade_yhat_ish8 = 0;
-    int shade_base_ish8 = (shade7bit_a << 1) << 8;
+    int shade_base_ish8 = toridraw_wrap_shl(shade7bit_a, 9);
 #endif
 
     for( int seg = 0; seg < 2; seg++ )
