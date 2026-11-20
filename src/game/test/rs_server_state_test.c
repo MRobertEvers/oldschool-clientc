@@ -510,8 +510,23 @@ test_chat(void)
     snprintf(p._message_private_echo.recipient, sizeof(p._message_private_echo.recipient), "%s",
              "bob");
     apply(fx, &p);
-    CHECK(strcmp(fx->chat.newest->text, "a <lt>b<gt> tag") == 0,
-          "the echo's tags draw as characters");
+    /* Sentence-cased, then escaped (deob class243.field2949:
+     * class671.method14451(Statics.method10915(text))). This pinned the
+     * uncased "a <lt>b<gt> tag". */
+    CHECK(strcmp(fx->chat.newest->text, "A <lt>b<gt> tag") == 0,
+          "the echo is sentence-cased and its tags draw as characters");
+    {
+        char shouty[] = "hI tHERE. wHAT? oK";
+
+        p = packet(PKT_NAME_MESSAGE_PRIVATE);
+        snprintf(p._message_private.sender, sizeof(p._message_private.sender), "bob");
+        p._message_private.message_id = 79;
+        p._message_private.text = shouty;
+        apply(fx, &p);
+        CHECK(strcmp(fx->chat.newest->text, "Hi there. What? Ok") == 0,
+              "a private line is sentence-cased (class243.field2953)");
+        (void)take_events(fx, ev, 8);
+    }
 
     /* The reference's tutorial gate (deob Statics.method6894 -> field765):
      * with the local player on Tutorial Island no friend-channel or private
@@ -665,7 +680,7 @@ test_social(void)
         CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "an ironman's private line is shown");
         CHECK(fx->chat.newest->type == RS_CHAT_TYPE_PRIVATE_FROM, "typed as a private line, not a mod's");
         CHECK(strncmp(fx->chat.newest->name, "<img=2>", 7) == 0, "named with the crown's image");
-        CHECK(strcmp(fx->chat.newest->text, "a <lt>col=ff0000<gt>red<lt>/col<gt> word") == 0,
+        CHECK(strcmp(fx->chat.newest->text, "A <lt>col=ff0000<gt>red<lt>/col<gt> word") == 0,
             "its tags draw as characters");
         p._message_private.message_id = 93;
         p._message_private.staff_mod = 2; /* a Jagex moderator's */

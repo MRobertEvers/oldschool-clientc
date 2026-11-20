@@ -260,6 +260,22 @@ state_chat_add(
     RS_Chat_AddMessage(state->chat, type, name, sender, text, *state->chat_clock);
 }
 
+/* A player's line as the reference files every one it reads from a private,
+ * private-echo or friends-chat packet (deob client.java, class243.field2953,
+ * field2949, field2995): class671.method14451(Statics.method10915(text)),
+ * sentence case and then the tags escaped. */
+static void
+state_player_text(
+    char const* text,
+    char* out,
+    size_t cap)
+{
+    char cased[RS_CHAT_TEXT_LEN];
+
+    RS_Chat_SentenceCase(text ? text : "", cased, sizeof(cased));
+    RS_ServerState_EscapeTags(cased, out, cap);
+}
+
 /* The reference's tutorial gate on friend-channel and private lines
  * (RS_Chat_InTutorialArea): computed from the local player's tile, scene-local
  * plus the root's base as the deob's (fine >> 7) + field3266's base. No local
@@ -332,7 +348,7 @@ state_message_friendchannel(
     RS_Social_MessageRemember(state->social, key);
 
     base37tostr((uint64_t)message->channel_name, channel, sizeof(channel));
-    RS_ServerState_EscapeTags(message->text ? message->text : "", escaped, sizeof(escaped));
+    state_player_text(message->text, escaped, sizeof(escaped));
     RS_Chat_CrownedName(message->crown, message->sender, name, sizeof(name));
     state_chat_add(state, RS_CHAT_TYPE_FRIENDS_CHAT, name, channel, escaped);
     return RS_SERVER_STATE_APPLIED;
@@ -855,7 +871,7 @@ state_message_private(
      * (class76.method2620), so a friend whose name has capitals or an NBSP
      * still reads as one to the private filter (script 91, pm_filtertest). */
     RS_Chat_CrownedName(p->staff_mod, p->sender, crowned, sizeof(crowned));
-    RS_ServerState_EscapeTags(p->text ? p->text : "", escaped, sizeof(escaped));
+    state_player_text(p->text, escaped, sizeof(escaped));
     state_chat_add(
         state,
         RS_Chat_CrownIsStaff(p->staff_mod) ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
@@ -875,10 +891,7 @@ state_message_private_echo(
 {
     char escaped[RS_CHAT_TEXT_LEN];
 
-    RS_ServerState_EscapeTags(
-        p->text ? p->text : "",
-        escaped,
-        sizeof(escaped));
+    state_player_text(p->text, escaped, sizeof(escaped));
     state_chat_add(
         state,
         RS_CHAT_TYPE_PRIVATE_TO,
