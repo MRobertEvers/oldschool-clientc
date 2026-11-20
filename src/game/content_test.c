@@ -24,7 +24,22 @@ int ContentTest_Enabled(void)
     if( enabled < 0 )
     {
         const char* dir = getenv("TORIRS_CONTENT_TEST");
+        const char* defer_ms = getenv("TORIRS_IO_DEFER_MS");
         enabled = dir && *dir;
+        /* A wall-clock read deferral against the test's virtual clock: the
+         * frame budget is spent in a wall second while the first read is
+         * still out, and the run ends with no row. Refused, by name, for the
+         * knob that counts in the frames this clock does have. */
+        if( enabled && defer_ms && strtol(defer_ms, NULL, 0) > 0 )
+        {
+            fprintf(stderr,
+                    "content_test: TORIRS_IO_DEFER_MS=%s cannot run under the content test: its frames run "
+                    "on a virtual clock and cost microseconds of wall time, so a deferral in wall "
+                    "milliseconds outlasts the whole frame budget. Use TORIRS_IO_DEFER_FRAMES=n (with "
+                    "TORIRS_CONTENT_TEST_RACE=1 or TORIRS_CONTENT_TEST_HOLD=1).\n",
+                    defer_ms);
+            exit(2);
+        }
     }
     return enabled;
 }
