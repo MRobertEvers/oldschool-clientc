@@ -1128,6 +1128,8 @@ end
 -- The press is skipped when the rows are already built, so re-opening a
 -- second quest's journal in one test does not tear the list down and rebuild
 -- it (cc_deleteall) under its own feet.
+-- ui.await_presented(component, what, ticks) -> ok | not_visible, detail
+--
 -- A press lands only on what is DISPLAYED. api_drive.if_click answers ok as
 -- soon as the node exists, and the dispatcher then drops a pick whose node or
 -- an ancestor is hidden, with no packet and no word (pointer.lua's
@@ -1135,8 +1137,8 @@ end
 -- read leaves the side panel hidden while its rows already exist, so a press
 -- made then is a click on nothing -- which a player cannot make. Wait for
 -- what pickset's pick_live asks, as a player waits for the panel to show;
--- no wait at all when it already shows. (ok) or (not_visible, detail).
-function QD.ui._journal_await_presented(component_id, what, ticks)
+-- no wait at all when it already shows, so a run at disk speed is unchanged.
+function QD.ui.await_presented(component_id, what, ticks)
     local function presented()
         local result, shown = api_drive.widget_presented(component_id)
         return result == "ok" and shown == true
@@ -1144,10 +1146,17 @@ function QD.ui._journal_await_presented(component_id, what, ticks)
     if presented() then
         return "ok", nil
     end
-    local shown = await({ level = presented, note = "ui.journal_open: " .. what .. " displayed" }, ticks)
+    local shown = await({ level = presented, note = tostring(what) .. " displayed" }, ticks)
     if shown ~= "ok" then
-        return "not_visible", "ui.journal_open: " .. what .. " was never displayed within "
-            .. tostring(ticks) .. " ticks"
+        return "not_visible", tostring(what) .. " was never displayed within " .. tostring(ticks) .. " ticks"
+    end
+    return "ok", nil
+end
+
+function QD.ui._journal_await_presented(component_id, what, ticks)
+    local result, detail = QD.ui.await_presented(component_id, what, ticks)
+    if result ~= "ok" then
+        return result, "ui.journal_open: " .. tostring(detail)
     end
     return "ok", nil
 end
