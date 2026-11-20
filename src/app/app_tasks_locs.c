@@ -863,9 +863,10 @@ App_WorldLocMerge(
     uint32_t const now = App_ParallelCycle(app);
 
     assert(app);
-    /* Created at boot, freed at shutdown; and a zone packet reaches here only
-     * for a built view (App_ZonePacketHold holds the rest). */
-    assert(app->world);
+    /* No world yet is a real state (fa5680f77). A zone packet reaches here
+     * only for a built view (App_ZonePacketHold holds the rest). */
+    if( !app->world )
+        return;
     assert(App_ActiveWorldview(app)->world->load_complete);
 
     /* Countdown: hide after start_cycle cycles, restore after end_cycle --

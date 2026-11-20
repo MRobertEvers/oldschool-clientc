@@ -39,7 +39,7 @@ App_LootNotifyKill(
     {
         cost = obj->cost;
     }
-    else
+    else if( app->provider )
         (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_CONFIG, obj_id, ASSET_CONFIG_OBJ), NULL);
 
     int event_id = app->loot.next_event_id++;
