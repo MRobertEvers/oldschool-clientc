@@ -133,6 +133,13 @@ enum CS2VM_DbLoadKind
 /* Hook string args ('s'/'W'/'X' signature chars). str_arg_mask bit i marks
  * signature position i as a string; strings fill str_args[] in position order
  * (k-th set bit -> str_args[k]). int_args[i] is unused at string positions. */
+/* str_args[] are POINTERS to the VM's own strings, valid for the call: the
+ * host copies what it keeps before it returns (a registration never yields).
+ * They were 16 x 256-byte rows held in the request, which made 73 request
+ * kinds, and so the request and the frame of every function that builds one,
+ * 4,400 bytes: a stack-probe call on entry to each opcode that asks the host
+ * and to the dispatch function itself. Entries at and past str_arg_count are
+ * not written. */
 /* The generic inventory-grid builders install repaint hooks carrying five
  * (script 149) or nine (script 150) operation labels. */
 #define CS2VM_SETON_STR_ARG_MAX 16

@@ -6846,7 +6846,7 @@ rs_cs2_copy_hook_str_args(
     char out_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN],
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN])
+    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     *out_mask = str_arg_mask;
     *out_count = str_arg_count;
@@ -6854,13 +6854,21 @@ rs_cs2_copy_hook_str_args(
         *out_count = CS2VM_SETON_STR_ARG_MAX;
     if( *out_count < 0 )
         *out_count = 0;
-    /* The rows below the count are the request's; the rows past it were never
-     * written by the VM (CS2VM_SETON_ZERO_HEAD) and are zeroed here, so a
-     * stored hook is the same bytes whatever was on the VM's stack -- the
-     * checkpoint compares these entries bytewise. */
-    memcpy(out_args, str_args, (size_t)*out_count * CS2VM_SETON_STR_ARG_LEN);
-    memset(out_args[*out_count], 0,
-        (size_t)(CS2VM_SETON_STR_ARG_MAX - *out_count) * CS2VM_SETON_STR_ARG_LEN);
+    /* The entries below the count are the request's pointers into the VM's
+     * strings; a stored hook keeps its own copy, cut to the row as it always
+     * was. strncpy pads the row with NULs and the rows past the count are
+     * zeroed, so a stored hook is the same bytes whatever the row held
+     * before -- the checkpoint compares these entries bytewise. */
+    for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
+    {
+        if( i < *out_count )
+        {
+            strncpy(out_args[i], str_args[i] ? str_args[i] : "", CS2VM_SETON_STR_ARG_LEN - 1);
+            out_args[i][CS2VM_SETON_STR_ARG_LEN - 1] = '\0';
+        }
+        else
+            memset(out_args[i], 0, CS2VM_SETON_STR_ARG_LEN);
+    }
 }
 
 /*
@@ -7105,7 +7113,7 @@ exec_set_on_inv_transmit(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN])
+    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     struct RS_CS2InvTransmitHook* hook;
     assert(host);
@@ -7577,7 +7585,7 @@ exec_set_on_stat_transmit(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN])
+    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     struct RS_CS2StatTransmitHook* hook;
 
@@ -7614,7 +7622,7 @@ exec_set_on_var_transmit(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN])
+    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     struct RS_CS2VarTransmitHook* hook;
     assert(host);
@@ -7670,7 +7678,7 @@ exec_set_on_cc_transmit(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN])
+    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     (void)vm;
     assert(host);
@@ -8002,7 +8010,7 @@ exec_set_on_if_event(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN])
+    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     struct UITree* tree;
     struct UITreeComponent* node;
@@ -8036,7 +8044,7 @@ exec_set_on_if_event(
     {
         char const* strp[CS2VM_SETON_STR_ARG_MAX];
         for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
-            strp[i] = str_args[i];
+            strp[i] = i < str_arg_count ? str_args[i] : NULL;
         (void)UITree_ApplyRuntimeHook(
             tree,
             component_id,
@@ -8062,7 +8070,7 @@ exec_set_on_cc_event(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN])
+    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     (void)vm;
     struct UITree* tree;
@@ -8101,7 +8109,7 @@ exec_set_on_cc_event(
     {
         char const* strp[CS2VM_SETON_STR_ARG_MAX];
         for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
-            strp[i] = str_args[i];
+            strp[i] = i < str_arg_count ? str_args[i] : NULL;
         (void)UITree_ApplyRuntimeHook(
             tree,
             component_id,

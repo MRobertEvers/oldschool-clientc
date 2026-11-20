@@ -4879,14 +4879,11 @@ CS2VM2_Op_IF_SetHide(
 }
 
 /*
- * Zero a handler registration's fields up to, not including, its string rows.
- *
- * The rows are 16 x 256 bytes, and a registration that carries no string (most
- * of them: the bank arms two per slot, 8,400 an open) used to zero all 4 KB of
- * them to hand the host a count of 0. A row below str_arg_count is written
- * whole by the strncpy that fills it; a row at or past the count is not
- * written and must not be read. The host reads rows below the count only
- * (rs_cs2_copy_hook_str_args, exec_set_on_cc_event, exec_set_on_if_event).
+ * Zero a handler registration's fields up to, not including, its string
+ * pointers. An entry below str_arg_count is written by the fill that follows;
+ * one at or past the count is not written and must not be read. The host
+ * reads entries below the count only (rs_cs2_copy_hook_str_args,
+ * exec_set_on_cc_event, exec_set_on_if_event).
  */
 #define CS2VM_SETON_ZERO_HEAD(member) \
     memset(&(member), 0, (size_t)((char*)(member).str_args - (char*)&(member)))
@@ -5029,11 +5026,8 @@ CS2VM2_Op_IF_SetOnEventHandler(
             if( !(str_arg_mask & ((uint64_t)1 << i)) )                 \
                 continue;                                              \
             if( request.u.name.str_arg_count < CS2VM_SETON_STR_ARG_MAX ) \
-            {                                                          \
-                char* dst = request.u.name.str_args[request.u.name.str_arg_count]; \
-                strncpy(dst, str_by_pos[i] ? str_by_pos[i] : "", CS2VM_SETON_STR_ARG_LEN - 1); \
-                dst[CS2VM_SETON_STR_ARG_LEN - 1] = '\0';               \
-            }                                                          \
+                request.u.name.str_args[request.u.name.str_arg_count] = \
+                    str_by_pos[i] ? str_by_pos[i] : "";                \
             request.u.name.str_arg_count++;                            \
         }                                                              \
         if( request.u.name.str_arg_count > CS2VM_SETON_STR_ARG_MAX )   \
@@ -5220,11 +5214,8 @@ CS2VM2_Op_CC_SetOnEventHandler(
             if( !(str_arg_mask & ((uint64_t)1 << i)) )                 \
                 continue;                                              \
             if( request.u.name.str_arg_count < CS2VM_SETON_STR_ARG_MAX ) \
-            {                                                          \
-                char* dst = request.u.name.str_args[request.u.name.str_arg_count]; \
-                strncpy(dst, str_by_pos[i] ? str_by_pos[i] : "", CS2VM_SETON_STR_ARG_LEN - 1); \
-                dst[CS2VM_SETON_STR_ARG_LEN - 1] = '\0';               \
-            }                                                          \
+                request.u.name.str_args[request.u.name.str_arg_count] = \
+                    str_by_pos[i] ? str_by_pos[i] : "";                \
             request.u.name.str_arg_count++;                            \
         }                                                              \
         if( request.u.name.str_arg_count > CS2VM_SETON_STR_ARG_MAX )   \
@@ -5837,12 +5828,8 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         if( !(str_arg_mask & ((uint64_t)1 << i)) )
             continue;
         if( request.u.IF_SETONINVTRANSMIT.str_arg_count < CS2VM_SETON_STR_ARG_MAX )
-        {
-            char* dst = request.u.IF_SETONINVTRANSMIT
-                            .str_args[request.u.IF_SETONINVTRANSMIT.str_arg_count];
-            strncpy(dst, str_by_pos[i] ? str_by_pos[i] : "", CS2VM_SETON_STR_ARG_LEN - 1);
-            dst[CS2VM_SETON_STR_ARG_LEN - 1] = '\0';
-        }
+            request.u.IF_SETONINVTRANSMIT.str_args[request.u.IF_SETONINVTRANSMIT.str_arg_count] =
+                str_by_pos[i] ? str_by_pos[i] : "";
         request.u.IF_SETONINVTRANSMIT.str_arg_count++;
     }
     if( request.u.IF_SETONINVTRANSMIT.str_arg_count > CS2VM_SETON_STR_ARG_MAX )
