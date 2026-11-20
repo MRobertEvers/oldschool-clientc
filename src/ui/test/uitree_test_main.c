@@ -73,6 +73,7 @@ main(void)
     test_owned_budget();
     test_owned_canvas_position();
     test_layer_clip_compounds();
+    test_held_drag_over_group();
     test_plugin_contract_copy();
     test_canvas_queries();
     test_canvas_floor_measures();

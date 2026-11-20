@@ -2688,6 +2688,59 @@ child_is_interface_parent_mount(
     return UITree_ChildMountType(tree, container_uid, child) >= 0;
 }
 
+/*
+ * The armed item cell is drawn after its whole interface group, not in tree
+ * order.
+ *
+ * Reference: rev 239 class163.method5467 skips the clicked (dragged) widget
+ * when it reaches it -- it saves the sibling array and the parent's offset in
+ * field2388/2389/2390 and `continue`s -- and method5464/method5478, once the
+ * group's whole tree has drawn, walk that array again with the sentinel
+ * -1412584499, which draws only the clicked widget, at alpha 128, under the
+ * clip the GROUP was drawn under (their var2..var5), not its own layer's.
+ *
+ * Drawn in place, a bank item dragged up to make a new tab went under the tab
+ * strip (a later sibling of the items layer) and was cut off at the items
+ * layer's top edge.
+ *
+ * The descs [from, out->count) are the cell's; they leave the list here.
+ */
+static void
+emit_hold_armed_cell(struct UITreeEmitBuffer* out, int from)
+{
+    int const n = out->count - from;
+
+    assert(from >= 0 && from <= out->count);
+    /* One cell is armed at a time, and a cell is reached once per walk. */
+    assert(out->held_drag_count == 0);
+    assert(n <= UITREE_EMIT_HELD_DRAG_MAX);
+    memcpy(out->held_drag, &out->cmds[from], (size_t)n * sizeof(*out->cmds));
+    out->held_drag_count = n;
+    out->count = from;
+}
+
+static void
+emit_flush_held_drag(struct UITreeEmitBuffer* out, struct UITreeEmitClip const* group_clip)
+{
+    for( int i = 0; i < out->held_drag_count; i++ )
+    {
+        struct UITreeEmitDesc desc = out->held_drag[i];
+        desc.clip = *group_clip;
+        emit_buffer_append(out, &desc);
+    }
+    out->held_drag_count = 0;
+}
+
+/* An interface group's root: a tree root, or a pack root mounted under an
+ * InterfaceParent container (the reference's method5478 call). */
+static int
+emit_node_is_group_root(struct UITree const* tree, struct UITreeComponent const* c)
+{
+    if( c->parent < 0 || (uint32_t)c->parent >= tree->component_count )
+        return 1;
+    return child_is_interface_parent_mount(tree, tree->components[c->parent].component_id, c);
+}
+
 /* TORIRS_MODEL_CLIP_DEBUG, read once -- it sits on a per-model-desc path in
  * the emit walk, where a getenv() per frame per model is a linear scan of the
  * environment block to decide not to print. */
@@ -2729,6 +2782,8 @@ emit_walk_node(
     int scroll_layer;
     int child_scroll_x;
     int child_scroll_y;
+    int held_drag = 0;
+    int const held_at_entry = out->held_drag_count;
 
     assert(tree && out && parent_clip);
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
@@ -3053,6 +3108,7 @@ emit_walk_node(
                         desc.x += armed_dx;
                         desc.y += armed_dy;
                         desc.trans = 128;
+                        held_drag = 1;
                     }
                 }
             }
@@ -3104,8 +3160,13 @@ emit_walk_node(
                 desc.model_yan, desc.model_zan, desc.model_x_offset, desc.model_y_offset,
                 desc.model_obj_composed);
         emit_obj_selected_icon(tree, host, c, &desc);
-        emit_buffer_append(out, &desc);
-        emit_obj_stack_count(host, out, c, idx, &desc, parent_clip);
+        {
+            int const cell_from = out->count;
+            emit_buffer_append(out, &desc);
+            emit_obj_stack_count(host, out, c, idx, &desc, parent_clip);
+            if( held_drag )
+                emit_hold_armed_cell(out, cell_from);
+        }
     }
 
     /* Sweep 0 draws the container's own children, sweep 1 the InterfaceParent
@@ -3161,6 +3222,13 @@ emit_walk_node(
         emit_append_layer_scrollbars(
             host, out, c, idx, parent_clip, x - scroll_off_x, y - scroll_off_y, w, h);
     }
+
+    /* The innermost group that took the armed cell in: its whole tree has
+     * drawn, so the cell goes on top of it (emit_hold_armed_cell). A group
+     * entered with the cell already held is a nested one drawn after it, and
+     * is not where it belongs. */
+    if( held_at_entry == 0 && out->held_drag_count > 0 && emit_node_is_group_root(tree, c) )
+        emit_flush_held_drag(out, parent_clip);
 }
 
 static void
@@ -3203,6 +3271,10 @@ emit_walk_pass(
             0,
             0,
             0);
+        /* A root is a group; on the drag pass a non-deferred root returns from
+         * its descend-only branch before its own flush can run. */
+        if( out->held_drag_count > 0 )
+            emit_flush_held_drag(out, &root_clip);
     }
 }
 
