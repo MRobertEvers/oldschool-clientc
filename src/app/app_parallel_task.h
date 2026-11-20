@@ -9,11 +9,11 @@
  * THE QUEUE is the parallel queue that already exists, app->frame_runner. A
  * task is added there as an ordinary task, never render-blocking, so the
  * frame is not held for it; it runs whenever that queue is stepped: every
- * frame, until nothing more can progress (App_PumpAsync), inside a client
- * script's settle (app_settle_cs2_frame), and from the packet pump while the
- * packet queue is blocked on it (app_pump_net_packets). A parallel task must
- * be safe to resume at any of those points, as the placeholder and loc-change
- * tasks are.
+ * frame, until every task on it is done or parked (App_PumpAsync), inside a
+ * client script's settle (app_settle_cs2_frame), and from the packet pump
+ * while the packet queue's head is parked on its work (app_pump_net_packets).
+ * A parallel task must be safe to resume at any of those points, as the
+ * placeholder and loc-change tasks are.
  *
  * THE INDEX is app->pending (game/rs_pending.h). App_Logout cancels all of
  * it.
@@ -60,11 +60,12 @@
 struct App;
 struct World;
 
-/** Make app->pending (after app->assets). */
+/** Make app->pending (after app->assets), and name app->triggers. */
 void
 App_PendingInit(struct App* app);
 
-/** After the queues are freed: every parallel task has unlisted itself. */
+/** After the queues are freed: every parallel task has unlisted itself, and
+ *  every parked task has left the triggers it waited on. */
 void
 App_PendingFree(struct App* app);
 
@@ -113,10 +114,22 @@ App_ParallelTaskLate(
     struct App const* app,
     struct RS_ParallelTask const* par);
 
-/* ---- the named waits, the client's half (rs_parallel_task.h has them) ----- */
+/* ---- the waits, the client's half (rs_parallel_task.h has them) ----------- */
 
 /* A client cycle is 20 ms (the logic tick, 50 a second). */
 #define APP_PARALLEL_CYCLE_MS 20u
+
+/** The logic cycle's clock: what PT_APP_AWAIT_CYCLE parks on. */
+struct ToriRS_Clock*
+App_CycleClock(struct App* app);
+
+/** The logic tick began (app_logic_tick, the one place): advance the clock to
+ *  App_ParallelCycle, waking every task due by now. */
+void
+App_CycleClockTick(struct App* app);
+
+/** (d) not before logic cycle `due`. */
+#define PT_APP_AWAIT_CYCLE(app, due) PT_PARALLEL_AWAIT_CYCLE(App_CycleClock(app), (due))
 
 /** The cycles a pause of `ms` takes, at least one: what a wait that was
  *  stated in milliseconds (an assets back-off) waits as a client cycle. */
@@ -134,18 +147,42 @@ App_ViewRebuildKey(
     struct App* app,
     int view);
 
-/** Is a rebuild of `view` listed (under way)? */
-bool
-App_ViewRebuilding(
+/** View `view`'s built trigger (struct AppTriggers), or NULL for a view that
+ *  is not live. Primed while a rebuild of it is under way, or while it awaits
+ *  its first scene. */
+struct ToriRS_Trigger*
+App_ViewBuiltTrigger(
     struct App* app,
     int view);
 
+/** A view was spawned whose first scene the server has yet to send
+ *  (App_WevSpawn): it primes its own built trigger until a rebuild of it
+ *  begins or it is released. */
+void
+App_ViewAwaitsScene(
+    struct App* app,
+    int view);
+
+/** View `view` is being released (App_WevDespawn): its built trigger's
+ *  storage is about to serve another view, so it is retired (its waiters
+ *  wake, and find the view gone). */
+void
+App_ViewReleased(
+    struct App* app,
+    int view);
+
+/** The boot's built trigger (struct AppTriggers): primed while the client
+ *  phase is BOOTING. */
+struct ToriRS_Trigger*
+App_BootBuilt(struct App* app);
+
 /**
- * (c) the rebuild of this task's view: wait until none is listed and `built`
- * holds (the view has a built scene, or is gone), or the task is cancelled.
- * PT_PARALLEL_AWAIT_REBUILD on the client's index and the task's view.
+ * (c) the rebuild of this task's view: parked on the view's built trigger
+ * while it is primed or `built` (the view has a built scene, or is gone) does
+ * not hold; ends at once on a cancel. PT_PARALLEL_AWAIT_REBUILD on the
+ * task's view.
  */
 #define PT_APP_AWAIT_VIEW_REBUILT(app, built)                                                      \
-    PT_PARALLEL_AWAIT_REBUILD((app)->pending, App_ViewRebuildKey((app), self->par.view), (built))
+    PT_PARALLEL_AWAIT_REBUILD(App_ViewBuiltTrigger((app), self->par.view), (built))
 
 #endif /* SRC_APP_APP_PARALLEL_TASK_H */

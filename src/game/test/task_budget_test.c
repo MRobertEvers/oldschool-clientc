@@ -482,7 +482,10 @@ test_a_joined_fanout_completes_across_slices(void)
     while( !ToriRS_TaskJob_Done(&job) )
     {
         enum TaskRunnerStat stat = TaskRunner_RunUntil(&runner, clock.now_us + 2000);
-        TEST_CHECK(stat != TASK_RUNNER_BLOCKED || ToriRS_TaskJob_Done(&job));
+        /* Never stuck: a pump that ends with every task parked and no read
+         * out has nothing left to wake it. */
+        TEST_CHECK(stat != TASK_RUNNER_WAITING || ToriRS_TaskJob_Done(&job) ||
+                   TaskRunner_ReadsOutstanding(&runner) > 0);
         slices++;
         TEST_CHECK(slices < 100);
     }

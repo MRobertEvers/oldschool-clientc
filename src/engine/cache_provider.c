@@ -478,6 +478,10 @@ void
 CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
 {
     assert(provider);
+    /* A gather still parked on the re-prime wakes before the trigger's
+     * storage goes. */
+    ToriRS_Trigger_Retire(&provider->maps_reprime);
+    ToriRS_TriggerOwner_End(&provider->reprime_link, 0);
 
     /* TEMP census: occupancy vs capacity for every provider map, so the
      * CACHE_PROVIDER_*_CAPACITY constants can be set from what a session
@@ -2180,6 +2184,24 @@ CacheProvider_ArchiveReprimePending(
     return provider->archive_reprime_hook ? provider->archive_reprime_hook(provider->archive_reprime_user, index) : 0;
 }
 
+struct ToriRS_Trigger*
+CacheProvider_MapsReprime(struct CacheProvider* provider)
+{
+    assert(provider);
+    return &provider->maps_reprime;
+}
+
+void
+CacheProvider_ArchiveReprimeTick(void* user)
+{
+    struct CacheProvider* provider = user;
+
+    assert(provider);
+    if( ToriRS_Trigger_Primed(&provider->maps_reprime) &&
+        !CacheProvider_ArchiveReprimePending(provider, RSCACHE_DAT2_TABLE_MAPS) )
+        ToriRS_Trigger_Fire(&provider->maps_reprime);
+}
+
 enum CacheProviderInvalidate
 CacheProvider_InvalidateArchive(
     struct CacheProvider* provider,
@@ -2244,6 +2266,18 @@ CacheProvider_InvalidateArchive(
             provider->vtable->InvalidateArchive(provider, index, archive);
         if( provider->archive_invalidate_hook )
             provider->archive_invalidate_hook(provider->archive_invalidate_user, index, archive);
+        /* The new table is on its way over the link: the gather of the
+         * REBUILD that follows waits for it (task_world_load.c). The link
+         * owns the trigger until it says the table landed. */
+        if( !ToriRS_Trigger_Primed(&provider->maps_reprime) &&
+            CacheProvider_ArchiveReprimePending(provider, index) )
+        {
+            if( !provider->maps_reprime.name )
+                ToriRS_Trigger_Init(&provider->maps_reprime, "the maps index's re-prime");
+            if( provider->reprime_link.kind == TORIRS_OWNER_NONE )
+                ToriRS_TriggerOwner_Init(&provider->reprime_link, TORIRS_OWNER_EXTERNAL, "the cache link");
+            ToriRS_Trigger_Prime(&provider->maps_reprime, &provider->reprime_link);
+        }
         return CACHE_PROVIDER_INVALIDATE_EVICTED;
     }
     return CACHE_PROVIDER_INVALIDATE_DEFERRED;

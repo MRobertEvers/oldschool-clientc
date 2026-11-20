@@ -39,9 +39,10 @@
  *       on which a task may ask for a frame.
  *   PARALLEL (app->frame_runner)  overlapping (`parallel` 1): IO-heavy work
  *       that must not hold the packet pump. DRAINED: each pump steps every
- *       task that can run, then keeps stepping until every task is done,
- *       waiting on a read, or joined on tasks that are. No clock, no step
- *       count a real frame reaches, no task's request ends it.
+ *       task that can run, then keeps stepping until every task is done or
+ *       PARKED -- on its read, a trigger, a count or a cycle (task_trigger.h).
+ *       No clock, no step count a real frame reaches, no task's request ends
+ *       it. A parked task is passed over and costs nothing.
  *   BACKGROUND (app->background_runner)  overlapping: CPU-heavy work, GIVEN
  *       TIME: each pump (TaskRunner_RunUntil) steps every task that can run
  *       ONCE whatever the clock says, then keeps stepping until every task is
@@ -139,14 +140,12 @@ enum TaskRunnerStat
     TASK_RUNNER_IDLE = 0,
     /** The pass ran something. More may be ready now: step again. */
     TASK_RUNNER_PROGRESSED,
-    /** Nothing ran: every task left is parked on a read the platform has not
-     *  answered. Only the platform can move this, so the frame has to end
-     *  (browser) or the wire has to be pumped (desktop remote miss). */
+    /** Nothing ran: every task left is PARKED -- on a read the platform has
+     *  not answered, or on a trigger, a count or a cycle (task_trigger.h).
+     *  Only what it parked on can move it: a read landing (the platform), a
+     *  trigger firing, a count reaching zero, a clock advancing. Stepping
+     *  again before one of those happens runs nothing. */
     TASK_RUNNER_WAITING,
-    /** Nothing ran and nothing is on the wire: every task left waits on
-     *  state some OTHER queue owns, or is joined on tasks that do. Stepping
-     *  again is a busy-wait. */
-    TASK_RUNNER_BLOCKED,
     /** A task on the MAIN queue asked for a frame before it is resumed, and
      *  said what should be on it (runner->render). The main queue's pump
      *  stops here so the frame is actually seen. No other queue returns it:
@@ -322,13 +321,45 @@ TaskRunner_Now(struct TaskRunner const* runner)
  * the owner stops waiting for slices and finishes the job now (`promoted`),
  * because some answer is needed by then whatever it costs a frame. Who
  * promotes, and how, is the owner's: this is only the record.
+ *
+ * A job is an OWNER of triggers (task_trigger.h): it has one end
+ * (ToriRS_TaskJob_End, called by whoever owns the job where it commits or is
+ * cancelled), and every trigger it primed and did not fire is abandoned
+ * there. One job struct may serve many jobs in turn; each runs from the
+ * prime its owner makes to that end.
  */
 struct ToriRS_TaskJob
 {
     int join;
     uint64_t must_finish_by_us;
     int promoted;
+    struct ToriRS_TriggerOwner owner;
 };
+
+/* The job as an owner of triggers, named `name` (borrowed). */
+static inline struct ToriRS_TriggerOwner*
+ToriRS_TaskJobOwner(
+    struct ToriRS_TaskJob* job,
+    char const* name)
+{
+    assert(job);
+    assert(name);
+    if( job->owner.kind == TORIRS_OWNER_NONE )
+        ToriRS_TriggerOwner_Init(&job->owner, TORIRS_OWNER_JOB, name);
+    return &job->owner;
+}
+
+/* THE ONE PLACE A JOB ENDS: every trigger it still has primed is abandoned.
+ * `completed`: it committed (a trigger still primed then is one it forgot to
+ * fire); 0: it was cancelled. */
+static inline void
+ToriRS_TaskJob_End(
+    struct ToriRS_TaskJob* job,
+    int completed)
+{
+    assert(job);
+    ToriRS_TriggerOwner_End(&job->owner, completed);
+}
 
 /** Hand `task` to `runner` as the root of `job`. */
 static inline void
@@ -432,6 +463,22 @@ TaskRunner_RenderBlockingRemains(struct TaskRunner const* runner)
     return 0;
 }
 
+/** Is a task on this queue ready -- neither waiting on its read nor parked?
+ *  Walks the queue: asked only when something was woken since the owner's
+ *  last pump (App_AsyncRunnable), never per pass. */
+static inline int
+TaskRunner_HasReady(struct TaskRunner const* runner)
+{
+    struct ToriRS_Task const* task;
+
+    assert(runner);
+    assert(runner->queue);
+    for( task = runner->queue->head; task; task = task->next )
+        if( !task->io.pending && !task->parked )
+            return 1;
+    return 0;
+}
+
 /** How many tasks on this queue have a read on the wire. Diagnostics. */
 static inline int
 TaskRunner_ReadsOutstanding(struct TaskRunner const* runner)
@@ -502,7 +549,6 @@ TaskRunner_Step(struct TaskRunner* runner)
     int ran = 0;
     int runs = 0;
     int waiting = 0;
-    int blocked = 0;
     int render = 0;
     int spent = 0;
     int timed;
@@ -533,13 +579,15 @@ TaskRunner_Step(struct TaskRunner* runner)
             int stat;
 
             next = task->next;
-            if( task->io.pending )
+            /* Waiting on its read, or parked on a trigger, a count or a
+             * cycle: passed over, and never run until that moves it. */
+            if( task->io.pending || task->parked )
             {
                 waiting = 1;
                 if( runner->parallel )
                     continue;
-                /* Ordered: the head owes an answer, and nothing behind it
-                 * may overtake it. */
+                /* Ordered: the head waits, and nothing behind it may
+                 * overtake it. */
                 break;
             }
             had_turn = task->turn == runner->pump;
@@ -660,29 +708,6 @@ TaskRunner_Step(struct TaskRunner* runner)
                 runner->render = task->render;
                 render = 1;
             }
-            else if( stat == TORIRS_ASYNCIO_STAT_BLOCKED )
-            {
-                blocked = 1;
-                /* Off the main queue a task may wait only on a NAMED thing:
-                 * an asset, a join, another task, a client cycle (asyncio.h,
-                 * enum ToriRS_TaskWait). A free-form state wait there is a
-                 * task waiting on state the main queue owns. */
-                if( (runner->role == TASK_RUNNER_ROLE_PARALLEL || runner->role == TASK_RUNNER_ROLE_BACKGROUND) &&
-                    !ToriRS_TaskWaitNamed(task->wait) )
-                {
-                    char line[192];
-                    snprintf(
-                        line,
-                        sizeof(line),
-                        "task %s waited on %s state on the %s queue (only an asset, a join, another "
-                        "task or a client cycle may be waited on there)",
-                        task->name[0] ? task->name : "(unnamed)",
-                        task->wait == TORIRS_TASK_WAIT_STATE ? "free-form" : "unnamed",
-                        TaskRunner_RoleName(runner->role));
-                    TaskRunner_ContractBreach(line);
-                    assert(ToriRS_TaskWaitNamed(task->wait));
-                }
-            }
             else if( stat == TORIRS_ASYNCIO_STAT_SPENT )
             {
                 /* It ran, and stopped because the slice is over. */
@@ -690,7 +715,7 @@ TaskRunner_Step(struct TaskRunner* runner)
                 spent = 1;
             }
             else
-                ran = 1;
+                ran = 1; /* a yield, or a park: it ran up to it */
 
             /* Strict FIFO: the head yielded, so nothing behind it may run. */
             if( !runner->parallel )
@@ -722,14 +747,11 @@ TaskRunner_Step(struct TaskRunner* runner)
     }
     if( ran )
         return TASK_RUNNER_PROGRESSED;
-    if( waiting )
-        return TASK_RUNNER_WAITING;
-    /* A non-empty queue in which nothing ran and nothing is on the wire: the
-     * walk visited at least one task, and the only way it neither ran nor
-     * waited is that it blocked. */
-    assert(blocked);
-    (void)blocked;
-    return TASK_RUNNER_BLOCKED;
+    /* A non-empty queue in which nothing ran: every task the walk visited
+     * was parked (the walk visits at least the head). */
+    assert(waiting);
+    (void)waiting;
+    return TASK_RUNNER_WAITING;
 }
 
 static inline char const*
@@ -741,13 +763,52 @@ TaskRunner_StatName(enum TaskRunnerStat stat)
         return "progressed";
     if( stat == TASK_RUNNER_WAITING )
         return "waiting";
-    if( stat == TASK_RUNNER_BLOCKED )
-        return "blocked";
     if( stat == TASK_RUNNER_RENDER )
         return "render";
     if( stat == TASK_RUNNER_PACED )
         return "paced";
     return "spent";
+}
+
+/* Is the head of this (FIFO) queue parked on a trigger, a count or a
+ * cycle -- waiting on another queue's work, not on its own read? The packet
+ * pump drains the parallel queue for such a head (app_net.c). */
+static inline int
+TaskRunner_HeadParked(struct TaskRunner const* runner)
+{
+    assert(runner);
+    assert(runner->queue);
+    return runner->queue->head && runner->queue->head->parked;
+}
+
+/*
+ * WHAT IS PARKED ON WHAT. One line per task on this queue that waits --
+ * on its read, or parked -- with its chain down to the read, the count, the
+ * cycle or the running owner it bottoms out in (ToriRS_TaskChainFormat).
+ * Returns how many it printed.
+ */
+static inline int
+TaskRunner_PrintParked(
+    struct TaskRunner const* runner,
+    FILE* out)
+{
+    struct ToriRS_Task const* task;
+    int n = 0;
+
+    assert(runner);
+    assert(runner->queue);
+    assert(out);
+    for( task = runner->queue->head; task; task = task->next )
+    {
+        char chain[512];
+
+        if( !task->parked && !task->io.pending )
+            continue;
+        (void)ToriRS_TaskChainFormat(task, chain, sizeof(chain));
+        fprintf(out, "queue_contract: parked %s: %s\n", TaskRunner_RoleName(runner->role), chain);
+        n++;
+    }
+    return n;
 }
 
 /*
@@ -757,11 +818,11 @@ TaskRunner_StatName(enum TaskRunnerStat stat)
  *
  * On the parallel and the background queue no task that can run may be left
  * without a turn this pump; on the parallel queue every task left must also
- * be waiting on a read (its item pending) or blocked in a NAMED wait (an
- * asset, a join, another task, a client cycle: enum ToriRS_TaskWait; a
- * free-form state wait there is caught in the pass that returned it). Under
- * TORIRS_QUEUE_CONTRACT_TRACE every blocked task left is named with its
- * kind.
+ * be DONE OR PARKED: waiting on its read (its item pending), or parked on a
+ * trigger, a count or a cycle. Under TORIRS_QUEUE_CONTRACT_TRACE the parked
+ * tasks are named with their kinds (2: each with its whole chain); under
+ * TORIRS_QUEUE_CONTRACT_STRICT a task parked on a chain that cannot end --
+ * a trigger nobody primed, a count already at zero -- aborts with the chain.
  * The main queue is a FIFO pumped until its head waits, and is not checked
  * here.
  */
@@ -773,7 +834,7 @@ TaskRunner_PumpEnd(
     struct ToriRS_Task const* task;
     int breaches = 0;
     int pending = 0;
-    int blocked = 0;
+    int parked = 0;
     char names[256];
     int names_len = 0;
 
@@ -797,6 +858,30 @@ TaskRunner_PumpEnd(
             pending++;
             continue;
         }
+        if( task->parked )
+        {
+            if( TaskRunner_ContractStrict() )
+            {
+                char chain[512];
+                int end = ToriRS_TaskChainFormat(task, chain, sizeof(chain));
+                if( end == TORIRS_CHAIN_UNSOUND )
+                {
+                    char line[640];
+                    snprintf(line, sizeof(line), "a parked task can never be woken: %s", chain);
+                    TaskRunner_ContractBreach(line);
+                }
+            }
+            parked++;
+            if( names_len < (int)sizeof(names) - 48 )
+                names_len += snprintf(
+                    names + names_len,
+                    sizeof(names) - (size_t)names_len,
+                    " %s%s[%s]",
+                    task->name[0] ? task->name : "(unnamed)",
+                    task->render_blocking ? "(script)" : "",
+                    ToriRS_TaskWaitName(task->park.kind));
+            continue;
+        }
         if( task->turn != runner->pump )
         {
             char line[160];
@@ -815,43 +900,36 @@ TaskRunner_PumpEnd(
         }
         if( runner->role != TASK_RUNNER_ROLE_PARALLEL )
             continue;
-        if( !task->blocked )
         {
             char line[160];
             snprintf(
                 line,
                 sizeof(line),
                 "parallel pump %u (%s) ended with %s still able to run (neither waiting on a read "
-                "nor joined)",
+                "nor parked)",
                 (unsigned)runner->pump,
                 why ? why : "?",
                 task->name[0] ? task->name : "(unnamed)");
             TaskRunner_ContractBreach(line);
-            assert(task->blocked);
+            assert(task->parked);
             breaches++;
-            continue;
         }
-        blocked++;
-        if( names_len < (int)sizeof(names) - 48 )
-            names_len += snprintf(
-                names + names_len,
-                sizeof(names) - (size_t)names_len,
-                " %s%s[%s]",
-                task->name[0] ? task->name : "(unnamed)",
-                task->render_blocking ? "(script)" : "",
-                ToriRS_TaskWaitName(task->wait));
     }
-    if( TaskRunner_ContractTrace() >= 2 || (TaskRunner_ContractTrace() >= 1 && (blocked > 0 || breaches > 0)) )
+    if( TaskRunner_ContractTrace() >= 2 || (TaskRunner_ContractTrace() >= 1 && (parked > 0 || breaches > 0)) )
+    {
         fprintf(
             stderr,
-            "queue_contract: trace %s pump %u ended %s: %d waiting on a read, %d blocked%s%s\n",
+            "queue_contract: trace %s pump %u ended %s: %d waiting on a read, %d parked%s%s\n",
             TaskRunner_RoleName(runner->role),
             (unsigned)runner->pump,
             why ? why : "?",
             pending,
-            blocked,
-            blocked ? ":" : "",
+            parked,
+            parked ? ":" : "",
             names);
+        if( TaskRunner_ContractTrace() >= 2 )
+            (void)TaskRunner_PrintParked(runner, stderr);
+    }
     return breaches;
 }
 
@@ -914,8 +992,9 @@ TaskRunner_StepUntil(
  * The background queue's pump (a role-less test runner's too); never the main
  * or the parallel queue's.
  *
- * Stops on IDLE, SPENT, WAITING (the answers come between turns) and BLOCKED
- * (the other queue has to move); keeps going on PROGRESSED while time
+ * Stops on IDLE, SPENT and WAITING (every task left is parked: the answers
+ * come between turns, or another queue has to move); keeps going on
+ * PROGRESSED while time
  * remains. With `deadline_us` 0 it has no limit and runs to one of those
  * answers -- what an owner that has stopped waiting does
  * (ToriRS_TaskJob::promoted). The pump is checked when it ends
@@ -948,8 +1027,8 @@ TaskRunner_RunUntil(
 
 /*
  * ONE PUMP of a drained queue -- the parallel queue's, every frame: every
- * task that can run gets a turn, and passes go on until nothing more can
- * move (every task done, waiting on a read, or joined on tasks that are).
+ * task that can run gets a turn, and passes go on until no task is ready
+ * (every task done, or parked on its read, a trigger, a count or a cycle).
  * No clock, and no task's request ends it.
  *
  * `step_limit` is a runaway backstop, never a bound a real pump reaches:
@@ -993,10 +1072,11 @@ TaskRunner_PumpToStandstill(
  * Steps until the queue is empty. A pass that finds reads on the wire steps
  * again, because on the desktop the next pass's Pump is what lands them.
  *
- * Returns with work still queued if a task blocks on another queue's state
- * (TASK_RUNNER_BLOCKED); a single-queue drain has no way to satisfy that, and
- * spinning here is the deadlock this status exists to prevent. Callers that
- * must settle such a task step both queues instead -- see App_BootWait.
+ * Returns with work still queued once every task left is parked on a
+ * trigger, a count or a cycle and none has a read out: a single-queue drain
+ * cannot move what only another queue (or a clock) fires, and stepping again
+ * would run nothing. Callers that must settle such a task step both queues
+ * instead -- see App_BootWait.
  *
  * A render request is honoured as a plain yield: a blocking drain has no
  * frame loop to hand the screen to. The task still gets stepped again, which
@@ -1009,15 +1089,15 @@ TaskRunner_Drain(struct TaskRunner* runner)
     do
     {
         stat = TaskRunner_Step(runner);
-    } while( stat != TASK_RUNNER_IDLE && stat != TASK_RUNNER_BLOCKED );
+    } while( stat != TASK_RUNNER_IDLE && !(stat == TASK_RUNNER_WAITING && TaskRunner_ReadsOutstanding(runner) == 0) );
 }
 
 /** Settle the frame's transaction before a frame is published.
  *
  * A cooperative task may yield arbitrarily often; a yield is not a frame
  * boundary. So this steps while passes make progress, and stops for exactly
- * the reasons a pass cannot continue: the transaction is done (IDLE), a read
- * is on the wire (WAITING), a task waits on another queue (BLOCKED), or a
+ * the reasons a pass cannot continue: the transaction is done (IDLE), every
+ * task left is parked (WAITING: on a read, or on another queue's work), or a
  * task asked for this frame to be seen (RENDER). Callers retain the last
  * settled frame on anything but IDLE and resume on the next host turn.
  *

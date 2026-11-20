@@ -1,6 +1,7 @@
 #ifndef CACHE_PROVIDER_H
 #define CACHE_PROVIDER_H
 
+#include "task_trigger.h"
 #include "torirs_types.h"
 
 #include <assert.h>
@@ -158,6 +159,16 @@ struct CacheProvider
      *  (CacheProvider_SetArchiveReprimeHook). NULL: never. */
     int (*archive_reprime_hook)(void* user, int index);
     void* archive_reprime_user;
+    /**
+     * The maps index's re-prime after a CACHE_INVALIDATE of a square: primed
+     * by `reprime_link` -- the IO's link, an outside owner -- from the
+     * invalidation while its new reference table is on its way
+     * (CacheProvider_ArchiveReprimePending), fired when the IO says it has
+     * landed (CacheProvider_ArchiveReprimeTick). The world gather waits on it
+     * before it reads which squares exist.
+     */
+    struct ToriRS_Trigger maps_reprime;
+    struct ToriRS_TriggerOwner reprime_link;
 
     /**
      * Records a CACHE_INVALIDATE evicted, kept alive until the provider is
@@ -902,6 +913,20 @@ int
 CacheProvider_ArchiveReprimePending(
     struct CacheProvider* provider,
     int index);
+
+/** The maps index's re-prime trigger (`maps_reprime`). */
+struct ToriRS_Trigger*
+CacheProvider_MapsReprime(struct CacheProvider* provider);
+
+/**
+ * The IO's link moved (a JS5 tick): if the maps index's re-prime is primed
+ * and its table is no longer on its way -- landed, or the link died -- fire
+ * it. `user` is the provider. The IO calls it after every tick of its link
+ * (PlatformX_IO_SetReprimeTickHook); it is the link telling the client its
+ * answer came, as a read's answer clears its item.
+ */
+void
+CacheProvider_ArchiveReprimeTick(void* user);
 
 /** packed_id = (iface_id << 16) | (child & 0xFFFF). Resolves into pack cache. */
 struct ToriRS_Component*

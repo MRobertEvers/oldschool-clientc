@@ -922,6 +922,9 @@ Task_AppBoot_Run(
     app_title_boot_settled(app);
     /* READY, and the tree can draw now, so there is nothing left to hold. */
     RS_ClientPhase_BakeSettled(&app->phase);
+    /* The boot's trigger mirrors the phase: whichever boot settles it fires
+     * it, so a mount waiting out BOOTING goes on exactly when it ends. */
+    ToriRS_Trigger_FireIfPrimed(App_BootBuilt(app));
     ToriRS_BootTelemetry_Mark(RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_GAME ? "ready:game" : "ready:title");
     /* A freshly baked title tree shows every screen's group at once until it is
      * told which one is current. */
@@ -1117,6 +1120,10 @@ app_open_tree(
      * reads that flag to know its transaction is still open. While the
      * client boots App_PumpAsync pumps this queue (app_pump_boot_main). */
     TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
+    /* The phase is BOOTING from here until a boot settles it, and this boot
+     * commits to that: a mount queued behind it waits on the trigger. An
+     * earlier boot still queued held it; this prime replaces that one. */
+    ToriRS_Trigger_Prime(App_BootBuilt(app), ToriRS_TaskOwner(&task->task));
 }
 
 static void
@@ -1360,13 +1367,14 @@ Task_OpenSubRefresh_Run(
      * same, so the new root's slots exist before mount_pack_under_target
      * asserts, whoever queued this.
      *
-     * TASK_AWAIT_STATE, not a bare PT_YIELD loop, and the difference is a
-     * deadlock: a plain yield here spins app_logic_tick's exec drain at 100%
-     * CPU while whatever is booting waits for the frame loop's turn --
-     * measured on every Display-panel layout switch, back when the boot ran
-     * on the parallel queue. A wait on state is legal here: this is the main
-     * queue (frame contract, app.h). */
-    TASK_AWAIT_STATE(base, &self->pt, !RS_ClientPhase_Booting(&app->phase));
+     * Parked on the boot's trigger, which the boot primes for exactly as
+     * long as the phase is BOOTING (app_open_tree) and fires when it settles:
+     * not a poll, and not a bare PT_YIELD loop, which spun app_logic_tick's
+     * exec drain at 100% CPU while whatever was booting waited for the frame
+     * loop's turn -- measured on every Display-panel layout switch, back when
+     * the boot ran on the parallel queue. */
+    while( RS_ClientPhase_Booting(&app->phase) )
+        TASK_AWAIT_TRIGGER(base, &self->pt, TORIRS_TASK_WAIT_TRIGGER, App_BootBuilt(app));
     if( self->interface_id > 0 && UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {
         TORIRS_ERR(

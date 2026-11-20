@@ -84,7 +84,6 @@ static char const* const k_withhold_names[SETTLE_GATE_WITHHOLD_COUNT] = {
     [SETTLE_GATE_WITHHOLD_LOGOUT_HOLD] = "withheld:logout_hold",
     [SETTLE_GATE_WITHHOLD_SCRIPTS_LATCHED] = "withheld:scripts_latched",
     [SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING] = "withheld:scripts_pending",
-    [SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED] = "withheld:scripts_blocked",
     [SETTLE_GATE_WITHHOLD_GATE] = "withheld:gate",
     [SETTLE_GATE_WITHHOLD_REPLAY_SEEK] = "withheld:replay_seek",
 };

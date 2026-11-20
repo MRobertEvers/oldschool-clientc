@@ -320,7 +320,9 @@ Task_GameProtoExec_Run(
          * them: the assets are awaited, then the build runs here, in place
          * and in one piece. */
         memset(&self->gather_report, 0, sizeof(self->gather_report));
-        App_ViewRebuildBegin(app, &self->rebuild, WORLDVIEW_ROOT);
+        /* This task owns the root view's built trigger from here to the
+         * finish: a parallel task waiting out the rebuild parks on it. */
+        App_ViewRebuildBegin(app, &self->rebuild, WORLDVIEW_ROOT, ToriRS_TaskOwner(&self->task));
         PT_TASK_AWAITSELF_IF(CreateTask_WorldGather(
             app->provider, rebuild_view(self)->builder, app->frame_runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, 104,
@@ -362,7 +364,7 @@ Task_GameProtoExec_Run(
                 rebuild_view(self)->world->_base_tile_x - self->prev_base_x,
                 rebuild_view(self)->world->_base_tile_z - self->prev_base_z);
         App_WorldLoadFinish(app);
-        App_ViewRebuildEnd(app, &self->rebuild);
+        App_ViewRebuildEnd(app, &self->rebuild, 1);
     }
     else if( self->packet.packet_type == PKT_NAME_REBUILD_WORLDENTITY )
     {
@@ -471,7 +473,7 @@ Task_GameProtoExec_Run(
                 self->wev_scene_size,
                 self->chunk_count);
         memset(&self->gather_report, 0, sizeof(self->gather_report));
-        App_ViewRebuildBegin(app, &self->rebuild, self->wev_view_id);
+        App_ViewRebuildBegin(app, &self->rebuild, self->wev_view_id, ToriRS_TaskOwner(&self->task));
         PT_TASK_AWAITSELF_IF(CreateTask_WorldGather(
             app->provider, wev_view(self)->builder, app->frame_runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, self->wev_scene_size,
@@ -491,7 +493,7 @@ Task_GameProtoExec_Run(
          * server-driven. */
         if( wev_view(self)->world->load_complete )
             App_WorldViewLoadFinish(app, self->wev_view_id, 1);
-        App_ViewRebuildEnd(app, &self->rebuild);
+        App_ViewRebuildEnd(app, &self->rebuild, 1);
         if( getenv("TORIRS_WEV_DEBUG") )
             fprintf(
                 stderr,
@@ -572,8 +574,9 @@ Task_GameProtoExec_Free(struct ToriRS_Task* base)
 {
     struct Task_GameProtoExec* self = (struct Task_GameProtoExec*)base;
     /* Freed mid-rebuild (a queue freed at shutdown): it is no longer under
-     * way. */
-    App_ViewRebuildEnd(self->app, &self->rebuild);
+     * way. The view's built trigger was abandoned by this task's end, just
+     * before (task_free). */
+    App_ViewRebuildEnd(self->app, &self->rebuild, 0);
     gameproto_free(&self->packet);
     ToriMem_Free(ToriMem_Session(), self);
 }

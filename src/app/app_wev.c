@@ -524,6 +524,10 @@ App_WevSpawn(
     /* SET_INTERACTION_MODE may have named this hull before it existed: its
      * modes were kept by the wire id (game/rs_interaction_mode.h). */
     (void)RS_InteractionMode_TakeHeld(&app->interaction_mode, wire_id, id);
+    /* Its scene comes with its REBUILD_WORLDENTITY, which the server owes:
+     * until then the view stands as the owner of its built trigger, so a
+     * zone packet held for it waits on something that is coming. */
+    App_ViewAwaitsScene(app, id);
 
     {
         struct Wev* wev = Wevs_Spawn(
@@ -601,6 +605,9 @@ App_WevDespawn(
     ToriDraw_SceneClearPool(app->scene, TORIDRAW_SCENE_POOL_STATIC_VIEW(id));
     ToriDraw_SceneClearPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(id));
 
+    /* The view's built trigger goes with the slot: whoever waits on it
+     * wakes, and finds the view gone. */
+    App_ViewReleased(app, id);
     WorldviewRegistry_Release(&app->worldviews, id);
     RedrawRequest_Raise(&app->redraw_request);
 }

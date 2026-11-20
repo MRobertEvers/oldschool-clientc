@@ -631,10 +631,12 @@ app_pump_net_packets(struct App* app)
         }
 
         /*
-         * Parked on state this queue does not own -- in practice an asset the
-         * FRAME queue is loading: Task_NpcMultiLoad waiting for an npc's body
-         * parts, Task_WorldLoad waiting for a region's map squares. Resolve
-         * that io here rather than ending the frame.
+         * The head is parked on work this queue does not own (a join, a
+         * trigger) -- in practice an asset the FRAME queue is loading:
+         * Task_NpcMultiLoad waiting for an npc's body parts, Task_WorldLoad
+         * waiting for a region's map squares. Resolve that io here rather
+         * than ending the frame: the frame queue's steps are what end the
+         * loads, and the last one's end makes the head ready.
          *
          * A task is only ever resumed against reads that have LANDED, and the
          * budgets those waits carry are counted in resumes, not in frames.
@@ -650,7 +652,7 @@ app_pump_net_packets(struct App* app)
          * the honest end of "resolve the io" -- and is bounded, because a wait
          * that outlives its own budget gives up on its own.
          */
-        if( stat == TASK_RUNNER_BLOCKED )
+        if( stat == TASK_RUNNER_WAITING && TaskRunner_HeadParked(&app->packet_runner) )
         {
             enum TaskRunnerStat assets = TaskRunner_SettleFrame(&app->frame_runner);
 
@@ -660,7 +662,7 @@ app_pump_net_packets(struct App* app)
                 for( struct ToriRS_Task* t = app->frame_runner.queue->head; t; t = t->next )
                     n++;
                 TORIRS_REPORT(
-                    "frame_latch: blocked exec -> assets stat=%d progressed=%d queued=%d "
+                    "frame_latch: parked exec -> assets stat=%d progressed=%d queued=%d "
                     "reads_out=%d cycle=%d\n",
                     (int)assets,
                     app->frame_runner.progressed,
@@ -682,11 +684,11 @@ app_pump_net_packets(struct App* app)
                  * difference between "a packet parked" and knowing which
                  * loader to take off the FIFO next. */
                 TORIRS_LOG(
-                    "frame_latch: exec parked stat=%d head=%s blocked=%d reads_out=%d "
+                    "frame_latch: exec parked stat=%d head=%s parked=%d reads_out=%d "
                     "read=%d/%d/%d cycle=%d\n",
                     (int)stat,
                     head ? head->name : "(none)",
-                    head ? head->blocked : -1,
+                    head ? head->parked : -1,
                     TaskRunner_ReadsOutstanding(&app->packet_runner),
                     head ? (int)head->io.kind : -1,
                     head && head->io.kind == TORIRS_IOK_CACHE ? head->io.u.cache.table_id : -1,

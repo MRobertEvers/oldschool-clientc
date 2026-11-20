@@ -393,6 +393,29 @@ struct App_ZoneBase
     int level;
 };
 
+/*
+ * What the client's parked tasks wait on that is neither a task's end nor a
+ * join (task_trigger.h; app/app_parallel_task.h has the calls). Each is fired
+ * in one place.
+ */
+struct AppTriggers
+{
+    /* The logic cycle (App_ParallelCycle), advanced at the top of every logic
+     * tick (app_logic_tick): what PT_PARALLEL_AWAIT_CYCLE parks on. */
+    struct ToriRS_Clock cycle;
+    /* "The boot has built the tree": primed by the boot task (app_open_tree)
+     * for as long as the client phase is BOOTING, fired when it settles. An
+     * interface mount queued behind a boot waits on it. */
+    struct ToriRS_Trigger boot_built;
+    /* "View N's scene is built": primed by a rebuild of the view from its
+     * start (App_ViewRebuildBegin), fired at its commit (App_ViewRebuildEnd);
+     * and, for a spawned view whose first scene the server has yet to send,
+     * primed by `view_awaits[N]` -- the view itself, an outside owner -- from
+     * its spawn to that rebuild or its release. */
+    struct ToriRS_Trigger view_built[WORLDVIEW_MAX];
+    struct ToriRS_TriggerOwner view_awaits[WORLDVIEW_MAX];
+};
+
 struct App
 {
     struct AppConfig cfg;
@@ -473,21 +496,32 @@ struct App
      *      run one to its end (TaskRunner_RenderOwed), so no pump -- between
      *      frames (the browser's, the native loop's naps) or at the top of
      *      the frame that pays it -- resumes the task that asked before that
-     *      frame is drawn. Its tasks may wait on any state.
+     *      frame is drawn. Its tasks wait the way every task waits (3).
      *   3. THE PARALLEL QUEUE (frame_runner) is IO-heavy work and is
      *      DRAINED: each pump steps every task that can run at least once,
-     *      then keeps stepping until every task is done, waiting on a read,
-     *      or in a NAMED wait (asyncio.h, enum ToriRS_TaskWait: an asset, a
-     *      join on tasks it fanned out, another task finishing -- its turn
-     *      behind an earlier task for the same key, or the rebuild of its
-     *      view -- or a client cycle; the macros are game/rs_parallel_task.h).
-     *      Any other wait there, TASK_AWAIT_STATE among them, is a breach
-     *      the runner asserts. Nothing else ends a
-     *      pump: no clock, no step count a frame reaches, no task's request.
-     *      It is pumped every App_RunOnce (App_PumpAsync), between frames on
-     *      the web when a batch of reads lands (torirs_web_io_pump), inside a
-     *      client script's settle, and from the packet pump while the main
-     *      queue's head is joined on it. Its processor time lands in the
+     *      then keeps stepping until every task is DONE OR PARKED. A task
+     *      waits by parking (task_trigger.h), on exactly one of four things,
+     *      and is not stepped until that thing wakes it -- nothing is polled:
+     *        - its own READ (its item is on the wire; the platform answers);
+     *        - a TRIGGER that is primed: some owner (a task, a job, or a party
+     *          outside the client) has committed to firing it -- the end of
+     *          another task (a join's sibling, the earlier task for its key),
+     *          the rebuild of its view, the boot. An owner that ends without
+     *          firing has it fired ABANDONED for it, so it always fires;
+     *        - a COUNT (a join: its siblings, or the loads the assets table
+     *          counts for it), made ready by the decrement that takes it to 0;
+     *        - a CYCLE on a clock its owner advances in one place (the logic
+     *          tick).
+     *      A wait that would close a loop asserts when it is made, and a
+     *      wait on an unprimed trigger asserts: a task that never ends is a
+     *      crash, never a state (TORIRS_QUEUE_CONTRACT_TRACE prints what each
+     *      parked task waits on, down to what it bottoms out in). The macros
+     *      are game/rs_parallel_task.h. Nothing else ends a pump: no clock,
+     *      no step count a frame reaches, no task's request. A parked task
+     *      costs a pump nothing. It is pumped every App_RunOnce
+     *      (App_PumpAsync), between frames on the web when a batch of reads
+     *      lands (torirs_web_io_pump), inside a client script's settle, and
+     *      from the packet pump while the main queue's head is parked on it. Its processor time lands in the
      *      current frame, so a parallel task waits, then does a little; a
      *      step that computes is named (TaskRunner::compute_step_us).
      *   4. THE BACKGROUND QUEUE (background_runner) is CPU-heavy work and is
@@ -509,8 +543,8 @@ struct App
      *      background queue (the REBUILD's world job). What it needs in
      *      order to continue it awaits on the main queue.
      *   6. RESULTS BY QUEUE: RENDER is legal on the main queue only; SPENT on
-     *      the background queue only; BLOCKED on the parallel and background
-     *      queues only as a named wait (asyncio.h has the table). Only the
+     *      the background queue only (asyncio.h has the table); there is no
+     *      "blocked" result on any queue -- a task that waits parks. Only the
      *      background queue is time-sliced: on any other queue a task that
      *      asks whether the slice is over is told no (ToriRS_Slice::sliced,
      *      set in one place, TaskRunner_StepUntil), so no task there can
@@ -518,8 +552,9 @@ struct App
      *      tasks and says so as PACED, never SPENT.
      *   7. BETWEEN FRAMES a native loop waits by what is queued
      *      (ToriRS_Pacer_LoopWait, pacer.h): it never sleeps through work
-     *      that can run now, and never goes straight round again for work
-     *      that only waits on a read or a join -- it naps, pumping between
+     *      that can run now (a parked task a fire made ready included), and
+     *      never goes straight round again for work that is only parked --
+     *      it naps, pumping between
      *      naps (App_PumpAsync) and giving the background queue the slack,
      *      and goes back to its frames as soon as a pump moves anything.
      *
@@ -571,6 +606,9 @@ struct App
      *  what it is for and cancelled by key or scope; it holds no data of its
      *  own (game/rs_pending.h; app/app_parallel_task.h). */
     struct RS_Pending* pending;
+    /** The cycle clock and the boot's and the views' built triggers: what a
+     *  parked task waits on besides another task (app/app_parallel_task.h). */
+    struct AppTriggers triggers;
 
     /* Phase 2: asset pipeline. The disk (or the on-demand stream) and the
      * build cache that backs `provider`; everything downstream sees only the
@@ -2854,22 +2892,27 @@ struct RS_ParallelTask;
 /**
  * A rebuild of view `view` begins: list `rebuild` (a header the rebuild owns,
  * not on any queue) in app->pending as RS_PENDING_KIND_REBUILD for the view,
- * so a parallel task can wait on it by name (PT_APP_AWAIT_VIEW_REBUILT). The
- * background world job, a blocking REBUILD inside its packet task and a local
- * load each list one from their start to their finish.
+ * and prime the view's built trigger with `owner` (the packet task a blocking
+ * rebuild runs in, or the job): a parallel task waits on that
+ * (PT_APP_AWAIT_VIEW_REBUILT). The background world job, a blocking REBUILD
+ * inside its packet task and a local load each begin one at their start.
  */
 void
 App_ViewRebuildBegin(
     struct App* app,
     struct RS_ParallelTask* rebuild,
-    int view);
+    int view,
+    struct ToriRS_TriggerOwner* owner);
 
-/** The rebuild ended (finished, cancelled, or its owner freed): unlist it.
- *  A header that was never listed, or already unlisted, is left alone. */
+/** The rebuild ended: unlist it, and when it `built` the scene, fire the
+ *  view's built trigger. A rebuild that ends without building (cancelled,
+ *  or its owner freed) leaves the trigger to its owner's end, which abandons
+ *  it. A header that was never listed, or already unlisted, is left alone. */
 void
 App_ViewRebuildEnd(
     struct App* app,
-    struct RS_ParallelTask* rebuild);
+    struct RS_ParallelTask* rebuild,
+    int built);
 
 /**
  * The packet pump's question, asked before every pop while a job is pending:
@@ -3445,10 +3488,18 @@ App_AsyncMoved(const struct App* app);
 int
 App_MainQueueWaitsOnRead(const struct App* app);
 
+/** WHAT IS PARKED ON WHAT: one stderr line per task on any of the three
+ *  queues that waits -- on its read, a trigger, a count or a cycle -- with
+ *  its chain down to what it bottoms out in (ToriRS_TaskChainFormat).
+ *  Returns how many. */
+int
+App_QueueParkedPrint(struct App const* app);
+
 /** TORIRS_QUEUE_CONTRACT_TRACE: one line of what the frame side of the
  *  contract did since the last call -- withheld frames by named reason,
  *  parallel pumps and how they ended, background floor pumps, the longest
- *  background step -- then the tally restarts. Returns the length. */
+ *  background step -- then the tally restarts; the parked tasks are printed
+ *  first (App_QueueParkedPrint). Returns the length. */
 int
 App_QueueContractTraceLine(
     struct App const* app,
@@ -3458,7 +3509,7 @@ App_QueueContractTraceLine(
 /**
  * One pump: the main queue while the client boots, a pending client
  * script's settle, then the parallel queue to a standstill -- every task
- * done, waiting on a read, or joined on tasks that are. The frame's own
+ * done or parked (on its read, a trigger, a count, a cycle). The frame's own
  * async stage, and also what the browser platform runs between frames when
  * reads land (see App_PumpAsync in app_frame.c). `from_frame` is 1 from
  * App_RunOnce and 0 from a platform pump.

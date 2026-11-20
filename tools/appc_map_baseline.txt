@@ -254,7 +254,12 @@
 # editor load's gather job on background_runner; it was a task on
 # frame_runner that held nothing on App, and the job has to be found again
 # by the frame that builds it.
-struct-App-fields: 145
+# Raised to 146 by the trigger step: triggers (struct AppTriggers, app.h),
+# what a parked task waits on that is neither a task's end nor a join -- the
+# logic cycle's clock, the boot's built trigger, each view's built trigger
+# and the view that owns it until its first scene; the polled conditions it
+# replaces held nothing on App.
+struct-App-fields: 146
 
 src/main.c
 src/executor_config.c

@@ -169,7 +169,12 @@ pump(struct Fixture* fx)
             struct ToriRS_Task* next = t->next;
             int stat;
 
-            t->blocked = 0;
+            /* A parked task is not run: only what it parked on readies it. */
+            if( t->parked )
+            {
+                t = next;
+                continue;
+            }
             stat = ToriRS_TaskQueue_RunTask(queue, fx->io, t);
             moved |= stat == TORIRS_ASYNCIO_STAT_DONE;
             t = next;

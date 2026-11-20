@@ -117,11 +117,9 @@ enum SettleGateWithhold
     /** The frame runner's script latch, at the top of the frame: last
      *  frame's script settle did not finish. */
     SETTLE_GATE_WITHHOLD_SCRIPTS_LATCHED,
-    /** A script settle this frame did not finish: a read is on the wire. */
+    /** A script settle this frame did not finish: a script is parked (on a
+     *  read, or on another queue's work). */
     SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING,
-    /** A script settle this frame did not finish: a script waits on state
-     *  another queue owns. */
-    SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED,
     /** SettleGate_FrameSettled refused (before or after interaction). */
     SETTLE_GATE_WITHHOLD_GATE,
     /** A replay seek holds the screen (RenderSkip_Held). NOT the packet

@@ -279,6 +279,23 @@ app_world_local_load(struct App* app)
     return app->world_local;
 }
 
+/*
+ * THE ONE PLACE A LOCAL LOAD ENDS: `built` (the frame built and finished it)
+ * or cancelled. Unlisted as the root view's rebuild; built, the view's built
+ * trigger fires; and the job ends as an owner.
+ */
+static void
+app_world_local_load_end(
+    struct App* app,
+    int built)
+{
+    struct AppWorldLocalLoad* ll = app->world_local;
+
+    assert(ll);
+    App_ViewRebuildEnd(app, &ll->rebuild, built);
+    ToriRS_TaskJob_End(&ll->job, built);
+}
+
 /* Stop a gather still out (its loaders outlive it and end into the cache). */
 static void
 app_world_local_load_cancel(struct App* app)
@@ -293,7 +310,7 @@ app_world_local_load_cancel(struct App* app)
     assert(ToriRS_TaskJob_Done(&ll->job));
     ll->gather = NULL;
     ll->pending = 0;
-    App_ViewRebuildEnd(app, &ll->rebuild);
+    app_world_local_load_end(app, 0);
 }
 
 static void
@@ -326,7 +343,7 @@ app_world_local_load_start(
         NULL,
         NULL);
     ll->pending = 1;
-    App_ViewRebuildBegin(app, &ll->rebuild, WORLDVIEW_ROOT);
+    App_ViewRebuildBegin(app, &ll->rebuild, WORLDVIEW_ROOT, ToriRS_TaskJobOwner(&ll->job, "the local world load"));
     /* No deadline of its own: nothing waits on a local load but the frame
      * that shows it, and the background queue gets its floor every frame. */
     ToriRS_TaskJob_Start(&ll->job, &app->background_runner, ll->gather, 0);
@@ -346,7 +363,7 @@ app_world_local_load_poll(struct App* app)
     /* The build and the finish, in the order Task_WorldLoad ran them. */
     WorldLoad_Build(app->world_builder, ll->chunks, ll->chunk_count, -1, -1, 104, NULL);
     App_WorldLoadFinish(app);
-    App_ViewRebuildEnd(app, &ll->rebuild);
+    app_world_local_load_end(app, 1);
 }
 
 void

@@ -17,6 +17,10 @@ App_PendingInit(struct App* app)
     assert(app->assets);
     assert(!app->pending);
     app->pending = RS_Pending_New();
+    ToriRS_Clock_Init(&app->triggers.cycle, "the logic cycle", App_ParallelCycle(app));
+    ToriRS_Trigger_Init(&app->triggers.boot_built, "the boot's tree");
+    for( int i = 0; i < WORLDVIEW_MAX; i++ )
+        ToriRS_Trigger_Init(&app->triggers.view_built[i], i == WORLDVIEW_ROOT ? "the root view's scene" : "a view's scene");
 }
 
 void
@@ -25,6 +29,77 @@ App_PendingFree(struct App* app)
     assert(app);
     RS_Pending_Free(app->pending);
     app->pending = NULL;
+    /* The queues are gone, and every task parked on these left them as it
+     * was freed: retiring wakes nothing. */
+    ToriRS_Clock_Retire(&app->triggers.cycle);
+    ToriRS_Trigger_Retire(&app->triggers.boot_built);
+    for( int i = 0; i < WORLDVIEW_MAX; i++ )
+    {
+        ToriRS_Trigger_Retire(&app->triggers.view_built[i]);
+        ToriRS_TriggerOwner_End(&app->triggers.view_awaits[i], 0);
+    }
+}
+
+struct ToriRS_Clock*
+App_CycleClock(struct App* app)
+{
+    assert(app);
+    return &app->triggers.cycle;
+}
+
+void
+App_CycleClockTick(struct App* app)
+{
+    assert(app);
+    ToriRS_Clock_Advance(&app->triggers.cycle, App_ParallelCycle(app));
+}
+
+struct ToriRS_Trigger*
+App_BootBuilt(struct App* app)
+{
+    assert(app);
+    return &app->triggers.boot_built;
+}
+
+struct ToriRS_Trigger*
+App_ViewBuiltTrigger(
+    struct App* app,
+    int view)
+{
+    assert(app);
+    if( view < 0 || !WorldviewRegistry_IsLive(&app->worldviews, view) )
+        return NULL;
+    return &app->triggers.view_built[view];
+}
+
+void
+App_ViewAwaitsScene(
+    struct App* app,
+    int view)
+{
+    struct ToriRS_TriggerOwner* awaits;
+
+    assert(app);
+    assert(view > WORLDVIEW_ROOT);
+    assert(view < WORLDVIEW_MAX);
+    awaits = &app->triggers.view_awaits[view];
+    /* The view stands as the owner of its own first scene: it ends when the
+     * view is released (App_ViewReleased) or a rebuild of it takes the
+     * trigger over (App_ViewRebuildBegin). */
+    ToriRS_TriggerOwner_Init(awaits, TORIRS_OWNER_EXTERNAL, "a spawned view awaiting its first REBUILD_WORLDENTITY");
+    ToriRS_Trigger_Prime(&app->triggers.view_built[view], awaits);
+}
+
+void
+App_ViewReleased(
+    struct App* app,
+    int view)
+{
+    assert(app);
+    assert(view >= 0);
+    assert(view < WORLDVIEW_MAX);
+    ToriRS_Trigger_Retire(&app->triggers.view_built[view]);
+    ToriRS_TriggerOwner_End(&app->triggers.view_awaits[view], 0);
 }
 
 uint32_t
@@ -116,21 +191,12 @@ App_ViewRebuildKey(
         view, 0, 0, 0, 0, (uint32_t)WorldviewRegistry_Get(&app->worldviews, view)->wire_id);
 }
 
-bool
-App_ViewRebuilding(
-    struct App* app,
-    int view)
-{
-    assert(app);
-    assert(app->pending);
-    return RS_Pending_Find(app->pending, RS_PENDING_KIND_REBUILD, App_ViewRebuildKey(app, view)) != NULL;
-}
-
 void
 App_ViewRebuildBegin(
     struct App* app,
     struct RS_ParallelTask* rebuild,
-    int view)
+    int view,
+    struct ToriRS_TriggerOwner* owner)
 {
     uint32_t scene_serial = 0;
     struct World const* world;
@@ -151,13 +217,20 @@ App_ViewRebuildBegin(
         view,
         scene_serial,
         App_ParallelCycle(app));
+    /* What a task waiting out this view's rebuild parks on, from here to the
+     * commit. A prime the view held for its first scene, or an older
+     * rebuild's, is abandoned by this one (its waiters wait again). */
+    ToriRS_Trigger_Prime(&app->triggers.view_built[view], owner);
 }
 
 void
 App_ViewRebuildEnd(
     struct App* app,
-    struct RS_ParallelTask* rebuild)
+    struct RS_ParallelTask* rebuild,
+    int built)
 {
+    int view;
+
     assert(app);
     assert(app->pending);
     assert(rebuild);
@@ -165,7 +238,13 @@ App_ViewRebuildEnd(
      * (a packet task freed before its gather, a job cancelled twice). */
     if( !rebuild->listed )
         return;
+    view = rebuild->view;
     RS_Pending_Unlist(app->pending, rebuild);
+    /* Built: the waiters' scene is here. Not built: the owner's end abandons
+     * the trigger (task_free, ToriRS_TaskJob_End), which is what the
+     * waiters need -- they find the view as it is and go on or exit. */
+    if( built && view >= 0 && view < WORLDVIEW_MAX )
+        ToriRS_Trigger_FireIfPrimed(&app->triggers.view_built[view]);
 }
 
 /*

@@ -153,7 +153,9 @@ pump(struct Fixture* fx)
         while( task )
         {
             struct ToriRS_Task* next = task->next;
-            (void)ToriRS_TaskQueue_RunTask(fx->app.frame_runner.queue, fx->io, task);
+            /* A parked task is not run: only what it parked on readies it. */
+            if( !task->parked )
+                (void)ToriRS_TaskQueue_RunTask(fx->app.frame_runner.queue, fx->io, task);
             task = next;
         }
     }
@@ -375,11 +377,13 @@ test_icons_wanted_on_change(void)
     fx.app.host.client.now_ms = 1400;
     for( int i = 0; i < 20; i++ )
         FrameClockSerial_NoteLogicCycle(&fx.app.frame_clock.serial);
+        App_CycleClockTick(&fx.app);
     pump(&fx);
     TEST_ASSERT(loads_of(ASSET_KIND_OBJ_MODEL, 2000, 1) == 1, "nor before the pause is over");
     fx.app.host.client.now_ms = 1600;
     for( int i = 0; i < 10; i++ )
         FrameClockSerial_NoteLogicCycle(&fx.app.frame_clock.serial);
+        App_CycleClockTick(&fx.app);
     pump(&fx);
     TEST_ASSERT(loads_of(ASSET_KIND_OBJ_MODEL, 2000, 1) == 2, "but after it, it asks again");
 

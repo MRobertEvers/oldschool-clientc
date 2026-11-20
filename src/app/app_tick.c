@@ -46,6 +46,9 @@ app_logic_tick(struct App* app)
     int redraw = 0;
 
     FrameClockSerial_NoteLogicCycle(&app->frame_clock.serial);
+    /* The one place the cycle clock moves: every task parked until this
+     * cycle is made ready (PT_APP_AWAIT_CYCLE). */
+    App_CycleClockTick(app);
 
     /*
      * The logout the player asked for, drained here rather than at the click.

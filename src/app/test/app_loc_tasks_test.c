@@ -140,6 +140,7 @@ cycles(int n)
 {
     for( int i = 0; i < n; i++ )
         FrameClockSerial_NoteLogicCycle(&g_fx.app->frame_clock.serial);
+        App_CycleClockTick(g_fx.app);
 }
 
 static struct World*
@@ -207,6 +208,47 @@ fixture_init(void)
     WorldviewRegistry_Register(
         &app->worldviews, DECK_VIEW, DECK_WIRE, g_fx.deck, g_fx.deck_builder, 6400, 6400, 64, 64,
         WORLDVIEW_ROOT);
+    /* As App_WevSpawn has it: the view stands as the owner of its built
+     * trigger until its scene comes. */
+    App_ViewAwaitsScene(app, DECK_VIEW);
+}
+
+/* The deck's scene is here (as its rebuild's commit says), or gone again
+ * (a spawned view awaiting its first). */
+static void
+deck_built(void)
+{
+    World_SetLoadComplete(g_fx.deck, true);
+    ToriRS_Trigger_FireIfPrimed(App_ViewBuiltTrigger(g_fx.app, DECK_VIEW));
+}
+
+static void
+deck_unbuilt(void)
+{
+    World_SetLoadComplete(g_fx.deck, false);
+    App_ViewAwaitsScene(g_fx.app, DECK_VIEW);
+}
+
+/* A rebuild of a view, as a REBUILD's packet task runs one: begun (the scene
+ * goes, the view's built trigger is primed by the rebuild) ... committed. */
+static struct RS_ParallelTask g_rebuild;
+static struct ToriRS_TriggerOwner g_rebuild_owner;
+
+static void
+view_rebuild_begin(
+    int view,
+    struct World* world)
+{
+    if( g_rebuild_owner.kind == TORIRS_OWNER_NONE )
+        ToriRS_TriggerOwner_Init(&g_rebuild_owner, TORIRS_OWNER_EXTERNAL, "the test's rebuild");
+    World_SetLoadComplete(world, false);
+    App_ViewRebuildBegin(g_fx.app, &g_rebuild, view, &g_rebuild_owner);
+}
+
+static void
+view_rebuild_commit(void)
+{
+    App_ViewRebuildEnd(g_fx.app, &g_rebuild, 1);
 }
 
 /* The loc-change record a world keeps for a tile and layer, or NULL. */
@@ -390,7 +432,7 @@ test_a_merge_fires_in_its_own_view(void)
 
     printf("loc tasks: a LOC_MERGE hides and restores in the view it was sent to\n");
     /* The deck is built for this one. */
-    World_SetLoadComplete(g_fx.deck, true);
+    deck_built();
     WorldviewRegistry_SetActive(&app->worldviews, DECK_VIEW);
     App_WorldLocMerge(app, 5, 6, 0, 2001, SHAPE_WALL, 0, 2, 5, 77 /* no such player */);
     WorldviewRegistry_SetActive(&app->worldviews, WORLDVIEW_ROOT);
@@ -406,7 +448,7 @@ test_a_merge_fires_in_its_own_view(void)
     pump();
     rec = record_at(g_fx.deck, 5, 6, 0, LAYER_WALL);
     T_ASSERT(rec && rec->end_time < 0, "restored at end+1: what stood before is back");
-    World_SetLoadComplete(g_fx.deck, false);
+    deck_unbuilt();
 }
 
 /* ---- zone packets for an unbuilt view (L3, L4) ------------------------------ */
@@ -467,7 +509,7 @@ test_held_zone_packets_wait_for_their_own_view(void)
         "and the deck's packets did not apply to it");
     T_ASSERT(App_ZonePacketsHeld(app, DECK_VIEW), "they still wait");
 
-    World_SetLoadComplete(g_fx.deck, true);
+    deck_built();
     pump();
     T_ASSERT(!App_ZonePacketsHeld(app, DECK_VIEW), "built: every held packet ran");
     /* The first add was cancelled by the reset behind it, before its config
@@ -488,8 +530,10 @@ test_held_zone_packets_wait_for_their_own_view(void)
 
     /* L5: a deck's rebuild runs the root's finish. Rebuilt from its map, the
      * deck's landed change is put back on it. */
+    view_rebuild_begin(DECK_VIEW, g_fx.deck);
     World_SetLoadComplete(g_fx.deck, true);
     App_WorldViewLoadFinish(app, DECK_VIEW, 1);
+    view_rebuild_commit();
     T_ASSERT(
         app_loc_change_pending(app, DECK_VIEW, 13, 13, 0, LAYER_WALL) != NULL,
         "the deck's finish re-places its landed change");
@@ -502,13 +546,13 @@ test_held_zone_packets_wait_for_their_own_view(void)
     /* A packet for a deck that is built and has nothing held applies at once
      * (the live path asks App_ZonePacketsHeld); one held for a view that dies
      * before it is built is dropped. */
-    World_SetLoadComplete(g_fx.deck, false);
+    deck_unbuilt();
     hold(PKT_NAME_LOC_DEL, (1 << 4) | 1, -1, SHAPE_WALL << 2, DECK_VIEW);
     T_ASSERT(App_ZonePacketsHeld(app, DECK_VIEW), "held again");
     (void)RS_Pending_Cancel(app->pending, RS_PendingScope_All());
     pump();
     T_ASSERT(!App_ZonePacketsHeld(app, DECK_VIEW), "a logout's cancel ends it");
-    World_SetLoadComplete(g_fx.deck, true);
+    deck_built();
     pump();
     T_ASSERT(record_at(g_fx.deck, 9, 9, 0, LAYER_WALL) == NULL, "and it never applies");
 }
@@ -541,7 +585,7 @@ test_a_rebuild_carries_a_pending_change_over(void)
     /* The rebuild, as the REBUILD's task runs it: the scene goes; the second
      * add's config comes back meanwhile, and it waits for the rebuild rather
      * than being dropped. */
-    World_SetLoadComplete(world, false);
+    view_rebuild_begin(WORLDVIEW_ROOT, world);
     config_arrives(1010);
     pump();
     T_ASSERT(!old->par.cancelled, "mid-rebuild the loaded change waits");
@@ -553,6 +597,7 @@ test_a_rebuild_carries_a_pending_change_over(void)
     for( int i = 0; i < world->loc_change_count; i++ )
         world->loc_changes[i].x -= 8;
     App_WorldViewLoadFinish(app, WORLDVIEW_ROOT, 1);
+    view_rebuild_commit();
     T_ASSERT(old->par.cancelled, "the old scene's task is cancelled");
     carried = app_loc_change_pending(app, WORLDVIEW_ROOT, 44, 50, 0, LAYER_WALL);
     T_ASSERT(carried != NULL, "and carried to its tile in the new scene");

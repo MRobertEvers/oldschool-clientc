@@ -148,6 +148,11 @@ struct PlatformX_IO
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     struct PlatformXIOJs5Cache* js5;
 #endif
+    /* Told after every tick of the JS5 link (PlatformX_IO_SetReprimeTickHook):
+     * the provider fires its re-prime trigger when the table it waits for
+     * has landed. */
+    void (*reprime_tick)(void* user);
+    void* reprime_tick_user;
     /* Reads parked on either remote source. @see RemotePendingItem. */
     struct RemotePendingItem* pending;
     int pending_count;
@@ -461,6 +466,17 @@ PlatformX_IO_ArchiveInvalidateHook(
 {
     assert(user);
     PlatformX_IO_InvalidateArchive((struct PlatformX_IO*)user, index, archive);
+}
+
+void
+PlatformX_IO_SetReprimeTickHook(
+    struct PlatformX_IO* px,
+    void (*hook)(void* user),
+    void* user)
+{
+    assert(px);
+    px->reprime_tick = hook;
+    px->reprime_tick_user = hook ? user : NULL;
 }
 
 int
@@ -2337,6 +2353,8 @@ PlatformXIO_Js5Pump(
         return -1;
     result = PlatformXIOJs5Cache_Tick(px->js5, now_ms);
     js5_service_pending(px, result < 0);
+    if( px->reprime_tick )
+        px->reprime_tick(px->reprime_tick_user);
     if( result < 0 )
         return -1;
     return PlatformXIOJs5Cache_MetadataReady(px->js5) ? 1 : 0;

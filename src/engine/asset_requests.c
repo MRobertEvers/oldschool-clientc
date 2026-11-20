@@ -1,6 +1,7 @@
 #include "engine/asset_requests.h"
 
 #include "mem/torirs_mem.h"
+#include "task_trigger.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -429,6 +430,9 @@ entry_release_joins(
                 (*assets->nodes[n].join)--;
                 if( assets->nodes[n].result )
                     *assets->nodes[n].result = outcome;
+                /* The task parked on the join wakes when this takes it to
+                 * 0 (task_trigger.h); nothing runs here. */
+                ToriRS_CountDropped(assets->nodes[n].join);
             }
             node_release(assets, n);
         }
@@ -993,6 +997,7 @@ Assets_Unjoin(
     if( assets->closed )
     {
         *join = 0;
+        ToriRS_CountDropped(join);
         return;
     }
     for( int i = 0; i < assets->node_cap; i++ )
@@ -1003,6 +1008,7 @@ Assets_Unjoin(
             assets->nodes[i].result = NULL;
         }
     *join = 0;
+    ToriRS_CountDropped(join);
 }
 
 static struct AssetKey*

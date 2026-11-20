@@ -170,7 +170,12 @@ step_parallel(struct Fixture* fx)
     while( task )
     {
         struct ToriRS_Task* next = task->next;
-        task->blocked = 0;
+        /* A parked task is not run: only what it parked on readies it. */
+        if( task->parked )
+        {
+            task = next;
+            continue;
+        }
         (void)ToriRS_TaskQueue_RunTask(queue, fx->io, task);
         task = next;
     }

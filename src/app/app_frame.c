@@ -104,21 +104,35 @@ app_frame_latch_note(
  *
  * The frame loop asks so it can decline to sleep. See app.h for why the frame
  * cap must not pace the pipeline. */
+/* What ToriRS_TaskWakes read when the parallel queue's last pump ended
+ * (app_pump_parallel). A trigger fired, a count reaching zero or a clock
+ * advancing after it makes a parked task ready without running it, so the
+ * loop is told there is ready work on the parallel queue (below) rather than
+ * napping through it. */
+static uint32_t g_wakes_at_pump;
+
+static int
+app_woken_since_pump(const struct App* app)
+{
+    return ToriRS_TaskWakes() != g_wakes_at_pump && TaskRunner_HasReady(&app->frame_runner);
+}
+
 int
 App_AsyncPending(const struct App* app)
 {
     assert(app);
-    return BootPumpStats_Pending(&app->pump_stats);
+    return BootPumpStats_Pending(&app->pump_stats) || app_woken_since_pump(app);
 }
 
 /* ...and could some of it run at once, without a read landing or another
  * queue moving? The loop sleeps through work that only waits, never through
- * this (ToriRS_Pacer_LoopWait). */
+ * this (ToriRS_Pacer_LoopWait): a parallel task a fire made ready since the
+ * last pump is such work. */
 int
 App_AsyncRunnable(const struct App* app)
 {
     assert(app);
-    return BootPumpStats_Runnable(&app->pump_stats);
+    return BootPumpStats_Runnable(&app->pump_stats) || app_woken_since_pump(app);
 }
 
 /* Did the last pump run any task at all? */
@@ -154,7 +168,6 @@ static struct
     int pumps;
     int pumps_between;
     int pumps_waiting;
-    int pumps_blocked;
     int floor_pumps;
 } g_contract_tally;
 
@@ -162,6 +175,18 @@ void
 app_contract_note_background_floor(void)
 {
     g_contract_tally.floor_pumps++;
+}
+
+int
+App_QueueParkedPrint(struct App const* app)
+{
+    int n = 0;
+
+    assert(app);
+    n += TaskRunner_PrintParked(&app->packet_runner, stderr);
+    n += TaskRunner_PrintParked(&app->frame_runner, stderr);
+    n += TaskRunner_PrintParked(&app->background_runner, stderr);
+    return n;
 }
 
 int
@@ -175,6 +200,9 @@ App_QueueContractTraceLine(
     assert(app);
     assert(out);
     assert(out_size > 0);
+    /* What is parked on what, every queue, each down to what it bottoms out
+     * in (a read, a count, a cycle, a running owner). */
+    (void)App_QueueParkedPrint(app);
     len += snprintf(out + len, (size_t)(out_size - len), "withheld");
     for( int i = 0; i < SETTLE_GATE_WITHHOLD_COUNT && len < out_size; i++ )
         if( g_contract_tally.withheld[i] )
@@ -188,12 +216,11 @@ App_QueueContractTraceLine(
         len += snprintf(
             out + len,
             (size_t)(out_size - len),
-            "; parallel pumps=%d (between frames %d) ended waiting=%d blocked=%d; background floor pumps=%d "
+            "; parallel pumps=%d (between frames %d) ended waiting=%d; background floor pumps=%d "
             "longest step %.2f ms (%s)",
             g_contract_tally.pumps,
             g_contract_tally.pumps_between,
             g_contract_tally.pumps_waiting,
-            g_contract_tally.pumps_blocked,
             g_contract_tally.floor_pumps,
             (double)app->background_runner.longest_step_us / 1000.0,
             app->background_runner.longest_step_name[0] ? app->background_runner.longest_step_name : "-");
@@ -661,8 +688,8 @@ app_pump_backstop(
 /*
  * One pump of the parallel queue to a standstill (TaskRunner_PumpToStandstill):
  * every task that can run gets a turn, and passes go on until every task is
- * done, waiting on a read, or joined on tasks that are. Nothing else ends it.
- * `*progressed` says whether any pass ran anything.
+ * done or parked (on its read, a trigger, a count or a cycle). Nothing else
+ * ends it. `*progressed` says whether any pass ran anything.
  */
 static enum TaskRunnerStat
 app_pump_parallel(
@@ -679,11 +706,11 @@ app_pump_parallel(
     App_QueueSiteLeave(site);
     if( stat == TASK_RUNNER_PROGRESSED )
         app_pump_backstop("parallel", steps, booting);
+    /* Every task a wake readied before this point has had its turn. */
+    g_wakes_at_pump = ToriRS_TaskWakes();
     g_contract_tally.pumps++;
     if( stat == TASK_RUNNER_WAITING )
         g_contract_tally.pumps_waiting++;
-    else if( stat == TASK_RUNNER_BLOCKED )
-        g_contract_tally.pumps_blocked++;
     if( booting )
         BootPumpStats_NoteBootSteps(&app->pump_stats, steps);
     *progressed = app->frame_runner.progressed;
@@ -696,10 +723,10 @@ app_pump_parallel(
  * there: before login there are no packets, and the main queue is the one
  * queue on which a task may ask for a frame. It is pumped until a task asks
  * for one (RENDER), its head waits on a read, or it is empty -- and when its
- * head is joined on the parallel queue's loads (BLOCKED), that queue is
- * drained and the main queue stepped again for as long as the drain moved
- * anything. Once the boot has ended, what is left on the main queue is the
- * packet pump's (app_pump_net_packets), so this stops.
+ * head is parked on the parallel queue's loads (a join, a trigger), that
+ * queue is drained and the main queue stepped again for as long as the drain
+ * moved anything. Once the boot has ended, what is left on the main queue is
+ * the packet pump's (app_pump_net_packets), so this stops.
  */
 static enum TaskRunnerStat
 app_pump_boot_main(
@@ -722,7 +749,7 @@ app_pump_boot_main(
             *moved_out = 1;
         if( stat == TASK_RUNNER_PROGRESSED )
             continue;
-        if( stat != TASK_RUNNER_BLOCKED )
+        if( stat != TASK_RUNNER_WAITING || !TaskRunner_HeadParked(&app->packet_runner) )
             break;
         (void)app_pump_parallel(app, 1, steps, &moved);
         *moved_out |= moved;
@@ -896,15 +923,15 @@ App_PumpAsync(
 
         /* Anything left means the loop must not pace it with the frame cap
          * (main.c, ToriRS_Pacer_LoopWait). The parallel pump ends only with
-         * every task done or waiting (WAITING: a read on the wire; BLOCKED:
-         * joined), and a settle that did not finish ended the same way, so
-         * what they leave only waits: the loop waits for it in naps, never
+         * every task done or parked (WAITING: on a read, a trigger, a count
+         * or a cycle), and a settle that did not finish ended the same way,
+         * so what they leave only waits: the loop waits for it in naps, never
          * spinning on it. */
         if( stat != TASK_RUNNER_IDLE )
             BootPumpStats_SetPending(&app->pump_stats);
         if( settling_cs2 && settle != TASK_RUNNER_IDLE )
         {
-            if( settle == TASK_RUNNER_WAITING || settle == TASK_RUNNER_BLOCKED )
+            if( settle == TASK_RUNNER_WAITING )
                 BootPumpStats_SetPending(&app->pump_stats);
             else
                 BootPumpStats_SetRunnable(&app->pump_stats);
@@ -1112,8 +1139,7 @@ app_frame_withheld(
         assert(SettleGate_WithholdPacketSide(why));
         return 0;
     }
-    if( why == SETTLE_GATE_WITHHOLD_SCRIPTS_LATCHED || why == SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING ||
-        why == SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED )
+    if( why == SETTLE_GATE_WITHHOLD_SCRIPTS_LATCHED || why == SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING )
     {
         int const backed = TaskRunner_RenderBlockingRemains(&app->frame_runner) || app->frame_runner.frame_settle_pending;
         if( !backed )
@@ -1204,9 +1230,9 @@ App_RunOnce(
  * ordinary task on it (a loader, a parallel task, app/app_parallel_task.h)
  * is carried across frames and a frame published over it is a correct
  * frame. The parallel queue is pumped near the top of every frame until
- * every task is done or waiting (App_PumpAsync), inside a client script's
+ * every task is done or parked (App_PumpAsync), inside a client script's
  * settle (app_settle_cs2_frame), and from the packet pump while the packet
- * queue is blocked on it (app_pump_net_packets). The background queue gets
+ * queue's head is parked on it (app_pump_net_packets). The background queue gets
  * one pump after the body (app_run_background_floor). Every `return 0`
  * below names its reason (app_frame_withheld), and a reason that is not
  * the packet side's is a breach.
@@ -1676,9 +1702,8 @@ app_run_once_body(
         if( stat != TASK_RUNNER_IDLE )
         {
             TaskRunner_SetHadWork(&app->frame_runner, 1);
-            app_frame_latch_note(app, stat == TASK_RUNNER_BLOCKED ? "cs2_blocked" : "cs2_pending");
-            return app_frame_withheld(
-                app, stat == TASK_RUNNER_BLOCKED ? SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED : SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING);
+            app_frame_latch_note(app, "cs2_pending");
+            return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING);
         }
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
         {
@@ -2808,8 +2833,7 @@ app_run_once_body(
             if( stat != TASK_RUNNER_IDLE )
             {
                 TaskRunner_SetHadWork(&app->frame_runner, 1);
-                return app_frame_withheld(
-                    app, stat == TASK_RUNNER_BLOCKED ? SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED : SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING);
+                return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING);
             }
             /* Press-time track onclick → cc_dragpickup stages pending during
              * the drain above. Consume it in the same frame so the thumb jumps
@@ -2872,8 +2896,7 @@ app_run_once_body(
             if( stat != TASK_RUNNER_IDLE )
             {
                 TaskRunner_SetHadWork(&app->frame_runner, 1);
-                return app_frame_withheld(
-                    app, stat == TASK_RUNNER_BLOCKED ? SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED : SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING);
+                return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING);
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
             {

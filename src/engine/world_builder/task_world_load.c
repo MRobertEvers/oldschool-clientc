@@ -67,8 +67,6 @@ idset_add(
 }
 
 /* The dat2 index maps are read from, and how long a load waits for it. */
-#define WORLD_LOAD_MAPS_INDEX 5
-#define WORLD_LOAD_REPRIME_WAIT_MS 5000.0
 
 struct Task_WorldLoad
 {
@@ -133,7 +131,6 @@ struct Task_WorldLoad
     int pending;
 
     /* When the wait for a live reload's new map table gives up. */
-    double reprime_deadline_ms;
 
     /* TORIRS_REBUILD_TIMING=1: when the task first ran, when its assets were
      * all resident, and how many times the runner resumed it in between --
@@ -328,20 +325,16 @@ Task_WorldLoad_Run(
      * A live reload sends CACHE_INVALIDATE and the REBUILD together, and the
      * new map table comes over JS5 behind them. A square the reload ADDED is
      * in no table this client has yet, so loading now reads it as absent and
-     * nothing loads it again. Bounded, so a dead JS5 link cannot hold up the
-     * scene.
+     * nothing loads it again.
+     *
+     * Parked on the re-prime's trigger, which the invalidation primed and the
+     * link fires when the table lands -- or when the link dies, which ends
+     * the re-prime too (CacheProvider_ArchiveReprimeTick). Not a poll, and no
+     * deadline: a link that is alive and never answers is a hang upstream,
+     * and the chain says so.
      */
-    self->reprime_deadline_ms = WorldBuilder_TimingNowMs() + WORLD_LOAD_REPRIME_WAIT_MS;
-    /* A read another loader has in flight (the map index's reprime): an
-     * ASSET wait, by name, so no queue spins on it the way the plain
-     * PT_WAIT_UNTIL that was here did (a yield the runner counts as
-     * progress). */
-    TASK_AWAIT_NAMED(
-        &self->task,
-        &self->pt,
-        TORIRS_TASK_WAIT_ASSET,
-        !CacheProvider_ArchiveReprimePending(p, WORLD_LOAD_MAPS_INDEX) ||
-            WorldBuilder_TimingNowMs() >= self->reprime_deadline_ms);
+    while( ToriRS_Trigger_Primed(CacheProvider_MapsReprime(p)) )
+        TASK_AWAIT_TRIGGER(&self->task, &self->pt, TORIRS_TASK_WAIT_ASSET, CacheProvider_MapsReprime(p));
 
     /*
      * 0. Reclaim before preloading, not after.

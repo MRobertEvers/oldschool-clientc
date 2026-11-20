@@ -450,10 +450,7 @@ preload_fill_caption(struct Task_Dat2Preload* task)
             (task)->task.render.caption = (task)->caption;                                         \
         }                                                                                          \
         else                                                                                       \
-        {                                                                                          \
-            (task)->task.blocked = 1;                                                              \
-            (task)->task.wait = TORIRS_TASK_WAIT_JOIN;                                             \
-        }                                                                                          \
+            ToriRS_TaskAskCount(&(task)->task, TORIRS_TASK_WAIT_JOIN, &(task)->pending, 1);        \
         PT_YIELD(&(task)->pt);                                                                     \
     } while( 0 )
 
@@ -537,8 +534,9 @@ Task_Dat2Preload_Run(
         }
         if( task->pending <= 0 )
             break;
-        task->task.blocked = 1;
-        task->task.wait = TORIRS_TASK_WAIT_JOIN;
+        /* Parked until one of the opens ends (any drop of the count): the
+         * bar moves as each lands. */
+        ToriRS_TaskAskCount(&task->task, TORIRS_TASK_WAIT_JOIN, &task->pending, 1);
         PT_YIELD(&task->pt);
     }
     if( task->index_step )

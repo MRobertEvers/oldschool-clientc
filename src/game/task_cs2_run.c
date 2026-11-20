@@ -1489,12 +1489,14 @@ Task_CS2Run_Run(
         struct ToriRS_Task* child = self->pt.user;
         if( child )
         {
-            int result = task_run(child, io);
-            self->task.blocked = child->blocked;
-            self->task.wait = child->wait;
+            int result;
+            child->woke = self->task.woke;
+            result = task_run(child, io);
+            self->task.park_req = child->park_req;
             self->task.wants_render = child->wants_render;
             self->task.render = child->render;
             if( result != PT_ENDED && result != PT_EXITED ) return result;
+            child->completed = 1;
             task_free(child);
             self->pt.user = NULL;
         }

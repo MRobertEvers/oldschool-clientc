@@ -789,7 +789,7 @@ Task_LocMerge_Run(
     PT_BEGIN(&self->pt);
 
     /* 1. Wait for the hide's time (Client-TS locChangeCreate's t1+1). */
-    PT_PARALLEL_AWAIT_CYCLE(App_ParallelCycle(app), self->hide_at);
+    PT_APP_AWAIT_CYCLE(app, self->hide_at);
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
     world = App_ParallelTaskWorld(app, &self->par, "loc merge");
@@ -801,7 +801,7 @@ Task_LocMerge_Run(
         app, self->par.view, world, &c, (int)(self->restore_at - App_ParallelCycle(app)), 0, -1);
 
     /* 2. Wait for the restore's time (t2+1). */
-    PT_PARALLEL_AWAIT_CYCLE(App_ParallelCycle(app), self->restore_at);
+    PT_APP_AWAIT_CYCLE(app, self->restore_at);
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
     world = App_ParallelTaskWorld(app, &self->par, "loc merge");

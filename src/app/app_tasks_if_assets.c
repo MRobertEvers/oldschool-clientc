@@ -537,7 +537,7 @@ Task_InvIcon_Run(
         /* The back-off, waited as a client cycle (a timer, by name). */
         self->wait_ms = Assets_BackoffNext(Assets_Policy(ASSET_KIND_INV_ICONS), self->wait_ms);
         self->due_cycle = App_ParallelCycle(app) + App_ParallelCyclesFor(self->wait_ms);
-        PT_PARALLEL_AWAIT_CYCLE(App_ParallelCycle(app), self->due_cycle);
+        PT_APP_AWAIT_CYCLE(app, self->due_cycle);
         if( RS_ParallelTask_Cancelled(&self->par) )
             PT_EXIT(&self->pt);
     }

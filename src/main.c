@@ -9449,6 +9449,7 @@ main(
         CacheProvider_SetArchiveInvalidateHook(app.provider, PlatformX_IO_ArchiveInvalidateHook,
                                                app.frame_runner.px);
         CacheProvider_SetArchiveReprimeHook(app.provider, PlatformX_IO_ArchiveReprimePendingHook, app.frame_runner.px);
+        PlatformX_IO_SetReprimeTickHook(app.frame_runner.px, CacheProvider_ArchiveReprimeTick, app.provider);
     }
 #else
     /* The browser's half: platform_web_io.js drops its decoded copy, resident

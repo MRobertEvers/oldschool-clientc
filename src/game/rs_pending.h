@@ -17,10 +17,11 @@
  *   - cancel every task of a scope (a rebuild's scene, a torn-down view, a
  *     removed entity, a closed interface, a logout's everything).
  *
- * Cancelling sets the header's flag and nothing else: the task sees it at its
- * next check, exits, and is freed by its queue, which unlists it (in one
- * place, the task's free). So a cancelled task is still listed until it has
- * exited, but no query below counts it.
+ * Cancelling sets the header's flag and wakes the task if it is parked
+ * (task_trigger.h): it sees the flag at its next check, exits, and is freed
+ * by its queue, which unlists it (in one place, the task's free). So a
+ * cancelled task is still listed until it has exited, but no query below
+ * counts it.
  *
  * A KEY IS NEVER A POINTER. Between the packet and the asset, an entity, a
  * scene element or an interface component can be freed and its slot reused.
@@ -35,6 +36,7 @@
 #include "engine/asset_requests.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /* ---- kinds: one range per family ----------------------------------------
@@ -219,6 +221,8 @@ RS_PendingKey_Equal(
 
 /* ---- the common header every parallel task embeds ------------------------ */
 
+struct ToriRS_Task;
+
 struct RS_ParallelTask
 {
     /* What it is for: a kind from its family's range and the key of its
@@ -245,6 +249,10 @@ struct RS_ParallelTask
      * the last awaited attempt ended. */
     int join;
     enum AssetOutcome outcome;
+    /* The task this header is embedded in (RS_ParallelTask_Add sets it):
+     * what a cancel wakes, and whose end a later task for the key waits on.
+     * NULL for a header listed by hand (a rebuild's). */
+    struct ToriRS_Task* task;
 
     /* The index's links: every listed header, and its key's bucket. */
     struct RS_ParallelTask* prev;
@@ -296,8 +304,8 @@ RS_Pending_Find(
     int kind,
     struct RS_PendingKey key);
 
-/** Cancel every task of `kind` for `key`. Returns how many it cancelled (not
- *  counting those already cancelled). */
+/** Cancel every task of `kind` for `key` (and wake each that is parked).
+ *  Returns how many it cancelled (not counting those already cancelled). */
 int
 RS_Pending_CancelKey(
     struct RS_Pending* index,
@@ -311,6 +319,13 @@ RS_Pending_CancelKey(
  */
 bool
 RS_Pending_EarlierPending(
+    struct RS_Pending const* index,
+    struct RS_ParallelTask const* task);
+
+/** The latest of those earlier tasks (the one listed last before `task`), or
+ *  NULL when none is pending: the one whose end a turn waits for. */
+struct RS_ParallelTask*
+RS_Pending_EarlierTask(
     struct RS_Pending const* index,
     struct RS_ParallelTask const* task);
 
@@ -389,8 +404,8 @@ RS_PendingScope_Kind(int kind)
     return s;
 }
 
-/** Cancel every task in `scope`. Returns how many it cancelled (not counting
- *  those already cancelled). */
+/** Cancel every task in `scope` (and wake each that is parked). Returns how
+ *  many it cancelled (not counting those already cancelled). */
 int
 RS_Pending_Cancel(
     struct RS_Pending* index,

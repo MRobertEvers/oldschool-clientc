@@ -60,6 +60,8 @@ struct Fixture
     /* Every load the fake loader was asked to start, in order. */
     struct AssetKey started[STARTS_MAX];
     int started_count;
+    /* A rebuild of the root, listed while one is under way. */
+    struct RS_ParallelTask rebuild;
 };
 
 static struct Fixture g_fx;
@@ -182,7 +184,12 @@ pump(void)
         while( task )
         {
             struct ToriRS_Task* next = task->next;
-            task->blocked = 0;
+            /* A parked task is not run: only what it parked on readies it. */
+            if( task->parked )
+            {
+                task = next;
+                continue;
+            }
             (void)ToriRS_TaskQueue_RunTask(queue, g_fx.io, task);
             task = next;
         }
@@ -456,6 +463,14 @@ test_a_rebuild_in_progress_is_waited_out(void)
     fixture_init();
     idx = App_WorldObjStackAdd(g_fx.app, 15, 12, 0, 105, 1);
     pump();
+    /* The rebuild of the root, as its packet task runs it: the view's built
+     * trigger primed, the scene going. */
+    {
+        static struct ToriRS_TriggerOwner owner;
+        if( owner.kind == TORIRS_OWNER_NONE )
+            ToriRS_TriggerOwner_Init(&owner, TORIRS_OWNER_EXTERNAL, "the test's rebuild");
+        App_ViewRebuildBegin(g_fx.app, &g_fx.rebuild, WORLDVIEW_ROOT, &owner);
+    }
     World_SetLoadComplete(g_fx.world, false);
     add_obj(105, "Logs", 505);
     add_model(505);
@@ -464,6 +479,7 @@ test_a_rebuild_in_progress_is_waited_out(void)
     CHECK(row(idx)->element_id < 0, "nothing lands in a scene being built");
     CHECK(app_ground_stack_pending(g_fx.app, g_fx.world, idx), "the task waits");
     World_SetLoadComplete(g_fx.world, true);
+    App_ViewRebuildEnd(g_fx.app, &g_fx.rebuild, 1);
     pump();
     CHECK(row(idx)->element_id >= 0, "it lands when the scene is complete");
     CHECK(queued() == 0, "and is done");

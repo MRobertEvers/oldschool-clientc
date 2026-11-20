@@ -325,15 +325,38 @@ test_external_wait_retains_last_frame(void)
  * stepping — a ready-yield loop here is a busy-wait no amount of stepping can
  * break, and it froze the client on every Display-panel layout change.
  *
- * TASK_AWAIT_STATE is what makes the two distinguishable, and process_calls is
- * what proves the settle stopped: before the fix this test would not fail, it
- * would hang.
+ * The mount PARKS on a trigger the rebuild primed (task_trigger.h) and is not
+ * stepped again until it fires, and process_calls is what proves the settle
+ * stopped: before the fix this test would not fail, it would hang.
  */
 struct BootState
 {
     int booting;
     int mounted;
+    /* Primed by `rebuild` while booting; fired when it ends. */
+    struct ToriRS_Trigger built;
+    struct ToriRS_TriggerOwner rebuild;
+    /* Runs of the waiting task. */
+    int runs;
 };
+
+/* The rebuild on the other queue begins (BOOTING) and ends (fired). */
+static void
+boot_begin(struct BootState* boot)
+{
+    boot->booting = 1;
+    if( boot->rebuild.kind == TORIRS_OWNER_NONE )
+        ToriRS_TriggerOwner_Init(&boot->rebuild, TORIRS_OWNER_EXTERNAL, "the other queue's rebuild");
+    ToriRS_Trigger_Init(&boot->built, "the tree is built");
+    ToriRS_Trigger_Prime(&boot->built, &boot->rebuild);
+}
+
+static void
+boot_end(struct BootState* boot)
+{
+    boot->booting = 0;
+    ToriRS_Trigger_Fire(&boot->built);
+}
 
 struct AwaitStateTask
 {
@@ -350,8 +373,10 @@ AwaitStateTask_Run(
     struct AwaitStateTask* self = (struct AwaitStateTask*)base;
     (void)io;
 
+    self->boot->runs++;
     PT_BEGIN(&self->pt);
-    TASK_AWAIT_STATE(base, &self->pt, !self->boot->booting);
+    while( self->boot->booting )
+        TASK_AWAIT_TRIGGER(base, &self->pt, TORIRS_TASK_WAIT_TRIGGER, &self->boot->built);
     self->boot->mounted = 1;
     PT_END(&self->pt);
 }
@@ -368,9 +393,11 @@ test_cross_queue_wait_ends_the_settle(void)
     struct PlatformX_IO px;
     struct WidgetState widgets;
     struct PublishedFrame frame;
-    struct BootState boot = { .booting = 1, .mounted = 0 };
+    struct BootState boot;
     struct AwaitStateTask* task;
 
+    memset(&boot, 0, sizeof(boot));
+    boot_begin(&boot);
     fixture_init(&runner, &px, &widgets, &frame);
 
     task = calloc(1, sizeof(*task));
@@ -381,24 +408,28 @@ test_cross_queue_wait_ends_the_settle(void)
     PT_INIT(&task->pt);
     TaskRunner_AddRenderBlockingSerialTask(&runner, &task->task);
 
-    /* Blocked, not waiting: no read is outstanding, so WAITING would be a
-     * lie and PROGRESSED would send the settle loop straight back into the
-     * same task. */
-    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
+    /* Parked: the pass that ran it, then one that finds it parked and runs
+     * nothing. No read is outstanding; the settle ends rather than going
+     * straight back into the same task. */
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_WAITING);
     assert(px.pending == 0);
-    /* Exactly one pass. This is the anti-spin assertion. */
-    assert(px.process_calls == 1);
+    /* Two passes, one run. This is the anti-spin assertion. */
+    assert(px.process_calls == 2);
+    assert(boot.runs == 1);
     assert(runner.queue->head == &task->task);
+    assert(runner.queue->head->parked);
     assert(boot.mounted == 0);
 
-    /* A blocked task stays blocked while the state holds, and re-testing it
-     * costs one pass per frame — not one per step. */
-    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
-    assert(px.process_calls == 2);
+    /* A parked task is not re-tested at all: a settle while the rebuild is
+     * under way costs one pass that runs nothing. */
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_WAITING);
+    assert(px.process_calls == 3);
+    assert(boot.runs == 1);
     assert(boot.mounted == 0);
 
     /* The other queue got its turn back and finished the rebuild. */
-    boot.booting = 0;
+    boot_end(&boot);
+    assert(!runner.queue->head->parked);
     TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_IDLE);
     assert(runner.queue->head == NULL);
     assert(boot.mounted == 1);
@@ -435,6 +466,7 @@ struct ChildWaitState
 {
     int booting;
     int mounted;
+    struct BootState trigger;
     /* Passes of the budget the child has spent. One per frame is the whole
      * contract; the budget in one go is the bug. */
     int passes;
@@ -464,8 +496,7 @@ AwaitStateChildTask_Run(
     for( self->i = 0; self->i < CHILD_WAIT_BUDGET && self->st->booting; self->i++ )
     {
         self->st->passes++;
-        self->task.blocked = 1;
-        PT_YIELD(&self->pt);
+        TASK_AWAIT_TRIGGER(&self->task, &self->pt, TORIRS_TASK_WAIT_TRIGGER, &self->st->trigger.built);
     }
     if( self->st->booting )
         self->st->gave_up = 1;
@@ -523,11 +554,12 @@ test_a_childs_block_is_the_parents_block(void)
     struct PlatformX_IO px;
     struct WidgetState widgets;
     struct PublishedFrame frame;
-    struct ChildWaitState st = {
-        .booting = 1, .mounted = 0, .passes = 0, .gave_up = 0, .parent_done = 0
-    };
+    struct ChildWaitState st;
     struct AwaitStateParentTask* task;
 
+    memset(&st, 0, sizeof(st));
+    st.booting = 1;
+    boot_begin(&st.trigger);
     fixture_init(&runner, &px, &widgets, &frame);
 
     task = calloc(1, sizeof(*task));
@@ -538,29 +570,33 @@ test_a_childs_block_is_the_parents_block(void)
     PT_INIT(&task->pt);
     TaskRunner_AddRenderBlockingSerialTask(&runner, &task->task);
 
-    /* The parent is what the runner sees, and it must report the child's
-     * block as its own. */
-    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
-    TEST_CHECK(px.process_calls == 1);
+    /* The parent is what the runner sees, and the child's park is its own:
+     * the parent is the task parked. */
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_WAITING);
+    TEST_CHECK(px.process_calls == 2);
+    TEST_CHECK(runner.queue->head == &task->task);
+    TEST_CHECK(task->task.parked);
     /* The anti-spin assertion: ONE pass of the child's budget, not all of it. */
     TEST_CHECK(st.passes == 1);
     TEST_CHECK(st.gave_up == 0);
     TEST_CHECK(st.parent_done == 0);
 
-    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
-    TEST_CHECK(px.process_calls == 2);
-    TEST_CHECK(st.passes == 2);
+    /* Parked, so not stepped: the budget does not move at all now. */
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_WAITING);
+    TEST_CHECK(px.process_calls == 3);
+    TEST_CHECK(st.passes == 1);
     TEST_CHECK(st.gave_up == 0);
 
     /* The other queue got its turn back, which is the whole point of ending
-     * the settle: the wait ends on the state changing, not on the budget. */
+     * the settle: the wait ends on the trigger firing, not on the budget. */
     st.booting = 0;
+    boot_end(&st.trigger);
     TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_IDLE);
     TEST_CHECK(runner.queue->head == NULL);
     TEST_CHECK(st.mounted == 1);
     TEST_CHECK(st.gave_up == 0);
     TEST_CHECK(st.parent_done == 1);
-    TEST_CHECK(st.passes == 2);
+    TEST_CHECK(st.passes == 1);
 
     /* No free(task): the runner frees a task when it ends (TaskQueue_Remove). */
     fixture_free(&runner);

@@ -767,6 +767,23 @@ app_world_job_advance(struct App* app)
     return 1;
 }
 
+/*
+ * THE ONE PLACE A WORLD JOB ENDS: `committed` (its scene is the live one) or
+ * cancelled. It is unlisted as the root view's rebuild; committed, the view's
+ * built trigger fires; and the job ends as an owner, which abandons whatever
+ * it primed and did not fire.
+ */
+static void
+app_world_job_end(
+    struct App* app,
+    int committed)
+{
+    struct WorldRebuildJob* job = &app->world_job;
+
+    App_ViewRebuildEnd(app, &job->rebuild, committed);
+    ToriRS_TaskJob_End(&job->job, committed);
+}
+
 void
 App_WorldJobStart(
     struct App* app,
@@ -792,8 +809,11 @@ App_WorldJobStart(
     now = TaskRunner_Now(&app->background_runner);
 
     WorldRebuildJob_Begin(job, chunks_xz, chunk_count, zone_x, zone_z, zones, now);
-    /* Listed as the rebuild of the root view until its commit or cancel. */
-    App_ViewRebuildBegin(app, &job->rebuild, WORLDVIEW_ROOT);
+    /* Listed as the rebuild of the root view until its commit or cancel, and
+     * the owner of the root view's built trigger for as long (the job's end,
+     * app_world_job_end, is the one place it ends). */
+    App_ViewRebuildBegin(
+        app, &job->rebuild, WORLDVIEW_ROOT, ToriRS_TaskJobOwner(&job->job, "the background world rebuild"));
     /* The varps the scene is built against are the REBUILD's, as a build in
      * place at this packet would read them. */
     WorldRebuildJob_TakeVarps(job, &app->varps);
@@ -1030,7 +1050,7 @@ app_world_job_commit(struct App* app)
             job->prep_frames,
             ToriDraw_SceneBatchStagingSupported(app->scene));
     /* The rebuild of the root view has finished, its finish included. */
-    App_ViewRebuildEnd(app, &job->rebuild);
+    app_world_job_end(app, 1);
     app_world_job_repeat_requested(app);
 }
 
@@ -1158,7 +1178,7 @@ App_WorldJobCancel(
      * job was for was never the scene's, so a REBUILD naming it again must not
      * be skipped as the same zone. */
     WorldLoadState_Cancel(&app->world_load, WorldRebuildJob_Cancelled(job));
-    App_ViewRebuildEnd(app, &job->rebuild);
+    app_world_job_end(app, 0);
     RS_RebuildRegion_ForgetCentre(&app->rebuild_region);
     RebuildFrameStats_Drop(&app->rebuild_frames);
     RedrawRequest_Raise(&app->redraw_request);

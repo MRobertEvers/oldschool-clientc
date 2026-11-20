@@ -1,5 +1,6 @@
 #include "game/rs_pending.h"
 
+#include "asyncio.h"
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -58,6 +59,16 @@ is_task_for(
     struct RS_PendingKey key)
 {
     return task->kind == (uint16_t)kind && RS_PendingKey_Equal(task->key, key);
+}
+
+/* Cancel `t`: set its flag, and make it ready if it is parked, so it sees the
+ * flag now rather than when what it waits on comes. */
+static void
+cancel_one(struct RS_ParallelTask* t)
+{
+    t->cancelled = 1;
+    if( t->task && t->task->parked )
+        ToriRS_TaskWake(t->task, TORIRS_WAKE_CANCELLED);
 }
 
 static void
@@ -202,7 +213,7 @@ RS_Pending_CancelKey(
     {
         if( t->cancelled || !is_task_for(t, kind, key) )
             continue;
-        t->cancelled = 1;
+        cancel_one(t);
         cancelled++;
     }
     return cancelled;
@@ -225,6 +236,28 @@ RS_Pending_EarlierPending(
             return true;
     }
     return false;
+}
+
+struct RS_ParallelTask*
+RS_Pending_EarlierTask(
+    struct RS_Pending const* index,
+    struct RS_ParallelTask const* task)
+{
+    struct RS_ParallelTask* latest = NULL;
+
+    assert(index);
+    assert(task);
+    assert(task->listed);
+    for( struct RS_ParallelTask* t = index->bucket[bucket_of(task->kind, task->key)]; t; t = t->bucket_next )
+    {
+        if( t == task || t->cancelled || !is_task_for(t, task->kind, task->key) )
+            continue;
+        if( !order_before(t->order, task->order) )
+            continue;
+        if( !latest || order_before(latest->order, t->order) )
+            latest = t;
+    }
+    return latest;
 }
 
 static bool
@@ -262,7 +295,7 @@ RS_Pending_Cancel(
     {
         if( t->cancelled || !in_scope(t, &scope) )
             continue;
-        t->cancelled = 1;
+        cancel_one(t);
         cancelled++;
     }
     return cancelled;

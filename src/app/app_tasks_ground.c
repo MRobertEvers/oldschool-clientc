@@ -107,12 +107,13 @@ enum
 };
 
 /* app->tasks_ground: the logic tick the widget icons count from -- the
- * clock their cycle wait reads (PT_PARALLEL_AWAIT_CYCLE): a client cycle
- * whose packet transaction closed -- and how many this tick has released.
- * Made on the first icon request. */
+ * clock their cycle wait parks on (PT_PARALLEL_AWAIT_CYCLE), advanced in one
+ * place, app_tasks_ground_tick, on a client cycle whose packet transaction
+ * closed -- and how many this tick has released. Made on the first icon
+ * request. */
 struct AppTasksGround
 {
-    uint32_t tick;
+    struct ToriRS_Clock clock;
     int released;
 };
 
@@ -124,6 +125,7 @@ ground_state(struct App* app)
     {
         app->tasks_ground = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*app->tasks_ground));
         assert(app->tasks_ground);
+        ToriRS_Clock_Init(&app->tasks_ground->clock, "the widget icons' release tick", 0);
     }
     return app->tasks_ground;
 }
@@ -135,8 +137,9 @@ app_tasks_ground_tick(struct App* app)
     /* No icon asked for yet: nothing counts from a tick. */
     if( !app->tasks_ground )
         return;
-    app->tasks_ground->tick++;
     app->tasks_ground->released = 0;
+    /* The one place this clock moves: the icons due this tick wake. */
+    ToriRS_Clock_Advance(&app->tasks_ground->clock, app->tasks_ground->clock.now + 1u);
 }
 
 void
@@ -144,7 +147,12 @@ app_tasks_ground_free(struct App* app)
 {
     assert(app);
     if( app->tasks_ground )
+    {
+        /* Its storage goes: an icon still parked on it wakes (and finds
+         * itself cancelled, or its tick come). */
+        ToriRS_Clock_Retire(&app->tasks_ground->clock);
         ToriMem_Free(ToriMem_Process(), app->tasks_ground);
+    }
     app->tasks_ground = NULL;
 }
 
@@ -573,12 +581,12 @@ Task_WidgetIcon_Run(
         /* Its turn: a later tick than the script's (a client cycle, by
          * name), inside the tick's release; a full release waits for the
          * next tick. */
-        PT_PARALLEL_AWAIT_CYCLE(ground_state(app)->tick, self->due_tick);
+        PT_PARALLEL_AWAIT_CYCLE(&ground_state(app)->clock, self->due_tick);
         if( RS_ParallelTask_Cancelled(&self->par) )
             PT_EXIT(&self->pt);
         if( !widget_icon_take_place(app) )
         {
-            self->due_tick = ground_state(app)->tick + 1u;
+            self->due_tick = ground_state(app)->clock.now + 1u;
             continue;
         }
         /* 1. The obj's model and its parts. Every count <= 1 resolves alike
@@ -596,7 +604,7 @@ Task_WidgetIcon_Run(
             PT_EXIT(&self->pt);
         /* Parts still missing: ask again after a pause, counted in ticks. */
         self->wait_ms = Assets_BackoffNext(Assets_Policy(ASSET_KIND_INV_ICONS), self->wait_ms);
-        self->due_tick = ground_state(app)->tick + App_ParallelCyclesFor(self->wait_ms);
+        self->due_tick = ground_state(app)->clock.now + App_ParallelCyclesFor(self->wait_ms);
     }
     PT_END(&self->pt);
 }
@@ -673,7 +681,7 @@ app_cs2_widget_obj_icon_lazy(
     task->component_id = component_id;
     task->obj_id = obj_id;
     task->count = count;
-    task->asked_tick = ground_state(app)->tick;
+    task->asked_tick = ground_state(app)->clock.now;
     task->due_tick = task->asked_tick + 1u;
     App_ParallelTaskAdd(app, &task->task, &task->par, APP_TASKS_GROUND_WIDGET_ICON, key, -1);
 }

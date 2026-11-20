@@ -96,6 +96,15 @@ PlatformX_IO_ArchiveReprimePendingHook(
     void* user,
     int index);
 
+/** Call `hook(user)` after every tick of the JS5 link: the provider's
+ *  CacheProvider_ArchiveReprimeTick, which fires the re-prime trigger a
+ *  world gather waits on once the table has landed. NULL: nothing. */
+void
+PlatformX_IO_SetReprimeTickHook(
+    struct PlatformX_IO* px,
+    void (*hook)(void* user),
+    void* user);
+
 int
 PlatformX_IO_LoadItem(
     struct PlatformX_IO* px,

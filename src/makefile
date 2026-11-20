@@ -732,7 +732,9 @@ endif
 # The lifetime-group allocator (src/mem/torirs_mem.h). Any rule that compiles
 # or links a file allocating through ToriMem names this list too. Defined above
 # $(SRCS) for the reason PORCELAIN_SRCS states just below.
-TORIMEM_SRCS = mem/torirs_mem.c
+# The trigger layer (task_trigger.c, what a parked task waits on) rides with
+# the allocator: every binary that has a task queue links this list.
+TORIMEM_SRCS = mem/torirs_mem.c task_trigger.c
 
 PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
 		plugin/porcelain/porcelain_panel.c
@@ -5383,6 +5385,15 @@ test-queue-contract: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/queue_contract_test $(TORIMEM_SRCS) game/test/queue_contract_test.c \
 		game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/queue_contract_test
+
+# What a parked task waits on (task_trigger.h): prime, await, fire, the
+# owner's end, a second prime, cancel, loops, turns, counts, cycles, the
+# rebuild's trigger in both modes, a child's park. Asserts live (the death
+# checks fork and expect SIGABRT).
+test-task-trigger: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/task_trigger_test $(TORIMEM_SRCS) game/test/task_trigger_test.c \
+		game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c -lm
+	./$(OBJ_DIR)/task_trigger_test
 
 # CS2 visual transactions: ready work drains past the old per-frame caps, while
 # genuine external waits retain the last complete display list until settlement.
