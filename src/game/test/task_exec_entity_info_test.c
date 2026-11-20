@@ -1183,8 +1183,8 @@ test_npc_body_custom_recolours_without_models(void)
 
 /* E12, flags 0x10 and 0x20: a body customisation that mirrors the local
  * player is remounted when the local player's body changes, and one that is
- * a player composition draws nothing of the npc's type -- it wants the
- * composition's kit configs, and mounts nothing until they are here. */
+ * a player composition draws nothing of the npc's type and does not follow
+ * the local player (what it draws: test_npc_body_custom_player_draws_its_models). */
 static void
 test_npc_body_custom_mirror_and_player(void)
 {
@@ -1231,9 +1231,148 @@ test_npc_body_custom_mirror_and_player(void)
     TEST_ASSERT(Assets_LoadsStarted(fx.app.assets, ASSET_KIND_CONFIG) == 0, "no config is asked for before the sync");
     app_world_sync_npc_bodies(&fx.app);
     npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
-    TEST_ASSERT(Assets_LoadsStarted(fx.app.assets, ASSET_KIND_CONFIG) == 1,
-        "the composition's one kit config is asked of the assets table");
     TEST_ASSERT(npc->body_mounted_serial != npc->body_serial, "and nothing is mounted while it loads");
+    fixture_free(&fx);
+}
+
+/* Config loads the composition asks for, by kind. */
+static int g_comp_idk_ids[16];
+static int g_comp_idk_count;
+static int g_comp_obj_ids[16];
+static int g_comp_obj_count;
+
+static struct ToriRS_Task*
+trace_idk_load(
+    struct CacheProvider* provider,
+    int idk_id)
+{
+    (void)provider;
+    if( g_comp_idk_count < (int)(sizeof(g_comp_idk_ids) / sizeof(g_comp_idk_ids[0])) )
+        g_comp_idk_ids[g_comp_idk_count++] = idk_id;
+    return NULL;
+}
+
+static struct ToriRS_Task*
+trace_obj_load(
+    struct CacheProvider* provider,
+    int obj_id)
+{
+    (void)provider;
+    if( g_comp_obj_count < (int)(sizeof(g_comp_obj_ids) / sizeof(g_comp_obj_ids[0])) )
+        g_comp_obj_ids[g_comp_obj_count++] = obj_id;
+    return NULL;
+}
+
+static void
+fixture_idk(
+    struct EntityFixture* fx,
+    int id,
+    int body_part,
+    bool not_selectable,
+    int model_id)
+{
+    struct ToriRS_Idk* idk = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*idk));
+
+    assert(idk);
+    idk->id = id;
+    idk->body_part_id = body_part;
+    idk->not_selectable = not_selectable;
+    idk->model_ids_count = 1;
+    idk->model_ids = ToriMem_Alloc(ToriMem_Assets(), sizeof(*idk->model_ids));
+    assert(idk->model_ids);
+    idk->model_ids[0] = model_id;
+    for( int h = 0; h < 10; h++ )
+        idk->heads[h] = -1;
+    CacheProvider_IdkAdd(&fx->provider, id, idk);
+}
+
+/*
+ * E12 flag 0x20, against the rev-239 deob: what a player composition DRAWS is
+ * the block's MODEL list (class399.field5091, handed to class316.method7618 as
+ * its second array, field4251: the equipment class316.method7569 builds the
+ * model from), in the composition's own slot form -- 256..2047 a kit (id +
+ * 256, Statics.method7614 / method7580), 2048 and up a worn obj (id + 2048,
+ * class316.method7579 / Statics.method7622). The identkit list (field5096 ->
+ * field4250) is the body underneath, read only when the body type changes. A
+ * block without 0x2 draws the body type's default kits (method7564's
+ * method7589: per body part, the first selectable kit in config order).
+ */
+static void
+test_npc_body_custom_player_draws_its_models(void)
+{
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct WorldEntity_NPC* npc;
+    int world_idx = -1;
+    int models[12] = { 0 };
+    int const kits[2] = { 256 + 9, 0 };
+    int const colours[5] = { 1, 2, 3, 4, 5 };
+
+    printf("TEST: a player composition draws its model list, obj 2048+id, kit 256+id\n");
+    fixture_init(&fx);
+    fx.vtable.Task_IdkLoad = trace_idk_load;
+    fx.vtable.Task_ObjLoad = trace_obj_load;
+    g_comp_idk_count = 0;
+    g_comp_obj_count = 0;
+    fixture_npctype(&fx, 502, -1);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 3);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 502);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+    TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned");
+
+    models[0] = 256 + 7;     /* a kit */
+    models[3] = 2048 + 4151; /* a worn obj */
+    {
+        struct WorldNpcOverrideIn in = {
+            .player = true, .body_type = 0, .models_sent = true, .model_count = 12, .models = models,
+            .identkit_count = 2, .identkits = kits, .recolour_count = 5, .recolours = colours,
+        };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    app_world_sync_npc_bodies(&fx.app);
+    TEST_ASSERT(trace_has_id(g_comp_obj_ids, g_comp_obj_count, 4151), "the worn obj 2048 + 4151 is obj 4151");
+    TEST_ASSERT(!trace_has_id(g_comp_obj_ids, g_comp_obj_count, 4151 + 2048 - 512),
+        "not obj 5687: 512 is not this revision's obj base");
+    TEST_ASSERT(trace_has_id(g_comp_idk_ids, g_comp_idk_count, 7), "the model list's kit 256 + 7 is kit 7");
+    TEST_ASSERT(!trace_has_id(g_comp_idk_ids, g_comp_idk_count, 9), "the identkit list is not what is drawn");
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_mounted_serial != npc->body_serial, "nothing is mounted while its configs load");
+    fixture_free(&fx);
+
+    /* No model list: the body type's default kits, never the identkits. */
+    fixture_init(&fx);
+    fx.vtable.Task_IdkLoad = trace_idk_load;
+    fx.vtable.Task_ObjLoad = trace_obj_load;
+    fx.vtable.Task_ModelLoad = trace_model_load;
+    g_comp_idk_count = 0;
+    g_comp_obj_count = 0;
+    memset(&g_head_load_trace, 0, sizeof(g_head_load_trace));
+    fixture_npctype(&fx, 502, -1);
+    fixture_idk(&fx, 0, 2, false, 70);  /* torso */
+    fixture_idk(&fx, 1, 0, true, 71);   /* hair, not selectable */
+    fixture_idk(&fx, 2, 0, false, 72);  /* hair */
+    fixture_idk(&fx, 3, 7, false, 73);  /* the other body type's hair */
+    run_npc_ops(&fx.app, ops, 3);
+    TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned again");
+    {
+        struct WorldNpcOverrideIn in = {
+            .player = true, .body_type = 0, .identkit_count = 2, .identkits = kits,
+            .recolour_count = 5, .recolours = colours,
+        };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    app_world_sync_npc_bodies(&fx.app);
+    TEST_ASSERT(!trace_has_id(g_comp_idk_ids, g_comp_idk_count, 9), "no model list: the identkits are not drawn");
+    TEST_ASSERT(trace_has_id(g_head_load_trace.model_ids, g_head_load_trace.model_count, 72),
+        "the body type's first selectable hair kit is drawn");
+    TEST_ASSERT(trace_has_id(g_head_load_trace.model_ids, g_head_load_trace.model_count, 70),
+        "and its first torso kit");
+    TEST_ASSERT(!trace_has_id(g_head_load_trace.model_ids, g_head_load_trace.model_count, 71),
+        "not a kit that is not selectable");
+    TEST_ASSERT(!trace_has_id(g_head_load_trace.model_ids, g_head_load_trace.model_count, 73),
+        "nor one of the other body type");
     fixture_free(&fx);
 }
 
@@ -1508,6 +1647,7 @@ main(void)
     test_npc_body_custom_keeps_every_wire_model();
     test_npc_body_custom_recolours_without_models();
     test_npc_body_custom_mirror_and_player();
+    test_npc_body_custom_player_draws_its_models();
     test_npc_freeze_reaches_the_world();
     test_only_npc_removals_are_npc_despawns();
     test_varp_retype_coalesces_and_keeps_overrides();
