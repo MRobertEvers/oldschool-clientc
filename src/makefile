@@ -5593,7 +5593,8 @@ check-no-drain:
 # optimisation level need not (fx-ub, 2026-11-20). A test that passes plain and
 # fails here has met one.
 UBSAN_UNIT_OBJ_BASE ?= build_ubsan_units
-UBSAN_UNIT_TESTS = test-js5 test-varp
+UBSAN_UNIT_TESTS = test-js5 test-varp test-raster-kernel test-render-hd \
+	test-painters-occluders test-uitree-builder-dat1
 check-ubsan-units:
 	$(MAKE) OPT=0 PLATFORM_OBJ_BASE=$(UBSAN_UNIT_OBJ_BASE) \
 		PLATFORM_CC='$(PLATFORM_CC) -fsanitize=undefined -fno-sanitize-recover=all' \

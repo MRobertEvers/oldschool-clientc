@@ -6,8 +6,10 @@
 #include <stdbool.h>
 
 #define UNIT_SCALE_SHIFT (9)
-#define SCALE_UNIT(x) ((((long long)x) << UNIT_SCALE_SHIFT))
 #define UNIT_SCALE ((1 << UNIT_SCALE_SHIFT))
+/* A multiply, not << UNIT_SCALE_SHIFT: the coordinate is often negative, and a
+ * left shift of a negative value is undefined. The compiler emits the shift. */
+#define SCALE_UNIT(x) ((((long long)x) * UNIT_SCALE))
 
 /**
  * `SCALE_UNIT(v) / z`, without the 64-bit divide when the numerator fits.
