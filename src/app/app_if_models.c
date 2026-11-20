@@ -835,10 +835,36 @@ app_if_head_wants(struct App* app)
  * want when the tree has moved -- left with no task (a logout cancelled it, a
  * checkpoint restored it), or an npc head whose varps now choose another npc
  * -- has it raised by app_if_head_wants, before the frame's last pump; this
- * bind adds no task. */
+ * bind adds no task. It also releases the customised chatheads nothing
+ * draws or names any more. */
+/* A customised chathead is in use while a head names its override or a
+ * widget still draws it (UITreeSceneBridge_NpcHeadCustomSweep). */
+static bool
+app_if_custom_head_in_use(
+    void* user,
+    uint32_t serial,
+    int scene_id)
+{
+    struct App const* app = user;
+
+    for( int i = 0; i < app->if_models.head_count; i++ )
+    {
+        struct UIIfHead const* head = &app->if_models.heads[i];
+
+        if( head->custom_serial == serial || head->bound_scene_id == scene_id )
+            return true;
+    }
+    return false;
+}
+
 void
 app_if_head_poll(struct App* app)
 {
+    if( UITreeSceneBridge_NpcHeadCustomCount(&app->bridge) > 0 )
+    {
+        app_if_forget_closed(app);
+        UITreeSceneBridge_NpcHeadCustomSweep(&app->bridge, app_if_custom_head_in_use, app);
+    }
     if( app->if_models.head_count == 0 || !app->tree )
         return;
 
@@ -884,8 +910,8 @@ app_if_head_poll(struct App* app)
              * the draw skips it). So until this one composites -- forever,
              * for an id the cache does not hold -- the widget shows nothing,
              * not the model it had before. -1 is the tree's "no model". */
-            if( head->kind == UI_IFHEAD_MODEL )
-                (void)UITree_ApplyModel(app->tree, head->com_id, -1);
+            if( head->kind == UI_IFHEAD_MODEL && UITree_ApplyModel(app->tree, head->com_id, -1) )
+                head->bound_scene_id = -1;
             /* Nothing to bind until its task lands (which binds it again) or
              * the tree moves. Stamped after the apply, which may move the
              * generation itself. */
@@ -895,6 +921,7 @@ app_if_head_poll(struct App* app)
 
         if( UITree_ApplyModel(app->tree, head->com_id, scene_id) )
         {
+            head->bound_scene_id = scene_id;
             /* Server IF_SETNPCHEAD reaches this async App path rather than the
              * CS2 host opcode path, so mirror the latter's opt-in trace here.
              * It makes a composed-but-currently-tab-hidden portrait observable
