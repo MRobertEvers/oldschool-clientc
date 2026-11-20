@@ -38,6 +38,7 @@ app_overlay_build_entity(
     struct App* app,
     int element_id,
     bool chat_shown,
+    bool splats,
     struct WorldEntityFacet_Combat const* combat,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
@@ -222,6 +223,7 @@ app_overlay_build_entity(
     struct App* app,
     int element_id,
     bool chat_shown,
+    bool splats,
     struct WorldEntityFacet_Combat const* combat,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
@@ -308,8 +310,9 @@ app_overlay_build_entity(
     }
 
     /* Hitsplats: up to 4 concurrent, each alive for 70 cycles, positioned by
-     * slot (reference nudges slots 1-3 off the centre). */
-    for( int i = 0; i < WORLD_ENTITY_DAMAGE_SLOTS; i++ )
+     * slot (reference nudges slots 1-3 off the centre). None for a hidden
+     * player (app_overlay_build_player). */
+    for( int i = 0; splats && i < WORLD_ENTITY_DAMAGE_SLOTS; i++ )
     {
         char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
 
@@ -792,6 +795,56 @@ app_build_canvas_overlays(
 }
 
 int
+app_overlay_build_player(
+    struct App* app,
+    struct WorldEntity_Player const* player,
+    struct AppOverheadAssets const* assets)
+{
+    bool const chat_shown = app_overlay_chat_shown(&player->chat);
+    int lift;
+
+    assert(app);
+    assert(player);
+    assert(assets);
+    /* deob Statics.method6709: the chat line, then the bars, then the icons,
+     * each above the last (app_overlay_overhead_lift). The hidden flag
+     * (class60.field551) is read after the bars: its `return` comes before
+     * the skull, the prayer icon, the hint arrow on the player and the splats
+     * (method10685 is the method's last call), so a hidden player keeps only
+     * its bars and its chat line. */
+    lift = app_overlay_build_entity(
+        app,
+        player->element_id,
+        chat_shown,
+        !player->hidden,
+        &player->combat,
+        &player->draw_position,
+        &player->view_placement,
+        player->grid_position.level,
+        assets->font_id,
+        assets->hitmarks_scene,
+        -1,
+        &player->animation,
+        0);
+    lift = app_overlay_overhead_lift(chat_shown, lift);
+    if( player->hidden )
+        return lift;
+    return app_overlay_build_player_headicons(
+        app,
+        app_entity_overlay_height(app, player->element_id, -1) +
+            app_actor_seq_vertical_offset(app, &player->animation),
+        0,
+        player->skull_icon,
+        player->headicon,
+        lift,
+        &player->draw_position,
+        &player->view_placement,
+        player->grid_position.level,
+        assets->headicons_scene,
+        assets->pk_scene);
+}
+
+int
 app_build_entity_overlays(
     struct App* app,
     struct UITreeEntityOverlay const** out_items)
@@ -851,6 +904,7 @@ app_build_entity_overlays(
             app,
             npc->element_id,
             app_overlay_chat_shown(&npc->chat),
+            true,
             &npc->combat,
             &npc->draw_position,
             &npc->view_placement,
@@ -880,7 +934,12 @@ app_build_entity_overlays(
             app->hint_arrow.type == RS_HINT_ARROW_PLAYER
                 ? World_PlayerGetByServerPid(world, app->hint_arrow.target)
                 : NULL;
-        int const pk_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HEADICONS_PK);
+        struct AppOverheadAssets const assets = {
+            .font_id = font_id,
+            .hitmarks_scene = hitmarks_scene,
+            .headicons_scene = headicons_scene,
+            .pk_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HEADICONS_PK),
+        };
         int hint_lift = 0;
 
         for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
@@ -891,35 +950,7 @@ app_build_entity_overlays(
 
             if( !player || player->element_id < 0 )
                 continue;
-            /* deob Statics.method6709: the chat line, then the bars, then the
-             * icons, each above the last (app_overlay_overhead_lift). */
-            lift = app_overlay_build_entity(
-                app,
-                player->element_id,
-                app_overlay_chat_shown(&player->chat),
-                &player->combat,
-                &player->draw_position,
-                &player->view_placement,
-                player->grid_position.level,
-                font_id,
-                hitmarks_scene,
-                -1,
-                &player->animation,
-                0);
-            lift = app_overlay_overhead_lift(app_overlay_chat_shown(&player->chat), lift);
-            lift = app_overlay_build_player_headicons(
-                app,
-                app_entity_overlay_height(app, player->element_id, -1) +
-                    app_actor_seq_vertical_offset(app, &player->animation),
-                0,
-                player->skull_icon,
-                player->headicon,
-                lift,
-                &player->draw_position,
-                &player->view_placement,
-                player->grid_position.level,
-                headicons_scene,
-                pk_scene);
+            lift = app_overlay_build_player(app, player, &assets);
             if( player == hinted )
                 hint_lift = lift;
         }

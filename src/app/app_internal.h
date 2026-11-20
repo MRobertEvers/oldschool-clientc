@@ -1991,6 +1991,29 @@ app_overlay_build_player_headicons(
     int headicons_scene,
     int pk_scene);
 
+/* The per-frame assets a player's overheads draw with. */
+struct AppOverheadAssets
+{
+    int font_id;         /* the hitsplat font's scene id, -1 none */
+    int hitmarks_scene;  /* the dat1 hitmarks archive, 0 none */
+    int headicons_scene; /* the prayer icons */
+    int pk_scene;        /* headicons_pk: the skull */
+};
+
+/*
+ * One player's overheads, as deob Statics.method6709's player branch: its
+ * health bars over its chat line, its splats, its skull and prayer icons
+ * stacked above them. A hidden player (WorldEntity_Player.hidden, class60
+ * .field551) keeps its bars and chat line and draws nothing after them.
+ * Returns the stack's lift after the last icon, which a hint arrow on the
+ * player stacks on.
+ */
+int
+app_overlay_build_player(
+    struct App* app,
+    struct WorldEntity_Player const* player,
+    struct AppOverheadAssets const* assets);
+
 /* How far above its anchor a hint arrow on a player goes: its frame's art
  * height above the lift the player's icons left (`field1034[1].field6911 +
  * var27`). */

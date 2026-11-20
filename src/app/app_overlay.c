@@ -562,7 +562,10 @@ app_overlay_build_hint_arrow(
         int frame_count = 0;
         struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->scene, hint_scene, &frame_count);
 
-        if( !player || player->element_id < 0 )
+        /* Nor on a hidden player: the reference draws it inside the player's
+         * overheads, after their hidden flag's return (deob Statics
+         * ~24566, app_overlay_build_player). */
+        if( !player || player->element_id < 0 || player->hidden )
             return;
         /* Placed by frame 1's art: not resident yet, it draws nothing. */
         if( !frames || frame_count < 2 || !frames[1] )

@@ -2258,6 +2258,12 @@ world_dyn_register_players(struct World* world, bool only_local, int local_level
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
         if( !player || player->element_id < 0 )
             continue;
+        /* The appearance's hidden flag (deob class60.field551): the player is
+         * not put in the scene at all, the local player included
+         * (Statics.method10053 returns before its tile claim), so it claims
+         * no tile either. */
+        if( player->hidden )
+            continue;
         bool is_local = world->local_pid >= 0 && player->server_pid == world->local_pid;
         if( is_local != only_local )
             continue;

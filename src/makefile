@@ -5033,6 +5033,19 @@ test-wev-deck-objstack: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 		$(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/wev_deck_objstack_test
 
+.PHONY: test-world-player-hidden
+test-world-player-hidden: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/world_player_hidden_test $(TORIMEM_SRCS) \
+		world/test/world_player_hidden_test.c \
+		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
+		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		world/worldview.c world/wev.c \
+		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
+		features/features.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/world_player_hidden_test
+
 .PHONY: test-wev-population
 test-wev-population: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/wev_population_test $(TORIMEM_SRCS) \
@@ -6481,6 +6494,14 @@ test-minimap-dots: $(OBJ_DIR) $(OBJS)
 		game/test/minimap_dots_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/minimap_dots_test
+
+# A player's overheads against deob Statics.method6709's player branch: what a
+# hidden player keeps, the names "show names" draws and where.
+test-player-overheads: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -o $(OBJ_DIR)/player_overheads_test \
+		app/test/player_overheads_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/player_overheads_test
 
 # RS_CS2_PumpTransmits' early-return guard, one dirty flag at a time. The guard
 # was a hand-written condition list that had drifted from the clear-down in the
