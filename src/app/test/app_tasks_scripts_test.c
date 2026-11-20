@@ -333,13 +333,14 @@ test_dialog_abort_runs_on_the_packet_queue(void)
 
     VarPManager_Init(&varps);
     memset(&ring, 0, sizeof(ring));
-    state = (struct RS_ServerState){
-        .varps = &varps,
-        .invs = &fx.invs,
-        .rev_number = -1,
-        .events = { .ring = &ring, .entries = events, .capacity = 16,
-                    .full = RS_EVENT_RING_OVERWRITE },
-    };
+    /* Every record the model requires (RS_ServerState_Apply asserts each),
+     * bound to the fixture's App as the client binds them per packet. */
+    App_ServerStateBind(fx.app, &state);
+    state.varps = &varps;
+    state.invs = &fx.invs;
+    state.rev_number = -1;
+    state.events = (struct RS_EventSink){ .ring = &ring, .entries = events, .capacity = 16,
+                                          .full = RS_EVENT_RING_OVERWRITE };
     {
         memset(&packet, 0, sizeof(packet));
         packet.packet_type = PKT_NAME_TRIGGER_ONDIALOGABORT;
