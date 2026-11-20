@@ -310,6 +310,8 @@ src/app/test/if_assets_tasks_test.c
 src/app/test/app_tasks_scripts_test.c
 # Added 2026-11-19 (lo-mounts step): the visual waits moved off the main queue, run on a stack App.
 src/app/test/app_tasks_mounts_test.c
+# Added 2026-11-20 (fx4-client): a player's overheads (hidden, names) built on a stack App.
+src/app/test/player_overheads_test.c
 # Added 2026-11-19 (lo-music step): the music install task runs on a stack App.
 src/app/test/music_install_test.c
 # Added 2026-11-19 (lo-faults step): chat lines reaching a plugin, through the
