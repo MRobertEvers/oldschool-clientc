@@ -282,7 +282,8 @@ test_a_server_player_model_cancels_script_models(void)
     CHECK(!App_ScriptVisualPending(fx.app, APP_SCRIPT_TASK_OBJ_MODEL, WIDGET),
         "the script's obj model is still pending after the server's IF_SETPLAYERMODEL_BASECOLOUR");
 
-    step_parallel(&fx);
+    /* The composition's build task is left unrun (this fixture has no
+     * bridge to build into); freeing the queue frees it. */
     RS_EntitySync_Free(&fx.app->esync);
     World_Free(fx.app->world);
     fx.app->world = NULL;
