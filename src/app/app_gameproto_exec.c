@@ -3455,47 +3455,47 @@ exec_unset_map_flag(
     struct AppGameProtoCtx const* ctx,
     struct PktSetMapFlag const* p)
 {
-    /* DRIVE_STAMP: map_flag -- a=-1 when cleared, else a=tile_x b=tile_z.
-     * BOTH branches: walk_to, talk_to and click_loc all read the clear as
-     * "the route finished or was abandoned". */
+    /* DRIVE_STAMP: map_flag -- a=-1 when cleared, else a=tile_x b=tile_z
+     * c=the view. BOTH branches: walk_to, talk_to and click_loc all read
+     * the clear as "the route finished or was abandoned". */
     /* Wire tiles are classic-scene local; with a (zone-6)*8 base that is
      * our-scene too. */
     if( p->clear )
-    {
-        ctx->app->minimap.flag_tile_x = -1;
-        ctx->app->minimap.flag_tile_z = -1;
-    }
+        MinimapView_ClearFlag(&ctx->app->minimap);
     else if( p->absolute )
     {
-        /* SetMapFlagV2 carries an absolute coord; the minimap draws in
-         * scene-local tiles. Converted against the root world's base:
-         * the origin the camera packets use and the one the flag is
-         * read back against (app_tick.c, the CS2 destination coord).
-         * The deob converts against the view whose rectangle holds the
-         * coord (client.java class243.field3077: field748.method1423,
-         * class100.method3310); for every coord in the root scene that
-         * is the root's base. A flag on a deck's staging rectangle has
-         * no minimap of its own here and lands off this scene. */
-        ctx->app->minimap.flag_tile_x =
-            p->x - (ctx->app->world ? ctx->app->world->_base_tile_x : 0);
-        ctx->app->minimap.flag_tile_z =
-            p->z - (ctx->app->world ? ctx->app->world->_base_tile_z : 0);
+        /* SetMapFlagV2 carries an absolute coord. The deob resolves it to
+         * the view whose staging rectangle holds it, else the root
+         * (client.java class243.field3077: field748.method1423), and keeps
+         * the tile in that view's own terms (class100.method3310). The
+         * root's tiles are converted against the root world's base: the
+         * origin the camera packets use and the one the flag is read back
+         * against (app_tick.c, the CS2 destination coord). */
+        int local_x;
+        int local_z;
+        int const view_id = WorldviewRegistry_HomeViewForAbsTile(
+            &ctx->app->worldviews, p->x, p->z, &local_x, &local_z);
+
+        if( view_id != WORLDVIEW_ROOT )
+            MinimapView_SetFlagInView(&ctx->app->minimap, view_id, local_x, local_z);
+        else
+            MinimapView_SetFlag(
+                &ctx->app->minimap,
+                p->x - (ctx->app->world ? ctx->app->world->_base_tile_x : 0),
+                p->z - (ctx->app->world ? ctx->app->world->_base_tile_z : 0));
     }
     else
-    {
-        ctx->app->minimap.flag_tile_x = p->x;
-        ctx->app->minimap.flag_tile_z = p->z;
-    }
+        MinimapView_SetFlag(&ctx->app->minimap, p->x, p->z);
     /* Both branches land here: a clear leaves flag_tile_{x,z} at the
      * -1 the first branch set, so one stamp of the settled value
      * covers "a=-1 when cleared, else a=tile_x b=tile_z" without
-     * repeating the call per branch. */
+     * repeating the call per branch. c is the view the tile is in. */
     App_DriveEvent(
         ctx->app,
         DRIVE_EVENT_MAP_FLAG,
         ctx->app->minimap.flag_tile_x,
         ctx->app->minimap.flag_tile_z,
-        0,
+        ctx->app->minimap.flag_view,
         0);
     RedrawRequest_Raise(&ctx->app->redraw_request);
 }

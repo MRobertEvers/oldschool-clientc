@@ -73,6 +73,18 @@ struct MinimapView
     /** Destination flag in scene tiles; x < 0 when there is none. */
     int flag_tile_x;
     int flag_tile_z;
+    /**
+     * The world view the flag's tile is in: 0, the root, unless SET_MAP_FLAG
+     * named a tile inside a world entity's staging rectangle. The deob
+     * resolves that coordinate to the view whose rectangle holds it and keeps
+     * the tile in THAT view's terms (client.java class243.field3077:
+     * field748.method1423, then class100.method3310 subtracts the view's own
+     * base), so a deck flag's tile is deck-local. The deob keeps no view
+     * beside it; this does, so that a reader that needs the absolute tile
+     * back (the plugin api, the destination coord a client script reads) adds
+     * the right base, and so that a root rebuild leaves a deck's tile alone.
+     */
+    int flag_view;
     /** The baked map sprite the widget blits (rebaked on every world load):
      *  its scene id, -1 until the first bake, and its pixel size, which the
      *  camera's source anchor is placed against. */
@@ -115,8 +127,14 @@ MinimapView_HasFlag(struct MinimapView const* view)
     return view->flag_tile_x >= 0;
 }
 
+/** A flag on a root-scene tile (flag_view 0). */
 void
 MinimapView_SetFlag(struct MinimapView* view, int scene_tile_x, int scene_tile_z);
+
+/** A flag on tile (`tile_x`, `tile_z`) of world view `view_id`, in that
+ *  view's own tiles. `view_id` 0 is MinimapView_SetFlag. */
+void
+MinimapView_SetFlagInView(struct MinimapView* view, int view_id, int tile_x, int tile_z);
 
 /** Record the sprite a bake just published: its scene id, size and level. */
 void
@@ -160,7 +178,9 @@ MinimapView_ClearFlag(struct MinimapView* view);
  * The flag is stored in scene tiles and a reload moves the scene's origin, so
  * a flag left alone would mark a different place than the one the player
  * chose. True when the flag survived the move; a flag now outside the scene is
- * dropped, and that is reported as false.
+ * dropped, and that is reported as false. This is the ROOT scene's move: a
+ * flag in a world entity's view (flag_view > 0) is in that view's tiles,
+ * which the root's origin does not move, and it is left as it is (true).
  */
 bool
 MinimapView_RebaseFlag(struct MinimapView* view, int base_dx, int base_dz, int scene_size_tiles);

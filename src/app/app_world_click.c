@@ -303,8 +303,7 @@ app_try_move(
             /* The map editor's spawn preview stands where the account does. */
             if( !first->editor_preview )
                 World_PlayerPathJump(world, head, false, dst_x, dst_z);
-            app->minimap.flag_tile_x = dst_x;
-            app->minimap.flag_tile_z = dst_z;
+            MinimapView_SetFlag(&app->minimap, dst_x, dst_z);
             return 1;
         }
         return 0;

@@ -144,10 +144,8 @@ app_plugin_fill_player(
      * reports itself as its own destination, which is what "not walking
      * anywhere I can see" has to look like.
      */
-    if( player == app_local_player(app) && app->minimap.flag_tile_x >= 0 )
+    if( player == app_local_player(app) && app_minimap_flag_abs(app, &out->flag_x, &out->flag_z) )
     {
-        out->flag_x = base_x + app->minimap.flag_tile_x;
-        out->flag_z = base_z + app->minimap.flag_tile_z;
         out->dest_x = out->flag_x;
         out->dest_z = out->flag_z;
     }

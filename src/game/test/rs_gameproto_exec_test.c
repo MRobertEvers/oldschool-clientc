@@ -881,6 +881,48 @@ main(void)
             App_GameProto_Exec(app, &app_state, &p);
             TEST_EXEC_ASSERT(app->minimap.flag_tile_x == 22, "absolute x against the world's base");
             TEST_EXEC_ASSERT(app->minimap.flag_tile_z == 34, "absolute z against the world's base");
+            TEST_EXEC_ASSERT(app->minimap.flag_view == 0, "a root tile is the root's");
+
+            /* A coord inside a world entity's staging rectangle is that
+             * deck's tile, in the deck's own terms (deob client.java
+             * class243.field3077: field748.method1423 picks the view whose
+             * rectangle holds it, class100.method3310 subtracts ITS base),
+             * and it reads back as the absolute tile the server sent. */
+            {
+                struct Worldview* deck = &app->worldviews.views[3];
+                int abs_x = -1;
+                int abs_z = -1;
+
+                WorldviewRegistry_Init(&app->worldviews);
+                deck->id = 3;
+                deck->wire_id = 77;
+                deck->base_x = 2048;
+                deck->base_z = 5120;
+                deck->size_x_tiles = 16;
+                deck->size_z_tiles = 16;
+                deck->parent_id = WORLDVIEW_ROOT;
+                deck->live = true;
+                p._set_map_flag.x = 2048 + 5;
+                p._set_map_flag.z = 5120 + 9;
+                App_GameProto_Exec(app, &app_state, &p);
+                TEST_EXEC_ASSERT(app->minimap.flag_view == 3, "a deck coord is the deck's flag");
+                TEST_EXEC_ASSERT(app->minimap.flag_tile_x == 5, "deck-local x");
+                TEST_EXEC_ASSERT(app->minimap.flag_tile_z == 9, "deck-local z");
+                TEST_EXEC_ASSERT(app_minimap_flag_abs(app, &abs_x, &abs_z) == 1, "it reads back");
+                TEST_EXEC_ASSERT(abs_x == 2053 && abs_z == 5129, "as the absolute tile sent");
+                /* The root's scene moving does not move a deck's tile. */
+                TEST_EXEC_ASSERT(
+                    MinimapView_RebaseFlag(&app->minimap, 8, -8, 104), "a root rebuild keeps it");
+                TEST_EXEC_ASSERT(app->minimap.flag_tile_x == 5 && app->minimap.flag_tile_z == 9,
+                    "where it was on the deck");
+                p._set_map_flag.clear = 1;
+                App_GameProto_Exec(app, &app_state, &p);
+                TEST_EXEC_ASSERT(!MinimapView_HasFlag(&app->minimap), "a clear clears it");
+                TEST_EXEC_ASSERT(app->minimap.flag_view == 0, "and forgets the deck");
+                TEST_EXEC_ASSERT(app_minimap_flag_abs(app, &abs_x, &abs_z) == 0, "no flag reads back");
+                p._set_map_flag.clear = 0;
+                WorldviewRegistry_Init(&app->worldviews);
+            }
             World_Free(app->world);
             app->world = NULL;
         }
