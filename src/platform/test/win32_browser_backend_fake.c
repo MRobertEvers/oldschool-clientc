@@ -30,6 +30,11 @@ staged_file(WCHAR const* root, WCHAR const* relative)
            !(attributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 
+/* The test's knobs: refuse every New (a runtime that cannot start), and
+ * count how many were asked for. */
+int g_fake_browser_refuse;
+int g_fake_browser_new_calls;
+
 struct PlatformWin32Browser*
 PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root)
 {
@@ -58,6 +63,9 @@ PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root)
     };
     struct PlatformWin32Browser* browser;
 
+    g_fake_browser_new_calls++;
+    if( g_fake_browser_refuse )
+        return NULL;
     if( !parent || !bundle_root || !bundle_root[0] )
         return NULL;
     for( int i = 0; i < (int)(sizeof(required) / sizeof(required[0])); i++ )

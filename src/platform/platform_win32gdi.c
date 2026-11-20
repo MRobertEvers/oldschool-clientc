@@ -210,6 +210,10 @@ struct PlatformWindow
      */
     HWND    chrome_rail_hwnd;
     struct PlatformWin32Browser* chrome_browser;
+    /* The browser could not be made (no bundle to stage, no WebView2 loader,
+     * the SDK-less stub, no MSHTML): PlatformWindow_PluginBrowserEnsure does
+     * not try again this run. */
+    int chrome_browser_unavailable;
     WCHAR   chrome_browser_asset_dir[MAX_PATH];
     WCHAR   chrome_browser_asset_url[MAX_PATH * 3];
     struct Win32BrowserBitmapEntry
@@ -2094,12 +2098,33 @@ PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* p)
         return false;
     if( p->chrome_browser )
         return !PlatformWin32Browser_Failed(p->chrome_browser);
-    if( !win32_browser_stage_bundle(p) )
+    /*
+     * A browser that could not be made is not tried again. Every try stages
+     * the whole bundle afresh (some fifty file copies into %TEMP%), and the
+     * executor asks on every rail sync, which is every frame while its theme
+     * is unsent (torirs_chrome_exec_winbrowser.c, browser_rail_sync). Retried,
+     * a client with no browser -- no WebView2Loader.dll beside the exe, the
+     * SDK-less stub, no MSHTML in the session -- spent most of each frame
+     * copying files: a quest test ran 25x slower on Windows 11 than the same
+     * build's logic on macOS. Both failures are for the run: the loader is
+     * looked for once (wv2_new), the bundle is found from fixed places.
+     */
+    if( p->chrome_browser_unavailable )
         return false;
+    if( !win32_browser_stage_bundle(p) )
+    {
+        p->chrome_browser_unavailable = 1;
+        fprintf(stderr, "plugin chrome: the browser bundle could not be staged; the plugin rail stays off for this run\n");
+        return false;
+    }
     p->chrome_browser = PlatformWin32Browser_New(
         p->chrome_rail_hwnd, p->chrome_browser_asset_dir);
     if( !p->chrome_browser )
+    {
+        p->chrome_browser_unavailable = 1;
+        fprintf(stderr, "plugin chrome: the embedded browser could not be created; the plugin rail stays off for this run\n");
         return false;
+    }
     if( win32_browser_asset_dir(p) )
         PlatformWin32Browser_AllowLocalRoot(
             p->chrome_browser, p->chrome_browser_asset_url);
@@ -2130,8 +2155,8 @@ PlatformWindow_PluginBrowserReady(struct PlatformWindow const* p)
 bool
 PlatformWindow_PluginBrowserFailed(struct PlatformWindow const* p)
 {
-    return !p || (p->chrome_browser &&
-                  PlatformWin32Browser_Failed(p->chrome_browser));
+    return !p || p->chrome_browser_unavailable ||
+           (p->chrome_browser && PlatformWin32Browser_Failed(p->chrome_browser));
 }
 
 bool
