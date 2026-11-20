@@ -856,7 +856,9 @@ drive_ledger_write(char const* step, char const* verdict, int ticks, char const*
         return; /* stderr mirror is all a run with no session dir gets */
 
     snprintf(path, sizeof(path), "%s/ledger.tsv", dir);
-    f = fopen(path, g_ledger.index == 1 ? "w" : "a");
+    /* Binary, as the tick log: the ledger is compared across platforms and a
+     * Windows text-mode stream ends each row with CRLF. */
+    f = fopen(path, g_ledger.index == 1 ? "wb" : "ab");
     assert(f);
     if( g_ledger.index == 1 )
         fprintf(f, "quest-ledger-v1\nindex\tstep\tverdict\tticks\tshots\tdetail\n");
@@ -884,7 +886,7 @@ drive_ledger_write_summary_exit(char const* exit_text)
     if( !dir )
         return;
     snprintf(path, sizeof(path), "%s/ledger.tsv", dir);
-    f = fopen(path, g_ledger.index == 0 ? "w" : "a");
+    f = fopen(path, g_ledger.index == 0 ? "wb" : "ab");
     assert(f);
     if( g_ledger.index == 0 )
         fprintf(f, "quest-ledger-v1\nindex\tstep\tverdict\tticks\tshots\tdetail\n");
