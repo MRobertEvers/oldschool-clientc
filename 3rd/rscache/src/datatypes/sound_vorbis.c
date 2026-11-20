@@ -87,7 +87,7 @@ bits_read(
             b->overrun = true;
             return value;
         }
-        value += ((b->data[b->byte_pos] >> b->bit_pos) & mask) << shift;
+        value += (int)((uint32_t)((b->data[b->byte_pos] >> b->bit_pos) & mask) << shift);
         b->bit_pos = 0;
         b->byte_pos++;
         shift += avail;
@@ -101,7 +101,7 @@ bits_read(
             b->overrun = true;
             return value;
         }
-        value += ((b->data[b->byte_pos] >> b->bit_pos) & mask) << shift;
+        value += (int)((uint32_t)((b->data[b->byte_pos] >> b->bit_pos) & mask) << shift);
         b->bit_pos += count;
     }
     return value;
@@ -245,7 +245,7 @@ codebook_build_tree(struct vorbis_codebook* book)
 
         if( length == 0 )
             continue;
-        bit = 1 << (32 - length);
+        bit = (int)(1u << (32 - length)); /* length 1: bit 31 */
         candidate = available[length];
         codewords[i] = candidate;
         if( (candidate & bit) != 0 )
@@ -261,7 +261,7 @@ codebook_build_tree(struct vorbis_codebook* book)
                 int mask;
                 if( candidate != held )
                     break;
-                mask = 1 << (32 - j);
+                mask = (int)(1u << (32 - j));
                 if( (held & mask) != 0 )
                 {
                     available[j] = available[j - 1];

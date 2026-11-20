@@ -267,7 +267,7 @@ VarPManager_Init(struct VarPManager* mgr)
     memset(mgr, 0, sizeof(*mgr));
 
     for( int i = 0; i < VARP_MANAGER_READBIT_MAX; i++ )
-        mgr->readbit[i] = (1 << i) - 1;
+        mgr->readbit[i] = (int)((1u << i) - 1u); /* readbit[31]: 1 << 31 overflows an int */
 }
 
 void
@@ -677,8 +677,10 @@ VarPManager_SetVarbitOptimistic(
 
     int mask = mgr->readbit[bit_count];
     int base_val = mgr->var[vb->basevar];
-    int cleared = base_val & ~(mask << vb->startbit);
-    int updated = cleared | ((value & mask) << vb->startbit);
+    /* In uint32_t: a varbit ending at bit 31 (varb62, varb78) shifts its
+     * mask into the sign bit, which is undefined for an int. */
+    int cleared = (int)((uint32_t)base_val & ~((uint32_t)mask << vb->startbit));
+    int updated = (int)((uint32_t)cleared | ((uint32_t)(value & mask) << vb->startbit));
     VarPManager_SetVarpOptimistic(mgr, vb->basevar, updated);
 }
 

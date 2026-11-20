@@ -5586,6 +5586,20 @@ check-no-drain:
 # No switch inside a protothread body: PT_BEGIN is a switch on the resume
 # point and every await is a case label, so a nested switch captures the label
 # and the task resumes into a dead end (the placeholder task, 2026-09-18).
+# Undefined behaviour in the shared cache, sound and render code: the unit
+# tests that reach it, built with UBSan set to abort on the first report, in
+# their own object directory. On arm64 a shift into the sign bit, a signed
+# wrap or a misaligned load happens to do what was meant; another compiler or
+# optimisation level need not (fx-ub, 2026-11-20). A test that passes plain and
+# fails here has met one.
+UBSAN_UNIT_OBJ_BASE ?= build_ubsan_units
+UBSAN_UNIT_TESTS = test-js5 test-varp
+check-ubsan-units:
+	$(MAKE) OPT=0 PLATFORM_OBJ_BASE=$(UBSAN_UNIT_OBJ_BASE) \
+		PLATFORM_CC='$(PLATFORM_CC) -fsanitize=undefined -fno-sanitize-recover=all' \
+		$(UBSAN_UNIT_TESTS)
+	@echo "check-ubsan-units: PASS ($(UBSAN_UNIT_TESTS))"
+
 # rscache and its tools (cachepack) include nothing from src/: the dependency
 # runs one way, and what crosses is data (fields/<type>.ini) and an injected
 # binding (rscache_band.h), never a header.
