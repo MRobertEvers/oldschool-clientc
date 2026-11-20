@@ -399,8 +399,8 @@ SLT_FN(
     int d_shade_ab = shade7bit_b - shade7bit_a;
     int d_shade_ac = shade7bit_c - shade7bit_a;
 
-    int shade_xhat_ish8 = ((d_shade_ab * dy_ac - d_shade_ac * dy_ab) << 9) / sarea;
-    int shade_yhat_ish8 = ((d_shade_ac * dx_ab - d_shade_ab * dx_ac) << 9) / sarea;
+    int shade_xhat_ish8 = toridraw_wrap_shl(d_shade_ab * dy_ac - d_shade_ac * dy_ab, 9) / sarea;
+    int shade_yhat_ish8 = toridraw_wrap_shl(d_shade_ac * dx_ab - d_shade_ab * dx_ac, 9) / sarea;
 
     int shades[3];
     shades[0] = shade7bit_a;

@@ -726,15 +726,17 @@ void rsprot_psmart2or4null(RsprotBuf *b, int32_t v)
 
 int32_t rsprot_gmidivarlen(RsprotBuf *b)
 {
-	int32_t value = 0;
+	/* Unsigned: a fifth byte shifts past bit 31, and the reference's int
+	 * keeps the low 32 bits. */
+	uint32_t value = 0;
 	int32_t byte;
 	do {
 		byte = get1u(b);
-		value = (value << 7) | (byte & 0x7F);
+		value = (value << 7) | (uint32_t)(byte & 0x7F);
 		if (!rsprot_buf_ok(b))
 			break;
 	} while ((byte & HALF_UBYTE) != 0);
-	return value;
+	return (int32_t)value;
 }
 
 void rsprot_pmidivarlen(RsprotBuf *b, int32_t v)
@@ -997,7 +999,9 @@ int32_t rsprot_gbits(RsprotBuf *b, int32_t count)
 	int32_t remaining;
 	int32_t byte_pos;
 	int32_t bit_pos;
-	int32_t value = 0;
+	/* Unsigned: a 32-bit read shifts its first chunk into bit 31, which
+	 * Java's int does and C's must not. */
+	uint32_t value = 0;
 
 	if (count < 1 || count > 32) {
 		b->err |= RSPROT_BUF_ERR_RANGE;
@@ -1013,11 +1017,11 @@ int32_t rsprot_gbits(RsprotBuf *b, int32_t count)
 	bit_pos = BITS_PER_BYTE - (b->bit_rpos & MASK_BITS_PER_BYTE);
 	b->bit_rpos += remaining;
 	while (remaining > bit_pos) {
-		value += (b->data[byte_pos++] & bitmask(bit_pos)) << (remaining - bit_pos);
+		value += (uint32_t)(b->data[byte_pos++] & bitmask(bit_pos)) << (remaining - bit_pos);
 		remaining -= bit_pos;
 		bit_pos = BITS_PER_BYTE;
 	}
-	return value + (int32_t)(((uint32_t)b->data[byte_pos] >> (bit_pos - remaining)) & (uint32_t)bitmask(remaining));
+	return (int32_t)(value + (((uint32_t)b->data[byte_pos] >> (bit_pos - remaining)) & (uint32_t)bitmask(remaining)));
 }
 
 /* --- checksum ----------------------------------------------------------- */

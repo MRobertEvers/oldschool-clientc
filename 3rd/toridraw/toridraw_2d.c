@@ -2,6 +2,7 @@
 #include "toridraw_alloc.h"
 
 #include "graphics/dash_restrict.h"
+#include "graphics/int_wrap.h"
 #include "toridraw_blit_simd.h"
 
 #include <assert.h>
@@ -233,7 +234,7 @@ ToriDraw2D_FillRectGradientVertical(
         int r = toridraw2d_lerp_channel((color_top >> 16) & 0xFF, (color_bot >> 16) & 0xFF, t, h);
         int g = toridraw2d_lerp_channel((color_top >> 8) & 0xFF, (color_bot >> 8) & 0xFF, t, h);
         int b = toridraw2d_lerp_channel(color_top & 0xFF, color_bot & 0xFF, t, h);
-        int argb = (alpha << 24) | (r << 16) | (g << 8) | b;
+        int argb = toridraw_wrap_shl(alpha, 24) | (r << 16) | (g << 8) | b;
         ToriDraw2D_FillRect(view_port, x0, y, x1, y + 1, argb, pixel_buffer);
     }
 }
@@ -265,7 +266,7 @@ ToriDraw2D_FillRectGradientAlpha(
         int g = toridraw2d_lerp_channel((color_top >> 8) & 0xFF, (color_bot >> 8) & 0xFF, t, h);
         int b = toridraw2d_lerp_channel(color_top & 0xFF, color_bot & 0xFF, t, h);
         int a = toridraw2d_lerp_channel(alpha_top, alpha_bot, t, h);
-        int argb = (a << 24) | (r << 16) | (g << 8) | b;
+        int argb = toridraw_wrap_shl(a, 24) | (r << 16) | (g << 8) | b;
         ToriDraw2D_FillRect(view_port, x0, y, x1, y + 1, argb, pixel_buffer);
     }
 }

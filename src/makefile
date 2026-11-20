@@ -5613,14 +5613,24 @@ check-no-drain:
 # optimisation level need not (fx-ub, 2026-11-20). A test that passes plain and
 # fails here has met one.
 UBSAN_UNIT_OBJ_BASE ?= build_ubsan_units
+#
+# Also the raster kernels and spans that no client run dispatches with every
+# triangle shape (test-scanline, test-kernel-matrix, test-gouraudrgb and the
+# two setup-shift targets reach them), the 2D packs, and rsprot's own tests,
+# built in a directory of their own because rsprot's makefile keeps its
+# objects in one place (fx3-toolchain, 2026-11-20).
 UBSAN_UNIT_TESTS = test-js5 test-varp test-raster-kernel test-render-hd \
 	test-painters-occluders test-uitree-builder-dat1 test-cs2-math \
-	test-sailing-navigation test-audio test-entity-apply
+	test-sailing-navigation test-audio test-entity-apply \
+	test-scanline test-kernel-matrix test-gouraudrgb \
+	test-toridraw-setup-shift test-toridraw-setup-shift-x86 test-toridraw-2d-wrap
 check-ubsan-units:
 	$(MAKE) OPT=0 PLATFORM_OBJ_BASE=$(UBSAN_UNIT_OBJ_BASE) \
 		PLATFORM_CC='$(PLATFORM_CC) -fsanitize=undefined -fno-sanitize-recover=all' \
 		$(UBSAN_UNIT_TESTS)
-	@echo "check-ubsan-units: PASS ($(UBSAN_UNIT_TESTS))"
+	$(MAKE) -C $(RSPROT_DIR) BUILD=../../src/$(UBSAN_UNIT_OBJ_BASE)_rsprot \
+		CC='$(HOST_CC) -fsanitize=undefined -fno-sanitize-recover=all' test
+	@echo "check-ubsan-units: PASS ($(UBSAN_UNIT_TESTS) rsprot)"
 
 # rscache and its tools (cachepack) include nothing from src/: the dependency
 # runs one way, and what crosses is data (fields/<type>.ini) and an injected
@@ -5776,6 +5786,47 @@ test-scanline: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
 	./$(OBJ_DIR)/scanline_parity_test
 
+# The fixed-point setup of the C triangle kernels and texture spans, reached:
+# negative edge deltas, clipped vertices, shade planes and texture steps on
+# every triangle shape, including kernels nothing else calls. It exists for
+# check-ubsan-units, where a left shift of a negative int stops it, and it
+# prints one digest per kernel so a change to the setup arithmetic can be
+# proved bit-for-bit by diffing two runs. The native build takes the lane's
+# span (NEON here); the second build takes the scalar span. Standalone TU.
+SETUP_SHIFT_TEST_CFLAGS = -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter \
+	-Wno-unused-function -Wno-pointer-sign -I$(TORIDRAW_DIR)
+test-toridraw-setup-shift: $(OBJ_DIR)
+	$(CC) $(SETUP_SHIFT_TEST_CFLAGS) -o $(OBJ_DIR)/setup_shift_test \
+		$(TORIDRAW_DIR)/toridraw_setup_shift_test.c -lm
+	$(CC) $(SETUP_SHIFT_TEST_CFLAGS) -DNEON_DISABLED=1 -DAVX2_DISABLED=1 \
+		-DSSE41_DISABLED=1 -DSSE2_DISABLED=1 -DSSE_DISABLED=1 \
+		-o $(OBJ_DIR)/setup_shift_test_scalar $(TORIDRAW_DIR)/toridraw_setup_shift_test.c -lm
+	@for t in setup_shift_test setup_shift_test_scalar; do \
+		./$(OBJ_DIR)/$$t > $(OBJ_DIR)/$$t.txt || { cat $(OBJ_DIR)/$$t.txt; exit 1; }; \
+		echo "$$t: $$(tail -1 $(OBJ_DIR)/$$t.txt)"; \
+	done
+
+# The same test on the x86 spans the win32, win64, web and Android x86 lanes
+# select: SSE2, SSE4.1 and AVX2. On an arm64 Mac they are built for x86_64
+# and run under Rosetta; on an x86_64 host natively (AVX2 only where the CPU
+# has it); anywhere else they are skipped, and the target says so.
+test-toridraw-setup-shift-x86: $(OBJ_DIR)
+	@host="$$(uname -s)-$$(uname -m)"; arch=""; run=""; avx2=1; \
+	if [ "$$host" = "Darwin-arm64" ] && arch -x86_64 /usr/bin/true 2>/dev/null; then \
+		arch="-arch x86_64"; run="arch -x86_64"; \
+	elif [ "$$(uname -m)" = "x86_64" ]; then \
+		grep -qw avx2 /proc/cpuinfo 2>/dev/null || sysctl -n machdep.cpu.leaf7_features 2>/dev/null | grep -qw AVX2 || avx2=0; \
+	else echo "test-toridraw-setup-shift-x86: no x86_64 on $$host; skipped"; exit 0; fi; \
+	for lane in "sse2:-mno-sse4.1 -mno-sse4.2 -mno-avx" "sse41:-msse4.1" "avx2:-mavx2"; do \
+		n=$${lane%%:*}; f=$${lane#*:}; \
+		if [ $$n = avx2 ] && [ $$avx2 = 0 ]; then echo "setup_shift_test_$$n: no AVX2 on this CPU; skipped"; continue; fi; \
+		$(CC) $(SETUP_SHIFT_TEST_CFLAGS) $$arch $$f -o $(OBJ_DIR)/setup_shift_test_$$n \
+			$(TORIDRAW_DIR)/toridraw_setup_shift_test.c -lm || exit 1; \
+		$$run ./$(OBJ_DIR)/setup_shift_test_$$n > $(OBJ_DIR)/setup_shift_test_$$n.txt \
+			|| { cat $(OBJ_DIR)/setup_shift_test_$$n.txt; exit 1; }; \
+		echo "setup_shift_test_$$n: $$(tail -1 $(OBJ_DIR)/setup_shift_test_$$n.txt)"; \
+	done
+
 # The same parity, on every pixel format the library claims to support.
 #
 # This is the proof that the raster families are format-agnostic: a solid face
@@ -5788,7 +5839,8 @@ test-scanline: $(OBJ_DIR)
 # -Werror=incompatible-pointer-types is the point of the compile: a kernel that
 # has not been converted cannot silently accept a native buffer.
 TORIDRAW_PIXEL_FORMATS = \
-	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7 \n	RGB565_BE:8
+	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7 \
+	RGB565_BE:8
 
 .PHONY: test-scanline-formats
 test-scanline-formats: $(OBJ_DIR)
@@ -5823,6 +5875,15 @@ test-raster-kernel: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o $(AS
 		$(TORIDRAW_DIR)/toridraw_raster_kernel_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/bmp.o $(ASAN_COMPAT_SRC)
 	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_test
+
+# The 2D library's ARGB packs and rotated-blit start, which shift an alpha
+# into bit 31 and a negative pivot: run for check-ubsan-units.
+test-toridraw-2d-wrap: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(filter -fsanitize=%,$(LDFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) \
+		-o $(OBJ_DIR)/toridraw_2d_wrap_test \
+		$(TORIDRAW_DIR)/toridraw_2d_wrap_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o $(ASAN_COMPAT_SRC)
+	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/toridraw_2d_wrap_test
 
 # The same routing contract, compiled and linked under a SECOND pixel format.
 #

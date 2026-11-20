@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include "graphics/int_wrap.h"
 
 static void
 raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
@@ -54,9 +55,9 @@ raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
     bv += step_bv_dx * adjust;
     cw += step_cw_dx * adjust;
 
-    step_au_dx <<= 3;
-    step_bv_dx <<= 3;
-    step_cw_dx <<= 3;
+    step_au_dx = toridraw_wrap_shl(step_au_dx, 3);
+    step_bv_dx = toridraw_wrap_shl(step_bv_dx, 3);
+    step_cw_dx = toridraw_wrap_shl(step_cw_dx, 3);
 
     steps = screen_x1 - screen_x0;
 
@@ -109,11 +110,11 @@ raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
         next_u = clamp(next_u, 0x0, texture_width - 1);
         next_v = (bv) / w;
 
-        int step_u = (next_u - curr_u) << (texture_shift - 3);
-        int step_v = (next_v - curr_v) << (texture_shift - 3);
+        int step_u = toridraw_wrap_shl(next_u - curr_u, texture_shift - 3);
+        int step_v = toridraw_wrap_shl(next_v - curr_v, texture_shift - 3);
 
-        int u_scan = curr_u << texture_shift;
-        int v_scan = curr_v << texture_shift;
+        int u_scan = toridraw_wrap_shl(curr_u, texture_shift);
+        int v_scan = toridraw_wrap_shl(curr_v, texture_shift);
 
         raster_linear_opaque_texshadeflat_lerp8(
             pixel_buffer,
@@ -154,11 +155,11 @@ raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
     next_u = clamp(next_u, 0x0, texture_width - 1);
     next_v = (bv) / w;
 
-    int step_u = (next_u - curr_u) << (texture_shift - 3);
-    int step_v = (next_v - curr_v) << (texture_shift - 3);
+    int step_u = toridraw_wrap_shl(next_u - curr_u, texture_shift - 3);
+    int step_v = toridraw_wrap_shl(next_v - curr_v, texture_shift - 3);
 
-    int u_scan = curr_u << texture_shift;
-    int v_scan = curr_v << texture_shift;
+    int u_scan = toridraw_wrap_shl(curr_u, texture_shift);
+    int v_scan = toridraw_wrap_shl(curr_v, texture_shift);
 
     for( int i = 0; i < lerp8_last_steps; i++ )
     {

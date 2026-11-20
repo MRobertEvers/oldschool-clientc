@@ -52,8 +52,12 @@ LANE_FORBID_linux  := -dead_strip TORIRS_CHROME_EXEC_WEB_AVAILABLE \
 LANE_REQUIRE_win32 := _WIN32_WINNT=0x0501 WINVER=0x0501 -march=pentium4 \
                       -mfpmath=sse console:5.01 -static -static-libgcc win32_compat.h \
                       TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9 \
+                      -mcrtdll=msvcrt-os \
                       TORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
                       ui/torirs_chrome_exec_winbrowser.c
+# -mcrtdll=msvcrt-os is required because a UCRT-based mingw-w64 (Homebrew's)
+# otherwise links api-ms-win-crt-*.dll, which XP has not; the artifact probe
+# below checks the result.
 # -march=i686/-mfpmath=387 are forbidden, not merely un-required. SSE2 is
 # assumed present on every XP target, and the i686 baseline silently costs this
 # lane the SIMD textured span it selects with #if -- 79% of its raster cycles.
@@ -299,6 +303,21 @@ lane-check-fixed-function-win32:
 
 # Post-link probes read the ABI and imports back off each Windows artifact.
 # Other platforms have no artifact-only contract yet and pass trivially.
+#
+# The probe must be the TARGET toolchain's GNU objdump. On macOS the `objdump`
+# on PATH is LLVM's, which names a PE32 image 'coff-i386' and prints no
+# subsystem or import table, so the probe failed on every exe it was handed.
+# A Windows host's MinGW bin/ has a plain objdump; a cross host has
+# <triple>-objdump beside the cross gcc.
+LANE_OBJDUMP ?= $(or $(shell command -v $(shell $(PLATFORM_CC) -dumpmachine 2>/dev/null)-objdump 2>/dev/null),objdump)
+#
+# What XP SP3 has, for win32. Every DLL the exe imports must be one of these
+# (d3d9.dll is DirectX 9.0c, which SP2 and SP3 ship). The Universal CRT
+# (ucrtbase.dll, api-ms-win-crt-*.dll) is the one a UCRT-built mingw-w64 links
+# by default, and XP refuses to start an image that names it.
+LANE_XP_DLLS := kernel32.dll user32.dll gdi32.dll advapi32.dll msvcrt.dll \
+                ole32.dll oleaut32.dll shell32.dll ws2_32.dll winmm.dll \
+                psapi.dll d3d9.dll
 lane-check-artifact:
 	@if [ ! -e '$(TARGET)' ]; then echo "lane-check-artifact: no $(TARGET) — build first" >&2; exit 1; fi
 	@case '$(PLATFORM)' in \
@@ -306,14 +325,14 @@ lane-check-artifact:
 		win64) expected_fmt=pei-x86-64; expected_subsystem=6.0; artifact_name='modern x86_64' ;; \
 		*) echo "lane-check-artifact: PLATFORM=$(PLATFORM) ok (nothing to probe)"; exit 0 ;; \
 	esac; \
-	fmt=`objdump -f '$(TARGET)' | sed -n 's/.*file format //p'`; \
+	fmt=`$(LANE_OBJDUMP) -f '$(TARGET)' | sed -n 's/.*file format //p'`; \
 	if [ "$$fmt" != "$$expected_fmt" ]; then \
 		echo "lane-check-artifact: $(TARGET) is '$$fmt', expected $$expected_fmt ($$artifact_name PE)" >&2; exit 1; fi; \
-	major=`objdump -p '$(TARGET)' | sed -n 's/^MajorSubsystemVersion[[:space:]]*//p' | sed -n '1p'`; \
-	minor=`objdump -p '$(TARGET)' | sed -n 's/^MinorSubsystemVersion[[:space:]]*//p' | sed -n '1p'`; \
+	major=`$(LANE_OBJDUMP) -p '$(TARGET)' | sed -n 's/^MajorSubsystemVersion[[:space:]]*//p' | sed -n '1p'`; \
+	minor=`$(LANE_OBJDUMP) -p '$(TARGET)' | sed -n 's/^MinorSubsystemVersion[[:space:]]*//p' | sed -n '1p'`; \
 	if [ "$$major.$$minor" != "$$expected_subsystem" ]; then \
 		echo "lane-check-artifact: $(TARGET) subsystem=$$major.$$minor, expected $$expected_subsystem for $$artifact_name" >&2; exit 1; fi; \
-	imports=`objdump -p '$(TARGET)' | sed -n '/The Import Tables/,/PE File Base Relocations/p'`; \
+	imports=`$(LANE_OBJDUMP) -p '$(TARGET)' | sed -n '/The Import Tables/,/PE File Base Relocations/p'`; \
 	imports_lc=`printf '%s\n' "$$imports" | tr '[:upper:]' '[:lower:]'`; \
 	if ! printf '%s\n' "$$imports_lc" | grep -Eq 'dll name:[[:space:]]*d3d9\.dll'; then \
 		echo "lane-check-artifact: $(TARGET) does not import d3d9.dll" >&2; exit 1; fi; \
@@ -335,6 +354,13 @@ lane-check-artifact:
 		echo "lane-check-artifact: $(TARGET) imports a post-XP timing API" >&2; exit 1; fi; \
 	if [ '$(PLATFORM)' = 'win32' ] && printf '%s\n' "$$imports_lc" | grep -Eq '(^|[[:space:]])_?putenv_s$$'; then \
 		echo "lane-check-artifact: $(TARGET) imports _putenv_s, which XP msvcrt.dll does not export" >&2; exit 1; fi; \
+	if [ '$(PLATFORM)' = 'win32' ] && printf '%s\n' "$$imports_lc" | grep -Eq 'dll name:[[:space:]]*(ucrtbase|api-ms-win-crt-[^[:space:]]*)\.dll'; then \
+		echo "lane-check-artifact: $(TARGET) imports the Universal CRT, which XP does not have (link with -mcrtdll=msvcrt-os)" >&2; exit 1; fi; \
+	if [ '$(PLATFORM)' = 'win32' ]; then \
+		for dll in `printf '%s\n' "$$imports_lc" | sed -n 's/.*dll name:[[:space:]]*//p'`; do \
+			case " $(LANE_XP_DLLS) " in *" $$dll "*) ;; \
+			*) echo "lane-check-artifact: $(TARGET) imports $$dll, which is not in XP SP3's set (LANE_XP_DLLS)" >&2; exit 1;; esac; \
+		done; fi; \
 	echo "lane-check-artifact: $(TARGET) ok ($$expected_fmt, subsystem $$expected_subsystem, fixed-function d3d9, QPC pacing, standalone)"
 
 # No SDL in the shipped Android library.

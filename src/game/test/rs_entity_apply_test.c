@@ -51,6 +51,11 @@ struct TestHost
     int last_retype_type;
     struct RS_EntityNote notes[NOTES_MAX];
     int note_count;
+    /* A note's strings live only for the call (the apply passes its own stack
+     * buffers, and the real hosts copy them there), so the host keeps copies. */
+    char note_sender[NOTES_MAX][128];
+    char note_sender_key[NOTES_MAX][128];
+    char note_text[NOTES_MAX][512];
     /* The entity's tile when NPC_ADDED was presented. */
     int added_x, added_z;
     /* public_chat_shown: the answer, and what it was last asked. */
@@ -224,7 +229,23 @@ host_present(
     struct TestHost* h = ctx;
 
     assert(h->note_count < NOTES_MAX);
-    h->notes[h->note_count++] = *n;
+    h->notes[h->note_count] = *n;
+    if( n->sender )
+    {
+        snprintf(h->note_sender[h->note_count], sizeof(h->note_sender[0]), "%s", n->sender);
+        h->notes[h->note_count].sender = h->note_sender[h->note_count];
+    }
+    if( n->sender_key )
+    {
+        snprintf(h->note_sender_key[h->note_count], sizeof(h->note_sender_key[0]), "%s", n->sender_key);
+        h->notes[h->note_count].sender_key = h->note_sender_key[h->note_count];
+    }
+    if( n->text )
+    {
+        snprintf(h->note_text[h->note_count], sizeof(h->note_text[0]), "%s", n->text);
+        h->notes[h->note_count].text = h->note_text[h->note_count];
+    }
+    h->note_count++;
     if( n->kind == RS_ENTITY_NOTE_NPC_ADDED )
     {
         struct WorldEntity_NPC const* npc = World_EntityPoolGet(&h->world->entities.npc, n->idx);
