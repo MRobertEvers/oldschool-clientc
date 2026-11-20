@@ -2404,17 +2404,17 @@ test_entity_spotanim_holds_until_resident(void)
     /* Far longer than the seq's 8 cycles, delay included. */
     for( int i = 0; i < 40; i++ )
         World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanims[0].id == 369, "a graphic still loading is not expired");
-    TEST_ASSERT(npc->spotanims[0].frame == 0, "and it waits on frame 0");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->id == 369, "a graphic still loading is not expired");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->frame == 0, "and it waits on frame 0");
 
     g_spot_test_resident = 1;
     World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanims[0].id == 369, "the cycle it lands it is still playing");
-    TEST_ASSERT(npc->spotanims[0].frame == 0, "from its first frame, not the stall's");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->id == 369, "the cycle it lands it is still playing");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->frame == 0, "from its first frame, not the stall's");
 
-    for( int i = 0; i < 8 && npc->spotanims[0].id != -1; i++ )
+    for( int i = 0; i < 8 && World_EntitySpotanimInSlot(&npc->spotanims, 0)->id != -1; i++ )
         World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanims[0].id == -1, "and it ends after playing its frames once");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->id == -1, "and it ends after playing its frames once");
 
     World_Free(world);
 }
@@ -2446,16 +2446,16 @@ test_entity_spotanim_loop_replays_until_replaced(void)
     for( int i = 0; i < 40; i++ )
     {
         World_Cycle(world, 1);
-        if( npc->spotanims[5].frame < last )
+        if( World_EntitySpotanimInSlot(&npc->spotanims, 5)->frame < last )
             restarts++;
-        last = npc->spotanims[5].frame;
+        last = World_EntitySpotanimInSlot(&npc->spotanims, 5)->frame;
     }
-    TEST_ASSERT(npc->spotanims[5].id == 4223,
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 5)->id == 4223,
                 "a looping graphic is still up after five of its lengths");
     TEST_ASSERT(restarts >= 4, "and it went back to frame 0 each time its seq ended");
 
     World_NpcSetSpotanim(world, ni, 5, -1, 0, 0, true);
-    TEST_ASSERT(npc->spotanims[5].id == -1,
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 5)->id == -1,
                 "the slot sent again with no graphic ends it");
 
     World_Free(world);
@@ -2487,12 +2487,12 @@ test_player_spotanim_slots(void)
     World_Cycle(world, 1);
     World_PlayerSetSpotanim(world, pi, 1, 24, 96, 0, false);
     World_Cycle(world, 1);
-    TEST_ASSERT(player->spotanims[0].id == 2146, "the slot-0 marker is still up");
-    TEST_ASSERT(player->spotanims[1].id == 24, "the slot-1 launch plays beside it");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&player->spotanims, 0)->id == 2146, "the slot-0 marker is still up");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&player->spotanims, 1)->id == 24, "the slot-1 launch plays beside it");
 
     World_PlayerSetSpotanim(world, pi, 0, 245, 124, 0, false);
-    TEST_ASSERT(player->spotanims[0].id == 245, "a second slot-0 graphic replaces the first");
-    TEST_ASSERT(player->spotanims[1].id == 24, "and leaves slot 1 alone");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&player->spotanims, 0)->id == 245, "a second slot-0 graphic replaces the first");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&player->spotanims, 1)->id == 24, "and leaves slot 1 alone");
 
     World_Free(world);
 }
@@ -2523,11 +2523,11 @@ test_entity_spotanim_without_a_seq_retires(void)
     World_NpcSetSpotanim(world, ni, 0, 85, 0, 2, false);
     for( int i = 0; i < 10; i++ )
         World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanims[0].id == 85, "still loading: it waits");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->id == 85, "still loading: it waits");
 
     g_spot_test_resident = 1;
     World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanims[0].id == -1, "resolved to nothing: retired on that cycle");
+    TEST_ASSERT(World_EntitySpotanimInSlot(&npc->spotanims, 0)->id == -1, "resolved to nothing: retired on that cycle");
 
     World_Free(world);
 }

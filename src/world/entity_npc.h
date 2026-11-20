@@ -12,11 +12,10 @@
  * Rev-239 numbered graphic slots: an npc wears one attached graphic per slot,
  * and a SPOTANIM entry replaces only its own slot (a Tormented Demon's shield
  * loop in slot 4 plays under its claw arc in slot 2). The wire's slot is a
- * byte; slots past the last share it.
+ * byte, every value its own (WorldEntityFacet_EntitySpotanims).
  */
 enum
 {
-    WORLD_NPC_SPOTANIM_SLOTS = 8,
     WORLD_NPC_HEADICON_SLOTS = 8,
 };
 
@@ -84,7 +83,7 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_Facing facing;
     struct WorldEntityFacet_Combat combat;
     struct WorldEntityFacet_Chat chat;
-    struct WorldEntityFacet_EntitySpotanim spotanims[WORLD_NPC_SPOTANIM_SLOTS];
+    struct WorldEntityFacet_EntitySpotanims spotanims;
     /** Rev-239 NPC_INFO tinting (`npc_tint`, flag 0x100): the body drawn
      *  recoloured while active -- Akkha and his shadows while immune.
      *  Applied per frame by app_world_sync_npc_tints. */
