@@ -1963,6 +1963,11 @@ Task_AppSpawn_Run(
              * the loctype first and lets the placement win (deob class108).
              */
             app_loc_change_apply_ops(app, world, wv->builder, self);
+            /* RuneLite's ObjectDespawned and ObjectSpawned events (all four
+             * object kinds): the scenery shows the change from here on. */
+            app_plugin_loc_changed(
+                app, world, self->tile_x, self->tile_z, self->level, self->loc_shape,
+                self->loc_angle, self->loc_id, old_type, old_shape, old_angle);
             /*
              * A LOC_ANIM this pending change carried (App_WorldSceneryAnim):
              * the placed loc starts on it instead of on its `anim=`, the way

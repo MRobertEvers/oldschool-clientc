@@ -719,6 +719,8 @@ App_PluginLayoutTick(struct App* app)
      * them. Every bound watch is stamped here and told when its widget moved
      * underneath it. */
     PluginHost_WidgetStates(app->plugins);
+    /* Owned item controls whose obj model was still loading. */
+    app_plugin_widget_items_pump(app);
 }
 
 /**

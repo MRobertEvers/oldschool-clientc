@@ -78,6 +78,10 @@ struct PluginBootEntry
     char name[PLUGIN_BOOT_NAME_MAX];
     char source[TORIRS_IOITEM_MAX_PATH];
     int enabled;
+    /* budget=: the script's per-callback instruction ceiling, 0 = default. */
+    int budget;
+    /* memory_mb=: the script's Lua heap cap in MiB, 0 = default (16). */
+    int memory_mb;
 };
 
 struct Task_PluginBoot
@@ -211,6 +215,14 @@ plugin_manifest_parse(struct Task_PluginBoot* task, char const* data, int size)
             {
                 task->entries[current].enabled = (vlen > 0 && val[0] != '0');
             }
+            else if( strcmp(key, "budget") == 0 )
+            {
+                task->entries[current].budget = (int)strtol(val, NULL, 10);
+            }
+            else if( strcmp(key, "memory_mb") == 0 )
+            {
+                task->entries[current].memory_mb = (int)strtol(val, NULL, 10);
+            }
         }
     }
 }
@@ -299,13 +311,28 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
              * the settings: applied as state, it won every boot, and a player
              * who switched the script on found it off again -- the settings
              * file omits an enabled=1 the plugin did not declare as off. */
-            /* A script that would not load is logged by AddScript. */
-            (void)PluginLua_AddScript(
-                task->host,
-                task->entries[task->at].name,
-                source,
-                source_length,
-                task->entries[task->at].enabled ? 0u : TORIRS_PLUGIN_DISABLED_BY_DEFAULT);
+            /* A script that would not load is logged by AddScript. Its
+             * module directory is its source path without ".lua":
+             * plugins/quest_helper.lua reads plugins/quest_helper/<module>. */
+            {
+                struct PluginLuaScriptOptions options;
+                char root[TORIRS_IOITEM_MAX_PATH];
+                size_t rl = strlen(task->entries[task->at].source);
+                snprintf(root, sizeof(root), "%s", task->entries[task->at].source);
+                if( rl > 4 && strcmp(root + rl - 4, ".lua") == 0 )
+                    root[rl - 4] = '\0';
+                memset(&options, 0, sizeof(options));
+                options.module_root = strlen(root) < 128 ? root : NULL;
+                options.step_budget = task->entries[task->at].budget;
+                options.memory_mb = task->entries[task->at].memory_mb;
+                (void)PluginLua_AddScriptEx(
+                    task->host,
+                    task->entries[task->at].name,
+                    source,
+                    source_length,
+                    task->entries[task->at].enabled ? 0u : TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
+                    &options);
+            }
             ToriMem_Free(ToriMem_Plugins(), composed);
         }
         else

@@ -48,6 +48,67 @@ CS2VM2_OnMobile(void)
 {
     return g_cs2_on_mobile;
 }
+
+/* See CS2VM2_SetScriptHook. `g_cs2_watch_count` is the one load every hook
+ * point pays; the per-id counts are only read when it is non-zero. */
+static CS2VM2_ScriptHook_Fn g_cs2_script_hook;
+static void* g_cs2_script_hook_user;
+static int g_cs2_watch_count;
+static uint8_t g_cs2_watch[CS2VM2_SCRIPT_WATCH_MAX];
+
+void
+CS2VM2_SetScriptHook(CS2VM2_ScriptHook_Fn fn, void* user)
+{
+    g_cs2_script_hook = fn;
+    g_cs2_script_hook_user = user;
+}
+
+bool
+CS2VM2_ScriptWatch(int script_id, bool on)
+{
+    if( script_id < 0 || script_id >= CS2VM2_SCRIPT_WATCH_MAX )
+        return false;
+    if( on )
+    {
+        assert(g_cs2_watch[script_id] < UINT8_MAX);
+        if( g_cs2_watch[script_id]++ == 0 )
+            g_cs2_watch_count++;
+        return true;
+    }
+    if( g_cs2_watch[script_id] == 0 )
+        return true;
+    if( --g_cs2_watch[script_id] == 0 )
+        g_cs2_watch_count--;
+    return true;
+}
+
+int
+CS2VM2_ScriptWatchCount(void)
+{
+    return g_cs2_watch_count;
+}
+
+static inline bool
+cs2vm2_script_watched(struct CS2VM2_Script const* script)
+{
+    if( g_cs2_watch_count == 0 || !g_cs2_script_hook )
+        return false;
+    return script->script_id >= 0 && script->script_id < CS2VM2_SCRIPT_WATCH_MAX &&
+           g_cs2_watch[script->script_id] != 0;
+}
+
+/* PRE for the frame on top of `vm`. The bases are taken AFTER the hook: an
+ * invoked callee's arguments are still on the stacks while it runs and are
+ * popped by the caller of this function. */
+static void
+cs2vm2_script_pre(struct CS2VM2_Thread* vm, int invoked)
+{
+    struct CS2VM2_Frame* frame = CS2VM_FRAME(vm);
+    frame->hooked = 1;
+    g_cs2_script_hook(g_cs2_script_hook_user, vm, frame->script->script_id,
+                      CS2VM2_SCRIPT_HOOK_PRE, invoked,
+                      frame->script->int_argument_count, frame->script->string_argument_count);
+}
 char g_cs2_trace_extra[512];
 
 /* A hook signature's long-argument type: '\u00cf' in the client's Cp1252. */
@@ -304,6 +365,9 @@ cs2vm2_frame_clear(struct CS2VM2_Frame* frame)
     frame->has_return = 0;
     frame->return_int_count = 0;
     memset(frame->return_ints, 0, sizeof(frame->return_ints));
+    frame->hooked = 0;
+    frame->hook_int_base = 0;
+    frame->hook_str_base = 0;
 }
 
 /*
@@ -1030,6 +1094,32 @@ CS2VM2_SetStringCurrentFrameLocal(
     frame = CS2VM_FRAME(vm);
     *cs2vm2_frame_str_local_ref(frame, idx) = CS2VM2_StrDup(vm, value);
     return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VM2_GetIntCurrentFrameLocal(
+    struct CS2VM2_Thread* vm,
+    int idx)
+{
+    assert(vm);
+    assert(vm->frame_sp > 0);
+    assert(idx >= 0);
+    assert(idx < CS2VM_MAX_LOCALS);
+    return cs2vm2_frame_int_local(CS2VM_FRAME(vm), idx);
+}
+
+char const*
+CS2VM2_GetStringCurrentFrameLocal(
+    struct CS2VM2_Thread* vm,
+    int idx)
+{
+    char const* value;
+    assert(vm);
+    assert(vm->frame_sp > 0);
+    assert(idx >= 0);
+    assert(idx < CS2VM_MAX_LOCALS);
+    value = cs2vm2_frame_str_local(CS2VM_FRAME(vm), idx);
+    return value ? value : "";
 }
 
 int
@@ -1979,6 +2069,12 @@ CS2VM2_Op_GosubWithParams(
     int int_args = callee->script->int_argument_count;
     int long_args = callee->script->long_argument_count;
 
+    /* ScriptPreFired for an invoked script sees its arguments where the
+     * caller pushed them, so it fires before they move into the locals. */
+    bool const hooked = cs2vm2_script_watched(callee->script);
+    if( hooked )
+        cs2vm2_script_pre(vm, 1);
+
     for( int i = long_args - 1; i >= 0; i-- )
     {
         int64_t value;
@@ -1997,6 +2093,11 @@ CS2VM2_Op_GosubWithParams(
     {
         if( CS2VM2_PopIntFrameLocal(vm, callee, i) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
+    }
+    if( hooked )
+    {
+        callee->hook_int_base = vm->ints_stack_top;
+        callee->hook_str_base = vm->strs_stack_top;
     }
 
     return CS2VM_EXECNO_OK;
@@ -11835,7 +11936,19 @@ CS2VM2_Op_Return(
     (void)vm;
     assert(vm);
     assert(frame);
-    return CS2VM2_PopFrame(vm);
+    if( !frame->hooked || !g_cs2_script_hook )
+        return CS2VM2_PopFrame(vm);
+    /* ScriptPostFired: the frame is gone, what it returned is on top. */
+    {
+        int const script_id = frame->script->script_id;
+        int const invoked = vm->frame_sp > 1;
+        int const ints = vm->ints_stack_top - frame->hook_int_base;
+        int const strings = vm->strs_stack_top - frame->hook_str_base;
+        int const result = CS2VM2_PopFrame(vm);
+        g_cs2_script_hook(g_cs2_script_hook_user, vm, script_id, CS2VM2_SCRIPT_HOOK_POST, invoked,
+                          ints > 0 ? ints : 0, strings > 0 ? strings : 0);
+        return result;
+    }
 }
 
 int
@@ -15590,6 +15703,20 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
     assert(vm->frame_sp > 0);
 
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_SCRIPTS, 1);
+
+    /* ScriptPreFired for a top-level script: its arguments are in its locals
+     * and its first opcode has not run. `hooked` keeps a resume after a yield
+     * on that first opcode from firing it twice. */
+    if( g_cs2_watch_count != 0 && vm->frame_sp == 1 )
+    {
+        struct CS2VM2_Frame* entry = CS2VM_FRAME(vm);
+        if( entry->pc == 0 && !entry->hooked && cs2vm2_script_watched(entry->script) )
+        {
+            cs2vm2_script_pre(vm, 0);
+            entry->hook_int_base = vm->ints_stack_top;
+            entry->hook_str_base = vm->strs_stack_top;
+        }
+    }
 
     int result;
     int cycles = 0;

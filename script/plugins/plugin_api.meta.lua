@@ -24,9 +24,13 @@ pcall = nil
 ---@deprecated Removed so an instruction-budget error cannot be caught and retried forever.
 ---@type nil
 xpcall = nil
----@deprecated Removed so scripts cannot install unbudgeted __gc finalizers.
----@type nil
-setmetatable = nil
+--- setmetatable is the sandbox's own: it refuses a metatable carrying __gc
+--- (a finalizer would run from lua_close, outside any callback budget) and a
+--- protected (__metatable) target; everything else is stock Lua.
+---@param t table
+---@param mt table?
+---@return table
+function setmetatable(t, mt) end
 ---@deprecated Removed so protected runtime metatables cannot be mutated.
 ---@type nil
 getmetatable = nil
@@ -67,6 +71,10 @@ warn = nil
 ---@field server_pid integer
 ---@field element_id integer
 ---@field combat_level integer
+---@field orientation integer Drawn yaw 0..2047 (0 south, 512 west; RuneLite's getOrientation).
+---@field anim_id integer The action sequence playing, -1 none (getAnimation).
+---@field interacting integer Face-entity lock: -1 none, an npc server slot, or 32768 + a player pid (getInteracting).
+---@field gender integer 0 male, 1 female (PlayerComposition.getGender).
 
 ---@class torirs.NpcSnap
 ---@field server_slot integer
@@ -84,6 +92,9 @@ warn = nil
 ---@field visible_ops integer
 ---@field health_ratio integer
 ---@field health_scale integer
+---@field orientation integer Drawn yaw 0..2047 (0 south, 512 west; RuneLite's getOrientation).
+---@field anim_id integer The action sequence playing, -1 none (getAnimation).
+---@field interacting integer Face-entity lock: -1 none, an npc server slot, or 32768 + a player pid (getInteracting).
 
 ---@class torirs.ItemSnap
 ---@field obj_id integer
@@ -155,6 +166,48 @@ warn = nil
 ---@field target_id integer
 ---@field component_id integer
 ---@field slot integer
+---@field option string RuneLite's MenuEntry option: the text before the target's colour ("Talk-to").
+---@field target string RuneLite's target, markup kept and spelt as <col=rrggbb> ("<col=ffff00>Hans"); "" when the row names none.
+---@field identifier integer MenuEntry identifier: npc slot, player pid, loc/obj id, CC_OP op number (1-based), or the obj on an item row.
+---@field param0 integer Scene tile x of a loc/obj/walk row; a widget row's dynamic child index (-1 static) or item slot.
+---@field param1 integer Scene tile z of a loc/obj/walk row; a widget row's component id (a dynamic child's parent).
+---@field type integer RuneLite's MenuAction id (9 NPC_FIRST_OPTION, 57 CC_OP, 30 WIDGET_CONTINUE, 1500 RUNELITE for a plugin row...), -1 when RuneLite has none.
+
+---@class torirs.VarChangedEvent
+---@field varp integer
+---@field value integer
+---@field old integer
+
+---@class torirs.InterfaceEvent
+---@field group integer Interface group id.
+---@field open boolean true mounted (WidgetLoaded), false unmounted (WidgetClosed).
+
+---@class torirs.InventoryChangedEvent
+---@field inv integer Inventory container id (93 backpack, 94 worn, 95 bank...).
+
+---@class torirs.LocChangedEvent
+---@field tile_x integer Absolute tile.
+---@field tile_z integer
+---@field level integer
+---@field shape integer
+---@field angle integer
+---@field loc_id integer The loc now standing, -1 for a removal.
+---@field old_loc_id integer The loc it replaced, -1 when none stood there.
+---@field old_shape integer -1 when none stood there.
+---@field old_angle integer
+
+---@class torirs.ItemSearchEvent
+---@field query string What the search box holds.
+---@field tradeable_only boolean
+
+---@class torirs.MapAnimEvent
+---@field tile_x integer Absolute tile.
+---@field tile_z integer
+---@field level integer
+---@field spotanim integer
+---@field height integer World units above the ground.
+---@field delay integer Client cycles before it starts.
+---@field cycle integer World cycle it was applied on.
 
 ---@class torirs.MenuBuildEvent
 ---@field hover_pass boolean
@@ -239,8 +292,16 @@ warn = nil
 ---@field tile_z integer
 ---@field level integer
 
+---@class torirs.MenuRowRef
+---@field row? integer A row of this build's payload, 1-based.
+---@field tag? integer One of this plugin's menu.add tags in this build.
+---@field deprioritized? boolean
+
 ---@class torirs.MenuApi
 ---@field add fun(text: string, action_id: integer): boolean Only during on_menu_build; retain the intended operation, not an unchecked native slot.
+---@field set_order fun(rows: torirs.MenuRowRef[]): boolean, torirs.ResultName The whole menu of this build, bottom row first (Menu.setMenuEntries): each entry {row = i} (1-based into this build's rows) or {tag = t} (this plugin's menu.add tag of this build), deprioritized = true sinks it below the rest. Unlisted payload rows and own rows are removed; another plugin's rows stay below, native rows past the 16 the payload carries stay on top. Taken when the build ends and NOT re-sorted. Only during on_menu_build; 'invalid' for a bad index/tag or a row listed twice.
+---@field set_text fun(row: integer, text: string): boolean, torirs.ResultName Replace a payload row's drawn text (option, a space, the target with @tag@ colours); it keeps its action. 'budget' past 127 bytes. Only during on_menu_build.
+---@field shown fun(): {x: integer, y: integer, width: integer, height: integer}? The right-click menu's box while it is up (Client.isMenuOpen, Menu.getMenuX/Y/Width/Height), nil otherwise.
 
 ---@class torirs.DrawApi
 ---@field project fun(fine_x: integer, fine_z: integer, height?: integer): integer?, integer?
@@ -290,6 +351,7 @@ warn = nil
 ---@field request fun(description: torirs.PanelDescription): boolean, torirs.ResultName
 ---@field invalidate fun()
 ---@field attention fun(wanted: boolean)
+---@field show fun() Open this plugin's registered page in the side panel at the next frame start (ClientToolbar.openPanel); a page already up stays up.
 ---@field set_text fun(id: string, text: string): boolean, torirs.ResultName
 --- The row's NAME, not its value. key_value, toggle, select and action_row are
 --- built from a label and carry their value in a second string, so set_text
@@ -319,6 +381,52 @@ warn = nil
 ---@field component_rect fun(component_id: integer): torirs.Rect?
 ---@field invoke fun(component_id: integer, operation: integer): boolean
 ---@field named_id fun(kind: string, name: string): integer?
+---@field varc_int fun(id: integer): integer A client varc int (getVarcIntValue); -1 when never set, the client's own Varcs answer.
+---@field varc_str fun(id: integer): string? A client varc string (getVarcStrValue); "" when never set, nil for an id outside 0..32767.
+---@field set_varc_int fun(id: integer, value: integer): boolean, torirs.ResultName The store a script's own write lands in; 'invalid' outside 0..32767, 'unsupported' in a draw callback.
+---@field set_varc_str fun(id: integer, value: string): boolean, torirs.ResultName
+---@field enum_def fun(id: integer): torirs.EnumDef?, torirs.AssetState getEnum. nil, 'pending' while the record loads (this call queued it: ask again); nil, 'missing' when the load ran and there is no such enum.
+---@field npc_def fun(id: integer): torirs.NpcDef?, torirs.AssetState getNpcDefinition; 'pending' / 'missing' as enum_def.
+---@field loc_def fun(id: integer): torirs.LocDef?, torirs.AssetState getObjectDefinition; 'pending' / 'missing' as enum_def.
+---@field sprite_image fun(id: integer, frame?: integer): torirs.ImageRef?, torirs.AssetState SpriteManager.getSprite: frame (default 0) of a cache sprite as this plugin's image; 'pending' while it loads (ask again), 'missing' for no such sprite/frame. Re-copies on every call: keep the ref.
+---@field set_varbit fun(id: integer, value: integer): boolean, torirs.ResultName Client.setVarbit: a CLIENT-SIDE write, as a clientscript's own (the base varp's local copy and its transmit listeners), never a packet; the server's next VARP replaces it. 'invalid' for an unknown varbit, 'unsupported' in a draw callback.
+---@field seq_def fun(id: integer): {id: integer, frame_count: integer, frame_lengths: integer[], duration: integer, frame_step: integer, skeletal: boolean}?, torirs.AssetState Client.loadAnimation: frame lengths in client cycles, duration their sum, frame_step -1 for none; 'pending' while the seq loads (queued), 'missing' when the cache has none.
+
+---@class torirs.EnumDef
+---@field id integer
+---@field key_type string The cache's key type character ('i', 'o', ...), "" when the record states none.
+---@field value_type string 's' or 'i': the client keeps only whether the values are strings, so an obj-valued enum reads 'i'.
+---@field value_is_string boolean
+---@field default integer|string The default value (string when value_is_string).
+---@field keys integer[] In the cache's order.
+---@field values (integer|string)[] values[i] belongs to keys[i].
+
+---@class torirs.NpcDef
+---@field id integer
+---@field name string
+---@field actions (string|false)[] Five slots; false for an empty one (RuneLite's null).
+---@field size integer
+---@field combat_level integer
+---@field transform_varbit integer
+---@field transform_varp integer
+---@field impostor integer The multinpc child the client's varps select now (getTransformedComposition), -1 for none.
+---@field transforms integer[]
+---@field models integer[]
+---@field recolor_from integer[]
+---@field recolor_to integer[]
+
+---@class torirs.LocDef
+---@field id integer
+---@field name string
+---@field actions (string|false)[] Five slots; false for an empty one.
+---@field size_x integer
+---@field size_z integer
+---@field transform_varbit integer
+---@field transform_varp integer
+---@field impostor integer The multiloc child the client's varps select now (getImpostor), -1 for none.
+---@field map_scene integer
+---@field map_icon integer
+---@field transforms integer[]
 
 ---@class torirs.ClientApi
 ---@field display_get fun(setting: integer): integer?, integer?, integer?
@@ -333,6 +441,8 @@ warn = nil
 ---@field setting_color fun(varp_id: integer, fallback?: integer): integer
 ---@field memory_bytes fun(): integer
 ---@field disable_self fun(reason: string)
+---@field open_url fun(url: string): boolean, torirs.ResultName LinkBrowser.browse: an http(s) url (<= 500 printable bytes, else 'invalid') to the player's browser (desktop browser, the browser lane's window.open, an Android intent) at the frame's end; 'unsupported' on a headless/replay lane or in a draw callback, 'conflict' while one is already waiting this frame.
+---@field worldmap_jump fun(tile_x: integer, tile_z: integer, level?: integer): boolean, torirs.ResultName WorldMap.setWorldMapPositionTarget: glide the open world map to an absolute tile; 'unsupported' while the map is closed, 'not_found' when the area shown does not cover it.
 
 ---@class torirs.Feature
 ---@field key string
@@ -414,6 +524,40 @@ warn = nil
 ---@field entity_ops fun(part: string, mode: integer, operations: string[], action_id?: integer): boolean, torirs.ResultName
 ---@field loot_revision fun(): integer
 ---@field loot_source_clear fun(source_id: integer): boolean
+---@field chat_add fun(type: integer, sender: string?, text: string): boolean, torirs.ResultName A chatbox line on THIS client only (addChatMessage): never a packet, raises no on_chat_message. type is the wire chat type 0..127 (RuneLite ChatMessageType value); 'unsupported' in a draw callback.
+---@field hint_arrow_tile fun(tile_x: integer, tile_z: integer, level?: integer): boolean, torirs.ResultName The HINT_ARROW packet's own arrow, over the tile's centre on the player's plane (the client's arrow has no level). Replaces the server's, as setHintArrow does.
+---@field hint_arrow_npc fun(server_slot: integer): boolean, torirs.ResultName 'not_found' when no live npc holds the slot.
+---@field hint_arrow_clear fun(): boolean, torirs.ResultName
+---@field hint_arrow fun(): torirs.HintArrow? nil when no arrow is up.
+---@field sound fun(sound_id: integer, loops?: integer, delay?: integer): boolean, torirs.ResultName playSoundEffect: the SYNTH_SOUND queue, loops default 1 (once), delay in client ticks.
+---@field weight fun(): integer kg, as UPDATE_RUNWEIGHT stated (getWeight).
+---@field world_types fun(): integer The WORLDFLAGS mask (getWorldType's mask; bit 0 members).
+---@field tick fun(): integer Server ticks executed (getTickCount).
+---@field container_size fun(container_id: integer): integer getItemContainer(id) for ANY container, by the id on_inventory_changed reports (93 backpack, 516 a shop, 659 group storage, ...); 0 when the client holds no such container.
+---@field container_slot fun(container_id: integer, slot: integer): integer?, integer? One slot of that container: obj id (-1 empty) and count; nil when it is not held or the slot is outside it.
+---@field world_entity_next fun(cursor?: integer): integer?, torirs.WorldEntity? WorldView.worldEntities(): the live sailing boats, iterator of npc_next. Anything aboard is addressed in the entity's own staging rectangle (base_x/base_z, size_x/size_z).
+---@field world_entity_to_main fun(id: integer, deck_fine_x: integer, deck_fine_z: integer): integer?, integer? WorldEntity.transformToMainWorld: a point of the entity's own world (fine units from its staging base) to ABSOLUTE root fine units, through the hull's live position and yaw; nil when the entity is gone.
+
+---@class torirs.WorldEntity
+---@field id integer Wire id = its world view id (never 0).
+---@field parent_view integer 0 = the root scene.
+---@field config_id integer WorldEntityConfig id.
+---@field fine_x integer Where the hull is now, ABSOLUTE fine units (tile*128).
+---@field fine_z integer
+---@field angle integer Yaw 0..2047.
+---@field level integer The level it floats on in its parent.
+---@field deck_level integer The plane of its own world the deck is authored at.
+---@field base_x integer Its own world's staging rectangle, absolute tiles (0,0 before it is built).
+---@field base_z integer
+---@field size_x integer
+---@field size_z integer
+
+---@class torirs.HintArrow
+---@field kind 'npc'|'tile'|'player'
+---@field tile_x? integer Absolute, for a tile arrow.
+---@field tile_z? integer
+---@field npc_slot integer Server slot for an npc arrow, -1 otherwise.
+---@field player_pid integer Pid for a player arrow, -1 otherwise.
 
 ---@class torirs.Graphics
 ---@field rect fun(x: integer, y: integer, width: integer, height: integer, rgb: torirs.Colour, alpha?: integer)
@@ -424,6 +568,25 @@ warn = nil
 ---@field world_hull fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer): boolean, torirs.ResultName
 ---@field image_clip fun(image: torirs.ImageRef, x: integer, y: integer, clip: torirs.Rect, alpha?: integer)
 ---@field context fun(): torirs.DrawContext?
+---@field polygon fun(points: number[], fill_rgb: torirs.Colour, fill_alpha: integer, outline_rgb?: torirs.Colour, outline_width?: integer): boolean, torirs.ResultName `points` = {x1, y1, x2, y2, ...} callback pixels, 1..256 points, floats truncated like Java's (int); even-odd fill (java.awt.Polygon's) when fill_alpha > 0; a border only when outline_rgb is given (width default 1, 0 draws none); 'budget' when the frame's allotment is spent.
+---@field text_width fun(text: string): integer? Pixel width in the font `text` draws with; nil while that font is not resident. `text` draws CENTRED on x, so a left-aligned layout adds half of this.
+---@field text_height fun(): integer? That font's line height; nil while it is not resident.
+---@field project fun(fine_x: integer, fine_z: integer, height?: integer): integer?, integer? api.draw.project, in this callback's coordinates.
+---@field minimap_project fun(fine_x: integer, fine_z: integer): integer?, integer? Scene-local fine point on the minimap as drawn this frame (rotation, 4 px/tile, around the local player); nil when the map is not drawn, or past the dot ring, or outside the map box -- where the client draws no dot either.
+---@field minimap_bounds fun(): torirs.MinimapBounds? The drawn minimap; nil when it is not drawn.
+---@field worldmap_project fun(tile_x: integer, tile_z: integer, level: integer): integer?, integer? Absolute tile's CENTRE on the open world map; nil when the map is closed or its area does not cover the tile. A covered tile scrolled out of view still answers: clip to worldmap_bounds.
+---@field worldmap_bounds fun(): torirs.Rect? The open world map's view rectangle; nil when it is closed.
+
+---@class torirs.MinimapBounds
+---@field x integer The map box: the scissor every minimap dot is drawn inside.
+---@field y integer
+---@field width integer
+---@field height integer
+---@field w integer
+---@field h integer
+---@field cx integer The local player's pixel (the box centre).
+---@field cy integer
+---@field radius integer The dot ring: nothing past it from (cx, cy) is drawn as a dot.
 
 ---@class torirs.PanelBuilder
 ---@field heading fun(text: string)
@@ -487,7 +650,7 @@ warn = nil
 ---@field create_image fun(self:torirs.Widget,key:string):torirs.Widget? Creates or returns this owner's keyed image child.
 ---@field set_image fun(self:torirs.Widget,image:integer,width:integer,height:integer):boolean,string Owned image controls take one of this plugin's live images and a size; a native sprite, graphic or compass with size 0,0 takes the image as a retained re-skin while it shows a graphic of its own (size stays the widget's; non-zero is invalid_argument).
 ---@field set_mask fun(self:torirs.Widget,image:integer?):boolean,string Native minimap, compass or sprite only: retained clip where the image is transparent; nil removes the native mask.
----@field set_opacity fun(self:torirs.Widget,opacity:integer):boolean,string Owned widgets only; 255 opaque, 0 invisible.
+---@field set_opacity fun(self:torirs.Widget,opacity:integer):boolean,string 255 opaque, 0 invisible. On a NATIVE widget a retained edit (reset/teardown restores the game's; the game writing its transparency drops it).
 ---@field set_anchor fun(self:torirs.Widget,target:torirs.Widget?,relation:"native"|"over"|"behind"|"replace"):boolean,string Retained depth relation to another widget: drawn and hit directly over it, behind it, or in its place (replace inherits the target's native visibility both ways). "native" with a nil target clears this owner's relation; self, ancestor/descendant pairs and cycles are invalid_argument.
 ---@field set_on_op fun(self:torirs.Widget,op:integer,label:string?,callback:fun(widget:torirs.Widget,event:torirs.WidgetOperationEvent)?):boolean,string Owned controls only. Arms menu operation `op` (1..10, numbered as the cache numbers a component's; 1 is the left-click default and the rows read down the menu in op order) with this label, delivered through the native hit test and retained-menu checks. One callback answers for every row of a control and the event carries which was chosen; replacing it retires earlier menu rows. A nil callback clears that one operation and leaves the others armed.
 ---@field remove fun(self:torirs.Widget):boolean,string Removes only this owner's widget.
@@ -505,6 +668,59 @@ warn = nil
 ---@field set_hidden fun(self:torirs.Widget,hidden:boolean):boolean,string Presentation only; native hiding remains authoritative. Reset/disable reveals current native state or another owner's edit.
 ---@field revalidate fun(self:torirs.Widget):boolean,string
 ---@field reset fun(self:torirs.Widget):boolean,string Releases only this plugin's edits.
+---@field detail fun(self:torirs.Widget):torirs.WidgetDetail? RuneLite's Widget getters in one read; nil for a widget that is gone.
+---@field dynamic_children fun(self:torirs.Widget):torirs.Widget[]? cc_create children in child-index order (getDynamicChildren); {} for none, nil when gone.
+---@field static_children fun(self:torirs.Widget):torirs.Widget[]? The interface's own components under this one (getStaticChildren).
+---@field nested_children fun(self:torirs.Widget):torirs.Widget[]? Roots of interfaces mounted in this component (getNestedChildren).
+---@field set_native_text fun(self:torirs.Widget,text:string):boolean,string Retained edit of a NATIVE text widget's string (setText), owner-scoped like set_hidden; reset/teardown shows the game's text again, and the game writing a new string drops it (restate it, as RuneLite plugins do). <= 4096 bytes. Owned or non-text: native_blocked.
+---@field set_native_text_color fun(self:torirs.Widget,color:torirs.Colour):boolean,string Retained edit of a NATIVE text widget's base colour (setTextColor); a cache hover/active colour still wins while it applies.
+---@field create_item fun(self:torirs.Widget,key:string):torirs.Widget? Owned item control (createChild GRAPHIC + setItemId), keyed and idempotent like create_image (shares its keys).
+---@field set_item fun(self:torirs.Widget,obj:integer,quantity:integer?):boolean,string An owned item control's obj (-1 clears) and stack (default 1); on a NATIVE item cell (graphic/objbox, e.g. a bank slot) a retained re-lay every reader sees, until reset/teardown restores the game's or the game writes the cell (which drops it). 'pending' while the obj's model loads; the icon then appears by itself. Other native widgets: native_blocked.
+---@field create_rect fun(self:torirs.Widget,key:string):torirs.Widget? Owned RECTANGLE control, keyed like create_image (shares its keys).
+---@field set_rect fun(self:torirs.Widget,rgb:integer,filled:boolean?):boolean,string An owned rectangle's colour and fill (an outline is 1 px); opacity is set_opacity.
+---@field create_model fun(self:torirs.Widget,key:string):torirs.Widget? Owned MODEL control, keyed like create_image; draws nothing until set_model.
+---@field set_model fun(self:torirs.Widget,kind:'none'|'npc'|'obj'|'model'|'player',id:integer?):boolean,string What an owned model shows: an npc's chathead (npc id), an obj's model, a cache model, or the local player's chathead (no id). 'pending' while it loads; it then binds by itself.
+---@field set_model_pose fun(self:torirs.Widget,x_angle:integer,y_angle:integer,z_angle:integer,zoom:integer?):boolean,string An owned model's camera: RuneLite's rotationX/Y/Z (2048ths of a turn) and modelZoom (0 keeps it).
+---@field set_model_anim fun(self:torirs.Widget,sequence:integer):boolean,string The sequence an owned model plays (-1 none).
+---@field set_native_hidden fun(self:torirs.Widget,hidden:boolean):boolean,string A NATIVE widget's own hide, written through (RuneLite's setHidden on a game widget: false shows a node the game hid); reset/teardown restores the game's, the game's own hide write drops it. Owned controls: native_blocked.
+---@field set_scroll_size fun(self:torirs.Widget,width:integer,height:integer):boolean,string A NATIVE layer's scroll size (setScrollWidth/Height); a plain write the game's next one replaces. Other widgets: native_blocked.
+---@field set_sprite fun(self:torirs.Widget,sprite:integer):boolean,string A cache sprite: an owned image control's art at its size, or a retained re-skin of a native sprite/graphic (reset drops it). 'unavailable' for a sprite the cache lacks.
+---@field listener fun(self:torirs.Widget,name:string):(integer|string)[]? A native CS2 listener as RuneLite's Object[] {script_id, args...}; name "onInvTransmit"|"onKey"|"onOp"|"onTimer"|"onVarTransmit"|"onClick"|"onLoad"|... (unknown names raise). nil when none is armed; always nil for onLoad.
+
+---@class torirs.WidgetDetail
+---@field id integer RuneLite's id: a dynamic child answers its parent's component id.
+---@field index integer Dynamic child index, -1 for a static component.
+---@field type integer WidgetType (0 layer, 2 inventory, 3 rectangle, 4 text, 5 graphic, 6 model, 7 text inventory, 9 line); -1 for a client-built node.
+---@field content_type integer The cache clientcode.
+---@field item_id integer -1 when none.
+---@field item_quantity integer
+---@field sprite_id integer Cache sprite shown, -1 for none, an obj icon, or non-cache art.
+---@field model_id integer
+---@field model_type integer WidgetModelType: 0 none, 1 model, 2 npc chathead, 3 local player chathead, 4 item.
+---@field animation_id integer
+---@field text string The widget's OWN text (a set_native_text edit is not answered here).
+---@field text_color integer
+---@field font_id integer Cache font, -1 for a client chrome font.
+---@field name string The op base (getName).
+---@field actions string[] getActions(): op labels, "" for an empty slot below the last one.
+---@field hidden boolean isHidden: this widget or an ancestor does not show.
+---@field self_hidden boolean
+---@field x integer Drawn canvas box.
+---@field y integer
+---@field width integer
+---@field height integer
+---@field original_x integer Authored position/size inputs (getOriginalX...).
+---@field original_y integer
+---@field original_width integer
+---@field original_height integer
+---@field relative_x integer Laid-out position within the parent.
+---@field relative_y integer
+---@field scroll_x integer
+---@field scroll_y integer
+---@field scroll_width integer
+---@field scroll_height integer
+---@field opacity integer Transparency, 0 opaque .. 255 invisible (RuneLite's).
+---@field parent_id integer getParentId, -1 at the top.
 
 ---@class torirs.WidgetState
 ---@field x integer Drawn canvas geometry.
@@ -577,6 +793,11 @@ warn = nil
 ---@field script_id integer
 ---@field widget? torirs.Widget The live widget at an approved hook site.
 ---@field ref torirs.ScriptRef Valid only during this synchronous callback.
+---@class torirs.ScriptHookEvent
+---@field script_id integer The watched clientscript.
+---@field invoked boolean A gosub callee (RuneLite's null getScriptEvent); false for a top-level script.
+---@field widget? torirs.Widget A top-level listener script's source widget, when the VM names one.
+---@field ref torirs.ScriptRef Valid only during this synchronous callback. Index 0 is the TOP: at pre the LAST argument, at post the last value returned.
 ---@class torirs.ScriptsApi
 ---@field available fun():boolean False on CS1/revconfig adapters.
 ---@field invalidate fun(callback_name:string):boolean Rebuild cached native results at the next safe point, including during shutdown.
@@ -585,6 +806,8 @@ warn = nil
 ---@field set_int fun(ref:torirs.ScriptRef,index:integer,value:integer):boolean
 ---@field get_string fun(ref:torirs.ScriptRef,index:integer):string
 ---@field set_string fun(ref:torirs.ScriptRef,index:integer,value:string):boolean At most 16384 bytes, no embedded NUL.
+---@field watch fun(script_id:integer, on:boolean):boolean, torirs.ResultName? Raise on_script_pre / on_script_post for this clientscript (on) or stop (off). At most 32 ids a plugin ('budget_exceeded'); 'invalid_argument' outside 0..65535; unwatched ids cost nothing.
+---@field run fun(script_id:integer, ...:integer|string):integer[]?,string[]|string runScript: runs the clientscript to completion NOW on the client VM, returning what it left on the int and string stacks (bottom first). Refused (nil, reason) from a draw callback, inside on_script_callback or while any script runs ('wrong_context'); 'pending' when it or something it reaches is not resident (the load is queued: ask again later); 'native_blocked' when it needs an interface mount; 'invalid_argument' for more ints/strings than the script takes; 'failed' for a script error.
 
 ---@alias torirs.PorcelainInput 'element'|'asset'|'config'|'screen'|'canvas'|'explicit'
 ---@alias torirs.PorcelainCadence 'logic_tick'|'server_tick'|'frame'
@@ -850,6 +1073,17 @@ warn = nil
 ---@field high integer
 ---@field insane integer
 
+--- Lua-only: a protected call the host's own refusals pass straight through,
+--- and source modules read on demand from the script's own directory (the
+--- manifest source= without ".lua": plugins/quest_helper.lua reads
+--- plugins/quest_helper/<dotted.name with dots as slashes>.lua).
+---@class torirs.SandboxApi
+---@field protect fun(fn: function, ...: any): boolean, ... true and fn's results, or false and the error. Never catches the instruction budget or the memory cap: once either refused, the error is raised again.
+---@field module_request fun(name: string): 'pending'|'ready'|'missing'|'invalid' The first request queues the read; ask again on a later frame until it is not pending. name is dotted [a-z0-9_-] segments.
+---@field module_load fun(name: string): any Compile (text only) and run a READY module in this script's environment under the running callback's budget, once; later loads return the first result (true when the chunk returned nothing). Raises when it is not ready or will not compile.
+---@field module_unload fun(name: string): true Forget a LOADED module: its result leaves the module table and the next module_request reads the file again ('pending' -> 'ready'), module_load runs it again; the slot is reused (not counted again toward the 512-module limit). Raises for a name that is not loaded.
+---@field memory_limit fun(): integer This script's Lua heap cap in bytes: the manifest's memory_mb= (MiB, 1..64, default 16) times 1048576. An allocation past it fails with Lua's memory error.
+
 ---@class torirs.Api
 ---@field widgets torirs.WidgetsApi
 ---@field scripts torirs.ScriptsApi
@@ -866,6 +1100,7 @@ warn = nil
 ---@field client torirs.ClientApi
 ---@field game torirs.GameApi
 ---@field porcelain torirs.PorcelainApi
+---@field sandbox torirs.SandboxApi @luaonly What only a Lua plugin needs; there is no C counterpart.
 ---@field drive torirs.DriveApi @testonly Present only when ContentTest_Enabled() or TORIRS_DRIVE_ON_DEMAND=1 (a watched client, raid seam23): the quest driver's engine seam.
 
 --[[ The quest driver's test-only module (src/plugin/torirs_plugin_drive.h).
@@ -1038,6 +1273,12 @@ except the plain readers marked as returning a value.
 ---@field on_item_spawn? fun(api: torirs.Api, item: torirs.ItemSnap)
 ---@field on_item_changed? fun(api: torirs.Api, item: torirs.ItemSnap)
 ---@field on_item_despawn? fun(api: torirs.Api, item: torirs.ItemSnap)
+---@field on_loc_changed? fun(api: torirs.Api, ev: torirs.LocChangedEvent) A root-scene loc replaced/added/removed after the scene was built, as the scenery shows it (*ObjectDespawned + *ObjectSpawned); next frame start. A scene build raises none.
+---@field on_map_anim? fun(api: torirs.Api, ev: torirs.MapAnimEvent) A MAP_ANIM graphic on a root-scene tile (GraphicsObjectCreated); next frame start.
+---@field on_script_pre? fun(api:torirs.Api,event:torirs.ScriptHookEvent) A watched script (scripts.watch) is about to run: synchronously in the VM, read/write its arguments through event.ref; no scripts.run.
+---@field on_script_post? fun(api:torirs.Api,event:torirs.ScriptHookEvent) A watched script returned: read/write what it returned through event.ref.
+---@field on_command? fun(api:torirs.Api,event:{name: string, args: string[], text: string}):("consume"|nil) A "::" command (name = first word, args = the rest split at spaces, text = everything after "::") BEFORE it goes to the server; "consume" keeps it from the server and from later plugins (RuneLite's CommandExecuted).
+---@field on_item_search? fun(api: torirs.Api, ev: torirs.ItemSearchEvent): integer[]? The GE item search (OC_FIND, tradeable filter), synchronously inside its script: return obj ids to show exactly those (GrandExchangeSearched consumed + setGeSearchResultIds), nil to search as usual. No scripts.run, no yield.
 ---@field on_config_changed? fun(api: torirs.Api, key: string)
 ---@field on_asset? fun(api: torirs.Api, ev: torirs.AssetEvent)
 ---@field on_chat_message? fun(api: torirs.Api, ev: torirs.ChatMessageEvent)
@@ -1051,3 +1292,6 @@ except the plain readers marked as returning a value.
 ---@field on_ui_action? fun(api: torirs.Api, ev: torirs.PanelActionEvent)
 ---@field on_ui_draw? fun(api: torirs.Api, node: string, draw: torirs.Graphics)
 ---@field on_ui_layout? fun(api: torirs.Api, ev: torirs.PanelLayoutEvent)
+---@field on_var_changed? fun(api: torirs.Api, ev: torirs.VarChangedEvent) Once per changed varp per server tick, before on_server_tick (VarbitChanged). The first tick after the plugin starts only records.
+---@field on_interface? fun(api: torirs.Api, ev: torirs.InterfaceEvent) An interface group mounted or unmounted (WidgetLoaded/WidgetClosed), from the mount itself, delivered at the next frame start.
+---@field on_inventory_changed? fun(api: torirs.Api, ev: torirs.InventoryChangedEvent) A container changed (ItemContainerChanged), coalesced per frame.

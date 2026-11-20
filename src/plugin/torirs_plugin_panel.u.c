@@ -1355,7 +1355,8 @@ app_plugin_panel_sync(struct App* app)
         }
     }
 
-    if( app->plugin_win->panel < 0 )
+    int const panel_created = app->plugin_win->panel < 0;
+    if( panel_created )
     {
         /*
          * Sized in CHROME pixels, so the window holds the same number of rows
@@ -1389,10 +1390,21 @@ app_plugin_panel_sync(struct App* app)
             &app->plugin_win->ui, app->plugin_win->panel, app->plugin_win->visible);
     }
 
-    /* Geometry, re-applied on every build rather than only on the first.
+    /* Geometry: on the first build, on a fullscreen toggle, and on every build
+     * while the window IS a surface (it fills it). NOT on an ordinary page
+     * rebuild of the floating window: that is the box the player moved and
+     * resized, and a plugin that changes page on a click (Quest Helper:
+     * picking a quest, Close helper, the assist-level page) snapped it back
+     * to 8,72 at 260 tall on every click (live, 2026-11-19).
      * @see app_plugin_panel_place, which is also how a scale or canvas change
      * re-places the box between builds. */
-    app_plugin_panel_place(app);
+    {
+        int room_w;
+        int room_h;
+        if( panel_created || g_plugin_fullscreen_built != g_plugin_fullscreen ||
+            app_plugin_page_surface(app, &room_w, &room_h) )
+            app_plugin_panel_place(app);
+    }
 
     /* A page that named a plugin the host no longer has is a page with nothing
      * to build; the roster is the honest answer to that. */

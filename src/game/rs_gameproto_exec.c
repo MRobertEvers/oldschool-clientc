@@ -1359,6 +1359,10 @@ exec_zone_sub_packet_at(
                 tile_z >= app->world->_scene_size )
                 break;
             App_WorldSpotanimSpawn(app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
+            /* GraphicsObjectCreated: the root scene's graphics only, as the
+             * loc rows are the root world's. */
+            if( App_ActiveWorldview(app)->world == app->world )
+                App_PluginMapAnim(app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
             App_DriveMapAnimNote(
                 app,
                 app->world->_base_tile_x + tile_x,
@@ -4043,8 +4047,9 @@ exec_server_tick_end(struct RS_GameProtoCtx const* ctx)
         0,
         0,
         0);
-    PluginHost_ServerTick(
-        ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
+    if( ctx->app->plugins )
+        PluginHost_ServerTick(
+            ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
 }
 
 static void

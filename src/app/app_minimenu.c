@@ -2454,25 +2454,11 @@ app_minimenu_run_option(
     if( app->plugins )
     {
         struct ToriRS_MenuRow row;
-        memset(&row, 0, sizeof(row));
-        row.text = opt.text;
+        /* The same row on_menu_build was handed (RuneLite's MenuEntry numbers
+         * included), with the action exactly as the row carries it: the host
+         * routes a plugin-owned row by its raw id. */
+        app_plugin_menu_row(app, &opt, &row);
         row.action = opt.action;
-        row.pick_kind = (int)opt.pick.kind;
-        row.npc_slot = -1;
-        row.player_pid = -1;
-        row.target_id = -1;
-        if( opt.pick.kind == UI_MINIMENU_PICK_NPC && app->world )
-        {
-            struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt.pick.id, NULL);
-            if( npc )
-                row.npc_slot = npc->server_slot;
-            row.target_id = opt.pick.secondary_id;
-        }
-        else if( opt.pick.kind == UI_MINIMENU_PICK_PLAYER )
-            row.player_pid = opt.pick.secondary_id;
-        else if(
-            opt.pick.kind == UI_MINIMENU_PICK_SCENERY || opt.pick.kind == UI_MINIMENU_PICK_OBJ )
-            row.target_id = opt.pick.secondary_id;
 
         if( PluginHost_MenuSelect(app->plugins, &row, click_x, click_y) )
             return 1;

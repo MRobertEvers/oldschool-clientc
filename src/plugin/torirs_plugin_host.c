@@ -63,6 +63,18 @@ enum PluginCallbackKind
     /* An owned control's operation: a player's click, so the input verbs
      * (tab_select and the like) are open to it. */
     PLUGIN_CALLBACK_WIDGET_OPERATION,
+    PLUGIN_CALLBACK_VAR_CHANGED,
+    PLUGIN_CALLBACK_INTERFACE,
+    PLUGIN_CALLBACK_INVENTORY_CHANGED,
+    PLUGIN_CALLBACK_LOC_CHANGED,
+    PLUGIN_CALLBACK_MAP_ANIM,
+    PLUGIN_CALLBACK_ITEM_SEARCH,
+    /* The script hooks: raised from inside the VM for a watched script id,
+     * to the plugins that watch it. */
+    PLUGIN_CALLBACK_SCRIPT_PRE,
+    PLUGIN_CALLBACK_SCRIPT_POST,
+    /* A "::" command before it is sent: consumable. */
+    PLUGIN_CALLBACK_COMMAND,
     PLUGIN_CALLBACK_COUNT
 };
 
@@ -230,6 +242,9 @@ struct PluginContext
     struct PluginV2Instance* v2;
     struct PluginWidgetWatch* widget_watches;
     struct PluginWidgetOp* widget_ops;
+    /* Clientscript ids this plugin watches (scripts.watch). */
+    int32_t script_watches[TORIRS_SCRIPT_WATCH_MAX];
+    int script_watch_count;
     void (*reload_handler)(
         struct ToriRS_PluginHost* host,
         int plugin_index,
@@ -267,6 +282,29 @@ struct PluginMenuRoute
     int action;
     int plugin;
     uint32_t tag;
+    /* Where the row sits in the build's menu now; -1 once dropped. */
+    int index;
+    /* An entity HITBOX holder's op, added after every plugin ran. */
+    bool entity;
+};
+
+/* menu.set_text's longest row: the minimenu's own, terminator included. */
+#define PLUGIN_MENU_TEXT_MAX UITREE_MINIMENU_OPTION_LEN
+/* client.open_url's longest url, terminator included. */
+#define TORIRS_PLUGIN_URL_MAX 501
+/* on_command's name: the first word, cut here. */
+#define TORIRS_PLUGIN_COMMAND_NAME_MAX 64
+/* The permutation handed to menu_permute: every row a menu can hold. */
+#define PLUGIN_MENU_PERMUTE_MAX UITREE_MINIMENU_MAX_OPTIONS
+/* menu.set_order's longest list: every payload row and every route. */
+#define PLUGIN_MENU_ORDER_MAX (TORIRS_PLUGIN_MENU_ROWS_MAX + TORIRS_PLUGIN_MENU_ROUTES_MAX)
+
+/* One entry of a set_order plan: a payload row (route < 0) or a route. */
+struct PluginMenuOrderEntry
+{
+    int payload;
+    int route;
+    bool deprioritized;
 };
 
 
@@ -359,10 +397,31 @@ struct ToriRS_PluginHost
     int event_order[TORIRS_PLUGIN_MAX];
     int draw_order[TORIRS_PLUGIN_MAX];
     int callback_count[PLUGIN_CALLBACK_COUNT];
+    /* on_var_changed: the varp values as last reported, NULL while no running
+     * plugin listens (re-seeded, silently, when one appears). */
+    int32_t* var_shadow;
+    int var_shadow_count;
+    /* on_interface / on_inventory_changed: engine news queued for the next
+     * frame boundary, and only while a running plugin subscribes. */
+    struct ToriRS_InterfaceEvent interface_queue[PLUGIN_HOST_INTERFACE_QUEUE_MAX];
+    int interface_queue_count;
+    bool interface_queue_overflow_logged;
+    int inventory_queue[PLUGIN_HOST_INVENTORY_QUEUE_MAX];
+    int inventory_queue_count;
+    /* on_loc_changed / on_map_anim: the same, in landing order. */
+    struct ToriRS_LocChangedEvent loc_queue[PLUGIN_HOST_LOC_QUEUE_MAX];
+    int loc_queue_count;
+    bool loc_queue_overflow_logged;
+    struct ToriRS_MapAnimEvent map_anim_queue[PLUGIN_HOST_MAP_ANIM_QUEUE_MAX];
+    int map_anim_queue_count;
+    bool map_anim_queue_overflow_logged;
     uint64_t widget_tree_instance, widget_tree_generation, widget_watch_serial;
     bool widget_watch_pending, widget_watch_dispatching;
     struct PluginScriptStack const* script_stack;
     struct ToriRS_ScriptRef script_ref;
+    /* The script a PRE/POST dispatch is for: plugin_v2_event skips a plugin
+     * that does not watch it. */
+    int32_t script_hook_id;
 
     /* Menu routes live for one build. The hover pass rebuilds the menu every
      * frame, so they are reset per build rather than accumulated. */
@@ -372,6 +431,17 @@ struct ToriRS_PluginHost
     bool menu_routes_reported;
     int route_count;
     int next_action;
+    /* The build's edit plan (menu.set_order / set_text), taken when the build
+     * ends. `menu_rows` is the menu's row count now; `menu_payload_at` maps a
+     * payload row to its index now (-1 once dropped). */
+    int menu_rows;
+    int menu_payload_count;
+    int menu_payload_at[TORIRS_PLUGIN_MENU_ROWS_MAX];
+    bool menu_text_set[TORIRS_PLUGIN_MENU_ROWS_MAX];
+    char menu_text[TORIRS_PLUGIN_MENU_ROWS_MAX][PLUGIN_MENU_TEXT_MAX];
+    int menu_order_plugin;
+    int menu_order_count;
+    struct PluginMenuOrderEntry menu_order[PLUGIN_MENU_ORDER_MAX];
 
     /* The plugin currently being dispatched, so the api knows whose ctx it is
      * serving without every call carrying it separately. */
@@ -533,6 +603,9 @@ struct ToriRS_PluginHost
     uint32_t panel_icon_revision[TORIRS_PLUGIN_MAX];
     int panel_preferred_width[TORIRS_PLUGIN_MAX];
     bool panel_attention[TORIRS_PLUGIN_MAX];
+    /** panel.show: the plugin index + 1 whose page opens at the next frame
+     *  start, 0 for none. */
+    int panel_show_plus1;
     int panel_active;
     /**
      * Which FACE the active selection is showing.
@@ -861,6 +934,18 @@ plugin_dispatch_one(
     enum PluginCallbackKind ev,
     void* payload);
 static int plugin_ev_is_draw(enum PluginCallbackKind ev);
+struct PluginContext;
+static enum ToriRS_ContractResult
+api_script_watch(struct PluginContext* ctx, int32_t script_id, bool on);
+static void
+plugin_script_watches_drop(struct ToriRS_PluginHost* host, struct PluginContext* ctx);
+/* A callback raised from INSIDE a running script: the VM is not idle. */
+static bool
+plugin_ev_is_in_script(int ev)
+{
+    return ev == PLUGIN_CALLBACK_SCRIPT_CALLBACK || ev == PLUGIN_CALLBACK_SCRIPT_PRE ||
+           ev == PLUGIN_CALLBACK_SCRIPT_POST;
+}
 
 /* Retained entity appearance/action helpers used by the V2 game module. */
 static int
@@ -875,6 +960,7 @@ plugin_entity_hull_allowed(
     struct ToriRS_PluginHost* host,
     int plugin,
     int element_id);
+static void plugin_engine_news_drain(struct ToriRS_PluginHost* host);
 static enum ToriRS_CallbackResult
 plugin_dispatch(
     struct ToriRS_PluginHost* host,
@@ -1608,6 +1694,347 @@ api_obj_info(
     return ctx->host->engine.obj_info(ctx->host->engine.user, obj_id, out);
 }
 
+/* -- the Quest Helper port's cache, game and script seams --
+ *
+ * Every engine hook behind these is optional (torirs_plugin_host.h), so each
+ * reader answers "not here" for a NULL hook and each writer UNSUPPORTED.
+ * Writers also refuse a draw callback, which may only draw: a varc, a chat
+ * line, an arrow or a sound changed from inside a frame's paint is state the
+ * frame then disagrees with. The ids and counts are numbers a plugin
+ * computed, so out of range is bad INPUT and answered, not asserted. */
+
+static bool
+plugin_ctx_may_mutate(struct PluginContext* ctx)
+{
+    assert(ctx);
+    return ctx->running && ctx->host->dispatching == ctx->index &&
+           !plugin_ev_is_draw(ctx->host->dispatch_event);
+}
+
+static int
+api_varc_int(
+    struct PluginContext* ctx,
+    int id,
+    bool* out_supported)
+{
+    assert(ctx);
+    assert(out_supported);
+    *out_supported = ctx->host->engine.varc_int != NULL;
+    if( !*out_supported )
+        return -1;
+    return ctx->host->engine.varc_int(ctx->host->engine.user, id);
+}
+
+static char const*
+api_varc_str(
+    struct PluginContext* ctx,
+    int id)
+{
+    char const* value;
+
+    assert(ctx);
+    if( !ctx->host->engine.varc_str || id < 0 || id >= TORIRS_VARC_ID_MAX )
+        return NULL;
+    value = ctx->host->engine.varc_str(ctx->host->engine.user, id);
+    assert(value);
+    return value;
+}
+
+static enum ToriRS_Result
+api_set_varc_int(
+    struct PluginContext* ctx,
+    int id,
+    int value)
+{
+    assert(ctx);
+    if( !ctx->host->engine.set_varc_int || !plugin_ctx_may_mutate(ctx) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    if( id < 0 || id >= TORIRS_VARC_ID_MAX )
+        return TORIRS_RESULT_INVALID;
+    ctx->host->engine.set_varc_int(ctx->host->engine.user, id, value);
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_Result
+api_set_varc_str(
+    struct PluginContext* ctx,
+    int id,
+    char const* value)
+{
+    assert(ctx);
+    assert(value);
+    if( !ctx->host->engine.set_varc_str || !plugin_ctx_may_mutate(ctx) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    if( id < 0 || id >= TORIRS_VARC_ID_MAX )
+        return TORIRS_RESULT_INVALID;
+    ctx->host->engine.set_varc_str(ctx->host->engine.user, id, value);
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_AssetState
+api_enum_def(
+    struct PluginContext* ctx,
+    int id,
+    struct ToriRS_EnumDef* out,
+    struct ToriRS_EnumEntry* entries,
+    int capacity)
+{
+    assert(ctx);
+    assert(out);
+    if( capacity > 0 )
+        assert(entries);
+    if( !ctx->host->engine.enum_def )
+        return TORIRS_ASSET_MISSING;
+    if( id < 0 || capacity < 0 )
+        return TORIRS_ASSET_INVALID;
+    return (enum ToriRS_AssetState)ctx->host->engine.enum_def(
+        ctx->host->engine.user, id, out, entries, capacity);
+}
+
+static bool
+plugin_def_list_valid(struct ToriRS_DefList const* list)
+{
+    assert(list);
+    if( list->capacity < 0 )
+        return false;
+    if( list->capacity > 0 )
+        assert(list->values);
+    return true;
+}
+
+static enum ToriRS_AssetState
+api_npc_def(
+    struct PluginContext* ctx,
+    int id,
+    struct ToriRS_NpcDef* out)
+{
+    assert(ctx);
+    assert(out);
+    if( !ctx->host->engine.npc_def )
+        return TORIRS_ASSET_MISSING;
+    if( id < 0 || !plugin_def_list_valid(&out->transforms) || !plugin_def_list_valid(&out->models) ||
+        !plugin_def_list_valid(&out->recolor_from) || !plugin_def_list_valid(&out->recolor_to) )
+        return TORIRS_ASSET_INVALID;
+    return (enum ToriRS_AssetState)ctx->host->engine.npc_def(ctx->host->engine.user, id, out);
+}
+
+static enum ToriRS_AssetState
+api_loc_def(
+    struct PluginContext* ctx,
+    int id,
+    struct ToriRS_LocDef* out)
+{
+    assert(ctx);
+    assert(out);
+    if( !ctx->host->engine.loc_def )
+        return TORIRS_ASSET_MISSING;
+    if( id < 0 || !plugin_def_list_valid(&out->transforms) )
+        return TORIRS_ASSET_INVALID;
+    return (enum ToriRS_AssetState)ctx->host->engine.loc_def(ctx->host->engine.user, id, out);
+}
+
+static enum ToriRS_AssetState
+api_seq_def(
+    struct PluginContext* ctx,
+    int id,
+    struct ToriRS_SeqDef* out)
+{
+    assert(ctx);
+    assert(out);
+    if( !ctx->host->engine.seq_def )
+        return TORIRS_ASSET_MISSING;
+    if( id < 0 || !plugin_def_list_valid(&out->frame_lengths) )
+        return TORIRS_ASSET_INVALID;
+    return (enum ToriRS_AssetState)ctx->host->engine.seq_def(ctx->host->engine.user, id, out);
+}
+
+static enum ToriRS_Result
+api_set_varbit(
+    struct PluginContext* ctx,
+    int id,
+    int value)
+{
+    assert(ctx);
+    if( !ctx->host->engine.set_varbit || !plugin_ctx_may_mutate(ctx) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    if( id < 0 )
+        return TORIRS_RESULT_INVALID;
+    return ctx->host->engine.set_varbit(ctx->host->engine.user, id, value) ? TORIRS_RESULT_OK
+                                                                           : TORIRS_RESULT_INVALID;
+}
+
+/* The url a plugin may hand the browser: http(s), printable ASCII, short. */
+static bool
+plugin_url_valid(char const* url)
+{
+    size_t n;
+    assert(url);
+    if( strncmp(url, "https://", 8) != 0 && strncmp(url, "http://", 7) != 0 )
+        return false;
+    n = strlen(url);
+    if( n >= TORIRS_PLUGIN_URL_MAX )
+        return false;
+    for( size_t i = 0; i < n; i++ )
+        if( (unsigned char)url[i] <= ' ' || (unsigned char)url[i] >= 0x7f )
+            return false;
+    return true;
+}
+
+static enum ToriRS_Result
+api_open_url(
+    struct PluginContext* ctx,
+    char const* url)
+{
+    assert(ctx);
+    assert(url);
+    if( !ctx->host->engine.open_url || !plugin_ctx_may_mutate(ctx) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    if( !plugin_url_valid(url) )
+        return TORIRS_RESULT_INVALID;
+    return (enum ToriRS_Result)ctx->host->engine.open_url(ctx->host->engine.user, url);
+}
+
+static enum ToriRS_Result
+api_worldmap_jump(
+    struct PluginContext* ctx,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    assert(ctx);
+    if( !ctx->host->engine.worldmap_jump || !plugin_ctx_may_mutate(ctx) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    if( level < 0 || level > 3 || tile_x < 0 || tile_z < 0 )
+        return TORIRS_RESULT_INVALID;
+    return (enum ToriRS_Result)ctx->host->engine.worldmap_jump(ctx->host->engine.user, tile_x, tile_z, level);
+}
+
+static enum ToriRS_Result
+api_chat_add(
+    struct PluginContext* ctx,
+    int type,
+    char const* sender,
+    char const* text)
+{
+    assert(ctx);
+    assert(sender);
+    assert(text);
+    if( !ctx->host->engine.chat_add || !plugin_ctx_may_mutate(ctx) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    /* The store files a line by its type and asserts on one it cannot file
+     * (RS_Chat_AddMessage), so the range is checked here, where it is still
+     * the plugin's number. */
+    if( type < 0 || type >= TORIRS_PLUGIN_CHAT_TYPE_MAX )
+        return TORIRS_RESULT_INVALID;
+    ctx->host->engine.chat_add(ctx->host->engine.user, type, sender, text);
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_Result
+api_hint_arrow_set(
+    struct PluginContext* ctx,
+    enum ToriRS_HintArrowKind kind,
+    int a,
+    int b)
+{
+    assert(ctx);
+    assert(kind == TORIRS_HINT_ARROW_NONE || kind == TORIRS_HINT_ARROW_TILE || kind == TORIRS_HINT_ARROW_NPC);
+    if( !ctx->host->engine.hint_arrow_set || !plugin_ctx_may_mutate(ctx) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    if( kind == TORIRS_HINT_ARROW_TILE && (a < 0 || a > 0xffff || b < 0 || b > 0xffff) )
+        return TORIRS_RESULT_INVALID;
+    if( kind == TORIRS_HINT_ARROW_NPC && (a < 0 || a > 0xffff) )
+        return TORIRS_RESULT_INVALID;
+    return ctx->host->engine.hint_arrow_set(ctx->host->engine.user, (int)kind, a, b)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
+static bool
+api_hint_arrow_get(
+    struct PluginContext* ctx,
+    struct ToriRS_HintArrowInfo* out)
+{
+    assert(ctx);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->npc_slot = -1;
+    out->player_pid = -1;
+    if( !ctx->host->engine.hint_arrow_get )
+        return false;
+    return ctx->host->engine.hint_arrow_get(ctx->host->engine.user, out) != 0;
+}
+
+static enum ToriRS_Result
+api_sound(
+    struct PluginContext* ctx,
+    int sound_id,
+    int loops,
+    int delay)
+{
+    assert(ctx);
+    if( !ctx->host->engine.sound || !plugin_ctx_may_mutate(ctx) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    if( sound_id < 0 || loops < 1 || loops > 255 || delay < 0 || delay > 0xffff )
+        return TORIRS_RESULT_INVALID;
+    ctx->host->engine.sound(ctx->host->engine.user, sound_id, loops, delay);
+    return TORIRS_RESULT_OK;
+}
+
+static int
+api_weight(struct PluginContext* ctx)
+{
+    assert(ctx);
+    return ctx->host->engine.weight ? ctx->host->engine.weight(ctx->host->engine.user) : 0;
+}
+
+static int
+api_world_types(struct PluginContext* ctx)
+{
+    assert(ctx);
+    return ctx->host->engine.world_types ? ctx->host->engine.world_types(ctx->host->engine.user) : 0;
+}
+
+static int
+api_tick(struct PluginContext* ctx)
+{
+    assert(ctx);
+    return ctx->host->engine.tick ? ctx->host->engine.tick(ctx->host->engine.user) : 0;
+}
+
+/*
+ * A clientscript run for a plugin. Refused from a draw callback (a script
+ * mutates the tree the frame is painting), during teardown, and inside the
+ * one callback that runs FROM the VM -- on_script_callback is a stop in the
+ * middle of a script, and the VM there is anything but idle. The engine
+ * adds the checks only it can make: whether any other script is on the
+ * stack, and whether everything this one needs is resident.
+ */
+static enum ToriRS_ContractResult
+api_script_run(
+    struct PluginContext* ctx,
+    int script_id,
+    struct ToriRS_ScriptArg const* args,
+    size_t arg_count,
+    struct ToriRS_ScriptResult* out)
+{
+    assert(ctx);
+    assert(out);
+    if( arg_count > 0 )
+        assert(args);
+    memset(out, 0, sizeof(*out));
+    if( !ctx->running || ctx->tearing_down || ctx->host->dispatching != ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ||
+        plugin_ev_is_in_script(ctx->host->dispatch_event) )
+        return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( !ctx->host->engine.script_run )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    if( script_id < 0 || arg_count > TORIRS_SCRIPT_RUN_ARGS_MAX )
+        return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    return (enum ToriRS_ContractResult)ctx->host->engine.script_run(
+        ctx->host->engine.user, script_id, args, (int)arg_count, out);
+}
+
 static int
 api_inv_slot(
     struct PluginContext* ctx,
@@ -1627,6 +2054,68 @@ api_inv_size(
 {
     assert(ctx);
     return ctx->host->engine.inv_size(ctx->host->engine.user, inv);
+}
+
+/* A container by the id on_inventory_changed reported. The engine hook is
+ * optional; a client without it holds no container this way. */
+static int
+api_container_slot(
+    struct PluginContext* ctx,
+    int container_id,
+    int slot,
+    int* out_obj_id,
+    int* out_count)
+{
+    assert(ctx);
+    assert(out_obj_id);
+    assert(out_count);
+    if( !ctx->host->engine.container_slot )
+        return 0;
+    return ctx->host->engine.container_slot(
+        ctx->host->engine.user, container_id, slot, out_obj_id, out_count);
+}
+
+static int
+api_container_size(
+    struct PluginContext* ctx,
+    int container_id)
+{
+    assert(ctx);
+    if( !ctx->host->engine.container_size )
+        return 0;
+    return ctx->host->engine.container_size(ctx->host->engine.user, container_id);
+}
+
+/* World entities: optional engine hooks; a client without them has none. */
+static int
+api_world_entity_next(
+    struct PluginContext* ctx,
+    int iter,
+    struct ToriRS_WorldEntitySnapshot* out)
+{
+    assert(ctx);
+    assert(out);
+    if( !ctx->host->engine.world_entity_next )
+        return -1;
+    return ctx->host->engine.world_entity_next(ctx->host->engine.user, iter, out);
+}
+
+static int
+api_world_entity_to_main(
+    struct PluginContext* ctx,
+    int id,
+    int deck_fine_x,
+    int deck_fine_z,
+    int* out_fine_x,
+    int* out_fine_z)
+{
+    assert(ctx);
+    assert(out_fine_x);
+    assert(out_fine_z);
+    if( !ctx->host->engine.world_entity_to_main )
+        return 0;
+    return ctx->host->engine.world_entity_to_main(
+        ctx->host->engine.user, id, deck_fine_x, deck_fine_z, out_fine_x, out_fine_z);
 }
 
 static uint32_t
@@ -1690,7 +2179,220 @@ api_menu_add(
     route->action = action;
     route->plugin = ctx->index;
     route->tag = tag;
+    route->index = host->menu_rows++;
+    route->entity = false;
     return 1;
+}
+
+/* Drop the row now at `index` and keep every recorded position true: the rows
+ * above it move down one. */
+static void
+plugin_menu_drop_at(
+    struct ToriRS_PluginHost* host,
+    void* cursor,
+    int index)
+{
+    assert(host);
+    assert(cursor);
+    if( !host->engine.menu_drop(host->engine.user, cursor, index) )
+        return;
+    host->menu_rows--;
+    for( int i = 0; i < host->menu_payload_count; i++ )
+    {
+        if( host->menu_payload_at[i] == index )
+            host->menu_payload_at[i] = -1;
+        else if( host->menu_payload_at[i] > index )
+            host->menu_payload_at[i]--;
+    }
+    for( int r = 0; r < host->route_count; r++ )
+    {
+        if( host->routes[r].index == index )
+            host->routes[r].index = -1;
+        else if( host->routes[r].index > index )
+            host->routes[r].index--;
+    }
+}
+
+static bool
+plugin_menu_edits_supported(struct ToriRS_PluginHost const* host)
+{
+    return host->engine.menu_count && host->engine.menu_set_text && host->engine.menu_permute;
+}
+
+static enum ToriRS_Result
+api_menu_set_order(
+    struct PluginContext* ctx,
+    struct ToriRS_MenuBuildEvent* menu,
+    struct ToriRS_MenuRowRef const* rows,
+    int count)
+{
+    struct ToriRS_PluginHost* host;
+    struct PluginMenuOrderEntry plan[PLUGIN_MENU_ORDER_MAX];
+    bool payload_seen[TORIRS_PLUGIN_MENU_ROWS_MAX];
+    bool route_seen[TORIRS_PLUGIN_MENU_ROUTES_MAX];
+
+    (void)menu;
+    assert(ctx);
+    assert(menu);
+    host = ctx->host;
+    /* Outside a build is a contract violation (menu.add's rule). */
+    assert(host->menu_cursor);
+    if( count > 0 )
+        assert(rows);
+    if( !plugin_menu_edits_supported(host) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    if( count < 0 || count > PLUGIN_MENU_ORDER_MAX )
+        return TORIRS_RESULT_INVALID;
+    memset(payload_seen, 0, sizeof(payload_seen));
+    memset(route_seen, 0, sizeof(route_seen));
+    for( int i = 0; i < count; i++ )
+    {
+        plan[i].payload = -1;
+        plan[i].route = -1;
+        plan[i].deprioritized = rows[i].deprioritized;
+        if( rows[i].row >= 0 )
+        {
+            if( rows[i].row >= host->menu_payload_count || payload_seen[rows[i].row] )
+                return TORIRS_RESULT_INVALID;
+            payload_seen[rows[i].row] = true;
+            plan[i].payload = rows[i].row;
+            continue;
+        }
+        if( rows[i].row != -1 )
+            return TORIRS_RESULT_INVALID;
+        for( int r = 0; r < host->route_count; r++ )
+        {
+            if( host->routes[r].plugin == ctx->index && !host->routes[r].entity && host->routes[r].tag == rows[i].tag )
+            {
+                plan[i].route = r;
+                break;
+            }
+        }
+        if( plan[i].route < 0 || route_seen[plan[i].route] )
+            return TORIRS_RESULT_INVALID;
+        route_seen[plan[i].route] = true;
+    }
+    memcpy(host->menu_order, plan, sizeof(plan[0]) * (size_t)count);
+    host->menu_order_count = count;
+    host->menu_order_plugin = ctx->index;
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_Result
+api_menu_set_text(
+    struct PluginContext* ctx,
+    struct ToriRS_MenuBuildEvent* menu,
+    int row,
+    char const* text)
+{
+    struct ToriRS_PluginHost* host;
+
+    (void)menu;
+    assert(ctx);
+    assert(menu);
+    assert(text);
+    host = ctx->host;
+    assert(host->menu_cursor);
+    if( !plugin_menu_edits_supported(host) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    if( row < 0 || row >= host->menu_payload_count )
+        return TORIRS_RESULT_INVALID;
+    if( strlen(text) >= PLUGIN_MENU_TEXT_MAX )
+        return TORIRS_RESULT_BUDGET;
+    snprintf(host->menu_text[row], sizeof(host->menu_text[row]), "%s", text);
+    host->menu_text_set[row] = true;
+    return TORIRS_RESULT_OK;
+}
+
+static bool
+api_menu_shown(
+    struct PluginContext* ctx,
+    struct ToriRS_Rect* out)
+{
+    assert(ctx);
+    assert(out);
+    if( !ctx->host->engine.menu_shown )
+        return false;
+    return ctx->host->engine.menu_shown(ctx->host->engine.user, out) != 0;
+}
+
+/*
+ * The build's edit plan, after every plugin and the entity holders: the row
+ * texts, then the order. Returns true when an order was applied (the caller
+ * must not re-sort).
+ *
+ * The order's menu, bottom first: the routes the plan does not name and its
+ * own plugin did not add (another plugin's, the entity holders') where the
+ * default sort would put them, at the bottom; then the plan's rows in its own
+ * order, the deprioritized ones below the rest; then the
+ * native rows past the payload, on top where they were. A payload row or an
+ * own route the plan leaves out is gone, as RuneLite's setMenuEntries drops it.
+ */
+static bool
+plugin_menu_apply_plan(
+    struct ToriRS_PluginHost* host,
+    void* cursor)
+{
+    int order[PLUGIN_MENU_PERMUTE_MAX];
+    int n = 0;
+    bool listed_route[TORIRS_PLUGIN_MENU_ROUTES_MAX];
+
+    assert(host);
+    assert(cursor);
+    if( !plugin_menu_edits_supported(host) )
+        return false;
+    for( int i = 0; i < host->menu_payload_count; i++ )
+    {
+        if( host->menu_text_set[i] && host->menu_payload_at[i] >= 0 )
+            host->engine.menu_set_text(host->engine.user, cursor, host->menu_payload_at[i], host->menu_text[i]);
+    }
+    if( host->menu_order_plugin < 0 )
+        return false;
+
+    memset(listed_route, 0, sizeof(listed_route));
+    for( int k = 0; k < host->menu_order_count; k++ )
+        if( host->menu_order[k].route >= 0 )
+            listed_route[host->menu_order[k].route] = true;
+    /* Unnamed routes of other owners, bottom. */
+    for( int r = 0; r < host->route_count; r++ )
+    {
+        bool const own = host->routes[r].plugin == host->menu_order_plugin && !host->routes[r].entity;
+        if( listed_route[r] || host->routes[r].index < 0 || own )
+            continue;
+        if( n < PLUGIN_MENU_PERMUTE_MAX )
+            order[n++] = host->routes[r].index;
+    }
+    /* The plan: deprioritized rows first (lower), then the rest. */
+    for( int pass = 0; pass < 2; pass++ )
+    {
+        for( int k = 0; k < host->menu_order_count; k++ )
+        {
+            struct PluginMenuOrderEntry const* e = &host->menu_order[k];
+            int at;
+            if( e->deprioritized != (pass == 0) )
+                continue;
+            at = e->route >= 0 ? host->routes[e->route].index : host->menu_payload_at[e->payload];
+            if( at >= 0 && n < PLUGIN_MENU_PERMUTE_MAX )
+                order[n++] = at;
+        }
+    }
+    /* Native rows past the payload, top: they are every index below the
+     * menu's native count that no payload slot names. */
+    {
+        int const total = host->engine.menu_count(host->engine.user, cursor);
+        for( int at = 0; at < total; at++ )
+        {
+            bool named = false;
+            for( int i = 0; i < host->menu_payload_count && !named; i++ )
+                named = host->menu_payload_at[i] == at;
+            for( int r = 0; r < host->route_count && !named; r++ )
+                named = host->routes[r].index == at;
+            if( !named && n < PLUGIN_MENU_PERMUTE_MAX )
+                order[n++] = at;
+        }
+    }
+    host->engine.menu_permute(host->engine.user, cursor, order, n);
+    return true;
 }
 
 /* -- ground items -- */
@@ -2958,6 +3660,23 @@ PluginHost_CaptureDeliver(
     ToriMem_Free(ToriMem_Net(), data);
 }
 
+bool
+PluginHost_ScriptRead(
+    struct ToriRS_PluginHost* host,
+    char const* path,
+    int serial,
+    void (*deliver)(void* deliver_user, int serial, char const* path, void* data, int size),
+    void* deliver_user)
+{
+    assert(host);
+    assert(path);
+    assert(path[0]);
+    assert(deliver);
+    if( !host->engine.script_read )
+        return false;
+    return host->engine.script_read(host->engine.user, path, serial, deliver, deliver_user) != 0;
+}
+
 void
 PluginHost_AssetDeliver(
     struct ToriRS_PluginHost* host,
@@ -3816,6 +4535,31 @@ api_panel_set_attention(
 }
 
 static void
+api_panel_show(struct PluginContext* ctx)
+{
+    assert(ctx);
+    if( !ctx->host->panel_registered[ctx->index] || !ctx->running )
+        return;
+    ctx->host->panel_show_plus1 = ctx->index + 1;
+}
+
+/* A panel.show from the last frame: the page opens now, between callbacks. */
+static void
+plugin_panel_show_pending(struct ToriRS_PluginHost* host)
+{
+    int index;
+
+    assert(host);
+    if( host->panel_show_plus1 == 0 )
+        return;
+    index = host->panel_show_plus1 - 1;
+    host->panel_show_plus1 = 0;
+    if( host->panel_active == index && host->panel_view == TORIRS_PANEL_VIEW_PAGE )
+        return;
+    (void)PluginHost_PanelSelectView(host, index, TORIRS_PANEL_VIEW_PAGE);
+}
+
+static void
 api_panel_clear(struct PluginContext* ctx)
 {
     assert(ctx);
@@ -4129,6 +4873,113 @@ api_draw_rect(
         return;
     ctx->draw_used +=
         ctx->host->engine.draw_rect(ctx->host->engine.user, x, y, w, h, rgb, fill_alpha);
+}
+
+/*
+ * A polygon answers like a tile does, and for the same reason: it is the verb
+ * that spends the allotment fastest (a zone outline is one item per vertex for
+ * the wash plus one per edge for the border), so the caller has to be able to
+ * read the refusal. Every surface may draw one -- it is pixels, not a place.
+ */
+static enum ToriRS_Result
+api_draw_polygon(
+    struct PluginContext* ctx,
+    void* surface,
+    int const* xs,
+    int const* ys,
+    int count,
+    uint32_t fill_rgb,
+    int fill_alpha,
+    uint32_t outline_rgb,
+    int outline_width)
+{
+    assert(ctx);
+    assert(xs);
+    assert(ys);
+    assert(count > 0);
+    assert(count <= TORIRS_PLUGIN_ENGINE_POLYGON_POINTS_MAX);
+    if( !plugin_draw_allow(ctx, surface) )
+        return TORIRS_RESULT_BUDGET;
+    ctx->draw_used += ctx->host->engine.draw_polygon(
+        ctx->host->engine.user, xs, ys, count, fill_rgb, fill_alpha, outline_rgb, outline_width);
+    return TORIRS_RESULT_OK;
+}
+
+/* The measuring and the two map projections are reads, so they draw nothing
+ * and cost nothing -- but they are answers about THIS frame's surfaces, so
+ * they are only asked from inside a draw callback (the builder is the only
+ * caller, and it exists only there). */
+static int
+api_text_width(
+    struct PluginContext* ctx,
+    char const* text)
+{
+    assert(ctx);
+    assert(text);
+    assert(ctx->host->draw_surface);
+    return ctx->host->engine.text_width(ctx->host->engine.user, text);
+}
+
+static int
+api_text_height(struct PluginContext* ctx)
+{
+    assert(ctx);
+    assert(ctx->host->draw_surface);
+    return ctx->host->engine.text_height(ctx->host->engine.user);
+}
+
+static bool
+api_minimap_project(
+    struct PluginContext* ctx,
+    int fine_x,
+    int fine_z,
+    int* out_x,
+    int* out_y)
+{
+    assert(ctx);
+    assert(out_x);
+    assert(out_y);
+    assert(ctx->host->draw_surface);
+    return ctx->host->engine.minimap_project(ctx->host->engine.user, fine_x, fine_z, out_x, out_y) != 0;
+}
+
+static bool
+api_minimap_bounds(
+    struct PluginContext* ctx,
+    struct ToriRS_MinimapBounds* out)
+{
+    assert(ctx);
+    assert(out);
+    assert(ctx->host->draw_surface);
+    return ctx->host->engine.minimap_bounds(ctx->host->engine.user, out) != 0;
+}
+
+static bool
+api_worldmap_project(
+    struct PluginContext* ctx,
+    int tile_x,
+    int tile_z,
+    int level,
+    int* out_x,
+    int* out_y)
+{
+    assert(ctx);
+    assert(out_x);
+    assert(out_y);
+    assert(ctx->host->draw_surface);
+    return ctx->host->engine.worldmap_project(
+               ctx->host->engine.user, tile_x, tile_z, level, out_x, out_y) != 0;
+}
+
+static bool
+api_worldmap_bounds(
+    struct PluginContext* ctx,
+    struct ToriRS_Rect* out)
+{
+    assert(ctx);
+    assert(out);
+    assert(ctx->host->draw_surface);
+    return ctx->host->engine.worldmap_bounds(ctx->host->engine.user, out) != 0;
 }
 
 /* -- images -- */
@@ -4849,8 +5700,8 @@ plugin_entity_apply_ops(
                 seen = 1;
         if( !seen && holder_count < TORIRS_PLUGIN_MENU_ROWS_MAX )
             holders[holder_count++] = holder;
-        if( holder->ops_mode != TORIRS_ENTITY_OPS_APPEND )
-            (void)host->engine.menu_drop(host->engine.user, cursor, i);
+        if( holder->ops_mode != TORIRS_ENTITY_OPS_APPEND && host->menu_payload_at[i] >= 0 )
+            plugin_menu_drop_at(host, cursor, host->menu_payload_at[i]);
     }
 
     for( int h = 0; h < holder_count; h++ )
@@ -4873,6 +5724,8 @@ plugin_entity_apply_ops(
             route->action = action;
             route->plugin = holder->plugin;
             route->tag = holder->tag;
+            route->index = host->menu_rows++;
+            route->entity = true;
         }
     }
 }
@@ -4986,6 +5839,13 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->draw_line);
     assert(engine->draw_text);
     assert(engine->draw_rect);
+    assert(engine->draw_polygon);
+    assert(engine->text_width);
+    assert(engine->text_height);
+    assert(engine->minimap_project);
+    assert(engine->minimap_bounds);
+    assert(engine->worldmap_project);
+    assert(engine->worldmap_bounds);
     assert(engine->menu_add);
     assert(engine->asset_read);
     assert(engine->asset_write);
@@ -5125,6 +5985,8 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
         plugin_files_tickets_drop_plugin(host, i);
     ToriMem_Free(ToriMem_Plugins(), host->files_read_text);
     host->files_read_text = NULL;
+    ToriMem_Free(ToriMem_Plugins(), host->var_shadow);
+    host->var_shadow = NULL;
     for( int i = 0; i < host->plugin_count; i++ )
     {
         /* plugin_teardown frees these on a runtime disable; Free never runs
@@ -5739,6 +6601,24 @@ plugin_v2_has_event_callback(
         return def->callbacks.on_ui_draw != NULL;
     case PLUGIN_CALLBACK_PANEL_LAYOUT:
         return def->callbacks.on_ui_layout != NULL;
+    case PLUGIN_CALLBACK_VAR_CHANGED:
+        return def->callbacks.on_var_changed != NULL;
+    case PLUGIN_CALLBACK_INTERFACE:
+        return def->callbacks.on_interface != NULL;
+    case PLUGIN_CALLBACK_INVENTORY_CHANGED:
+        return def->callbacks.on_inventory_changed != NULL;
+    case PLUGIN_CALLBACK_LOC_CHANGED:
+        return def->callbacks.on_loc_changed != NULL;
+    case PLUGIN_CALLBACK_MAP_ANIM:
+        return def->callbacks.on_map_anim != NULL;
+    case PLUGIN_CALLBACK_ITEM_SEARCH:
+        return def->callbacks.on_item_search != NULL;
+    case PLUGIN_CALLBACK_SCRIPT_PRE:
+        return def->callbacks.on_script_pre != NULL;
+    case PLUGIN_CALLBACK_SCRIPT_POST:
+        return def->callbacks.on_script_post != NULL;
+    case PLUGIN_CALLBACK_COMMAND:
+        return def->callbacks.on_command != NULL;
     default:
         return 0;
     }
@@ -5813,6 +6693,42 @@ plugin_v2_event(
     case PLUGIN_CALLBACK_CHAT_MESSAGE:
         v2->definition->callbacks.on_chat_message(api, state, event);
         break;
+    case PLUGIN_CALLBACK_VAR_CHANGED:
+        v2->definition->callbacks.on_var_changed(api, state, event);
+        break;
+    case PLUGIN_CALLBACK_INTERFACE:
+        v2->definition->callbacks.on_interface(api, state, event);
+        break;
+    case PLUGIN_CALLBACK_INVENTORY_CHANGED:
+        v2->definition->callbacks.on_inventory_changed(api, state, event);
+        break;
+    case PLUGIN_CALLBACK_LOC_CHANGED:
+        v2->definition->callbacks.on_loc_changed(api, state, event);
+        break;
+    case PLUGIN_CALLBACK_MAP_ANIM:
+        v2->definition->callbacks.on_map_anim(api, state, event);
+        break;
+    case PLUGIN_CALLBACK_ITEM_SEARCH:
+        /* The first answer stands: a later subscriber is not asked again. */
+        if( !((struct ToriRS_ItemSearchEvent*)event)->consumed )
+            v2->definition->callbacks.on_item_search(api, state, event);
+        break;
+    case PLUGIN_CALLBACK_SCRIPT_PRE:
+    case PLUGIN_CALLBACK_SCRIPT_POST:
+    {
+        /* Only to a plugin that watches this script. */
+        bool watching = false;
+        for( int i = 0; i < ctx->script_watch_count; i++ )
+            if( ctx->script_watches[i] == ctx->host->script_hook_id )
+                watching = true;
+        if( !watching )
+            break;
+        if( kind == PLUGIN_CALLBACK_SCRIPT_PRE )
+            v2->definition->callbacks.on_script_pre(api, state, event);
+        else
+            v2->definition->callbacks.on_script_post(api, state, event);
+        break;
+    }
     case PLUGIN_CALLBACK_GAME_EVENT:
         v2->definition->callbacks.on_game_event(api, state, event);
         break;
@@ -5827,6 +6743,10 @@ plugin_v2_event(
     case PLUGIN_CALLBACK_MENU_SELECT:
         return v2->definition->callbacks.on_menu_select(api, state, event) ==
                        TORIRS_CALLBACK_CONSUME
+                   ? TORIRS_CALLBACK_CONSUME
+                   : TORIRS_CALLBACK_CONTINUE;
+    case PLUGIN_CALLBACK_COMMAND:
+        return v2->definition->callbacks.on_command(api, state, event) == TORIRS_CALLBACK_CONSUME
                    ? TORIRS_CALLBACK_CONSUME
                    : TORIRS_CALLBACK_CONTINUE;
     case PLUGIN_CALLBACK_DRAW_WORLD:
@@ -6186,6 +7106,7 @@ plugin_teardown(
     ctx->widget_ops=NULL;
     ToriMem_Free(ToriMem_Plugins(), ctx->widget_watches);
     ctx->widget_watches = NULL;
+    plugin_script_watches_drop(host, ctx);
 
     /* Selection is released first: the plugin learns it became invisible
      * while its subscriptions and page model still exist, and no later STOP
@@ -6536,6 +7457,7 @@ PluginHost_FrameStart(
         host->plugins[i].draw_used = 0;
         host->plugins[i].draw_clipped = false;
     }
+    plugin_panel_show_pending(host);
 
     /* The screen poll. Here rather than at the transitions themselves because
      * the app changes screens from half a dozen places (login, logout, a
@@ -6554,6 +7476,9 @@ PluginHost_FrameStart(
                 plugin_dispatch(host, PLUGIN_CALLBACK_SCREEN_CHANGE, &ev);
         }
     }
+
+    /* Mounts and inventories since the last frame, before on_frame_start. */
+    plugin_engine_news_drain(host);
 
     if( host->callback_count[PLUGIN_CALLBACK_FRAME_START] == 0 )
         return;
@@ -6826,12 +7751,281 @@ PluginHost_LogicTick(
     plugin_dispatch(host, PLUGIN_CALLBACK_LOGIC_TICK, &ev);
 }
 
+/*
+ * Does a RUNNING plugin have this callback right now? callback_count says
+ * which definitions carry one, enabled or not; the engine-news events below
+ * must cost nothing while their only subscriber is switched off, so they ask
+ * this instead -- a walk of at most TORIRS_PLUGIN_MAX contexts.
+ */
+static bool
+plugin_wants(struct ToriRS_PluginHost const* host, enum PluginCallbackKind ev)
+{
+    assert(host);
+    if( host->callback_count[ev] == 0 )
+        return false;
+    for( int i = 0; i < host->plugin_count; i++ )
+    {
+        struct PluginContext const* ctx = &host->plugins[i];
+        if( ctx->enabled && ctx->running && plugin_v2_has_event_callback(ctx->def, ev) )
+            return true;
+    }
+    return false;
+}
+
+/*
+ * on_var_changed, once a server tick: every varp whose value differs from the
+ * one last reported. The first tick after a subscriber appears (or the varp
+ * table grows) only records -- a plugin is never handed a change that
+ * predates it. The values are re-read after every dispatch: a handler may run
+ * a client script, and a script's varp write can grow the engine's array.
+ */
+static void
+plugin_var_scan(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    if( !host->engine.varp_values || !plugin_wants(host, PLUGIN_CALLBACK_VAR_CHANGED) )
+    {
+        ToriMem_Free(ToriMem_Plugins(), host->var_shadow);
+        host->var_shadow = NULL;
+        host->var_shadow_count = 0;
+        return;
+    }
+    int32_t const* values = NULL;
+    int count = host->engine.varp_values(host->engine.user, &values);
+    if( count <= 0 )
+        return;
+    assert(values);
+    int const known = host->var_shadow ? host->var_shadow_count : 0;
+    if( count > known )
+    {
+        int32_t* grown = ToriMem_Realloc(ToriMem_Plugins(), host->var_shadow, (size_t)count * sizeof(*grown));
+        assert(grown);
+        memcpy(grown + known, values + known, (size_t)(count - known) * sizeof(*grown));
+        host->var_shadow = grown;
+        host->var_shadow_count = count;
+    }
+    for( int varp = 0; varp < known && varp < count; varp++ )
+    {
+        if( values[varp] == host->var_shadow[varp] )
+            continue;
+        struct ToriRS_VarChangedEvent const ev = { varp, values[varp], host->var_shadow[varp] };
+        host->var_shadow[varp] = values[varp];
+        plugin_dispatch(host, PLUGIN_CALLBACK_VAR_CHANGED, (void*)&ev);
+        /* The dispatch may have stopped the last subscriber, or moved the
+         * engine's array: stop, or read it again. */
+        if( !host->var_shadow )
+            return;
+        count = host->engine.varp_values(host->engine.user, &values);
+        if( count <= 0 )
+            return;
+        assert(values);
+    }
+}
+
+void
+PluginHost_InterfaceChanged(
+    struct ToriRS_PluginHost* host,
+    int group_id,
+    bool open)
+{
+    assert(host);
+    assert(group_id > 0);
+    if( !plugin_wants(host, PLUGIN_CALLBACK_INTERFACE) )
+        return;
+    if( host->interface_queue_count == PLUGIN_HOST_INTERFACE_QUEUE_MAX )
+    {
+        if( !host->interface_queue_overflow_logged )
+            TORIRS_ERR("plugin: more than %d interface mounts in one frame; the oldest are dropped\n",
+                       PLUGIN_HOST_INTERFACE_QUEUE_MAX);
+        host->interface_queue_overflow_logged = true;
+        memmove(host->interface_queue, host->interface_queue + 1,
+                sizeof(host->interface_queue[0]) * (PLUGIN_HOST_INTERFACE_QUEUE_MAX - 1));
+        host->interface_queue_count--;
+    }
+    host->interface_queue[host->interface_queue_count++] = (struct ToriRS_InterfaceEvent){ group_id, open };
+}
+
+void
+PluginHost_InventoryChanged(
+    struct ToriRS_PluginHost* host,
+    int inv)
+{
+    assert(host);
+    assert(inv >= 0);
+    if( !plugin_wants(host, PLUGIN_CALLBACK_INVENTORY_CHANGED) )
+        return;
+    for( int i = 0; i < host->inventory_queue_count; i++ )
+        if( host->inventory_queue[i] == inv )
+            return;
+    /* The engine has INV_MANAGER_STORE_MAX containers; more distinct ones in a
+     * frame than the queue holds would be a store this host was not sized for. */
+    assert(host->inventory_queue_count < PLUGIN_HOST_INVENTORY_QUEUE_MAX);
+    host->inventory_queue[host->inventory_queue_count++] = inv;
+}
+
+void
+PluginHost_LocChanged(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_LocChangedEvent const* event)
+{
+    assert(host);
+    assert(event);
+    if( !plugin_wants(host, PLUGIN_CALLBACK_LOC_CHANGED) )
+        return;
+    if( host->loc_queue_count == PLUGIN_HOST_LOC_QUEUE_MAX )
+    {
+        if( !host->loc_queue_overflow_logged )
+            TORIRS_ERR("plugin: more than %d loc changes in one frame; the oldest are dropped\n",
+                       PLUGIN_HOST_LOC_QUEUE_MAX);
+        host->loc_queue_overflow_logged = true;
+        memmove(host->loc_queue, host->loc_queue + 1,
+                sizeof(host->loc_queue[0]) * (PLUGIN_HOST_LOC_QUEUE_MAX - 1));
+        host->loc_queue_count--;
+    }
+    host->loc_queue[host->loc_queue_count++] = *event;
+}
+
+void
+PluginHost_MapAnim(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_MapAnimEvent const* event)
+{
+    assert(host);
+    assert(event);
+    if( !plugin_wants(host, PLUGIN_CALLBACK_MAP_ANIM) )
+        return;
+    if( host->map_anim_queue_count == PLUGIN_HOST_MAP_ANIM_QUEUE_MAX )
+    {
+        if( !host->map_anim_queue_overflow_logged )
+            TORIRS_ERR("plugin: more than %d map graphics in one frame; the oldest are dropped\n",
+                       PLUGIN_HOST_MAP_ANIM_QUEUE_MAX);
+        host->map_anim_queue_overflow_logged = true;
+        memmove(host->map_anim_queue, host->map_anim_queue + 1,
+                sizeof(host->map_anim_queue[0]) * (PLUGIN_HOST_MAP_ANIM_QUEUE_MAX - 1));
+        host->map_anim_queue_count--;
+    }
+    host->map_anim_queue[host->map_anim_queue_count++] = *event;
+}
+
+int
+PluginHost_Command(
+    struct ToriRS_PluginHost* host,
+    char const* text)
+{
+    struct ToriRS_CommandEvent ev;
+    char name[TORIRS_PLUGIN_COMMAND_NAME_MAX];
+    char const* space;
+    size_t name_len;
+
+    assert(host);
+    assert(text);
+    if( !plugin_wants(host, PLUGIN_CALLBACK_COMMAND) )
+        return 0;
+    space = strchr(text, ' ');
+    name_len = space ? (size_t)(space - text) : strlen(text);
+    if( name_len >= sizeof(name) )
+        name_len = sizeof(name) - 1;
+    memcpy(name, text, name_len);
+    name[name_len] = '\0';
+    ev.text = text;
+    ev.name = name;
+    ev.args = space ? space + 1 : "";
+    return plugin_dispatch(host, PLUGIN_CALLBACK_COMMAND, &ev) == TORIRS_CALLBACK_CONSUME ? 1 : 0;
+}
+
+int
+PluginHost_ItemSearch(
+    struct ToriRS_PluginHost* host,
+    char const* query,
+    bool tradeable_only,
+    int* out,
+    int cap)
+{
+    struct ToriRS_ItemSearchEvent* ev;
+    int n;
+
+    assert(host);
+    assert(query);
+    assert(out);
+    assert(cap >= 0);
+    if( !plugin_wants(host, PLUGIN_CALLBACK_ITEM_SEARCH) )
+        return -1;
+    ev = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*ev));
+    assert(ev);
+    snprintf(ev->query, sizeof(ev->query), "%s", query);
+    ev->tradeable_only = tradeable_only;
+    plugin_dispatch(host, PLUGIN_CALLBACK_ITEM_SEARCH, ev);
+    n = -1;
+    if( ev->consumed )
+    {
+        n = ev->count < 0 ? 0 : ev->count;
+        if( n > TORIRS_PLUGIN_ITEM_SEARCH_MAX )
+            n = TORIRS_PLUGIN_ITEM_SEARCH_MAX;
+        if( n > cap )
+            n = cap;
+        memcpy(out, ev->ids, sizeof(out[0]) * (size_t)n);
+    }
+    ToriMem_Free(ToriMem_Plugins(), ev);
+    return n;
+}
+
+/* Deliver the engine news queued since the last frame: mounts in order, then
+ * the inventories, the loc changes and the map graphics. Copied out first, so a handler that mounts or moves an item
+ * queues for the NEXT frame instead of growing the list being walked. */
+static void
+plugin_engine_news_drain(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    if( host->interface_queue_count )
+    {
+        struct ToriRS_InterfaceEvent pending[PLUGIN_HOST_INTERFACE_QUEUE_MAX];
+        int const n = host->interface_queue_count;
+        memcpy(pending, host->interface_queue, sizeof(pending[0]) * (size_t)n);
+        host->interface_queue_count = 0;
+        for( int i = 0; i < n; i++ )
+            plugin_dispatch(host, PLUGIN_CALLBACK_INTERFACE, &pending[i]);
+    }
+    if( host->inventory_queue_count )
+    {
+        int pending[PLUGIN_HOST_INVENTORY_QUEUE_MAX];
+        int const n = host->inventory_queue_count;
+        memcpy(pending, host->inventory_queue, sizeof(pending[0]) * (size_t)n);
+        host->inventory_queue_count = 0;
+        for( int i = 0; i < n; i++ )
+        {
+            struct ToriRS_InventoryChangedEvent const ev = { pending[i] };
+            plugin_dispatch(host, PLUGIN_CALLBACK_INVENTORY_CHANGED, (void*)&ev);
+        }
+    }
+    if( host->loc_queue_count )
+    {
+        struct ToriRS_LocChangedEvent pending[PLUGIN_HOST_LOC_QUEUE_MAX];
+        int const n = host->loc_queue_count;
+        memcpy(pending, host->loc_queue, sizeof(pending[0]) * (size_t)n);
+        host->loc_queue_count = 0;
+        for( int i = 0; i < n; i++ )
+            plugin_dispatch(host, PLUGIN_CALLBACK_LOC_CHANGED, &pending[i]);
+    }
+    if( host->map_anim_queue_count )
+    {
+        struct ToriRS_MapAnimEvent pending[PLUGIN_HOST_MAP_ANIM_QUEUE_MAX];
+        int const n = host->map_anim_queue_count;
+        memcpy(pending, host->map_anim_queue, sizeof(pending[0]) * (size_t)n);
+        host->map_anim_queue_count = 0;
+        for( int i = 0; i < n; i++ )
+            plugin_dispatch(host, PLUGIN_CALLBACK_MAP_ANIM, &pending[i]);
+    }
+}
+
 void
 PluginHost_ServerTick(
     struct ToriRS_PluginHost* host,
     int world_cycle)
 {
-    if( !host || host->callback_count[PLUGIN_CALLBACK_SERVER_TICK] == 0 )
+    assert(host);
+    /* VarbitChanged lands before GameTick in RuneLite too. */
+    plugin_var_scan(host);
+    if( host->callback_count[PLUGIN_CALLBACK_SERVER_TICK] == 0 )
         return;
     struct ToriRS_TickEvent ev = { world_cycle };
     plugin_dispatch(host, PLUGIN_CALLBACK_SERVER_TICK, &ev);
@@ -6847,6 +8041,120 @@ PluginHost_WorldLoaded(
         return;
     struct ToriRS_WorldLoadedEvent ev = { base_tile_x, base_tile_z };
     plugin_dispatch(host, PLUGIN_CALLBACK_WORLD_LOADED, &ev);
+}
+
+/* Does any running plugin other than `except` watch `script_id`? */
+static bool
+plugin_script_watched_elsewhere(struct ToriRS_PluginHost const* host, int except, int32_t script_id)
+{
+    for( int i = 0; i < host->plugin_count; i++ )
+    {
+        struct PluginContext const* other = &host->plugins[i];
+        if( i == except )
+            continue;
+        for( int w = 0; w < other->script_watch_count; w++ )
+            if( other->script_watches[w] == script_id )
+                return true;
+    }
+    return false;
+}
+
+/*
+ * scripts.watch. The engine is told about the UNION: the first plugin to
+ * watch an id turns the VM's hook for it on, the last to let go turns it off.
+ */
+static enum ToriRS_ContractResult
+api_script_watch(struct PluginContext* ctx, int32_t script_id, bool on)
+{
+    struct ToriRS_PluginHost* host;
+    int at = -1;
+
+    assert(ctx);
+    host = ctx->host;
+    if( !ctx->running || ctx->tearing_down || host->dispatching != ctx->index ||
+        plugin_ev_is_draw(host->dispatch_event) )
+        return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( !host->engine.script_watch )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    if( script_id < 0 || script_id > 65535 )
+        return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    for( int i = 0; i < ctx->script_watch_count; i++ )
+        if( ctx->script_watches[i] == script_id )
+            at = i;
+    if( on )
+    {
+        if( at >= 0 )
+            return TORIRS_CONTRACT_OK;
+        if( ctx->script_watch_count >= TORIRS_SCRIPT_WATCH_MAX )
+            return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+        if( !plugin_script_watched_elsewhere(host, ctx->index, script_id) &&
+            !host->engine.script_watch(host->engine.user, script_id, true) )
+            return TORIRS_CONTRACT_INVALID_ARGUMENT;
+        ctx->script_watches[ctx->script_watch_count++] = script_id;
+        return TORIRS_CONTRACT_OK;
+    }
+    if( at < 0 )
+        return TORIRS_CONTRACT_OK;
+    ctx->script_watches[at] = ctx->script_watches[--ctx->script_watch_count];
+    if( !plugin_script_watched_elsewhere(host, ctx->index, script_id) )
+        (void)host->engine.script_watch(host->engine.user, script_id, false);
+    return TORIRS_CONTRACT_OK;
+}
+
+/* A stopping plugin's watches leave with it. */
+static void
+plugin_script_watches_drop(struct ToriRS_PluginHost* host, struct PluginContext* ctx)
+{
+    assert(host);
+    assert(ctx);
+    while( ctx->script_watch_count > 0 )
+    {
+        int32_t const script_id = ctx->script_watches[--ctx->script_watch_count];
+        if( host->engine.script_watch && !plugin_script_watched_elsewhere(host, ctx->index, script_id) )
+            (void)host->engine.script_watch(host->engine.user, script_id, false);
+    }
+}
+
+void
+PluginHost_ScriptHook(
+    struct ToriRS_PluginHost* host,
+    bool post,
+    int script_id,
+    bool invoked,
+    struct PluginScriptStack const* stack)
+{
+    static _Atomic uint64_t serial;
+    enum PluginCallbackKind const kind = post ? PLUGIN_CALLBACK_SCRIPT_POST : PLUGIN_CALLBACK_SCRIPT_PRE;
+    struct PluginScriptStack const* saved_stack;
+    struct ToriRS_ScriptRef saved_ref;
+    int32_t saved_id;
+    uint64_t previous;
+
+    assert(host);
+    assert(stack);
+    if( host->callback_count[kind] == 0 )
+        return;
+    previous = atomic_load(&serial);
+    do { if( previous == UINT64_MAX ) return; }
+    while( !atomic_compare_exchange_weak(&serial, &previous, previous + 1) );
+    /* A hook can be raised while a script callback's ref is live (a callback
+     * site inside a watched script is not, but a plugin's own scripts.run
+     * from inside one is refused, so this nests at most behind a menu or
+     * frame dispatch): keep and restore whatever ref was current. */
+    saved_stack = host->script_stack;
+    saved_ref = host->script_ref;
+    saved_id = host->script_hook_id;
+    host->script_ref.token = previous + 1;
+    host->script_stack = stack;
+    host->script_hook_id = script_id;
+    {
+        struct ToriRS_ScriptHookEvent event = {
+            .script_id = script_id, .invoked = invoked, .ref = host->script_ref, .widget = stack->widget};
+        plugin_dispatch(host, kind, &event);
+    }
+    host->script_stack = saved_stack;
+    host->script_ref = saved_ref;
+    host->script_hook_id = saved_id;
 }
 
 void PluginHost_ScriptCallback(struct ToriRS_PluginHost* host,char const* name,int script_id,
@@ -7069,15 +8377,17 @@ PluginHost_DrawCanvas(
     PA_ADD(draw_canvas_ns, PerfAudit_Now() - pa_t0);
 }
 
-void
+bool
 PluginHost_MenuBuild(
     struct ToriRS_PluginHost* host,
     void* cursor,
     struct ToriRS_MenuBuildEvent* menu,
     bool hover_pass)
 {
+    bool ordered;
+
     if( !host )
-        return;
+        return false;
 
     /* Routes are per build. The hover pass rebuilds the menu every frame, so
      * accumulating them would exhaust the table in well under a second. */
@@ -7085,6 +8395,20 @@ PluginHost_MenuBuild(
 
     assert(menu);
     assert(cursor);
+    assert(menu->row_count >= 0);
+    assert(menu->row_count <= TORIRS_PLUGIN_MENU_ROWS_MAX);
+
+    /* The edit plan is per build too. Payload row i is menu row i until a
+     * drop moves it. */
+    host->menu_payload_count = menu->row_count;
+    host->menu_rows = host->engine.menu_count ? host->engine.menu_count(host->engine.user, cursor) : menu->row_count;
+    for( int i = 0; i < menu->row_count; i++ )
+    {
+        host->menu_payload_at[i] = i;
+        host->menu_text_set[i] = false;
+    }
+    host->menu_order_plugin = -1;
+    host->menu_order_count = 0;
 
     menu->hover_pass = hover_pass;
     menu->host_cursor = cursor;
@@ -7095,7 +8419,10 @@ PluginHost_MenuBuild(
      * shifts the ones above it, and a payload handed to a handler must not
      * shift under it. */
     plugin_entity_apply_ops(host, cursor, menu);
+    /* Then the plugins' edits, which name rows by the payload they saw. */
+    ordered = plugin_menu_apply_plan(host, cursor);
     host->menu_cursor = NULL;
+    return ordered;
 }
 
 bool

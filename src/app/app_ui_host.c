@@ -453,6 +453,8 @@ app_inv_ui_host_change(
      * container, so the id has to make it into the ring, not just get read
      * and dropped the way it was before this stamp existed. */
     App_DriveEvent(app, DRIVE_EVENT_INV_CHANGED, container_id, 0, 0, 0);
+    /* on_inventory_changed, queued only for a subscriber. */
+    app_plugin_inventory_changed(app, container_id);
 
     /* A new item is not held behind the pause of one whose parts did not
      * arrive: the next tick runs a reconcile pass. */

@@ -2149,6 +2149,12 @@ test-cs2-math: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/math_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_math_ops_test
 
+# The script hooks (ScriptPreFired / ScriptPostFired for watched ids).
+test-cs2-script-hooks: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_script_hook_test \
+		cs2vm2/test/script_hook_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_script_hook_test
+
 test-cs2-long: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_long_ops_test \
 		cs2vm2/test/long_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)

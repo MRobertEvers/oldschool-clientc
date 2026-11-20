@@ -10249,6 +10249,12 @@ main(
             char const* force = getenv("TORIRS_VIEW_SPLIT_FORCE");
             app.world_views.split.presentable =
                 (force && strcmp(force, "1") == 0) || !(video && strcmp(video, "dummy") == 0);
+            /* A plugin's client.open_url goes to a person's browser: never
+             * from a headless run (nobody to show it to, and a test run must
+             * not open tabs on the desk it runs on) nor a replay. */
+            app.plugin_open_url_ok =
+                !(video && (strcmp(video, "dummy") == 0 || strcmp(video, "offscreen") == 0)) &&
+                !rsprox_replay.path;
         }
         /* Only when the manifest actually said something. Unset leaves the
          * platform's own default standing, which is what makes HighDPI

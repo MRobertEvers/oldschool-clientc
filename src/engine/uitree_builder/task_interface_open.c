@@ -676,6 +676,9 @@ Task_InterfaceOpen_Run(
         struct UITreeNodeSet const* gset =
             UITree_GroupNodes(self->tree, self->interface_id);
         int gi;
+        /* The toplevel's mount, for whoever follows mounts (on_interface).
+         * A sub announces itself through UITree_InterfaceParentSet. */
+        UITree_MountNotifyRoot(self->tree, self->interface_id);
         for( gi = 0; gset && gi < gset->count; gi++ )
         {
             int32_t idx = gset->slots[gi];

@@ -2276,6 +2276,11 @@ app_run_once_body(
                                  "(software renderer)."
                                : "Render skip off.");
                     }
+                    else if( input_copy[0] == ':' && input_copy[1] == ':' &&
+                             app_plugin_command(app, input_copy + 2) )
+                    {
+                        /* A plugin's command (on_command): never sent. */
+                    }
                     else if( input_copy[0] == ':' && input_copy[1] == ':' )
                         APP_NET_SEND(
                             app,

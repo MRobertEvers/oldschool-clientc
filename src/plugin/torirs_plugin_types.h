@@ -51,6 +51,8 @@
  *  because a plugin has no business including the client's IO header -- a
  *  shorter buffer is not refused, it is truncated. */
 #define TORIRS_PLUGIN_SCREENSHOT_PATH_MAX 256
+/** Longest script-item path a Lua plugin's module resolves to. */
+#define TORIRS_PLUGIN_MODULE_PATH_MAX 256
 /** Recolour pairs one world object may carry, matching a spotanimtype's six. */
 #define TORIRS_PLUGIN_OBJECT_RECOLORS_MAX 6
 /** Vertices and faces one authored mesh may carry. Sized for the shapes a
@@ -142,6 +144,20 @@ struct ToriRS_PlayerSnapshot
     /** ToriDraw scene element, for api->draw_hull. -1 when not drawn. */
     int element_id;
     int combat_level;
+    /**
+     * RuneLite's Actor getters, as this client holds them. `orientation` is
+     * the yaw the model is drawn at (0..2047, 0 south, 512 west: RuneLite's
+     * units); `anim_id` the ACTION sequence playing (the primary track, what
+     * getAnimation answers), -1 for none; `interacting` the entity the
+     * server locked this actor's facing onto -- -1 none, an npc server slot,
+     * or 32768 + a player pid (RuneLite's getInteracting index, and the
+     * wire's own face-entity encoding).
+     */
+    int orientation;
+    int anim_id;
+    int interacting;
+    /** 0 male, 1 female, as the appearance block said (PlayerComposition.getGender). */
+    int gender;
     /** The player's name, or EMPTY when this client does not know it. Never a
      *  decoder's failure token: a name that did not decode reads as absent,
      *  so a plugin using this as an identity -- a folder, a key, a tag -- can
@@ -195,6 +211,18 @@ struct ToriRS_NpcSnapshot
      */
     int health_ratio;
     int health_scale;
+    /**
+     * RuneLite's Actor getters, as this client holds them. `orientation` is
+     * the yaw the model is drawn at (0..2047, 0 south, 512 west: RuneLite's
+     * units); `anim_id` the ACTION sequence playing (the primary track, what
+     * getAnimation answers), -1 for none; `interacting` the entity the
+     * server locked this actor's facing onto -- -1 none, an npc server slot,
+     * or 32768 + a player pid (RuneLite's getInteracting index, and the
+     * wire's own face-entity encoding).
+     */
+    int orientation;
+    int anim_id;
+    int interacting;
 };
 
 /**
@@ -294,6 +322,42 @@ enum ToriRS_InventoryKind
     /** Worn equipment, indexed by an objtype's `wearpos`. */
     TORIRS_INVENTORY_WORN,
     TORIRS_INVENTORY_BANK
+};
+
+/**
+ * One live world entity (a sailing boat): WorldView.worldEntities().
+ * @see api->game->world_entity_next / world_entity_to_main.
+ *
+ * Coordinates are the ones every other snapshot here speaks. Anything aboard
+ * -- a rider's true tile, a deck loc -- is addressed in the entity's OWN
+ * world, the STAGING rectangle [base_x, base_x + size_x) x [base_z, base_z +
+ * size_z) (absolute tiles, off the real map), as RuneLite's boat WorldView
+ * addresses it; world_entity_to_main carries a deck point to where the hull
+ * floats now.
+ */
+struct ToriRS_WorldEntitySnapshot
+{
+    /** The wire id, which is also its world view's id (never 0, the root). */
+    int id;
+    /** The view it floats in: 0 for the root scene. */
+    int parent_view;
+    /** WorldEntityConfig id (the worldentity config record). */
+    int config_id;
+    /** Where the hull is NOW, in its parent: ABSOLUTE fine units (tile*128). */
+    int fine_x;
+    int fine_z;
+    /** Yaw 0..2047, RuneLite's getOrientation. */
+    int angle;
+    /** The level the hull floats on in its parent. */
+    int level;
+    /** The plane of its own world the deck is authored at. */
+    int deck_level;
+    /** Its own world's staging rectangle (absolute tiles); 0,0 until the
+     *  entity's world has been built. */
+    int base_x;
+    int base_z;
+    int size_x;
+    int size_z;
 };
 
 /**
@@ -597,6 +661,23 @@ struct ToriRS_MenuRow
     int component_id;
     /** Slot within that container for an INV_SLOT row, else -1. */
     int slot;
+    /**
+     * RuneLite's MenuEntry numbers for the same row (MenuEntryAdded /
+     * MenuOptionClicked), so a port reads them without decoding the fields
+     * above. `type` is the MenuAction id (9 NPC_FIRST_OPTION, 3
+     * GAME_OBJECT_FIRST_OPTION, 57 CC_OP, 30 WIDGET_CONTINUE, 23 WALK, 1006
+     * CANCEL, 1500 RUNELITE for a plugin's own row...), -1 for a row RuneLite
+     * has no action for (a friends-list row, a client-only row).
+     * `identifier`: the npc slot / player pid / loc or obj id / CC_OP op
+     * number (1-based) / obj id on an item row. `param0`/`param1`: the scene
+     * tile x/z of a loc, obj or walk row; for a widget row the dynamic child
+     * index (-1 for a static component) and the component id (a dynamic
+     * child's PARENT, as RuneLite names it). 0 where RuneLite has 0.
+     */
+    int identifier;
+    int param0;
+    int param1;
+    int type;
 };
 
 struct ToriRS_MenuBuildEvent
@@ -610,6 +691,33 @@ struct ToriRS_MenuBuildEvent
     void* host_cursor;
 };
 
+/**
+ * One row of a menu.set_order list (RuneLite's Menu.setMenuEntries): a row
+ * of THIS build's payload by its index (`row` >= 0), or one of this plugin's
+ * own rows added in this build by its menu.add tag (`row` == -1, `tag`).
+ * `deprioritized` sinks the row below every row listed without it, keeping
+ * order within each half (MenuEntry.setDeprioritized).
+ */
+struct ToriRS_MenuRowRef
+{
+    int row;
+    uint32_t tag;
+    bool deprioritized;
+};
+
+/** on_command: a "::" line the player entered (or the agent API sent),
+ *  BEFORE it goes to the server as a client cheat. `text` is the body after
+ *  the "::"; `name` its first word, `args` the rest after one space ("" when
+ *  none). All borrowed for the callback. CONSUME keeps it from the server
+ *  (and from every later plugin and the client's own cheats). RuneLite's
+ *  CommandExecuted. */
+struct ToriRS_CommandEvent
+{
+    char const* text;
+    char const* name;
+    char const* args;
+};
+
 struct ToriRS_MenuSelectEvent
 {
     struct ToriRS_MenuRow row;
@@ -619,6 +727,76 @@ struct ToriRS_MenuSelectEvent
     bool owned;
     int click_x;
     int click_y;
+};
+/** on_var_changed: one varp whose value moved since the last server tick
+ *  (RuneLite's VarbitChanged with varpId set). One per changed varp per tick;
+ *  a value that changed and changed back within the tick raises nothing. */
+struct ToriRS_VarChangedEvent
+{
+    int varp;
+    int value;
+    int old;
+};
+/** on_interface: an interface group was mounted (`open`) or unmounted
+ *  (WidgetLoaded / WidgetClosed). */
+struct ToriRS_InterfaceEvent
+{
+    int group;
+    bool open;
+};
+/** on_inventory_changed: an inventory container's contents changed
+ *  (ItemContainerChanged; read it with api->game container_slot, by
+ *  this id). */
+struct ToriRS_InventoryChangedEvent
+{
+    int inv;
+};
+/** on_loc_changed: a loc of the ROOT scene was replaced, added or removed
+ *  after the scene was built (LOC_ADD_CHANGE, LOC_DEL, a zone reset's
+ *  restore), at the moment the scenery shows it -- RuneLite's
+ *  *ObjectDespawned for the old loc then *ObjectSpawned for the new. ABSOLUTE
+ *  tile; `loc_id` -1 is a removal, `old_loc_id` -1 a loc where none stood
+ *  (its shape/angle then -1/0). A scene build raises none (on_world_loaded). */
+struct ToriRS_LocChangedEvent
+{
+    int tile_x;
+    int tile_z;
+    int level;
+    int shape;
+    int angle;
+    int loc_id;
+    int old_loc_id;
+    int old_shape;
+    int old_angle;
+};
+/** on_item_search: the GE item search (OC_FIND with the tradeable filter) is
+ *  about to scan the cache for `query`. A handler that answers it sets
+ *  `consumed` and writes up to TORIRS_PLUGIN_ITEM_SEARCH_MAX obj ids to
+ *  `ids`/`count`; the search then shows exactly those (RuneLite's
+ *  GrandExchangeSearched consumed + setGeSearchResultIds). Raised inside the
+ *  running script: a handler may not run scripts or yield. */
+#define TORIRS_PLUGIN_ITEM_SEARCH_MAX 256
+struct ToriRS_ItemSearchEvent
+{
+    char query[256];
+    bool tradeable_only;
+    bool consumed;
+    int count;
+    int ids[TORIRS_PLUGIN_ITEM_SEARCH_MAX];
+};
+/** on_map_anim: a free-standing graphic started on a tile of the root scene
+ *  (MAP_ANIM; RuneLite's GraphicsObjectCreated). ABSOLUTE tile; `height` in
+ *  world units above the ground, `delay` in client cycles, `cycle` the world
+ *  cycle it was applied on. */
+struct ToriRS_MapAnimEvent
+{
+    int tile_x;
+    int tile_z;
+    int level;
+    int spotanim;
+    int height;
+    int delay;
+    int cycle;
 };
 struct ToriRS_ChatMessageEvent
 {

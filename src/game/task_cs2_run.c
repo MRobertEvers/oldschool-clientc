@@ -1755,6 +1755,115 @@ static struct ToriRS_TaskVTable Task_CS2Run_VTable = {
 };
 
 /*
+ * The yield plan, for a runner that cannot wait (task_cs2_run.h).
+ *
+ * The same planner Task_CS2Run's resume uses, run over a probe that carries
+ * only the request -- so the two can never disagree about what a request is
+ * waiting for. The plans that need the task's own resume (a pack baked into
+ * the tree, a loc's or a head's model set, an obj icon) are refused, as is an
+ * ABORT; every other plan is at most two plain config loads.
+ */
+int
+CS2Run_RequestAwait(
+    struct RS_CS2Host* host,
+    struct CS2VM_HostRequest const* request,
+    struct CS2RunAwait* out)
+{
+    struct Task_CS2Run probe;
+
+    assert(host);
+    assert(request);
+    assert(out);
+    memset(&probe, 0, sizeof(probe));
+    probe.host = host;
+    probe.provider = host->provider;
+    probe.script_id = -1;
+    /* Read-only: every planner reads `pending` and writes only the plan. */
+    probe.pending = (struct CS2VM_HostRequest*)request;
+    task_cs2_plan_yield(&probe);
+
+    out->plan = (int)probe.yield_plan;
+    out->ids[0] = probe.await_id;
+    out->ids[1] = -1;
+    out->count = 0;
+    if( probe.yield_plan == TASK_CS2_YIELD_COMPONENT || probe.yield_plan == TASK_CS2_YIELD_LOC_MODEL ||
+        probe.yield_plan == TASK_CS2_YIELD_NPC_HEAD || probe.yield_plan == TASK_CS2_YIELD_SETOBJECT ||
+        probe.yield_plan == TASK_CS2_YIELD_ABORT )
+        return 0;
+    if( probe.yield_plan == TASK_CS2_YIELD_NONE )
+        return 1;
+    /* The one-id plans state no second id; the paired ones may state either
+     * or both (a struct param with no struct, an empty obj slot's param). */
+    if( probe.yield_plan == TASK_CS2_YIELD_STRUCT || probe.yield_plan == TASK_CS2_YIELD_PARAMS ||
+        probe.yield_plan == TASK_CS2_YIELD_OBJ || probe.yield_plan == TASK_CS2_YIELD_NPC_PARAM ||
+        probe.yield_plan == TASK_CS2_YIELD_LOC_PARAM )
+    {
+        out->ids[1] = probe.await_id2;
+        out->count = 2;
+        return 1;
+    }
+    out->count = 1;
+    return 1;
+}
+
+struct ToriRS_Task*
+CS2Run_RequestLoadTask(
+    struct CacheProvider* provider,
+    struct CS2RunAwait const* await,
+    int which)
+{
+    int id;
+    enum TaskCS2YieldPlan plan;
+
+    assert(provider);
+    assert(await);
+    assert(which >= 0);
+    assert(which < await->count);
+    id = await->ids[which];
+    plan = (enum TaskCS2YieldPlan)await->plan;
+    if( id < 0 && plan != TASK_CS2_YIELD_WORLDMAP && plan != TASK_CS2_YIELD_OBJALL )
+        return NULL;
+    /* The second id of every paired plan is a ParamType, except PARAMS, whose
+     * both are. */
+    if( which == 1 || plan == TASK_CS2_YIELD_PARAMS )
+        return CreateTask_ParamLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_SCRIPT )
+        return CreateTask_ClientScriptLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_INVTYPE )
+        return CreateTask_InvtypeLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_ENUM )
+        return CreateTask_EnumLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_STRUCT )
+        return CreateTask_StructLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_OBJ )
+        return CreateTask_ObjLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_NPC || plan == TASK_CS2_YIELD_NPC_PARAM )
+        return CreateTask_NpcLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_LOC_PARAM )
+        return CreateTask_LocLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_MODEL )
+        return CreateTask_ModelLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_SPRITE )
+        return CreateTask_SpriteLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_FONT )
+        return CreateTask_FontLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_WORLDMAP )
+        return CreateTask_WorldMapLoad(provider);
+    if( plan == TASK_CS2_YIELD_MAPELEMENT )
+        return CreateTask_MapElementLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_OBJALL )
+        return CreateTask_ObjLoadAll(provider);
+    if( plan == TASK_CS2_YIELD_DBROW )
+        return CreateTask_DbRowLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_DBINDEX )
+        return CreateTask_DbTableIndexLoad(provider, id);
+    if( plan == TASK_CS2_YIELD_DBTABLE )
+        return CreateTask_DbTableLoad(provider, id);
+    assert(0 && "CS2Run_RequestLoadTask: a plan CS2Run_RequestAwait refuses");
+    return NULL;
+}
+
+/*
  * Exact-sized copy of one positional string argument.
  *
  * Still truncated at TASK_CS2_RUN_STR_ARG_LEN so dispatch behaviour is

@@ -2327,6 +2327,78 @@ d3d9_ui_draw_fill_rect(
     }
 }
 
+/* ---- filled polygon ------------------------------------------------------
+ *
+ * The shared decomposition (render/torirs_polygon.c) turns the run into
+ * horizontal spans and each is one untextured quad in the UI batch -- the
+ * same geometry gl3, the GLES/WebGL UI paths and soft3d draw, so a tile wash
+ * or a plugin polygon covers the same pixels here as everywhere else. Before
+ * this the run was dropped, so every tile wash and every filled plugin
+ * polygon was missing on this backend while its outline drew. */
+struct d3d9_span_ctx
+{
+    struct ToriPlatformWin32_Renderer_D3D9* renderer;
+    RECT scissor;
+    D3DCOLOR color;
+};
+
+static void
+d3d9_polygon_span(
+    void* user_data,
+    int x,
+    int y,
+    int count)
+{
+    struct d3d9_span_ctx* ctx = user_data;
+    if( count <= 0 )
+        return;
+    d3d9_ui_append_quad(
+        ctx->renderer,
+        NULL,
+        false,
+        &ctx->scissor,
+        (float)x,
+        (float)y,
+        (float)(x + count),
+        (float)(y + 1),
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        ctx->color);
+}
+
+static void
+d3d9_ui_polygon_end(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    struct d3d9_span_ctx ctx;
+    int const sx = renderer->polygon.scissor_w > 0 ? renderer->polygon.scissor_x : 0;
+    int const sy = renderer->polygon.scissor_h > 0 ? renderer->polygon.scissor_y : 0;
+    int const sw = renderer->polygon.scissor_w > 0 ? renderer->polygon.scissor_w : renderer->width;
+    int const sh = renderer->polygon.scissor_h > 0 ? renderer->polygon.scissor_h : renderer->height;
+    int alpha;
+
+    if( !renderer->polygon_open )
+        return;
+    renderer->polygon_open = 0;
+    if( !renderer->in2d || !d3d9_ui_scissor_rect(renderer, sx, sy, sw, sh, &ctx.scissor) )
+        return;
+    /* `trans` is the sprite path's sense: 0 opaque, 255 invisible. */
+    alpha = 255 - (renderer->polygon.trans & 0xFF);
+    ctx.color = (D3DCOLOR)(((uint32_t)alpha << 24) | ((uint32_t)renderer->polygon.argb & 0xFFFFFFu));
+    ctx.renderer = renderer;
+    ToriRS_PolygonFillConvex(
+        renderer->polygon_x,
+        renderer->polygon_y,
+        renderer->polygon_count,
+        sx,
+        sy,
+        sw,
+        sh,
+        d3d9_polygon_span,
+        &ctx);
+}
+
 static void
 d3d9_ui_draw_line(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
@@ -6789,12 +6861,22 @@ d3d9_dispatch(
         break;
     }
     case TORIRSRC_POLYGON_BEGIN:
+        renderer->polygon = command->u.polygon_begin;
+        renderer->polygon_count = 0;
+        renderer->polygon_open = 1;
+        break;
     case TORIRSRC_POLYGON_POINT:
+        /* Points past the cap are dropped rather than growing the run, as in
+         * every other backend: the emitter never sends more than the cap. */
+        if( renderer->polygon_open && renderer->polygon_count < TORIRS_POLYGON_MAX_POINTS )
+        {
+            renderer->polygon_x[renderer->polygon_count] = command->u.polygon_point.x;
+            renderer->polygon_y[renderer->polygon_count] = command->u.polygon_point.y;
+            renderer->polygon_count++;
+        }
+        break;
     case TORIRSRC_POLYGON_END:
-        /* Filled polygon runs are a gl3/webgl1/soft3d feature; this backend has
-         * no path for them and drops the run rather than drawing it wrong.
-         * Listed one by one so adding a command to the enum keeps failing the
-         * -Wswitch check here instead of falling silently into a default. */
+        d3d9_ui_polygon_end(renderer);
         break;
     case TORIRSRC_NONE:
         break;

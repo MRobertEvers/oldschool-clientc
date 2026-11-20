@@ -1135,6 +1135,10 @@ App_OpenRootInterface(
      * and the tree that drew them is about to be cleared. */
     app_title_flames_stop(app);
     app_open_tree(app, interface_id, NULL, APP_TITLE_LAYOUT_GROUP, true);
+    /* The toplevel's mount, for on_interface: the tree was just cleared (which
+     * announced the old top closed); this is the new one. */
+    if( app->tree && interface_id > 0 )
+        UITree_MountNotifyRoot(app->tree, interface_id);
     /* What was kept in this top's own slots comes back with it. Queued behind
      * the boot like any IF_OPENSUB that follows an IF_OPENTOP. */
     App_RootMountsReturn(app, interface_id);

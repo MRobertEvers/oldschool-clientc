@@ -182,6 +182,21 @@ PanelOverlayStage_Kept(
     int* out_row);
 
 /**
+ * The text of kept primitive `index`, in the kept list itself.
+ *
+ * A display-list TEXT prim holds its string by POINTER and is read after the
+ * call that built it returns, so it must point here and never into the copy
+ * PanelOverlayStage_Kept hands out (a stack copy: the presenter then drew
+ * whatever the stack held next, which is how every word a plugin painted into
+ * a panel well vanished on the in-canvas presenter). Stable until the next
+ * commit, reset or retire of the stage.
+ */
+char const*
+PanelOverlayStage_KeptText(
+    struct PanelOverlayStage const* stage,
+    int index);
+
+/**
  * Copy `owner`'s kept run into the staging list, shifted so (origin_x,
  * origin_y) becomes (0, 0), and return how many were copied.
  *

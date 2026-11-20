@@ -477,6 +477,191 @@ test_idempotent_anchor(struct IdemScene* s)
     }
 }
 
+
+/* The emitted text and colour of `node`, or NULL when it emitted nothing. */
+static char const*
+emitted_text(struct IdemScene* s, int32_t node, int* color)
+{
+    UITree_TestResolve(s->tree);
+    s->buffer.count = 0;
+    UITree_EmitWalk(s->tree, &s->host, &s->buffer, -1);
+    for( int i = 0; i < s->buffer.count; i++ )
+        if( s->buffer.cmds[i].node_index == node && s->buffer.cmds[i].kind == UITREE_EMIT_TEXT )
+        {
+            *color = s->buffer.cmds[i].color;
+            return s->buffer.cmds[i].text;
+        }
+    return NULL;
+}
+
+/*
+ * A plugin's retained NATIVE text edit (setText / setTextColor on a game
+ * widget): drawn instead of the node's own string and colour, owner-scoped,
+ * newest owner wins, the node's own fields untouched, and a reset shows the
+ * game's text again. An owned control is refused (it has set_text).
+ */
+static void
+test_native_text_edits(struct IdemScene* s)
+{
+    int32_t const text = UITree_TestPushXy(s->tree, s->root, UIELEM_RS_TEXT, (792 << 16) | 9, 10, 100, 200, 16);
+    struct UITreeNodeRef const r = UITree_RefAt(s->tree, text);
+    char const* t;
+    int rgb = 0, color = 0;
+    UITree_SetTextAt(s->tree, text, "Native line");
+    UITree_SetColourAt(s->tree, text, 0x112233);
+    t = emitted_text(s, text, &color);
+    TEST_ASSERT(t && strcmp(t, "Native line") == 0 && color == 0x112233, "the native text draws as the game set it");
+
+    TEST_ASSERT(UITree_WidgetSetNativeText(s->tree, r, OWNER_A, "<col=00ff00>Native line"), "owner A edits the text");
+    TEST_ASSERT(UITree_WidgetSetNativeTextColor(s->tree, r, OWNER_A, 0x00ff00), "owner A edits the colour");
+    t = emitted_text(s, text, &color);
+    TEST_ASSERT(t && strcmp(t, "<col=00ff00>Native line") == 0 && color == 0x00ff00, "the edit is what draws");
+    TEST_ASSERT(strcmp(s->tree->components[text].u.rs_text.text, "Native line") == 0 &&
+                s->tree->components[text].u.rs_text.color == 0x112233, "the node's own text and colour are untouched");
+
+    settle(s);
+    {
+        struct Quiet const before = quiet_capture(s);
+        TEST_ASSERT(UITree_WidgetSetNativeText(s->tree, r, OWNER_A, "<col=00ff00>Native line"), "restated text");
+        TEST_ASSERT(UITree_WidgetSetNativeTextColor(s->tree, r, OWNER_A, 0x00ff00), "restated colour");
+        TEST_ASSERT(UITree_WidgetEditSerial() == before.serial && !UITree_NodeNeedsEmit(&s->tree->components[text]),
+                    "restating the winning native text edit writes nothing");
+    }
+
+    TEST_ASSERT(UITree_WidgetSetNativeText(s->tree, r, OWNER_B, "B's line"), "owner B edits after A");
+    TEST_ASSERT(UITree_WidgetNativeTextAt(s->tree, text, &t, &rgb) == 3 && strcmp(t, "B's line") == 0 && rgb == 0x00ff00,
+                "the newest text edit wins per aspect; A's colour still stands");
+    TEST_ASSERT(UITree_WidgetSetNativeText(s->tree, r, OWNER_A, "<col=00ff00>Native line"),
+                "owner A restates its own text");
+    TEST_ASSERT(UITree_WidgetNativeTextAt(s->tree, text, &t, &rgb) == 3 && strcmp(t, "<col=00ff00>Native line") == 0,
+                "a losing owner's restatement takes the aspect back");
+
+    TEST_ASSERT(UITree_WidgetReset(s->tree, r, OWNER_A), "owner A resets");
+    TEST_ASSERT(UITree_WidgetNativeTextAt(s->tree, text, &t, &rgb) == 1 && strcmp(t, "B's line") == 0,
+                "a reset exposes the remaining owner's edit");
+    UITree_WidgetResetOwner(s->tree, OWNER_B);
+    t = emitted_text(s, text, &color);
+    TEST_ASSERT(UITree_WidgetNativeTextAt(s->tree, text, &t, &rgb) == 0, "teardown leaves no edit");
+    t = emitted_text(s, text, &color);
+    TEST_ASSERT(t && strcmp(t, "Native line") == 0 && color == 0x112233, "and the game's own text draws again");
+
+    TEST_ASSERT(UITree_WidgetSetNativeText(s->tree, r, OWNER_A, "Highlighted"), "owner A edits again");
+    TEST_ASSERT(UITree_WidgetSetNativeTextColor(s->tree, r, OWNER_A, 0x00ff00), "and recolours");
+    UITree_SetTextAt(s->tree, text, "Native line");
+    TEST_ASSERT(UITree_WidgetNativeTextAt(s->tree, text, &t, &rgb) == 3, "restating the game's own string changes nothing");
+    UITree_SetTextAt(s->tree, text, "A new page");
+    TEST_ASSERT(UITree_WidgetNativeTextAt(s->tree, text, &t, &rgb) == 2,
+                "the game writing a new string drops the text edit, not the colour");
+    UITree_SetColourAt(s->tree, text, 0x445566);
+    TEST_ASSERT(UITree_WidgetNativeTextAt(s->tree, text, &t, &rgb) == 0, "and a new colour drops the colour edit");
+    t = emitted_text(s, text, &color);
+    TEST_ASSERT(t && strcmp(t, "A new page") == 0 && color == 0x445566, "the game's write is what draws");
+    UITree_WidgetResetOwner(s->tree, OWNER_A);
+    {
+        struct UITreeComponent* c = &s->tree->components[text];
+        c->plugin_owner = OWNER_A;
+        TEST_ASSERT(!UITree_WidgetSetNativeText(s->tree, r, OWNER_A, "x"), "an owned control takes no native text edit");
+        c->plugin_owner = 0;
+    }
+    TEST_ASSERT(!UITree_WidgetSetNativeText(s->tree, UITree_RefAt(s->tree, s->rect), OWNER_A, "x"),
+                "a non-text node takes no native text edit");
+}
+
+/*
+ * A plugin's re-lay of a NATIVE item cell (setItemId / setItemQuantity /
+ * setOpacity / setHidden on a game widget: the bank tab). Written through --
+ * the node shows the plugin's obj, so every reader agrees -- with the game's
+ * value kept beside the edit: a reset puts the next owner's or the game's
+ * back, and the game writing the cell itself drops the edit.
+ */
+static void
+test_native_cell_edits(struct IdemScene* s)
+{
+    int32_t const cell = UITree_TestPushXy(s->tree, s->root, UIELEM_RS_GRAPHIC, (792 << 16) | 12, 10, 140, 36, 32);
+    struct UITreeNodeRef const r = UITree_RefAt(s->tree, cell);
+    struct UITreeComponent* c = &s->tree->components[cell];
+    UITree_SetObjectAt(s->tree, cell, 995, 5000, 41, 0, 0);
+    UITree_SetTransparencyAt(s->tree, cell, 0);
+    UITree_SetHideAt(s->tree, cell, 1);
+
+    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 2, 42), "owner A re-lays the cell");
+    TEST_ASSERT(c->item_id == 1931 && c->item_count == 2 && c->item_scene_id == 42,
+                "the edit is written through: the cell holds the plugin's obj");
+    settle(s);
+    {
+        struct Quiet const before = quiet_capture(s);
+        TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 2, 42), "restated re-lay");
+        assert_quiet(s, &before, cell, "restating the winning native obj edit");
+    }
+    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_B, 1925, 1, 43), "owner B re-lays after A");
+    TEST_ASSERT(c->item_id == 1925, "the newest owner's obj shows");
+    TEST_ASSERT(UITree_WidgetReset(s->tree, r, OWNER_B), "owner B resets");
+    TEST_ASSERT(c->item_id == 1931 && c->item_scene_id == 42, "a reset shows the remaining owner's obj");
+    TEST_ASSERT(UITree_WidgetSetNativeTransparency(s->tree, r, OWNER_A, 120), "owner A fades the cell");
+    TEST_ASSERT(UITree_WidgetSetNativeHidden(s->tree, r, OWNER_A, false), "owner A shows a cell the game hid");
+    TEST_ASSERT(c->trans == 120 && c->behavior.hide == 0 && c->native_hide == 0, "both are written through");
+    UITree_WidgetResetOwner(s->tree, OWNER_A);
+    TEST_ASSERT(c->item_id == 995 && c->item_count == 5000 && c->item_scene_id == 41,
+                "teardown puts the game's obj back");
+    TEST_ASSERT(c->trans == 0 && c->behavior.hide == 1, "and its transparency and hide");
+
+    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 2, 42), "owner A re-lays again");
+    TEST_ASSERT(UITree_WidgetSetNativeHidden(s->tree, r, OWNER_A, false), "and shows it");
+    UITree_SetObjectAt(s->tree, cell, 590, 1, 44, 0, 0);
+    UITree_SetHideAt(s->tree, cell, 1);
+    UITree_WidgetResetOwner(s->tree, OWNER_A);
+    TEST_ASSERT(c->item_id == 590 && c->item_scene_id == 44 && c->behavior.hide == 1,
+                "the game's own writes dropped the edits: a reset does not resurrect the old cell");
+
+    {
+        int32_t const text = UITree_TestPushXy(s->tree, s->root, UIELEM_RS_TEXT, (792 << 16) | 13, 10, 180, 36, 16);
+        TEST_ASSERT(!UITree_WidgetSetNativeObject(s->tree, UITree_RefAt(s->tree, text), OWNER_A, 995, 1, 41),
+                    "only a graphic or objbox cell takes an obj re-lay");
+    }
+    c->plugin_owner = OWNER_A;
+    TEST_ASSERT(!UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 995, 1, 41), "an owned control takes no native re-lay");
+    TEST_ASSERT(!UITree_WidgetSetNativeHidden(s->tree, r, OWNER_A, false), "nor a native hide");
+    c->plugin_owner = 0;
+}
+
+/* The mount seam on_interface hangs off: a listener told every group mounted
+ * and unmounted, by the mount table itself. */
+static char g_mount_trace[128];
+static void
+mount_trace(void* user, int group_id, int open)
+{
+    char step[24];
+    (void)user;
+    snprintf(step, sizeof(step), "%c%d ", open ? '+' : '-', group_id);
+    strncat(g_mount_trace, step, sizeof(g_mount_trace) - strlen(g_mount_trace) - 1);
+}
+static void
+test_mount_listener(void)
+{
+    struct UITree* tree = UITree_New(8);
+    assert(tree);
+    g_mount_trace[0] = 0;
+    UITree_InterfaceParentSet(tree, (161 << 16) | 5, 149, 1);
+    TEST_ASSERT(g_mount_trace[0] == 0, "no listener, no calls");
+    UITree_SetMountListener(tree, mount_trace, NULL);
+    UITree_MountNotifyRoot(tree, 161);
+    UITree_MountNotifyRoot(tree, 161);
+    UITree_InterfaceParentSet(tree, (161 << 16) | 7, 231, 0);
+    UITree_InterfaceParentSet(tree, (161 << 16) | 7, 231, 1);
+    UITree_InterfaceParentSet(tree, (161 << 16) | 7, 217, 0);
+    UITree_InterfaceParentClear(tree, (161 << 16) | 7);
+    UITree_InterfaceParentClear(tree, (161 << 16) | 7);
+    TEST_ASSERT(strcmp(g_mount_trace, "+161 +231 -231 +217 -217 ") == 0,
+                "the root once, a sub once, a replacement as close+open, a clear once");
+    g_mount_trace[0] = 0;
+    UITree_Clear(tree);
+    TEST_ASSERT(strcmp(g_mount_trace, "-149 -161 ") == 0, "clearing the tree closes every mount and the toplevel");
+    g_mount_trace[0] = 0;
+    UITree_MountNotifyRoot(tree, 165);
+    TEST_ASSERT(strcmp(g_mount_trace, "+165 ") == 0, "a toplevel after a clear opens with nothing to close");
+    UITree_Free(tree);
+}
+
 void
 test_widget_idempotent_edits(void)
 {
@@ -487,5 +672,8 @@ test_widget_idempotent_edits(void)
     test_idempotent_hidden(&s);
     test_idempotent_skin(&s);
     test_idempotent_anchor(&s);
+    test_native_text_edits(&s);
+    test_native_cell_edits(&s);
     scene_close(&s);
+    test_mount_listener();
 }

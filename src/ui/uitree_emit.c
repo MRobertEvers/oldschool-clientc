@@ -428,6 +428,17 @@ UITree_EmitFill(
         {
             color = component->behavior.over_color;
         }
+        /* A plugin's retained native text edit (UITree_WidgetSetNativeText /
+         * Color): the string replaces whichever the node would draw, the colour
+         * replaces its base colour. The node's own fields are untouched, so a
+         * reset shows them again. */
+        char const* edit_text = NULL;
+        int edit_rgb = 0;
+        int const edits = tree ? UITree_WidgetNativeTextAt(tree, node_index, &edit_text, &edit_rgb) : 0;
+        if( edits & 1 )
+            text = edit_text;
+        if( (edits & 2) && !active && !(hovered && component->behavior.over_color != 0) )
+            color = edit_rgb;
         /*
          * The click has gone out and the server has not answered yet: this one
          * component says "Please wait..." instead of whatever page it is still
@@ -443,7 +454,7 @@ UITree_EmitFill(
         if( pause_index >= 0 && pause_index == node_index )
         {
             text = "Please wait...";
-            color = component->u.rs_text.color;
+            color = (edits & 2) ? edit_rgb : component->u.rs_text.color;
         }
         /* An editable field with the caret in it draws even while empty --
          * the caret IS the content, and a box that shows nothing until the

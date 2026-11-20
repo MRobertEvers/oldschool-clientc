@@ -2051,6 +2051,14 @@ app_plugin_asset_write(
     int size);
 
 int
+app_plugin_script_read(
+    void* user,
+    char const* path,
+    int serial,
+    void (*deliver)(void* deliver_user, int serial, char const* path, void* data, int size),
+    void* deliver_user);
+
+int
 app_plugin_screenshot(
     void* user,
     char const* plugin,
@@ -2103,6 +2111,16 @@ app_plugin_fill_obj(
     struct ToriRS_GroundItemSnapshot* out);
 
 void app_script_callback(void* user,struct CS2VM2_Thread* thread,char const* name);
+/** RS_CS2Host::item_search: the GE item search offered to the plugins
+ *  (on_item_search); -1 when none answered. */
+int app_item_search(void* user, char const* query, bool tradeable_only, int* out, int cap);
+/** A "::" command the player entered (`body` after the "::"), offered to the
+ *  plugins (on_command) before the client sends it or runs a client cheat:
+ *  true when one consumed it. */
+bool app_plugin_command(struct App* app, char const* body);
+/** A plugin owned MODEL control's scene model for (enum UIIfHeadKind, id), or
+ *  -1 while it is not composited; `request` queues the load. */
+int App_PluginModelScene(struct App* app, int kind, int id, bool request);
 
 int
 app_plugin_hover_entity(void* user, struct ToriRS_HoverTarget* out);
@@ -2118,6 +2136,45 @@ app_plugin_frame_activate(void* user, int active, int canvas, int fixed_w, int f
 
 void
 app_plugin_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass);
+
+/** The plugin row for one minimenu option, as on_menu_build and on_menu_select
+ *  are handed it (RuneLite's identifier/param0/param1/type included). */
+struct UIMinimenuOption;
+struct ToriRS_MenuRow;
+void
+app_plugin_menu_row(
+    struct App* app,
+    struct UIMinimenuOption const* opt,
+    struct ToriRS_MenuRow* row);
+
+/** UITree::mount_listener: an interface group mounted or unmounted. */
+void
+app_plugin_mount_changed(void* user, int group_id, int open);
+
+/** An inventory container changed (InvManager's change callback fan-out). */
+void
+app_plugin_inventory_changed(struct App* app, int container_id);
+
+/** A loc change landed in `world`'s scenery (scene tile): on_loc_changed,
+ *  for the root world only. `old_loc_id` -1 when none stood there. */
+void
+app_plugin_loc_changed(
+    struct App* app,
+    struct World const* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int shape,
+    int angle,
+    int loc_id,
+    int old_loc_id,
+    int old_shape,
+    int old_angle);
+
+/** Owned item controls waiting on an obj model: bind the icons that landed.
+ *  Nothing to do (one test) while none wait. */
+void
+app_plugin_widget_items_pump(struct App* app);
 
 struct ToriRS_PluginEngine
 app_plugin_engine(struct App* app);

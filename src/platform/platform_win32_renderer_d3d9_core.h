@@ -37,6 +37,7 @@
 #include "core/trspk_vbo.h"
 #include "core/trspk_world_build.h"
 #include "render/torirs_frame.h"
+#include "render/torirs_polygon.h"
 #include "render/trspk_pose_pool.h"
 #include "render/trspk_toridraw.h"
 
@@ -411,6 +412,14 @@ struct ToriPlatformWin32_Renderer_D3D9
     double frame_clock;
 
     bool in2d;
+
+    /* The open filled-polygon run, POLYGON_BEGIN .. END: its colour and
+     * scissor, and the points so far (render/torirs_polygon.h). */
+    struct ToriRS_RenderCommand_PolygonBegin polygon;
+    int polygon_x[TORIRS_POLYGON_MAX_POINTS];
+    int polygon_y[TORIRS_POLYGON_MAX_POINTS];
+    int polygon_count;
+    int polygon_open;
 
     /* Retained native 2D resources. Static pixels enter these caches once and
      * normal frames only resubmit a compact vertex stream. */

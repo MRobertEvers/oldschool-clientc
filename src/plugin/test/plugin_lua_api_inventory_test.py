@@ -141,7 +141,22 @@ def main() -> int:
         "client": "ToriRS_ClientApi", "game": "ToriRS_GameApi",
         "porcelain": "ToriRS_PorcelainApi",
     }
-    errors += difference("canonical module set", set(modules), set(module_structs))
+    # Lua-only modules (@luaonly in the meta): inventoried against their own
+    # registration array and their meta class, with no C struct to mirror.
+    lua_only_meta = {
+        name for name, annotation in classes.get("torirs.Api", {}).items() if "@luaonly" in annotation
+    }
+    for module in sorted(lua_only_meta):
+        annotation = classes["torirs.Api"][module]
+        class_match = re.match(r"(torirs\.[A-Za-z0-9_]+)", annotation)
+        if not class_match or module not in modules:
+            errors.append(f"api.{module}: @luaonly module without a class or a registration")
+            continue
+        errors += difference(
+            f"api.{module} (lua-only)", arrays.get(modules[module], set()),
+            callable_fields(classes.get(class_match.group(1), {})),
+        )
+    errors += difference("canonical module set", set(modules) - lua_only_meta, set(module_structs))
     for module, struct_name in module_structs.items():
         if module == "widgets":
             widget_calls = arrays.get("LUA_WIDGET_FNS", set()) | arrays.get("LUA_WIDGET_METHOD_FNS", set())
@@ -268,7 +283,10 @@ def main() -> int:
         if path == META_SOURCE:
             continue
         source = strip_line_comments(path.read_text(encoding="utf-8"))
-        for top in re.findall(r"\bapi\.([A-Za-z_][A-Za-z0-9_]*)", source):
+        # `api.` as a name, not the tail of a dotted one: the Quest Helper
+        # entry names Java classes ("net.runelite.api.NPC"), which are not
+        # the plugin api.
+        for top in re.findall(r"(?<![.\w])api\.([A-Za-z_][A-Za-z0-9_]*)", source):
             if top not in canonical_modules:
                 errors.append(f"{path.name}: noncanonical api.{top}")
         for callback in re.findall(r"\bfunction\s+[A-Za-z_][A-Za-z0-9_]*\.(on_[a-z_]+)", source):

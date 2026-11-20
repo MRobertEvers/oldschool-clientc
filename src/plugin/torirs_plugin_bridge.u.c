@@ -26,6 +26,8 @@
  * assembled here.
  */
 int app_plugin_asset_read(void* user, char const* plugin, char const* name);
+int app_plugin_script_read(void* user, char const* path, int serial,
+    void (*deliver)(void* deliver_user, int serial, char const* path, void* data, int size), void* deliver_user);
 int
 app_plugin_asset_write(void* user, char const* plugin, char const* name, void const* data, int size);
 int
@@ -74,6 +76,32 @@ app_plugin_memory_bytes(void* user)
     if( !PlatformMemory_FootprintBytes(&bytes) )
         return 0;
     return bytes > SIZE_MAX ? SIZE_MAX : (size_t)bytes;
+}
+
+/* The Actor fields both snapshots share (orientation, action seq,
+ * face-entity lock): RuneLite's getOrientation/getAnimation/getInteracting. */
+static void
+app_plugin_fill_actor(
+    struct WorldEntityFacet_Orientation const* orientation,
+    struct WorldEntityFacet_Animation const* animation,
+    struct WorldEntityFacet_Facing const* facing,
+    int* out_orientation,
+    int* out_anim_id,
+    int* out_interacting)
+{
+    assert(orientation);
+    assert(animation);
+    assert(facing);
+    assert(out_orientation);
+    assert(out_anim_id);
+    assert(out_interacting);
+    *out_orientation = orientation->yaw & 2047;
+    /* The engine's own "is a primary playing" rule (app_world_apply.c): an
+     * entity that never had one carries 0, a finished one (uint16_t)-1. */
+    *out_anim_id = (animation->primary.anim_id == (uint16_t)-1 || animation->primary.anim_id == 0)
+                       ? -1
+                       : (int)animation->primary.anim_id;
+    *out_interacting = facing->entity_id < 0 ? -1 : facing->entity_id;
 }
 
 /* Reference the local player's route[0], not the draw position: the draw
@@ -162,6 +190,10 @@ app_plugin_fill_player(
     out->server_pid = player->server_pid;
     out->element_id = player->element_id;
     out->combat_level = player->combat_level;
+    out->gender = player->gender;
+    app_plugin_fill_actor(
+        &player->orientation, &player->animation, &player->facing,
+        &out->orientation, &out->anim_id, &out->interacting);
     /*
      * A NAME, or nothing -- never the decoder's failure report.
      *
@@ -224,6 +256,9 @@ app_plugin_fill_npc_for_world(
     out->size = npc->size > 0 ? npc->size : 1;
     out->element_id = npc->element_id;
     out->visible_ops = npc->visible_ops;
+    app_plugin_fill_actor(
+        &npc->orientation, &npc->animation, &npc->facing,
+        &out->orientation, &out->anim_id, &out->interacting);
 
     /*
      * The health bar, if the server has ever sent one.
@@ -1430,6 +1465,30 @@ app_plugin_script_callback_script(struct App* app, char const* name)
     return RevConfigRefs_Get(&app->revconfig_refs, "script", "ground_items_caption");
 }
 
+/* A "::" command, before the client sends it: true when a plugin consumed
+ * it (on_command). `body` is the text after the "::". */
+bool
+app_plugin_command(struct App* app, char const* body)
+{
+    assert(app);
+    assert(body);
+    if( !app->plugins )
+        return false;
+    return PluginHost_Command(app->plugins, body) != 0;
+}
+
+/* RS_CS2Host::item_search: the GE search, offered to the plugins. */
+int app_item_search(void* user, char const* query, bool tradeable_only, int* out, int cap)
+{
+    struct App* app = user;
+    assert(app);
+    assert(query);
+    assert(out);
+    if( !app->plugins )
+        return -1;
+    return PluginHost_ItemSearch(app->plugins, query, tradeable_only, out, cap);
+}
+
 void app_script_callback(void* user,struct CS2VM2_Thread* thread,char const* name)
 {
     struct App* app=user;
@@ -1450,6 +1509,124 @@ void app_script_callback(void* user,struct CS2VM2_Thread* thread,char const* nam
         .get_string=app_script_get_string,.set_string=app_script_set_string};
     stack.widget=app_widget_ref(app->tree,app->tree ? UITree_FindByComponentId(app->tree,thread->active_component_id) : -1);
     PluginHost_ScriptCallback(app->plugins,name,CS2VM_FRAME(thread)->script->script_id,&stack);
+}
+
+/*
+ * The script hooks (CS2VM2_SetScriptHook): ScriptPreFired / ScriptPostFired
+ * for the ids the plugins watch. Two views of the event's values, both "index
+ * 0 is the last": the top of the VM's stacks (an invoked script's arguments
+ * before its frame takes them, every POST's return values), or the entry
+ * frame's own locals (a top-level script's arguments, which its starter
+ * already moved in).
+ */
+struct AppScriptHookView
+{
+    struct CS2VM2_Thread* thread;
+    int int_count;
+    int string_count;
+};
+static int32_t app_script_hook_stack_get_int(void* user, size_t index)
+{
+    struct AppScriptHookView* view = user;
+    return view->thread->ints_stack[view->thread->ints_stack_top - 1 - (int)index];
+}
+static void app_script_hook_stack_set_int(void* user, size_t index, int32_t value)
+{
+    struct AppScriptHookView* view = user;
+    view->thread->ints_stack[view->thread->ints_stack_top - 1 - (int)index] = value;
+}
+static char const* app_script_hook_stack_get_string(void* user, size_t index)
+{
+    struct AppScriptHookView* view = user;
+    return view->thread->strs_stack[view->thread->strs_stack_top - 1 - (int)index];
+}
+static bool app_script_hook_stack_set_string(void* user, size_t index, char const* value)
+{
+    struct AppScriptHookView* view = user;
+    char* copy = CS2VM2_StrDup(view->thread, value);
+    assert(copy);
+    view->thread->strs_stack[view->thread->strs_stack_top - 1 - (int)index] = copy;
+    return true;
+}
+static int32_t app_script_hook_local_get_int(void* user, size_t index)
+{
+    struct AppScriptHookView* view = user;
+    return CS2VM2_GetIntCurrentFrameLocal(view->thread, view->int_count - 1 - (int)index);
+}
+static void app_script_hook_local_set_int(void* user, size_t index, int32_t value)
+{
+    struct AppScriptHookView* view = user;
+    (void)CS2VM2_SetIntCurrentFrameLocal(view->thread, view->int_count - 1 - (int)index, value);
+}
+static char const* app_script_hook_local_get_string(void* user, size_t index)
+{
+    struct AppScriptHookView* view = user;
+    return CS2VM2_GetStringCurrentFrameLocal(view->thread, view->string_count - 1 - (int)index);
+}
+static bool app_script_hook_local_set_string(void* user, size_t index, char const* value)
+{
+    struct AppScriptHookView* view = user;
+    return CS2VM2_SetStringCurrentFrameLocal(view->thread, view->string_count - 1 - (int)index, value) ==
+           CS2VM_EXECNO_OK;
+}
+
+static void
+app_script_hook(
+    void* user,
+    struct CS2VM2_Thread* thread,
+    int script_id,
+    enum CS2VM2_ScriptHookPhase phase,
+    int invoked,
+    int int_count,
+    int string_count)
+{
+    struct App* app = user;
+    struct AppScriptHookView view;
+    struct PluginScriptStack stack;
+    bool locals;
+    bool saved_running;
+
+    assert(app);
+    assert(thread);
+    if( !app->plugins || App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return;
+    /* Never more than the stacks hold: a script that returned past what its
+     * frame started from is still bounded by the stack it left. */
+    locals = phase == CS2VM2_SCRIPT_HOOK_PRE && !invoked;
+    if( !locals )
+    {
+        if( int_count > thread->ints_stack_top )
+            int_count = thread->ints_stack_top;
+        if( string_count > thread->strs_stack_top )
+            string_count = thread->strs_stack_top;
+    }
+    view = (struct AppScriptHookView){thread, int_count, string_count};
+    memset(&stack, 0, sizeof(stack));
+    stack.user = &view;
+    stack.int_count = (size_t)int_count;
+    stack.string_count = (size_t)string_count;
+    stack.writable_ints = int_count >= 64 ? UINT64_MAX : ((UINT64_C(1) << int_count) - 1);
+    stack.writable_strings = string_count >= 64 ? UINT64_MAX : ((UINT64_C(1) << string_count) - 1);
+    stack.get_int = locals ? app_script_hook_local_get_int : app_script_hook_stack_get_int;
+    stack.set_int = locals ? app_script_hook_local_set_int : app_script_hook_stack_set_int;
+    stack.get_string = locals ? app_script_hook_local_get_string : app_script_hook_stack_get_string;
+    stack.set_string = locals ? app_script_hook_local_set_string : app_script_hook_stack_set_string;
+    /* A top-level listener's source: the component the VM made active. */
+    if( !invoked && app->tree && thread->active_component_id >= 0 )
+        stack.widget = app_widget_ref(app->tree, UITree_FindByComponentId(app->tree, thread->active_component_id));
+    /* The VM is mid-script: a plugin's scripts.run from the hook is refused
+     * (app_plugin_script_run tests this), as a RUNELITE_CALLBACK's is. */
+    saved_running = app->host.script_callback_running;
+    app->host.script_callback_running = true;
+    PluginHost_ScriptHook(app->plugins, phase == CS2VM2_SCRIPT_HOOK_POST, script_id, invoked != 0, &stack);
+    app->host.script_callback_running = saved_running;
+}
+
+static bool
+app_plugin_script_watch(void* user, int script_id, bool on)
+{
+    (void)user;
+    return CS2VM2_ScriptWatch(script_id, on);
 }
 
 /*
@@ -2037,6 +2214,619 @@ app_plugin_varp(void* user, int varp_id)
     struct App* app = (struct App*)user;
     assert(app);
     return VarPManager_GetVarp(&app->varps, varp_id);
+}
+
+/* ---------------------------------------------- the Quest Helper port's seams
+ *
+ * Client vars, config records, the chatbox, the hint arrow, a sound, three
+ * numbers and a synchronous clientscript run -- each the client's OWN state,
+ * read or written where the client's own code reads or writes it. Nothing
+ * here is a packet. */
+
+static int
+app_plugin_varc_int(void* user, int id)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    return VarCManager_GetInt(&app->varcs, id);
+}
+
+static char const*
+app_plugin_varc_str(void* user, int id)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    return VarCManager_GetString(&app->varcs, id);
+}
+
+static void
+app_plugin_set_varc_int(void* user, int id, int value)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    VarCManager_SetInt(&app->varcs, id, value);
+}
+
+static void
+app_plugin_set_varc_str(void* user, int id, char const* value)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    assert(value);
+    VarCManager_SetString(&app->varcs, id, value);
+}
+
+/* client-side, as a clientscript's own varbit write: the base varp's local
+ * copy and its transmit listeners, never the server. */
+static int
+app_plugin_set_varbit(void* user, int varbit_id, int value)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    if( VarPManager_VarbitBaseVar(&app->varps, varbit_id) < 0 )
+        return 0;
+    RS_CS2Host_ScriptWriteVarbit(&app->host, varbit_id, value);
+    return 1;
+}
+
+/* client.open_url: through the slot the server's URL_OPEN and main.c's
+ * PlatformWindow_OpenUrl already share, so it goes out at this frame's end. */
+static int
+app_plugin_open_url(void* user, char const* url)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    assert(url);
+    if( !app->plugin_open_url_ok )
+        return TORIRS_RESULT_UNSUPPORTED;
+    if( app->host.client.pending_open_url[0] )
+        return TORIRS_RESULT_CONFLICT;
+    assert(strlen(url) < sizeof(app->host.client.pending_open_url));
+    snprintf(app->host.client.pending_open_url, sizeof(app->host.client.pending_open_url), "%s", url);
+    TORIRS_LOG("plugin: open_url %s\n", url);
+    return TORIRS_RESULT_OK;
+}
+
+/*
+ * The load memo (App::plugin_loads). Kinds below APP_PLUGIN_LOAD_PLAN are
+ * the def records; a script run's awaits are keyed APP_PLUGIN_LOAD_PLAN +
+ * plan * 2 + which, so the two halves of a paired yield are remembered apart.
+ */
+enum
+{
+    APP_PLUGIN_LOAD_ENUM = 1,
+    APP_PLUGIN_LOAD_NPC,
+    APP_PLUGIN_LOAD_LOC,
+    APP_PLUGIN_LOAD_SCRIPT,
+    APP_PLUGIN_LOAD_SEQ,
+    APP_PLUGIN_LOAD_PLAN = 64,
+};
+
+#define APP_PLUGIN_LOAD_MEMOS ((int)(sizeof(((struct App*)0)->plugin_loads) / sizeof(((struct App*)0)->plugin_loads[0])))
+
+static struct AppPluginLoadMemo*
+app_plugin_load_find(struct App* app, int kind, int id)
+{
+    assert(app);
+    for( int i = 0; i < APP_PLUGIN_LOAD_MEMOS; i++ )
+    {
+        struct AppPluginLoadMemo* memo = &app->plugin_loads[i];
+        if( memo->kind == kind && memo->id == id )
+            return memo;
+    }
+    return NULL;
+}
+
+/*
+ * Queue `task` and remember it. A slot whose load is still out is never
+ * reused -- the frame queue holds a pointer to its count -- so when all of
+ * them are out the task is dropped unrun and the caller is simply told to
+ * ask again, which it was going to be told anyway.
+ */
+static void
+app_plugin_load_queue(struct App* app, int kind, int id, struct ToriRS_Task* task)
+{
+    struct AppPluginLoadMemo* slot = NULL;
+
+    assert(app);
+    assert(task);
+    for( int i = 0; i < APP_PLUGIN_LOAD_MEMOS; i++ )
+    {
+        struct AppPluginLoadMemo* memo = &app->plugin_loads[i];
+        if( memo->join > 0 )
+            continue;
+        if( !slot || memo->stamp < slot->stamp )
+            slot = memo;
+    }
+    if( !slot )
+    {
+        task_free(task);
+        return;
+    }
+    slot->kind = kind;
+    slot->id = id;
+    slot->id2 = -1;
+    slot->join = 0;
+    slot->stamp = ++app->plugin_load_stamp;
+    (void)ToriRS_TaskQueue_AddParallelPoolSubTask(app->frame_runner.queue, task, &slot->join);
+}
+
+/* A def record the cache does not hold: PENDING while its load is out (or
+ * was just queued), MISSING once a load of it has ended without it. */
+static enum ToriRS_AssetState
+app_plugin_record_miss(struct App* app, int kind, int id)
+{
+    struct AppPluginLoadMemo* memo;
+    struct ToriRS_Task* task;
+
+    assert(app);
+    assert(app->provider);
+    memo = app_plugin_load_find(app, kind, id);
+    if( memo )
+        return memo->join > 0 ? TORIRS_ASSET_PENDING : TORIRS_ASSET_MISSING;
+    if( kind == APP_PLUGIN_LOAD_ENUM )
+        task = CreateTask_EnumLoad(app->provider, id);
+    else if( kind == APP_PLUGIN_LOAD_NPC )
+        task = CreateTask_NpcLoad(app->provider, id);
+    else if( kind == APP_PLUGIN_LOAD_LOC )
+        task = CreateTask_LocLoad(app->provider, id);
+    else if( kind == APP_PLUGIN_LOAD_SEQ )
+        task = CreateTask_SequenceLoad(app->provider, app->scene, id);
+    else
+    {
+        assert(kind == APP_PLUGIN_LOAD_SCRIPT);
+        task = CreateTask_ClientScriptLoad(app->provider, id);
+    }
+    /* NULL is the CreateTask_*Load answer for "nothing to load": this cache
+     * cannot serve the record at all. */
+    if( !task )
+        return TORIRS_ASSET_MISSING;
+    app_plugin_load_queue(app, kind, id, task);
+    return TORIRS_ASSET_PENDING;
+}
+
+static void
+app_plugin_def_text(char* out, size_t capacity, char const* text)
+{
+    assert(out);
+    assert(capacity > 0);
+    (void)snprintf(out, capacity, "%s", text ? text : "");
+}
+
+static void
+app_plugin_def_list(struct ToriRS_DefList* list, int const* values, int count)
+{
+    assert(list);
+    if( !values || count < 0 )
+        count = 0;
+    list->count = count;
+    for( int i = 0; i < count && i < list->capacity; i++ )
+        list->values[i] = values[i];
+}
+
+/* The multinpc / multiloc child the client's varps select now, the
+ * resolution the world itself makes (VarPManager_ResolveTransform). */
+static int
+app_plugin_def_impostor(
+    struct App* app,
+    int const* transforms,
+    int transform_count,
+    int transform_varbit,
+    int transform_varp)
+{
+    assert(app);
+    if( transform_count <= 0 || !transforms )
+        return -1;
+    return VarPManager_ResolveTransform(
+        &app->varps, transforms, transform_count, transform_varbit, transform_varp);
+}
+
+static int
+app_plugin_enum_def(
+    void* user,
+    int id,
+    struct ToriRS_EnumDef* out,
+    struct ToriRS_EnumEntry* entries,
+    int capacity)
+{
+    struct App* app = (struct App*)user;
+    struct ToriRS_Enum* e;
+
+    assert(app);
+    assert(out);
+    if( capacity > 0 )
+        assert(entries);
+    if( !app->provider )
+        return TORIRS_ASSET_MISSING;
+    e = CacheProvider_EnumGet(app->provider, id);
+    if( !e )
+        return app_plugin_record_miss(app, APP_PLUGIN_LOAD_ENUM, id);
+
+    memset(out, 0, sizeof(*out));
+    out->id = id;
+    out->key_type = (unsigned char)e->input_type;
+    /* The decoded record keeps only whether its values are strings, not the
+     * output type character, so an obj- or coord-valued enum reads 'i'. */
+    out->value_type = e->output_is_string ? 's' : 'i';
+    out->value_is_string = e->output_is_string;
+    out->default_int = e->default_int;
+    app_plugin_def_text(out->default_string, sizeof(out->default_string), e->default_string);
+    out->count = e->count;
+    for( int i = 0; i < e->count && i < capacity; i++ )
+    {
+        entries[i].key = e->keys ? e->keys[i] : 0;
+        entries[i].int_value = !e->output_is_string && e->int_values ? e->int_values[i] : 0;
+        app_plugin_def_text(
+            entries[i].string_value,
+            sizeof(entries[i].string_value),
+            e->output_is_string && e->string_values ? e->string_values[i] : "");
+    }
+    return TORIRS_ASSET_READY;
+}
+
+static int
+app_plugin_npc_def(void* user, int id, struct ToriRS_NpcDef* out)
+{
+    struct App* app = (struct App*)user;
+    struct ToriRS_Npctype* npc;
+
+    assert(app);
+    assert(out);
+    if( !app->provider )
+        return TORIRS_ASSET_MISSING;
+    npc = CacheProvider_NpctypeGet(app->provider, id);
+    if( !npc )
+        return app_plugin_record_miss(app, APP_PLUGIN_LOAD_NPC, id);
+
+    out->id = id;
+    app_plugin_def_text(out->name, sizeof(out->name), npc->name);
+    for( int i = 0; i < TORIRS_DEF_ACTIONS; i++ )
+        app_plugin_def_text(out->actions[i], sizeof(out->actions[i]), npc->actions[i]);
+    out->size = npc->size;
+    out->combat_level = npc->combat_level;
+    out->transform_varbit = npc->transform_varbit;
+    out->transform_varp = npc->transform_varp;
+    out->impostor = app_plugin_def_impostor(
+        app, npc->transforms, npc->transform_count, npc->transform_varbit, npc->transform_varp);
+    app_plugin_def_list(&out->transforms, npc->transforms, npc->transform_count);
+    app_plugin_def_list(&out->models, npc->models, npc->models_count);
+    app_plugin_def_list(&out->recolor_from, npc->recolors_from, npc->recolor_count);
+    app_plugin_def_list(&out->recolor_to, npc->recolors_to, npc->recolor_count);
+    return TORIRS_ASSET_READY;
+}
+
+static int
+app_plugin_loc_def(void* user, int id, struct ToriRS_LocDef* out)
+{
+    struct App* app = (struct App*)user;
+    struct ToriRS_Location* loc;
+
+    assert(app);
+    assert(out);
+    if( !app->provider )
+        return TORIRS_ASSET_MISSING;
+    loc = CacheProvider_LocationGet(app->provider, id);
+    if( !loc )
+        return app_plugin_record_miss(app, APP_PLUGIN_LOAD_LOC, id);
+
+    out->id = id;
+    app_plugin_def_text(out->name, sizeof(out->name), loc->name);
+    for( int i = 0; i < TORIRS_DEF_ACTIONS; i++ )
+        app_plugin_def_text(out->actions[i], sizeof(out->actions[i]), loc->actions[i]);
+    out->size_x = loc->size_x;
+    out->size_z = loc->size_z;
+    out->transform_varbit = loc->transform_varbit;
+    out->transform_varp = loc->transform_varp;
+    out->impostor = app_plugin_def_impostor(
+        app, loc->transforms, loc->transform_count, loc->transform_varbit, loc->transform_varp);
+    out->map_scene = loc->map_scene_id;
+    out->map_icon = loc->map_function_id;
+    app_plugin_def_list(&out->transforms, loc->transforms, loc->transform_count);
+    return TORIRS_ASSET_READY;
+}
+
+_Static_assert(TORIRS_DEF_ACTIONS == TORIRS_MENU_ACTION_SLOTS, "def action slots");
+_Static_assert(TORIRS_PLUGIN_CHAT_TYPE_MAX == RS_CHAT_TYPE_MAX, "plugin chat types");
+
+/* The line goes where a MESSAGE_GAME line goes, through the host so the
+ * chat-transmit channel repaints the chatbox. Deliberately NOT through
+ * App_NotifyChatMessage: that is the server speaking, and its game-event
+ * recogniser must never hear a plugin's text. */
+static void
+app_plugin_chat_add(void* user, int type, char const* sender, char const* text)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    assert(sender);
+    assert(text);
+    RS_CS2Host_ChatAdd(&app->host, type, sender[0] ? sender : NULL, sender[0] ? sender : NULL, text);
+}
+
+/*
+ * The HINT_ARROW packet's own state, set the way the packet sets it
+ * (RS_HintArrow_Set with the wire's type byte), so every pass that draws an
+ * arrow draws a plugin's. A tile arrow keeps the arrow's height, as the
+ * reference's setHintArrow(WorldPoint) does.
+ */
+static int
+app_plugin_hint_arrow_set(void* user, int kind, int a, int b)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    if( kind == TORIRS_HINT_ARROW_NONE )
+    {
+        RS_HintArrow_Set(&app->hint_arrow, RS_HINT_ARROW_WIRE_CLEAR, 0, 0, 0);
+        return 1;
+    }
+    if( kind == TORIRS_HINT_ARROW_TILE )
+    {
+        RS_HintArrow_Set(&app->hint_arrow, RS_HINT_ARROW_COORD, a, b, app->hint_arrow.height);
+        return 1;
+    }
+    assert(kind == TORIRS_HINT_ARROW_NPC);
+    if( !app->world || !World_NpcGetByServerSlot(app->world, a) )
+        return 0;
+    RS_HintArrow_Set(&app->hint_arrow, RS_HINT_ARROW_NPC, a, 0, 0);
+    return 1;
+}
+
+static int
+app_plugin_hint_arrow_get(void* user, struct ToriRS_HintArrowInfo* out)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    assert(out);
+    if( app->hint_arrow.type == RS_HINT_ARROW_NPC )
+    {
+        out->kind = TORIRS_HINT_ARROW_NPC;
+        out->npc_slot = app->hint_arrow.target;
+        return 1;
+    }
+    if( app->hint_arrow.type == RS_HINT_ARROW_COORD )
+    {
+        out->kind = TORIRS_HINT_ARROW_TILE;
+        out->tile_x = app->hint_arrow.target;
+        out->tile_z = app->hint_arrow.tile_z;
+        return 1;
+    }
+    if( app->hint_arrow.type == RS_HINT_ARROW_PLAYER )
+    {
+        out->kind = TORIRS_HINT_ARROW_PLAYER;
+        out->player_pid = app->hint_arrow.target;
+        return 1;
+    }
+    return 0;
+}
+
+static void
+app_plugin_sound(void* user, int sound_id, int loops, int delay)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    App_PlaySound(app, sound_id, loops, delay);
+}
+
+static int
+app_plugin_weight(void* user)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    return app->stats.run_weight;
+}
+
+/* The mask WORLDFLAGS pushes (RS_CS2ClientState::world_flags), which is all
+ * this client knows of the world it is on. */
+static int
+app_plugin_world_types(void* user)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    return app->host.client.world_flags;
+}
+
+static int
+app_plugin_tick(void* user)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    return (int)app->server_tick.serial;
+}
+
+/* What a plugin-run script's yield waits for, answered against the memo. */
+enum AppPluginScriptAwait
+{
+    APP_PLUGIN_SCRIPT_RESUME,
+    APP_PLUGIN_SCRIPT_PENDING,
+    APP_PLUGIN_SCRIPT_BLOCKED,
+};
+
+static enum AppPluginScriptAwait
+app_plugin_script_await(struct App* app, struct CS2VM_HostRequest const* request)
+{
+    struct CS2RunAwait await;
+
+    assert(app);
+    assert(request);
+    if( !CS2Run_RequestAwait(&app->host, request, &await) )
+        return APP_PLUGIN_SCRIPT_BLOCKED;
+    for( int i = 0; i < await.count; i++ )
+    {
+        int const kind = APP_PLUGIN_LOAD_PLAN + await.plan * 2 + i;
+        struct AppPluginLoadMemo* memo = app_plugin_load_find(app, kind, await.ids[i]);
+        struct ToriRS_Task* task;
+
+        if( memo && memo->join > 0 )
+            return APP_PLUGIN_SCRIPT_PENDING;
+        /* A load of this half has already ENDED and the host still yields on
+         * it: there is no such record, and the resume answers the miss. */
+        if( memo )
+            continue;
+        task = CS2Run_RequestLoadTask(app->provider, &await, i);
+        if( !task )
+            continue;
+        app_plugin_load_queue(app, kind, await.ids[i], task);
+        return APP_PLUGIN_SCRIPT_PENDING;
+    }
+    return APP_PLUGIN_SCRIPT_RESUME;
+}
+
+static int
+app_plugin_script_results(struct CS2VM2_Thread* thread, struct ToriRS_ScriptResult* out)
+{
+    assert(thread);
+    assert(out);
+    if( thread->ints_stack_top > TORIRS_SCRIPT_RUN_INTS_MAX ||
+        thread->strs_stack_top > TORIRS_SCRIPT_RUN_STRINGS_MAX )
+        return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    for( int i = 0; i < thread->strs_stack_top; i++ )
+    {
+        char const* s = thread->strs_stack[i] ? thread->strs_stack[i] : "";
+        if( strlen(s) >= TORIRS_SCRIPT_RUN_STRING_LEN )
+            return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    }
+    out->int_count = (size_t)thread->ints_stack_top;
+    for( int i = 0; i < thread->ints_stack_top; i++ )
+        out->ints[i] = thread->ints_stack[i];
+    out->string_count = (size_t)thread->strs_stack_top;
+    for( int i = 0; i < thread->strs_stack_top; i++ )
+        (void)snprintf(out->strings[i], sizeof(out->strings[i]), "%s",
+            thread->strs_stack[i] ? thread->strs_stack[i] : "");
+    return TORIRS_CONTRACT_OK;
+}
+
+/*
+ * One clientscript, run to completion inside the caller's frame, on the
+ * client's own host (RS_CS2Host_Exec) and a VM of its own from the pool --
+ * Task_CS2Run's start and resume loop without the waiting.
+ *
+ * "Idle" is what the host can see: no script's ThreadRun on the stack
+ * (trace_script_id, which Task_CS2Run sets around every call), no named
+ * callback in progress, no yield half taken. A script parked on a load is
+ * not running and holds its own VM, so it does not count.
+ *
+ * Every yield is answered here and never awaited: a load is queued and the
+ * run abandoned (PENDING), a load that already ran is resumed into its miss,
+ * and a request only Task_CS2Run's resume can satisfy is NATIVE_BLOCKED.
+ * The named-callback hook is detached for the run, so a RUNELITE_CALLBACK
+ * opcode in it does not re-enter the plugin dispatch that called us.
+ */
+static int
+app_plugin_script_run(
+    void* user,
+    int script_id,
+    struct ToriRS_ScriptArg const* args,
+    int arg_count,
+    struct ToriRS_ScriptResult* out)
+{
+    struct App* app = (struct App*)user;
+    struct RS_CS2Host* host;
+    struct CS2VM2_Script* script;
+    struct CS2VM2* vm;
+    struct CS2VM2_Thread* thread;
+    void (*saved_callback)(void* user, struct CS2VM2_Thread*, char const* name);
+    int (*saved_item_search)(void* user, char const* query, bool tradeable_only, int* out, int cap);
+    int ints = 0;
+    int strings = 0;
+    int result = TORIRS_CONTRACT_FAILED;
+
+    assert(app);
+    assert(out);
+    assert(arg_count >= 0);
+    if( arg_count > 0 )
+        assert(args);
+    if( App_UiLogic(app) != APP_UI_LOGIC_CS2 || !app->provider )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    host = &app->host;
+    if( host->trace_script_id >= 0 || host->script_callback_running || host->has_pending )
+        return TORIRS_CONTRACT_WRONG_CONTEXT;
+
+    script = CacheProvider_ClientScriptGet(app->provider, script_id);
+    if( !script )
+        return app_plugin_record_miss(app, APP_PLUGIN_LOAD_SCRIPT, script_id) == TORIRS_ASSET_PENDING
+                   ? TORIRS_CONTRACT_PENDING
+                   : TORIRS_CONTRACT_INVALID_ARGUMENT;
+    for( int i = 0; i < arg_count; i++ )
+    {
+        if( args[i].is_string )
+            strings++;
+        else
+            ints++;
+    }
+    if( ints > script->int_argument_count || strings > script->string_argument_count )
+        return TORIRS_CONTRACT_INVALID_ARGUMENT;
+
+    vm = CS2VM2_Acquire();
+    assert(vm);
+    CS2VM2_BindHost(vm, host, RS_CS2Host_Exec);
+    thread = CS2VM2_ThreadMain(vm);
+    CS2VM2_ThreadSetCanvas(
+        thread, host->viewport_w > 0 ? host->viewport_w : 765, host->viewport_h > 0 ? host->viewport_h : 503);
+    CS2VM2_ThreadSetWindowMode(thread, host->window_mode, host->default_window_mode);
+    CS2VM2_ThreadStart(thread, script);
+    ints = 0;
+    strings = 0;
+    for( int i = 0; i < arg_count; i++ )
+    {
+        if( args[i].is_string )
+            (void)CS2VM2_SetStringCurrentFrameLocal(
+                thread, strings++, args[i].string_value ? args[i].string_value : "");
+        else
+            (void)CS2VM2_SetIntCurrentFrameLocal(thread, ints++, args[i].int_value);
+    }
+    CS2VM2_SetActiveAndDotComponentId(thread, -1);
+
+    saved_callback = host->script_callback;
+    host->script_callback = NULL;
+    /* Nor the GE search hook: a plugin's own run is already inside a plugin
+     * callback, and the search it reaches is the client's. */
+    saved_item_search = host->item_search;
+    host->item_search = NULL;
+    for( int resumes = 0;; resumes++ )
+    {
+        struct CS2VM2_ThreadError err = { 0 };
+        enum CS2VM2_ThreadStatus status;
+        enum AppPluginScriptAwait await;
+        struct CS2VM_HostRequest request;
+
+        /* A request whose yield never marks its await spent would resume into
+         * the same yield for ever; Task_CS2Run would spin on it as well, but
+         * across frames. Here it is one call, so it is bounded. */
+        if( resumes > 256 )
+        {
+            CS2VM2_ResetRuntime(thread);
+            result = TORIRS_CONTRACT_FAILED;
+            break;
+        }
+        host->trace_script_id = script_id;
+        status = CS2VM2_ThreadRun(thread, &err);
+        host->trace_script_id = -1;
+        if( status == CS2VM2_THREAD_DONE )
+        {
+            result = app_plugin_script_results(thread, out);
+            break;
+        }
+        if( status != CS2VM2_THREAD_YIELDED || !host->has_pending )
+        {
+            TORIRS_ERR("plugin scripts.run: script %d failed at opcode %d pc %d (in script %d)\n",
+                script_id, thread->last_error_opcode, thread->last_error_pc, thread->last_error_script_id);
+            host->has_pending = false;
+            CS2VM2_ResetRuntime(thread);
+            result = TORIRS_CONTRACT_FAILED;
+            break;
+        }
+        request = host->pending;
+        host->has_pending = false;
+        await = app_plugin_script_await(app, &request);
+        if( await == APP_PLUGIN_SCRIPT_RESUME )
+            continue;
+        CS2VM2_ResetRuntime(thread);
+        result = await == APP_PLUGIN_SCRIPT_PENDING ? TORIRS_CONTRACT_PENDING : TORIRS_CONTRACT_NATIVE_BLOCKED;
+        break;
+    }
+    host->script_callback = saved_callback;
+    host->item_search = saved_item_search;
+    CS2VM2_Release(vm);
+    return result;
 }
 
 /* ------------------------------------------------- the client's feature flags */
@@ -3207,26 +3997,166 @@ app_plugin_inv_container(int inv)
  * has never been told about a worn container" are different facts, and a
  * plugin diffing against worn equipment does different things with them.
  */
+/*
+ * Any container the client holds, by its wire id -- the id
+ * on_inventory_changed reports (shops, trade, group storage, ...). A
+ * container the server never sent answers 0, as does a slot past its end.
+ */
 static int
-app_plugin_inv_slot(void* user, int inv, int slot, int* out_obj_id, int* out_count)
+app_plugin_container_slot(
+    void* user,
+    int container_id,
+    int slot,
+    int* out_obj_id,
+    int* out_count)
 {
     struct App* app = (struct App*)user;
-    int container = app_plugin_inv_container(inv);
     struct InvContainer const* held;
 
     assert(app);
 
-    if( container == INV_MANAGER_CONTAINER_NONE || slot < 0 )
+    if( container_id < 0 || slot < 0 )
         return 0;
-    held = InvManager_FindContainer(&app->invs, container);
-    if( !held || slot >= InvManager_Size(&app->invs, container) )
+    held = InvManager_FindContainer(&app->invs, container_id);
+    if( !held || slot >= InvManager_Size(&app->invs, container_id) )
         return 0;
 
     if( out_obj_id )
-        *out_obj_id = InvManager_GetObj(&app->invs, container, slot);
+        *out_obj_id = InvManager_GetObj(&app->invs, container_id, slot);
     if( out_count )
-        *out_count = InvManager_GetNum(&app->invs, container, slot);
+        *out_count = InvManager_GetNum(&app->invs, container_id, slot);
     return 1;
+}
+
+static int
+app_plugin_container_size(void* user, int container_id)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+
+    if( container_id < 0 || !InvManager_FindContainer(&app->invs, container_id) )
+        return 0;
+    return InvManager_Size(&app->invs, container_id);
+}
+
+/*
+ * World entities (sailing boats) for WorldView.worldEntities(). An entity is
+ * listed once its view is live; its staging rectangle is the view's, 0,0
+ * until REBUILD_WORLDENTITY has built it.
+ */
+static int
+app_plugin_world_entity_next(void* user, int iter, struct ToriRS_WorldEntitySnapshot* out)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(out);
+
+    for( int id = iter < 1 ? 1 : iter + 1; id < WORLDVIEW_MAX; id++ )
+    {
+        struct Wev const* wev;
+        struct Worldview const* view;
+
+        if( !Wevs_IsLive(&app->wevs, id) || !WorldviewRegistry_IsLive(&app->worldviews, id) )
+            continue;
+        wev = Wevs_Get(&app->wevs, id);
+        if( !wev->config )
+            continue;
+        view = WorldviewRegistry_Get(&app->worldviews, id);
+        memset(out, 0, sizeof(*out));
+        out->id = id;
+        out->parent_view = wev->parent_view_id;
+        out->config_id = wev->config_id;
+        out->fine_x = wev->x;
+        out->fine_z = wev->z;
+        out->angle = wev->angle & 2047;
+        out->level = wev->parent_level;
+        out->deck_level = app_wev_deck_level(app, id);
+        out->base_x = view->base_x;
+        out->base_z = view->base_z;
+        out->size_x = view->size_x_tiles;
+        out->size_z = view->size_z_tiles;
+        return id;
+    }
+    return -1;
+}
+
+/*
+ * A point of entity `id`'s own world (fine, relative to its staging base) to
+ * ABSOLUTE root fine: through the deck box of each carrier in turn, the same
+ * descent that draws the deck (a boat carried by a boat goes through both).
+ */
+static int
+app_plugin_world_entity_to_main(
+    void* user,
+    int id,
+    int deck_fine_x,
+    int deck_fine_z,
+    int* out_fine_x,
+    int* out_fine_z)
+{
+    struct App* app = (struct App*)user;
+    int x = deck_fine_x;
+    int z = deck_fine_z;
+
+    assert(app);
+    assert(out_fine_x);
+    assert(out_fine_z);
+
+    for( int depth = 0; depth < 8; depth++ )
+    {
+        struct Wev const* wev;
+        struct World const* parent_world;
+        struct WevDeckBox box;
+        int parent_x;
+        int parent_z;
+
+        if( id <= 0 || id >= WORLDVIEW_MAX || !Wevs_IsLive(&app->wevs, id) ||
+            !WorldviewRegistry_IsLive(&app->worldviews, id) )
+            return 0;
+        wev = Wevs_Get(&app->wevs, id);
+        if( !wev->config )
+            return 0;
+        if( wev->parent_view_id == 0 )
+            parent_world = app->world;
+        else if( WorldviewRegistry_IsLive(&app->worldviews, wev->parent_view_id) )
+            parent_world = WorldviewRegistry_Get(&app->worldviews, wev->parent_view_id)->world;
+        else
+            return 0;
+        if( !parent_world )
+            return 0;
+        app_wev_deck_box(app, wev, parent_world, &box);
+        Wev_ParentFromDeck(&box, x, z, &parent_x, &parent_z);
+        /* scene-local to the parent world -> absolute */
+        x = parent_x + (parent_world->_base_tile_x << 7);
+        z = parent_z + (parent_world->_base_tile_z << 7);
+        if( wev->parent_view_id == 0 )
+        {
+            *out_fine_x = x;
+            *out_fine_z = z;
+            return 1;
+        }
+        /* the carrier's own world: relative to ITS staging base, then on */
+        {
+            struct Worldview const* carrier =
+                WorldviewRegistry_Get(&app->worldviews, wev->parent_view_id);
+            x -= carrier->base_x << 7;
+            z -= carrier->base_z << 7;
+        }
+        id = wev->parent_view_id;
+    }
+    return 0;
+}
+
+static int
+app_plugin_inv_slot(void* user, int inv, int slot, int* out_obj_id, int* out_count)
+{
+    int container = app_plugin_inv_container(inv);
+
+    if( container == INV_MANAGER_CONTAINER_NONE )
+        return 0;
+    return app_plugin_container_slot(user, container, slot, out_obj_id, out_count);
 }
 
 static int
@@ -3614,6 +4544,728 @@ app_plugin_draw_rect(
     return app_overlay_count(app) - before;
 }
 
+/* ------------------------------------------------------------- polygons */
+
+#include "render/torirs_polygon.h"
+
+/*
+ * Convex, the way ToriRS_PolygonFillConvex needs: every turn the same way
+ * (collinear runs allowed) and the outline crossing each axis direction at
+ * most twice -- the second half is what refuses a star, whose turns all agree
+ * but which winds round twice.
+ */
+static bool
+app_plugin_polygon_convex(
+    int const* xs,
+    int const* ys,
+    int count)
+{
+    int sign = 0;
+    int x_flips = 0;
+    int y_flips = 0;
+    int last_dx = 0;
+    int last_dy = 0;
+
+    assert(xs);
+    assert(ys);
+    for( int i = 0; i < count; i++ )
+    {
+        int const j = (i + 1) % count;
+        int const k = (i + 2) % count;
+        int64_t const ex = (int64_t)xs[j] - xs[i];
+        int64_t const ey = (int64_t)ys[j] - ys[i];
+        int64_t const fx = (int64_t)xs[k] - xs[j];
+        int64_t const fy = (int64_t)ys[k] - ys[j];
+        int64_t const cross = ex * fy - ey * fx;
+        int const dx = ex > 0 ? 1 : ex < 0 ? -1 : 0;
+        int const dy = ey > 0 ? 1 : ey < 0 ? -1 : 0;
+
+        if( cross != 0 )
+        {
+            int const s = cross > 0 ? 1 : -1;
+            if( sign != 0 && s != sign )
+                return false;
+            sign = s;
+        }
+        if( dx != 0 )
+        {
+            if( last_dx != 0 && dx != last_dx )
+                x_flips++;
+            last_dx = dx;
+        }
+        if( dy != 0 )
+        {
+            if( last_dy != 0 && dy != last_dy )
+                y_flips++;
+            last_dy = dy;
+        }
+    }
+    /* The walk above does not compare the last direction with the first, so
+     * a closed convex outline shows at most two flips per axis, and so does
+     * the closing pair it skipped -- three or more is a second lap. */
+    return x_flips <= 2 && y_flips <= 2;
+}
+
+/*
+ * One piece of a concave fill, built slab by slab.
+ *
+ * The fill rule is java.awt.Polygon's EVEN-ODD. A horizontal slab between two
+ * consecutive vertex rows crosses the outline at a fixed set of edges with no
+ * vertex inside it, so sorted by x the crossings pair up into trapezoids, and
+ * the pairs ARE the even-odd spans. Trapezoids in different slabs share no
+ * row (the fill is half-open in y) and the pairs in one slab share no pixel
+ * but a vertex they meet at, so a translucent wash has no seams -- which a
+ * triangle fan, whose inclusive spans overlap along every diagonal, would.
+ *
+ * Trapezoids that meet edge to edge down the slabs are chained into one
+ * piece. A chain is Y-MONOTONE -- every row crosses it exactly twice -- and
+ * that, not convexity, is what ToriRS_PolygonFillConvex needs: it takes the
+ * min and max crossing of each row, and for two crossings those are the span.
+ * So a piece only ends where the outline forks or closes, or at the renderer's
+ * point cap; a perimeter projected over terrain, jagged on every side, stays a
+ * handful of runs instead of one per vertex row.
+ *
+ * Each chain point is an ORIGINAL vertex where it can be: a chain that carries
+ * on down the same edge moves its last point instead of adding one, so the
+ * piece's sides are the polygon's own edges and land on the pixels the whole
+ * polygon would have.
+ */
+enum
+{
+    APP_PLUGIN_POLY_CHAIN_MAX = TORIRS_POLYGON_MAX_POINTS / 2,
+    APP_PLUGIN_POLY_PIECES_MAX = 64,
+    /* Vertex rows, plus the rows a self-crossing outline is split at. */
+    APP_PLUGIN_POLY_ROWS_MAX = TORIRS_PLUGIN_ENGINE_POLYGON_POINTS_MAX * 2,
+};
+
+struct AppPluginPolyChain
+{
+    int count;
+    int last_edge;
+    int x[APP_PLUGIN_POLY_CHAIN_MAX];
+    int y[APP_PLUGIN_POLY_CHAIN_MAX];
+};
+
+struct AppPluginPolyPiece
+{
+    bool alive;
+    bool continued;
+    struct AppPluginPolyChain left;
+    struct AppPluginPolyChain right;
+};
+
+struct AppPluginPolyCrossing
+{
+    int edge;
+    int x_top;
+    int x_bottom;
+    double x_mid;
+};
+
+/* File scope: the slab walk holds every vertex row and every piece, which is
+ * far past what a frame callback should put on the stack. The overlay is built
+ * on the one frame thread. */
+static int g_app_plugin_poly_rows[APP_PLUGIN_POLY_ROWS_MAX];
+static struct AppPluginPolyCrossing g_app_plugin_poly_cross[TORIRS_PLUGIN_ENGINE_POLYGON_POINTS_MAX];
+static struct AppPluginPolyPiece g_app_plugin_poly_pieces[APP_PLUGIN_POLY_PIECES_MAX];
+
+static int
+app_plugin_poly_int_compare(void const* lhs, void const* rhs)
+{
+    int const a = *(int const*)lhs;
+    int const b = *(int const*)rhs;
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+static int
+app_plugin_poly_cross_compare(void const* lhs, void const* rhs)
+{
+    struct AppPluginPolyCrossing const* a = lhs;
+    struct AppPluginPolyCrossing const* b = rhs;
+    return a->x_mid < b->x_mid ? -1 : a->x_mid > b->x_mid ? 1 : 0;
+}
+
+/* Edge `i` of the outline with its ends ordered top to bottom. */
+static void
+app_plugin_poly_edge(
+    int const* xs,
+    int const* ys,
+    int count,
+    int i,
+    int* x0,
+    int* y0,
+    int* x1,
+    int* y1)
+{
+    int const j = (i + 1) % count;
+    if( ys[i] <= ys[j] )
+    {
+        *x0 = xs[i];
+        *y0 = ys[i];
+        *x1 = xs[j];
+        *y1 = ys[j];
+    }
+    else
+    {
+        *x0 = xs[j];
+        *y0 = ys[j];
+        *x1 = xs[i];
+        *y1 = ys[i];
+    }
+}
+
+/* The same integer step ToriRS_PolygonFillConvex takes along an edge, so a
+ * piece's corner lands on the pixel the whole polygon's edge would have. */
+static int
+app_plugin_poly_edge_x(int x0, int y0, int x1, int y1, int y)
+{
+    return (int)((int64_t)x0 + (int64_t)(x1 - x0) * (int64_t)(y - y0) / (int64_t)(y1 - y0));
+}
+
+/* Append a chain point -- or, when the chain is carrying on down the same
+ * edge, move its last point there instead. */
+static void
+app_plugin_poly_chain_push(struct AppPluginPolyChain* chain, int edge, int x, int y)
+{
+    if( chain->count >= 2 && chain->last_edge == edge )
+    {
+        chain->x[chain->count - 1] = x;
+        chain->y[chain->count - 1] = y;
+        return;
+    }
+    assert(chain->count < APP_PLUGIN_POLY_CHAIN_MAX);
+    chain->x[chain->count] = x;
+    chain->y[chain->count] = y;
+    chain->count++;
+    chain->last_edge = edge;
+}
+
+/* Left chain down, right chain back up: the piece's outline in order. */
+static int
+app_plugin_poly_piece_outline(
+    struct AppPluginPolyPiece const* piece,
+    int* xs,
+    int* ys)
+{
+    int n = 0;
+    for( int i = 0; i < piece->left.count; i++ )
+    {
+        xs[n] = piece->left.x[i];
+        ys[n] = piece->left.y[i];
+        n++;
+    }
+    for( int i = piece->right.count - 1; i >= 0; i-- )
+    {
+        if( n > 0 && xs[n - 1] == piece->right.x[i] && ys[n - 1] == piece->right.y[i] )
+            continue;
+        xs[n] = piece->right.x[i];
+        ys[n] = piece->right.y[i];
+        n++;
+    }
+    if( n > 1 && xs[n - 1] == xs[0] && ys[n - 1] == ys[0] )
+        n--;
+    return n;
+}
+
+static void
+app_plugin_poly_piece_flush(
+    struct App* app,
+    struct AppPluginPolyPiece* piece,
+    uint32_t argb,
+    int trans)
+{
+    int xs[TORIRS_POLYGON_MAX_POINTS];
+    int ys[TORIRS_POLYGON_MAX_POINTS];
+    int const n = app_plugin_poly_piece_outline(piece, xs, ys);
+
+    app_overlay_push_polygon_filled(app, xs, ys, n, argb, trans);
+    piece->alive = false;
+}
+
+/* Does a chain have room for one more row on this edge? */
+static bool
+app_plugin_poly_chain_room(struct AppPluginPolyChain const* chain, int edge)
+{
+    return chain->last_edge == edge || chain->count < APP_PLUGIN_POLY_CHAIN_MAX;
+}
+
+/*
+ * The row two edges cross at, when they cross strictly inside (top, bottom):
+ * an outline that crosses itself swaps the order of its crossings mid-slab,
+ * and the pairing is only right on either side of the swap.
+ */
+static bool
+app_plugin_poly_split_row(
+    int const* xs,
+    int const* ys,
+    int count,
+    int edge_a,
+    int edge_b,
+    int top,
+    int bottom,
+    int* out_row)
+{
+    int ax0, ay0, ax1, ay1, bx0, by0, bx1, by1;
+    double sa, sb, row;
+
+    app_plugin_poly_edge(xs, ys, count, edge_a, &ax0, &ay0, &ax1, &ay1);
+    app_plugin_poly_edge(xs, ys, count, edge_b, &bx0, &by0, &bx1, &by1);
+    sa = (double)(ax1 - ax0) / (double)(ay1 - ay0);
+    sb = (double)(bx1 - bx0) / (double)(by1 - by0);
+    if( sa == sb )
+        return false;
+    /* ax0 + sa*(y - ay0) == bx0 + sb*(y - by0) */
+    row = ((double)bx0 - (double)ax0 + sa * ay0 - sb * by0) / (sa - sb);
+    if( !(row > (double)top + 0.5 && row < (double)bottom - 0.5) )
+        return false;
+    *out_row = (int)(row + 0.5);
+    return *out_row > top && *out_row < bottom;
+}
+
+static void
+app_plugin_fill_polygon(
+    struct App* app,
+    int const* xs,
+    int const* ys,
+    int count,
+    uint32_t argb,
+    int trans)
+{
+    int* rows = g_app_plugin_poly_rows;
+    struct AppPluginPolyCrossing* cross = g_app_plugin_poly_cross;
+    struct AppPluginPolyPiece* pieces = g_app_plugin_poly_pieces;
+    int row_count = 0;
+
+    assert(app);
+    assert(xs);
+    assert(ys);
+    assert(count >= 3);
+    assert(count <= TORIRS_PLUGIN_ENGINE_POLYGON_POINTS_MAX);
+
+    if( count <= TORIRS_POLYGON_MAX_POINTS && app_plugin_polygon_convex(xs, ys, count) )
+    {
+        app_overlay_push_polygon_filled(app, xs, ys, count, argb, trans);
+        return;
+    }
+
+    for( int i = 0; i < count; i++ )
+        rows[i] = ys[i];
+    qsort(rows, (size_t)count, sizeof(rows[0]), app_plugin_poly_int_compare);
+    for( int i = 0; i < count; i++ )
+        if( row_count == 0 || rows[row_count - 1] != rows[i] )
+            rows[row_count++] = rows[i];
+    for( int p = 0; p < APP_PLUGIN_POLY_PIECES_MAX; p++ )
+        pieces[p].alive = false;
+
+    for( int s = 0; s + 1 < row_count; s++ )
+    {
+        int const top = rows[s];
+        int bottom = rows[s + 1];
+        double mid;
+        int crossings;
+        int split = 0;
+
+    slab:
+        mid = ((double)top + (double)bottom) * 0.5;
+        crossings = 0;
+        for( int i = 0; i < count; i++ )
+        {
+            int x0, y0, x1, y1;
+            app_plugin_poly_edge(xs, ys, count, i, &x0, &y0, &x1, &y1);
+            if( y0 == y1 || y0 > top || y1 < bottom )
+                continue;
+            cross[crossings].edge = i;
+            cross[crossings].x_top = app_plugin_poly_edge_x(x0, y0, x1, y1, top);
+            cross[crossings].x_bottom = app_plugin_poly_edge_x(x0, y0, x1, y1, bottom);
+            cross[crossings].x_mid =
+                (double)x0 + (double)(x1 - x0) * (mid - (double)y0) / (double)(y1 - y0);
+            crossings++;
+        }
+        qsort(cross, (size_t)crossings, sizeof(cross[0]), app_plugin_poly_cross_compare);
+        /* Two neighbours in the wrong order at either end of the slab cross
+         * inside it: split the slab at that row and pair each half alone. */
+        for( int c = 0; c + 1 < crossings; c++ )
+        {
+            if( (cross[c].x_top > cross[c + 1].x_top || cross[c].x_bottom > cross[c + 1].x_bottom) &&
+                row_count < APP_PLUGIN_POLY_ROWS_MAX &&
+                app_plugin_poly_split_row(
+                    xs, ys, count, cross[c].edge, cross[c + 1].edge, top, bottom, &split) )
+            {
+                memmove(&rows[s + 2], &rows[s + 1], sizeof(rows[0]) * (size_t)(row_count - s - 1));
+                rows[s + 1] = split;
+                row_count++;
+                bottom = split;
+                goto slab;
+            }
+        }
+
+        for( int p = 0; p < APP_PLUGIN_POLY_PIECES_MAX; p++ )
+            pieces[p].continued = false;
+        for( int c = 0; c + 1 < crossings; c += 2 )
+        {
+            struct AppPluginPolyCrossing const* l = &cross[c];
+            struct AppPluginPolyCrossing const* r = &cross[c + 1];
+            struct AppPluginPolyPiece* piece = NULL;
+
+            /* The piece this trapezoid hangs under: its bottom row is this
+             * slab's top row, corner for corner. */
+            for( int p = 0; p < APP_PLUGIN_POLY_PIECES_MAX; p++ )
+            {
+                struct AppPluginPolyPiece* open = &pieces[p];
+                if( !open->alive || open->continued )
+                    continue;
+                if( open->left.y[open->left.count - 1] == top &&
+                    open->left.x[open->left.count - 1] == l->x_top &&
+                    open->right.x[open->right.count - 1] == r->x_top )
+                {
+                    piece = open;
+                    break;
+                }
+            }
+            if( piece && app_plugin_poly_chain_room(&piece->left, l->edge) &&
+                app_plugin_poly_chain_room(&piece->right, r->edge) )
+            {
+                app_plugin_poly_chain_push(&piece->left, l->edge, l->x_bottom, bottom);
+                app_plugin_poly_chain_push(&piece->right, r->edge, r->x_bottom, bottom);
+                piece->continued = true;
+                continue;
+            }
+            if( piece )
+                app_plugin_poly_piece_flush(app, piece, argb, trans);
+            piece = NULL;
+            for( int p = 0; p < APP_PLUGIN_POLY_PIECES_MAX; p++ )
+                if( !pieces[p].alive )
+                {
+                    piece = &pieces[p];
+                    break;
+                }
+            if( !piece )
+            {
+                /* More simultaneous spans than pieces: this trapezoid goes out
+                 * on its own, unchained. Same pixels, more items. */
+                int tx[4] = { l->x_top, r->x_top, r->x_bottom, l->x_bottom };
+                int ty[4] = { top, top, bottom, bottom };
+                app_overlay_push_polygon_filled(app, tx, ty, 4, argb, trans);
+                continue;
+            }
+            piece->alive = true;
+            piece->continued = true;
+            piece->left.count = 0;
+            piece->left.last_edge = -1;
+            piece->right.count = 0;
+            piece->right.last_edge = -1;
+            app_plugin_poly_chain_push(&piece->left, l->edge, l->x_top, top);
+            app_plugin_poly_chain_push(&piece->left, l->edge, l->x_bottom, bottom);
+            app_plugin_poly_chain_push(&piece->right, r->edge, r->x_top, top);
+            app_plugin_poly_chain_push(&piece->right, r->edge, r->x_bottom, bottom);
+        }
+        /* A piece nothing continued has ended: the outline closed under it,
+         * or forked. */
+        for( int p = 0; p < APP_PLUGIN_POLY_PIECES_MAX; p++ )
+            if( pieces[p].alive && !pieces[p].continued )
+                app_plugin_poly_piece_flush(app, &pieces[p], argb, trans);
+    }
+    for( int p = 0; p < APP_PLUGIN_POLY_PIECES_MAX; p++ )
+        if( pieces[p].alive )
+            app_plugin_poly_piece_flush(app, &pieces[p], argb, trans);
+}
+
+static int
+app_plugin_draw_polygon(
+    void* user,
+    int const* xs,
+    int const* ys,
+    int count,
+    uint32_t fill_rgb,
+    int fill_alpha,
+    uint32_t outline_rgb,
+    int outline_width)
+{
+    struct App* app = (struct App*)user;
+    int before;
+
+    assert(app);
+    assert(xs);
+    assert(ys);
+    assert(count > 0);
+    assert(count <= TORIRS_PLUGIN_ENGINE_POLYGON_POINTS_MAX);
+
+    before = app_overlay_count(app);
+    if( fill_alpha > 0 && count >= 3 )
+        app_plugin_fill_polygon(
+            app,
+            xs,
+            ys,
+            count,
+            app_plugin_overlay_argb(fill_rgb),
+            255 - (fill_alpha > 255 ? 255 : fill_alpha));
+    /* push_polygon declines a width of 0 and a single point, and draws two
+     * points as one segment -- the same rule every border here follows. */
+    if( outline_width > 0 )
+        app_overlay_push_polygon(
+            app, xs, ys, count, app_plugin_overlay_argb(outline_rgb), outline_width);
+    return app_overlay_count(app) - before;
+}
+
+/* --------------------------------------------------------- text measuring */
+
+/* The font is draw_text's own (app_plugin_draw_text): the cache's p11, the
+ * hitsplat face. Asking for it also queues its load, exactly as drawing does. */
+static int
+app_plugin_text_width(void* user, char const* text)
+{
+    struct App* app = (struct App*)user;
+    int font_id;
+
+    assert(app);
+    assert(text);
+    font_id = app_hitsplat_font_scene_id(app);
+    if( font_id < 0 || !ToriDraw_SceneFontGet(app->scene, font_id) )
+        return -1;
+    return app_measure_text_cb(app, font_id, text);
+}
+
+static int
+app_plugin_text_height(void* user)
+{
+    struct App* app = (struct App*)user;
+    struct ToriDraw_Font* font;
+    int font_id;
+
+    assert(app);
+    font_id = app_hitsplat_font_scene_id(app);
+    font = font_id >= 0 ? ToriDraw_SceneFontGet(app->scene, font_id) : NULL;
+    if( !font )
+        return -1;
+    return font->line_height;
+}
+
+/* ---------------------------------------------------------------- minimap */
+
+/*
+ * The minimap's projection is the dots' own, call for call: the player's
+ * position pushed out through a hull when aboard (App_MinimapBuildDots), the
+ * offset turned by the angle the emit walk blitted the map at, and refused
+ * exactly where MinimapView_PlaceDot refuses a dot -- past the ring -- or
+ * where the dot scissor would cut it -- outside the map's box. A zero-sized
+ * sprite makes PlaceDot's top-left the point itself.
+ */
+static int
+app_plugin_minimap_project(void* user, int fine_x, int fine_z, int* out_x, int* out_y)
+{
+    struct App* app = (struct App*)user;
+    struct WorldEntity_Player* local;
+    struct MinimapRotation rotation;
+    int yaw;
+    int px;
+    int pz;
+    int dx = 0;
+    int dy = 0;
+    int64_t rel_x;
+    int64_t rel_z;
+
+    assert(app);
+    assert(out_x);
+    assert(out_y);
+    if( !app->minimap.valid || !app->world || !app->world->load_complete )
+        return 0;
+    local = app_local_player(app);
+    if( !local )
+        return 0;
+    px = (int)local->draw_position.x;
+    pz = (int)local->draw_position.z;
+    app_wev_actor_root_fine(app, &local->view_placement, &px, &pz);
+    rel_x = (int64_t)fine_x - px;
+    rel_z = (int64_t)fine_z - pz;
+    /* Far past the ring either way; keeps PlaceDot's squares in range. */
+    if( rel_x < -(1 << 20) || rel_x > (1 << 20) || rel_z < -(1 << 20) || rel_z > (1 << 20) )
+        return 0;
+    yaw = MinimapView_Yaw(&app->minimap);
+    rotation.sin = ToriDraw_Sin(yaw);
+    rotation.cos = ToriDraw_Cos(yaw);
+    if( !MinimapView_PlaceDot(&rotation, (int)rel_x, (int)rel_z, 0, 0, &dx, &dy) )
+        return 0;
+    *out_x = app->minimap.x + app->minimap.w / 2 + dx;
+    *out_y = app->minimap.y + app->minimap.h / 2 + dy;
+    return *out_x >= app->minimap.x && *out_x < app->minimap.x + app->minimap.w &&
+           *out_y >= app->minimap.y && *out_y < app->minimap.y + app->minimap.h;
+}
+
+static int
+app_plugin_minimap_bounds(void* user, struct ToriRS_MinimapBounds* out)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(out);
+    if( !app->minimap.valid )
+        return 0;
+    out->box = (struct ToriRS_Rect){ app->minimap.x, app->minimap.y, app->minimap.w, app->minimap.h };
+    out->centre_x = app->minimap.x + app->minimap.w / 2;
+    out->centre_y = app->minimap.y + app->minimap.h / 2;
+    out->radius = MINIMAP_DOT_RADIUS_PIXELS;
+    return 1;
+}
+
+/* -------------------------------------------------------------- sequences */
+
+static int
+app_plugin_seq_def(void* user, int seq_id, struct ToriRS_SeqDef* out)
+{
+    struct App* app = (struct App*)user;
+    struct ToriDraw_Animation* anim;
+
+    assert(app);
+    assert(out);
+    if( !app->provider || !app->scene )
+        return TORIRS_ASSET_MISSING;
+    anim = ToriDraw_SceneAnimationGet(app->scene, seq_id);
+    if( !anim )
+        return app_plugin_record_miss(app, APP_PLUGIN_LOAD_SEQ, seq_id);
+    /* The loader registers an empty animation for an id the cache has no
+     * record of (so a second ask does not load it again): no frames is no
+     * such seq. */
+    if( anim->frame_count <= 0 )
+        return TORIRS_ASSET_MISSING;
+    out->id = seq_id;
+    out->frame_count = anim->frame_count;
+    out->frame_step = anim->frame_step > 0 ? anim->frame_step : -1;
+    out->skeletal = anim->skeletal != NULL;
+    out->duration = 0;
+    out->frame_lengths.count = anim->frame_count;
+    for( int i = 0; i < anim->frame_count; i++ )
+    {
+        int const length = anim->frames ? anim->frames[i].delay : 1;
+        out->duration += length;
+        if( i < out->frame_lengths.capacity )
+            out->frame_lengths.values[i] = length;
+    }
+    return TORIRS_ASSET_READY;
+}
+
+/* -------------------------------------------------------------- world map */
+
+/*
+ * The open world map's view, read the way app_worldmap_build_tiles lays the
+ * regions out: the box the emit walk drew the surface into, the display
+ * position at its centre, and a region's width at the LIVE zoom -- mid-zoom
+ * included, which is what the regions are drawn at too.
+ */
+static bool
+app_plugin_worldmap_view(
+    struct App* app,
+    struct ToriRS_WorldMapArea const** out_area,
+    int* out_display_x,
+    int* out_display_y,
+    int* out_region_px)
+{
+    struct RS_WorldMapState* map = app->host.worldmap;
+    int scale_fp;
+
+    assert(out_area);
+    assert(out_display_x);
+    assert(out_display_y);
+    assert(out_region_px);
+    if( !map || !app_worldmap_surface_live(app) )
+        return false;
+    if( app->worldmap.drag.box_w <= 0 || app->worldmap.drag.box_h <= 0 )
+        return false;
+    *out_area = RS_WorldMap_CurrentArea(map);
+    if( !*out_area )
+        return false;
+    scale_fp = RS_WorldMap_ZoomScaleFp(map);
+    if( scale_fp <= 0 )
+        scale_fp = RS_WORLDMAP_ZOOM_SCALE_ONE;
+    *out_region_px = WORLD_MAP_TERRAIN_X * scale_fp / RS_WORLDMAP_ZOOM_SCALE_ONE;
+    if( *out_region_px <= 0 )
+        *out_region_px = 1;
+    RS_WorldMap_DisplayPosition(map, out_display_x, out_display_y);
+    return *out_display_x >= 0 && *out_display_y >= 0;
+}
+
+static int
+app_plugin_worldmap_project(
+    void* user,
+    int tile_x,
+    int tile_z,
+    int level,
+    int* out_x,
+    int* out_y)
+{
+    struct App* app = (struct App*)user;
+    struct ToriRS_WorldMapArea const* area = NULL;
+    int display_x;
+    int display_y;
+    int region_px;
+    int map_x;
+    int map_y;
+    int64_t x;
+    int64_t y;
+
+    assert(app);
+    assert(out_x);
+    assert(out_y);
+    if( !app_plugin_worldmap_view(app, &area, &display_x, &display_y, &region_px) )
+        return 0;
+    if( !ToriRS_WorldMapArea_Position(area, level, tile_x, tile_z, &map_x, &map_y) )
+        return 0;
+    /* The tile's centre: half a tile in from the corner the regions and icons
+     * are placed by, so the offsets are in half tiles. y runs up the map. */
+    x = (int64_t)app->worldmap.drag.box_x + app->worldmap.drag.box_w / 2 +
+        ((int64_t)(map_x - display_x) * 2 + 1) * region_px / (2 * WORLD_MAP_TERRAIN_X);
+    y = (int64_t)app->worldmap.drag.box_y + app->worldmap.drag.box_h / 2 -
+        ((int64_t)(map_y - display_y) * 2 + 1) * region_px / (2 * WORLD_MAP_TERRAIN_Z);
+    if( x < INT_MIN || x > INT_MAX || y < INT_MIN || y > INT_MAX )
+        return 0;
+    *out_x = (int)x;
+    *out_y = (int)y;
+    return 1;
+}
+
+static int
+app_plugin_worldmap_bounds(void* user, struct ToriRS_Rect* out)
+{
+    struct App* app = (struct App*)user;
+    struct ToriRS_WorldMapArea const* area = NULL;
+    int display_x;
+    int display_y;
+    int region_px;
+
+    assert(app);
+    assert(out);
+    if( !app_plugin_worldmap_view(app, &area, &display_x, &display_y, &region_px) )
+        return 0;
+    *out = (struct ToriRS_Rect){
+        app->worldmap.drag.box_x,
+        app->worldmap.drag.box_y,
+        app->worldmap.drag.box_w,
+        app->worldmap.drag.box_h,
+    };
+    return 1;
+}
+
+/* WorldMap.setWorldMapPositionTarget: the map's own jumptosourcecoord (a
+ * glide, not the _INSTANT form), in the area it shows now. */
+static int
+app_plugin_worldmap_jump(void* user, int tile_x, int tile_z, int level)
+{
+    struct App* app = (struct App*)user;
+    struct RS_WorldMapState* map;
+    int packed;
+    int display_x;
+    int display_y;
+
+    assert(app);
+    map = app->host.worldmap;
+    if( !map || !app_worldmap_surface_live(app) || !RS_WorldMap_CurrentArea(map) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    packed = ToriRS_WorldMapPackCoord(level, tile_x, tile_z);
+    if( !RS_WorldMap_SourceToDisplay(map, packed, &display_x, &display_y) )
+        return TORIRS_RESULT_NOT_FOUND;
+    RS_WorldMap_JumpToSourceCoord(map, packed, false);
+    return TORIRS_RESULT_OK;
+}
+
 /* ------------------------------------------------------------------ images */
 
 /*
@@ -3980,6 +5632,51 @@ app_plugin_obj_image(
             &app->bridge, slot, sprite->width, sprite->height, sprite->pixels_argb) < 0 )
         return -1;
 
+    *out_w = sprite->width;
+    *out_h = sprite->height;
+    return 1;
+}
+
+/*
+ * One frame of a cache sprite, for cache.sprite_image. Bound through the
+ * bridge the way a script's cc_setgraphic is (UITreeSceneBridge_BindSprite):
+ * a sprite not resident yet gets its scene id now and the bridge's pump fills
+ * it when it lands, so "not yet" is 0 and asking again finishes it. The
+ * pixels are the scene sprite's own, read before anything else runs.
+ */
+static int
+app_plugin_sprite_pixels(
+    void* user,
+    int sprite_id,
+    int frame,
+    uint32_t const** out_argb,
+    int* out_w,
+    int* out_h)
+{
+    struct App* app = (struct App*)user;
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Sprite const* sprite;
+    int scene_id;
+    int found = 0;
+
+    assert(app);
+    assert(out_argb);
+    assert(out_w);
+    assert(out_h);
+    assert(sprite_id >= 0);
+    assert(frame >= 0);
+    scene_id = UITreeSceneBridge_BindSprite(&app->bridge, sprite_id);
+    if( scene_id <= 0 )
+        return -1;
+    sprites = ToriDraw_SceneSpriteGet(app->scene, scene_id, &found);
+    if( !sprites || found <= 0 )
+        return 0;
+    if( frame >= found )
+        return -1;
+    sprite = sprites[frame];
+    if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+        return -1;
+    *out_argb = sprite->pixels_argb;
     *out_w = sprite->width;
     *out_h = sprite->height;
     return 1;
@@ -5125,6 +6822,659 @@ app_plugin_widget_facets(struct App* app, int32_t idx)
     return facets;
 }
 
+/* ------------------------------------------------------------------------ */
+/* Engine news for on_interface / on_inventory_changed / on_var_changed       */
+/* ------------------------------------------------------------------------ */
+
+void
+app_plugin_mount_changed(void* user, int group_id, int open)
+{
+    struct App* app = user;
+    assert(app);
+    /* The host queues only for a running subscriber, so a mount costs a
+     * plugin-less client this pointer test and nothing else. */
+    if( app->plugins && group_id > 0 )
+        PluginHost_InterfaceChanged(app->plugins, group_id, open != 0);
+}
+
+void
+app_plugin_inventory_changed(struct App* app, int container_id)
+{
+    assert(app);
+    if( app->plugins && container_id >= 0 )
+        PluginHost_InventoryChanged(app->plugins, container_id);
+}
+
+void
+app_plugin_loc_changed(
+    struct App* app,
+    struct World const* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int shape,
+    int angle,
+    int loc_id,
+    int old_loc_id,
+    int old_shape,
+    int old_angle)
+{
+    struct ToriRS_LocChangedEvent ev;
+
+    assert(app);
+    assert(world);
+    if( !app->plugins || world != app->world )
+        return;
+    ev.tile_x = world->_base_tile_x + scene_x;
+    ev.tile_z = world->_base_tile_z + scene_z;
+    ev.level = level;
+    ev.shape = shape;
+    ev.angle = angle;
+    ev.loc_id = loc_id;
+    ev.old_loc_id = old_loc_id;
+    ev.old_shape = old_loc_id >= 0 ? old_shape : -1;
+    ev.old_angle = old_loc_id >= 0 ? old_angle : 0;
+    PluginHost_LocChanged(app->plugins, &ev);
+}
+
+void
+App_PluginMapAnim(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int spotanim,
+    int height,
+    int delay)
+{
+    struct ToriRS_MapAnimEvent ev;
+
+    assert(app);
+    assert(app->world);
+    if( !app->plugins )
+        return;
+    ev.tile_x = app->world->_base_tile_x + scene_x;
+    ev.tile_z = app->world->_base_tile_z + scene_z;
+    ev.level = level;
+    ev.spotanim = spotanim;
+    ev.height = height;
+    ev.delay = delay;
+    ev.cycle = (int)app->world->cycle;
+    PluginHost_MapAnim(app->plugins, &ev);
+}
+
+static int
+app_plugin_varp_values(void* user, int32_t const** out)
+{
+    struct App* app = user;
+    assert(app);
+    assert(out);
+    *out = app->varps.var;
+    return app->varps.var ? app->varps.varp_count : 0;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Widget detail, RuneLite's child lists, listeners, owned items              */
+/* ------------------------------------------------------------------------ */
+
+/* RuneLite's component id for a node: a cc_create child is named by the
+ * component it hangs from. */
+static int
+app_widget_rl_id(struct UITree const* tree, int32_t idx)
+{
+    struct UITreeComponent const* c = &tree->components[idx];
+    if( c->dynamic && c->parent >= 0 )
+        return tree->components[c->parent].component_id;
+    return c->component_id;
+}
+
+/* net.runelite.api.widgets.WidgetType for a node, -1 for a client-built one. */
+static int
+app_widget_rl_type(struct UITreeComponent const* c)
+{
+    switch( c->type )
+    {
+    case UIELEM_RS_LAYER: return 0;
+    case UIELEM_RS_INV: return 2;
+    case UIELEM_RS_RECT: return 3;
+    case UIELEM_RS_TEXT: return 4;
+    case UIELEM_RS_GRAPHIC: return 5;
+    case UIELEM_CC_OBJ: return 5;
+    case UIELEM_RS_MODEL: return 6;
+    case UIELEM_RS_INV_TEXT: return 7;
+    case UIELEM_RS_LINE: return 9;
+    default: return -1;
+    }
+}
+
+static void
+app_widget_detail(struct App* app, int32_t idx, struct ToriRS_WidgetDetail* d)
+{
+    struct UITree* tree = app->tree;
+    struct UITreeComponent const* c = &tree->components[idx];
+    uint32_t const declared = d->struct_size;
+
+    memset(d, 0, sizeof(*d));
+    d->struct_size = declared;
+    d->id = app_widget_rl_id(tree, idx);
+    d->index = c->dynamic ? c->dynamic_child_index : -1;
+    d->type = app_widget_rl_type(c);
+    d->content_type = c->behavior.client_code;
+    d->item_id = c->item_id >= 0 ? c->item_id : -1;
+    d->item_quantity = c->item_id >= 0 ? c->item_count : 0;
+    d->sprite_id = -1;
+    d->model_id = -1;
+    d->animation_id = -1;
+    d->font_id = -1;
+    d->text_color = c->colour;
+    if( c->type == UIELEM_RS_GRAPHIC && c->item_id < 0 && c->u.rs_graphic.scene_id > 0 )
+        d->sprite_id = UITreeSceneBridge_SpriteCacheIdForScene(&app->bridge, c->u.rs_graphic.scene_id);
+    else if( c->type == UIELEM_BUILTIN_SPRITE && c->u.sprite.scene_id > 0 )
+        d->sprite_id = UITreeSceneBridge_SpriteCacheIdForScene(&app->bridge, c->u.sprite.scene_id);
+    if( c->type == UIELEM_RS_MODEL )
+    {
+        d->model_id = c->u.rs_model.gamecache_model_id;
+        d->animation_id = c->u.rs_model.anim_seq_id;
+        d->model_type = d->model_id >= 0 ? 1 : 0;
+    }
+    /* What IF_SETNPCHEAD / IF_SETPLAYERHEAD / IF_SETOBJECT / IF_SETMODEL bound,
+     * as RuneLite's WidgetModelType names it. */
+    {
+        int const head = UIIfModels_HeadIndex(&app->if_models, c->component_id);
+        if( head >= 0 )
+        {
+            struct UIIfHead const* h = &app->if_models.heads[head];
+            if( h->kind == UI_IFHEAD_NPC ) { d->model_type = 2; d->model_id = h->npc_id; }
+            else if( h->kind == UI_IFHEAD_PLAYER ) d->model_type = 3;
+            else if( h->kind == UI_IFHEAD_OBJ ) { d->model_type = 4; d->model_id = h->npc_id; }
+            else if( h->kind == UI_IFHEAD_MODEL ) { d->model_type = 1; d->model_id = h->npc_id; }
+        }
+    }
+    if( c->type == UIELEM_RS_TEXT )
+    {
+        d->text_color = c->u.rs_text.color;
+        /* A cache font's scene id IS its cache id (UITreeSceneBridge_EnsureFont);
+         * the chrome's own faces live in the reserved band above it. */
+        if( c->u.rs_text.font_id >= 0 && c->u.rs_text.font_id < 0x40000000 )
+            d->font_id = c->u.rs_text.font_id;
+    }
+    else if( c->type == UIELEM_RS_RECT )
+        d->text_color = c->u.rs_rect.color;
+    {
+        char const* text = c->type == UIELEM_RS_TEXT ? c->u.rs_text.text : NULL;
+        if( !text )
+            text = c->data_text;
+        snprintf(d->text, sizeof(d->text), "%s", text ? text : "");
+    }
+    {
+        struct UITreeMenuOptions const* opts = UITree_MenuOptions(c);
+        snprintf(d->name, sizeof(d->name), "%s", opts->option);
+        for( int i = 0; i < TORIRS_WIDGET_DETAIL_ACTIONS && i < UITREE_MENU_OPTION_SLOTS; i++ )
+        {
+            snprintf(d->actions[i], sizeof(d->actions[i]), "%s", opts->ops[i]);
+            if( opts->ops[i][0] )
+                d->action_count = i + 1;
+        }
+    }
+    d->hidden = UITree_NodeOrAncestorDisplayHidden(tree, idx) ||
+                !UITree_NodeNativeVisible(tree, &app->ui_host, idx, app->interact.published_hover_com_id);
+    d->self_hidden = c->behavior.hide != 0;
+    UITree_EnsureLayoutFor(tree, idx);
+    {
+        int x = 0, y = 0, w = 0, h = 0;
+        UITree_NodeDrawnBounds(tree, idx, &x, &y, &w, &h);
+        d->x = x; d->y = y; d->width = w; d->height = h;
+    }
+    d->original_x = c->position.x;
+    d->original_y = c->position.y;
+    d->original_width = c->position.width;
+    d->original_height = c->position.height;
+    d->relative_x = c->position.abs_x;
+    d->relative_y = c->position.abs_y;
+    if( c->parent >= 0 )
+    {
+        d->relative_x -= tree->components[c->parent].position.abs_x;
+        d->relative_y -= tree->components[c->parent].position.abs_y;
+    }
+    d->scroll_x = c->scroll_x;
+    d->scroll_y = c->scroll_y;
+    if( c->type == UIELEM_RS_LAYER )
+    {
+        d->scroll_width = c->u.rs_layer.scroll_width;
+        d->scroll_height = c->u.rs_layer.scroll_height;
+    }
+    d->opacity = c->trans;
+    d->parent_id = c->parent >= 0 ? app_widget_rl_id(tree, c->parent) : -1;
+}
+
+enum AppWidgetChildList
+{
+    APP_WIDGET_CHILDREN_DYNAMIC,
+    APP_WIDGET_CHILDREN_STATIC,
+    APP_WIDGET_CHILDREN_NESTED,
+};
+
+static bool
+app_widget_child_in(struct UITree const* tree, int32_t parent, int32_t child, enum AppWidgetChildList which)
+{
+    struct UITreeComponent const* c = &tree->components[child];
+    struct UITreeComponent const* p = &tree->components[parent];
+    if( c->freed || c->plugin_owner )
+        return false;
+    if( which == APP_WIDGET_CHILDREN_DYNAMIC )
+        return c->dynamic != 0;
+    if( c->dynamic )
+        return false;
+    /* A root of ANOTHER interface hanging here is a mount: nested. */
+    bool const nested = c->component_id >= 0 && p->component_id >= 0 &&
+                        (c->component_id >> 16) != (p->component_id >> 16);
+    return which == APP_WIDGET_CHILDREN_NESTED ? nested : !nested;
+}
+
+/* Sort scratch for the dynamic list: RuneLite answers it in child-index
+ * order, and a replace-in-slot cc_create appends out of that order. A list
+ * longer than this is answered in draw order. */
+#define APP_WIDGET_CHILD_SORT_MAX 4096
+static struct { int32_t key, node; } g_widget_child_sort[APP_WIDGET_CHILD_SORT_MAX];
+
+static int
+app_widget_child_sort_cmp(void const* a, void const* b)
+{
+    int32_t const ka = ((int32_t const*)a)[0], kb = ((int32_t const*)b)[0];
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
+}
+
+static enum ToriRS_ContractResult
+app_widget_child_list(
+    struct App* app,
+    int32_t idx,
+    enum AppWidgetChildList which,
+    struct PluginWidgetRequest* r)
+{
+    struct UITree* tree = app->tree;
+    int n = 0;
+    bool sortable = which == APP_WIDGET_CHILDREN_DYNAMIC;
+    for( int32_t child = tree->components[idx].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        if( !app_widget_child_in(tree, idx, child, which) )
+            continue;
+        if( sortable )
+        {
+            if( n < APP_WIDGET_CHILD_SORT_MAX )
+            {
+                g_widget_child_sort[n].key = tree->components[child].dynamic_child_index;
+                g_widget_child_sort[n].node = child;
+            }
+            else
+                sortable = false;
+        }
+        if( !sortable )
+        {
+            if( *r->count < r->capacity ) r->refs[*r->count] = app_widget_ref(tree, child);
+        }
+        ++n;
+        ++*r->count;
+    }
+    if( sortable )
+    {
+        qsort(g_widget_child_sort, (size_t)n, sizeof(g_widget_child_sort[0]), app_widget_child_sort_cmp);
+        for( int i = 0; i < n && (size_t)i < r->capacity; i++ )
+            r->refs[i] = app_widget_ref(tree, g_widget_child_sort[i].node);
+    }
+    else if( which == APP_WIDGET_CHILDREN_DYNAMIC && n > APP_WIDGET_CHILD_SORT_MAX )
+    {
+        /* Past the scratch: the walk above filled refs in draw order from the
+         * first child that did not fit; restart it whole so the order is one
+         * order and not two. */
+        *r->count = 0;
+        for( int32_t child = tree->components[idx].first_child; child >= 0;
+             child = tree->components[child].next_sibling )
+        {
+            if( !app_widget_child_in(tree, idx, child, which) )
+                continue;
+            if( *r->count < r->capacity ) r->refs[*r->count] = app_widget_ref(tree, child);
+            ++*r->count;
+        }
+    }
+    return *r->count > r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+}
+
+/* RuneLite's listener names, and the hook slot behind each. -1: a name this
+ * client knows of and does not keep (onLoad runs at the mount). */
+static struct { char const* name; int slot; } const APP_WIDGET_LISTENERS[] = {
+    {"onClick", (int)offsetof(struct UITreeRuntimeHooks, on_click)},
+    {"onHold", (int)offsetof(struct UITreeRuntimeHooks, on_hold)},
+    {"onMouseOver", (int)offsetof(struct UITreeRuntimeHooks, on_mouse_over)},
+    {"onMouseLeave", (int)offsetof(struct UITreeRuntimeHooks, on_mouse_leave)},
+    {"onMouseRepeat", (int)offsetof(struct UITreeRuntimeHooks, on_mouse_repeat)},
+    {"onRelease", (int)offsetof(struct UITreeRuntimeHooks, on_release)},
+    {"onTargetEnter", (int)offsetof(struct UITreeRuntimeHooks, on_target_enter)},
+    {"onTargetLeave", (int)offsetof(struct UITreeRuntimeHooks, on_target_leave)},
+    {"onDrag", (int)offsetof(struct UITreeRuntimeHooks, on_drag)},
+    {"onDragComplete", (int)offsetof(struct UITreeRuntimeHooks, on_drag_complete)},
+    {"onScrollWheel", (int)offsetof(struct UITreeRuntimeHooks, on_scroll_wheel)},
+    {"onKey", (int)offsetof(struct UITreeRuntimeHooks, on_key)},
+    {"onOp", (int)offsetof(struct UITreeRuntimeHooks, on_op)},
+    {"onTimer", (int)offsetof(struct UITreeRuntimeHooks, on_timer)},
+    {"onVarTransmit", (int)offsetof(struct UITreeRuntimeHooks, on_var_transmit)},
+    {"onInvTransmit", (int)offsetof(struct UITreeRuntimeHooks, on_inv_transmit)},
+    {"onDialogAbort", (int)offsetof(struct UITreeRuntimeHooks, on_dialog_abort)},
+    {"onLoad", -1},
+};
+
+/*
+ * An inv / var transmit listener is not on the node: IF_SETONINVTRANSMIT and
+ * IF_SETONVARTRANSMIT arm the CS2 host's own registries (the transmit pump
+ * walks them, not the tree), so RuneLite's getOnInvTransmitListener reads
+ * there. Same Object[] shape as a node hook. UNAVAILABLE when none is armed.
+ */
+static enum ToriRS_ContractResult
+app_widget_transmit_listener(int component_id, int script_id, int const* int_args, int int_arg_count,
+                             uint64_t str_arg_mask, int str_arg_count,
+                             char const str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN],
+                             struct PluginWidgetRequest* r)
+{
+    (void)component_id;
+    if( script_id <= 0 )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    *r->count = (size_t)int_arg_count + 1;
+    if( r->capacity )
+        r->listener_args[0] = (struct ToriRS_WidgetListenerArg){.is_string = false, .int_value = script_id};
+    int string_at = 0;
+    for( int i = 0; i < int_arg_count; i++ )
+    {
+        bool const is_string = i < 64 && (str_arg_mask & (UINT64_C(1) << i)) != 0;
+        if( (size_t)i + 1 < r->capacity )
+        {
+            struct ToriRS_WidgetListenerArg* a = &r->listener_args[i + 1];
+            memset(a, 0, sizeof(*a));
+            a->is_string = is_string;
+            if( is_string )
+                snprintf(a->string_value, sizeof(a->string_value), "%s",
+                         string_at < str_arg_count ? str_args[string_at] : "");
+            else
+                a->int_value = int_args[i];
+        }
+        if( is_string )
+            string_at++;
+    }
+    return *r->count > r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+app_widget_listener(struct App* app, struct UITreeComponent const* c, struct PluginWidgetRequest* r)
+{
+    int slot = -2;
+    assert(app);
+    if( !c->plugin_owner && c->component_id >= 0 && strcmp(r->name, "onInvTransmit") == 0 )
+    {
+        for( int i = 0; i < app->host.inv_transmit_hook_count; i++ )
+        {
+            struct RS_CS2InvTransmitHook const* h = &app->host.inv_transmit_hooks[i];
+            if( h->component_id == c->component_id && h->script_id > 0 )
+                return app_widget_transmit_listener(h->component_id, h->script_id, h->int_args, h->int_arg_count,
+                                                    h->str_arg_mask, h->str_arg_count, h->str_args, r);
+        }
+    }
+    if( !c->plugin_owner && c->component_id >= 0 && strcmp(r->name, "onVarTransmit") == 0 )
+    {
+        for( int i = 0; i < app->host.var_transmit_hook_count; i++ )
+        {
+            struct RS_CS2VarTransmitHook const* h = &app->host.var_transmit_hooks[i];
+            if( h->component_id == c->component_id && h->script_id > 0 )
+                return app_widget_transmit_listener(h->component_id, h->script_id, h->int_args, h->int_arg_count,
+                                                    h->str_arg_mask, h->str_arg_count, h->str_args, r);
+        }
+    }
+    for( size_t i = 0; i < sizeof(APP_WIDGET_LISTENERS) / sizeof(APP_WIDGET_LISTENERS[0]); i++ )
+        if( strcmp(APP_WIDGET_LISTENERS[i].name, r->name) == 0 )
+        {
+            slot = APP_WIDGET_LISTENERS[i].slot;
+            break;
+        }
+    if( slot == -2 )
+        return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( slot < 0 || c->plugin_owner )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    struct UITreeRuntimeScriptHook const* hook =
+        (struct UITreeRuntimeScriptHook const*)((char const*)UITree_Hooks(c) + slot);
+    if( !UITree_HookIsSet(hook) )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    *r->count = (size_t)hook->argc + 1;
+    if( r->capacity )
+    {
+        r->listener_args[0] = (struct ToriRS_WidgetListenerArg){.is_string = false, .int_value = hook->script_id};
+    }
+    int string_at = 0;
+    for( int i = 0; i < hook->argc; i++ )
+    {
+        bool const is_string = i < 64 && (hook->str_mask & (UINT64_C(1) << i)) != 0;
+        if( (size_t)i + 1 < r->capacity )
+        {
+            struct ToriRS_WidgetListenerArg* a = &r->listener_args[i + 1];
+            memset(a, 0, sizeof(*a));
+            a->is_string = is_string;
+            if( is_string )
+                snprintf(a->string_value, sizeof(a->string_value), "%s",
+                         string_at < hook->str_argc ? UITree_HookStr(hook, string_at) : "");
+            else
+                a->int_value = UITree_HookArg(hook, i);
+        }
+        if( is_string )
+            string_at++;
+    }
+    return *r->count > r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+}
+
+/*
+ * Owned item controls whose obj icon could not be baked yet: the obj is on
+ * the node already, the picture binds here once its model lands. Bounded,
+ * process-wide (there is one tree), and one test when empty.
+ */
+#define APP_WIDGET_ITEM_PENDING_MAX 128
+#define APP_WIDGET_ITEM_PENDING_REQUEUE 60
+#define APP_WIDGET_ITEM_PENDING_GIVE_UP 1800
+struct AppWidgetItemPending
+{
+    struct UITreeNodeRef ref;
+    int obj_id, count, pumps;
+    /* 0 for an owned item control; the editing plugin for a NATIVE cell's
+     * re-lay, whose icon is bound by restating that owner's edit. */
+    uint64_t owner;
+};
+static struct AppWidgetItemPending g_widget_item_pending[APP_WIDGET_ITEM_PENDING_MAX];
+static int g_widget_item_pending_count;
+
+static void
+app_widget_item_queue_load(struct App* app, int obj_id, int count)
+{
+    int const ids[1] = { obj_id };
+    int const counts[1] = { count > 0 ? count : 1 };
+    struct ToriRS_Task* load = CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
+    if( load )
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
+}
+
+static void
+app_widget_item_pending_drop(struct UITreeNodeRef ref)
+{
+    for( int i = 0; i < g_widget_item_pending_count; i++ )
+        if( g_widget_item_pending[i].ref.index == ref.index &&
+            g_widget_item_pending[i].ref.incarnation == ref.incarnation &&
+            g_widget_item_pending[i].ref.tree_instance == ref.tree_instance )
+        {
+            g_widget_item_pending[i] = g_widget_item_pending[--g_widget_item_pending_count];
+            return;
+        }
+}
+
+/*
+ * Owned MODEL controls whose model is not composited yet: the load is queued
+ * at set_model and the scene model binds here once it is. Same bounds and
+ * cadence as the item icons.
+ */
+struct AppWidgetModelPending
+{
+    struct UITreeNodeRef ref;
+    int kind, id, pumps;
+};
+static struct AppWidgetModelPending g_widget_model_pending[APP_WIDGET_ITEM_PENDING_MAX];
+static int g_widget_model_pending_count;
+
+static void
+app_widget_model_pending_drop(struct UITreeNodeRef ref)
+{
+    for( int i = 0; i < g_widget_model_pending_count; i++ )
+        if( g_widget_model_pending[i].ref.index == ref.index &&
+            g_widget_model_pending[i].ref.incarnation == ref.incarnation &&
+            g_widget_model_pending[i].ref.tree_instance == ref.tree_instance )
+        {
+            g_widget_model_pending[i] = g_widget_model_pending[--g_widget_model_pending_count];
+            return;
+        }
+}
+
+static void
+app_plugin_widget_models_pump(struct App* app)
+{
+    for( int i = g_widget_model_pending_count - 1; i >= 0; i-- )
+    {
+        struct AppWidgetModelPending* row = &g_widget_model_pending[i];
+        int32_t const idx = UITree_ResolveRef(app->tree, row->ref);
+        bool done = idx < 0;
+        if( !done )
+        {
+            bool const requeue = ++row->pumps % APP_WIDGET_ITEM_PENDING_REQUEUE == 0;
+            int const scene = App_PluginModelScene(app, row->kind, row->id, requeue);
+            if( scene >= 0 )
+            {
+                (void)UITree_SetModelAt(app->tree, idx, scene);
+                RedrawRequest_Raise(&app->redraw_request);
+                done = true;
+            }
+            else if( row->pumps >= APP_WIDGET_ITEM_PENDING_GIVE_UP )
+                done = true; /* A model that never composites: the control stays empty. */
+        }
+        if( done )
+            g_widget_model_pending[i] = g_widget_model_pending[--g_widget_model_pending_count];
+    }
+}
+
+/* set_model on an owned MODEL control. */
+static enum ToriRS_ContractResult
+app_widget_set_model(struct App* app, struct UITreeNodeRef ref, int32_t idx, int kind, int id)
+{
+    int head_kind;
+    int scene;
+
+    app_widget_model_pending_drop(ref);
+    if( kind == TORIRS_WIDGET_MODEL_NONE )
+    {
+        (void)UITree_SetModelAt(app->tree, idx, -1);
+        return TORIRS_CONTRACT_OK;
+    }
+    head_kind = kind == TORIRS_WIDGET_MODEL_NPC ? UI_IFHEAD_NPC
+              : kind == TORIRS_WIDGET_MODEL_OBJ ? UI_IFHEAD_OBJ
+              : kind == TORIRS_WIDGET_MODEL_MODEL ? UI_IFHEAD_MODEL
+                                                  : UI_IFHEAD_PLAYER;
+    scene = App_PluginModelScene(app, head_kind, id, true);
+    (void)UITree_SetModelAt(app->tree, idx, scene);
+    if( scene >= 0 )
+        return TORIRS_CONTRACT_OK;
+    if( g_widget_model_pending_count < APP_WIDGET_ITEM_PENDING_MAX )
+        g_widget_model_pending[g_widget_model_pending_count++] =
+            (struct AppWidgetModelPending){ref, head_kind, id, 0};
+    return TORIRS_CONTRACT_PENDING;
+}
+
+void
+app_plugin_widget_items_pump(struct App* app)
+{
+    assert(app);
+    if( g_widget_model_pending_count > 0 && app->tree )
+        app_plugin_widget_models_pump(app);
+    if( g_widget_item_pending_count == 0 || !app->tree )
+        return;
+    for( int i = g_widget_item_pending_count - 1; i >= 0; i-- )
+    {
+        int32_t const idx = UITree_ResolveRef(app->tree, g_widget_item_pending[i].ref);
+        bool done = idx < 0 || app->tree->components[idx].item_id != g_widget_item_pending[i].obj_id;
+        if( !done )
+        {
+            int const scene = UITreeSceneBridge_EnsureObjIcon(
+                &app->bridge, g_widget_item_pending[i].obj_id,
+                g_widget_item_pending[i].count > 0 ? g_widget_item_pending[i].count : 1);
+            if( scene > 0 )
+            {
+                if( g_widget_item_pending[i].owner )
+                    (void)UITree_WidgetSetNativeObject(app->tree, g_widget_item_pending[i].ref,
+                                                       g_widget_item_pending[i].owner,
+                                                       g_widget_item_pending[i].obj_id,
+                                                       g_widget_item_pending[i].count, scene);
+                else
+                    (void)UITree_SetObjectAt(app->tree, idx, g_widget_item_pending[i].obj_id,
+                                             g_widget_item_pending[i].count, scene, 0, 0);
+                RedrawRequest_Raise(&app->redraw_request);
+                done = true;
+            }
+            else if( ++g_widget_item_pending[i].pumps >= APP_WIDGET_ITEM_PENDING_GIVE_UP )
+                done = true; /* An obj whose model never comes: it stays iconless. */
+            else if( g_widget_item_pending[i].pumps % APP_WIDGET_ITEM_PENDING_REQUEUE == 0 )
+                app_widget_item_queue_load(app, g_widget_item_pending[i].obj_id, g_widget_item_pending[i].count);
+        }
+        if( done )
+            g_widget_item_pending[i] = g_widget_item_pending[--g_widget_item_pending_count];
+    }
+}
+
+static enum ToriRS_ContractResult
+app_widget_set_item(struct App* app, struct UITreeNodeRef ref, int32_t idx, int obj_id, int count)
+{
+    struct UITree* tree = app->tree;
+    app_widget_item_pending_drop(ref);
+    if( obj_id < 0 )
+    {
+        (void)UITree_SetObjectAt(tree, idx, -1, 0, -1, 0, 0);
+        return TORIRS_CONTRACT_OK;
+    }
+    int const scene = UITreeSceneBridge_EnsureObjIcon(&app->bridge, obj_id, count > 0 ? count : 1);
+    if( scene > 0 )
+    {
+        (void)UITree_SetObjectAt(tree, idx, obj_id, count, scene, 0, 0);
+        return TORIRS_CONTRACT_OK;
+    }
+    /* The obj is the control's now (readers see it); the picture follows. */
+    (void)UITree_SetObjectAt(tree, idx, obj_id, count, -1, 0, 0);
+    app_widget_item_queue_load(app, obj_id, count);
+    if( g_widget_item_pending_count < APP_WIDGET_ITEM_PENDING_MAX )
+        g_widget_item_pending[g_widget_item_pending_count++] =
+            (struct AppWidgetItemPending){ref, obj_id, count, 0, 0};
+    return TORIRS_CONTRACT_PENDING;
+}
+
+/* set_item on a NATIVE cell: the owner's retained re-lay (written through,
+ * restored by reset). The icon follows the same way an owned control's does. */
+static enum ToriRS_ContractResult
+app_widget_set_native_item(struct App* app, struct UITreeNodeRef ref, uint64_t owner, int obj_id, int count)
+{
+    struct UITree* tree = app->tree;
+    app_widget_item_pending_drop(ref);
+    if( obj_id < 0 )
+        return UITree_WidgetSetNativeObject(tree, ref, owner, -1, 0, -1) ? TORIRS_CONTRACT_OK
+                                                                         : TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    int const scene = UITreeSceneBridge_EnsureObjIcon(&app->bridge, obj_id, count > 0 ? count : 1);
+    if( !UITree_WidgetSetNativeObject(tree, ref, owner, obj_id, count, scene > 0 ? scene : -1) )
+        return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    if( scene > 0 )
+        return TORIRS_CONTRACT_OK;
+    app_widget_item_queue_load(app, obj_id, count);
+    if( g_widget_item_pending_count < APP_WIDGET_ITEM_PENDING_MAX )
+        g_widget_item_pending[g_widget_item_pending_count++] =
+            (struct AppWidgetItemPending){ref, obj_id, count, 0, owner};
+    return TORIRS_CONTRACT_PENDING;
+}
+
 static enum ToriRS_ContractResult
 app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
@@ -5408,10 +7758,105 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         break;
     }
     case PLUGIN_WIDGET_CREATE_IMAGE:
+    case PLUGIN_WIDGET_CREATE_ITEM:
     {
+        /* An item control is an owned graphic carrying an obj (setItemId on a
+         * GRAPHIC child): the same node create_image makes, so the two share
+         * one key space. */
         int child=UITree_WidgetCreateGraphic(tree,ref,owner,r->name);
         *r->refs=app_widget_ref(tree,child);
         if( child<0 ) return TORIRS_CONTRACT_FAILED;
+        break;
+    }
+    case PLUGIN_WIDGET_CREATE_RECT:
+    case PLUGIN_WIDGET_CREATE_MODEL:
+    {
+        int child = r->kind == PLUGIN_WIDGET_CREATE_RECT ? UITree_WidgetCreateRect(tree, ref, owner, r->name)
+                                                         : UITree_WidgetCreateModel(tree, ref, owner, r->name);
+        *r->refs = app_widget_ref(tree, child);
+        if( child < 0 ) return TORIRS_CONTRACT_FAILED;
+        break;
+    }
+    case PLUGIN_WIDGET_SET_RECT:
+        if( c->plugin_owner != owner || c->type != UIELEM_RS_RECT ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        (void)UITree_SetColourAt(tree, idx, r->a);
+        (void)UITree_SetNativeIntAt(tree, idx, UITREE_NATIVE_FILL, r->b);
+        break;
+    case PLUGIN_WIDGET_SET_MODEL:
+    {
+        if( c->plugin_owner != owner || c->type != UIELEM_RS_MODEL ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        enum ToriRS_ContractResult const result = app_widget_set_model(app, ref, idx, r->a, r->b);
+        RedrawRequest_Raise(&app->redraw_request);
+        return result;
+    }
+    case PLUGIN_WIDGET_SET_MODEL_POSE:
+        if( c->plugin_owner != owner || c->type != UIELEM_RS_MODEL ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        (void)UITree_SetModelPoseAt(tree, idx, 0, 0, r->a, r->b, r->id, r->op);
+        break;
+    case PLUGIN_WIDGET_NATIVE_HIDDEN:
+        if( c->plugin_owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !UITree_WidgetSetNativeHidden(tree, ref, owner, r->a != 0) ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+        break;
+    case PLUGIN_WIDGET_SCROLL_SIZE:
+        if( c->plugin_owner || c->type != UIELEM_RS_LAYER ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !UITree_SetScrollSizeAt(tree, idx, r->a, r->b) ) return TORIRS_CONTRACT_FAILED;
+        break;
+    case PLUGIN_WIDGET_SET_MODEL_ANIM:
+        if( c->plugin_owner != owner || c->type != UIELEM_RS_MODEL ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        (void)UITree_SetModelAnimationAt(tree, idx, r->a, 0, 0, 0);
+        break;
+    case PLUGIN_WIDGET_DETAIL:
+        app_widget_detail(app, idx, r->detail);
+        return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_DYNAMIC_CHILDREN:
+        return app_widget_child_list(app, idx, APP_WIDGET_CHILDREN_DYNAMIC, r);
+    case PLUGIN_WIDGET_STATIC_CHILDREN:
+        return app_widget_child_list(app, idx, APP_WIDGET_CHILDREN_STATIC, r);
+    case PLUGIN_WIDGET_NESTED_CHILDREN:
+        return app_widget_child_list(app, idx, APP_WIDGET_CHILDREN_NESTED, r);
+    case PLUGIN_WIDGET_LISTENER:
+        return app_widget_listener(app, c, r);
+    case PLUGIN_WIDGET_NATIVE_TEXT:
+        if( c->plugin_owner || c->type!=UIELEM_RS_TEXT ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !UITree_WidgetSetNativeText(tree,ref,owner,r->name) ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+        break;
+    case PLUGIN_WIDGET_NATIVE_TEXT_COLOR:
+        if( c->plugin_owner || c->type!=UIELEM_RS_TEXT ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !UITree_WidgetSetNativeTextColor(tree,ref,owner,r->a) ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+        break;
+    case PLUGIN_WIDGET_SET_ITEM:
+    {
+        if( !c->plugin_owner && (c->type==UIELEM_RS_GRAPHIC || c->type==UIELEM_CC_OBJ) )
+        {
+            enum ToriRS_ContractResult const native=app_widget_set_native_item(app,ref,owner,r->a,r->b);
+            RedrawRequest_Raise(&app->redraw_request);
+            return native;
+        }
+        if( c->plugin_owner!=owner || c->type!=UIELEM_RS_GRAPHIC ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        enum ToriRS_ContractResult const result=app_widget_set_item(app,ref,idx,r->a,r->b);
+        RedrawRequest_Raise(&app->redraw_request);
+        return result;
+    }
+    case PLUGIN_WIDGET_SET_SPRITE:
+    {
+        /* Bound even while the sprite loads: the bridge fills the scene id in
+         * when it lands, as it does for a script's cc_setgraphic. */
+        int const scene=UITreeSceneBridge_BindSprite(&app->bridge,r->a);
+        if( scene<=0 ) return TORIRS_CONTRACT_UNAVAILABLE;
+        if( c->plugin_owner==owner && c->type==UIELEM_RS_GRAPHIC )
+        {
+            if( !UITree_SetGraphicAt(tree,idx,scene,0) ) return TORIRS_CONTRACT_FAILED;
+            /* "The control's art at its size": an IF3 graphic scales its
+             * sprite to the box (a non-IF3 one blits it 1:1, so a 96x?? backing
+             * sprite on a 384x2 rule painted a band over everything under it). */
+            (void)UITree_SetNativeIntAt(tree,idx,UITREE_NATIVE_IF3,1);
+        }
+        else if( !c->plugin_owner &&
+                 (c->type==UIELEM_BUILTIN_SPRITE || c->type==UIELEM_RS_GRAPHIC || c->type==UIELEM_BUILTIN_COMPASS) )
+        {
+            if( !UITree_WidgetSetArt(tree,ref,owner,scene) ) return TORIRS_CONTRACT_FAILED;
+        }
+        else return TORIRS_CONTRACT_NATIVE_BLOCKED;
         break;
     }
     case PLUGIN_WIDGET_SET_IMAGE:
@@ -5440,6 +7885,14 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         RedrawRequest_Raise(&app->redraw_request);
         break;
     case PLUGIN_WIDGET_OPACITY:
+        if( !c->plugin_owner )
+        {
+            /* A native node: the retained transparency edit (setOpacity on a
+             * game widget -- the bank tab's missing-item cells). */
+            if( !UITree_WidgetSetNativeTransparency(tree,ref,owner,255-r->a) ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+            RedrawRequest_Raise(&app->redraw_request);
+            break;
+        }
         if( c->plugin_owner!=owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( !UITree_WidgetSetTransparency(tree,ref,owner,255-r->a) ) return TORIRS_CONTRACT_FAILED;
         RedrawRequest_Raise(&app->redraw_request);
@@ -6248,6 +8701,266 @@ app_plugin_menu_drop(void* user, void* cursor, int index)
     return 1;
 }
 
+static int
+app_plugin_menu_count(void* user, void* cursor)
+{
+    struct UIMinimenu const* menu = (struct UIMinimenu const*)cursor;
+
+    (void)user;
+    assert(menu);
+    return menu->option_count;
+}
+
+static void
+app_plugin_menu_set_text(void* user, void* cursor, int index, char const* text)
+{
+    struct UIMinimenu* menu = (struct UIMinimenu*)cursor;
+
+    (void)user;
+    assert(menu);
+    assert(text);
+    assert(index >= 0);
+    assert(index < menu->option_count);
+    snprintf(menu->options[index].text, sizeof(menu->options[index].text), "%s", text);
+}
+
+/* Rebuild the rows as order[0..count): the host lists each current index at
+ * most once, so a scratch copy of the old rows is all it takes. Heap, not
+ * stack: a full menu is 400 rows of ~200 bytes. */
+static void
+app_plugin_menu_permute(void* user, void* cursor, int const* order, int count)
+{
+    struct UIMinimenu* menu = (struct UIMinimenu*)cursor;
+    struct UIMinimenuOption* old;
+    int const was = menu ? menu->option_count : 0;
+
+    (void)user;
+    assert(menu);
+    assert(order);
+    assert(count >= 0);
+    assert(count <= was);
+    if( was == 0 )
+        return;
+    old = ToriMem_Alloc(ToriMem_Plugins(), sizeof(*old) * (size_t)was);
+    assert(old);
+    memcpy(old, menu->options, sizeof(*old) * (size_t)was);
+    for( int i = 0; i < count; i++ )
+    {
+        assert(order[i] >= 0);
+        assert(order[i] < was);
+        menu->options[i] = old[order[i]];
+    }
+    menu->option_count = count;
+    ToriMem_Free(ToriMem_Plugins(), old);
+}
+
+static int
+app_plugin_menu_shown(void* user, struct ToriRS_Rect* out)
+{
+    struct App* app = (struct App*)user;
+    struct UIMinimenu const* menu;
+
+    assert(app);
+    assert(out);
+    menu = app->world_views.frame ? app->world_views.frame->minimenu : NULL;
+    if( !menu || !menu->visible )
+        return 0;
+    *out = (struct ToriRS_Rect){ menu->x, menu->y, menu->width, menu->height };
+    return 1;
+}
+
+/*
+ * RuneLite's MenuAction id for a row's normalized action, or -1 when RuneLite
+ * names no action for it. `if3` says which family a widget button row is: a
+ * cache IF3 component's op is CC_OP (57), an IF1 button WIDGET_TYPE_1 (24).
+ * The numbers are net.runelite.api.MenuAction's getId() values.
+ */
+static int
+app_plugin_runelite_menu_type(struct App const* app, int action, bool if3)
+{
+    switch( action )
+    {
+    case REVCONFIG_MINIMENU_OPNPC1: return 9;
+    case REVCONFIG_MINIMENU_OPNPC2: return 10;
+    case REVCONFIG_MINIMENU_OPNPC3: return 11;
+    case REVCONFIG_MINIMENU_OPNPC4: return 12;
+    case REVCONFIG_MINIMENU_OPNPC5: return 13;
+    case REVCONFIG_MINIMENU_OPNPC6: return 1003;
+    case REVCONFIG_MINIMENU_OPLOC1: return 3;
+    case REVCONFIG_MINIMENU_OPLOC2: return 4;
+    case REVCONFIG_MINIMENU_OPLOC3: return 5;
+    case REVCONFIG_MINIMENU_OPLOC4: return 6;
+    case REVCONFIG_MINIMENU_OPLOC5: return 1001;
+    case REVCONFIG_MINIMENU_OPLOC6: return 1002;
+    case REVCONFIG_MINIMENU_OPOBJ1: return 18;
+    case REVCONFIG_MINIMENU_OPOBJ2: return 19;
+    case REVCONFIG_MINIMENU_OPOBJ3: return 20;
+    case REVCONFIG_MINIMENU_OPOBJ4: return 21;
+    case REVCONFIG_MINIMENU_OPOBJ5: return 22;
+    case REVCONFIG_MINIMENU_OPOBJ6: return 1004;
+    case REVCONFIG_MINIMENU_OPPLAYER1: return 44;
+    case REVCONFIG_MINIMENU_OPPLAYER2: return 45;
+    case REVCONFIG_MINIMENU_OPPLAYER3: return 46;
+    case REVCONFIG_MINIMENU_OPPLAYER4: return 47;
+    case REVCONFIG_MINIMENU_OPPLAYER5: return 48;
+    case REVCONFIG_MINIMENU_WALK: return 23;
+    case REVCONFIG_MINIMENU_CANCEL: return 1006;
+    case REVCONFIG_MINIMENU_IF_BUTTON: return if3 ? 57 : 24;
+    case REVCONFIG_MINIMENU_IF_BUTTON_TOGGLE: return 28;
+    case REVCONFIG_MINIMENU_IF_BUTTON_SELECT: return 29;
+    case REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON: return 30;
+    case REVCONFIG_MINIMENU_CLOSE_MODAL: return 26;
+    case REVCONFIG_MINIMENU_INV_BUTTON1: return 39;
+    case REVCONFIG_MINIMENU_INV_BUTTON2: return 40;
+    case REVCONFIG_MINIMENU_INV_BUTTON3: return 41;
+    case REVCONFIG_MINIMENU_INV_BUTTON4: return 42;
+    case REVCONFIG_MINIMENU_INV_BUTTON5: return 43;
+    case REVCONFIG_MINIMENU_OPHELD1: return 33;
+    case REVCONFIG_MINIMENU_OPHELD2: return 34;
+    case REVCONFIG_MINIMENU_OPHELD3: return 35;
+    case REVCONFIG_MINIMENU_OPHELD4: return 36;
+    case REVCONFIG_MINIMENU_OPHELD5: return 37;
+    case REVCONFIG_MINIMENU_OPHELD6: return 1005;
+    case REVCONFIG_MINIMENU_OPHELDT_START: return 38;
+    case REVCONFIG_MINIMENU_USEHELD_ONLOC: return 1;
+    case REVCONFIG_MINIMENU_USEHELD_ONNPC: return 7;
+    case REVCONFIG_MINIMENU_USEHELD_ONOBJ: return 16;
+    case REVCONFIG_MINIMENU_USEHELD_ONPLAYER: return 14;
+    case REVCONFIG_MINIMENU_USEHELD_ONHELD: return 31;
+    case REVCONFIG_MINIMENU_TGT_BUTTON: return 25;
+    case REVCONFIG_MINIMENU_TGT_LOC: return 2;
+    case REVCONFIG_MINIMENU_TGT_NPC: return 8;
+    case REVCONFIG_MINIMENU_TGT_OBJ: return 17;
+    case REVCONFIG_MINIMENU_TGT_PLAYER: return 15;
+    case REVCONFIG_MINIMENU_TGT_HELD: return 32;
+    default: break;
+    }
+    /* A plugin's own row is RuneLite's RUNELITE. */
+    if( app->plugins && PluginHost_OwnsMenuAction(app->plugins, action) )
+        return 1500;
+    return -1;
+}
+
+void
+app_plugin_menu_row(
+    struct App* app,
+    struct UIMinimenuOption const* opt,
+    struct ToriRS_MenuRow* row)
+{
+    assert(app);
+    assert(opt);
+    assert(row);
+
+    memset(row, 0, sizeof(*row));
+    row->text = opt->text;
+    row->action = UIMinimenu_ActionNormalize(opt->action);
+    row->pick_kind = (int)opt->pick.kind;
+    row->npc_slot = -1;
+    row->player_pid = -1;
+    row->target_id = -1;
+    row->component_id = -1;
+    row->slot = -1;
+
+    /* The pick carries a scene element id; a plugin speaks in server
+     * slots and pids, which are the ids that survive a scene rebuild. */
+    if( opt->pick.kind == UI_MINIMENU_PICK_NPC && app->world )
+    {
+        struct WorldEntity_NPC* npc =
+            World_NpcGetByElementId(app->world, opt->pick.id, NULL);
+        if( npc )
+            row->npc_slot = npc->server_slot;
+        row->target_id = opt->pick.secondary_id;
+    }
+    else if( opt->pick.kind == UI_MINIMENU_PICK_PLAYER )
+    {
+        row->player_pid = opt->pick.secondary_id;
+    }
+    else if(
+        opt->pick.kind == UI_MINIMENU_PICK_SCENERY ||
+        opt->pick.kind == UI_MINIMENU_PICK_OBJ )
+    {
+        row->target_id = opt->pick.secondary_id;
+    }
+    else if( opt->pick.kind == UI_MINIMENU_PICK_UI )
+    {
+        row->component_id = opt->pick.id;
+    }
+    /*
+     * An inventory cell names three things and the row carries all three:
+     * the grid it is in, the slot inside that grid, and the ITEM sitting
+     * there. The item is the target -- a row about a cell is a row about
+     * what is in it -- and the component is how a reader tells the
+     * backpack from the worn tab from a bank, which no other field says.
+     */
+    else if( opt->pick.kind == UI_MINIMENU_PICK_INV_SLOT )
+    {
+        row->component_id = opt->pick.id;
+        row->slot = opt->pick.secondary_id;
+        row->target_id = opt->pick.tertiary_id;
+    }
+
+    /*
+     * RuneLite's spelling of the same row. A widget row names a component the
+     * way RuneLite does: a cc_create child by its PARENT's id and its own
+     * index, which is what the node identity the build stamped resolves to.
+     */
+    bool if3 = true;
+    int widget_component = row->component_id;
+    int widget_child = -1;
+    if( (opt->pick.kind == UI_MINIMENU_PICK_UI || opt->pick.kind == UI_MINIMENU_PICK_INV_SLOT) &&
+        opt->pick.has_node_identity && app->tree )
+    {
+        struct UITreeNodeRef const ref = {
+            .tree_instance = app->tree->instance_id,
+            .index = opt->pick.node_index,
+            .incarnation = opt->pick.node_incarnation};
+        int32_t const idx = UITree_ResolveRef(app->tree, ref);
+        if( idx >= 0 )
+        {
+            struct UITreeComponent const* c = &app->tree->components[idx];
+            if3 = c->if3 != 0;
+            if( c->dynamic && c->parent >= 0 )
+            {
+                widget_component = app->tree->components[c->parent].component_id;
+                widget_child = c->dynamic_child_index;
+            }
+        }
+    }
+    row->type = app_plugin_runelite_menu_type(app, row->action, if3);
+    switch( opt->pick.kind )
+    {
+    case UI_MINIMENU_PICK_NPC:
+        row->identifier = row->npc_slot >= 0 ? row->npc_slot : 0;
+        break;
+    case UI_MINIMENU_PICK_PLAYER:
+        row->identifier = row->player_pid >= 0 ? row->player_pid : 0;
+        break;
+    case UI_MINIMENU_PICK_SCENERY:
+    case UI_MINIMENU_PICK_OBJ:
+        row->identifier = opt->pick.secondary_id;
+        row->param0 = opt->pick.tertiary_id;
+        row->param1 = opt->pick.quaternary_id;
+        break;
+    case UI_MINIMENU_PICK_TERRAIN:
+        row->param0 = opt->pick.secondary_id;
+        row->param1 = opt->pick.tertiary_id;
+        break;
+    case UI_MINIMENU_PICK_UI:
+    case UI_MINIMENU_PICK_INV_SLOT:
+        /* A component op is numbered as the cache numbers it (1-based); an
+         * item row is about its obj. */
+        if( row->type == 57 || row->type == 24 )
+            row->identifier = opt->action_index >= 0 ? opt->action_index + 1 : 0;
+        else if( opt->pick.kind == UI_MINIMENU_PICK_INV_SLOT )
+            row->identifier = row->target_id;
+        row->param0 = opt->pick.kind == UI_MINIMENU_PICK_INV_SLOT ? row->slot : widget_child;
+        row->param1 = widget_component;
+        break;
+    default:
+        break;
+    }
+}
+
 /*
  * Hand a freshly built minimenu to the plugins, then re-sort.
  *
@@ -6279,60 +8992,12 @@ app_plugin_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass)
                        : TORIRS_PLUGIN_MENU_ROWS_MAX;
 
     for( int i = 0; i < ev.row_count; i++ )
-    {
-        struct UIMinimenuOption const* opt = &menu->options[i];
-        struct ToriRS_MenuRow* row = &ev.rows[i];
+        app_plugin_menu_row(app, &menu->options[i], &ev.rows[i]);
 
-        row->text = opt->text;
-        row->action = UIMinimenu_ActionNormalize(opt->action);
-        row->pick_kind = (int)opt->pick.kind;
-        row->npc_slot = -1;
-        row->player_pid = -1;
-        row->target_id = -1;
-        row->component_id = -1;
-        row->slot = -1;
-
-        /* The pick carries a scene element id; a plugin speaks in server
-         * slots and pids, which are the ids that survive a scene rebuild. */
-        if( opt->pick.kind == UI_MINIMENU_PICK_NPC && app->world )
-        {
-            struct WorldEntity_NPC* npc =
-                World_NpcGetByElementId(app->world, opt->pick.id, NULL);
-            if( npc )
-                row->npc_slot = npc->server_slot;
-            row->target_id = opt->pick.secondary_id;
-        }
-        else if( opt->pick.kind == UI_MINIMENU_PICK_PLAYER )
-        {
-            row->player_pid = opt->pick.secondary_id;
-        }
-        else if(
-            opt->pick.kind == UI_MINIMENU_PICK_SCENERY ||
-            opt->pick.kind == UI_MINIMENU_PICK_OBJ )
-        {
-            row->target_id = opt->pick.secondary_id;
-        }
-        else if( opt->pick.kind == UI_MINIMENU_PICK_UI )
-        {
-            row->component_id = opt->pick.id;
-        }
-        /*
-         * An inventory cell names three things and the row carries all three:
-         * the grid it is in, the slot inside that grid, and the ITEM sitting
-         * there. The item is the target -- a row about a cell is a row about
-         * what is in it -- and the component is how a reader tells the
-         * backpack from the worn tab from a bank, which no other field says.
-         */
-        else if( opt->pick.kind == UI_MINIMENU_PICK_INV_SLOT )
-        {
-            row->component_id = opt->pick.id;
-            row->slot = opt->pick.secondary_id;
-            row->target_id = opt->pick.tertiary_id;
-        }
-    }
-
-    PluginHost_MenuBuild(app->plugins, menu, &ev, hover_pass != 0);
-    UIMinimenu_SortPriorityActions(menu);
+    /* A plugin's menu.set_order is the menu as it stands (RuneLite's
+     * setMenuEntries): sorting it again would undo the order it asked for. */
+    if( !PluginHost_MenuBuild(app->plugins, menu, &ev, hover_pass != 0) )
+        UIMinimenu_SortPriorityActions(menu);
 }
 
 struct ToriRS_PluginEngine
@@ -6377,14 +9042,46 @@ app_plugin_engine(struct App* app)
     engine.cache_id = app_plugin_cache_id;
     engine.lane = app_plugin_lane;
     engine.obj_info = app_plugin_obj_info;
+    engine.varc_int = app_plugin_varc_int;
+    engine.varc_str = app_plugin_varc_str;
+    engine.set_varc_int = app_plugin_set_varc_int;
+    engine.set_varc_str = app_plugin_set_varc_str;
+    engine.enum_def = app_plugin_enum_def;
+    engine.npc_def = app_plugin_npc_def;
+    engine.loc_def = app_plugin_loc_def;
+    engine.sprite_pixels = app_plugin_sprite_pixels;
+    engine.chat_add = app_plugin_chat_add;
+    engine.hint_arrow_set = app_plugin_hint_arrow_set;
+    engine.hint_arrow_get = app_plugin_hint_arrow_get;
+    engine.sound = app_plugin_sound;
+    engine.weight = app_plugin_weight;
+    engine.world_types = app_plugin_world_types;
+    engine.tick = app_plugin_tick;
+    engine.varp_values = app_plugin_varp_values;
+    engine.script_run = app_plugin_script_run;
+    engine.script_watch = app_plugin_script_watch;
+    /* One hook for every VM thread; it answers nothing until a plugin
+     * watches a script. Cleared by App_Free with the host. */
+    CS2VM2_SetScriptHook(app_script_hook, app);
     engine.inv_slot = app_plugin_inv_slot;
     engine.inv_size = app_plugin_inv_size;
+    engine.container_slot = app_plugin_container_slot;
+    engine.container_size = app_plugin_container_size;
+    engine.world_entity_next = app_plugin_world_entity_next;
+    engine.world_entity_to_main = app_plugin_world_entity_to_main;
     engine.project = app_plugin_project;
     engine.draw_tile = app_plugin_draw_tile;
     engine.draw_hull = app_plugin_draw_hull;
     engine.draw_line = app_plugin_draw_line;
     engine.draw_text = app_plugin_draw_text;
     engine.draw_rect = app_plugin_draw_rect;
+    engine.draw_polygon = app_plugin_draw_polygon;
+    engine.text_width = app_plugin_text_width;
+    engine.text_height = app_plugin_text_height;
+    engine.minimap_project = app_plugin_minimap_project;
+    engine.minimap_bounds = app_plugin_minimap_bounds;
+    engine.worldmap_project = app_plugin_worldmap_project;
+    engine.worldmap_bounds = app_plugin_worldmap_bounds;
     engine.draw_select_canvas = app_plugin_draw_select_canvas;
     engine.image_publish = app_plugin_image_publish;
     engine.image_publish_argb = app_plugin_image_publish_argb;
@@ -6403,12 +9100,21 @@ app_plugin_engine(struct App* app)
     engine.mouse_pos = app_plugin_mouse_pos;
     engine.component_rect = app_plugin_component_rect;
     engine.menu_drop = app_plugin_menu_drop;
+    engine.menu_count = app_plugin_menu_count;
+    engine.menu_set_text = app_plugin_menu_set_text;
+    engine.menu_permute = app_plugin_menu_permute;
+    engine.menu_shown = app_plugin_menu_shown;
+    engine.set_varbit = app_plugin_set_varbit;
+    engine.seq_def = app_plugin_seq_def;
+    engine.open_url = app_plugin_open_url;
+    engine.worldmap_jump = app_plugin_worldmap_jump;
     engine.stat = app_plugin_stat;
     engine.stat_xp = app_plugin_stat_xp;
     engine.skill_name = app_plugin_skill_name;
     engine.run_energy = app_plugin_run_energy;
     engine.menu_add = app_plugin_menu_add;
     engine.asset_read = app_plugin_asset_read;
+    engine.script_read = app_plugin_script_read;
     engine.asset_write = app_plugin_asset_write;
     engine.screenshot = app_plugin_screenshot;
     engine.capture_root = app_plugin_capture_root;

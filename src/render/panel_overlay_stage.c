@@ -256,6 +256,17 @@ PanelOverlayStage_Kept(
     return true;
 }
 
+char const*
+PanelOverlayStage_KeptText(
+    struct PanelOverlayStage const* stage,
+    int index)
+{
+    assert(stage);
+    assert(index >= 0);
+    assert(index < stage->kept_count);
+    return stage->kept[index].text;
+}
+
 int
 PanelOverlayStage_StageOwnerLocal(
     struct PanelOverlayStage* stage,

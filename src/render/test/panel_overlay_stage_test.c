@@ -208,6 +208,34 @@ test_revision_skips_zero(void)
     TEST_ASSERT(PanelOverlayStage_Revision(&g_stage) == 1, "the revision wraps past 0");
 }
 
+/* A display-list TEXT prim keeps its string by pointer, read after the call
+ * that built it returned: the string it is given must be the kept list's own
+ * (PanelOverlayStage_KeptText), and stay right after the item is copied out.
+ * MUTATION: answering the copy's text from PanelOverlayStage_Kept's `out`
+ * fails the pointer check. */
+static void
+test_kept_text_is_the_lists_own(void)
+{
+    struct UITreeEntityOverlay item = a_rect(1);
+    struct UITreeEntityOverlay copy;
+    uint32_t owner;
+    int row;
+    char const* text;
+
+    PanelOverlayStage_Reset(&g_stage, 9);
+    item.kind = UITREE_ENTITY_OVERLAY_TEXT;
+    snprintf(item.text, sizeof(item.text), "%s", "Talk to Veos");
+    begin_well(&g_stage);
+    TEST_ASSERT(PanelOverlayStage_Push(&g_stage, &item), "a text push is kept");
+    TEST_ASSERT(PanelOverlayStage_Commit(&g_stage, 9, 21, 0), "and commits");
+    PanelOverlayStage_End(&g_stage);
+    TEST_ASSERT(PanelOverlayStage_Kept(&g_stage, 0, &copy, &owner, &row), "the kept copy reads");
+    text = PanelOverlayStage_KeptText(&g_stage, 0);
+    TEST_ASSERT(text == g_stage.kept[0].text, "the text is the kept list's own storage");
+    memset(&copy, 0, sizeof(copy));
+    TEST_ASSERT(strcmp(text, "Talk to Veos") == 0, "and outlives the copy");
+}
+
 int
 main(void)
 {
@@ -215,6 +243,7 @@ main(void)
     test_bound_and_overflow();
     test_owner_removal();
     test_revision_skips_zero();
+    test_kept_text_is_the_lists_own();
     if( g_failures )
     {
         printf("panel_overlay_stage_test: %d failure(s)\n", g_failures);

@@ -47,7 +47,13 @@ app_panel_overlay_to_chrome(
     assert(out);
     if( !app_plugin_panel_overlay_visible(app, index, &visible) )
         return 0;
-    return ToriRSChromePanelDraw_ToChromePrim(&visible, out);
+    if( !ToriRSChromePanelDraw_ToChromePrim(&visible, out) )
+        return 0;
+    /* The prim is read after this returns: its text must be the kept list's
+     * own string, not `visible`'s (a stack copy). */
+    if( out->kind == TORIRS_CHROME_PRIM_TEXT )
+        out->text = PanelOverlayStage_KeptText(&app->panel_wells, index);
+    return 1;
 }
 
 /**
