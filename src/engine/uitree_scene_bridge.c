@@ -1716,7 +1716,9 @@ UITreeSceneBridge_EnsureNpcHeadCustom(
     int part_count = 0;
     int scene_id;
 
-    assert(bridge && bridge->scene && bridge->provider);
+    assert(bridge);
+    assert(bridge->scene);
+    assert(bridge->provider);
     assert(serial > 0);
     assert(model_count >= 0);
     assert(recolour_count >= 0);
