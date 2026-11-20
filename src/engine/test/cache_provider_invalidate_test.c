@@ -213,11 +213,55 @@ test_group_cache(void)
     free(data);
 }
 
+static struct ToriRS_Texture*
+baked_texture(int fill)
+{
+    struct ToriRS_Texture* texture = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*texture));
+    assert(texture);
+    texture->width = 2;
+    texture->height = 2;
+    texture->texels = ToriMem_Calloc(ToriMem_Assets(), 4, sizeof(*texture->texels));
+    assert(texture->texels);
+    for( int i = 0; i < 4; i++ )
+        texture->texels[i] = fill;
+    return texture;
+}
+
+/*
+ * Two loads of one texture land (a model's fan-out and the assets table's
+ * loader each started one while the first read was out). The scene borrows
+ * the FIRST bake's texels (uitree_scene_bridge.c, bridge_texture_from_torirs:
+ * "the borrow cannot dangle"), so the second must not replace and free it:
+ * it did, and the frame's texture animation read freed texels (ASan
+ * heap-use-after-free in ToriDraw_TextureAnimate, cox_crabs with reads 32
+ * frames slow). The texture already resident stays; the duplicate is freed.
+ */
+static void
+test_texture_first_bake_stays(void)
+{
+    struct CacheProvider provider;
+    struct ToriRS_Texture* first;
+    int* first_texels;
+
+    memset(&provider, 0, sizeof(provider));
+    CacheProvider_InitEngineCaches(&provider);
+    first = baked_texture(0x111111);
+    first_texels = first->texels;
+    CacheProvider_TextureAdd(&provider, 41, first);
+    CacheProvider_TextureAdd(&provider, 41, baked_texture(0x222222));
+    check(CacheProvider_TextureGet(&provider, 41) == first, "a second bake of a resident texture keeps the first");
+    check(CacheProvider_TextureGet(&provider, 41)->texels == first_texels &&
+              first_texels[0] == 0x111111,
+          "and the first's texels, which the scene borrows, are still its own");
+    CacheProvider_FreeEngineCaches(&provider);
+}
+
 int
 main(void)
 {
     test_provider();
     test_group_cache();
+    test_texture_first_bake_stays();
     printf("cache-provider-invalidate: %d checks, %d failed\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }
