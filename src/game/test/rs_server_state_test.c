@@ -628,6 +628,27 @@ test_social(void)
         apply(fx, &p);
     }
 
+    /* A game message naming an ignored player is not shown either (deob
+     * client.java class243.field2978: the name, when the packet has one, is
+     * put to the same ignore test); one with no name, or another name, is. */
+    {
+        char gm_text[] = "wishes to trade with you.";
+        char ignored_name[] = "Dave";
+        char other_name[] = "Erin";
+        int const count = fx->chat.message_count;
+
+        p = packet(PKT_NAME_MESSAGE_GAME);
+        p._message_game.type = 101;
+        p._message_game.name = ignored_name;
+        p._message_game.text = gm_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "a game message from an ignored name is dropped");
+        CHECK(fx->chat.message_count == count, "nothing reached the store");
+        p._message_game.name = other_name;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "another name's is shown");
+        p._message_game.name = NULL;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "and one with no name");
+    }
+
     p = packet(PKT_NAME_FRIENDLIST_LOADED);
     p._friendlist_loaded.status = 1;
     apply(fx, &p);

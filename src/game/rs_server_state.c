@@ -729,6 +729,12 @@ state_message_game(
     struct RS_ServerState const* state,
     struct PktMessageGame const* p)
 {
+    /* A line naming a player is dropped when that player is ignored (deob
+     * client.java class243.field2978: the name, when sent, goes to the
+     * ignore test, Statics.field818.method1168). */
+    assert(state->social);
+    if( p->name && RS_Social_IsIgnored(state->social, p->name) )
+        return RS_SERVER_STATE_UNCHANGED;
     /* The TYPE is the server's, not a constant: it picks the filter tab,
      * the colour and the prefix the chatbox script draws the line with. */
     state_chat_add(

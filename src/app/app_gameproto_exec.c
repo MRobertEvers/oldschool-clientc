@@ -2566,6 +2566,9 @@ exec_message_game(
     struct AppGameProtoCtx const* ctx,
     struct PktMessageGame const* p)
 {
+    /* A line the model dropped (an ignored name) is no line to anyone. */
+    if( ctx->modelled != RS_SERVER_STATE_APPLIED )
+        return;
     exec_chat_presented(ctx);
     /* Independent of the chatbox: a headless run has no chat model, and a
      * plugin watching for a boss kill has to work there too. */
