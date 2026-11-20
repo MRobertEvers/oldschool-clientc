@@ -63,6 +63,9 @@ UIIfModels_SetHead(
     models->heads[i].landed = 0;
     models->heads[i].scene_id = -1;
     models->heads[i].landed_npc_id = -1;
+    models->heads[i].custom_serial = 0;
+    models->heads[i].custom_npc_slot = -1;
+    models->heads[i].custom_npc_spawn_serial = 0;
     return i;
 }
 

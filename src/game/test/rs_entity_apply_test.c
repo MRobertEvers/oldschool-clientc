@@ -9,6 +9,7 @@
 #include "net/rev/gameproto_revisions.h"
 #include "streams/rsprot_info.h"
 #include "world/entity_npc.h"
+#include "world/entity_pathing.h"
 #include "world/entity_player.h"
 #include "world/world.h"
 
@@ -608,6 +609,197 @@ test_player_name_extras_and_reset(void)
     fixture_free(&f);
 }
 
+/* BODY_CUSTOM / HEAD_CUSTOM (FAULTS E12): a block without 0x2 keeps the
+ * type's models and still carries its recolours and retextures; 0x1 alone
+ * clears the override; the chathead's block is its own override; a count
+ * whose list the op arena lost keeps the override the npc had. */
+static void
+test_npc_body_and_head_custom(void)
+{
+    static int32_t const colours[3] = { 11, 22, 33 };
+    static int32_t const textures[1] = { 44 };
+    static int32_t const models[2] = { 5000, 5001 };
+    struct Fixture f;
+    struct RsprotInfoOp add[] = {
+        op_value(RSPROT_OP_ADD_NEW, 6),
+        op_value(RSPROT_OP_NPCTYPE, 3),
+        op_delta(0, 0, true),
+    };
+    struct RsprotInfoOp ext[3] = {
+        op_value(RSPROT_OP_ADD_OLD, 0),
+        op_value(RSPROT_OP_SET_EXT, 0),
+        op_value(RSPROT_OP_BODY_CUSTOM, 0),
+    };
+    struct WorldEntity_NPC const* npc;
+    int idx;
+    int serial;
+
+    fixture_init(&f);
+    RS_EntityApply_NpcInfo(&f.in, 0, add, 3);
+    idx = npc_of(&f, 6);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    serial = npc->body_serial;
+
+    /* 0x4 | 0x8: recolours and retextures, no models. */
+    ext[2].body.flag = 0x4 | 0x8;
+    ext[2].body.recolour_count = 3;
+    ext[2].body.recolours = colours;
+    ext[2].body.retexture_count = 1;
+    ext[2].body.retextures = textures;
+    ext[2].body.mirror = -1;
+    ext[2].body.body_type = -1;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(npc->body_custom.active, "a recolour-only block sets an override");
+    CHECK(!npc->body_custom.models_sent, "over the type's own models");
+    CHECK(npc->body_custom.recolour_count == 3 && npc->body_custom.recolours &&
+              npc->body_custom.recolours[2] == 33,
+        "with every recolour");
+    CHECK(npc->body_custom.retexture_count == 1 && npc->body_custom.retextures[0] == 44, "and the retexture");
+    CHECK(npc->body_serial == serial + 1, "the body is remounted");
+
+    /* 0x2 | 0x10 in the counted form (no mirror byte): models and the mirror. */
+    memset(&ext[2].body, 0, sizeof(ext[2].body));
+    ext[2].body.flag = 0x2 | 0x10;
+    ext[2].body.model_count = 2;
+    ext[2].body.models = models;
+    ext[2].body.mirror = -1;
+    ext[2].body.body_type = -1;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(npc->body_custom.models_sent && npc->body_custom.model_count == 2 && npc->body_custom.models[1] == 5001,
+        "a new block replaces the override whole: its models");
+    CHECK(npc->body_custom.recolour_count == 0, "and not the earlier recolours");
+    CHECK(npc->body_custom.mirror, "the counted form's 0x10 is the mirror");
+
+    /* The op arena overflowed: the count is there, the list is not. */
+    memset(&ext[2].body, 0, sizeof(ext[2].body));
+    ext[2].body.flag = 0x4;
+    ext[2].body.recolour_count = 3;
+    ext[2].body.mirror = -1;
+    ext[2].body.body_type = -1;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(npc->body_custom.model_count == 2 && npc->body_custom.recolour_count == 0,
+        "a lost list keeps the override the npc had");
+
+    /* HEAD_CUSTOM, typed form: models and a mirror byte of 1. */
+    memset(&ext[2].body, 0, sizeof(ext[2].body));
+    ext[2].kind = RSPROT_OP_HEAD_CUSTOM;
+    ext[2].body.flag = 0x2 | 0x10;
+    ext[2].body.model_count = 1;
+    ext[2].body.models = models;
+    ext[2].body.mirror = 1;
+    ext[2].body.body_type = -1;
+    serial = npc->body_serial;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(npc->head_custom.active && npc->head_custom.model_count == 1 && npc->head_custom.mirror,
+        "the chathead override is kept");
+    CHECK(npc->body_serial == serial && npc->body_custom.model_count == 2, "and is not the body's");
+
+    /* 0x1 alone: the reset, of each separately. */
+    memset(&ext[2].body, 0, sizeof(ext[2].body));
+    ext[2].kind = RSPROT_OP_BODY_CUSTOM;
+    ext[2].body.flag = 0x1;
+    ext[2].body.reset = true;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(!npc->body_custom.active && npc->body_custom.model_count == 0, "0x1 clears the body's override");
+    CHECK(npc->head_custom.active, "and keeps the chathead's");
+    ext[2].kind = RSPROT_OP_HEAD_CUSTOM;
+    RS_EntityApply_NpcInfo(&f.in, 0, ext, 3);
+    npc = World_EntityPoolGet(&f.world->entities.npc, idx);
+    CHECK(!npc->head_custom.active, "the chathead's 0x1 clears it");
+    fixture_free(&f);
+}
+
+/* The rest of RESET (deob class95.method3110): the tint, the transparency,
+ * the facing block's target and the newest route step's traversal go back to
+ * their defaults, before the record's own blocks. */
+static void
+test_player_reset_clears_tint_transparency_facing(void)
+{
+    struct Fixture f;
+    struct RsprotInfoOp first[4];
+    struct RsprotInfoOp second[2];
+    struct WorldEntity_Player* player;
+    int idx = -1;
+
+    fixture_init(&f);
+    first[0] = op_value(RSPROT_OP_ADD_NEW, 9);
+    first[1] = op_value(RSPROT_OP_TINT, 0);
+    first[1].tint.start_cycle_delta = 0;
+    first[1].tint.end_cycle_delta = 500;
+    first[1].tint.hue = 10;
+    first[1].tint.saturation = 20;
+    first[1].tint.lightness = 30;
+    first[1].tint.weight = 64;
+    first[2] = op_value(RSPROT_OP_TRANSPARENCY, 0);
+    first[2].transparency.start_cycle_delta = 0;
+    first[2].transparency.end_cycle_delta = 100;
+    first[2].transparency.from = 0;
+    first[2].transparency.to = 200;
+    first[3] = op_value(RSPROT_OP_FACE_ENTITY, 0);
+    first[3].face_entity.entity_id = 12;
+    RS_EntityApply_PlayerInfo(&f.in, first, 4);
+    RS_EntitySync_FindPlayer(&f.esync, 9, &idx, NULL);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(player && WorldEntityTint_Active(&player->tint, f.world->cycle), "the tint is on");
+    CHECK(player && player->transparency.set, "the transparency is set");
+    CHECK(player && player->facing.entity_id == 12, "the face target is set");
+    player->pathing.route_step[0] = WORLD_PATHSTEP_RUN;
+
+    second[0] = op_value(RSPROT_OP_ADD_OLD, 0);
+    second[1] = op_value(RSPROT_OP_RESET, 0);
+    RS_EntityApply_PlayerInfo(&f.in, second, 2);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(!WorldEntityTint_Active(&player->tint, f.world->cycle), "a reset clears the tint");
+    CHECK(!player->transparency.set, "and the transparency");
+    CHECK(player->facing.entity_id == WORLD_FACING_ENTITY_NONE && player->facing.square_x == 0 &&
+              player->facing.fallback_angle == -1,
+        "and the face target");
+    CHECK(player->pathing.route_step[0] == WORLD_PATHSTEP_WALK, "and the newest step walks");
+    fixture_free(&f);
+}
+
+/* PLAYER_INFO FREEZE (0x80000 at rev 239): a window on the player; 65535 is
+ * the cancel, and its reset stops the sequence. */
+static void
+test_player_freeze(void)
+{
+    struct Fixture f;
+    struct RsprotInfoOp first[3];
+    struct RsprotInfoOp second[2];
+    struct WorldEntity_Player* player;
+    int idx = -1;
+
+    fixture_init(&f);
+    first[0] = op_value(RSPROT_OP_ADD_NEW, 11);
+    first[1] = op_value(RSPROT_OP_SEQUENCE, 0);
+    first[1].sequence.sequence_id = 700;
+    first[2] = op_value(RSPROT_OP_FREEZE, 0);
+    first[2].freeze.delay = 5;
+    first[2].freeze.duration = 20;
+    first[2].freeze.cancel = 0;
+    RS_EntityApply_PlayerInfo(&f.in, first, 3);
+    RS_EntitySync_FindPlayer(&f.esync, 11, &idx, NULL);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(player && player->freeze.count == 1 && player->freeze.windows[0].start_cycle == (int)f.world->cycle + 5 &&
+              player->freeze.windows[0].end_cycle == (int)f.world->cycle + 25 && !player->freeze.windows[0].reset_seq,
+        "a freeze window on the player");
+    second[0] = op_value(RSPROT_OP_ADD_OLD, 0);
+    second[1] = op_value(RSPROT_OP_FREEZE, 0);
+    second[1].freeze.delay = 65535;
+    second[1].freeze.duration = 65535;
+    second[1].freeze.cancel = 1;
+    RS_EntityApply_PlayerInfo(&f.in, second, 2);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(player->freeze.count == 0, "65535 cancels it");
+    CHECK(player->animation.primary.anim_id == (uint16_t)-1, "and its reset stops the sequence");
+    fixture_free(&f);
+}
+
 int
 main(void)
 {
@@ -620,6 +812,9 @@ main(void)
     test_player_add_hit_and_chat();
     test_wants_raised_on_change();
     test_player_name_extras_and_reset();
+    test_npc_body_and_head_custom();
+    test_player_reset_clears_tint_transparency_facing();
+    test_player_freeze();
     printf("rs_entity_apply_test: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

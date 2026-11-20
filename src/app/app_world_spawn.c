@@ -388,6 +388,85 @@ app_world_build_npc_model(
     return model;
 }
 
+/*
+ * The body an npc's server customisation draws over its type (deob
+ * Statics.method9204 / method9224): the override's models when it sent them,
+ * else the type's; the type's source colours and textures, each replaced by
+ * the override's value at that index when it sent one (an index past the
+ * override's list keeps the type's); scaled and lit as the type. Cached like
+ * the type's own base, under the type id and the override's serial, as the
+ * reference keys it (`id | serial << 16`): two overrides of one type never
+ * share a model, and an override never reads the type's plain body. NULL
+ * while a model it names is not resident (the caller wants them).
+ */
+struct ToriDraw_Model*
+app_world_build_npc_override_model(
+    struct App* app,
+    int npc_id,
+    struct ToriRS_Npctype* npctype,
+    struct WorldNpcOverride const* o)
+{
+    struct ToriDraw_Model* model;
+    int64_t key;
+    int* recolors_to = NULL;
+    int* retextures_to = NULL;
+
+    assert(app);
+    assert(npctype);
+    assert(o);
+    assert(o->active);
+    assert(npc_id >= 0);
+    key = World_NpcBodyModelKey(npc_id, o);
+    model = TorirsModelInstCache_CopyGet(&app->model_inst_cache, TORIRS_MODEL_INST_NPC, key);
+    if( model )
+        return model;
+
+    if( npctype->recolor_count > 0 )
+    {
+        recolors_to = ToriMem_Alloc(ToriMem_Frame(), (size_t)npctype->recolor_count * sizeof(int));
+        assert(recolors_to);
+        for( int i = 0; i < npctype->recolor_count; i++ )
+            recolors_to[i] = World_NpcOverrideRecolour(o, i, npctype->recolors_to[i]);
+    }
+    if( npctype->retexture_count > 0 )
+    {
+        retextures_to = ToriMem_Alloc(ToriMem_Frame(), (size_t)npctype->retexture_count * sizeof(int));
+        assert(retextures_to);
+        for( int i = 0; i < npctype->retexture_count; i++ )
+            retextures_to[i] = World_NpcOverrideRetexture(o, i, npctype->retextures_to[i]);
+    }
+    {
+        struct AppModelRecolorSpec recolors = {
+            .recolors_from = npctype->recolors_from,
+            .recolors_to = recolors_to,
+            .recolor_count = npctype->recolor_count,
+            .retextures_from = npctype->retextures_from,
+            .retextures_to = retextures_to,
+            .retexture_count = npctype->retexture_count,
+        };
+        model = app_world_build_model(
+            app,
+            o->models_sent ? o->models : npctype->models,
+            o->models_sent ? o->model_count : npctype->models_count,
+            &recolors,
+            npctype->width_scale,
+            npctype->height_scale,
+            APP_LIGHT_ACTOR,
+            ToriRS_FeatureFacts_NpcTypeAmbientContrast(&app->feature_facts) ? npctype->contrast : 0,
+            ToriRS_FeatureFacts_NpcTypeAmbientContrast(&app->feature_facts) ? npctype->ambient : 0);
+    }
+    ToriMem_Free(ToriMem_Frame(), retextures_to);
+    ToriMem_Free(ToriMem_Frame(), recolors_to);
+    if( !model )
+        return NULL;
+    {
+        struct ToriDraw_Model* base_copy = ToriDraw_ModelCopy(model);
+        if( base_copy )
+            TorirsModelInstCache_Put(&app->model_inst_cache, TORIRS_MODEL_INST_NPC, key, base_copy);
+    }
+    return model;
+}
+
 /* Build the drawable model for a spotanim (reference SpotType.getTempModel2 +
  * MapSpotAnim.getTempModel static transforms): a single model, recoloured/
  * retextured, resized, angle-rotated and lit with the config ambient/contrast.

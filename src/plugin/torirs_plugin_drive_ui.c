@@ -623,7 +623,7 @@ drive_ui_fill_npc_state(
         : -1;
     out->headicon_group = npc->headicon_custom ? npc->headicon_group[0] : -1;
     out->headicon_index = npc->headicon_custom ? npc->headicon_index[0] : -1;
-    out->body_model = npc->body_model_count > 0 ? npc->body_models[0] : -1;
+    out->body_model = npc->body_custom.model_count > 0 ? npc->body_custom.models[0] : -1;
     out->facing = npc->facing.entity_id;
     /* The newest FACE_COORD op, in absolute tiles: the wire's half-tiles
      * ((tile << 1) + size) halved. 0,0 is the wire's "none". */

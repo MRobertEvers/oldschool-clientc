@@ -895,6 +895,12 @@ player_apply_op(
     case RSPROT_OP_RESET:
         /* Applied at the start of its record (player_reset). */
         break;
+    case RSPROT_OP_FREEZE:
+        /* deob class95 ~650: 65535 is none; the byte != 0 is the reset. */
+        World_PlayerFreeze(
+            world, idx, op->freeze.delay == 65535 ? -1 : (int)op->freeze.delay,
+            op->freeze.duration == 65535 ? -1 : (int)op->freeze.duration, op->freeze.cancel != 0);
+        break;
     case RSPROT_OP_TRANSPARENCY:
         player_note_op(self, idx, op, 0, 0, 0, 0);
         World_PlayerSetTransparency(
@@ -945,11 +951,31 @@ player_record_resets(
  * The RESET block (PLAYER_INFO 0x2 at rev 239, `player_reset`): the actor
  * reset, deob class95.method3110, which the reference runs BEFORE any other
  * block of the record (class109.method3804 tests 0x2 first and reads the
- * block's byte later, in wire order). Of what it clears, this client holds
- * the name decorations (Arrays.fill(field1355, "")) and the sequence
- * (Statics.method7179(actor, -1, 0) on each instance); the persistent
- * traversal (field1344 = walk) is the decoder's (rsprot_info_reset). The
- * value itself is read and dropped.
+ * block's byte later, in wire order). The value itself is read and dropped.
+ * What it clears, and where this client holds it:
+ *
+ *   field1353 = null, instance field1467 = null   transparency: `transparency`
+ *                                                 unset (opaque)
+ *   field1351 / 1352 = -1, field1340.method5133,  tint: `tint`, cycles -1 and
+ *   Statics.method3526(instance, -1, -1, ..)      weight 0 (never active)
+ *   field1349.method873, instance method3538      the facing block's state
+ *                                                 (class44): `facing` back to
+ *                                                 no target, mode 0
+ *   field1344 = walk, instance field1530[0]       the persistent traversal
+ *                                                 (the decoder's,
+ *                                                 rsprot_info_reset) and the
+ *                                                 newest route step's
+ *                                                 (`route_step[0]`)
+ *   Arrays.fill(field1355, ""), field553          the name decorations
+ *   Statics.method7179(instance, -1, 0)           the sequence
+ *   field1345 = null                              the stored appearance BLOB
+ *                                                 the reference keeps to
+ *                                                 build a later instance;
+ *                                                 this client keeps only the
+ *                                                 decoded appearance on the
+ *                                                 entity, which the reference
+ *                                                 does not clear either: no
+ *                                                 such state.
  */
 static void
 player_reset(
@@ -962,6 +988,10 @@ player_reset(
         return;
     for( int i = 0; i < 3; i++ )
         player->name_extras[i][0] = '\0';
+    player->transparency = (struct WorldEntityTransparency){ 0 };
+    player->tint = (struct WorldEntityTint){ .start_cycle = -1, .end_cycle = -1 };
+    World_PlayerBeginModernFacing(in->world, idx, 0);
+    player->pathing.route_step[0] = WORLD_PATHSTEP_WALK;
     World_PlayerSetPrimaryAnimation(in->world, idx, -1, 0);
 }
 
@@ -1342,6 +1372,70 @@ npc_retype_now(struct NpcApply* self)
     in->host->npc_retype(in->host->ctx, idx, element_id, live, self->pending_base_type);
 }
 
+/*
+ * BODY_CUSTOM / HEAD_CUSTOM (deob Statics ~47300-47520 and ~47775-47855):
+ * 0x1 clears the override (class86.method2907 / Statics.method2951); any
+ * other block is a whole new one (a new class399), so what an earlier block
+ * set and this one does not send goes back to the type's. Models only with
+ * 0x2 -- without it the type's own models carry this block's recolours and
+ * retextures. The mirror is the typed forms' byte (== 1) or the counted
+ * forms' 0x10 itself; the player composition is the counted forms' 0x20.
+ *
+ * Every model the block sent, however many (FAULTS E12). A count with no list
+ * is the op list's byte arena having overflowed (rsprot_info_ints): the
+ * values were never kept, so the npc keeps the override it has, and says so.
+ */
+static void
+npc_apply_custom(
+    struct World* world,
+    int idx,
+    int head,
+    struct RsprotInfoBodyCustom const* b)
+{
+    struct WorldNpcOverrideIn in;
+    bool models_sent = (b->flag & 0x2) != 0;
+
+    if( b->reset )
+    {
+        if( head )
+            World_NpcSetHeadCustom(world, idx, NULL);
+        else
+            World_NpcSetBodyCustom(world, idx, NULL);
+        return;
+    }
+    if( (models_sent && b->model_count > 0 && !b->models) || (b->recolour_count > 0 && !b->recolours) ||
+        (b->retexture_count > 0 && !b->retextures) || (b->identkit_count > 0 && !b->identkits) )
+    {
+        TORIRS_ERR(
+            "npc_info: npc %d %s customisation of %d models, %d recolours, %d retextures lost: the op "
+            "list overflowed\n",
+            idx,
+            head ? "chathead" : "body",
+            (int)b->model_count,
+            (int)b->recolour_count,
+            (int)b->retexture_count);
+        return;
+    }
+    in = (struct WorldNpcOverrideIn){
+        .models_sent = models_sent,
+        .model_count = models_sent ? b->model_count : 0,
+        .models = models_sent ? b->models : NULL,
+        .recolour_count = b->recolour_count,
+        .recolours = b->recolours,
+        .retexture_count = b->retexture_count,
+        .retextures = b->retextures,
+        .mirror = b->mirror >= 0 ? b->mirror == 1 : (b->flag & 0x10) != 0,
+        .player = (b->flag & 0x20) != 0 && b->body_type >= 0,
+        .body_type = b->body_type,
+        .identkit_count = b->identkit_count,
+        .identkits = b->identkits,
+    };
+    if( head )
+        World_NpcSetHeadCustom(world, idx, &in);
+    else
+        World_NpcSetBodyCustom(world, idx, &in);
+}
+
 static void
 npc_apply_op(
     struct NpcApply* self,
@@ -1603,18 +1697,17 @@ npc_apply_op(
             World_NpcSetHeadiconCustom(world, idx, op->headicon.mask != 0, group, index);
         }
         break;
+    case RSPROT_OP_FREEZE:
+        /* deob Statics ~47731: 65535 is none; the byte != 0 is the reset. */
+        if( idx >= 0 )
+            World_NpcFreeze(
+                world, idx, op->freeze.delay == 65535 ? -1 : (int)op->freeze.delay,
+                op->freeze.duration == 65535 ? -1 : (int)op->freeze.duration, op->freeze.cancel != 0);
+        break;
     case RSPROT_OP_BODY_CUSTOM:
-        /* Every model the block sent, however many (FAULTS E12). A count
-         * with no list is the op list's byte arena having overflowed
-         * (rsprot_info_ints): the models were never kept, so the npc keeps
-         * the body it has, and says so. */
-        if( idx >= 0 && !op->body.reset && op->body.model_count > 0 && !op->body.models )
-            TORIRS_ERR(
-                "npc_info: npc %d body customisation of %d models lost: the op list overflowed\n",
-                idx,
-                (int)op->body.model_count);
-        else if( idx >= 0 )
-            World_NpcSetBodyModels(world, idx, op->body.models, op->body.reset ? 0 : op->body.model_count);
+    case RSPROT_OP_HEAD_CUSTOM:
+        if( idx >= 0 )
+            npc_apply_custom(world, idx, op->kind == RSPROT_OP_HEAD_CUSTOM, &op->body);
         break;
     case RSPROT_OP_TINT:
         if( idx >= 0 )

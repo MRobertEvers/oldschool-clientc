@@ -541,8 +541,12 @@ typedef struct RsprotInfoHeadiconCustom
  * A body (BODY_CUSTOM) or chathead (HEAD_CUSTOM) customisation. `flag` is the
  * block's byte: 0x1 reset (nothing follows), 0x2 models, 0x4 recolours, 0x8
  * retextures, 0x10 mirror, 0x20 a player composition (the counted forms).
- * `reset` is the executor's reading: back to the type's models, which a block
- * without 0x2 also means. The arrays are the list's; absent ones are empty.
+ * `reset` is 0x1: the override is cleared, back to the type's body. Any other
+ * block is a new override; one without 0x2 keeps the type's models and still
+ * carries its recolours and retextures. The arrays are the list's; absent
+ * ones are empty. A count with a NULL array is a list whose byte arena
+ * overflowed (rsprot_info_ints). For the counted forms the mirror is 0x10
+ * itself (`mirror` stays -1: the form sends no byte for it).
  */
 typedef struct RsprotInfoBodyCustom
 {

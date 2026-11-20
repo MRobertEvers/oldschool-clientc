@@ -48,7 +48,7 @@
  *   FREEZE, HEAD_CUSTOM
  *
  * Within one sticky slot the latest op replaces the earlier (each setter writes
- * the whole field: World_NpcSetBodyModels, World_NpcSetHeadiconCustom, the BAS
+ * the whole field: World_NpcSetBodyCustom, World_NpcSetHeadiconCustom, the BAS
  * block's full set at :1776). A keyframe hands an entity's sticky ops over in
  * recorded order, so FACE_ENTITY against FACE_DIR lands as it did.
  *

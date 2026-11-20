@@ -908,15 +908,18 @@ rsprot_info_bas_change(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoBasCha
     return block_end(t, before, RSPROT_IK_BAS_CHANGE, bit);
 }
 
-/* A customisation op: 0x1 resets to the type's models, and so does a block
- * with no model list. */
+/* A customisation op: 0x1 alone is the reset (deob class86.method2907 /
+ * Statics.method2951). Any other block is a new override, and one with no
+ * model list (no 0x2) still carries its recolours and retextures over the
+ * type's own models (Statics.method9224 takes the type's models when the
+ * override has none). */
 static RsprotInfoBodyCustom *
 body(RsprotInfoBlocks *t, RsprotInfoOpKind kind, int32_t flag)
 {
     RsprotInfoBodyCustom *b = &rsprot_info_emit(t->out, kind)->body;
 
     b->flag = (uint8_t)flag;
-    b->reset = (flag & 1) != 0 || (flag & 2) == 0;
+    b->reset = (flag & 1) != 0;
     b->mirror = -1;
     b->body_type = -1;
     return b;

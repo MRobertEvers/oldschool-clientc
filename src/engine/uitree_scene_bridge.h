@@ -157,6 +157,13 @@ struct UITreeSceneBridge
  * (id = base | npc_id); distinct from cache model ids and the avatars above. */
 #define UITREE_SCENE_NPC_HEAD_BASE 0x50000000
 
+/* Composited chatheads under a server customisation (NPC_INFO HEAD_CUSTOM):
+ * base | the override's serial (low 26 bits), above every npc id's head id
+ * and below the obj models. Memoized in npc_head_map under -1 - serial, where
+ * no npc id lands. */
+#define UITREE_SCENE_NPC_HEAD_CUSTOM_BASE 0x54000000
+#define UITREE_SCENE_NPC_HEAD_CUSTOM_MASK 0x03FFFFFFu
+
 /** Obj interface models (IF_SETOBJECT: lit + recoloured inventory model bound
  * to a MODEL widget, e.g. the combat-tab weapon): scene ids are base | obj_id. */
 #define UITREE_SCENE_OBJ_MODEL_BASE 0x58000000
@@ -737,6 +744,26 @@ UITreeSceneBridge_CollectPlayerDesignModelIds(
  * models already in the provider. Returns the scene model id or -1.
  * Reference: NpcType.getHead (Client-TS) / npc_head_model (v0 entity_scenebuild).
  */
+/**
+ * The chathead of npc type `npc_id` under a server customisation (deob
+ * class405.method9172 -> Statics.method9224): `models` replace the type's
+ * heads (NULL: the type's own), and each of the type's source colours and
+ * textures goes to the override's value at its index where it sent one, else
+ * the type's. Keyed and memoized by the override's `serial` (> 0). Every part
+ * resident, or -1.
+ */
+int
+UITreeSceneBridge_EnsureNpcHeadCustom(
+    struct UITreeSceneBridge* bridge,
+    int npc_id,
+    uint32_t serial,
+    int const* models,
+    int model_count,
+    int const* recolours,
+    int recolour_count,
+    int const* retextures,
+    int retexture_count);
+
 int
 UITreeSceneBridge_EnsureNpcHead(
     struct UITreeSceneBridge* bridge,

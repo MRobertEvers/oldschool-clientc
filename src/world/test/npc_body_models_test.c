@@ -43,6 +43,20 @@ spawn(
     return World_NpcSpawn(world, element_id, 500, 0, 10, 10, 1, World_TestDefaultIdle());
 }
 
+/* The models-only block the E12 cases send: 0x2 with `count` models, and a
+ * count of 0 the reset (0x1), as the old models-only setter took it. */
+static void
+set_models(
+    struct World* world,
+    int idx,
+    int const* models,
+    int count)
+{
+    struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = count, .models = models };
+
+    World_NpcSetBodyCustom(world, idx, count > 0 ? &in : NULL);
+}
+
 static void
 check_models(
     struct WorldEntity_NPC const* npc,
@@ -51,17 +65,17 @@ check_models(
 {
     int wrong = 0;
 
-    TEST_ASSERT(npc->body_model_count == count, what);
+    TEST_ASSERT(npc->body_custom.model_count == count, what);
     if( count == 0 )
     {
-        TEST_ASSERT(npc->body_models == NULL, "no models is no list");
+        TEST_ASSERT(npc->body_custom.models == NULL, "no models is no list");
         return;
     }
-    TEST_ASSERT(npc->body_models != NULL, "a list for a non-zero count");
-    if( !npc->body_models )
+    TEST_ASSERT(npc->body_custom.models != NULL, "a list for a non-zero count");
+    if( !npc->body_custom.models )
         return;
     for( int i = 0; i < count; i++ )
-        if( npc->body_models[i] != model_at(i) )
+        if( npc->body_custom.models[i] != model_at(i) )
             wrong++;
     TEST_ASSERT(wrong == 0, "every model reads back as sent");
 }
@@ -87,7 +101,7 @@ test_counts_read_back(void)
 
         npc->seq_sent_id = 4321;
         npc->face_sent_x = 77;
-        World_NpcSetBodyModels(world, idx, models, counts[c]);
+        set_models(world, idx, models, counts[c]);
         npc = World_EntityPoolAt(&world->entities.npc, idx);
         snprintf(what, sizeof(what), "%d models: the count reads back", counts[c]);
         check_models(npc, counts[c], what);
@@ -118,20 +132,20 @@ test_replace_and_reuse(void)
     idx = spawn(world, 7);
     before = scene_live_blocks();
 
-    World_NpcSetBodyModels(world, idx, models, 255);
+    set_models(world, idx, models, 255);
     TEST_ASSERT(scene_live_blocks() == before + 1, "a list is one block");
-    World_NpcSetBodyModels(world, idx, models, 9);
+    set_models(world, idx, models, 9);
     TEST_ASSERT(scene_live_blocks() == before + 1, "the old list is freed by the new");
     npc = World_EntityPoolAt(&world->entities.npc, idx);
     check_models(npc, 9, "9 models after 255");
 
     /* The row's own list as the source: copied before the old one goes. */
-    World_NpcSetBodyModels(world, idx, npc->body_models, npc->body_model_count);
+    set_models(world, idx, npc->body_custom.models, npc->body_custom.model_count);
     npc = World_EntityPoolAt(&world->entities.npc, idx);
     check_models(npc, 9, "its own 9 models fed back");
     TEST_ASSERT(scene_live_blocks() == before + 1, "still one list");
 
-    World_NpcSetBodyModels(world, idx, NULL, 0);
+    set_models(world, idx, NULL, 0);
     npc = World_EntityPoolAt(&world->entities.npc, idx);
     check_models(npc, 0, "a reset is no models");
     TEST_ASSERT(scene_live_blocks() == before, "a reset frees the list");
@@ -157,9 +171,9 @@ test_despawn_and_free(void)
     a = spawn(world, 11);
     b = spawn(world, 12);
     c = spawn(world, 13);
-    World_NpcSetBodyModels(world, a, models, 255);
-    World_NpcSetBodyModels(world, b, models, 9);
-    World_NpcSetBodyModels(world, c, models, 8);
+    set_models(world, a, models, 255);
+    set_models(world, b, models, 9);
+    set_models(world, c, models, 8);
 
     /* A despawn with an element: the snapshot carries the models. */
     World_NpcDespawn(world, a);
@@ -190,12 +204,222 @@ test_despawn_and_free(void)
     TEST_ASSERT(scene_live_blocks() == before, "nothing is left on the scene group");
 }
 
+/* E12's other half: a block's recolours and retextures are kept, sized from
+ * the wire, with or without models (deob Statics.method9224 takes the type's
+ * models when the override sent none, and still applies its colours); they
+ * replace the type's destination colours index for index; each override is
+ * its own cache key; the chathead's override is the body's sibling, not part
+ * of it; and every array goes with the row's snapshot and World_Free. */
+static void
+test_recolours_and_retextures(void)
+{
+    int colours[255];
+    int textures[2] = { 41, 42 };
+    int kits[7] = { 1, 2, 3, 4, 5, 6, 7 };
+    intptr_t before;
+    struct World* world;
+    struct WorldEntity_NPC* npc;
+    struct World_Event const* ev = NULL;
+    int idx;
+    int body_serial;
+    int wrong = 0;
+    int64_t key_a;
+    int64_t key_b;
+
+    printf("TEST: an override's recolours and retextures are kept, with or without models\n");
+    for( int i = 0; i < 255; i++ )
+        colours[i] = 900 + i;
+    before = scene_live_blocks();
+    world = World_New();
+    idx = spawn(world, 21);
+    npc = World_EntityPoolAt(&world->entities.npc, idx);
+    body_serial = npc->body_serial;
+    TEST_ASSERT(World_NpcBodyModelKey(500, &npc->body_custom) == 500, "no override: the type's key");
+    TEST_ASSERT(World_NpcOverrideRecolour(&npc->body_custom, 0, 77) == 77, "no override: the type's colour");
+
+    /* Flag 0x4 alone: no models, 255 recolours. */
+    {
+        struct WorldNpcOverrideIn in = { .recolour_count = 255, .recolours = colours };
+        World_NpcSetBodyCustom(world, idx, &in);
+    }
+    npc = World_EntityPoolAt(&world->entities.npc, idx);
+    TEST_ASSERT(npc->body_custom.active, "a recolour-only block is an override");
+    TEST_ASSERT(!npc->body_custom.models_sent && npc->body_custom.model_count == 0,
+        "it keeps the type's models");
+    TEST_ASSERT(npc->body_custom.recolour_count == 255, "every recolour the wire sent");
+    for( int i = 0; npc->body_custom.recolours && i < 255; i++ )
+        if( npc->body_custom.recolours[i] != colours[i] )
+            wrong++;
+    TEST_ASSERT(npc->body_custom.recolours != NULL && wrong == 0, "each reads back as sent");
+    TEST_ASSERT(npc->body_serial == body_serial + 1, "the body is asked to remount");
+    TEST_ASSERT(World_NpcOverrideRecolour(&npc->body_custom, 4, 77) == 904, "it replaces the type's colour 4");
+    TEST_ASSERT(World_NpcOverrideRetexture(&npc->body_custom, 0, 66) == 66, "and no texture");
+    key_a = World_NpcBodyModelKey(500, &npc->body_custom);
+    TEST_ASSERT(key_a != 500, "a customised body has its own cache key");
+
+    /* A shorter list (the counted form's own count) over a longer type:
+     * past it, the type's. Retextures and a composition beside it. */
+    {
+        struct WorldNpcOverrideIn in = {
+            .recolour_count = 2,
+            .recolours = colours,
+            .retexture_count = 2,
+            .retextures = textures,
+            .player = true,
+            .body_type = 1,
+            .identkit_count = 7,
+            .identkits = kits,
+        };
+        World_NpcSetBodyCustom(world, idx, &in);
+    }
+    npc = World_EntityPoolAt(&world->entities.npc, idx);
+    TEST_ASSERT(World_NpcOverrideRecolour(&npc->body_custom, 1, 77) == 901, "index 1 is the override's");
+    TEST_ASSERT(World_NpcOverrideRecolour(&npc->body_custom, 2, 77) == 77, "index 2, past its list, the type's");
+    TEST_ASSERT(World_NpcOverrideRetexture(&npc->body_custom, 1, 66) == 42, "its textures replace the type's");
+    TEST_ASSERT(npc->body_custom.player && npc->body_custom.body_type == 1 &&
+                    npc->body_custom.identkit_count == 7 && npc->body_custom.identkits[6] == 7,
+        "the player composition is kept");
+    key_b = World_NpcBodyModelKey(500, &npc->body_custom);
+    TEST_ASSERT(key_b != key_a && key_b != 500, "a second override is a second key");
+
+    /* The chathead's override is separate. */
+    body_serial = npc->body_serial;
+    {
+        int head_models[3] = { 5, 6, 7 };
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 3, .models = head_models, .mirror = true };
+        World_NpcSetHeadCustom(world, idx, &in);
+    }
+    npc = World_EntityPoolAt(&world->entities.npc, idx);
+    TEST_ASSERT(npc->head_custom.active && npc->head_custom.model_count == 3 && npc->head_custom.models[2] == 7 &&
+                    npc->head_custom.mirror,
+        "the chathead override is kept");
+    TEST_ASSERT(npc->body_serial == body_serial, "a chathead block does not remount the body");
+    World_NpcSetBodyCustom(world, idx, NULL);
+    npc = World_EntityPoolAt(&world->entities.npc, idx);
+    TEST_ASSERT(!npc->body_custom.active && npc->body_custom.recolours == NULL, "0x1 clears the body's");
+    TEST_ASSERT(npc->head_custom.active, "and leaves the chathead's");
+    TEST_ASSERT(World_NpcBodyModelKey(500, &npc->body_custom) == 500, "the type's key again");
+
+    /* Everything goes with the snapshot. */
+    {
+        struct WorldNpcOverrideIn in = { .recolour_count = 9, .recolours = colours, .retexture_count = 2,
+                                         .retextures = textures };
+        World_NpcSetBodyCustom(world, idx, &in);
+    }
+    World_NpcDespawn(world, idx);
+    for( int i = 0; i < World_EventsCount(world); i++ )
+        if( World_EventsPeek(world, i)->removed_npc )
+            ev = World_EventsPeek(world, i);
+    TEST_ASSERT(ev && ev->removed_npc->body_custom.recolour_count == 9 && ev->removed_npc->head_custom.active,
+        "the snapshot carries both overrides");
+    World_EventsClear(world);
+    World_Free(world);
+    TEST_ASSERT(scene_live_blocks() == before, "nothing is left on the scene group");
+}
+
+/* FREEZE (entity_freeze.h): a window stops the pose and the sequence from
+ * stepping and draws the tracks as it began; its reset byte stops the live
+ * sequence while the drawing keeps it; a window that is over is reused; a
+ * cancel drops every window and draws the live tracks again; the windows go
+ * with the row. */
+static int
+freeze_frames(void* userdata, int seq_id)
+{
+    (void)userdata;
+    (void)seq_id;
+    return 50;
+}
+
+static int
+freeze_duration(void* userdata, int seq_id, int frame)
+{
+    (void)userdata;
+    (void)seq_id;
+    (void)frame;
+    return 1;
+}
+
+static int
+freeze_loops(void* userdata, int seq_id)
+{
+    (void)userdata;
+    (void)seq_id;
+    return 99;
+}
+
+static void
+test_freeze_windows(void)
+{
+    intptr_t before = scene_live_blocks();
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 0, 20, 20, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    struct WorldEntityFacet_Animation const* drawn;
+    int primary_frame;
+    int secondary_frame;
+
+    printf("TEST: a freeze window holds the tracks and draws them as it began\n");
+    world->seq_source.frame_count = freeze_frames;
+    world->seq_source.frame_duration = freeze_duration;
+    world->seq_source.max_loops = freeze_loops;
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    World_NpcSetPrimaryAnimation(world, ni, 500, 0);
+    World_Cycle(world, 3);
+    TEST_ASSERT(npc->animation.primary.anim_id == 500 && npc->animation.primary.frame > 0, "the sequence plays");
+    TEST_ASSERT(World_EntityDrawnAnimation(&npc->animation, &npc->freeze) == &npc->animation,
+        "unfrozen, the live tracks are drawn");
+
+    World_NpcFreeze(world, ni, 1, 4, false);
+    World_Cycle(world, 1);
+    TEST_ASSERT(npc->freeze.frozen, "the window covers the cycle it starts on");
+    primary_frame = npc->animation.primary.frame;
+    secondary_frame = npc->animation.secondary.frame;
+    World_Cycle(world, 2);
+    TEST_ASSERT(npc->animation.primary.frame == primary_frame, "the sequence holds");
+    TEST_ASSERT(npc->animation.secondary.frame == secondary_frame, "and so does the pose");
+    drawn = World_EntityDrawnAnimation(&npc->animation, &npc->freeze);
+    TEST_ASSERT(drawn != &npc->animation && drawn->primary.anim_id == 500, "the snapshot is drawn");
+    World_Cycle(world, 3);
+    TEST_ASSERT(!npc->freeze.frozen, "past its end the freeze is over");
+    TEST_ASSERT(npc->animation.primary.frame > primary_frame, "and the sequence steps again");
+
+    /* The reset byte: the live sequence stops as the window starts, and the
+     * drawing keeps the frame it froze on. The window that was over is
+     * reused. */
+    World_NpcFreeze(world, ni, 1, 5, true);
+    TEST_ASSERT(npc->freeze.count == 1, "a window that is over is reused");
+    World_Cycle(world, 1);
+    TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1, "the reset stops the live sequence");
+    drawn = World_EntityDrawnAnimation(&npc->animation, &npc->freeze);
+    TEST_ASSERT(drawn->primary.anim_id == 500, "while the frozen drawing keeps it");
+
+    /* Two open windows, then the cancel (65535): all go, the live tracks
+     * draw, and its reset stops a sequence set meanwhile. */
+    World_NpcFreeze(world, ni, 2, 40, false);
+    TEST_ASSERT(npc->freeze.count == 2, "an open window is not reused");
+    World_NpcSetPrimaryAnimation(world, ni, 501, 0);
+    World_NpcFreeze(world, ni, -1, -1, true);
+    TEST_ASSERT(npc->freeze.count == 0 && !npc->freeze.frozen, "a cancel drops every window");
+    TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1, "and its reset stops the sequence");
+    TEST_ASSERT(World_EntityDrawnAnimation(&npc->animation, &npc->freeze) == &npc->animation,
+        "the live tracks are drawn again");
+
+    World_NpcFreeze(world, ni, 0, 9, false);
+    World_NpcDespawn(world, ni);
+    World_EventsClear(world);
+    World_Free(world);
+    TEST_ASSERT(scene_live_blocks() == before, "the windows go with the row");
+}
+
 int
 main(void)
 {
     test_counts_read_back();
     test_replace_and_reuse();
     test_despawn_and_free();
+    test_recolours_and_retextures();
+    test_freeze_windows();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

@@ -3,6 +3,7 @@
 
 #include "entity_facets.h"
 #include "entity_tint.h"
+#include "entity_freeze.h"
 #include "entity_transparency.h"
 
 /* WorldEntity_Player.body.npc_id when the mounted model is not an npc's: built
@@ -95,6 +96,8 @@ struct WorldEntity_Player
      *  same state an npc's fade lives in (deob class83.field844, class17).
      *  Applied per frame by app_world_sync_player_transparency. */
     struct WorldEntityTransparency transparency;
+    /** FREEZE windows and the frozen drawing (entity_freeze.h). */
+    struct WorldEntityFreeze freeze;
 
     int loc_start_cycle;
     int loc_stop_cycle;

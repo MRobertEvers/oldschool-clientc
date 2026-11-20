@@ -176,7 +176,7 @@ app_if_head_store(
     head = i >= 0 ? &app->if_models.heads[i] : NULL;
     RedrawRequest_Raise(&app->redraw_request);
     if( head && head->landed && head->scene_id >= 0 && head->kind == (int)kind &&
-        head->npc_id == npc_id && head->zoom == zoom )
+        head->npc_id == npc_id && head->zoom == zoom && head->custom_serial == 0 )
     {
         head->close_serial = app_if_close_serial_now(app);
         head->applied_gen = 0;
@@ -487,6 +487,43 @@ App_SetInterfaceNpcHead(
     if( npc_id < 0 )
         return;
     (void)app_if_head_store(app, UI_IFHEAD_NPC, component_id, npc_id, 0);
+}
+
+void
+App_SetInterfaceNpcHeadCustom(
+    struct App* app,
+    int component_id,
+    int world_idx)
+{
+    struct WorldEntity_NPC const* npc;
+    struct UIIfHead* head;
+    int i;
+
+    assert(app);
+    assert(app->world);
+    npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+    assert(npc);
+    assert(npc->head_custom.active);
+    app_if_forget_closed(app);
+    if( app->tree )
+        app_cs2_widget_visual_cancel(app, component_id);
+    i = UIIfModels_HeadIndex(&app->if_models, component_id);
+    head = i >= 0 ? &app->if_models.heads[i] : NULL;
+    RedrawRequest_Raise(&app->redraw_request);
+    /* The same override of the same npc, already composited: bind again. */
+    if( head && head->landed && head->scene_id >= 0 && head->kind == UI_IFHEAD_NPC &&
+        head->npc_id == npc->npc_id && head->custom_serial == npc->head_custom.serial )
+    {
+        head->close_serial = app_if_close_serial_now(app);
+        head->applied_gen = 0;
+        return;
+    }
+    App_IfModelCancel(app, component_id);
+    i = UIIfModels_SetHead(&app->if_models, component_id, UI_IFHEAD_NPC, npc->npc_id, 0, app_if_close_serial_now(app));
+    app->if_models.heads[i].custom_serial = npc->head_custom.serial;
+    app->if_models.heads[i].custom_npc_slot = npc->server_slot;
+    app->if_models.heads[i].custom_npc_spawn_serial = npc->spawn_serial;
+    App_IfModelWant(app, component_id);
 }
 
 void

@@ -69,6 +69,13 @@ struct UIIfHead
     uint8_t landed;
     int scene_id;
     int landed_npc_id;
+    /* An IF_SETNPCHEAD_ACTIVE head of an npc that carries a chathead
+     * customisation (NPC_INFO HEAD_CUSTOM): the npc's server slot and spawn
+     * serial, and the override's serial (WorldNpcOverride.serial), which the
+     * head task reads the override by. 0 / -1: the type's own head. */
+    uint32_t custom_serial;
+    int custom_npc_slot;
+    uint32_t custom_npc_spawn_serial;
 };
 
 /* Revision-239 server-driven player-composition widgets. Each component owns

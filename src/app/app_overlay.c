@@ -521,21 +521,66 @@ app_overlay_build_hint_arrow(struct App* app)
 }
 
 /*
- * Overhead prayer icon for an NPC (reference drawEntities, NpcType.headicon).
+ * Overhead icons for an NPC (deob Statics ~24626, drawActor2d's npc branch).
  *
- * Where a player carries an eight-bit MASK and stacks every set bit, an npc
- * carries ONE frame from one sprite group and plots it in the first slot. That
- * asymmetry is the reference's, not a simplification: the player's icons are a
- * live prayer set, the npc's is a property of which record it currently is.
- * Which is exactly how a prayer-switching npc works — `npc_changetype` between
- * records that differ only in this field is what makes the overhead change.
- *
- * The group is a sprite-archive id. 440 (`headicons_prayer`) is the only one
- * cache.osrs239 uses on an npc, and the client already resolves that pack for
- * the player pass, so it is passed in rather than looked up again here; a
- * record naming any other group draws nothing rather than drawing the wrong
- * pack's frame.
+ * The npc's slots are the server's headicon customisation when it set one
+ * (class86.method2901 / method2902: the override's arrays, else the type's),
+ * and EVERY slot whose group and frame are both set is drawn, the first at
+ * the overhead anchor and each later one above it. The type here carries one
+ * slot (NpcType opcode 102's first). A group is a sprite-archive id: 440
+ * (`headicons_prayer`) is the client's own static pack, passed in; any other
+ * is bound by its id and loads through the assets table, so a server naming a
+ * group of its own draws it once it lands.
  */
+int
+app_overlay_npc_headicons(
+    struct App* app,
+    struct ToriRS_Npctype const* npctype,
+    struct WorldEntity_NPC const* npc,
+    int prayer_scene,
+    int prayer_group,
+    struct AppNpcHeadicon out[WORLD_NPC_HEADICON_SLOTS])
+{
+    int group[WORLD_NPC_HEADICON_SLOTS];
+    int index[WORLD_NPC_HEADICON_SLOTS];
+    int n = 0;
+
+    assert(app);
+    assert(npc);
+    assert(out);
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        group[i] = npc->headicon_custom ? npc->headicon_group[i] : -1;
+        index[i] = npc->headicon_custom ? npc->headicon_index[i] : -1;
+    }
+    if( !npc->headicon_custom && npctype )
+    {
+        /* An older cache's opcode 102 names only the frame, of the one
+         * headicons pack: the prayer pack here. */
+        group[0] = npctype->head_icon_group >= 0 ? npctype->head_icon_group : prayer_group;
+        index[0] = npctype->head_icon_index;
+    }
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        int scene_id;
+        int frames = 0;
+
+        if( group[i] < 0 || index[i] < 0 )
+            continue;
+        scene_id = group[i] == prayer_group ? prayer_scene : UITreeSceneBridge_BindSprite(&app->bridge, group[i]);
+        if( scene_id <= 0 )
+            continue;
+        /* Resident and without that frame: nothing (the reference's bound
+         * test). A reservation not filled yet draws as nothing anyway. */
+        if( ToriDraw_SceneSpriteGet(app->scene, scene_id, &frames) && index[i] >= frames )
+            continue;
+        out[n].scene_id = scene_id;
+        out[n].frame = index[i];
+        n++;
+    }
+    return n;
+}
+
 void
 app_overlay_build_npc_headicon(
     struct App* app,
@@ -548,29 +593,13 @@ app_overlay_build_npc_headicon(
     int prayer_scene,
     int prayer_group)
 {
+    struct AppNpcHeadicon icons[WORLD_NPC_HEADICON_SLOTS];
     int screen_x, screen_y;
-    int group = npctype ? npctype->head_icon_group : -1;
-    int index = npctype ? npctype->head_icon_index : -1;
+    int count;
 
     assert(npc);
-    /* The server's headicon customisation replaces the type's slots (deob
-     * class112.getOverheadArchiveIds: the override when set, else the type's).
-     * Its first filled slot is the one drawn, as for the type. */
-    if( npc->headicon_custom )
-    {
-        group = -1;
-        index = -1;
-        for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
-            if( npc->headicon_group[i] >= 0 )
-            {
-                group = npc->headicon_group[i];
-                index = npc->headicon_index[i];
-                break;
-            }
-    }
-    if( index < 0 || prayer_scene <= 0 )
-        return;
-    if( group >= 0 && group != prayer_group )
+    count = app_overlay_npc_headicons(app, npctype, npc, prayer_scene, prayer_group, icons);
+    if( count == 0 )
         return;
     if( !app_world_project_actor_footprint(
             app,
@@ -584,15 +613,18 @@ app_overlay_build_npc_headicon(
             &screen_y) )
         return;
 
+    for( int i = 0; i < count; i++ )
     {
+        /* Each later slot one icon (25, the overhead icons' height) and the
+         * reference's 2-pixel gap above the one before. */
         struct UITreeEntityOverlay spr = {
             .kind = UITREE_ENTITY_OVERLAY_SPRITE,
             .x = screen_x - 12,
-            .y = screen_y - 30,
+            .y = screen_y - 30 - i * (25 + 2),
             .w = 0,
             .h = 0,
-            .scene_id = prayer_scene,
-            .atlas_index = index,
+            .scene_id = icons[i].scene_id,
+            .atlas_index = icons[i].frame,
         };
         app_overlay_push(app, &spr);
     }

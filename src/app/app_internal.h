@@ -1911,6 +1911,29 @@ app_overlay_build_player_headicons(
 void
 app_overlay_build_hint_arrow(struct App* app);
 
+/* One overhead icon an npc draws: the sprite group's scene id and the frame. */
+struct AppNpcHeadicon
+{
+    int scene_id;
+    int frame;
+};
+
+/* The overhead icons an npc draws, in slot order (deob Statics ~24626: every
+ * slot whose group and frame are set, the override's when the server set one,
+ * else the type's). The prayer group is the client's own pack
+ * (`prayer_scene`); any other group is bound by its id through the bridge,
+ * which loads it through the assets table (UITreeSceneBridge_BindSprite). A
+ * frame the resident group does not have draws nothing, as the reference's
+ * `index < sprites.length` test. Returns how many were written to `out`. */
+int
+app_overlay_npc_headicons(
+    struct App* app,
+    struct ToriRS_Npctype const* npctype,
+    struct WorldEntity_NPC const* npc,
+    int prayer_scene,
+    int prayer_group,
+    struct AppNpcHeadicon out[WORLD_NPC_HEADICON_SLOTS]);
+
 void
 app_overlay_build_npc_headicon(
     struct App* app,
@@ -3096,6 +3119,32 @@ app_world_build_npc_model(
     struct App* app,
     int npc_id,
     struct ToriRS_Npctype* npctype);
+
+/* An npc's body under its server customisation `o` (active), cached under the
+ * type and the override's serial. NULL while a model is not resident. */
+/* IF_SETNPCHEAD_ACTIVE for an npc (pool index `world_idx`) that carries a
+ * chathead customisation (head_custom.active, not a mirror): the head of its
+ * drawn type under that override (deob class37.method627: the npc's
+ * transformed type and method2919's override, built by class405.method9172),
+ * composited by the head task from the override as it was when the packet
+ * came; the override's serial keys it. */
+void
+App_SetInterfaceNpcHeadCustom(
+    struct App* app,
+    int component_id,
+    int world_idx);
+
+/* The local player's body changed: every npc whose body customisation mirrors
+ * the local player (0x10) is remounted from it. */
+void
+App_WorldNpcMirrorsRemount(struct App* app);
+
+struct ToriDraw_Model*
+app_world_build_npc_override_model(
+    struct App* app,
+    int npc_id,
+    struct ToriRS_Npctype* npctype,
+    struct WorldNpcOverride const* o);
 
 struct ToriDraw_Model*
 app_world_build_spotanim_model(

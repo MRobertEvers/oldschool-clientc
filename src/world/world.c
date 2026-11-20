@@ -13,6 +13,9 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+static void
+world_freeze_free(struct WorldEntityFreeze* f);
+
 #define WORLD_PROJECTILE_ANGLE_TO_RAD 0.02454369
 #define WORLD_PROJECTILE_ANGLE_TO_RPI2048 325.949
 
@@ -68,15 +71,16 @@ World_Free(struct World* world)
          ni = World_EntityPoolNext(&world->entities.npc, ni) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, ni);
-        ToriMem_Free(ToriMem_Scene(), npc->body_models);
-        npc->body_models = NULL;
-        npc->body_model_count = 0;
+        World_NpcOverridesFree(npc);
         world_spotanims_free(&npc->spotanims);
     }
     for( int pi = World_EntityPoolHead(&world->entities.player); pi != WORLD_ENTITY_NIL;
          pi = World_EntityPoolNext(&world->entities.player, pi) )
-        world_spotanims_free(
-            &((struct WorldEntity_Player*)World_EntityPoolAt(&world->entities.player, pi))->spotanims);
+    {
+        struct WorldEntity_Player* player = World_EntityPoolAt(&world->entities.player, pi);
+        world_spotanims_free(&player->spotanims);
+        world_freeze_free(&player->freeze);
+    }
     World_EntityListFree(&world->entities);
     for( int i = 0; i < world->scenery_info.count; i++ )
         ToriMem_Free(ToriMem_Scene(), world->scenery_info.entries[i]);
@@ -1229,6 +1233,7 @@ World_PlayerDespawn(
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     world_spotanims_free(&player->spotanims);
     World_EmitEntityRemoved(world, player->element_id);
+    world_freeze_free(&player->freeze);
     World_EntityPoolRelease(pool, idx);
 }
 
@@ -1306,12 +1311,13 @@ World_NpcDespawn(
     /* Its graphics go with the row: no reader of the removal's snapshot
      * reads them. */
     world_spotanims_free(&npc->spotanims);
-    /* The body models go with the snapshot when one is queued; otherwise
+    /* The customisations go with the snapshot when one is queued; otherwise
      * nothing else holds them. */
     if( !World_EmitNpcRemoved(world, npc) )
-        ToriMem_Free(ToriMem_Scene(), npc->body_models);
-    npc->body_models = NULL;
-    npc->body_model_count = 0;
+        World_NpcOverridesFree(npc);
+    npc->body_custom = (struct WorldNpcOverride){ 0 };
+    npc->head_custom = (struct WorldNpcOverride){ 0 };
+    npc->freeze = (struct WorldEntityFreeze){ 0 };
     World_EntityPoolRelease(pool, idx);
 }
 
@@ -2808,7 +2814,7 @@ World_EventsClear(struct World* world)
     for( int i = 0; i < world->event_count; i++ )
     {
         if( world->events[i].removed_npc )
-            ToriMem_Free(ToriMem_Scene(), world->events[i].removed_npc->body_models);
+            World_NpcOverridesFree(world->events[i].removed_npc);
         ToriMem_Free(ToriMem_Scene(), world->events[i].removed_npc);
         world->events[i].removed_npc = NULL;
     }
@@ -3686,35 +3692,246 @@ World_NpcSetHeadiconCustom(
     }
 }
 
+/* A copy of `n` ints of `src`, sized from `n` (NULL for none). */
+static int*
+world_override_ints(
+    int const* src,
+    int n)
+{
+    int* owned;
+
+    assert(n >= 0);
+    if( n == 0 )
+        return NULL;
+    assert(src);
+    owned = ToriMem_Alloc(ToriMem_Scene(), (size_t)n * sizeof(*owned));
+    assert(owned);
+    memcpy(owned, src, (size_t)n * sizeof(*owned));
+    return owned;
+}
+
+static void
+world_override_free(struct WorldNpcOverride* o)
+{
+    ToriMem_Free(ToriMem_Scene(), o->models);
+    ToriMem_Free(ToriMem_Scene(), o->recolours);
+    ToriMem_Free(ToriMem_Scene(), o->retextures);
+    ToriMem_Free(ToriMem_Scene(), o->identkits);
+    *o = (struct WorldNpcOverride){ 0 };
+}
+
+static void
+world_freeze_free(struct WorldEntityFreeze* f)
+{
+    ToriMem_Free(ToriMem_Scene(), f->windows);
+    *f = (struct WorldEntityFreeze){ 0 };
+}
+
 void
-World_NpcSetBodyModels(
+World_NpcOverridesFree(struct WorldEntity_NPC* npc)
+{
+    if( !npc )
+        return;
+    world_override_free(&npc->body_custom);
+    world_override_free(&npc->head_custom);
+    world_freeze_free(&npc->freeze);
+}
+
+static void
+world_stop_primary(struct WorldEntityFacet_Animation* anim)
+{
+    anim->primary.anim_id = (uint16_t)-1;
+    anim->primary.frame = 0;
+    anim->primary.cycle = 0;
+    anim->primary.loop = 0;
+    anim->primary.delay = 0;
+}
+
+static void
+world_freeze_set(
+    struct World* world,
+    struct WorldEntityFreeze* f,
+    struct WorldEntityFacet_Animation* anim,
+    int delay,
+    int duration,
+    bool reset)
+{
+    int const now = (int)world->cycle;
+    int start;
+    int end;
+
+    if( delay < 0 || duration < 0 )
+    {
+        /* method3627, then method3498 for the reset byte. The reference
+         * leaves its frozen flag to the next step, drawing no snapshot until
+         * then; the live tracks are drawn here at once. */
+        f->count = 0;
+        f->frozen = false;
+        if( reset )
+            world_stop_primary(anim);
+        return;
+    }
+    start = now + delay;
+    end = start + duration;
+    /* A window that is over is reused (class431.method9827). */
+    for( int i = 0; i < f->count; i++ )
+    {
+        struct WorldFreezeWindow* w = &f->windows[i];
+        if( !(now >= w->start_cycle && now < w->end_cycle) && now >= w->end_cycle )
+        {
+            w->start_cycle = start;
+            w->end_cycle = end;
+            w->reset_seq = reset;
+            return;
+        }
+    }
+    if( f->count == f->cap )
+    {
+        int cap = f->cap ? f->cap * 2 : 4;
+        f->windows = ToriMem_Realloc(ToriMem_Scene(), f->windows, (size_t)cap * sizeof(*f->windows));
+        assert(f->windows);
+        f->cap = cap;
+    }
+    f->windows[f->count++] = (struct WorldFreezeWindow){
+        .start_cycle = start, .end_cycle = end, .seen_cycle = 0, .reset_seq = reset
+    };
+}
+
+void
+World_NpcFreeze(
     struct World* world,
     int idx,
-    int const* models,
-    int model_count)
+    int delay,
+    int duration,
+    bool reset)
 {
-    int* owned = NULL;
-
     assert(world);
-    assert(model_count >= 0);
-    if( model_count > 0 )
-        assert(models);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-    /* As many as the wire sent (the reference's `new int[count]`): no cap,
-     * so nothing a block reads as valid is cut or written past (FAULTS E12).
-     * Copied before the old list is freed, so `models` may be the row's own. */
-    if( model_count > 0 )
+    world_freeze_set(world, &npc->freeze, &npc->animation, delay, duration, reset);
+}
+
+void
+World_PlayerFreeze(
+    struct World* world,
+    int idx,
+    int delay,
+    int duration,
+    bool reset)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+    world_freeze_set(world, &player->freeze, &player->animation, delay, duration, reset);
+}
+
+struct WorldEntityFacet_Animation const*
+World_EntityDrawnAnimation(
+    struct WorldEntityFacet_Animation const* anim,
+    struct WorldEntityFreeze const* freeze)
+{
+    assert(anim);
+    assert(freeze);
+    return freeze->frozen ? &freeze->drawn : anim;
+}
+
+/* Replace `o` with a copy of `in` (NULL: none). Every array as many as the
+ * wire sent (the reference's `new int[count]`): no cap, so nothing a block
+ * reads as valid is cut or written past (FAULTS E12). Copied before the old
+ * arrays are freed, so `in` may point at `o`'s own. */
+static void
+world_override_set(
+    struct World* world,
+    struct WorldNpcOverride* o,
+    struct WorldNpcOverrideIn const* in)
+{
+    struct WorldNpcOverride next = { 0 };
+
+    if( in )
     {
-        owned = ToriMem_Alloc(ToriMem_Scene(), (size_t)model_count * sizeof(*owned));
-        assert(owned);
-        memcpy(owned, models, (size_t)model_count * sizeof(*owned));
+        assert(in->model_count >= 0);
+        assert(in->recolour_count >= 0);
+        assert(in->retexture_count >= 0);
+        assert(in->identkit_count >= 0);
+        next.active = true;
+        next.serial = ++world->npc_override_serial;
+        next.models_sent = in->models_sent;
+        next.model_count = in->models_sent ? in->model_count : 0;
+        next.models = world_override_ints(in->models, next.model_count);
+        next.recolour_count = in->recolour_count;
+        next.recolours = world_override_ints(in->recolours, in->recolour_count);
+        next.retexture_count = in->retexture_count;
+        next.retextures = world_override_ints(in->retextures, in->retexture_count);
+        next.mirror = in->mirror;
+        next.player = in->player;
+        next.body_type = in->body_type;
+        next.identkit_count = in->identkit_count;
+        next.identkits = world_override_ints(in->identkits, in->identkit_count);
     }
-    ToriMem_Free(ToriMem_Scene(), npc->body_models);
-    npc->body_models = owned;
-    npc->body_model_count = model_count;
+    world_override_free(o);
+    *o = next;
+}
+
+void
+World_NpcSetBodyCustom(
+    struct World* world,
+    int idx,
+    struct WorldNpcOverrideIn const* in)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    world_override_set(world, &npc->body_custom, in);
     npc->body_serial++;
+}
+
+void
+World_NpcSetHeadCustom(
+    struct World* world,
+    int idx,
+    struct WorldNpcOverrideIn const* in)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    world_override_set(world, &npc->head_custom, in);
+}
+
+int
+World_NpcOverrideRecolour(
+    struct WorldNpcOverride const* o,
+    int i,
+    int type_value)
+{
+    assert(o);
+    assert(i >= 0);
+    return o->active && i < o->recolour_count ? o->recolours[i] : type_value;
+}
+
+int64_t
+World_NpcBodyModelKey(
+    int npc_id,
+    struct WorldNpcOverride const* o)
+{
+    assert(npc_id >= 0);
+    assert(npc_id <= 0xffff);
+    assert(o);
+    return o->active ? (int64_t)npc_id | ((int64_t)o->serial << 16) : (int64_t)npc_id;
+}
+
+int
+World_NpcOverrideRetexture(
+    struct WorldNpcOverride const* o,
+    int i,
+    int type_value)
+{
+    assert(o);
+    assert(i >= 0);
+    return o->active && i < o->retexture_count ? o->retextures[i] : type_value;
 }
 
 void

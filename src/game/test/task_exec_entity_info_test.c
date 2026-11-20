@@ -9,6 +9,7 @@
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 #include "asyncio.h"
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_entity_sync.h"
@@ -18,6 +19,7 @@
 #include "net/net.h"
 #include "net/rev/gameproto_revisions.h"
 #include "streams/info_rs.h"
+#include "rsprot_buf.h"
 #include "test_harness.h"
 #include "toridraw_scene.h"
 #include "world.h"
@@ -983,7 +985,8 @@ test_npc_body_landing_keeps_body_custom(void)
     TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned");
     {
         int const custom[1] = { 4242 };
-        World_NpcSetBodyModels(fx.app.world, world_idx, custom, 1);
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = custom };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
     }
     npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
     serial = npc->body_serial;
@@ -1083,10 +1086,10 @@ test_npc_body_custom_keeps_every_wire_model(void)
             fixture_free(&fx);
             continue;
         }
-        TEST_ASSERT(npc->body_model_count == counts[c], "the count is the wire's");
-        TEST_ASSERT(npc->body_models != NULL, "the list is there");
-        for( int i = 0; npc->body_models && i < npc->body_model_count; i++ )
-            if( npc->body_models[i] != e12_model(i) )
+        TEST_ASSERT(npc->body_custom.model_count == counts[c], "the count is the wire's");
+        TEST_ASSERT(npc->body_custom.models != NULL, "the list is there");
+        for( int i = 0; npc->body_custom.models && i < npc->body_custom.model_count; i++ )
+            if( npc->body_custom.models[i] != e12_model(i) )
                 wrong++;
         TEST_ASSERT(wrong == 0, "every model is the wire's, in order");
         TEST_ASSERT(npc->body_serial == serial + 1, "the body is asked to remount");
@@ -1094,6 +1097,200 @@ test_npc_body_custom_keeps_every_wire_model(void)
         TEST_ASSERT(npc->server_slot == 6, "the server slot is untouched");
         fixture_free(&fx);
     }
+}
+
+/* E12's other half, decoded: osrs242's BodyCustomisationV3 with 0x4 | 0x8
+ * and no 0x2 (recolours and retextures over the type's own models) reaches
+ * the world whole, where the reader's `reset` used to read "no model list" as
+ * the reset and the recolours were dropped; then 0x1 alone clears it. */
+static int
+e12_npc_info_v3_flag(
+    uint8_t* out,
+    int cap,
+    int flag,
+    int recolours,
+    int retextures)
+{
+    RsprotBuf b;
+
+    rsprot_buf_wrap(&b, out, cap);
+    /* The bit section and the flag word, as e12_npc_info_body_custom. */
+    rsprot_p1(&b, 0x01);
+    rsprot_p1(&b, 0x9F);
+    rsprot_p1(&b, 0xFF);
+    rsprot_p1(&b, 0xE0);
+    rsprot_p1(&b, 0x04);
+    rsprot_p1(&b, 0x04);
+    rsprot_p1(&b, 0x20);
+    rsprot_p1(&b, 0x02);
+    rsprot_p1(&b, flag);
+    if( flag & 0x4 )
+    {
+        rsprot_p1_add128(&b, recolours);
+        for( int i = 0; i < recolours; i++ )
+            rsprot_p2_21_add128(&b, 1000 + i);
+    }
+    if( flag & 0x8 )
+    {
+        rsprot_p1_add128(&b, retextures);
+        for( int i = 0; i < retextures; i++ )
+            rsprot_p2_12(&b, 2000 + i);
+    }
+    TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+    return b.wpos;
+}
+
+static void
+test_npc_body_custom_recolours_without_models(void)
+{
+    static uint8_t packet[64 + 255 * 4];
+    static struct ToriRS_Network net242;
+    struct EntityFixture fx;
+    struct WorldEntity_NPC* npc;
+    int len;
+    int wrong = 0;
+
+    printf("TEST: a BODY_CUSTOM of recolours and retextures and no models reaches the world\n");
+    net242.rev = GameProtoRev_OSRS242();
+    fixture_init(&fx);
+    fx.app.net = &net242;
+    register_npc(&fx.app, 301, 500, 6, 30, 30);
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc != NULL, "the npc is tracked before the packet");
+
+    len = e12_npc_info_v3_flag(packet, (int)sizeof(packet), 0x4 | 0x8, 255, 2);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->body_custom.active, "the block is an override, not the reset");
+    if( npc && npc->body_custom.active )
+    {
+        TEST_ASSERT(!npc->body_custom.models_sent, "over the type's own models");
+        TEST_ASSERT(npc->body_custom.recolour_count == 255, "every recolour the wire counted");
+        for( int i = 0; npc->body_custom.recolours && i < npc->body_custom.recolour_count; i++ )
+            if( npc->body_custom.recolours[i] != 1000 + i )
+                wrong++;
+        TEST_ASSERT(npc->body_custom.recolours && wrong == 0, "each as sent, in order");
+        TEST_ASSERT(npc->body_custom.retexture_count == 2 && npc->body_custom.retextures[1] == 2001,
+            "and the retextures");
+    }
+
+    len = e12_npc_info_v3_flag(packet, (int)sizeof(packet), 0x1, 0, 0);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && !npc->body_custom.active && npc->body_custom.recolours == NULL, "0x1 alone resets it");
+    fixture_free(&fx);
+}
+
+/* E12, flags 0x10 and 0x20: a body customisation that mirrors the local
+ * player is remounted when the local player's body changes, and one that is
+ * a player composition draws nothing of the npc's type -- it wants the
+ * composition's kit configs, and mounts nothing until they are here. */
+static void
+test_npc_body_custom_mirror_and_player(void)
+{
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct WorldEntity_NPC* npc;
+    int world_idx = -1;
+    int serial;
+    int const kits[2] = { 256 + 7, 0 };
+    int const colours[5] = { 1, 2, 3, 4, 5 };
+
+    printf("TEST: a mirror body follows the local player; a composition wants its kits\n");
+    fixture_init(&fx);
+    fixture_npctype(&fx, 502, -1);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 3);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 502);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+    TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned");
+
+    {
+        struct WorldNpcOverrideIn in = { .mirror = true };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    serial = npc->body_serial;
+    App_WorldNpcMirrorsRemount(&fx.app);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_serial == serial + 1, "the local player's new body remounts a mirror");
+
+    {
+        struct WorldNpcOverrideIn in = {
+            .player = true, .body_type = 0, .identkit_count = 2, .identkits = kits,
+            .recolour_count = 5, .recolours = colours,
+        };
+        World_NpcSetBodyCustom(fx.app.world, world_idx, &in);
+    }
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    serial = npc->body_serial;
+    App_WorldNpcMirrorsRemount(&fx.app);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_serial == serial, "a composition does not follow the local player");
+    TEST_ASSERT(Assets_LoadsStarted(fx.app.assets, ASSET_KIND_CONFIG) == 0, "no config is asked for before the sync");
+    app_world_sync_npc_bodies(&fx.app);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(Assets_LoadsStarted(fx.app.assets, ASSET_KIND_CONFIG) == 1,
+        "the composition's one kit config is asked of the assets table");
+    TEST_ASSERT(npc->body_mounted_serial != npc->body_serial, "and nothing is mounted while it loads");
+    fixture_free(&fx);
+}
+
+/* E12 FREEZE, decoded: osrs242's npc freeze block (flag 0x8: g2_21_add128
+ * delay, g2_21 duration, g1 reset) opens a window in the world; 65535 is the
+ * cancel. */
+static int
+e12_npc_info_freeze(
+    uint8_t* out,
+    int cap,
+    int delay,
+    int duration,
+    int reset)
+{
+    RsprotBuf b;
+
+    rsprot_buf_wrap(&b, out, cap);
+    rsprot_p1(&b, 0x01);
+    rsprot_p1(&b, 0x9F);
+    rsprot_p1(&b, 0xFF);
+    rsprot_p1(&b, 0xE0);
+    rsprot_p1(&b, 0x08);
+    rsprot_p2_21_add128(&b, delay);
+    rsprot_p2_21(&b, duration);
+    rsprot_p1(&b, reset);
+    TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+    return b.wpos;
+}
+
+static void
+test_npc_freeze_reaches_the_world(void)
+{
+    static uint8_t packet[32];
+    static struct ToriRS_Network net242;
+    struct EntityFixture fx;
+    struct WorldEntity_NPC* npc;
+    int len;
+    int now;
+
+    printf("TEST: an NPC_INFO freeze opens a window; 65535 cancels\n");
+    net242.rev = GameProtoRev_OSRS242();
+    fixture_init(&fx);
+    fx.app.net = &net242;
+    register_npc(&fx.app, 301, 500, 6, 30, 30);
+    now = (int)fx.app.world->cycle;
+    len = e12_npc_info_freeze(packet, (int)sizeof(packet), 30, 90, 1);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->freeze.count == 1, "one window");
+    TEST_ASSERT(npc && npc->freeze.count == 1 && npc->freeze.windows[0].start_cycle == now + 30 &&
+                    npc->freeze.windows[0].end_cycle == now + 120 && npc->freeze.windows[0].reset_seq,
+        "from the cycle plus the delay, for the duration, with its reset");
+    len = e12_npc_info_freeze(packet, (int)sizeof(packet), 65535, 65535, 0);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->freeze.count == 0, "65535 cancels every window");
+    fixture_free(&fx);
 }
 
 /* E5: removing a player (or anything else not an npc) is not an npc despawn;
@@ -1309,6 +1506,9 @@ main(void)
     test_npc_unknown_type_still_exists();
     test_npc_body_landing_keeps_body_custom();
     test_npc_body_custom_keeps_every_wire_model();
+    test_npc_body_custom_recolours_without_models();
+    test_npc_body_custom_mirror_and_player();
+    test_npc_freeze_reaches_the_world();
     test_only_npc_removals_are_npc_despawns();
     test_varp_retype_coalesces_and_keeps_overrides();
     test_player_add_exists_at_once();
