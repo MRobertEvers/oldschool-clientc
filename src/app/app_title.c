@@ -1233,6 +1233,8 @@ app_title_tick(struct App* app)
     if( RS_TitleSession_LoginSucceeded(app_title_phase(app), app_title_link_state(app)) )
     {
         ToriRS_BootTelemetry_Mark("login_ok");
+        /* A logout's cancelled tasks have all exited by the next login. */
+        App_PendingTrace(app, "at login");
         /*
          * The one moment these credentials are known to work.
          *

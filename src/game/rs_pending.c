@@ -22,6 +22,7 @@ struct RS_Pending
     struct RS_ParallelTask* bucket[RS_PENDING_BUCKETS];
     int listed;
     uint32_t next_order;
+    struct RS_PendingStats stats;
 };
 
 static uint32_t
@@ -177,6 +178,8 @@ RS_Pending_Unlist(
     task->bucket_next = NULL;
     task->listed = 0;
     index->listed--;
+    if( task->cancelled )
+        index->stats.cancelled_exited++;
 }
 
 struct RS_ParallelTask*
@@ -216,6 +219,7 @@ RS_Pending_CancelKey(
         cancel_one(t);
         cancelled++;
     }
+    index->stats.cancelled_by_key += (uint32_t)cancelled;
     return cancelled;
 }
 
@@ -289,6 +293,7 @@ RS_Pending_Cancel(
     int cancelled = 0;
 
     assert(index);
+    assert(scope.kind <= RS_PENDING_SCOPE_KIND);
     if( scope.kind == RS_PENDING_SCOPE_KIND )
         check_kind(scope.id);
     for( struct RS_ParallelTask* t = index->head; t; t = t->next )
@@ -298,6 +303,7 @@ RS_Pending_Cancel(
         cancel_one(t);
         cancelled++;
     }
+    index->stats.cancelled_by_scope[scope.kind] += (uint32_t)cancelled;
     return cancelled;
 }
 
@@ -322,4 +328,18 @@ RS_Pending_Listed(struct RS_Pending const* index)
 {
     assert(index);
     return index->listed;
+}
+
+struct RS_PendingStats
+RS_Pending_Stats(struct RS_Pending const* index)
+{
+    assert(index);
+    return index->stats;
+}
+
+void
+RS_Pending_NoteTurnWait(struct RS_Pending* index)
+{
+    assert(index);
+    index->stats.turn_waits++;
 }

@@ -55,6 +55,8 @@
 #define Platform_IO_Process PlatformWeb_IO_Process
 #define Platform_IO_Pump PlatformWeb_IO_Pump
 #define Platform_IO_ServerReachable PlatformWeb_IO_ServerReachable
+/* The browser's reads are slow on their own; it has no frame deferral. */
+#define Platform_IO_SetFrameSource(px, frames) ((void)(px), (void)(frames))
 
 /* The opaque handle. A browser's executor keeps its state on the JavaScript
  * side, so this is an identifier rather than a struct -- which is why nothing
@@ -76,6 +78,7 @@
 #define Platform_IO_Process PlatformX_IO_Process
 #define Platform_IO_Pump PlatformX_IO_Pump
 #define Platform_IO_ServerReachable PlatformX_IO_ServerReachable
+#define Platform_IO_SetFrameSource PlatformX_IO_SetFrameSource
 
 #define Platform_IO struct PlatformX_IO
 

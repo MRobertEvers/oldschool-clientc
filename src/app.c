@@ -247,6 +247,8 @@ App_Init(
     app->frame_runner.queue = ToriRS_TaskQueue_New();
     app->frame_runner.px = Platform_IO_New();
     assert(app->frame_runner.px != NULL);
+    /* TORIRS_IO_DEFER_FRAMES counts this client's frames. */
+    Platform_IO_SetFrameSource(app->frame_runner.px, &app->frame_clock.serial.run_once);
     /*
      * The asset pipeline runs its tasks in parallel.
      *
@@ -1317,6 +1319,7 @@ void
 App_Shutdown(struct App* app)
 {
     assert(app);
+    App_PendingTrace(app, "at exit");
     app_prefs_flush(app);
     app_render_skip_shutdown(app);
     /* The quest driver's Lua thread lives in the plugin host's state, and its

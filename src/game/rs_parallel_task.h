@@ -172,6 +172,7 @@ RS_ParallelTask_AskTurn(
     /* Listed by RS_ParallelTask_Add, so it is a task, queued (its end is
      * primed) until it is freed, which unlists it. */
     assert(earlier->task);
+    RS_Pending_NoteTurnWait(index);
     ToriRS_TaskAskTrigger(task, TORIRS_TASK_WAIT_TURN, ToriRS_TaskEnded(earlier->task));
     return 1;
 }
