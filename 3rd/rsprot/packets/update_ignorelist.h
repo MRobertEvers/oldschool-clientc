@@ -50,7 +50,12 @@ typedef struct MsgUpdateIgnoreList
     MsgUpdateIgnoreListEntry *entries;
 } MsgUpdateIgnoreList;
 
-#define MSG_UPDATE_IGNORELIST_MAX_ENTRIES 256
+/** Caller-supplied `entries` capacity: every entry a VARU16 payload (65535
+ *  bytes) can frame, the shortest being 2 (a removal: the flags byte and an
+ *  empty name). The reference reads to the end of the payload and keeps 400
+ *  (deob class428.method9746: a new name past 400 is read and skipped), so
+ *  the bound that may refuse a packet is the frame's, never the list's. */
+#define MSG_UPDATE_IGNORELIST_MAX_ENTRIES (65535 / 2)
 
 /* v1 -- revs 221-239. */
 void packet_update_ignorelist_v1_out(RsprotExec *x, MsgUpdateIgnoreList *m);

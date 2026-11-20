@@ -24,6 +24,7 @@
 #include "inv/inv_manager.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
+#include "net/rev/rev_list.h"
 #include "render/cam_script.h"
 #include "toridraw_math.h"
 #include "ui/uitree.h"
@@ -184,6 +185,132 @@ test_put_private(uint8_t* out, int cap, char const* sender, int counter, int cro
     out[at++] = (uint8_t)counter;
     out[at++] = (uint8_t)crown;
     return at + chat_huffman_pack(out + at, cap - at, text);
+}
+
+/* One list packet through `rev`'s reader and the model; false when it does
+ * not parse. */
+static int
+test_list_packet(
+    struct App* app,
+    struct RS_ServerState* state,
+    struct GameProtoRevTable const* rev,
+    int pkt_name,
+    uint8_t* wire,
+    int len)
+{
+    struct RevPacket p;
+
+    memset(&p, 0, sizeof(p));
+    if( !rev->parse_wire(rev, rev->packetin_wire(pkt_name), wire, len, &p) )
+        return 0;
+    App_GameProto_Exec(app, state, &p);
+    gameproto_free(&p);
+    return 1;
+}
+
+/* J1: 400 friends and 400 ignores, end to end, on one wire revision. The
+ * rev-239 readers loop to the end of the payload (Statics.method10091,
+ * class428.method9746) and keep 400: past that a NEW name is read and
+ * skipped (`>= 400` continue, `< 400` add) while an entry already held still
+ * changes. So a 401-entry list parses, the 401st new name is not kept, and an
+ * update after it still lands. The rs-family wires carry one friend per
+ * UPDATE_FRIENDLIST and the whole ignore list as base-37 keys. */
+static void
+test_list_400(
+    struct App* app,
+    struct RS_ServerState const* bare,
+    struct GameProtoRevTable const* rev)
+{
+    static uint8_t big[16384];
+    struct RS_ServerState cs = *bare;
+    struct RS_Social* csoc = calloc(1, sizeof(*csoc));
+    int const rs_wire = rev->name[0] == 'r';
+    char what[96];
+    char name[16];
+    int clock = 0;
+    int len = 0;
+
+    assert(csoc);
+    RS_Social_Init(csoc);
+    cs.social = csoc;
+    cs.chat_clock = &clock;
+    TEST_EXEC_ASSERT(rev->packetin_wire(PKT_NAME_UPDATE_FRIENDLIST) >= 0, "every wire has UPDATE_FRIENDLIST");
+    TEST_EXEC_ASSERT(rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST) >= 0, "every wire has UPDATE_IGNORELIST");
+
+    if( rs_wire )
+    {
+        /* friend0..friend400 one packet each, then friend0 moves to world 3. */
+        for( int i = 0; i <= 401; i++ )
+        {
+            uint64_t key;
+
+            snprintf(name, sizeof(name), "friend%d", i == 401 ? 0 : i);
+            key = strtobase37(name);
+            for( int b = 0; b < 8; b++ )
+                big[b] = (uint8_t)(key >> (56 - 8 * b));
+            big[8] = i == 401 ? 3 : 0;
+            snprintf(what, sizeof(what), "%s: one-friend UPDATE_FRIENDLIST %d parses", rev->name, i);
+            TEST_EXEC_ASSERT(test_list_packet(app, &cs, rev, PKT_NAME_UPDATE_FRIENDLIST, big, 9), what);
+        }
+    }
+    else
+    {
+        for( int i = 0; i <= 400; i++ )
+        {
+            snprintf(name, sizeof(name), "friend%d", i);
+            len = test_put_friend(big, len, name, 0);
+        }
+        len = test_put_friend(big, len, "friend0", 3);
+        snprintf(what, sizeof(what), "%s: a 402-entry UPDATE_FRIENDLIST parses", rev->name);
+        TEST_EXEC_ASSERT(test_list_packet(app, &cs, rev, PKT_NAME_UPDATE_FRIENDLIST, big, len), what);
+    }
+    snprintf(what, sizeof(what), "%s: 400 friends are kept (count %d)", rev->name, csoc->friend_count);
+    TEST_EXEC_ASSERT(csoc->friend_count == 400, what);
+    snprintf(what, sizeof(what), "%s: the 401st new friend is read and skipped", rev->name);
+    TEST_EXEC_ASSERT(!RS_Social_IsFriend(csoc, "friend400") && RS_Social_IsFriend(csoc, "friend399"), what);
+    snprintf(what, sizeof(what), "%s: an entry after it still changes a friend held", rev->name);
+    TEST_EXEC_ASSERT(RS_Social_FriendWorld(csoc, RS_Social_FriendIndex(csoc, "friend0")) == 3, what);
+
+    len = 0;
+    if( rs_wire )
+    {
+        /* The whole list, 401 keys: it replaces what is held and keeps 400. */
+        for( int i = 0; i <= 400; i++ )
+        {
+            uint64_t key;
+
+            snprintf(name, sizeof(name), "ignore%d", i);
+            key = strtobase37(name);
+            for( int b = 0; b < 8; b++ )
+                big[len++] = (uint8_t)(key >> (56 - 8 * b));
+        }
+        snprintf(what, sizeof(what), "%s: a 401-name UPDATE_IGNORELIST parses", rev->name);
+        TEST_EXEC_ASSERT(test_list_packet(app, &cs, rev, PKT_NAME_UPDATE_IGNORELIST, big, len), what);
+        snprintf(what, sizeof(what), "%s: 400 ignores are kept (count %d)", rev->name, csoc->ignore_count);
+        TEST_EXEC_ASSERT(csoc->ignore_count == 400, what);
+        snprintf(what, sizeof(what), "%s: the 401st name is skipped", rev->name);
+        TEST_EXEC_ASSERT(!RS_Social_IsIgnored(csoc, "ignore400") && RS_Social_IsIgnored(csoc, "ignore399"), what);
+    }
+    else
+    {
+        /* ignore0..ignore400 added, then ignore0 removed (the flags byte 4). */
+        for( int i = 0; i <= 400; i++ )
+        {
+            snprintf(name, sizeof(name), "ignore%d", i);
+            len = test_put_ignore(big, len, 0, name, "");
+        }
+        len = test_put_ignore(big, len, 0x4, "ignore0", "");
+        snprintf(what, sizeof(what), "%s: a 402-entry UPDATE_IGNORELIST parses", rev->name);
+        TEST_EXEC_ASSERT(test_list_packet(app, &cs, rev, PKT_NAME_UPDATE_IGNORELIST, big, len), what);
+        snprintf(what, sizeof(what), "%s: 400 ignores were kept, then one removed (count %d)", rev->name,
+            csoc->ignore_count);
+        TEST_EXEC_ASSERT(csoc->ignore_count == 399, what);
+        snprintf(what, sizeof(what), "%s: the 401st new ignore is read and skipped", rev->name);
+        TEST_EXEC_ASSERT(!RS_Social_IsIgnored(csoc, "ignore400") && RS_Social_IsIgnored(csoc, "ignore399"), what);
+        snprintf(what, sizeof(what), "%s: and the removal after it applies", rev->name);
+        TEST_EXEC_ASSERT(!RS_Social_IsIgnored(csoc, "ignore0"), what);
+    }
+    free(csoc);
 }
 
 int
@@ -1034,47 +1161,14 @@ main(void)
     }
 
     /* The store keeps what the reference's readers keep: up to 400 friends
-     * and 400 ignores (Statics.method10091, class428.method9746). A member's
-     * 250-friend login list was cut at 200 and a 150-ignore list at 100. */
+     * and 400 ignores (Statics.method10091, class428.method9746), and every
+     * wire revision's reader hands it a 400-entry list and the 401st (J1:
+     * rsprot's decoders failed a list past 256 entries). */
     {
-        struct GameProtoRevTable const* rev = GameProtoRev_Osrs(242);
-        struct RS_ServerState cs = bare_state;
-        struct RS_Social* csoc = calloc(1, sizeof(*csoc));
-        static uint8_t big[16384];
-        int clock = 0;
-        int len = 0;
-        struct RevPacket p;
-
-        assert(csoc);
-        RS_Social_Init(csoc);
-        cs.social = csoc;
-        cs.chat_clock = &clock;
-        for( int i = 0; i < 250; i++ )
-        {
-            char name[16];
-
-            snprintf(name, sizeof(name), "friend%d", i);
-            len = test_put_friend(big, len, name, 0);
-        }
-        test_friend_packet(base_app, &cs, big, len);
-        TEST_EXEC_ASSERT(csoc->friend_count == 250, "a 250-friend list is kept whole");
-        len = 0;
-        for( int i = 0; i < 150; i++ )
-        {
-            char name[16];
-
-            snprintf(name, sizeof(name), "ignore%d", i);
-            len = test_put_ignore(big, len, 0, name, "");
-        }
-        memset(&p, 0, sizeof(p));
-        TEST_EXEC_ASSERT(
-            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), big, len, &p),
-            "a 150-ignore list parses");
-        App_GameProto_Exec(base_app, &cs, &p);
-        gameproto_free(&p);
-        TEST_EXEC_ASSERT(csoc->ignore_count == 150, "and a 150-ignore list");
-        free(csoc);
-        printf("ok - the friend and ignore lists hold what the reference keeps\n");
+#define TEST_LIST_400_REV(ID, number) test_list_400(base_app, &bare_state, GameProtoRev_##ID());
+        REV_LIST(TEST_LIST_400_REV)
+#undef TEST_LIST_400_REV
+        printf("ok - the friend and ignore lists hold what the reference keeps, on every wire\n");
     }
 
     /* B3: a name is shown as the wire spells it. A rev-221+ wire spells it
