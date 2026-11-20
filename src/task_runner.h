@@ -273,6 +273,50 @@ TaskRunner_CheckBackgroundEntry(
 }
 
 /*
+ * The between-frames pump's check (App_PumpAsync from_frame 0: the browser's
+ * torirs_web_io_pump, the native loop's naps), on its way out: what it
+ * stepped besides the parallel queue, counted by the main and background
+ * queues' own pass counters (telemetry.passes) across the pump. It may step
+ * the main queue only while the boot runs there; after the boot the main
+ * queue is the packet pump's, a frame's. It never steps the background
+ * queue, which is given its floor and its slack by the frame and the loop.
+ * `main_head` names the main queue's head for the line (NULL: empty).
+ */
+static inline void
+TaskRunner_CheckBetweenFramesExit(
+    int booting,
+    long main_passes,
+    long background_passes,
+    char const* main_head)
+{
+    char line[192];
+
+    assert(main_passes >= 0);
+    assert(background_passes >= 0);
+    if( background_passes > 0 )
+    {
+        snprintf(
+            line,
+            sizeof(line),
+            "the between-frames pump stepped the background queue (%ld passes)",
+            background_passes);
+        TaskRunner_ContractBreach(line);
+        assert(background_passes == 0);
+    }
+    if( !booting && main_passes > 0 )
+    {
+        snprintf(
+            line,
+            sizeof(line),
+            "the between-frames pump stepped the main queue after the boot (%ld passes, head %s)",
+            main_passes,
+            main_head ? main_head : "-");
+        TaskRunner_ContractBreach(line);
+        assert(main_passes == 0);
+    }
+}
+
+/*
  * Give a queue a clock, so its passes can be given a deadline.
  *
  * `now_us` is any monotonic microsecond clock; the client's is the

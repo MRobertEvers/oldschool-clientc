@@ -156,6 +156,12 @@ static struct
     int pumps_waiting;
     int pumps_blocked;
     int floor_pumps;
+    /* The between-frames pumps' passes of the other two queues: the main
+     * queue's while the boot runs there (the one thing a between-frames pump
+     * may step besides the parallel queue), and the background queue's, which
+     * must stay 0 (app_between_frames_exit_check). */
+    long between_boot_passes;
+    long between_background_passes;
 } g_contract_tally;
 
 void
@@ -188,10 +194,12 @@ App_QueueContractTraceLine(
         len += snprintf(
             out + len,
             (size_t)(out_size - len),
-            "; parallel pumps=%d (between frames %d) ended waiting=%d blocked=%d; background floor pumps=%d "
-            "longest step %.2f ms (%s)",
+            "; parallel pumps=%d (between frames %d: main passes %ld, all the boot's; background passes %ld) "
+            "ended waiting=%d blocked=%d; background floor pumps=%d longest step %.2f ms (%s)",
             g_contract_tally.pumps,
             g_contract_tally.pumps_between,
+            g_contract_tally.between_boot_passes,
+            g_contract_tally.between_background_passes,
             g_contract_tally.pumps_waiting,
             g_contract_tally.pumps_blocked,
             g_contract_tally.floor_pumps,
@@ -779,6 +787,28 @@ app_between_frames_entry_check(struct App const* app)
 }
 
 /*
+ * What a between-frames pump stepped besides the parallel queue
+ * (TaskRunner_CheckBetweenFramesExit), and the trace's tally of it.
+ */
+static void
+app_between_frames_exit_check(
+    struct App const* app,
+    int booting,
+    long main_passes,
+    long background_passes)
+{
+    assert(app);
+    g_contract_tally.between_background_passes += background_passes;
+    if( booting )
+        g_contract_tally.between_boot_passes += main_passes;
+    TaskRunner_CheckBetweenFramesExit(
+        booting,
+        main_passes,
+        background_passes,
+        app->packet_runner.queue->head ? app->packet_runner.queue->head->name : NULL);
+}
+
+/*
  * One pump: the main queue while booting, a client script's settle when one
  * is pending, then the parallel queue to a standstill.
  *
@@ -835,10 +865,16 @@ App_PumpAsync(
     int from_frame)
 {
     enum TaskRunnerStat result = TASK_RUNNER_IDLE;
+    long main_passes_before;
+    long background_passes_before;
+    int booting_before;
 
     assert(app);
     if( !from_frame )
         app_between_frames_entry_check(app);
+    main_passes_before = app->packet_runner.telemetry.passes;
+    background_passes_before = app->background_runner.telemetry.passes;
+    booting_before = RS_ClientPhase_Booting(&app->phase);
     app->frame_runner.telemetry.in_pump = !from_frame;
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_ASYNC)
     {
@@ -920,6 +956,12 @@ App_PumpAsync(
         result = settling_cs2 ? settle : stat;
     }
     app->frame_runner.telemetry.in_pump = 0;
+    if( !from_frame )
+        app_between_frames_exit_check(
+            app,
+            booting_before,
+            app->packet_runner.telemetry.passes - main_passes_before,
+            app->background_runner.telemetry.passes - background_passes_before);
     return result;
 }
 

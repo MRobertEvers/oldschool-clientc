@@ -21,6 +21,11 @@
  *      the script settle, or from inside a task of another queue, trips the
  *      check; the job owner's finish (owner = 1) from the packet pump does
  *      not, and neither does a pass from the frame body.
+ *   5. THE BETWEEN-FRAMES PUMP. Across a pump made between frames (the
+ *      browser's torirs_web_io_pump), a pass of the background queue trips
+ *      the check, and so does a pass of the main queue once the boot is
+ *      over; the boot's own main-queue passes do not. The passes are the
+ *      runners' own counters, read before and after a real pass.
  *
  * The death checks run in a forked child and pass when it dies by SIGABRT
  * (the assert), which is how the assert is proved to fire without changing
@@ -562,6 +567,42 @@ test_who_steps_the_background_queue(void)
     CHECK(dies_by_abort(owner_from_a_parallel_task));
 }
 
+static void
+between_frames_stepped_background(void)
+{
+    TaskRunner_CheckBetweenFramesExit(1, 0, 1, NULL);
+}
+
+static void
+between_frames_stepped_main_after_boot(void)
+{
+    TaskRunner_CheckBetweenFramesExit(0, 2, 0, "PacketExec");
+}
+
+static void
+test_the_between_frames_pump(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    int ended = 0;
+    long before;
+
+    printf("TEST: the between-frames pump steps the main queue only for the boot, never the background\n");
+    /* The count the App reads is the runner's own: one pass is one. */
+    runner_init(&runner, &px, NULL, TASK_RUNNER_ROLE_MAIN);
+    ToriRS_TaskQueue_Add(runner.queue, new_yielder(0, &ended));
+    before = runner.telemetry.passes;
+    (void)TaskRunner_Step(&runner);
+    CHECK(runner.telemetry.passes - before == 1);
+    CHECK(ended == 1);
+    runner_free(&runner);
+    /* Allowed: nothing stepped; the boot's own main-queue passes. */
+    TaskRunner_CheckBetweenFramesExit(0, 0, 0, NULL);
+    TaskRunner_CheckBetweenFramesExit(1, 5, 0, "AppBoot");
+    CHECK(dies_by_abort(between_frames_stepped_background));
+    CHECK(dies_by_abort(between_frames_stepped_main_after_boot));
+}
+
 int
 main(void)
 {
@@ -572,6 +613,7 @@ main(void)
     test_a_pump_ended_early_is_caught();
     test_a_task_without_its_turn_is_caught();
     test_who_steps_the_background_queue();
+    test_the_between_frames_pump();
     if( g_failures )
     {
         printf("queue_contract_test: %d failure(s)\n", g_failures);
