@@ -43,6 +43,22 @@ check(
     }
 }
 
+/** check() with a formatted message. */
+static void
+checkf(
+    int condition,
+    const char* format,
+    ...)
+{
+    char what[512];
+    va_list args;
+
+    va_start(args, format);
+    vsnprintf(what, sizeof(what), format, args);
+    va_end(args);
+    check(condition, what);
+}
+
 static void
 mkdirs(const char* path)
 {
@@ -474,22 +490,6 @@ make_legacy(
 /* ---- a lane behind its base: what fell behind is not the lane's change ------ */
 
 #ifdef _WIN32
-/** check() with a formatted message. */
-static void
-checkf(
-    int condition,
-    const char* format,
-    ...)
-{
-    char what[512];
-    va_list args;
-
-    va_start(args, format);
-    vsnprintf(what, sizeof(what), format, args);
-    va_end(args);
-    check(condition, what);
-}
-
 /** The base's file replaced by a NEW file, as a pull, a publish or an editor
  *  save replaces one: the lanes' hard links keep the old file. */
 static void

@@ -19,10 +19,14 @@
  *
  * Build the malloc counting with:
  *     -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free
- * Without those wrappers the file still compiles and every other check runs;
- * the allocation checks then report "not counted" rather than passing silently.
+ * (GNU ld), which also catches an allocation that bypasses the library's own
+ * allocator. A linker without --wrap (Apple's ld64) builds it without
+ * TORIDRAW_MINI_TEST_WRAP_MALLOC, and the count is taken through the
+ * allocator every ToriDraw heap allocation goes through (toridraw_alloc.h),
+ * installed before the first call into the library.
  */
 #include "toridraw.h"
+#include "toridraw_alloc.h"
 #include "toridraw_model_sprite.h"
 #include "toridraw_sprite.h"
 
@@ -81,9 +85,53 @@ __wrap_free(void* p)
 
 #define ALLOC_COUNTING 1
 #define ALLOCS_SO_FAR() (g_alloc_calls)
+#define INSTALL_ALLOC_COUNTER() ((void)0)
 #else
-#define ALLOC_COUNTING 0
-#define ALLOCS_SO_FAR() (0L)
+static long g_alloc_calls = 0;
+
+static void*
+counting_malloc(size_t n, void* user)
+{
+    (void)user;
+    g_alloc_calls++;
+    return malloc(n);
+}
+
+static void*
+counting_calloc(size_t n, size_t s, void* user)
+{
+    (void)user;
+    g_alloc_calls++;
+    return calloc(n, s);
+}
+
+static void*
+counting_realloc(void* p, size_t n, void* user)
+{
+    (void)user;
+    g_alloc_calls++;
+    return realloc(p, n);
+}
+
+static void
+counting_free(void* p, void* user)
+{
+    (void)user;
+    free(p);
+}
+
+static void
+install_alloc_counter(void)
+{
+    struct ToriDraw_Allocator const counting = {
+        counting_malloc, counting_calloc, counting_realloc, counting_free, NULL
+    };
+    ToriDraw_SetAllocator(&counting);
+}
+
+#define ALLOC_COUNTING 1
+#define ALLOCS_SO_FAR() (g_alloc_calls)
+#define INSTALL_ALLOC_COUNTER() install_alloc_counter()
 #endif
 
 /* ------------------------------------------------------------------ fixture */
@@ -446,6 +494,7 @@ test_arena_and_heap_agree(void)
 int
 main(void)
 {
+    INSTALL_ALLOC_COUNTER();
     ToriDraw_Init();
 
     test_the_counter_counts();
