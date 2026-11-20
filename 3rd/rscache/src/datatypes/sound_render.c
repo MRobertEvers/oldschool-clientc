@@ -51,6 +51,35 @@ sound_tables_init(void)
     g_sound_tables_ready = true;
 }
 
+/* The reference's synth arithmetic is Java int arithmetic: it wraps, and
+ * long tones and deep modulation rely on it (a phase accumulator runs past
+ * 2^31 and comes round). Signed overflow is undefined in C, so the sums and
+ * products that can wrap are done in uint32_t and cast back to the
+ * two's-complement int. */
+static inline int
+wrap_add(
+    int a,
+    int b)
+{
+    return (int)((uint32_t)a + (uint32_t)b);
+}
+
+static inline int
+wrap_sub(
+    int a,
+    int b)
+{
+    return (int)((uint32_t)a - (uint32_t)b);
+}
+
+static inline int
+wrap_mul(
+    int a,
+    int b)
+{
+    return (int)((uint32_t)a * (uint32_t)b);
+}
+
 /* --- envelope playback --------------------------------------------------- */
 
 /**
@@ -90,12 +119,13 @@ env_eval(
         state->threshold =
             (int)((double)envelope->times[state->position] / 65536.0 * (double)total);
         if( state->threshold > state->ticks )
-            state->delta = ((envelope->levels[state->position] << 15) - state->amplitude) /
-                           (state->threshold - state->ticks);
+            state->delta =
+                wrap_sub(envelope->levels[state->position] << 15, state->amplitude) /
+                (state->threshold - state->ticks);
     }
-    state->amplitude += state->delta;
+    state->amplitude = wrap_add(state->amplitude, state->delta);
     state->ticks++;
-    return (state->amplitude - state->delta) >> 15;
+    return wrap_sub(state->amplitude, state->delta) >> 15;
 }
 
 /* Reference Tone.generate's inner `generate` / SynthInstrument.method3504. */
@@ -110,11 +140,11 @@ waveform(
     case 1:
         return (phase & 0x7FFF) < 16384 ? amplitude : -amplitude;
     case 2:
-        return (g_sound_sine[phase & 0x7FFF] * amplitude) >> 14;
+        return wrap_mul(g_sound_sine[phase & 0x7FFF], amplitude) >> 14;
     case 3:
-        return (((phase & 0x7FFF) * amplitude) >> 14) - amplitude;
+        return wrap_sub(wrap_mul(phase & 0x7FFF, amplitude) >> 14, amplitude);
     case 4:
-        return g_sound_noise[(phase / 2607) & 0x7FFF] * amplitude;
+        return wrap_mul(g_sound_noise[(phase / 2607) & 0x7FFF], amplitude);
     default:
         return 0;
     }
@@ -433,8 +463,11 @@ tone_synth(
                 env_eval(&tone->frequency_mod_rate, &r->frequency_mod_rate_state, sample_count);
             int range =
                 env_eval(&tone->frequency_mod_range, &r->frequency_mod_range_state, sample_count);
-            frequency += waveform(range, r->frequency_phase, tone->frequency_mod_rate.form) >> 1;
-            r->frequency_phase += (rate * r->frequency_start >> 16) + r->frequency_duration;
+            frequency = wrap_add(
+                frequency, waveform(range, r->frequency_phase, tone->frequency_mod_rate.form) >> 1);
+            r->frequency_phase =
+                wrap_add(r->frequency_phase,
+                         wrap_add(wrap_mul(rate, r->frequency_start) >> 16, r->frequency_duration));
         }
         if( tone->has_amplitude_mod )
         {
@@ -442,11 +475,15 @@ tone_synth(
                 env_eval(&tone->amplitude_mod_rate, &r->amplitude_mod_rate_state, sample_count);
             int range =
                 env_eval(&tone->amplitude_mod_range, &r->amplitude_mod_range_state, sample_count);
-            amplitude = amplitude *
-                        ((waveform(range, r->amplitude_phase, tone->amplitude_mod_rate.form) >> 1) +
-                         32768) >>
-                        15;
-            r->amplitude_phase += (rate * r->amplitude_start >> 16) + r->amplitude_duration;
+            amplitude =
+                wrap_mul(amplitude,
+                         wrap_add(waveform(range, r->amplitude_phase, tone->amplitude_mod_rate.form) >>
+                                      1,
+                                  32768)) >>
+                15;
+            r->amplitude_phase =
+                wrap_add(r->amplitude_phase,
+                         wrap_add(wrap_mul(rate, r->amplitude_start) >> 16, r->amplitude_duration));
         }
 
         for( int harmonic = 0; harmonic < TONE_HARMONICS; harmonic++ )
@@ -457,12 +494,17 @@ tone_synth(
             position = sample + r->harmonic_delay[harmonic];
             if( position >= sample_count )
                 continue;
-            samples[position] += waveform(
-                amplitude * r->harmonic_scaled_volume[harmonic] >> 15,
+            samples[position] = wrap_add(
+                samples[position],
+                waveform(
+                    wrap_mul(amplitude, r->harmonic_scaled_volume[harmonic]) >> 15,
+                    r->harmonic_phase[harmonic],
+                    tone->frequency_base.form));
+            r->harmonic_phase[harmonic] = wrap_add(
                 r->harmonic_phase[harmonic],
-                tone->frequency_base.form);
-            r->harmonic_phase[harmonic] +=
-                (frequency * r->harmonic_step[harmonic] >> 16) + r->harmonic_base_step[harmonic];
+                wrap_add(
+                    wrap_mul(frequency, r->harmonic_step[harmonic]) >> 16,
+                    r->harmonic_base_step[harmonic]));
         }
     }
     r->cursor = end;
@@ -481,9 +523,12 @@ tone_gate(
     {
         int release_value = env_eval(&tone->release, &r->release_state, r->sample_count);
         int attack_value = env_eval(&tone->attack, &r->attack_state, r->sample_count);
-        int threshold = tone->release.start + ((tone->release.end - tone->release.start) *
-                                                   (r->muted ? release_value : attack_value) >>
-                                               8);
+        int threshold = wrap_add(
+            tone->release.start,
+            wrap_mul(
+                wrap_sub(tone->release.end, tone->release.start),
+                r->muted ? release_value : attack_value) >>
+                8);
         r->gate_counter += 256;
         if( r->gate_counter >= threshold )
         {
