@@ -3801,6 +3801,15 @@ function QD.player._settle_after_click(ticks, before_kind, before_text, extra)
         resolved_detail = "chat_message: " .. tostring(settle_line):gsub("[\t\r\n]", " ")
     end
     if result == "ok" then
+        -- The map_flag arm is the CLIENT's word that the route ran out: the
+        -- op the click sent is still in flight, and the server's answer to it
+        -- (a page, a line) comes a tick or more later.  chat.play reads this
+        -- stamp to wait for that answer instead of grading an empty chatbox
+        -- (QD.chat._await_first_page).  The headless client stamps no
+        -- map_flag, so it never takes this arm.
+        if resolved_by == "map_flag" then
+            QD.player._op_in_flight_tick = api_drive.tick()
+        end
         return "ok", resolved_detail or resolved_by or "settled", resolved_by or "settled", settle_line
     end
     return result, detail, "timeout", settle_line

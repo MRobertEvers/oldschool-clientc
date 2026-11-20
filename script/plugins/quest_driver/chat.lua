@@ -118,6 +118,52 @@ end
 -- verb that waits ten ticks to say so costs every cascading row a deadline.
 QD.chat._no_dialogue = "no dialogue is open -- did the talk_to before this succeed?"
 
+-- How long chat.play's first entry waits for the server's answer to a click
+-- that is still in flight (QD.chat._await_first_page).
+QD.chat._first_page_ticks = 6
+
+-- THE FIRST PAGE OF A CLICK STILL IN FLIGHT.
+--
+-- A world click whose settle resolved on `map_flag` returned when the CLIENT's
+-- route ran out -- the player stands at the loc -- and the op it sent has not
+-- been answered yet: the server runs the op on the tick the player arrives
+-- there, and its page lands a tick or more after the route's end.  A player
+-- waits for that page.  chat.play's first entry used to grade the empty
+-- chatbox at once (`no dialogue is open`), and the row after it then clicked
+-- again and walked the player off before the page came (ikov,
+-- goSearchThievingLever-dialog on the test client: the Search's mesbox never
+-- read, the trap never disabled).
+--
+-- So: when the last click settled on the map flag this tick or the one
+-- before, and nothing is up, wait up to QD.chat._first_page_ticks for a page.
+-- Returns nil when there is nothing to wait for or the page came, else the
+-- failure detail.  The headless client never stamps map_flag (its settle waits
+-- for the server's own line), so it never waits here.
+function QD.chat._await_first_page(entry)
+    local clicked = QD.player._op_in_flight_tick
+    if clicked == nil or api_drive.tick() - clicked > 1 then
+        return nil
+    end
+    QD.player._op_in_flight_tick = nil
+    if QD.chat.kind() ~= "none" then
+        return nil
+    end
+    local started = api_drive.tick()
+    await({
+        level = function()
+            return QD.chat.kind() ~= "none"
+        end,
+        note = "chat.play: the first page of a click in flight",
+    }, QD.chat._first_page_ticks)
+    if QD.chat.kind() ~= "none" then
+        return nil
+    end
+    return "chat.play: entry 1 ('" .. entry .. "'): no page opened in "
+        .. (api_drive.tick() - started) .. " ticks after the click before it reached its target "
+        .. "(the client's map flag ran out at tick " .. clicked .. "; the server never answered the op "
+        .. "with a page)"
+end
+
 -- chat.continue_ -- see docs/QUEST_DRIVER_PLAN.md 5.4 for the five steps this
 -- follows. The await releases on whichever comes first: the client's own ack
 -- of the click (resume_answered, scoped to the exact row -- D6), a fresh
@@ -1202,6 +1248,16 @@ function QD.chat.play(list)
         end
         -- ready_detail with a nil result is the slow-answer note (above).
         local answer_note = ready_detail or ""
+
+        -- The click before this chat.play may still be in flight: wait for its
+        -- page before grading an empty chatbox (QD.chat._await_first_page).
+        if index == 1 and parsed.action ~= "end" then
+            local first_detail = QD.chat._await_first_page(entry)
+            if first_detail ~= nil then
+                QD.shot(parsed.kind .. "-p" .. index)
+                return "not_visible", first_detail
+            end
+        end
 
         -- Same race chat.drain's own banner documents (measured 2026-09-19:
         -- the cook's Talk-to page lands its reply during exactly this
