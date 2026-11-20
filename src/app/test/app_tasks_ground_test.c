@@ -19,8 +19,9 @@
  * Widget icons (what inv/widget_icon_park did, as tasks):
  *   - one task per cell; a rewrite cancels the older one (newest wins);
  *   - none released in the tick it was asked in (a named cycle wait on the
- *     release's tick); at most twelve a tick, the
- *     rest in their places in line;
+ *     release's tick), and while they wait for it they are not pending work
+ *     (app_parallel_waits_on_work, App_AsyncPending); at most twelve a tick,
+ *     the rest in their places in line;
  *   - a cell whose parts are still missing asks again after its back-off.
  *
  * Run: make -C src test-tasks-ground
@@ -550,9 +551,15 @@ test_widget_icons_released_twelve_a_tick(void)
         app_cs2_widget_obj_icon_lazy(g_fx.app, cell(i), 200 + i, 1);
     pump();
     CHECK(g_fx.started_count == 0, "nothing loads in the tick the script asked in");
+    /* Parked on the release's cycle, they wait on game time, not on a load:
+     * App_AsyncPending must not report them (the content test's clock is
+     * held while it does, and the quest driver's first command moved a tick). */
+    CHECK(queued() == ICON_CELLS, "every cell's task is queued");
+    CHECK(!app_parallel_waits_on_work(g_fx.app), "a task parked on a cycle is not pending work");
     app_tasks_ground_tick(g_fx.app);
     pump();
     CHECK(g_fx.started_count == 12, "a tick releases twelve");
+    CHECK(app_parallel_waits_on_work(g_fx.app), "a task waiting on its load is pending work");
     for( int i = 0; i < 12; i++ )
         CHECK(starts_of(ASSET_KIND_OBJ_MODEL, 200 + i, 1) == 1, "the first twelve, in line");
     pump();
