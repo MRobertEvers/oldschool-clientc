@@ -603,6 +603,37 @@ test_widget_icon_missing_parts_ask_again_after_backoff(void)
     fixture_free();
 }
 
+/* A script asks again for the icon a cell is waiting out a pause for (a shop
+ * whose stock was rewritten, an inventory redraw): the request is due at once,
+ * in the next tick's release, as app_cs2_widget_obj_icon_lazy says -- not when
+ * the older pause, up to 4 s, would have ended. */
+static void
+test_widget_icon_asked_again_in_its_pause_is_due_at_once(void)
+{
+    int starts;
+
+    printf("TEST: widget icons: asked again during its pause, a cell is released in the next tick\n");
+    fixture_init();
+    icons_tree();
+    app_cs2_widget_obj_icon_lazy(g_fx.app, cell(1), 201, 1);
+    app_tasks_ground_tick(g_fx.app);
+    pump();
+    CHECK(starts_of(ASSET_KIND_OBJ_MODEL, 201, 1) == 1, "released and loading");
+    arrive(ASSET_KIND_OBJ_MODEL, 201, 1, false);
+    pump();
+    starts = starts_of(ASSET_KIND_OBJ_MODEL, 201, 1);
+    CHECK(app_widget_icons_pending(g_fx.app) == 1, "in its pause");
+    /* The script runs again and sets the same obj on the cell. */
+    app_cs2_widget_obj_icon_lazy(g_fx.app, cell(1), 201, 1);
+    CHECK(app_widget_icons_pending(g_fx.app) == 1, "asking again is still one task");
+    g_fx.app->host.client.now_ms += 20;
+    app_tasks_ground_tick(g_fx.app);
+    pump();
+    CHECK(starts_of(ASSET_KIND_OBJ_MODEL, 201, 1) == starts + 1,
+        "asked again, it still waits out the old pause instead of going in the next tick");
+    fixture_free();
+}
+
 int
 main(void)
 {
@@ -620,6 +651,7 @@ main(void)
     test_widget_icons_one_task_per_cell_newest_wins();
     test_widget_icons_released_twelve_a_tick();
     test_widget_icon_missing_parts_ask_again_after_backoff();
+    test_widget_icon_asked_again_in_its_pause_is_due_at_once();
 
     if( g_failures )
     {

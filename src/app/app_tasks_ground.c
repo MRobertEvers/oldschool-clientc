@@ -664,6 +664,11 @@ app_cs2_widget_obj_icon_lazy(
         {
             same->due_tick = same->asked_tick + 1u;
             same->wait_ms = 0;
+            /* Parked on the release clock until an older pause ends: that
+             * wait holds the due it parked with, not this one. Woken, it
+             * finds its new due come and goes in the next release. */
+            if( same->task.parked && same->task.park.clock == &ground_state(app)->clock )
+                ToriRS_TaskWake(&same->task, TORIRS_WAKE_CYCLE);
             return;
         }
         /* The cell wants something else now: the older load is not worth a
