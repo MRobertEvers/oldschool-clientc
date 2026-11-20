@@ -152,6 +152,7 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #include "mem/torirs_mem.h"
 #include "mem/torirs_mem_libs.h"
 #include <rscache.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -6573,7 +6574,12 @@ frame_loop_step(void)
         int draw_period_ms;
         ToriRS_Pacer_SetCapFps(&main_pacing.frame_pacer, App_FrameCapFps(&app));
         draw_period_ms = ToriRS_Pacer_DrawPeriodMs(&main_pacing.frame_pacer);
-        if( app_redraw && !main_pacing.uncapped && !replay &&
+        /* Not on a frame-locked client (the content test): its frames are
+         * virtual time, and a gate on the WALL clock made which frames were
+         * drawn -- and so what a screenshot showed -- depend on how fast the
+         * machine ran them (pm-fx3-win P2). Its draws are decided by frame
+         * (render skip) alone. */
+        if( app_redraw && !main_pacing.uncapped && !replay && !App_FrameLocked() &&
             (App_AsyncPending(&app) || draw_period_ms > main_pacing.frame_pacer.period_ms) )
         {
             uint64_t const draw_now = PlatformWindow_Ticks64();
@@ -9374,6 +9380,19 @@ main_rsprox_replay_open(void)
     return 1;
 }
 
+#if defined(_WIN32)
+/* TORIRS_STDERR_UNBUFFERED on Windows (see the setvbuf in main): the buffered
+ * diagnostics leave before the default action of an abort or a crash runs. */
+static void
+main_stderr_flush_on_signal(int sig)
+{
+    fflush(stderr);
+    /* Back to the default and return: abort() goes on to end the process, and
+     * a faulting instruction faults again with no handler, as it would have. */
+    signal(sig, SIG_DFL);
+}
+#endif
+
 int
 main(
     int argc,
@@ -9426,12 +9445,31 @@ main(
      * output — which is why the flush is per frame rather than per exit.
      * TORIRS_STDERR_UNBUFFERED=1 restores the old behaviour when debugging a
      * crash is worth more than the frame time.
+     *
+     * Except on Windows, where an unbuffered stream is one write PER BYTE:
+     * MinGW's printf (the ANSI stdio this tree is compiled with) hands an
+     * unbuffered stream its output a character at a time. Measured on Windows
+     * 11 with the queue-contract trace on (about 240 lines a second): 144,000
+     * one-byte writes a second, 31% of a core in the kernel, against 4% with
+     * the buffer. There the flag keeps the buffer and the per-frame flush and
+     * adds a flush on abort and on a crash, which is what it is for: the last
+     * words before a failure reach the log.
      */
     {
         char const* raw = getenv("TORIRS_STDERR_UNBUFFERED");
+        int const unbuffered = raw && raw[0] && raw[0] != '0';
 
-        if( !(raw && raw[0] && raw[0] != '0') )
+#if defined(_WIN32)
+        setvbuf(stderr, NULL, _IOFBF, 65536);
+        if( unbuffered )
+        {
+            signal(SIGABRT, main_stderr_flush_on_signal);
+            signal(SIGSEGV, main_stderr_flush_on_signal);
+        }
+#else
+        if( !unbuffered )
             setvbuf(stderr, NULL, _IOFBF, 65536);
+#endif
     }
 
     /* Before anything allocates: the arena mode and site tracking fix every
