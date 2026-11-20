@@ -19,6 +19,11 @@
  *     Each script must see the line the one before it wrote, as the
  *     reference runs them -- one at a time, in order -- so the line holds
  *     every key, not only the last.
+ *   - cc_setobject on a MODEL widget whose model is cold poses the widget
+ *     when it runs, as the reference's opcode does, and the model landing
+ *     later does not pose it again: a cc_setmodelangle the script made after
+ *     the set stays (the welcome screen's loading circle, whose thirteen
+ *     runes each set their own zoom after their obj, pulsed all at once).
  *   - A client script waiting on a required read through the assets table
  *     that is freed first is forgotten by the table, so the load's end writes
  *     nothing into the freed task. One whose active component is freed while
@@ -37,6 +42,7 @@
 #include "cs2vm2/cs2vm2_script.h"
 #include "mem/torirs_mem.h"
 #include "game/task_cs2_run.h"
+#include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_server_state.h"
@@ -47,6 +53,7 @@
 #include "varc/varc_manager.h"
 #include "world/world.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -412,6 +419,79 @@ test_dialog_abort_runs_on_the_packet_queue(void)
 /* ---- an obj model a later set made stale --------------------------------- */
 
 #define COLD_OBJ 4151
+#define COLD_OBJ_MODEL 99990
+
+/* A resident objtype whose inventory model is not: the set can pose the
+ * widget at once, and its model is one parallel task. */
+static void
+add_cold_model_obj(
+    struct Fixture* fx,
+    int obj_id,
+    int zoom2d)
+{
+    struct ToriRS_Objtype* obj = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*obj));
+
+    assert(obj);
+    obj->inventory_model_id = COLD_OBJ_MODEL;
+    obj->resize_x = obj->resize_y = obj->resize_z = 128;
+    obj->xan2d = 300;
+    obj->yan2d = 600;
+    obj->zoom2d = zoom2d;
+    CacheProvider_ObjtypeAdd(fx->app->provider, obj_id, obj);
+}
+
+/* One triangle: enough of a model for the bridge to build the obj's. */
+static struct ToriRS_Model*
+one_triangle(void)
+{
+    struct ToriRS_Model* m = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m));
+
+    assert(m);
+    m->vertex_count = 3;
+    m->face_count = 1;
+    m->vertices_x = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_x));
+    m->vertices_y = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_y));
+    m->vertices_z = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_z));
+    m->face_indices_a = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_a));
+    m->face_indices_b = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_b));
+    m->face_indices_c = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_c));
+    m->face_colors = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors));
+    m->face_colors_a = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_a));
+    m->face_colors_b = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_b));
+    m->face_colors_c = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_c));
+    assert(m->vertices_x);
+    assert(m->vertices_y);
+    assert(m->vertices_z);
+    assert(m->face_indices_a);
+    assert(m->face_indices_b);
+    assert(m->face_indices_c);
+    assert(m->face_colors);
+    assert(m->face_colors_a);
+    assert(m->face_colors_b);
+    assert(m->face_colors_c);
+    m->vertices_x[1] = 64;
+    m->vertices_z[2] = 64;
+    m->face_indices_b[0] = 1;
+    m->face_indices_c[0] = 2;
+    return m;
+}
+
+static int
+host_set_model_zoom(
+    struct CS2VM2_Thread* t,
+    int component_id,
+    int zoom)
+{
+    struct CS2VM_HostRequest req;
+
+    memset(&req, 0, sizeof(req));
+    req.kind = CS2VM_HOST_REQUEST_CC_SETMODELANGLE;
+    req.u.CC_SETMODELANGLE.component_id = component_id;
+    req.u.CC_SETMODELANGLE.angle_x = 512;
+    req.u.CC_SETMODELANGLE.angle_y = 1024;
+    req.u.CC_SETMODELANGLE.zoom = zoom;
+    return RS_CS2Host_Exec(t, &req);
+}
 
 static int
 host_set_object(
@@ -463,6 +543,7 @@ test_a_clear_outlives_an_obj_model(void)
     CS2VM2_BindHost(&vm, &fx.app->host, RS_CS2Host_Exec);
     t = CS2VM2_ThreadMain(&vm);
     idx = UITree_FindByComponentId(fx.app->tree, WIDGET);
+    add_cold_model_obj(&fx, COLD_OBJ, 1500);
 
     CHECK(host_set_object(t, WIDGET, COLD_OBJ, 1) == CS2VM_EXECNO_OK, "the cold set stopped the script");
     CHECK(App_ScriptVisualPending(fx.app, APP_SCRIPT_TASK_OBJ_MODEL, WIDGET),
@@ -478,6 +559,85 @@ test_a_clear_outlives_an_obj_model(void)
     CHECK(fx.app->tree->components[idx].item_id == UITREE_NO_OBJ,
         "the widget holds obj %d again: the older set's task undid the later clear",
         fx.app->tree->components[idx].item_id);
+
+    CS2VM2_Free(&vm);
+    UITreeSceneBridge_Free(&fx.app->bridge);
+    ToriDraw_SceneFree(fx.app->scene);
+    fx.app->scene = NULL;
+    fixture_free(&fx);
+}
+
+/*
+ * loading_icon_orbit_build (the welcome screen's circle of runes) does, per
+ * rune: cc_create(MODEL), cc_setobject(rune), cc_setmodelangle(.., zoom) with
+ * a zoom stepped around the circle, and an onTimer that grows each zoom from
+ * there. The reference poses the widget from the objtype inside CC_SETOBJECT,
+ * so the script's own zoom lands on top of it and the runes stay staggered:
+ * the circle turns. Here the set wrote the pose only when its cold model
+ * landed, frames later, over the script's zoom -- every rune back on the
+ * same zoom2d, and the circle pulsed all at once (4697d7696).
+ */
+static void
+test_a_cold_obj_model_keeps_the_scripts_pose(void)
+{
+    struct Fixture fx;
+    struct AssetLoader loader = { .start = fake_start, .resident = fake_resident, .data = NULL };
+    struct CS2VM2 vm;
+    struct CS2VM2_Thread* t;
+    int32_t idx;
+
+    printf("TEST: a cold obj model on a MODEL widget is posed by the set; its landing keeps the "
+           "script's later zoom\n");
+    fixture_init(&fx);
+    Assets_SetLoader(fx.app->assets, ASSET_KIND_OBJ_MODEL, &loader);
+    fx.app->scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
+        TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
+    if( !fx.app->scene )
+        abort();
+    UITreeSceneBridge_Init(&fx.app->bridge, fx.app->scene, fx.app->provider);
+    RS_CS2Host_SetBridge(&fx.app->host, &fx.app->bridge);
+    fx.app->host.world_user = fx.app;
+    app_tasks_scripts_bind_host(fx.app);
+    CS2VM2_Init(&vm);
+    CS2VM2_BindHost(&vm, &fx.app->host, RS_CS2Host_Exec);
+    t = CS2VM2_ThreadMain(&vm);
+    idx = UITree_FindByComponentId(fx.app->tree, WIDGET);
+    add_cold_model_obj(&fx, COLD_OBJ, 1500);
+
+    CHECK(host_set_object(t, WIDGET, COLD_OBJ, 1) == CS2VM_EXECNO_OK, "the cold set stopped the script");
+    CHECK(App_ScriptVisualPending(fx.app, APP_SCRIPT_TASK_OBJ_MODEL, WIDGET),
+        "the cold obj's model has no task");
+    CHECK(fx.app->tree->components[idx].u.rs_model.zoom == 1500 &&
+              fx.app->tree->components[idx].u.rs_model.xan == 300 &&
+              fx.app->tree->components[idx].u.rs_model.yan == 600,
+        "the set did not pose the widget from its objtype (zoom %d, xan %d, yan %d): "
+        "cc_getmodelzoom after cc_setobject reads what the reference's opcode wrote",
+        fx.app->tree->components[idx].u.rs_model.zoom,
+        fx.app->tree->components[idx].u.rs_model.xan,
+        fx.app->tree->components[idx].u.rs_model.yan);
+    step_parallel(&fx);
+
+    /* The script's own pose, after the set (loading_icon_orbit_build). */
+    CHECK(host_set_model_zoom(t, WIDGET, 2700) == CS2VM_EXECNO_OK, "the angle set stopped the script");
+    CHECK(fx.app->tree->components[idx].u.rs_model.zoom == 2700, "cc_setmodelangle did not write the zoom");
+
+    /* The model lands. */
+    CacheProvider_ModelAdd(fx.app->provider, COLD_OBJ_MODEL, one_triangle());
+    Assets_Finished(fx.app->assets, AssetKey_Make(ASSET_KIND_OBJ_MODEL, COLD_OBJ, 1), true);
+    step_parallel(&fx);
+    CHECK(queued(fx.app->frame_runner.queue) == 0, "the obj model task did not end");
+    CHECK(fx.app->tree->components[idx].item_id == COLD_OBJ, "the widget lost its obj");
+    CHECK(fx.app->tree->components[idx].u.rs_model.gamecache_model_id > 0,
+        "the landed model was not bound to the widget");
+    CHECK(fx.app->tree->components[idx].u.rs_model.zoom == 2700 &&
+              fx.app->tree->components[idx].u.rs_model.xan == 512 &&
+              fx.app->tree->components[idx].u.rs_model.yan == 1024,
+        "the model's landing re-posed the widget over the script's later cc_setmodelangle "
+        "(zoom %d, xan %d, yan %d; the script wrote 2700, 512, 1024)",
+        fx.app->tree->components[idx].u.rs_model.zoom,
+        fx.app->tree->components[idx].u.rs_model.xan,
+        fx.app->tree->components[idx].u.rs_model.yan);
 
     CS2VM2_Free(&vm);
     UITreeSceneBridge_Free(&fx.app->bridge);
@@ -709,6 +869,7 @@ main(void)
     test_dialog_abort_runs_on_the_packet_queue();
     test_a_script_gone_mid_read_is_forgotten();
     test_a_clear_outlives_an_obj_model();
+    test_a_cold_obj_model_keeps_the_scripts_pose();
     test_a_typed_burst_keeps_every_key();
 
     if( g_failures )
