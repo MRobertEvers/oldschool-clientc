@@ -488,7 +488,10 @@ OM:add(C["test.SceneOverlay"].__new())
 reset()
 QH.render("world", MOCK_DRAW_AWT())
 check("world pass: the scene overlay's tile", #draws("world_tile"), 1)
-check("world pass: no panel text", #draws("text"), 0)
+-- UNDER_WIDGETS (the TOP_LEFT step panel) is drawn before the widgets, as
+-- RuneLite's OverlayRenderer does: the world pass, so an interface (the world
+-- map's Key panel) covers it.
+ok("world pass: the UNDER_WIDGETS step panel draws here", #draws("text") > 0)
 ok("broken overlay logged", #logs >= 1 and logs[#logs]:find("boom", 1, true) ~= nil)
 local nlogs = #logs
 QH.render("world", MOCK_DRAW_AWT())
@@ -497,6 +500,9 @@ ok("QH.draw cleared after the pass", QH.draw == nil)
 
 reset()
 QH.render("canvas", MOCK_DRAW_AWT())
+check("canvas pass: no UNDER_WIDGETS panel over the interfaces", #draws("text"), 0)
+reset()
+QH.render("world", MOCK_DRAW_AWT())
 local bg = draws("rect")[1]
 check("panel background at the top-left snap corner", bg[2] .. "," .. bg[3], "5,20")
 check("panel background colour", bg[6], (70 << 16) | (61 << 8) | 50)
@@ -514,7 +520,7 @@ check("step text colour", texts[4][5], (190 << 16) | (190 << 8) | 190)
 check("children cleared after render", qho.panelComponent:getChildren():size(), 0)
 -- the second frame sizes the background from the first frame's children
 reset()
-QH.render("canvas", MOCK_DRAW_AWT())
+QH.render("world", MOCK_DRAW_AWT())
 local bg2 = draws("rect")[1]
 check("second frame: background width", bg2[4], 129)
 ok("second frame: background height covers the lines", bg2[5] >= n_lines * 12)
@@ -601,7 +607,7 @@ end
 -- pass routing of a positioned ALWAYS_ON_TOP overlay and the corner stacking
 QH.render_reset()
 J.def("test.BoxOverlay", { kind = "class", super = O .. "OverlayPanel", ifaces = {}, body = function(cls, super)
-  function cls.__init(self, label) super.__init__(self); self.label = label end
+  function cls.__init(self, label) super.__init__(self); self.label = label; self:setLayer(C[O .. "OverlayLayer"].ALWAYS_ON_TOP) end
   function cls.render(self, g)
     self.panelComponent:getChildren():add(C[O .. "components.LineComponent"].builder():left(self.label):build())
     return C[O .. "OverlayPanel"].render(self, g)
@@ -614,7 +620,14 @@ check("first box at the corner", b1:getBounds().y, 20)
 check("second box stacked under the first", b2:getBounds().y, 20 + b1:getBounds().height + 2)
 reset()
 QH.render("world", MOCK_DRAW_AWT())
-check("positioned overlays are not in the world pass", #MOCK.draws, 0)
+check("positioned ALWAYS_ON_TOP overlays are not in the world pass", #MOCK.draws, 0)
+-- the same panel on UNDER_WIDGETS moves under the interfaces (the world pass)
+b1:setLayer(C[O .. "OverlayLayer"].UNDER_WIDGETS); b2:setLayer(C[O .. "OverlayLayer"].UNDER_WIDGETS)
+reset(); QH.render("canvas", MOCK_DRAW_AWT())
+check("positioned UNDER_WIDGETS overlays are not in the canvas pass", #draws("text"), 0)
+reset(); QH.render("world", MOCK_DRAW_AWT())
+ok("positioned UNDER_WIDGETS overlays draw in the world pass", #draws("text") > 0)
+check("and stack at the same corner", b1:getBounds().y, 20)
 ok("removeIf", OM:removeIf(J.fn("java.util.function.Predicate", "test", function(_, o) return o == b1 end)))
 check("one left", OM:getOverlays():size(), 1)
 

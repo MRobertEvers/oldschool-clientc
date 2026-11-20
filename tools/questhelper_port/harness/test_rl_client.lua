@@ -210,6 +210,28 @@ MOCK.scripts_refuse = "vm_busy"
 raises("runScript refused", function() client:runScript(J.arr({ 4029, 1 }, 2)) end, "vm_busy")
 MOCK.scripts_refuse = nil
 
+-- An overlay's QuestRequirement in a draw callback (scripts refused there,
+-- "wrong_context"): answered from the same call made outside the draw, which
+-- the frame start runs again (live 2026-11-20: a farm run's top-left panel).
+MOCK.scripts[4029] = function(id) return { id == cook.id and 2 or 0 }, {} end
+check("quest state outside a draw", cook:getQuestState(client), QS.FINISHED)
+MOCK.scripts_refuse = "wrong_context"
+check("quest state in a draw: the memo", cook:getQuestState(client), QS.FINISHED)
+raises("a draw's first ask of another quest", function()
+  QHQ.SHEEP_SHEARER:getQuestState(client)
+end, "wrong_context")
+raises("a script that is not a query is refused in a draw", function()
+  client:runScript(J.arr({ 72, 1 }, 2))
+end, "wrong_context")
+MOCK.scripts_refuse = nil
+MOCK.scripts[4029] = function(id) return { 1 }, {} end
+rl.refresh_draw_scripts()           -- the frame start: the cook was asked in the draw
+MOCK.scripts_refuse = "wrong_context"
+check("the frame start refreshed the draw's answer", cook:getQuestState(client), QS.NOT_STARTED)
+MOCK.scripts_refuse = nil
+MOCK.scripts[4029] = function(id) return { 0 }, {} end
+client:runScript(J.arr({ 72, 1 }, 2))  -- the last results empty again, as below expects
+
 -- inside a script callback: getIntStack is the running script's stack
 local ref = { ints = { 5, 6, 0 }, strs = { "a" } }
 rl.script_enter(ref)
@@ -291,6 +313,61 @@ check("order sent", MOCK.menu_order and #MOCK.menu_order, 3)
 check("order bottom", MOCK.menu_order and MOCK.menu_order[1].row, 1)
 check("order created row by tag", MOCK.menu_order and MOCK.menu_order[2].tag, tag)
 check("order top", MOCK.menu_order and MOCK.menu_order[3].row, 2)
+
+-- bank-fidelity round: a native cell whose actions the plugin rewrote
+-- (QuestBankTab.drawItem: a placeholder offers only "Details") is offered as
+-- the plugin left it -- relabelled, its other ops dropped, an action with no
+-- native op a created CC_OP row on the cell
+do
+  local BANK = 786445
+  local saved_rlw = J.rlw
+  J.rlw = setmetatable({ native_actions = function(p1, p0)
+    if p1 == BANK and p0 == 4 then return { [1] = "Details" }, "<col=ff9040>Egg</col>" end
+    if p1 == BANK and p0 == 5 then return { [0] = "Withdraw-1", [1] = "Withdraw-5", [8] = "Details" }, nil end
+    return nil
+  end }, { __index = saved_rlw })
+  MOCK.menu_added, MOCK.menu_order, MOCK.menu_texts = {}, nil, {}
+  local brows = {
+    { text = "Cancel", action = 1006, type = 1006, identifier = 0, param0 = 0, param1 = 0, npc_slot = -1, player_pid = -1, target_id = -1, component_id = -1, slot = -1 },
+    { text = "Withdraw-5 @or1@Pot", type = 57, identifier = 3, param0 = 4, param1 = BANK, npc_slot = -1, player_pid = -1, target_id = 1931, component_id = BANK, slot = 4 },
+    { text = "Withdraw-1 @or1@Pot", type = 57, identifier = 2, param0 = 4, param1 = BANK, npc_slot = -1, player_pid = -1, target_id = 1931, component_id = BANK, slot = 4 },
+    { text = "Withdraw-10 @or1@Logs", type = 57, identifier = 2, param0 = 5, param1 = BANK, npc_slot = -1, player_pid = -1, target_id = 1511, component_id = BANK, slot = 5 },
+    { text = "Withdraw-1 @or1@Logs", type = 57, identifier = 1, param0 = 5, param1 = BANK, npc_slot = -1, player_pid = -1, target_id = 1511, component_id = BANK, slot = 5 },
+    { text = "Withdraw-1 @or1@Coins", type = 57, identifier = 1, param0 = 6, param1 = BANK, npc_slot = -1, player_pid = -1, target_id = 995, component_id = BANK, slot = 6 },
+  }
+  local bes = rl.menu_begin({ hover_pass = false, rows = brows })
+  local opts = {}
+  for i = 1, bes.n do opts[#opts + 1] = bes[i]:getOption() .. "/" .. bes[i]:getParam0() end
+  check("widget actions: the menu as the plugin left the cells", table.concat(opts, ","),
+    "Cancel/0,Details/4,Details/5,Withdraw-5/5,Withdraw-1/5,Withdraw-1/6")
+  check("widget actions: the plugin's name on the cell", bes[2]:getTarget(), "<col=ff9040>Egg</col>")
+  check("widget actions: a relabelled native row keeps its op", bes[2]:getIdentifier() .. " " .. tostring(bes[2].row ~= nil), "2 true")
+  check("widget actions: an action with no native op is a CC_OP row on the cell",
+    bes[3]:getType() == C["net.runelite.api.MenuAction"].CC_OP and bes[3]:getIdentifier() .. " " .. bes[3]:getParam1(), "9 " .. BANK)
+  rl.menu_end()
+  check("widget actions: the relabels go to set_text", tostring(MOCK.menu_texts[3]) .. " | " .. tostring(MOCK.menu_texts[4]),
+    "Details @lre@Egg | Withdraw-5 @or1@Logs")
+  check("widget actions: the created row is added", #MOCK.menu_added, 1)
+  check("widget actions: the dropped ops are left out of the order", MOCK.menu_order and #MOCK.menu_order, 6)
+  local chosen = rl.menu_select({ row = brows[3], tag = 0, owned = false })
+  check("widget actions: choosing the relabelled row reads Details", chosen:getOption(), "Details")
+  local created = rl.menu_select({ row = brows[1], tag = MOCK.menu_added[1][2], owned = true })
+  check("widget actions: choosing the created row names the cell", created:getOption() .. " " .. created:getParam0(), "Details 5")
+  -- an empty cell under a placeholder: no native row, the pointer's cell
+  J.rlw = setmetatable({ native_actions = function() return nil end,
+    native_cell_at = function(x, y)
+      if x == MOCK.pointer[1] and y == MOCK.pointer[2] then return BANK, 7, { [1] = "Details" }, "<col=ff9040>Egg</col>" end
+      return nil
+    end }, { __index = saved_rlw })
+  MOCK.menu_added, MOCK.menu_order = {}, nil
+  local erows = { brows[1], { text = "Walk here", type = 23, identifier = 0, param0 = 0, param1 = 0, npc_slot = -1, player_pid = -1, target_id = -1, component_id = -1, slot = -1 } }
+  local ees = rl.menu_begin({ hover_pass = false, rows = erows })
+  check("widget actions: the empty cell under the pointer offers its actions on top",
+    ees.n .. " " .. ees[ees.n]:getOption() .. " " .. ees[ees.n]:getParam0() .. " " .. ees[ees.n]:getParam1(), "3 Details 7 " .. BANK)
+  rl.menu_end()
+  check("widget actions: and it is added as a row", #MOCK.menu_added, 1)
+  J.rlw = saved_rlw
+end
 
 -- setMenuEntries / removeMenuEntry / setDeprioritized / setOption on a native
 -- row, and that native row's onClick on select (RuneliteObjectManager's

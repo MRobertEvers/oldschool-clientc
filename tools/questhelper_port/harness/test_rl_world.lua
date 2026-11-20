@@ -303,10 +303,48 @@ local names = {}
 for _, c in ipairs(MOCK.scene_calls) do names[#names + 1] = c[1] end
 check("rlo scene calls", table.concat(names, ","),
   "instance_create,instance_cache_model,instance_recolor,instance_light,instance_create,instance_cache_model,instance_recolor,instance_light,"
-  .. "instance_position,instance_animation,instance_active,instance_position,instance_animation,instance_active")
+  .. "instance_place,instance_animation,instance_active,instance_place,instance_animation,instance_active")
 check("rlo cache model", MOCK.scene_calls[2][3] .. " " .. MOCK.scene_calls[2][4] .. " " .. MOCK.scene_calls[6][4], "0 4321 55")
 check("rlo recolor", MOCK.scene_calls[3][3] .. " " .. MOCK.scene_calls[3][4], (-8256 & 0xFFFF) .. " 99")
-check("rlo position", MOCK.scene_calls[9][3] .. " " .. MOCK.scene_calls[9][4] .. " " .. MOCK.scene_calls[9][5], "3222 3218 0")
+check("rlo position (absolute fine: the tile's centre)", MOCK.scene_calls[9][3] .. " " .. MOCK.scene_calls[9][4] .. " " .. MOCK.scene_calls[9][5],
+  (3222 * 128 + 64) .. " " .. (3218 * 128 + 64) .. " 0")
+-- a sub-tile point (a ReplacedNpc between tiles) is placed where it is
+MOCK.scene_calls = {}
+obj:setLocation(LP.__new__int_int_int(lp:getX() + 40, lp:getY() - 30, -1), 0)
+check("rlo sub-tile place", MOCK.scene_calls[1][1] .. " " .. MOCK.scene_calls[1][3] .. " " .. MOCK.scene_calls[1][4],
+  "instance_place " .. (3222 * 128 + 104) .. " " .. (3218 * 128 + 34))
+check("rlo sub-tile location kept", obj:getLocation():getX() - lp:getX(), 40)
+obj:setLocation(lp, 0)
+-- its scene elements, model height and clickbox (the menu's hit test)
+do
+  local serials = {}
+  for _, inst in ipairs(obj.instances) do serials[#serials + 1] = inst.instance end
+  MOCK.instance_elements = { [serials[1]] = 501, [serials[2]] = 502 }
+  MOCK.element_heights[501], MOCK.element_heights[502] = 120, 260
+  check("rlo elements", table.concat(obj:__elements(), ","), "501,502")
+  check("rlo __element_id", obj:__element_id(), 501)
+  check("rlo model height = its tallest instance", obj:getModel():getModelHeight(), 260)
+  check("rlo getModel stands for the model set", obj:getModel().of == obj.model, true)
+  obj:setModel(obj:getModel())
+  check("rlo setModel(getModel()) keeps the instances", obj.instances_for == obj.model and #obj.instances, 2)
+  local cb = P.getClickbox(client, top, obj:getModel(), 0, lp:getX(), lp:getY(), 0)
+  check("rlo clickbox names every element", cb and table.concat(cb.__world.elements, ","), "501,502")
+  local b = cb:getBounds()
+  local cx, cy = b.x + b.width // 2, b.y + b.height // 2
+  MOCK.pointer = { cx, cy }
+  MOCK.instance_hits = {}
+  check("rlo clickbox at the pointer is the pick: a miss", cb:contains__double_double(cx, cy), false)
+  MOCK.instance_hits = { [serials[2]] = true }
+  check("rlo clickbox at the pointer is the pick: a hit", cb:contains__double_double(cx, cy), true)
+  check("rlo clickbox elsewhere is the box", cb:contains__double_double(cx + 1, cy), true)
+  check("rlo clickbox through an Area", C["java.awt.geom.Area"].__new__Shape(cb):contains__double_double(cx, cy), true)
+  obj:setActive(false)
+  check("rlo inactive: no elements", #obj:__elements(), 0)
+  check("rlo inactive: no clickbox", P.getClickbox(client, top, obj:getModel(), 0, lp:getX(), lp:getY(), 0), nil)
+  obj:setActive(true)
+  MOCK.instance_elements, MOCK.instance_hits = nil, nil
+  MOCK.pointer = { 10, 20 }
+end
 check("rlo frames", obj:getAnimation():getNumFrames() .. " " .. obj:getAnimationFrame(), "3 0")
 MOCK.tick = MOCK.tick + 7
 check("rlo frame later", obj:getAnimationFrame(), 1)
@@ -352,6 +390,25 @@ local ok, err = xpcall(function()
   local zone = C["com.questhelper.requirements.zone.Zone"].__new__WorldPoint_WorldPoint(WP.__new(3215, 3215, 0), WP.__new(3221, 3220, 0))
   check("NpcRequirement in zone", NR.__new__String_int_Zone("Hans", 3106, zone):check__Client(client), true)
   check("NpcRequirement big not in zone", NR.__new__String_int_Zone("Big", 8000, zone):check__Client(client), false)
+  if have_client then
+    -- an npc this cache does not have (8000): RuneLite's default definition,
+    -- never nil (NpcStep.npcPassesChecks calls getComposition():getId())
+    check("missing composition is the default", big:getTransformedComposition():getId(), 8000)
+    check("missing composition name", big:getTransformedComposition():getName(), "null")
+    check("missing composition no actions", big:getTransformedComposition():getActions()[1], nil)
+    local saved = MOCK_API.cache.npc_def
+    MOCK_API.cache.npc_def = function(id) if id == 8001 then return nil, "pending" end return saved(id) end
+    MOCK.npcs[2].npc_id = 8001
+    tick()
+    local okp, errp = pcall(function() return top:npcs():byIndex(40):getTransformedComposition() end)
+    check("pending composition raises pending", okp == false and getmetatable(errp) == J.PendingMT, true)
+    MOCK.npcs[2].npc_id = -1
+    tick()
+    check("transform to nothing is null", top:npcs():byIndex(40):getTransformedComposition(), nil)
+    MOCK_API.cache.npc_def = saved
+    MOCK.npcs[2].npc_id = 8000
+    tick()
+  end
   check("Zone contains", zone:contains__WorldPoint(WP.__new(3220, 3219, 0)), true)
   check("Zone excludes", zone:contains__WorldPoint(w), false)
 
@@ -404,7 +461,52 @@ do
     check("sailing: WorldEntityStep finds the boat by config id", WES.findWorldEntityInWorldView(tl, 9) == e, true)
     check("sailing: an unknown config id finds none", WES.findWorldEntityInWorldView(tl, 10), nil)
     local QP = C["com.questhelper.steps.tools.QuestPerspective"]
-    check("sailing: no deck outline (the boat world holds no tiles)", QP.getAreaFromWorldView(client, bv), nil)
+    check("sailing: no deck outline without the boat's locs", QP.getAreaFromWorldView(client, bv), nil)
+    -- the boat's own world: two unnamed hull pieces and a named deck loc
+    -- (recorded shape: game.world_entity_loc_next's staging tiles)
+    local boat_locs = {
+      { loc_id = 59001, tile_x = 6401, tile_z = 6409, level = 1, size_x = 2, size_z = 1, shape = 10, angle = 0, element_id = 801, name = "null" },
+      { loc_id = 59002, tile_x = 6404, tile_z = 6409, level = 1, size_x = 1, size_z = 1, shape = 0, angle = 1, element_id = 802, name = "null" },
+      { loc_id = 59003, tile_x = 6402, tile_z = 6410, level = 1, size_x = 1, size_z = 1, shape = 10, angle = 0, element_id = 803, name = "Sails" },
+      { loc_id = 59004, tile_x = 7000, tile_z = 7000, level = 1, size_x = 1, size_z = 1, shape = 10, angle = 0, element_id = 804, name = "null" },
+    }
+    if have_client then
+      MOCK.loc_defs[59001] = { id = 59001, name = "null", actions = {}, size_x = 2, size_z = 1 }
+      MOCK.loc_defs[59002] = { id = 59002, name = "null", actions = {}, size_x = 1, size_z = 1 }
+      MOCK.loc_defs[59003] = { id = 59003, name = "Sails", actions = {}, size_x = 1, size_z = 1 }
+    end
+    MOCK.element_heights[801], MOCK.element_heights[802] = 200, 150
+    MOCK_API.game.world_entity_loc_next = function(id, cur)
+      if id ~= 4 then return nil end
+      cur = (cur == nil or cur < 0) and 1 or cur + 1
+      local s = boat_locs[cur]
+      if s == nil then return nil end
+      local c = {}
+      for k, v in pairs(s) do c[k] = v end
+      return cur, c
+    end
+    tick()
+    local tiles = bv:getScene():getTiles()
+    check("sailing: the boat's scene has its own planes", tiles.n, 4)
+    local t = tiles[2][2][2]
+    check("sailing: a hull piece on its deck-local tile", t ~= nil and t:getGameObjects().n, 1)
+    local hull_go = t and t:getGameObjects()[1]
+    check("sailing: addressed in the boat's world", hull_go and hull_go:getWorldView():getId(), 4)
+    check("sailing: its world location is a staging tile", tiles[2][5][2] and S(tiles[2][5][2]:getWallObject():getWorldLocation()), S(WP.__new(6404, 6409, 1)))
+    check("sailing: a wall piece", tiles[2][5][2] ~= nil and tiles[2][5][2]:getWallObject():getId(), 59002)
+    check("sailing: a loc outside the rectangle is dropped", tiles[2][601], nil)
+    local h = hull_go and hull_go:getConvexHull()
+    check("sailing: the hull is a plain polygon naming its model", h and (rawget(h, "__world") == nil and h.__boat_element), 801)
+    -- where the boat carries the footprint: the mock transform is a shift
+    -- (the mock camera: canvas x = scene fine x / 4; the footprint's west
+    -- edge is deck fine 128, two tiles wide from deck tile 1)
+    local exp = (boat.fine_x + 128 - 1024 - 3168 * 128) // 4
+    check("sailing: the hull is projected through world_entity_to_main", h and h:getBounds().x, exp)
+    local area = QP.getAreaFromWorldView(client, bv)
+    check("sailing: getAreaFromWorldView outlines the unnamed pieces", area ~= nil and #area:qh_list(), 2)
+    check("sailing: and its bounds take in both", area and area:getBounds().width > 0, true)
+    MOCK_API.game.world_entity_loc_next = nil
+    tick()
     -- a point aboard: staging tile 6402,6410 -> deck-local fine 2*128+64, 2*128+64
     local aboard = WP.__new(6402, 6410, 1)
     local deck_lp = LP.fromWorld__WorldView_WorldPoint(bv, aboard)

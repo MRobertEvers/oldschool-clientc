@@ -275,6 +275,19 @@ check("search narrows to Cook's Assistant", #all >= 1 and all[1].s == "Cook's As
 local nlist2 = 0
 for _, r in ipairs(rows) do if r.key:sub(1, 4) == "qh_l" then nlist2 = nlist2 + 1 end end
 check("search keeps the well count (no rebuild while typing)", nlist2 == nlist, nlist2 .. " vs " .. nlist)
+-- the wells past the results are collapsed, not empty 48 px boxes
+local shown, collapsed = 0, 0
+for _, r in ipairs(rows) do
+  if r.key:sub(1, 4) == "qh_l" then
+    if r.height == -1 then collapsed = collapsed + 1 else shown = shown + 1 end
+  end
+end
+check("search results: one shown well, the rest collapsed", shown == 1 and collapsed == nlist2 - 1, shown .. "/" .. collapsed)
+QH.ui.action(MOCK_API, { id = "qh_search", action = "text", text = "" })
+rows = run()
+local regrown = 0
+for _, r in ipairs(rows) do if r.key:sub(1, 4) == "qh_l" and r.height ~= -1 then regrown = regrown + 1 end end
+check("clearing the search grows the wells back", regrown == nlist, regrown .. " vs " .. nlist)
 QH.ui.action(MOCK_API, { id = "qh_search", action = "text", text = "demon slyer" })
 run()
 check("fuzzy search (Jaro-Winkler)", find_line("qh_l", "Demon Slayer") ~= nil)
@@ -433,6 +446,21 @@ check("empty search returns to the overview", row("qh_qname") ~= nil)
 -- close
 MOCK_PORCELAIN.by_key["qh_close"].on_action("qh_close", { action = "activate" })
 check("close shuts the quest down", qm_calls[#qm_calls][1] == "shutdown" and qm_calls[#qm_calls][2] == false)
+-- A row handler that raises (Porcelain calls it from C, where an error
+-- disables the plugin) is contained: the entry's dispatch when it has one,
+-- else logged. A mutation that drops the guard fails both.
+do
+  local real = qm.shutDownQuest__boolean
+  qm.shutDownQuest__boolean = function() error("npc composition was nil") end
+  local okc = pcall(MOCK_PORCELAIN.by_key["qh_close"].on_action, "qh_close", { action = "activate" })
+  check("a raising row handler does not escape to C", okc == true)
+  local routed = nil
+  QH.dispatch_action = function(what, fn, ...) routed = what; return pcall(fn, ...) end
+  local okd = pcall(MOCK_PORCELAIN.by_key["qh_close"].on_action, "qh_close", { action = "activate" })
+  check("a row handler runs through the entry's dispatch", okd == true and routed == "panel qh_close", routed)
+  QH.dispatch_action = nil
+  qm.shutDownQuest__boolean = real
+end
 panel:removeQuest()
 run()
 check("removeQuest returns to the list", row("qh_filter") ~= nil and panel.questActive == false)

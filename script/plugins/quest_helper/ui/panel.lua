@@ -76,6 +76,9 @@ local LINK_RGB = 0x00B2B2         -- Color.cyan.darker()
 -- The host's ceilings (torirs_porcelain.h, torirs_plugin_types.h).
 local ROW_TEXT_MAX = 191          -- PORCELAIN_ROW_TEXT_MAX less the terminator
 local WELL_MIN = 48               -- TORIRS_PANEL_CUSTOM_HEIGHT_MIN
+-- TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED: a well kept declared (so the page is
+-- not rebuilt while typing or collapsing) that takes no room and draws no box.
+local WELL_COLLAPSED = -1
 local WELL_MAX = 2000             -- under TORIRS_PANEL_CUSTOM_HEIGHT_MAX (2048)
 local ROWS_BUDGET = 46            -- 48 controls, less the search field, less one spare
 local PANEL_NODE_INPUT = 5        -- enum ToriRS_PanelNodeKind TORIRS_PANEL_INPUT
@@ -133,6 +136,19 @@ end
 
 local function is_pending(err)
   return type(err) == "table" and rawget(err, "pending") ~= nil
+end
+
+-- A row handler run protected: through the entry's dispatch when there is
+-- one (QH.dispatch_action: a pending record replays it once it lands),
+-- else logged like any other panel failure.
+local function guarded(key, f)
+  return function(...)
+    if QH.dispatch_action then
+      QH.dispatch_action("panel " .. key, f, ...)
+      return
+    end
+    try(key, f, ...)
+  end
 end
 
 local function jlist(x)
@@ -1515,7 +1531,9 @@ J.def("com.questhelper.panel.QuestHelperPanel", { kind = "class", super = "java.
       return #wells
     end
 
-    -- A fixed number of wells: the ones past the content paint nothing.
+    -- A fixed number of wells: the ones past the content are COLLAPSED (no
+    -- room, no frame -- a search that matches two quests leaves no empty
+    -- boxes under them), and a setter grows them back.
     function cls.padded_well_rows(self, rows, prefix, lines, count)
       local n = self:well_rows(rows, prefix, lines, count)
       for i = n + 1, count do
@@ -1525,7 +1543,7 @@ J.def("com.questhelper.panel.QuestHelperPanel", { kind = "class", super = "java.
         self.well_state[key] = st
         if st.psig ~= "" then st.psig, st.pkey = "", next_serial() end
         if st.hsig ~= "" then st.hsig, st.hkey = "", next_serial() end
-        rows[#rows + 1] = { key = key, kind = "custom", height = WELL_MIN, hit_key = st.hkey, paint_key = st.pkey,
+        rows[#rows + 1] = { key = key, kind = "custom", height = WELL_COLLAPSED, hit_key = st.hkey, paint_key = st.pkey,
           paint = UI.well, on_action = UI.well, on_menu = UI.well }
       end
     end
@@ -1702,6 +1720,14 @@ J.def("com.questhelper.panel.QuestHelperPanel", { kind = "class", super = "java.
       elseif self.view == VIEW_SETTINGS then self:settings_rows(rows)
       elseif self.view == VIEW_LOADING then self:loading_rows(rows) end
       assert(#rows <= ROWS_BUDGET + 1, "quest helper panel declared more rows than the page holds")
+      -- Porcelain calls a row's handler from C, outside the entry's
+      -- protected dispatch, and a handler that raises there disables the
+      -- whole plugin. Each one runs through the entry's dispatch instead (a
+      -- record still loading runs it again once it is in; any other error is
+      -- logged once). The wells' shared closure guards itself (well_action).
+      for _, r in ipairs(rows) do
+        if r.on_action ~= nil and r.on_action ~= UI.well then r.on_action = guarded(r.key, r.on_action) end
+      end
       return rows
     end
 

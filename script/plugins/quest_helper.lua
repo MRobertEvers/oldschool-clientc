@@ -485,7 +485,57 @@ end
 
 local toolbar_listening = false
 
+-- GlobalFakeObjects.createNpcs sets its `initialized` latch BEFORE the
+-- Cheerer builds its fans, and building them reads npc and obj records
+-- (Wise Old Man's models, Zoinkwiz's cape): a record still loading raises
+-- J.PendingMT half way, the dispatch replays GameStateChanged once it lands,
+-- and the replay found the latch set -- no fan ever existed and the quest
+-- completion's Cheerer.activateCheerer threw on an empty list (found live).
+-- A pending build is undone (its half-made group removed, the latch
+-- cleared) so the replay builds it whole. RuneLite's records are never
+-- pending, so its code has no such window.
+local function guard_global_fakes()
+    local G = C["com.questhelper.runeliteobjects.GlobalFakeObjects"]
+    if G == nil or rawget(G, "__qh_guarded") then return end
+    local create = G.createNpcs
+    G.createNpcs = function(client, objects, config_manager, config)
+        local was = G.initialized
+        local ok, err = API.sandbox.protect(create, client, objects, config_manager, config)
+        if ok then return end
+        if not was and G.initialized then
+            API.sandbox.protect(objects.removeGroupAndSubgroups, objects, "global")
+            G.initialized = false
+        end
+        error(err, 0)
+    end
+    rawset(G, "__qh_guarded", true)
+end
+
+-- The same window in the bank tab: QuestBankTab lays the tab out from a
+-- ClientThread.invokeAtTickEnd runnable (sortBankTabItems), which reads item
+-- records; one still loading raises J.PendingMT after part of the layout was
+-- added, and the queue runs it again once the record lands. Run again
+-- whole, the half-run's widgets were never removed (each layout doubled),
+-- and a run that landed after the player had turned the tab off put its
+-- labels over the native bank (found live after closing and reopening the
+-- bank with the tab on). RuneLite runs the layout once, at the tick's end,
+-- straight after removeAddedWidgets; so a run here starts from
+-- removeAddedWidgets too, and a run for a tab no longer shown does nothing.
+local function guard_bank_layout()
+    local T = C["com.questhelper.bank.banktab.QuestBankTab"]
+    if T == nil or rawget(T, "__qh_guarded") then return end
+    local sort = T.sortBankTabItems
+    T.sortBankTabItems = function(self, container, children, layout)
+        if self.questBankTabInterface == nil or not self.questBankTabInterface:isQuestTabActive() then return end
+        self:removeAddedWidgets()
+        return sort(self, container, children, layout)
+    end
+    rawset(T, "__qh_guarded", true)
+end
+
 local function start_plugin()
+    guard_global_fakes()
+    guard_bank_layout()
     local root = QH.core.boot()
     if root:binding("net.runelite.api.Client") == nil then
         root:bind("net.runelite.api.Client", J.rl_client.client())
@@ -1234,6 +1284,31 @@ local function game_state()
     return J.rl_client.client():getGameState()
 end
 
+-- RuneLite knows the RS profile BEFORE a login's LOGGED_IN (the account hash
+-- arrives with the login), so QuestHelperPlugin's onGameStateChanged
+-- (LOGGED_IN && profileChanged) runs its login code once, for the right
+-- profile. Here the name can be unknown until the first ticks run. A
+-- LOGGED_IN that would be posted while there is no profile is posted as
+-- LOADING (what RuneLite's state is until then), and the LOGGED_IN is owed:
+-- on_server_tick posts it once the profile is known -- one login, never one
+-- for "no profile" and a second for the real one.
+local login_owed = false
+
+local function profile_known()
+    local cm = QH.core.configManager
+    return cm ~= nil and cm.rsProfileKey ~= nil
+end
+
+local function post_game_state()
+    local GS = C["net.runelite.api.GameState"]
+    local gs = game_state()
+    if gs == GS.LOGGED_IN and not profile_known() then
+        login_owed = true
+        gs = GS.LOADING
+    end
+    post(E .. "GameStateChanged", { gameState = gs })
+end
+
 -- VarbitChanged: RuneLite posts one per changed varp (varbitId -1) and one
 -- per varbit on it whose value moved. The client reports varps only, so the
 -- varbits are the WATCHED ones (read by the plugin, or seeded) re-read on a
@@ -1449,6 +1524,9 @@ function plugin.on_start(api)
     QH = QH or {}
     QH.api = api
     QH.load_quest = load_quest
+    -- the panel's row handlers (called by Porcelain from C, outside every
+    -- protected hook): retried when a record or module is pending
+    QH.dispatch_action = function(what, fn, ...) dispatch(what, true, fn, ...) end
     J = J or {}
     J.protect = api.sandbox.protect
     if boot.phase == "idle" or boot.phase == "failed" then
@@ -1512,6 +1590,9 @@ function plugin.on_frame_start(api, ev)
         dispatch("residency", false, residency_step)
     end
     dispatch("frame", false, QH.core.frame)
+    -- the query scripts an overlay was answered from last frame, run again
+    -- here, where a script may run (rl_client DRAW_QUERY_SCRIPTS)
+    if running() then dispatch("draw scripts", false, J.rl_client.refresh_draw_scripts) end
     -- RuneLite runs invokeAtTickEnd at the end of the CLIENT tick (a frame
     -- here): the bank tab lays its slots out there, the frame after
     -- bankmain_finishbuilding ran. Only once a game tick has run since the
@@ -1530,9 +1611,24 @@ end
 function plugin.on_server_tick(api, ev)
     if not running() then return end
     -- the RS profile follows the logged-in name (set once the first ticks run)
-    if not was_logged_in then
+    if not was_logged_in or login_owed then
         was_logged_in = true
+        -- The login's LOGGED_IN, owed until the profile is known
+        -- (post_game_state); or a profile that CHANGED here (a stale name at
+        -- the screen change) gets the LOGGED_IN RuneLite posts after its
+        -- RuneScapeProfileChanged. Without it the change waited for the next
+        -- scene load, whose LOGGED_IN ran the login code -- the open helper
+        -- shut down and the "updated" line printed on the first walk across
+        -- a region edge (live in the browser, 2026-11-20).
+        local before = QH.core.configManager and QH.core.configManager.rsProfileKey
         dispatch("rs profile", false, QH.core.update_rs_profile)
+        local after = QH.core.configManager and QH.core.configManager.rsProfileKey
+        if after ~= nil and (login_owed or after ~= before) and api.core.screen() == 30 then
+            login_owed = false
+            dispatch("GameStateChanged", false, function()
+                post(E .. "GameStateChanged", { gameState = game_state() })
+            end)
+        end
     end
     dispatch("VarbitChanged", false, post_var_changes)
     dispatch("ServerNpcLoot", false, post_kills)
@@ -1632,7 +1728,7 @@ function plugin.on_world_loaded(api, ev)
         local GS = C["net.runelite.api.GameState"]
         post(E .. "GameStateChanged", { gameState = GS.LOADING })
         post_scene_spawns()
-        post(E .. "GameStateChanged", { gameState = game_state() })
+        post_game_state()
     end)
 end
 
@@ -1704,11 +1800,9 @@ end
 function plugin.on_screen_changed(api, ev)
     if J.rlw and J.rlw.on_screen_changed then dispatch("widgets screen", false, J.rlw.on_screen_changed, ev.screen) end
     if not running() then return end
-    if ev.screen ~= "game" then was_logged_in = false end
+    if ev.screen ~= "game" then was_logged_in = false; login_owed = false end
     dispatch("rs profile", false, QH.core.update_rs_profile)
-    dispatch("GameStateChanged", false, function()
-        post(E .. "GameStateChanged", { gameState = game_state() })
-    end)
+    dispatch("GameStateChanged", false, post_game_state)
 end
 
 function plugin.on_config_changed(api, key)

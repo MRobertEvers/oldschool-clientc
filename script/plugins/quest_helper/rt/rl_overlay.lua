@@ -730,6 +730,9 @@ def(P .. "outline.ModelOutlineRenderer", nil, {}, function(cls)
   end
   local function hull_element(shape)
     if shape == nil then return nil end
+    -- a boat's own loc: a plain polygon that still names its model
+    local b = rawget(shape, "__boat_element")
+    if b ~= nil then return b end
     local w = rawget(shape, "__world")
     assert(w, "a world entity's hull carries __world (docs/QUEST_HELPER_PORT.md World shapes)")
     return w.element_id
@@ -749,9 +752,10 @@ def(P .. "outline.ModelOutlineRenderer", nil, {}, function(cls)
   cls.drawOutline__ItemLayer_int_Color_int = cls.drawOutline__TileObject_int_Color_int
   cls.drawOutline__DecorativeObject_int_Color_int = cls.drawOutline__TileObject_int_Color_int
   cls.drawOutline__WallObject_int_Color_int = cls.drawOutline__TileObject_int_Color_int
+  -- every scene instance the object is drawn as (one per merged model)
   function cls.drawOutline__RuneLiteObject_int_Color_int(self, obj, width, c, feather)
     assert(obj)
-    outline(obj:__element_id(), c)
+    for _, e in ipairs(obj:__elements()) do outline(e, c) end
   end
 end)
 
@@ -943,13 +947,15 @@ local function viewport(draw)
 end
 
 -- Which pass an overlay is drawn in (docs/QUEST_HELPER_PORT.md "Passes").
+-- RuneLite draws ABOVE_SCENE and UNDER_WIDGETS overlays after the scene and
+-- BEFORE the widgets, whatever their position: an interface covers them (the
+-- world map over the TOP_LEFT step panel). The world pass is that layer here
+-- (over the world, under the interfaces); the canvas pass is over everything.
 local function pass_of(o)
-  local L, POS = C[P .. "OverlayLayer"], C[P .. "OverlayPosition"]
+  local L = C[P .. "OverlayLayer"]
   local layer = o:getLayer()
   if layer == L.MANUAL then return nil end
-  local pos = o:getPreferredPosition() or o:getPosition()
-  local dynamic = pos == POS.DYNAMIC or pos == POS.DETACHED
-  if (layer == L.ABOVE_SCENE or layer == L.UNDER_WIDGETS) and dynamic then return "world" end
+  if layer == L.ABOVE_SCENE or layer == L.UNDER_WIDGETS then return "world" end
   return "canvas"
 end
 

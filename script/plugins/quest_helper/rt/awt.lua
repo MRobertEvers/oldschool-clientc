@@ -1606,10 +1606,19 @@ def("java.awt.Graphics2D", "java.awt.Graphics", {}, function(cls)
       for j = 0, sz - 1 do fn(w.tile_x + i, w.tile_z + j) end
     end
   end
+  -- A hull names one element, or several (a RuneLiteObject drawn as one
+  -- scene instance per merged model: `elements`).
+  local function each_hull(w, fn)
+    if w.elements ~= nil then
+      for _, e in ipairs(w.elements) do fn(e) end
+    else
+      fn(w.element_id)
+    end
+  end
   local function world_fill(self, w)
     local rgb, a = rgba(self)
     if w.kind == "hull" then
-      self.qh_d.world_hull(w.element_id, rgb, a)
+      each_hull(w, function(e) self.qh_d.world_hull(e, rgb, a) end)
     elseif w.kind == "tile" then
       if a == 0 then return end
       world_tiles(w, function(x, z) self.qh_d.world_tile(x, z, w.level, rgb, rgb, a, 0) end)
@@ -1620,7 +1629,7 @@ def("java.awt.Graphics2D", "java.awt.Graphics", {}, function(cls)
   local function world_draw(self, w, shape)
     local rgb = self.qh_color:qh_rgb()
     if w.kind == "hull" then
-      self.qh_d.world_hull(w.element_id, rgb, 0)
+      each_hull(w, function(e) self.qh_d.world_hull(e, rgb, 0) end)
     elseif w.kind == "tile" then
       if (w.size_x or 1) == 1 and (w.size_z or 1) == 1 then
         self.qh_d.world_tile(w.tile_x, w.tile_z, w.level, rgb, rgb, 0, world_width(self))
@@ -1657,7 +1666,7 @@ def("java.awt.Graphics2D", "java.awt.Graphics", {}, function(cls)
     end
     local fa = fill and fill:qh_alpha() or 0
     if w.kind == "hull" then
-      self.qh_d.world_hull(w.element_id, border:qh_rgb(), fa)
+      each_hull(w, function(e) self.qh_d.world_hull(e, border:qh_rgb(), fa) end)
     elseif w.kind == "tile" then
       local old_s = self.qh_stroke
       if stroke then self.qh_stroke = stroke end

@@ -182,6 +182,18 @@ MOCK.npc_defs[8484] = { id = 8484, name = "Veos", actions = { "Talk-to", false, 
 local QUEST_STATE = {}
 MOCK.scripts[4029] = function(row) return { QUEST_STATE[row] or 1 }, {} end
 
+-- the Wise Old Man's record is still loading for the first reads: the
+-- Cheerer's build goes pending half way through GlobalFakeObjects.createNpcs
+-- (the entry undoes it so the replay builds both fans; live 2026-11-19)
+local wom_pending = 3
+do
+  local real = api.cache.npc_def
+  api.cache.npc_def = function(id)
+    if id == 2108 and wom_pending > 0 then wom_pending = wom_pending - 1; return nil, "pending" end
+    return real(id)
+  end
+end
+
 -- ------------------------------------------------------------------ boot
 plugin.on_start(api)
 check("panel registered with the icon", MOCK_PORCELAIN.descriptor and MOCK_PORCELAIN.descriptor.icon_asset == "quest_icon.png")
@@ -250,6 +262,10 @@ check("the login's list update lands within a second", list_frames < 50, list_fr
 for _ = 1, 2 do frame() end
 local qm = QH.core.plugin.questManager
 check("QuestManager injected", qm ~= nil)
+check("the npc record went pending at least once", wom_pending < 3, wom_pending)
+local cheerers = C["com.questhelper.runeliteobjects.Cheerer"].cheerers:size()
+check("a pending fan build is replayed whole: both cheerers exist", cheerers == 2, cheerers)
+check("and the latch is set once they do", C["com.questhelper.runeliteobjects.GlobalFakeObjects"].initialized == true)
 check("login loads no other quest module", #extra_quest_modules() == 0, table.concat(extra_quest_modules(), ","))
 
 -- the page
@@ -342,6 +358,54 @@ check("quest selected", qm:getSelectedQuest() == xh, qm:getSelectedQuest())
 tick(1)
 rows()
 check("overview shows the quest name", row("qh_qname") and row("qh_qname").text == "X Marks the Spot", row("qh_qname") and row("qh_qname").text)
+-- The profile became known at the first tick (after the screen's LOGGED_IN):
+-- the next scene load must NOT run the login code -- that shut the open
+-- helper down and printed the "updated" line on the first region edge
+-- (live in the browser, 2026-11-20).
+do
+  -- a hop back to the title and in again, the local player unknown when the
+  -- screen turns to the game (the browser's resume login did exactly this)
+  local saved_player = MOCK.player
+  -- the login code (QuestHelperPlugin's LOGGED_IN && profileChanged block)
+  -- counted by the one call only it makes
+  local nvm = QH.core.plugin.newVersionManager
+  local logins = 0
+  nvm.updateChatWithNotificationIfNewVersion = function(self)
+    logins = logins + 1
+    return C[J.classname and J.classname(self) or "com.questhelper.managers.NewVersionManager"].updateChatWithNotificationIfNewVersion(self)
+  end
+  plugin.on_screen_changed(api, { screen = "title" })
+  MOCK.no_world = true
+  plugin.on_screen_changed(api, { screen = "game" })
+  check("no login runs while the profile is unknown", logins == 0, logins)
+  -- the scene is in and the game state is LOGGED_IN, but the player's name
+  -- is not yet (live: the login's scene load before the first tick)
+  MOCK.no_world = nil
+  local nameless = {}
+  for k, v in pairs(saved_player) do nameless[k] = v end
+  nameless.name = ""
+  MOCK.player = nameless
+  plugin.on_world_loaded(api, {})
+  check("the scene's state reads LOGGED_IN", J.str(QH.core.plugin.client:getGameState()) == "LOGGED_IN",
+    J.str(QH.core.plugin.client:getGameState()))
+  check("no login at a scene load before the profile is known", logins == 0, logins)
+  MOCK.player = saved_player
+  tick(2)
+  check("the login ran once, for the known profile", logins == 1, logins)
+  nvm.updateChatWithNotificationIfNewVersion = nil
+  for _ = 1, 60 do
+    if plugin._list_jobs.list == nil and plugin._list_jobs.items == nil then break end
+    frame()
+  end
+  check("the first tick's profile change was consumed by a login", QH.core.plugin.profileChanged == false,
+    QH.core.plugin.profileChanged)
+  qm:startUpQuest__QuestHelper_boolean(xh, false)
+  for _ = 1, 3 do frame() end
+  check("helper reopened after the relogin", qm:getSelectedQuest() == xh, qm:getSelectedQuest())
+  plugin.on_world_loaded(api, {})
+  frame()
+  check("a scene load after login keeps the open helper", qm:getSelectedQuest() == xh, qm:getSelectedQuest())
+end
 
 -- ------------------------------------------------------------------ a full scene
 -- A live Lumbridge scene holds tens of thousands of locs. Every quest step

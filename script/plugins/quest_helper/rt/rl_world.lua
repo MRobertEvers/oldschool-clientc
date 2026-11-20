@@ -651,6 +651,12 @@ def("net.runelite.api.Model", nil, { "net.runelite.api.Mesh", "net.runelite.api.
       local h = element_height(self.element_id)
       if h > 0 then return h end
     end
+    -- a RuneLiteObject's model: the tallest of the instances it is drawn as
+    if self.rlo ~= nil then
+      local best = 0
+      for _, e in ipairs(self.rlo:__elements()) do best = math.max(best, element_height(e)) end
+      if best > 0 then return best end
+    end
     return DEFAULT_MODEL_HEIGHT
   end
   function cls.getAnimationHeightOffset(self) return 0 end
@@ -958,9 +964,15 @@ def("net.runelite.api.NPC", "net.runelite.api.Actor", {}, function(cls)
   function cls.getId(self) return self:__snap().npc_id end
   function cls.getIndex(self) return self.slot end
   function cls.getFootprintSize(self) return self:__snap().size end
-  -- rl_client's cached definitions (Client.getNpcDefinition)
-  function cls.getComposition(self) return C["net.runelite.api.Client"].npc_composition(self:__snap().base_npc_id) end
-  function cls.getTransformedComposition(self) return C["net.runelite.api.Client"].npc_composition(self:__snap().npc_id) end
+  -- rl_client's cached definitions: never nil for an npc in the scene (a
+  -- record still loading raises pending, one the cache lacks is RuneLite's
+  -- default definition); a transform to nothing (-1) is RuneLite's null.
+  function cls.getComposition(self) return C["net.runelite.api.Client"].npc_actor_composition(self:__snap().base_npc_id) end
+  function cls.getTransformedComposition(self)
+    local id = self:__snap().npc_id
+    if id < 0 then return nil end
+    return C["net.runelite.api.Client"].npc_actor_composition(id)
+  end
   function cls.getModelOverrides(self) return nil end
   function cls.getChatheadOverrides(self) return nil end
   function cls.getOverheadArchiveIds(self) return nil end
@@ -1114,8 +1126,40 @@ end
 -- ------------------------------------------------------------------ TileObject family
 
 local function loc_scene_xy(s)
+  -- a boat's own loc (game.world_entity_loc_next): its own world's tile
+  if s.view ~= nil then return s.tile_x - s.view_bx, s.tile_z - s.view_bz end
   local f = frame()
   return s.tile_x - f.bx, s.tile_z - f.bz
+end
+
+-- The hull of a boat loc's footprint box (deck-local fine centre, half
+-- sizes) where the boat carries it now: every corner through
+-- game.world_entity_to_main, so a turned boat's hull turns with it. A PLAIN
+-- polygon: RuneLite fills a boat's Area in 2D (QuestPerspective.
+-- getAreaFromWorldView + renderHoverableArea); __boat_element names the
+-- model for ModelOutlineRenderer.
+local function boat_box_hull(view, cx, cz, hx, hz, height, element_id)
+  local g, f = A().game, frame()
+  local px, py, n = {}, {}, 0
+  local corners = { cx - hx, cz - hz, cx + hx, cz - hz, cx + hx, cz + hz, cx - hx, cz + hz }
+  local heights = height > 0 and { 0, height } or { 0 }
+  local mains = {}
+  for c = 1, 8, 2 do
+    local mx, mz = g.world_entity_to_main(view, corners[c], corners[c + 1])
+    if mx == nil then return nil end
+    mains[#mains + 1] = { mx - f.bx * TILE, mz - f.bz * TILE }
+  end
+  for _, h in ipairs(heights) do
+    for _, m in ipairs(mains) do
+      local x, y = project(m[1], m[2], h)
+      if x == nil then return nil end
+      n = n + 1; px[n] = x; py[n] = y
+    end
+  end
+  local xs, ys, k = convex_hull(px, py, n)
+  local poly = new_polygon(xs, ys, k, nil)
+  poly.__boat_element = element_id
+  return poly
 end
 
 def("net.runelite.api.TileObject", nil, {}, function(cls)
@@ -1138,7 +1182,10 @@ def("net.runelite.api.TileObject", nil, {}, function(cls)
   function cls.__size(self) return 1, 1 end
   function cls.getId(self) return self.s.loc_id end
   function cls.getPlane(self) return self.s.level end
-  function cls.getWorldView(self) return top() end
+  function cls.getWorldView(self)
+    if self.s.view ~= nil then return C["net.runelite.api.WorldView"].__byId(self.s.view) end
+    return top()
+  end
   function cls.getX(self)
     local sx = loc_scene_xy(self.s)
     local w = self:__size()
@@ -1155,9 +1202,9 @@ def("net.runelite.api.TileObject", nil, {}, function(cls)
     return ((self.s.loc_id & 0xFFFFFFFF) << 32) | ((self.s.level & 3) << 16) | ((loc_kind(self.s.shape) & 3) << 14)
       | ((sy & 0x7F) << 7) | (sx & 0x7F)
   end
-  function cls.getLocalLocation(self) return lp(self:getX(), self:getY(), TOPLEVEL) end
+  function cls.getLocalLocation(self) return lp(self:getX(), self:getY(), self.s.view or TOPLEVEL) end
   function cls.getWorldLocation(self)
-    return C[KEY_WP].fromLocal__WorldView_int_int_int(top(), self:getX(), self:getY(), self.s.level)
+    return C[KEY_WP].fromLocal__WorldView_int_int_int(self:getWorldView() or top(), self:getX(), self:getY(), self.s.level)
   end
   function cls.getCanvasLocation__(self) return cls.getCanvasLocation__int(self, 0) end
   function cls.getCanvasLocation__int(self, z)
@@ -1181,6 +1228,9 @@ def("net.runelite.api.TileObject", nil, {}, function(cls)
     local e = self.s.element_id
     if e == nil or e < 0 then return nil end
     local w, h = self:__size()
+    if self.s.view ~= nil then
+      return boat_box_hull(self.s.view, self:getX(), self:getY(), w * TILE // 2, h * TILE // 2, element_height(e), e)
+    end
     return box_hull(self:getX(), self:getY(), w * TILE // 2, h * TILE // 2, element_height(e), { kind = "hull", element_id = e })
   end
   function cls.getClickbox(self) return self:__hull() end
@@ -1691,13 +1741,45 @@ def("net.runelite.api.WorldView$Boat", "net.runelite.api.WorldView", {}, functio
     return point.worldView == self.snap.id and point:getSceneX() >= 0 and point:getSceneX() < self.snap.size_x
       and point:getSceneY() >= 0 and point:getSceneY() < self.snap.size_z
   end
-  -- No tiles: the deck's locs are in the top level's scene at their staging
-  -- tiles, so QuestPerspective.getAreaFromWorldView finds nothing to outline
-  -- and WorldEntityStep falls back to its plain arrow.
+  -- The boat's own scene: its locs (deck and hull pieces) from
+  -- game.world_entity_loc_next, as Tile[plane][x][y] of its staging
+  -- rectangle (nil where nothing stands), rebuilt once a frame. What
+  -- QuestPerspective.getAreaFromWorldView walks to outline the hull.
+  local function boat_tiles(v)
+    local g = A().game
+    if g == nil or g.world_entity_loc_next == nil then return EMPTY_TILES end
+    local fw = wev_snaps()
+    fw.boat_tiles = fw.boat_tiles or {}
+    local id = v.snap.id
+    if fw.boat_tiles[id] ~= nil then return fw.boat_tiles[id] end
+    local sx, sz, bx, bz = v.snap.size_x, v.snap.size_z, v.snap.base_x, v.snap.base_z
+    local planes = { n = 4 }
+    for p = 1, 4 do
+      local rows = { n = sx }
+      for x = 1, sx do rows[x] = { n = sz } end
+      planes[p] = rows
+    end
+    local BoatTile = C["net.runelite.api.Tile$Boat"]
+    local TO = C["net.runelite.api.TileObject"]
+    local cur, s = g.world_entity_loc_next(id, nil)
+    while cur do
+      local lx, lz = s.tile_x - bx, s.tile_z - bz
+      if s.level >= 0 and s.level <= 3 and lx >= 0 and lx < sx and lz >= 0 and lz < sz then
+        s.view, s.view_bx, s.view_bz = id, bx, bz
+        local rows = planes[s.level + 1]
+        local t = rows[lx + 1][lz + 1]
+        if t == nil then t = BoatTile.__of(v, s.level, lx, lz); rows[lx + 1][lz + 1] = t end
+        t:__add(TO.__fromSnap(s), loc_kind(s.shape))
+      end
+      cur, s = g.world_entity_loc_next(id, cur)
+    end
+    fw.boat_tiles[id] = planes
+    return planes
+  end
   local SceneStub = {}
   SceneStub.__index = SceneStub
-  function SceneStub.getTiles() return EMPTY_TILES end
-  function SceneStub.getExtendedTiles() return EMPTY_TILES end
+  function SceneStub.getTiles(self) return boat_tiles(self.v) end
+  function SceneStub.getExtendedTiles(self) return boat_tiles(self.v) end
   function SceneStub.getBaseX(self) return self.v.snap.base_x end
   function SceneStub.getBaseY(self) return self.v.snap.base_z end
   function SceneStub.isInstance() return false end
@@ -1708,6 +1790,33 @@ def("net.runelite.api.WorldView$Boat", "net.runelite.api.WorldView", {}, functio
   end
   function cls.equals(self, o) return rawequal(self, o) end
   function cls.hashCode(self) return self.snap.id end
+end)
+
+-- One tile of a boat's own scene (WorldView$Boat's Scene.getTiles()): the
+-- locs world_entity_loc_next put there, addressed in the boat's world.
+def("net.runelite.api.Tile$Boat", "net.runelite.api.Tile", {}, function(cls)
+  function cls.__of(view, plane, sx, sy)
+    local t = setmetatable({}, cls)
+    t.view = view; t.plane = plane; t.sx = sx; t.sy = sy
+    t.games = { n = 0 }
+    return t
+  end
+  function cls.__add(self, o, kind)
+    if kind == KIND_GAME then self.games.n = self.games.n + 1; self.games[self.games.n] = o
+    elseif kind == KIND_WALL then self.wall = self.wall or o
+    elseif kind == KIND_DECOR then self.decor = self.decor or o
+    else self.ground = self.ground or o end
+  end
+  function cls.getGameObjects(self) return self.games end
+  function cls.getWallObject(self) return self.wall end
+  function cls.getDecorativeObject(self) return self.decor end
+  function cls.getGroundObject(self) return self.ground end
+  function cls.getItemLayer(self) return nil end
+  function cls.getGroundItems(self) return nil end
+  function cls.__has_content(self) return true end
+  function cls.getLocalLocation(self) return C[KEY_LP].fromScene__int_int_WorldView(self.sx, self.sy, self.view) end
+  function cls.getWorldLocation(self) return C[KEY_WP].fromScene__WorldView_int_int_int(self.view, self.sx, self.sy, self.plane) end
+  function cls.toString(self) return "Tile(" .. self.sx .. "," .. self.sy .. "," .. self.plane .. ", boat " .. self.view:getId() .. ")" end
 end)
 
 -- ------------------------------------------------------------------ GraphicsObject
@@ -1859,9 +1968,33 @@ def("net.runelite.api.Perspective", nil, {}, function(cls)
   end
 
   -- RuneLite projects the model's own triangles; with no vertices here, the
-  -- clickbox is the box of one tile at (x, y) up to the model's height.
+  -- clickbox is the box of one tile at (x, y) up to the model's height. A
+  -- RuneLiteObject's model (rl_world's RuneLiteObject.getModel) is drawn as
+  -- scene instances: its box carries their elements (a fill or outline goes
+  -- to draw.world_hull of each), and `contains` at the POINTER is the
+  -- engine's per-triangle pick of them (scene.instance_hit) -- the menu's
+  -- hit test, RuneliteObjectManager.isMouseOverObject.
+  local function rlo_contains(rlo, poly)
+    return function(self, px, py)
+      local mx, my = A().input.pointer()
+      if mx ~= nil and J.d2i(px) == mx and J.d2i(py) == my and rlo:__hit_known() then return rlo:__hit() end
+      return C["java.awt.Polygon"].contains__double_double(self, px, py)
+    end
+  end
   function cls.getClickbox(client, wv, model, orientation, x, y, z)
     if model == nil then return nil end
+    local rlo = model.rlo
+    if rlo ~= nil then
+      local elements = rlo:__elements()
+      if #elements == 0 then return nil end
+      local w = { kind = "hull", element_id = elements[1], elements = elements }
+      local half = math.max(TILE // 2, rlo:getRadius())
+      local poly = box_hull(x, y, math.min(half, TILE), math.min(half, TILE), model:getModelHeight(), w)
+      if poly == nil then return nil end
+      poly.contains__double_double = rlo_contains(rlo, poly)
+      poly.contains__int_int = poly.contains__double_double
+      return poly
+    end
     return box_hull(x, y, TILE // 2, TILE // 2, model:getModelHeight(), nil)
   end
 end, function(cls)
@@ -1895,11 +2028,20 @@ def("net.runelite.api.RuneLiteObjectController", nil, {}, function(cls)
     self.tile_x = nil; self.tile_z = nil
   end
   function cls.getLocation(self) return lp(self.x, self.y, self.wv) end
+  -- The point itself, not its tile: a ReplacedNpc follows its npc's
+  -- interpolated LocalPoint between tiles (scene.instance_place, absolute
+  -- fine units). A boat-world point is placed where the boat carries it.
   function cls.setLocation(self, point, level)
     self.x = point.x; self.y = point.y; self.wv = point.worldView; self.level = level
     local f = frame()
-    self.tile_x = f.bx + (point.x // TILE)
-    self.tile_z = f.bz + (point.y // TILE)
+    local main = point
+    if point.worldView ~= TOPLEVEL then
+      main = C["net.runelite.api.Perspective"].__on_main(point) or point
+    end
+    self.fine_x = f.bx * TILE + main.x
+    self.fine_z = f.bz * TILE + main.y
+    self.tile_x = self.fine_x // TILE
+    self.tile_z = self.fine_z // TILE
     self:__sync()
   end
   function cls.getX(self) return self.x end
@@ -1930,9 +2072,47 @@ def("net.runelite.api.RuneLiteObject", "net.runelite.api.RuneLiteObjectControlle
     self.model = nil; self.animation = nil; self.anim_start = 0
     self.instances = nil; self.instances_for = nil; self.anim_applied = nil
   end
-  function cls.getModel(self) return self.model end
-  function cls.getBaseModel(self) return self.model end
-  function cls.setModel(self, model) self.model = model; self:__sync() end
+  -- A view of the model that knows it is drawn as THIS object's instances
+  -- (Model.getModelHeight, Perspective.getClickbox read their elements).
+  function cls.getModel(self)
+    local m = self.model
+    if m == nil then return nil end
+    local v = self.model_view
+    if v == nil or v.of ~= m then
+      v = C["net.runelite.api.Model"].__of_data(m.data, m.ambient, m.contrast)
+      v.of = m; v.rlo = self
+      self.model_view = v
+    end
+    return v
+  end
+  function cls.getBaseModel(self) return self:getModel() end
+  function cls.setModel(self, model)
+    -- the view handed out by getModel stands for the model it views
+    if model ~= nil and model.rlo ~= nil and model.of ~= nil then model = model.of end
+    self.model = model; self:__sync()
+  end
+  -- The scene elements this object is drawn as (one per merged cache
+  -- model; none while inactive or loading), and the pointer's pick of them.
+  function cls.__elements(self)
+    local out = {}
+    if not self.active or self.instances == nil then return out end
+    local f = A().scene.instance_element
+    if f == nil then return out end
+    for _, inst in ipairs(self.instances) do
+      local e = f(inst)
+      if e ~= nil then out[#out + 1] = e end
+    end
+    return out
+  end
+  function cls.__element_id(self) return self:__elements()[1] end
+  function cls.__hit_known(self) return A().scene.instance_hit ~= nil end
+  function cls.__hit(self)
+    if not self.active or self.instances == nil then return false end
+    for _, inst in ipairs(self.instances) do
+      if A().scene.instance_hit(inst) then return true end
+    end
+    return false
+  end
   function cls.getAnimation(self) return self.animation end
   function cls.setAnimation(self, animation)
     self.animation = animation
@@ -2003,8 +2183,13 @@ def("net.runelite.api.RuneLiteObject", "net.runelite.api.RuneLiteObjectControlle
       live_objects[self] = true
     end
     local anim_key = self.animation and (self.animation.id * 2 + (self.loop and 1 or 0)) or -1
+    local yaw = (self.orientation + self.model.data.yaw) & 2047
     for _, inst in ipairs(self.instances) do
-      scene.instance_position(inst, self.tile_x, self.tile_z, self.level, self.z, (self.orientation + self.model.data.yaw) & 2047)
+      if scene.instance_place ~= nil and self.fine_x ~= nil then
+        scene.instance_place(inst, self.fine_x, self.fine_z, self.level, self.z, yaw)
+      else
+        scene.instance_position(inst, self.tile_x, self.tile_z, self.level, self.z, yaw)
+      end
       if self.anim_applied ~= anim_key and self.animation ~= nil then
         scene.instance_animation(inst, self.animation.id, self.loop)
       end

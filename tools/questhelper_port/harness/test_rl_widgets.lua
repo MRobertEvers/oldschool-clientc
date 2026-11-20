@@ -395,7 +395,12 @@ opts:setOnKeyListener(nil)
 typed = nil
 rlw.on_key({ key = 0, ch = string.byte("1"), down = true })
 check("cleared key listener", typed, nil)
--- closing the interface forgets its widgets
+-- an interface event while its node is the current mount's keeps the
+-- wrapper (the event arrives a frame after the mount's scripts ran)
+rlw.on_interface({ group = 219, open = true })
+check("a live wrapper survives the late interface event", rlw.get(OPTIONS) == opts, true)
+-- closing the interface (its node gone, or a new mount in its place) forgets its widgets
+MOCK.widgets[OPTIONS].incarnation = 2
 rlw.on_interface({ group = 219, open = false })
 check("fresh wrapper after close", rlw.get(OPTIONS) ~= opts, true)
 
@@ -503,6 +508,65 @@ check("and pressed nowhere", invoked, nil)
 entry.option = "Withdraw-1"
 check("an op it kept goes to the client", rlw.menu_retarget(entry), false)
 MOCK_API.widgets.invoke = nil
+-- the actions the menu build offers for the cell (rl_client), and the name
+local acts, name = rlw.native_actions(BANK_ITEMS, 0)
+check("native_actions: what the plugin left", acts and acts[0], "Withdraw-1")
+bank:getChild(0):setName("<col=ff9040>Logs</col>")
+acts, name = rlw.native_actions(BANK_ITEMS, 0)
+check("native_actions: the name it gave", name, "<col=ff9040>Logs</col>")
+check("native_actions: a cell it never rewrote", rlw.native_actions(BANK_ITEMS, 1), nil)
+-- the rewritten cell under the pointer (an empty slot raises no row itself)
+do
+  local n = MOCK.widgets[BANK_ITEMS].dynamic[1]
+  n.x, n.y, n.width, n.height = 10, 20, 36, 32
+  rlw.invalidate()
+  local comp, idx, a = rlw.native_cell_at(20, 30)
+  check("native_cell_at: the cell under the point", comp == BANK_ITEMS and idx == 0 and a[0], "Withdraw-1")
+  check("native_cell_at: a point beside it", rlw.native_cell_at(60, 30), nil)
+  n.hidden = true
+  rlw.invalidate()
+  check("native_cell_at: a hidden cell is not under the pointer", rlw.native_cell_at(20, 30), nil)
+  n.hidden = false
+  MOCK.widgets[BANK_ITEMS].height = 10
+  rlw.invalidate()
+  check("native_cell_at: nor one scrolled out of its list", rlw.native_cell_at(20, 30), nil)
+  MOCK.widgets[BANK_ITEMS].height = 300
+  rlw.invalidate()
+end
+-- setItemQuantityMode(ALWAYS) rides the re-lay (RuneLite's ItemQuantityMode)
+local IQM = C["net.runelite.api.widgets.ItemQuantityMode"]
+local s1 = bank:getChild(1)
+s1:setItemQuantityMode(IQM.ALWAYS)
+check("a mode before any re-lay keeps the game's cell", #calls("set_item", MOCK.widgets[BANK_ITEMS].dynamic[2]), 0)
+s1:setItemId(1925); s1:setItemQuantity(1)
+local si = calls("set_item", MOCK.widgets[BANK_ITEMS].dynamic[2])
+check("the re-lay carries the mode", si[#si] and (si[#si][3] .. "x" .. si[#si][4] .. " mode " .. si[#si][5]), "1925x1 mode 1")
+s1:setItemQuantityMode(IQM.STACKABLE)
+si = calls("set_item", MOCK.widgets[BANK_ITEMS].dynamic[2])
+check("a new mode restates the re-lay", si[#si] and si[#si][5], 2)
+check("the mode reads back", s1:getItemQuantityMode(), 2)
+local s0x = bank:getChild(0)
+s0x:setItemId(1931)
+si = calls("set_item", MOCK.widgets[BANK_ITEMS].dynamic[1])
+check("no mode set: the cell's own rule (-1)", si[#si] and si[#si][5], -1)
+-- a child made before the bank closed names the list of the bank opened
+-- again (RuneLite's getParent is client.getWidget(parentId)): the tab's
+-- removeAddedWidgets reaches the live list and truncates it
+do
+  local before = bank
+  local label = before:createChild__int_int(-1, 4)
+  MOCK.widgets[BANK_ITEMS].incarnation = 2
+  rlw.on_interface({ group = BANK_ITEMS >> 16, open = false })
+  local again = rlw.get(BANK_ITEMS)
+  check("reopen: a new wrapper for the list", again ~= before, true)
+  check("reopen: the old child's parent is the live list", label:getParent() == again, true)
+  local fresh = again:createChild__int_int(-1, 4)
+  local n = #MOCK.widgets[BANK_ITEMS].dynamic
+  label:getParent():setChildren(J.aclone_n and J.aclone_n(again:getChildren(), n) or (function()
+    local a = again:getChildren(); local t = { n = n }; for i = 1, n do t[i] = a[i] end; return t end)())
+  check("reopen: truncating the live list removes the child made after", fresh._dead, true)
+  bank = again
+end
 
 -- ------------------------------------------------------------------ 8. stop releases everything
 

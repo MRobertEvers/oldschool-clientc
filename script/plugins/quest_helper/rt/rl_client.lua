@@ -704,6 +704,91 @@ local the_menu
 local watched_varbits = {}
 local watched_varcs = {}
 
+-- A NATIVE widget whose actions the plugin rewrote (clearActions/setAction
+-- on a laid-out bank cell) offers THOSE: RuneLite's client builds a widget's
+-- menu from its actions, so the cell's own ops are relabelled (op n = action
+-- n-1), dropped when the plugin left that action empty, and an action the
+-- cell has no op for (a placeholder's "Details") is a row of its own -- a
+-- created CC_OP entry naming the cell, which no native op answers: the
+-- subscriber that set it consumes the click (QuestBankTab).
+local function apply_widget_actions(es)
+  local rlw = J.rlw
+  if rlw == nil or rlw.native_actions == nil then return false end
+  local MA = C["net.runelite.api.MenuAction"]
+  local Entry = C["net.runelite.api.MenuEntry"]
+  local changed = false
+  local seen = {}  -- "p1:p0" -> {acts, name, ops = {[op] = true}, at = first index}
+  local out = { n = 0 }
+  for i = 1, es.n do
+    local e = es[i]
+    local keep = true
+    if (e.type == MA.CC_OP or e.type == MA.CC_OP_LOW_PRIORITY) and e.param1 ~= nil and e.param1 >= 0 then
+      local key = e.param1 .. ":" .. e.param0
+      local w = seen[key]
+      if w == nil then
+        local acts, name = rlw.native_actions(e.param1, e.param0)
+        w = { acts = acts, name = name, ops = {}, at = nil }
+        seen[key] = w
+        w.p0, w.p1 = e.param0, e.param1
+      end
+      if w.acts ~= nil then
+        local label = w.acts[e.identifier - 1]
+        if label == nil or label == "" then
+          keep = false
+        else
+          w.ops[e.identifier] = true
+          if label ~= e.option then e.option = label end
+          if w.name ~= nil and w.name ~= e.target then e.target = w.name end
+        end
+        if w.at == nil then w.at = out.n + 1 end
+      end
+    end
+    if keep then out.n = out.n + 1; out[out.n] = e else changed = true end
+  end
+  -- a rewritten cell the game gave no op (an empty bank slot under a
+  -- placeholder) raised no row: the one under the pointer offers its actions
+  local any = false
+  for _, w in pairs(seen) do if w.acts ~= nil then any = true end end
+  if not any and rlw.native_cell_at ~= nil then
+    local px, py = api().input.pointer()
+    if px ~= nil then
+      local comp, idx, acts, name = rlw.native_cell_at(px, py)
+      if comp ~= nil then
+        seen[comp .. ":" .. idx] = { acts = acts, name = name, ops = {}, at = out.n + 1, p0 = idx, p1 = comp }
+      end
+    end
+  end
+  for _, w in pairs(seen) do
+    if w.acts ~= nil then
+      local extra = {}
+      for idx, label in pairs(w.acts) do
+        if type(idx) == "number" and label ~= nil and label ~= "" and not w.ops[idx + 1] then
+          extra[#extra + 1] = idx
+        end
+      end
+      table.sort(extra, function(a, b) return a > b end)
+      for _, idx in ipairs(extra) do
+        local e = Entry.__new_blank()
+        e.option, e.target = w.acts[idx], w.name or ""
+        e.type = MA.CC_OP
+        e.identifier, e.param0, e.param1 = idx + 1, w.p0, w.p1
+        e.widget_action = true
+        local at = math.min(w.at or (out.n + 1), out.n + 1)
+        table.insert(out, at, e)
+        out.n = out.n + 1
+        menu.created[#menu.created + 1] = e
+        changed = true
+      end
+    end
+  end
+  if changed then
+    for i = 1, es.n do es[i] = nil end
+    for i = 1, out.n do es[i] = out[i] end
+    es.n = out.n
+  end
+  return changed
+end
+
 local function menu_begin(ev)
   assert(ev)
   assert(ev.rows)
@@ -719,7 +804,7 @@ local function menu_begin(ev)
   end
   menu.entries = es
   menu.created = {}
-  menu.dirty = false
+  menu.dirty = apply_widget_actions(es)
   menu.building = true
   menu.hover = ev.hover_pass == true
   return J.aclone(es)
@@ -757,7 +842,8 @@ local function menu_end()
     local e = es[i]
     if e.deprioritized then reorder = true end
     if e.row_build == menu.build then
-      if e.consumer ~= nil then natives[row_key(e.row)] = e end
+      -- a rewritten row is chosen as what it says now ("Details")
+      if e.consumer ~= nil or e.option ~= e.orig_option or e.target ~= e.orig_target then natives[row_key(e.row)] = e end
       if (e.option ~= e.orig_option or e.target ~= e.orig_target) and m.set_text then
         local ok, why = m.set_text(e.row_index, row_text(e.option, e.target))
         if not ok then warn_once("MenuEntry.setOption/setTarget on a native row refused: " .. tostring(why)) end
@@ -812,6 +898,23 @@ local script = {
   ref = nil,                       -- api.scripts ScriptRef while a script callback runs
   ints = { n = 0 }, strs = { n = 0 }, -- the last runScript's results
 }
+
+-- Scripts an overlay may run. RuneLite renders overlays on the client thread,
+-- where runScript is allowed; this client's draw callbacks refuse every script
+-- ("wrong_context": a script may rebuild the interfaces being drawn). The ones
+-- below are read-only queries, so a draw is answered from the result of the
+-- same call made outside a draw (a requirement's check in the panel or a tick
+-- runs it first), and each answer the draw used is run again at the next frame
+-- start. 4029 is QUEST_STATUS_GET (QuestHelperQuest.getQuestState, reached from
+-- a QuestRequirement in the top-left panel: live 2026-11-20, a farm run).
+local DRAW_QUERY_SCRIPTS = { [4029] = true }
+local draw_memo = {}               -- "id,arg,..." -> {args, ints, strs, asked}
+
+local function script_key(args)
+  local parts = {}
+  for i = 1, args.n do parts[i] = tostring(args[i]) end
+  return table.concat(parts, ",")
+end
 
 -- The int stack of a running script, as RuneLite's int[]: Lua index k is
 -- Java index k-1; api.scripts index 0 is the top slot (Java size-1).
@@ -1039,6 +1142,25 @@ def("net.runelite.api.Client", nil, { "net.runelite.api.GameEngine" }, function(
     npc_comps[id] = c
     return c
   end
+  -- NPC.getComposition / getTransformedComposition (rl_world): RuneLite's
+  -- answer for an npc standing in the scene is never null. A record still
+  -- loading raises pending (the caller runs again once it is in); a record
+  -- this cache does not have (a newer server's npc on an older cache) reads
+  -- as RuneLite's default definition -- that id, named "null", no actions --
+  -- so one unknown npc does not fail every step that looks at npcs.
+  local npc_stubs = {}
+  function cls.npc_actor_composition(id)
+    assert(math.type(id) == "integer")
+    local c = cls.npc_composition(id)
+    if c ~= nil then return c end
+    if npc_state[id] == "pending" then pending_record("npc", id) end
+    c = npc_stubs[id]
+    if c == nil then
+      c = C["net.runelite.api.NPCComposition"].__new_for({ id = id, size = 1, combat_level = -1 })
+      npc_stubs[id] = c
+    end
+    return c
+  end
   function cls.object_composition(id)
     local c = obj_comps[id]
     if c ~= nil then return c end
@@ -1070,6 +1192,22 @@ def("net.runelite.api.Client", nil, { "net.runelite.api.GameEngine" }, function(
     local id = args[1]
     assert(math.type(id) == "integer")
     local ints, strs = api().scripts.run(id, table.unpack(args, 2, args.n))
+    local key = DRAW_QUERY_SCRIPTS[id] and script_key(args) or nil
+    if ints == nil and strs == "wrong_context" and key ~= nil and draw_memo[key] ~= nil then
+      -- An overlay asked (a draw callback runs no script): the answer the
+      -- last run outside the draw gave, refreshed every frame start while
+      -- the draw keeps asking (refresh_draw_scripts).
+      local m = draw_memo[key]
+      m.asked = true
+      script.ints = J.aclone(m.ints)
+      script.strs = J.aclone(m.strs)
+      return
+    end
+    if ints ~= nil and key ~= nil then
+      local m = draw_memo[key] or { args = J.aclone(args) }
+      m.ints, m.strs = jarr(ints, #ints), jarr(strs or {}, strs and #strs or 0)
+      draw_memo[key] = m
+    end
     if ints == nil and strs == "pending" then
       -- RuneLite's runScript never answers "not yet": a script (or a record
       -- it reaches) still loading is a pending record, so the ClientThread
@@ -1659,6 +1797,23 @@ J.rl_client = {
     script.ref = ref
   end,
   script_leave = function() script.ref = nil end,
+  -- Once a frame, outside every draw: run again each query script a draw was
+  -- answered from since the last call (the draw keeps reading current
+  -- values, a frame late at most). A draw failing an unrefreshed key fails
+  -- as RuneLite's would if the script failed.
+  refresh_draw_scripts = function()
+    for key, m in pairs(draw_memo) do
+      if m.asked then
+        m.asked = false
+        local ints, strs = api().scripts.run(m.args[1], table.unpack(m.args, 2, m.args.n))
+        if ints ~= nil then
+          m.ints, m.strs = jarr(ints, #ints), jarr(strs or {}, strs and #strs or 0)
+        elseif strs ~= "pending" then
+          draw_memo[key] = nil
+        end
+      end
+    end
+  end,
   inventory_changed = function(inv) containers[inv] = nil end,
   -- the ItemContainerChanged container for `inv` (never nil)
   changed_container = changed_container,

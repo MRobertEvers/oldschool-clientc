@@ -73,6 +73,7 @@ local owned_serial = 0
 local owned_live = {}    -- owned Widget -> true while it has a host control
 local key_listeners = {} -- Widget -> true (a JavaScriptCallback onKey)
 local native_edited = {} -- native Widget -> true once this file wrote to it (see on_script_pre)
+local action_cells = setmetatable({}, { __mode = "k" }) -- native Widget -> true: its actions were rewritten
 -- native layer -> {width, height}: the GAME's scroll size before this file
 -- first wrote one (the bank tab re-lays Bankmain.ITEMS taller). Put back at
 -- on_stop; forgotten when the game's own rebuild writes it again (505).
@@ -520,8 +521,25 @@ J.def(WIDGET, { kind = "class", super = "java.lang.Object", ifaces = {}, body = 
     return nprop(self, "hidden")
   end
 
+  -- An owned child's parent is the game widget its key names NOW (RuneLite's
+  -- getParent is client.getWidget(parentId)): an interface closed and
+  -- opened again has a new wrapper for the same component, and the old one
+  -- answers no children (QuestBankTab.removeAddedWidgets read the bank list
+  -- through a child made before the bank was reopened and never removed
+  -- anything again; found live).
   function cls.getParent(self)
-    if self._k == OWNED then return self._parent end
+    if self._k == OWNED then
+      local p = self._parent
+      if p == nil or p._k ~= NATIVE then return p end
+      local cur = wrappers[p._key]
+      if cur ~= nil then return cur end
+      local comp, idx = p._key:match("^(%-?%d+):(%-?%d+)$")
+      if tonumber(idx) == -1 then
+        local live = rlw.get(tonumber(comp))
+        if live ~= nil then return live end
+      end
+      return p
+    end
     local idx = nprop(self, "index")
     if idx >= 0 then return rlw.get(nprop(self, "id")) end
     local pid = nprop(self, "parent_id")
@@ -645,7 +663,7 @@ J.def(WIDGET, { kind = "class", super = "java.lang.Object", ifaces = {}, body = 
   local SHADOW_ONLY = {
     setFontId = "font_id", setName = "name", setModelId = "model_id", setModelType = "model_type",
     setAnimationId = "animation_id", setRotationX = "rotation_x", setRotationY = "rotation_y",
-    setRotationZ = "rotation_z", setModelZoom = "model_zoom", setItemQuantityMode = "item_quantity_mode",
+    setRotationZ = "rotation_z", setModelZoom = "model_zoom",
     setXPositionMode = "x_mode", setYPositionMode = "y_mode", setWidthMode = "width_mode",
     setHeightMode = "height_mode", setXTextAlignment = "x_align", setYTextAlignment = "y_align",
     setTextShadowed = "text_shadowed", setDragDeadTime = "drag_dead_time", setFilled = "filled",
@@ -751,11 +769,19 @@ J.def(WIDGET, { kind = "class", super = "java.lang.Object", ifaces = {}, body = 
     end
   end
 
+  -- The count rule rides the item (RuneLite's ItemQuantityMode; -1 the
+  -- cell's own): setItemQuantityMode(ALWAYS) numbers a re-laid bank cell.
+  local function quantity_mode(t)
+    local m = t.item_quantity_mode
+    if m == nil then return -1 end
+    if type(m) == "table" then m = m:getValue() end
+    return m
+  end
   local function item_changed(self)
     if self._k == NATIVE then
-      if self._h then host(self._h:set_item(nprop(self, "item_id"), nprop(self, "item_quantity"))) end
+      if self._h then host(self._h:set_item(nprop(self, "item_id"), nprop(self, "item_quantity"), quantity_mode(self._sh))) end
     elseif self._ctl == "item" then
-      host(self._h:set_item(self._p.item_id, self._p.item_quantity or 0))
+      host(self._h:set_item(self._p.item_id, self._p.item_quantity or 0, quantity_mode(self._p)))
     elseif self._h then
       realize(self) -- became (or stopped being) an item: a different control
     end
@@ -766,6 +792,13 @@ J.def(WIDGET, { kind = "class", super = "java.lang.Object", ifaces = {}, body = 
   end
   function cls.setItemQuantity(self, q)
     set_field(self, "item_quantity", q)
+    item_changed(self)
+  end
+  -- int or ItemQuantityMode; on a native cell it is restated with the
+  -- plugin's item (a cell this plugin has not re-laid keeps the game's rule)
+  function cls.setItemQuantityMode(self, m)
+    set_field(self, "item_quantity_mode", m)
+    if self._k == NATIVE and self._sh.item_id == nil then return end
     item_changed(self)
   end
 
@@ -779,11 +812,13 @@ J.def(WIDGET, { kind = "class", super = "java.lang.Object", ifaces = {}, body = 
     local t = (self._k == OWNED) and self._p or self._sh
     t.actions = t.actions or {}
     t.actions[index] = label
+    if self._k == NATIVE then native_edited[self] = true; action_cells[self] = true end
     if live(self) then arm_ops(self) end
   end
   function cls.clearActions(self)
     local t = (self._k == OWNED) and self._p or self._sh
     t.actions = {}
+    if self._k == NATIVE then native_edited[self] = true; action_cells[self] = true end
     if live(self) then arm_ops(self) end
   end
 
@@ -1097,14 +1132,26 @@ function rlw.on_menu_select(component_id, slot, op)
   return a or b
 end
 
+-- An interface closed or opened: its wrappers whose node is gone are
+-- dropped (with this plugin's children on them). One whose node still
+-- answers is the CURRENT mount's and stays: the event is delivered at the
+-- next frame start, after the mount's own scripts ran -- the bank's build
+-- (bankmain_finishbuilding's ScriptPostFired) already wrapped the new item
+-- list and QuestBankTab laid its tab out on it; dropping that wrapper split
+-- the list in two, and the tab's labels on the dropped one could never be
+-- removed again (found live: the tab's labels over the native bank after a
+-- reopen).
 function rlw.on_interface(ev)
   assert(ev)
   for key, w in pairs(wrappers) do
     local id = tonumber(key:match("^(%-?%d+):"))
     if id and (id >> 16) == ev.group then
-      forget_owned(w)
-      key_listeners[w] = nil
-      wrappers[key] = nil
+      local st = w._h and w._h:state() or nil
+      if st == nil or st.incarnation ~= w._inc then
+        forget_owned(w)
+        key_listeners[w] = nil
+        wrappers[key] = nil
+      end
     end
   end
   epoch = epoch + 1
@@ -1112,6 +1159,7 @@ end
 
 function rlw.on_stop()
   native_edited = {}
+  action_cells = setmetatable({}, { __mode = "k" })
   -- the scroll size is a plain write no reset undoes: give the game's back
   for w, size in pairs(scroll_saved) do
     if w._h then host(w._h:set_scroll_size(size[1], size[2])) end
@@ -1265,6 +1313,46 @@ function rlw.owned_menu_target(option)
     end
   end
   return found
+end
+
+-- The actions this plugin gave a NATIVE widget (clearActions / setAction:
+-- a laid-out bank cell), 0-based like Widget.setAction, and the name it
+-- gave it; nil when it never rewrote them. The menu build offers THESE
+-- (RuneLite's client builds a widget's rows from its actions).
+function rlw.native_actions(component_id, slot)
+  local w = rlw.from_menu(component_id, slot)
+  if w == nil or w._k ~= NATIVE then return nil end
+  local acts = w._sh.actions
+  if acts == nil then return nil end
+  return acts, w._sh.name
+end
+
+-- The rewritten native cell under canvas point (x, y), as
+-- (component_id, slot, actions, name), or nil: a cell the game left with
+-- no op (an empty bank slot the plugin lays a placeholder on) raises no
+-- menu row of its own, so the menu build asks where the pointer is. A cell
+-- counts while it is shown and the point is inside both its box and its
+-- parent's (a cell scrolled out of the bank list is not under the pointer).
+function rlw.native_cell_at(x, y)
+  assert(x)
+  assert(y)
+  local function inside(d)
+    return d ~= nil and not d.hidden and x >= d.x and y >= d.y and x < d.x + d.width and y < d.y + d.height
+  end
+  for w in pairs(action_cells) do
+    if w._sh.actions ~= nil and w._h ~= nil then
+      local d = detail(w)
+      if inside(d) then
+        local comp, idx = w._key:match("^(%-?%d+):(%-?%d+)$")
+        comp, idx = tonumber(comp), tonumber(idx)
+        local parent = comp and idx and idx >= 0 and rlw.get(comp) or nil
+        if comp ~= nil and (parent == nil or inside(detail(parent))) then
+          return comp, idx, w._sh.actions, w._sh.name
+        end
+      end
+    end
+  end
+  return nil
 end
 
 local retargeting = false

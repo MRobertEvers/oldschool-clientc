@@ -343,6 +343,11 @@ do
     instance_position = rec("instance_position", true),
     instance_animation = rec("instance_animation", true),
     instance_active = rec("instance_active"),
+    instance_place = rec("instance_place", true),
+    -- MOCK.instance_elements[serial] = the element an instance is drawn as;
+    -- MOCK.instance_hits[serial] = true while the pointer's pick holds it
+    instance_element = function(ref) return (MOCK.instance_elements or {})[ref.instance] end,
+    instance_hit = function(ref) return (MOCK.instance_hits or {})[ref.instance] == true end,
   }
 end
 
@@ -641,7 +646,8 @@ function MOCK_PORCELAIN_RUN()
       if #(o.value or "") > 191 or #(o.label or "") > 191 then refused[#refused + 1] = r.key; return end
     end
     if r.kind == "custom" and r.height then
-      assert(r.height >= 48 and r.height <= 2048, "custom height out of range: " .. r.key .. " " .. r.height)
+      -- -1 is TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED (a declared, hidden well)
+      assert(r.height == -1 or (r.height >= 48 and r.height <= 2048), "custom height out of range: " .. r.key .. " " .. r.height)
     end
     rows[#rows + 1] = r
     by_key[r.key] = r

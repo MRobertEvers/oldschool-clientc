@@ -77,7 +77,7 @@ To add — Lua spelling first; RuneLite meaning in brackets:
 ### Drawing (the draw callback's graphics object, `draw.*`, on_draw_world / on_draw_canvas) -- DONE 2026-11-19
 All of these are on the DRAW OBJECT (C: `ToriRS_Graphics`), in that callback's pixels.
 - `draw.polygon(points, fill_rgb, fill_alpha, outline_rgb?, outline_width?)` -> ok, reason -- `points` = `{x1, y1, x2, y2, ...}`, 1..256 points, floats truncated like Java's `(int)`. EVEN-ODD fill (java.awt.Polygon's; concave and self-crossing outlines are split into runs by the engine) when `fill_alpha` > 0; a border only when `outline_rgb` is given (`outline_width` default 1 = BasicStroke, 0 = none). Clipped to the callback's clip (the wash is cut to the box, the border's own edges are cut -- no frame along the cut). `false, 'budget'` when the frame's 512-item allotment is spent: a polygon costs n+2 items for a convex wash (more for a concave one) plus n for its border. Renders on soft3d, gl3/gl3zb, the GLES/WebGL lanes and (since this change) d3d9. [Graphics2D.fill/draw(Polygon)]
-- `draw.text_width(text)` -> integer, `draw.text_height()` -> integer, for the font `draw.text` uses (p11); nil while that font is not resident (the same frames `draw.text` draws nothing). NOTE `draw.text` draws CENTRED on x with y as the BASELINE: left-aligned layout adds `text_width/2`. [FontMetrics]
+- `draw.text_width(text)` -> integer, `draw.text_height()` -> integer, for the font `draw.text` uses (p11); nil while that font is not resident (the same frames `draw.text` draws nothing). NOTE `draw.text` draws CENTRED on x with y as the BASELINE: left-aligned layout adds `text_width/2`. In a panel well's draw (on_ui_draw, the side panel's wells) it STARTS at x on every presenter: the in-canvas/surface pages draw a left-aligned chrome TEXT prim, and the browser pages' raster (app_plugin_panel_raster_custom) shifts the centred world text by half its width to match (live-sweep round 2, 2026-11-20). [FontMetrics]
 - `draw.text(x, y, text, rgb, shadow?)` existing; keep markup-free. (There is no `shadow` argument in the C API today: draw the shadow as a second `text` at +1,+1.)
 - `draw.minimap_project(fine_x, fine_z)` -> x, y or nil -- SCENE-LOCAL fine units (like `draw.project`). The client's own dot rule: offset from the local player (pushed out through a hull when aboard), 4 px/tile (this client has no minimap zoom), turned by the angle the map was blitted at; nil when the map is not drawn, past the dot ring (80 px = RuneLite's 6400), or outside the map box. [Perspective.localToMinimap]
 - `draw.minimap_bounds()` -> {x, y, width, height, w, h, cx, cy, radius} or nil. box = the map widget box (the dot scissor), cx/cy = the player's pixel, radius = the dot ring (80), NOT the mask sprite's window. [the minimap widget + draw area]
@@ -140,9 +140,24 @@ All three cost NOTHING while no RUNNING plugin has the handler: the host asks th
 
 `TORIRS_API_V2_MODULE_RESERVED_SLOTS` is 16 (was 12): the cache module's thirteenth verb did not fit.
 
+### Panel/menu round (2026-11-19) -- C side
+- **Collapsed custom well**: `panel.set_height(id, -1)` / a Porcelain custom row's `height = -1` (`TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED`) is kept by the host (any other height under 48 is still raised to 48); the plugin window maps it to a HIDDEN chrome widget (`ToriRSChrome_SetHidden`, so the in-canvas page, the SDL surface page and the DOM all drop the row), and `ToriRSChrome_CustomRegion` answers no region for a hidden well (never painted).
+- **Popups over wells**: `ToriRSChrome_OverlayPrimStart` -- where the chrome's overlay prims (open dropdown list, colour popup, tooltip) begin; `app_chrome_merged_prims` (in-canvas) and `app_chrome_plugin_surface_present` (the SDL surface / pop-out) put the custom wells' prims BEFORE them (`ChromeCompositor_MergeAppend` / `SurfaceAppend`). The browser page already drew its list on a body-level layer (`.tpc-dropdown-backdrop`, z-index 40) over the wells.
+- **Menu payload = the whole menu** (`TORIRS_PLUGIN_MENU_ROWS_MAX` 400 = `UITREE_MINIMENU_MAX_OPTIONS`, asserted in the bridge) and **per-plugin composition** (`plugin_dispatch_menu_build`, engine `menu_row`): see "Menu editing" above.
+- **World map click**: `app_worldmap_click` first runs the click-time menu's row when a PLUGIN owns the top row (`app_minimenu_run_default_ui_row(..., plugin_top_row = 1)`; RuneLite's client runs the top entry whatever its type, and a plugin row is otherwise never a left-click default here) and then sends no ClickWorldMap. Quest Helper's "Focus on <point>" is that row. With `plugin_top_row` ONLY a plugin's top row runs (fix round 3): any other top row, an ordinary defaultable one included, returns 0 and the map's own click goes on as before plugins could put a row there.
+- **In-canvas chrome scale**: `App_ChromeCanvasPercent` -- while the plugin page is drawn IN the canvas (BUFFER, no surface; not the map editor) the display's chrome scale is divided by the canvas's layout percent (`main_chrome_scale_q`; non-touch only). A game lane on a 2x display presents a logical canvas at 200%, so the page was drawn at 2x the game's size.
+
+### Fake-objects / sailing / bank round (2026-11-19) -- C side
+- **`api.scene.instance_place(inst, fine_x, fine_z, level, height?, yaw?)`** -> ok, reason -- `instance_position` at a SUB-TILE point: ABSOLUTE fine units (tile*128 + 0..127; 64 = the tile's centre, where `instance_position` stands it), level 0..3, yaw 0..2047 (`'invalid'` otherwise, and for a negative coordinate); `'unsupported'` on an engine without it. The engine keeps the tile and the offset in it apart (`PluginObject::sub_x/sub_z`, default 64), so the tile is still what a scene rebuild re-places by, and a move is applied in place. Engine hook `object_set_fine_position` (optional). [RuneLiteObject.setLocation(LocalPoint): a ReplacedNpc following its npc between tiles]
+- **`api.scene.instance_element(inst)`** -> element id or nil -- the scene element the instance is drawn as (what `draw.world_hull` / `draw.element_height` take); nil while its model loads, off the scene, or never placed; an inactive instance keeps its element. Engine hook `object_element` (optional).
+- **`api.scene.instance_hit(inst)`** -> boolean -- the pointer is on the instance's MODEL in the frame's per-triangle pick (the render pass's hit test the minimenu is built from). The classifier now keeps every ROOT hit of an untagged element that is no npc/player/loc/obj stack beside the pickset (`World_PickSet::unclassified`, 16, never menu rows; `ToriRS_PickHitsClassifyViews`), and `app_plugin_object_hit` looks the object's element up there while the set is stamped at the pointer. false while inactive/not drawn/pointer off the viewport. A plugin object is still never a menu row of its own: the plugin offers its rows from `on_menu_build`. Engine hook `object_hit` (optional). [Perspective.getClickbox(...).contains(mouse): RuneliteObjectManager.isMouseOverObject]
+- **`api.game.world_entity_loc_next(id, cursor?)`** -> cursor, ScenerySnap -- the locs of a world entity's OWN world (deck and hull pieces, the view world's scenery table, which the root's `scenery_next` never sees), `scenery_next`'s iterator and shape: tiles ABSOLUTE staging tiles (minus `base_x/base_z` = the deck tile `world_entity_to_main` carries), level its own plane, `element_id` the drawn model. Engine hook `world_entity_loc_next` (optional; `app_plugin_fill_loc_in` over the view world). [WorldEntity.getWorldView().getScene().getTiles(): QuestPerspective.getAreaFromWorldView]
+- **`widget:set_item(obj, quantity?, quantity_mode?)`** -- the count rule as RuneLite's ItemQuantityMode (0 NEVER, 1 ALWAYS, 2 STACKABLE; -1/absent = the cell's own), C `set_item(..., int32_t quantity_mode)`; on a native cell it rides the re-lay (`UITree_WidgetSetNativeObject(..., num_mode)`: the edit keeps `obj_num_mode` and the game's `native_obj_num_mode`, reset puts the game's back, the game's own write drops it with the obj); on an owned item control it is the control's rule. The tree's own encoding differs (item_num_mode 0 stackable-only, 1 always, 2 never: `app_widget_num_mode`). [Widget.setItemQuantityMode(ALWAYS): QuestBankTab.drawItem numbers every re-laid cell, "0" on a missing item]
+- Tests: `test-plugin-host` 613 (`test_scene_instance_place`: place/element/hit through the engine, refusals, a bare engine UNSUPPORTED/-1/false; `world_entity_loc_next` of a live and a gone boat; set_item's mode reaches the adapter, -2/3 refused), `test-plugin-lua` (set_item's mode argument and its range), `test-uitree` (the count rule rides the native re-lay and goes back on reset).
+
 ### Client-APIs round (2026-11-19) -- DONE
 Every verb in `torirs_plugin_api.h` (C) AND `torirs_plugin_lua.c` (Lua) AND `plugin_api.meta.lua`; host in `torirs_plugin_host.c` (+ `torirs_plugin_runtime.inc`), engine hooks in `torirs_plugin_host.h` (all OPTIONAL: a client without one answers UNSUPPORTED / MISSING), bridge in `torirs_plugin_bridge.u.c`. Tests: `test-plugin-host` (`test_quest_helper_client_apis`), `test-plugin-lua` (`test_quest_helper_client_apis`). The cache module's reserved slots are down to 1 (`RESERVED_SLOTS - 15`), the client module's to 12.
-- **Menu editing** (`api.menu.*`, only inside `on_menu_build`; C `ToriRS_MenuApi`): `set_order(rows)` -> ok, reason -- the build's WHOLE menu, bottom row first (RuneLite's `Menu.setMenuEntries`, `removeMenuEntry`, `createMenuEntry(idx)`'s position): each entry `{row = i}` (1-based into this build's `ev.rows`) or `{tag = t}` (this plugin's own `menu.add` tag of THIS build), `deprioritized = true` sinks it below every row listed without it (order kept within each half; `MenuEntry.setDeprioritized`). A payload row or own row left out is REMOVED. Rows the call cannot name keep their place apart from it: another plugin's and the entity holders' rows go BELOW the listed ones, a native row past the payload's 16 ABOVE them. Taken when the build ends (after every plugin and the entity holders, `plugin_menu_apply_plan`); the menu is then NOT re-sorted (`PluginHost_MenuBuild` returns true and `app_plugin_menu_build` skips `UIMinimenu_SortPriorityActions`), so the order stands as given. The last plugin to call it in a build wins. `'invalid'` for an index outside the payload, a tag this plugin did not add in this build, a row listed twice, more than 16 + 24 entries. C: `struct ToriRS_MenuRowRef {row (0-based, -1 = a tag), tag, deprioritized}`. `set_text(row, text)` -> ok, reason -- replace payload row `row`'s drawn text (option, a space, the target with the client's `@tag@` colours); the row keeps its action, so a click still does what the game row does (`MenuEntry.setOption/setTarget` on a native row: RuneliteObjectManager's replace-walk); `'budget'` past 127 bytes. `shown()` -> `{x, y, width, height}` or nil -- the right-click menu's box while it is up (`Client.isMenuOpen`, `Menu.getMenuX/Y/Width/Height`); a read, any callback. [Menu.setMenuEntries/removeMenuEntry, MenuEntry.setDeprioritized, isMenuOpen]
+- **Menu editing** (`api.menu.*`, only inside `on_menu_build`; C `ToriRS_MenuApi`): `set_order(rows)` -> ok, reason -- the build's WHOLE menu, bottom row first (RuneLite's `Menu.setMenuEntries`, `removeMenuEntry`, `createMenuEntry(idx)`'s position): each entry `{row = i}` (1-based into this build's `ev.rows`) or `{tag = t}` (this plugin's own `menu.add` tag of THIS build), `deprioritized = true` sinks it below every row listed without it (order kept within each half; `MenuEntry.setDeprioritized`). `ev.rows` is the WHOLE menu (`TORIRS_PLUGIN_MENU_ROWS_MAX` = 400, every row a minimenu holds; was 16) as it stands when the handler runs, so a row left out is REMOVED. Composition (panel/menu round): plugins' `on_menu_build` run in event order (`event_priority`, higher first, as RuneLite's `@Subscribe(priority)`), each plugin's texts and order are applied when ITS handler returns (`plugin_dispatch_menu_build` -> `plugin_menu_apply_plan`), and the next plugin is handed a RETAKEN payload (`plugin_menu_retake`, engine `menu_row`) -- the menu as the earlier ones left it, their rows included -- so a later plugin orders the earlier one's result instead of the last caller winning. A deprioritized row keeps its list place and is flagged; after every plugin and the entity holders the flagged rows sink below the rest, each half in order (`plugin_menu_sink_deprioritized`). The menu is then NOT re-sorted (`PluginHost_MenuBuild` returns true and `app_plugin_menu_build` skips `UIMinimenu_SortPriorityActions`). Within one handler the last call wins. `'invalid'` for an index outside the payload, a tag this plugin did not add in this handler, a row listed twice, more than 400 + 24 entries. C: `struct ToriRS_MenuRowRef {row (0-based, -1 = a tag), tag, deprioritized}`. `set_text(row, text)` -> ok, reason -- replace payload row `row`'s drawn text (option, a space, the target with the client's `@tag@` colours); the row keeps its action, so a click still does what the game row does (`MenuEntry.setOption/setTarget` on a native row: RuneliteObjectManager's replace-walk); `'budget'` past 127 bytes. `shown()` -> `{x, y, width, height}` or nil -- the right-click menu's box while it is up (`Client.isMenuOpen`, `Menu.getMenuX/Y/Width/Height`); a read, any callback. [Menu.setMenuEntries/removeMenuEntry, MenuEntry.setDeprioritized, isMenuOpen]
 - **`api.cache.set_varbit(id, value)`** -> ok, reason -- a CLIENT-SIDE varbit write (RuneLite's `Client.setVarbit` / `setVarbitValue(getVarps(), ...)`): the same optimistic write a clientscript's own `%varbit = v` makes (`RS_CS2Host_ScriptWriteVarbit`: the bits land in the client's copy of the base varp and that varp's transmit listeners run), NEVER a packet; the server's next VARP for that varp replaces it. `'invalid'` for a varbit the client does not know, `'unsupported'` in a draw callback. [setVarbit: QuestBankTabInterface's BANK_CURRENTTAB reset, the player-made quests]
 - **`api.cache.seq_def(id)`** -> `{id, frame_count, frame_lengths = {...}, duration, frame_step, skeletal}`, `'ready'` | nil, `'pending'`|`'missing'` -- `frame_lengths` in client cycles, `duration` their sum, `frame_step` the loop-back offset (-1 none), `skeletal` an Animaya seq (its frames each read 1). A seq not in the scene's animation registry queues `CreateTask_SequenceLoad` (`'pending'`); an id the cache has no record of is `'missing'` (the loader registers an empty animation for it). C: `struct ToriRS_SeqDef` (frame_lengths a caller's `ToriRS_DefList`). [Client.loadAnimation, Animation.getNumFrames/getFrameLengths/getDuration: RuneLiteObject animations]
 - **`api.client.open_url(url)`** -> ok, reason -- the player's browser (`LinkBrowser.browse`): through the slot the server's URL_OPEN already uses (`host.client.pending_open_url` -> main.c `PlatformWindow_OpenUrl`: `SDL_OpenURL` on desktop and the browser lane's `window.open`, `ShellExecute` on win32, the Android activity's intent), at that frame's end. Only `http://` / `https://`, printable, at most 500 bytes (`'invalid'`); `'unsupported'` on a lane with no person to show it to (`App::plugin_open_url_ok`, set by main.c: false under `SDL_VIDEODRIVER=dummy|offscreen` and on a replay) and in a draw callback; `'conflict'` while an earlier url of the frame is still waiting. Logged `plugin: open_url <url>`.
@@ -159,7 +174,7 @@ Split by file so agents never share one:
 | `rl_core.lua` | EventBus (register/unregister/post; dispatch to `__def.subscribe` methods by event key and priority), the injector (`J.inject(obj)` fills `@Inject` fields from a singleton table; `Injector.injectMembers/getInstance/createChildInjector`; `Binder`), ClientThread (invoke/invokeLater/invokeAtTickEnd -> run now or queue to next frame), ConfigManager (getConfig(QuestHelperConfig) proxy reading `api.config` for declared items and falling back to the default methods; get/setConfiguration and RSProfile variants for undeclared keys, persisted via `api.assets.save` JSON), Plugin/PluginManager/ClientToolbar/NavigationButton, events classes (GameTick, VarbitChanged, ChatMessage, WidgetLoaded, ItemContainerChanged, NpcSpawned, MenuEntryAdded, ...), CommandExecuted, the clock (`J.now_ms`), logging (`J.log`) |
 | `rl_client.lua` | `net.runelite.api.Client` (vars, varcs, skills, game state, tick, plane, world types, item containers, getWidget, runScript/getIntStack, menu, enums/defs, hint arrows, chat, sound, canvas sizes, camera), ItemContainer/Item, ItemComposition/NPCComposition/ObjectComposition/EnumComposition, QuestState lookups, ItemManager, SpriteManager, SkillIconManager, ChatMessageManager/ChatMessageBuilder/QueuedMessage, Text, QuantityFormatter, ColorUtil, JagexColors, ColorScheme |
 | `rl_world.lua` | WorldPoint/WorldArea/LocalPoint/Point/Direction, WorldView/Scene/Tile, Actor/NPC/Player, TileObject/GameObject/WallObject/DecorativeObject/GroundObject, TileItem/ItemLayer, IndexedObjectSet, Perspective (canvas/minimap/tile poly), WorldEntity, instance templates (fromLocalInstance via `api.world.instance_zone`), RuneLiteObject/Model/ModelData (scene instances via `api.scene`) |
-| `rl_widgets.lua` | `net.runelite.api.widgets.Widget` over `api.widgets` (read + every setter the plugin uses; owned children for createChild), JavaScriptCallback, ScriptEvent, WidgetType/position modes, ChatboxPanelManager/ChatboxInput, BankSearch, the GE search hooks. Exports `J.rl_widget(handle)` (what rl_client's getWidget calls) and `J.rlw`: `get(component_id)`, `get_child(group, child)`, `from_menu(component_id, slot)` (a CC_OP row's child -- MenuEntry.getWidget should use it), `script_event(fields)` (ScriptPreFired.getScriptEvent), and the entry's fan-in: `on_key(ev)` -> consumed (chatbox-panel KeyListeners + JavaScriptCallback onKey), `on_menu_select(component_id, slot, op)` -> consumed (JavaScriptCallback onOp/onClick put on a NATIVE widget), `on_interface(ev)`, `on_screen_changed(screen)`, `invalidate()` (after native scripts ran mid-frame), `on_stop()`; GE: `ge_searched(event_bus)` -> consumed, `{index, count, ids}` and `ge_set_index/ge_set_count/ge_set_ids` (Client.setGeSearchResult*); bank-tab round: `on_script_pre(script_id)` (drops this plugin's edits on the children of a container that script rebuilds), `menu_retarget(entry)` -> consumed, `owned_menu_target(option)` -> name. Owned kinds: TEXT -> text, GRAPHIC -> image (item when it carries an obj), RECTANGLE -> rect, MODEL -> model (an item model when it carries an obj, else by model type: 2 npc chathead, 3 local player, else a cache model); a native widget's setItemId/setItemQuantity/setOpacity/setHidden(false)/setScrollHeight reach the host's native verbs (set_item, set_opacity, set_native_hidden, set_scroll_size). Native dynamic children are read once a frame (invalidate() and every runScript drop the cache). The game's scroll size of a native layer is kept before the first setScrollHeight/Width and written back at `on_stop` (a plain write no reset undoes); BANKMAIN_FINISHBUILDING (505) writes its own, so a rebuild forgets the saved one. BankSearch's runs and rl_client's runScript retry a `'pending'` run (BankSearch: on the ClientThread, up to 120 frames; runScript: raises J.PendingMT so the asking task or dispatch runs again) |
+| `rl_widgets.lua` | `net.runelite.api.widgets.Widget` over `api.widgets` (read + every setter the plugin uses; owned children for createChild), JavaScriptCallback, ScriptEvent, WidgetType/position modes, ChatboxPanelManager/ChatboxInput, BankSearch, the GE search hooks. Exports `J.rl_widget(handle)` (what rl_client's getWidget calls) and `J.rlw`: `get(component_id)`, `get_child(group, child)`, `from_menu(component_id, slot)` (a CC_OP row's child -- MenuEntry.getWidget should use it), `script_event(fields)` (ScriptPreFired.getScriptEvent), and the entry's fan-in: `on_key(ev)` -> consumed (chatbox-panel KeyListeners + JavaScriptCallback onKey), `on_menu_select(component_id, slot, op)` -> consumed (JavaScriptCallback onOp/onClick put on a NATIVE widget), `on_interface(ev)`, `on_screen_changed(screen)`, `invalidate()` (after native scripts ran mid-frame), `on_stop()`; GE: `ge_searched(event_bus)` -> consumed, `{index, count, ids}` and `ge_set_index/ge_set_count/ge_set_ids` (Client.setGeSearchResult*); bank-tab round: `on_script_pre(script_id)` (drops this plugin's edits on the children of a container that script rebuilds), `menu_retarget(entry)` -> consumed, `owned_menu_target(option)` -> name. Owned kinds: TEXT -> text, GRAPHIC -> image (item when it carries an obj), RECTANGLE -> rect, MODEL -> model (an item model when it carries an obj, else by model type: 2 npc chathead, 3 local player, else a cache model); a native widget's setItemId/setItemQuantity/setOpacity/setHidden(false)/setScrollHeight reach the host's native verbs (set_item, set_opacity, set_native_hidden, set_scroll_size). Native dynamic children are read once a frame (invalidate() and every runScript drop the cache). The game's scroll size of a native layer is kept before the first setScrollHeight/Width and written back at `on_stop` (a plain write no reset undoes); BANKMAIN_FINISHBUILDING (505) writes its own, so a rebuild forgets the saved one. BankSearch's runs and rl_client's runScript retry a `'pending'` run (BankSearch: on the ClientThread, up to 120 frames; runScript: raises J.PendingMT so the asking task or dispatch runs again). Bank-fidelity round: `native_actions(component_id, slot)` -> the actions (0-based) and name the plugin gave a NATIVE widget (nil if it never rewrote them) and `native_cell_at(x, y)` -> the rewritten cell under a canvas point (shown, inside its box and its parent's), which rl_client's menu build offers (below); `setItemQuantityMode` reaches `set_item`'s mode; an OWNED child's `getParent()` is the live wrapper its parent's key names now (RuneLite's client.getWidget(parentId)); `on_interface` drops only the wrappers whose node is gone (the event arrives a frame after the mount's own scripts ran: dropping the bank list wrapper the tab had just laid out on split it, and the tab's labels could never be removed) |
 | `awt.lua` + `rl_overlay.lua` | java.awt Color/Rectangle/Point/Polygon/Shape/geom/BasicStroke/Font/FontMetrics/BufferedImage/Graphics2D (a Graphics2D over the draw callback's `draw`), Overlay/OverlayManager/OverlayPanel/OverlayUtil/OverlayLayer/OverlayPosition/OverlayPriority, PanelComponent/LineComponent/TitleComponent, ModelOutlineRenderer, WorldMapPoint/WorldMapPointManager, TooltipManager, ImageUtil, ImageIcon |
 
 ### World shapes (rl_world.lua -> awt.lua / rl_overlay.lua)
@@ -238,7 +253,18 @@ ignored (there is one top-level world view):
 - `C["net.runelite.api.TileObject"].__invalidate()` -- drop the per-cycle scene
   index (on a scene load / GameStateChanged LOADING).
 - `C["net.runelite.api.RuneLiteObject"].__new(client)` -- the constructor
-  (Client `createRuneLiteObject()`); `RuneLiteObject.__destroyAll()` frees
+  (Client `createRuneLiteObject()`). `setLocation(lp)` keeps the POINT (absolute
+  fine, a boat-world point carried to the main world) and places every scene
+  instance with `api.scene.instance_place` (tile placement only on an engine
+  without it); `getModel()` is a view of the model set that knows the object
+  (`model.rlo`): `Model.getModelHeight` reads the tallest of its instances'
+  elements, and `Perspective.getClickbox(client, wv, model, ...)` of it is the
+  footprint box at the real height carrying `__world = {kind = "hull",
+  element_id, elements = {...}}` (a fill/outline goes to `world_hull` of each,
+  awt `each_hull`) whose `contains` AT THE POINTER is `api.scene.instance_hit`
+  of any instance (anywhere else the box). `__elements()` / `__element_id()` /
+  `__hit()` are what ModelOutlineRenderer and the clickbox read.
+  `RuneLiteObject.__destroyAll()` frees
   every scene instance (plugin shutdown).
 - `C["net.runelite.api.ModelData"].__load(id)` (Client `loadModelData`),
   `C["net.runelite.api.ModelData"].__merge(arr)` (Client
@@ -249,9 +275,15 @@ ignored (there is one top-level world view):
   `J.rl_load_model_data(id)`, `J.rl_merge_models(arr)`,
   `J.rl_load_animation(id)`.
 
-rl_world needs from rl_client: `C["net.runelite.api.Client"].npc_composition(id)`
--> NPCComposition or nil (for `NPC.getComposition` = the base/shell id and
-`getTransformedComposition` = the drawn id).
+rl_world needs from rl_client: `C["net.runelite.api.Client"].npc_actor_composition(id)`
+-> NPCComposition, NEVER nil (for `NPC.getComposition` = the base/shell id and
+`getTransformedComposition` = the drawn id; a drawn id of -1 is RuneLite's null
+without asking): a record still loading raises J.PendingMT (`cache:npc:<id>`),
+one this cache does not have reads as RuneLite's default definition (that id,
+name "null", no actions) -- RuneLite's NPC getters are never null, and
+NpcStep.npcPassesChecks calls `getComposition():getId()` unguarded (an npc
+missing from cache.osrs239 disabled the whole plugin, fix round 3).
+`npc_composition(id)` (getNpcDefinition's) keeps nil for a missing id.
 
 ### Sailing (rl_world.lua, fix round 2)
 
@@ -278,10 +310,21 @@ LocalPoints of actors stay the ROOT's (where they are drawn).
   floats on, not the deck's.
 - Perspective (`localToCanvas`, `localToMinimap`, `getCanvasTileAreaPoly`)
   carries a boat-world LocalPoint to the main world first.
-- NOT modelled: a boat's own scene (its deck locs reach a plugin through the
-  top level's scene at their staging tiles), so `QuestPerspective.
-  getAreaFromWorldView` finds nothing and WorldEntityStep / BoardShipStep draw
-  their plain arrow at the defined point instead of outlining the hull; NpcStep
+- A boat's own scene (fake-objects/sailing/bank round): `WorldView$Boat:getScene():getTiles()`
+  is built once a frame from `api.game.world_entity_loc_next` as
+  Tile[plane][x][y] of the staging rectangle (`Tile$Boat`, nil where nothing
+  stands); its locs are ordinary GameObject/WallObject/... addressed in the
+  boat's world (`getWorldView()` the boat's, `getLocalLocation()` carrying its
+  id, `getWorldLocation()` a staging tile), and a hull of one is its footprint
+  box with EVERY corner carried through `world_entity_to_main` (so a turned
+  boat's outline turns), a PLAIN polygon (RuneLite fills a boat's Area in 2D,
+  renderHoverableArea) naming its model in `__boat_element` for
+  ModelOutlineRenderer. `QuestPerspective.getAreaFromWorldView` therefore
+  outlines the unnamed ("null") hull pieces, and WorldEntityStep /
+  BoardShipStep put their arrow over that outline. The Area is a LIST of the
+  hulls (awt's Area does not union), so overlapping translucent washes
+  stack where RuneLite's union would not. Verified in the harness with
+  recorded-shape data only (no boat reached live). NpcStep
   with `allowMultipleHighlights` lists top-level npcs twice while the player is
   aboard (its third loop walks the top level again); nested boats only through
   `world_entity_to_main`.
@@ -329,10 +372,13 @@ LocalPoints of actors stay the ROOT's (where they are drawn).
 - **Passes.** The entry calls `QH.render("world", draw)` from on_draw_world and
   `QH.render("canvas", draw)` from on_draw_canvas. `QH.render` sets `QH.draw = draw`
   for the duration and clears it after; rl_world's Perspective (project, minimap,
-  world map) reads `QH.draw`. World pass: overlays on ABOVE_SCENE / UNDER_WIDGETS
-  whose position is DYNAMIC or DETACHED. Canvas pass: every other overlay
-  (ABOVE_WIDGETS, ALWAYS_ON_TOP, and a positioned overlay on any layer -- the
-  TOP_LEFT quest panel is UNDER_WIDGETS), then the world map points (each
+  world map) reads `QH.draw`. World pass (over the world, UNDER the
+  interfaces): every overlay on ABOVE_SCENE / UNDER_WIDGETS, positioned or not
+  -- RuneLite draws those layers before the widgets, so an interface covers
+  them; the TOP_LEFT quest panel is UNDER_WIDGETS, so the world map's Key panel
+  is drawn over it (panel/menu round; it was in the canvas pass and drew over
+  the map). Canvas pass: ABOVE_WIDGETS and ALWAYS_ON_TOP (the quest panel
+  while a step overlays a widget), then the world map points (each
   remembers the box it was drawn in, `qh_wmp.box`; the one under the mouse is
   the hovered point: its `getTooltip()` joins the tooltips, and a jump-on-click
   one offers "Focus on" through `QH.worldmap_menu()`, client-APIs round), then the
@@ -483,7 +529,8 @@ through `QH.core` (set when the file loads):
   (`pending = "cache:npc:<id>"`, ...) while the cache is still loading the
   record (RuneLite's getters never answer "not yet"; null would read as "no
   such npc"): a ClientThread task or a one-off dispatch runs again later.
-  `npc_composition` (rl_world's) keeps the nil answer.
+  `npc_composition` keeps the nil answer for a missing id;
+  `npc_actor_composition` (rl_world's NPC getters) never answers nil.
 - Skill: `Skill.ordinal()` is the client's stat index (Attack 0 .. Sailing 23).
   GameState: `api.core.screen()` numbers ARE GameState's (0, 10, 20, 30); in game
   with no `scene_origin` reads LOADING.
@@ -528,11 +575,35 @@ the native row returns THAT entry and `menu_click` runs its consumer, and the
 game's own action still follows. `menuAction` runs CC_OP (`api.cache.invoke`),
 does nothing for a RUNELITE* kind (no client action behind it, as RuneLite),
 and logs any other kind once (no helper uses one: ReplacedNpc's copied npc
-options would, but nothing calls `createReplacedNpc`).
+options would, but nothing calls `createReplacedNpc`; re-checked in the
+panel/menu round -- the generated code's only `menuAction` call is
+QuestBankTabInterface's CC_OP potion-store button, so no client dispatch of
+other kinds was built). The payload is the whole menu and plugins' orders
+compose by `event_priority` (C side, "Menu editing" above): a higher-priority
+plugin's row is a payload row by the time Quest Helper's subscribers run, so
+QuestMenuHandler's "just below the top row" is below THAT row.
 
 Every file is tested by `tools/questhelper_port/harness/` against a mock `api`
 (`harness/mock_api.lua`, one section per area, each agent owns its section's
 functions -- add, do not rewrite others').
+
+### Menu rows of a rewritten widget (rl_client, bank-fidelity round)
+
+RuneLite's client builds a widget's menu rows from its actions, so a bank
+cell QuestBankTab re-lays (`clearActions` + `setAction`) offers the plugin's
+actions. Here the cell's NATIVE ops are what the client offers, so
+`menu_begin` rewrites the build before MenuEntryAdded is posted: a CC_OP row
+on a rewritten native widget (`J.rlw.native_actions`) is relabelled to action
+`identifier - 1` (and its target to the widget's name), dropped when the
+plugin left that action empty, and an action with no native op is a CREATED
+CC_OP entry naming the cell (`param0` slot, `param1` component, `identifier`
+op), placed with the cell's rows; when no row named a rewritten widget (an
+empty bank slot under a placeholder raises none), the rewritten cell under
+the pointer (`J.rlw.native_cell_at`) offers its actions on top. A relabelled
+native row is chosen as what it says now (`menu_select` keeps it). "Details"
+on a placeholder therefore reaches QuestBankTab.onMenuOptionClicked, which
+consumes it (handleFakeItemClick's chat line); a relabelled Withdraw still
+runs the cell's own op, moved by menu_retarget as before.
 
 ## The panel (ui/)
 
@@ -589,7 +660,10 @@ binding keeps one per row). Native rows carry the controls: the
 filter/difficulty/ordering selects, skill and region filter toggles,
 "Assist level", "Close helper", the quest's HelperConfig selects, the assist
 page. The well count never shrinks while typing or collapsing, so those are
-setters, not rebuilds.
+setters, not rebuilds; a well past the content is COLLAPSED (`height = -1`,
+`TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED`: still declared, hidden on every
+presenter -- no room, no frame, never painted -- and grown back by a setter),
+so a search that matches two quests leaves no empty boxes (panel/menu round).
 
 The wells measure text with `draw.text_width(text)` / `draw.text_height()` on
 the PANEL WELL's draw object too (the same `ToriRS_Graphics` the canvas
@@ -811,9 +885,9 @@ aliases.txt only after checking its id in our compack.
 ## Status
 
 - 2026-11-19: transpiler, Java runtime, harness (271/272 helpers set up
-  against stubs), Lua sandbox C changes + tests done. UNCOMMITTED.
+  against stubs), Lua sandbox C changes + tests done. COMMITTED and deployed (415d2d665..791d0a73c).
 - 2026-11-19 (integration): the plugin entry, plugins.ini, assets, the
-  facade, the transpiler fixes above. UNCOMMITTED.
+  facade, the transpiler fixes above. COMMITTED and deployed (415d2d665..791d0a73c).
   - Harness: every `tools/questhelper_port/harness/test_*.lua` passes
     (test_entry 78, test_rl_core 399, test_awt 151, test_panel 135,
     test_rl_client 135, test_rl_world 132, test_rl_widgets 116);
@@ -845,7 +919,7 @@ aliases.txt only after checking its id in our compack.
     (sprite_image, ScriptPre/PostFired, VarClientIntChanged,
     CommandExecuted, dynamic loc spawns, the facade's null requirement
     reads, module unloading, world map points, bank tab, other renderers).
-- 2026-11-19 (fix round, after the critic's review). UNCOMMITTED.
+- 2026-11-19 (fix round, after the critic's review). COMMITTED and deployed (415d2d665..791d0a73c).
   - C: `cache.sprite_image`, `panel.show`, `on_loc_changed`, `on_map_anim`,
     `on_item_search` (the GE search hook in OC_FIND), actor fields on
     NpcSnap/PlayerSnap; `PluginHost_ServerTick` asserts its host (the one
@@ -890,7 +964,7 @@ aliases.txt only after checking its id in our compack.
     developer commands (no command hook; developerMode is false); the
     panel's Discord/GitHub/Patreon/wiki links (no URL API);
     `api.cache.seq_def` (Animation frames); renderers other than soft3d.
-- 2026-11-19 (residency round, Lua only). UNCOMMITTED.
+- 2026-11-19 (residency round, Lua only). COMMITTED and deployed (415d2d665..791d0a73c).
   - The residency pass and the frame-spread list jobs (the entry, "The
     plugin entry" -> Residency / The quest list); `rt/j_core.lua`
     `J.lazy_is_facade`, `J.lazy_shadow`, `J.lazy_answer`, `J.lazy_harvested`,
@@ -914,7 +988,7 @@ aliases.txt only after checking its id in our compack.
     harvests only until 8 MB live (~38 helpers) and unloads nothing;
     `api.sandbox.memory_limit` (C, with `memory_mb=`) for a larger cap. Not
     run live (Lua-only round; no client build).
-- 2026-11-19 (bank-tab round). UNCOMMITTED.
+- 2026-11-19 (bank-tab round). COMMITTED and deployed (415d2d665..791d0a73c).
   - C: script hooks -- `CS2VM2_SetScriptHook` / `CS2VM2_ScriptWatch` in
     `src/cs2vm2` (PRE at a top-level script's first opcode and at a gosub
     once the callee is pushed, POST at RETURN; `CS2VM2_Frame::hooked`,
@@ -975,7 +1049,7 @@ aliases.txt only after checking its id in our compack.
     native ops of a re-laid cell cannot be replaced, so "Details" is not
     offered; the item highlight overlay draws over the scrolled-out part of
     the list).
-- 2026-11-19 (client-APIs round). UNCOMMITTED.
+- 2026-11-19 (client-APIs round). COMMITTED and deployed (415d2d665..791d0a73c).
   - C: menu editing (`menu.set_order` / `set_text` / `shown`: the host's
     per-build plan, payload rows tracked through the entity holders' drops,
     applied after them; an ordered build is not re-sorted), `cache.set_varbit`
@@ -1031,7 +1105,7 @@ aliases.txt only after checking its id in our compack.
     on a Quest Helper point both focuses and moves; ReplacedNpc's copied npc
     options would need menuAction of npc ops; QH's developer commands do
     nothing while developerMode is false).
-- 2026-11-19 (live-sweep round). UNCOMMITTED.
+- 2026-11-19 (live-sweep round). COMMITTED and deployed (415d2d665..791d0a73c).
   - HOW: one private embed client (`make -C src EMBED_SERVER=1 OPT=1
     PLATFORM_OBJ_BASE=build_qhsweep PLATFORM_TARGET=torirs_qhsweep`, removed at
     the end), driven with `tools/agent/torirs_agent.py` on a copy of
@@ -1113,7 +1187,7 @@ aliases.txt only after checking its id in our compack.
     re-checked; the panel's dropdown is overdrawn by the list wells; the
     TOP_LEFT overlay draws over the world map; padded search wells show empty
     boxes; the window at 2x on GL; eviction only above 42 MB).
-- 2026-11-19 (fix round 2, after the critic's second review). UNCOMMITTED.
+- 2026-11-19 (fix round 2, after the critic's second review). COMMITTED and deployed (415d2d665..791d0a73c).
   - Critic's own runs, recorded here: `tools/scan_meter_gate.sh` with Quest
     Helper ENABLED (plugin prefs only; private OPT=1 embed build, 4000 frames)
     passes desk and phone -- boot 59 modules / 6.0 MB, residency 259/272
@@ -1179,3 +1253,403 @@ aliases.txt only after checking its id in our compack.
     consumers, fake objects / Cheerer / the quest-complete scroll; web,
     Android, Windows and the phone layout not run; panel and menu items carried
     from earlier rounds).
+- 2026-11-19 (panel/menu round). UNCOMMITTED.
+  - FIXED: (1) an open Filters/Ordering dropdown was drawn UNDER the quest
+    list's wells -- the wells' prims were appended after the window's whole
+    display list, its popups included; now panels, wells, then popups, on the
+    in-canvas and the SDL surface presenters (`ToriRSChrome_OverlayPrimStart`).
+    (2) Search left empty 48 px boxes: the spare wells are COLLAPSED (-1),
+    not padded. (3) The TOP_LEFT step panel drew over the world map's Key
+    panel: ABOVE_SCENE / UNDER_WIDGETS overlays are drawn in the world pass
+    (under the interfaces, RuneLite's layer order) whatever their position.
+    (4) The plugin page at 2x on the GL lanes: it was the in-canvas page in a
+    real 2x window (the soft3d runs used SDL's dummy driver, density 1) --
+    the in-canvas chrome now divides the canvas's 200% back out. (5) Menu:
+    the payload was the first 16 rows; it is the whole menu, and two plugins'
+    `set_order`s compose by `event_priority` (was: the last caller won, and
+    another plugin's rows sank to the bottom). (6) A left click on a Quest
+    Helper world map point jumped the map AND sent ClickWorldMap (a teleport
+    on a development server): a plugin's top row now takes the click.
+  - Tests: `test-plugin-host` 602 (+ compose by priority, a 20-row menu
+    whole, collapsed well), OPT=0 and OPT=1; mutation (a throwaway worktree:
+    apply only the last plugin's plan) fails 5 checks.
+    `test-chrome-compositor` (+ popups after wells, both lists),
+    `test-editor-dropdown` 77 (+ overlay start splits panels from the open
+    list), `test-worldmap-drag`, `test-uitree`, `test-cs2-script-hooks`,
+    `test-panel-overlay-stage`, `test-porcelain` 655, `test-feature-flags` 71,
+    `test-nxt-plugins` 89, `test-plugin-lua` (OPT=0/1), `check-tree-walks`,
+    `check-pt-switch`, `tools/scan_meter_gate.sh` on the private build (desk +
+    phone) pass; `test-plugin-lua-api-inventory` fails only on the known
+    api.drive lines. Harness: test_panel 137 (+ search collapses the spare
+    wells, clearing grows them back), test_awt 155 (+ UNDER_WIDGETS panel in
+    the world pass, ALWAYS_ON_TOP in the canvas pass), test_entry 122,
+    test_rl_core 407, test_rl_client 160, test_rl_world 157, test_rl_widgets
+    144, test_residency 42 (+7), check_inventory 0 missing, run_all_real
+    272/272.
+  - LIVE (private OPT=1 embed build `build_qhpanel`, removed; scratch prefs,
+    a scratch script dir with a probe plugin at `event_priority = 10`;
+    soft3d under SDL dummy, the in-canvas page via `TORIRS_CHROME_EXECUTOR=web`
+    + `TORIRS_SIM_PLUGIN_PANEL`): the Filters list drawn over the quest list and
+    "Members" picked from the part of the list lying over the well (156
+    helpers; the well took no click); search "cook" under Members -> 0
+    matches and NO box, under Free To Play one well with Cook's Assistant and
+    no empty boxes, cleared -> the full list back with the field still
+    focused. Quest list right-click with the probe ordering its own "Probe
+    top" on top: "... Read journal / Start Quest Helper / Probe top" (Quest
+    Helper's row below the probe's top row; it used to sink the probe's row
+    to the bottom), and "Start Quest Helper" started Cook's Assistant. World
+    map open with Cook's Assistant: the Key panel unobstructed (the step
+    panel no longer over it); a bare-map click teleported (3212,3253 ->
+    3251,3151, the control), then a left click on the Quest Helper point
+    jumped the map to the point and the player stayed at 3251,3151 (before
+    the fix the same click teleported to the point). GL (`--opengl3`, hidden
+    real window, 2x display): chrome q 8 -> 4 once the page is in the canvas,
+    the page the same size as on soft3d (before: twice it).
+  - NOT DONE / NOT SEEN: the browser (DOM) and the SDL-surface presenters'
+    dropdown order were not seen live (the surface page shares the compositor
+    change and its unit test; the DOM list was already on top by CSS); a menu
+    of more than 16 rows was not built live (unit-tested only);
+    `Client.menuAction` of non-CC_OP kinds was not built (no caller); the
+    phone's in-canvas chrome scale was deliberately left as it was (touch);
+    opengl3-zbuffer, web, Android and Windows not run.
+- 2026-11-19 (fake-objects / sailing / bank-fidelity round). UNCOMMITTED.
+  - C: `api.scene.instance_place` / `instance_element` / `instance_hit`
+    (sub-tile placement, the drawn element, the per-triangle pick through the
+    pickset's new `unclassified` hits), `api.game.world_entity_loc_next` (a
+    boat's own locs), `widget:set_item(..., quantity_mode)` (the count rule
+    rides a native re-lay); see "Fake-objects / sailing / bank round -- C side".
+  - Lua: RuneLiteObject over them (sub-tile `setLocation`, a model view that
+    knows its instances, the clickbox's `contains` = `instance_hit` at the
+    pointer, outlines of every instance; ModelOutlineRenderer's
+    `__element_id` was called but never defined); the boat's own scene
+    (`WorldView$Boat` tiles from `world_entity_loc_next`, hulls through
+    `world_entity_to_main`, getAreaFromWorldView outlines the unnamed pieces);
+    widget actions as menu rows ("Details"), `setItemQuantityMode`.
+  - FIXED (found live): (1) the quest-completion fan never appeared --
+    `Cheerer.activateCheerer` threw IndexOutOfBounds on an empty list: the
+    Wise Old Man's npc record was still loading when the login built the
+    fans, `GlobalFakeObjects.createNpcs` had already set its `initialized`
+    latch, and the dispatch's replay found it set. The entry now undoes a
+    pending build (`guard_global_fakes`: its half-made "global" group removed,
+    the latch cleared, the pending re-raised) so the replay builds it whole.
+    (2) After closing and reopening the bank with the tab on, turning the tab
+    off left its section labels over the native bank: `rlw.on_interface`
+    (delivered a frame after the mount's scripts ran) dropped the item list's
+    wrapper the tab had just laid out on, and later removals went through a
+    different wrapper -- it now drops only wrappers whose node is gone, and an
+    owned child's `getParent` is the live wrapper. (3) QuestBankTab's
+    tick-end layout (`sortBankTabItems`) re-run after a pending record added a
+    second copy of its widgets and could land after the tab was turned off:
+    the entry runs it from `removeAddedWidgets` and not at all for a tab no
+    longer shown (`guard_bank_layout`, RuneLite's order).
+  - Checked, not changed: `Bike Shedder` has no fake NPC and nothing in this
+    quest-helper checkout constructs a `PlayerMadeQuestHelper` (the only
+    caller of `QuestCompletedWidget.createWidget`) or a ReplacedNpc /
+    FakeObject / FakeItem: the Cheerer (FakeNpc, `show_fan`) is the only fake
+    object a player can reach, and the quest-complete scroll seen live is the
+    SERVER's. RuneLite's `ScriptID.POTIONSTORE_WITHDRAW_DOSES` is folded by
+    the transpiler to 4818, which in this cache IS the withdraw-doses proc
+    (OSRS-Content `torirs_ca_npc_task_vb.cs2`, a misnamed proc that switches
+    on the potion enum and answers `%varb..._potionstore_vile_size_*`; 6555 is
+    a row-drawing clientscript here), and 3750 is
+    `torirs_potionstore_doses` -- both by body, not by number.
+  - Tests: harness test_entry 125 (+ a pending fan build replayed whole; the
+    mutation without `guard_global_fakes` fails it), test_rl_world 181 (+
+    sub-tile place, elements, model height, clickbox pick hit/miss/Area,
+    inactive; + the boat's scene tiles, a boat loc's world view/location,
+    its hull through the transform, getAreaFromWorldView of two unnamed
+    pieces), test_rl_client 171 (+ widget actions: relabel, drop, created
+    row, empty cell under the pointer, choosing them), test_rl_widgets 160
+    (+ native_actions/native_cell_at, the mode on the re-lay, an owned
+    child's live parent after a reopen, a late interface event keeps a live
+    wrapper -- the mutation that drops it fails), test_rl_core 407, test_awt
+    155, test_panel 137, test_residency 42 (+7), check_inventory 0 missing,
+    run_all_real 272/272. C: `test-plugin-host` 613, `test-uitree`,
+    `test-plugin-lua` (OPT=0, -o the inventory), `test-cs2-script-hooks`,
+    `test-panel-overlay-stage`, `test-porcelain` 655, `test-feature-flags` 71,
+    `test-nxt-plugins` 89, `check-tree-walks`, `check-pt-switch` pass;
+    `test-plugin-lua-api-inventory` fails only on the known api.drive lines.
+  - LIVE (private OPT=1 embed build `build_qhfake`, removed; soft3d under SDL
+    dummy, agent API, a copy of fresh_lumbridge, Quest Helper enabled with
+    `show_fan=1` in a scratch TORIRS_PLUGIN_PREFS): completing Ethically
+    Acquired Antiquities (`::eaabmp_64_complete_scroll`, after
+    `::eaabmp_journal_00_not_started`) -> "Wise Old Man: Congratz on
+    completing the quest!" (before the fix: the IndexOutOfBounds line), and
+    on a second completion Zoinkwiz stood behind the player with the
+    overhead line; a right-click on his model offered "Examine Zoinkwiz" (a
+    right-click beside it did not) and choosing it printed "Loves
+    questing.". Bank (Draynor, Cook's Assistant from the quest list): the tab's
+    cells numbered by the cell itself ("1/1" pot and bucket, "0/1" egg, flour,
+    milk); right-click on the missing egg offered only "Details Egg" and it
+    printed "You need 1 x Egg. Can be obtained during the quest.."; the pot's
+    rows were the plugin's (Withdraw-1 ... Placeholder, Examine) and
+    Withdraw-1 withdrew the pot; the tab turned on, the bank closed and
+    reopened, the tab off (native bank clean) and on again.
+  - NOT DONE / NOT SEEN: no boat reached live (world entities need the sailing
+    harness's manifest), so the hull outline is harness-only, and whether
+    `draw.world_hull` outlines a DECK element where the descent draws it is
+    unknown (boat hulls are drawn as plain polygons for that reason); the
+    potion store was unlocked and stocked by `::setvar` but no quest in reach
+    needs a potion, so the withdraw-from-store path and "open the tab from the
+    potion store" were not driven; this client's potion store button reads
+    "Potion Storage" (OSRS-Content `torirs_potionstore_btn.cs2`) where
+    QuestBankTabInterface.handleClick tests `startsWith("Potion store")`, so a
+    click on it does not close the quest tab; sub-tile placement and the
+    rotation toward the player were exercised only by the harness (the
+    Cheerer stands on a tile centre); a menu hit on the fan model was sampled
+    at one point; d3d9/GL/web/Android pick paths were not run.
+- 2026-11-20 (live-sweep round 2: the web lane, the features never seen live,
+  a long session). UNCOMMITTED.
+  - HOW (native): one private OPT=1 embed client (`build_qhlive`, removed),
+    soft3d under SDL dummy, agent API, a copy of fresh_lumbridge, Quest Helper
+    enabled in a scratch TORIRS_PLUGIN_PREFS, `TORIRS_SCRIPT_DIR` = a scratch
+    script dir of symlinks whose `quest_helper.lua` was a copy with a probe
+    (every posted event logged by kind, `::qhdump <group> <child>` dumping a
+    widget's dynamic children, `::qhstep` naming the active step) -- the probe
+    never touched the tree. The panel via `TORIRS_SIM_PLUGIN_PANEL` + the
+    in-canvas page (`TORIRS_CHROME_EXECUTOR=web`).
+  - HOW (web): private `PLATFORM=web OPT=1` build into `build-web-qh/` (objdir
+    `build_qhweb`), a private `io_server` (`--port 8810`, a scratch boot root
+    whose `script/` was the probe dir) and a private torirsserver on 43710
+    (`TORIRSSERVER_DEV=1` for cheats, scratch saves), all removed; Playwright
+    MCP on localhost only, a test password, `--webgl2` then `--soft3d`; cheats
+    typed through `Module.ccall('torirs_web_text_input')` / `torirs_web_key`
+    (Playwright's keys never reach the SDL canvas).
+  - LIVE, native (soft3d):
+    - World lines: Tree Gnome Village's "Follow the marked path" -- the maze
+      path drawn on the ground, on the minimap and on the world map.
+    - Server hint arrow: TGV stage 7, the Khazard warlord's fight -- the
+      server's arrow on `khazard_warlord_combat`, and NpcHintArrowRequirement
+      (client.getHintArrowNpc) moved the step to the fight. Whether Quest
+      Helper's own world/minimap arrows stand down for that npc
+      (NpcStep.renderArrow) was not checked separately.
+    - ServerNpcLoot: `::kill khazard_warlord_combat` and a fire elemental in
+      the Elemental Workshop posted ServerNpcLoot with the composition (items
+      list(0): the kill dropped nothing); AchievementDiaryStepManager wrote
+      `kandarin-easy-killed-fire=true` to qh_config.json.
+    - WorldMapAreaChanged: opening the world map raised ScriptPre/PostFired
+      1712 and WorldMapAreaChanged GIELINOR_SURFACE; picking Ardougne
+      Underground in the map's list raised 1712 then 1711 and
+      ARDOUGNE_UNDERGROUND.
+    - ItemContainerChanged for a shop: Trade with the Lumbridge shop assistant
+      posted container 3 with its 15 stock rows (1931x5, 1935x2, ...).
+    - Emote highlight: Below Ice Mountain, Checkal's flex step
+      (`::bimbmp_24_checkal_flex_prompt`) -- the step resolved to
+      NpcEmoteStep, emote widgets 216:2 dumped with their sprites; the FLEX
+      sprite (2426) is not among them because this save has not unlocked the
+      flex emote (the server draws it locked), so no cell was highlighted --
+      RuneLite's behaviour for a locked emote (it matches the unlocked sprite).
+    - WidgetStep + a puzzle: Misthalin Mystery's piano (varbit 3468 = 75): the
+      helper highlighted D, then E, A, D in turn as each note was played, and
+      "There is a clicking sound as the compartment on the piano unlocks"
+      moved it to "Right-click search the piano".
+    - Varc puzzle (ChestCodeStep): The Ribbiting Tale (varbit 9844 = 22) -- the
+      combination lock (iface 809) with each dial's arrow highlighted and its
+      distance, VarClientIntChanged 1117/1118 posted per turn, the arrows
+      cleared one dial at a time and Confirm highlighted at NALIA; "the chest
+      unlocks".
+    - Quest completion end to end: The Ribbiting Tale from the chest through
+      the plushy, Cuthbert, Marcellus and Gary to "Congratulations, you've
+      completed a quest"; the helper closed itself and the list read 261
+      helpers; with `show_completed_quests` on, a relogin listed the quest in
+      GREEN in the list (finished).
+    - Tooltip overlay: `highlight_items_background` on -- the dropped egg's
+      "Take Egg" row under the menu; no tooltip appeared. RuneLite draws one
+      only for a background helper's step whose `getWorldTooltipText` is set,
+      and the only setter in this checkout is AllNeededItems'
+      setBackgroundWorldTooltipText; the hover on a ground item that the
+      check-items helper needs was NOT reached (see open issues).
+  - LIVE, web (Chrome via Playwright, localhost): webgl2 and software both
+    booted, the plugin enabled from Manage Plugins, the panel opened from its
+    rail stone, search + X Marks the Spot opened, Full assistance; Veos
+    outlined, the step overlay, the world and minimap arrows (webgl2), Veos
+    outlined + overlay on software. The panel's wiki line opened
+    https://oldschool.runescape.wiki/w/X_Marks_the_Spot in a new tab
+    (client.open_url in a browser). Heap: webgl2 271 MB in use of the 768 MB
+    reserve, software 170 MB of 256; telemetry `previous_death` none, no tab
+    crash, no plugin error line.
+  - LONG SESSION (native, one login): 32 helpers opened back to back (X Marks,
+    DS2, MM2, DT2, SOTE, WGS, SotF, AKD, Fremennik Trials, Legends', Lumbridge
+    Elite, Barbarian Training, Regicide, Curse of Arrav, Tree run, Herb run,
+    Kandarin Hard, Heart of Darkness, RFD, Cook's Assistant, Tribal Totem,
+    Ardougne Medium, Fremennik Exiles, Children of the Sun, Temple of the Eye,
+    DS1, Lost City (search), MM1, Underground Pass, Plague City, Biohazard,
+    Heroes'), each selected and its step resolved; no disable, no budget or
+    memory line, no error after the fixes below. Exit report: peak Lua heap
+    49152 KB of 49152 (the allocation high-water mark touches the cap: garbage
+    plus ~42 MB live after 32 modules -- Lua's emergency collection, no
+    failure) and the largest callback 7.7M of 20M (on_frame_start). A shorter
+    session of the feature runs above: 24.1 MB, 6.8M.
+  - FIXED (found live):
+    1. Typing into the panel's search lost every character after the first
+       when a quest was open: the first key turned the page back into the list
+       (onSearchBarChanged), the structural rebuild dropped the focus with the
+       widgets, and the rest of the word went nowhere ("r" kept, "egicide"
+       lost). `torirs_plugin_panel.u.c` keeps the focused plugin text field
+       (plugin + id + caret) across a same-page rebuild and gives it back.
+       Live: 20 then 32 searches typed in full.
+    2. A farm-run step's top-left panel failed with "runScript(4029) refused:
+       wrong_context": a QuestRequirement in an overlay runs QUEST_STATUS_GET,
+       and this client's draw callbacks refuse every script. rl_client answers
+       a draw from the same call made outside a draw (a requirement checks in
+       the panel/tick first) and re-runs each answer the draw used at the next
+       frame start (`DRAW_QUERY_SCRIPTS`, `refresh_draw_scripts`); test_rl_client
+       +4 (a mutation without 4029 in the set fails them). Live: Tree run and
+       Herb run with no overlay error.
+    3. Web: the quest list's well was drawn at a quarter of its height -- the
+       DOM runtime clamped a custom well to 512 px while the model allows 2048
+       (`TORIRS_PANEL_CUSTOM_HEIGHT_MAX`); runtime-source.js / runtime.js /
+       runtime-ie8.js now share the model's bounds (compat_test pins them).
+    4. Web: every well line was cut at the left ("ests" for "Quests"): the
+       browser raster used the world layer's TEXT (centred on x) where every
+       other presenter draws a left-aligned chrome prim;
+       `app_plugin_panel_raster_custom` moves a well's text by half its width
+       (contract stated in torirs_plugin_api.h / plugin_api.meta.lua / above).
+    5. Web: a click on any well below the HIDDEN in-canvas window's 260 px
+       fold was refused -- the latch bounded the intent by the row's hit box,
+       which layout zeroes for a row scrolled out of that window, though the
+       browser page scrolls itself. `ToriRSChromeWidget.content_w` keeps the
+       row's content width; `dbg_custom_latch` bounds by it (test-uitree +3;
+       the mutation back to `w->w` fails "an intent on a well scrolled out of
+       the window is latched"). Live: the quest list opened X Marks the Spot in
+       the browser. `TORIRS_CHROME_DEBUG` now names a refused well click in the
+       web executor, the model latch and the panel's fence.
+    6. The first scene load after login closed the open helper and printed the
+       "Quest Helper has been updated" line (seen in the browser): the RS
+       profile is known only at the first tick, after the screen's LOGGED_IN,
+       so QuestHelperPlugin's profileChanged waited for the next LOGGED_IN (the
+       next region). The entry posts the LOGGED_IN the profile missed
+       (test_entry +3 for a relogin whose player is unknown at the screen
+       change; the mutation without it fails them). Live: the helper stayed
+       open across a walk and a teleport in the browser.
+  - Tests: harness test_entry 128, test_residency 42, test_rl_core 407,
+    test_awt 155, test_panel 137, test_rl_client 176, test_rl_world 181,
+    test_rl_widgets 160, check_inventory 1494 rows 0 missing, run_all_real
+    272/272; C `test-plugin-host` 613, `test-uitree` (+ the scrolled-out latch),
+    `test-cs2-script-hooks`, `test-panel-overlay-stage`, `test-porcelain` 655,
+    `test-feature-flags` 71, `test-nxt-plugins` 89, `test-chrome-compositor`,
+    `test-plugin-lua` (-o the inventory), `check-tree-walks`,
+    `check-pt-switch`; `test-plugin-lua-api-inventory` fails only on the known
+    api.drive lines; the plugin chrome runtime / legacy / compat and
+    chrome_dom JS tests pass (`test-web-channel` as a whole stops at
+    chrome_layout_test.js, which opens the removed src/ioserver/http_server.c
+    -- not this round's).
+  - NOT DONE / NOT SEEN (recorded from the round's report): GraphicsObjectCreated
+    never consumed (no authored Baxtorian puzzle); no spellbook highlight
+    reached (SpellWidgetHighlight / addSpellHighlight); Quest Helper's own
+    dialogue-option highlight not checked on the web lane; the draw memo
+    answers only script 4029 (QUEST_STATUS_GET), and the first draw of a quest
+    never asked outside a draw is refused once; the web page's geometry reads
+    for wells scrolled out of the hidden 260 px window were not audited past
+    the click latch; the 32-helper session's heap touched the 48 MB cap
+    (~42 MB live, eviction from ~42 MB); Android, Windows and opengl3-zbuffer
+    not run.
+- 2026-11-20 (fix round 3, after the critic's third review). UNCOMMITTED.
+  - FIXED:
+    1. `NPC.getComposition` / `getTransformedComposition` answered nil for an
+       npc whose record is missing or loading, and NpcStep.npcPassesChecks
+       (`npc:getComposition():getId()`) then raised -- inside a Porcelain row
+       handler, which C calls outside the entry's protected dispatch, so
+       "Use full assist" on Cook's Assistant on the osrs239 lane (npcs 16806,
+       16808, 16821 missing from cache.osrs239) DISABLED the plugin. rl_world
+       now asks `rl_client.npc_actor_composition` (never nil: pending raises
+       J.PendingMT, missing is RuneLite's default definition; see "rl_world
+       needs from rl_client"). test_rl_world +5 (missing -> default id/name/no
+       actions, pending raises, -1 transform is null; the mutation returning
+       nil for a missing record fails them).
+    2. Every non-well panel row handler (buttons, selects, action rows) now
+       runs through the entry's dispatch (`QH.dispatch_action`, retry on a
+       pending record or module, any other error logged once), wrapped in
+       `build_rows`; the wells' shared closure was already guarded
+       (`well_action`). One failing handler can no longer disable the plugin.
+       test_panel +2 (a raising handler does not escape; it is routed through
+       the entry's dispatch -- the mutation without the wrap fails both).
+    3. One login LOGGED_IN, for the right profile: the screen change or a
+       scene load that would post LOGGED_IN while the RS profile is unknown
+       posts LOADING and OWES the LOGGED_IN (`post_game_state`,
+       `login_owed`); `on_server_tick` posts it once the profile is known.
+       This replaces live-sweep round 2's fix 6, which posted a SECOND
+       LOGGED_IN at the first tick and so ran QuestHelperPlugin's login block
+       (shutDownQuest, createNpcs, the version check, setUnknownInitialState,
+       setupOnLogin at tick end) twice per login, the first time for no
+       profile. Audit of the subscribers: only QuestHelperPlugin's
+       onGameStateChanged acts on LOGGED_IN (latched by profileChanged); the
+       steps' onGameStateChanged re-scan on every scene load, as in RuneLite.
+       test_entry +4 (no login while the profile is unknown -- at the screen
+       change and at a scene load whose state reads LOGGED_IN -- and exactly
+       one once it is known; the mutation posting LOGGED_IN regardless fails
+       with 1 and 2 logins).
+    4. World map left click: with `plugin_top_row`,
+       `app_minimenu_run_default_ui_row` runs ONLY a plugin-owned top row;
+       an ordinary defaultable top row no longer runs on the map (it did
+       since the panel/menu round; the bare map has none, but nothing tested
+       it).
+    5. CLAUDE.md: the two compound asserts split (`app_widget_num_mode`,
+       `UITree_WidgetSetNativeObject`); `app_plugin_object_set_fine_position`,
+       `_element` and `_hit` assert the owned handle's object instead of
+       returning (the host asserted ownership; the only release is
+       `object_destroy`, driven by the host). The older `set_position` /
+       `set_active` keep their pre-port guard.
+    6. `tools/scan_meter_gate.sh` has two more arms, `desk-optin` and
+       `phone-optin`: the same runs with the plugins that ship off turned on
+       (`quest-helper`), and an arm whose turned-on plugin was disabled FAILS.
+       It still opens no quest (no headless way to without the agent API).
+  - Checked, not changed: the potion store button. Jagex's rev-242 cache
+    clientscript 9612 (read from cache.osrs242's idx12) says "Potion
+    Storage", the same as OSRS-Content's `torirs_potionstore_btn.cs2`, so
+    QuestBankTabInterface.handleClick's `startsWith("Potion store")` misses on
+    the real game too: the port matches RuneLite + Jagex 242 and is left so.
+  - Tests: harness test_entry 132, test_residency 42 (+7 --no-unload),
+    test_rl_core 407, test_awt 155, test_panel 139 (overviews 271/272),
+    test_rl_client 176, test_rl_world 186, test_rl_widgets 160,
+    check_inventory 1494 rows 0 missing, run_all_real 272/272; mutations in a scratch COPY of
+    script/plugins + the harness (never the shared tree). C (private objdirs,
+    removed): `test-plugin-host` 613, `test-uitree`, `test-cs2-script-hooks`,
+    `test-panel-overlay-stage`, `test-porcelain` 655, `test-feature-flags`
+    71, `test-nxt-plugins` 89, `test-chrome-compositor`, `test-plugin-lua`
+    (-o the inventory), at OPT=1 and (host, uitree, compositor, plugin-lua)
+    OPT=0; `check-tree-walks`, `check-pt-switch`;
+    `test-plugin-lua-api-inventory` fails only on the known api.drive lines.
+    `tools/scan_meter_gate.sh` on a private EMBED_SERVER=1 OPT=1 binary:
+    desk, phone, desk-optin, phone-optin PASS (an opt-in arm by hand with
+    TORIRS_PLUGIN_LOG: "quest-helper: started", residency 259/272 harvested,
+    peak heap 14.8 MB, no disable).
+  - LIVE (private OPT=1 embed build `build_qhfix3e`, removed; soft3d under
+    SDL dummy, agent API, the gate's lane: manifest_osrs239 + cache.osrs239,
+    strict scan meter, a copy of fresh_lumbridge, Quest Helper on in scratch
+    prefs, the in-canvas panel): search "cook" -> Cook's Assistant -> "Use
+    full assist" -> the overview, the step box, the Cook outlined (before:
+    the plugin disabled at steps.lua:1924). Logout, login: "Quest Helper has
+    been updated to 4.15.1!" printed ONCE. World map with the quest open:
+    right-click on the point offers "Focus on Quest Helper", a left click on
+    it moved the map and the player stayed at 3206,3233; a left click on bare
+    map (the control) still moved the player (3206,3233 -> 3177,3206). No
+    `uitree:` line, no disable, no plugin error.
+  - NOT DONE / NOT SEEN:
+    - A pending-record retry is still not idempotent in general: only
+      GlobalFakeObjects.createNpcs and QuestBankTab.sortBankTabItems are
+      guarded; any other subscriber or tick-end task with side effects before
+      it raises J.PendingMT is replayed whole. The new row handlers' retries
+      replay the whole handler too (choose_assist / a select are near
+      idempotent; not audited per row).
+    - On a login where the plugin finished booting AFTER the screen change
+      (the agent's auto-login), startUp's logged-in tick-end path runs and no
+      version line prints until the next login -- RuneLite's behaviour for a
+      plugin started while logged in.
+    - The top-left step overlay box is still partly under the in-canvas
+      Quest Helper window when that window sits at the top left (seen again).
+    - Carried, unchanged: sailing steps and boat hulls live; spellbook,
+      emote (locked flex) and tooltip-overlay highlights; the ~60
+      quest-specific puzzle/custom steps beyond the piano and ChestCodeStep;
+      GraphicsObjectCreated; the fake-NPC dialogue / quest-complete widget /
+      Bike Shedder past loading; the sidebar's manual skip/lock rows and the
+      GE search filter live; d3d9 fills, Android, Windows, opengl3-zbuffer
+      and the GL pick/chrome-scale C; the DOM and SDL-surface presenters'
+      dropdown order; a >16-row menu live; web geometry reads of scrolled-out
+      wells; the one-row grid well's 48 px minimum; draw-time scripts other
+      than 4029; the 48 MB heap cap on long sessions; the gate opening no
+      quest; `test-web-channel` stopping at chrome_layout_test.js (the
+      removed http_server.c); other sessions' uncommitted edits in
+      src/makefile, src/net/*, src/torirsserver/* and the untracked
+      src/torirsserver/test/host_reattach_test.c must stay out of this port's
+      commit.
