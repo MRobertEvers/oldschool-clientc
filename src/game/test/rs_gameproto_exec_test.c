@@ -77,7 +77,7 @@ queued_open(
     {
         struct RS_Event const* e = &app->drive_events.entries[i];
 
-        if( e->kind == DRIVE_EVENT_SUB_OPENED && e->a == target && e->b == group )
+        if( e->kind == RS_EVENT_SUB_OPENED && e->a == target && e->b == group )
             return 1;
     }
     return 0;
@@ -1808,8 +1808,8 @@ main(void)
         for( uint32_t i = 0; i < app->drive_events.ring.count; i++ )
         {
             struct RS_Event const* e = &app->drive_events.entries[i];
-            mounted |= e->kind == DRIVE_EVENT_SUB_MOUNTED && e->a == slot;
-            closed |= e->kind == DRIVE_EVENT_SUB_CLOSED && e->a == slot && e->b == 500;
+            mounted |= e->kind == RS_EVENT_SUB_MOUNTED && e->a == slot;
+            closed |= e->kind == RS_EVENT_SUB_CLOSED && e->a == slot && e->b == 500;
         }
         TEST_EXEC_ASSERT(!mounted, "a group the cache lacks is not reported mounted");
         TEST_EXEC_ASSERT(closed, "the slot's outgoing group is closed all the same");

@@ -1726,6 +1726,32 @@ io_defer_ms(void)
     return (uint64_t)defer;
 }
 
+/*
+ * TORIRS_IO_DEFER_AFTER_MS=t: defer only the reads issued t ms or more after
+ * the first read, so a run can boot and log in at disk speed and then play
+ * against a slow cache (tools/rebuild_park_probe.sh: a REBUILD's gather that
+ * outlasts a ground item's model read, without a bake so slow the session is
+ * lost). Unset: every read, as before.
+ */
+static int
+io_defer_active(void)
+{
+    static long after = -1;
+    static uint64_t epoch_ms;
+
+    if( io_defer_ms() == 0 )
+        return 0;
+    if( after < 0 )
+    {
+        char const* env = getenv("TORIRS_IO_DEFER_AFTER_MS");
+        after = env && env[0] ? strtol(env, NULL, 0) : 0;
+        if( after < 0 )
+            after = 0;
+        epoch_ms = PlatformWindow_Ticks64();
+    }
+    return PlatformWindow_Ticks64() >= epoch_ms + (uint64_t)after;
+}
+
 static void
 io_defer_park(
     struct PlatformX_IO* px,
@@ -2305,7 +2331,7 @@ PlatformX_IO_Process(
         else
 #endif
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
-            if( item->kind == TORIRS_IOK_CACHE && io_defer_ms() > 0 )
+            if( item->kind == TORIRS_IOK_CACHE && io_defer_active() )
         {
             io_defer_park(px, item);
             processed++;

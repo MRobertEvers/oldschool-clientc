@@ -411,7 +411,7 @@ app_inv_ui_host_change(
     /* DRIVE_STAMP: inv_changed -- a=container_id. inv.await filters by
      * container, so the id has to make it into the ring, not just get read
      * and dropped the way it was before this stamp existed. */
-    App_DriveEvent(app, DRIVE_EVENT_INV_CHANGED, container_id, 0, 0, 0);
+    App_DriveEvent(app, RS_EVENT_INV_CHANGED, container_id, 0, 0, 0);
 
     /* Every slot of it whose item has no icon is wanted now (a task each,
      * app/app_tasks_if_assets.c); nothing scans the inventories later. */

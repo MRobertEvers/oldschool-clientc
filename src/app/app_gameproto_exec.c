@@ -1043,7 +1043,7 @@ exec_zone_obj_add(
     int tile_x, tile_z, level;
     int idx;
     zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-    App_DriveEvent(app, DRIVE_EVENT_OBJ_ADDED, pkt->obj_id, pkt->count, tile_x, tile_z);
+    App_DriveEvent(app, RS_EVENT_OBJ_ADDED, pkt->obj_id, pkt->count, tile_x, tile_z);
     idx = App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
     /* -1 only for a count-0 add naming no stack on the tile: a row is
      * made whatever the cache holds (its model may follow). */
@@ -1068,7 +1068,7 @@ exec_zone_obj_del(
     struct App* app = ctx->app;
     int tile_x, tile_z, level;
     zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-    App_DriveEvent(app, DRIVE_EVENT_OBJ_REMOVED, pkt->obj_id, 0, tile_x, tile_z);
+    App_DriveEvent(app, RS_EVENT_OBJ_REMOVED, pkt->obj_id, 0, tile_x, tile_z);
     App_WorldObjStackDel(app, tile_x, tile_z, level, pkt->obj_id);
 }
 
@@ -3492,7 +3492,7 @@ exec_unset_map_flag(
      * repeating the call per branch. c is the view the tile is in. */
     App_DriveEvent(
         ctx->app,
-        DRIVE_EVENT_MAP_FLAG,
+        RS_EVENT_MAP_FLAG,
         ctx->app->minimap.flag_tile_x,
         ctx->app->minimap.flag_tile_z,
         ctx->app->minimap.flag_view,

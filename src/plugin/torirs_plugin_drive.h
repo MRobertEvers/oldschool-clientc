@@ -79,28 +79,28 @@ char const* DriveResultName(enum DriveResult result);
  *
  * Payload per kind -- a, b, c, d are otherwise 0:
  *
- *   DRIVE_EVENT_SUB_OPENED      a=target_uid  b=interface_id  c=type
- *   DRIVE_EVENT_SUB_MOUNTED     a=target_uid  b=interface_id  c=type
- *   DRIVE_EVENT_SUB_CLOSED      a=target_uid  b=old group_id
- *   DRIVE_EVENT_CHAT_OPENED     a=component_id                     (dat1)
- *   DRIVE_EVENT_SLOT_MOUNTED    a=owner_index b=iface_id           (dat1)
- *   DRIVE_EVENT_RESUME_ANSWERED a=component_id
- *   DRIVE_EVENT_VARP_CHANGED    a=varp_id     b=value
- *   DRIVE_EVENT_INV_CHANGED     a=container_id
- *   DRIVE_EVENT_OBJ_ADDED       a=obj_id  b=count  c=tile_x  d=tile_z
- *   DRIVE_EVENT_OBJ_REMOVED     a=obj_id  b=0      c=tile_x  d=tile_z
- *   DRIVE_EVENT_MAP_FLAG        a=-1 when cleared, else a=tile_x b=tile_z
- *   DRIVE_EVENT_CHAT_MESSAGE    a=type    b=message serial (RS_ChatMessage)
- *   DRIVE_EVENT_SERVER_TICK     a=world cycle
- *   DRIVE_EVENT_NPC_SPAWN       a=npc slot  b=npc_id  c,d=scene tile
- *   DRIVE_EVENT_NPC_DESPAWN     a=npc slot  b=npc_id
- *   DRIVE_EVENT_NPC_RETYPE      a=npc slot  b=npc_id  c=base_npc_id
- *   DRIVE_EVENT_INV_PACKET      a=container_id                     (dat1)
- *   DRIVE_EVENT_NPC_SEQ         a=npc SERVER slot (DriveNpcRow.slot, not
+ *   RS_EVENT_SUB_OPENED         a=target_uid  b=interface_id  c=type
+ *   RS_EVENT_SUB_MOUNTED        a=target_uid  b=interface_id  c=type
+ *   RS_EVENT_SUB_CLOSED         a=target_uid  b=old group_id
+ *   RS_EVENT_CHAT_OPENED        a=component_id                     (dat1)
+ *   RS_EVENT_SLOT_MOUNTED       a=owner_index b=iface_id           (dat1)
+ *   RS_EVENT_RESUME_ANSWERED    a=component_id
+ *   RS_EVENT_VARP_CHANGED       a=varp_id     b=value
+ *   RS_EVENT_INV_CHANGED        a=container_id
+ *   RS_EVENT_OBJ_ADDED          a=obj_id  b=count  c=tile_x  d=tile_z
+ *   RS_EVENT_OBJ_REMOVED        a=obj_id  b=0      c=tile_x  d=tile_z
+ *   RS_EVENT_MAP_FLAG           a=-1 when cleared, else a=tile_x b=tile_z
+ *   RS_EVENT_CHAT_MESSAGE       a=type    b=message serial (RS_ChatMessage)
+ *   RS_EVENT_SERVER_TICK        a=world cycle
+ *   RS_EVENT_NPC_SPAWN          a=npc slot  b=npc_id  c,d=scene tile
+ *   RS_EVENT_NPC_DESPAWN        a=npc slot  b=npc_id
+ *   RS_EVENT_NPC_RETYPE         a=npc slot  b=npc_id  c=base_npc_id
+ *   RS_EVENT_INV_PACKET         a=container_id                     (dat1)
+ *   RS_EVENT_NPC_SEQ            a=npc SERVER slot (DriveNpcRow.slot, not
  *                                 the world index NPC_SPAWN carries)
  *                               b=seq id (-1 = the server stopped it)
  *                               c=server tick (world cycle / 30) it arrived
- *   DRIVE_EVENT_NPC_FACE        a=npc SERVER slot  b=tile x  c=tile z
+ *   RS_EVENT_NPC_FACE           a=npc SERVER slot  b=tile x  c=tile z
  *                                 (absolute; the FACE_COORD op's wire
  *                                 half-tiles halved, so a sized square
  *                                 reads as its centre tile)
@@ -111,33 +111,6 @@ char const* DriveResultName(enum DriveResult result);
  * split it into two events rather than widening the record -- the ring is on
  * struct App and every byte is paid for by every client.
  */
-/* The drive's spellings of enum RS_EventKind (the names a Lua await matches
- * on are RS_EventKindName's, shared with the headless client). */
-enum
-{
-    DRIVE_EVENT_NONE = RS_EVENT_NONE,
-    DRIVE_EVENT_SUB_OPENED = RS_EVENT_SUB_OPENED,
-    DRIVE_EVENT_SUB_MOUNTED = RS_EVENT_SUB_MOUNTED,
-    DRIVE_EVENT_SUB_CLOSED = RS_EVENT_SUB_CLOSED,
-    DRIVE_EVENT_CHAT_OPENED = RS_EVENT_CHAT_OPENED,
-    DRIVE_EVENT_SLOT_MOUNTED = RS_EVENT_SLOT_MOUNTED,
-    DRIVE_EVENT_RESUME_ANSWERED = RS_EVENT_RESUME_ANSWERED,
-    DRIVE_EVENT_VARP_CHANGED = RS_EVENT_VARP_CHANGED,
-    DRIVE_EVENT_INV_CHANGED = RS_EVENT_INV_CHANGED,
-    DRIVE_EVENT_OBJ_ADDED = RS_EVENT_OBJ_ADDED,
-    DRIVE_EVENT_OBJ_REMOVED = RS_EVENT_OBJ_REMOVED,
-    DRIVE_EVENT_MAP_FLAG = RS_EVENT_MAP_FLAG,
-    DRIVE_EVENT_CHAT_MESSAGE = RS_EVENT_CHAT_MESSAGE,
-    DRIVE_EVENT_SERVER_TICK = RS_EVENT_SERVER_TICK,
-    DRIVE_EVENT_NPC_SPAWN = RS_EVENT_NPC_SPAWN,
-    DRIVE_EVENT_NPC_DESPAWN = RS_EVENT_NPC_DESPAWN,
-    DRIVE_EVENT_NPC_RETYPE = RS_EVENT_NPC_RETYPE,
-    DRIVE_EVENT_INV_PACKET = RS_EVENT_INV_PACKET,
-    DRIVE_EVENT_NPC_SEQ = RS_EVENT_NPC_SEQ,
-    DRIVE_EVENT_NPC_FACE = RS_EVENT_NPC_FACE,
-    DRIVE_EVENT_KIND_COUNT = RS_EVENT_KIND_COUNT,
-};
-
 /* The client's ring: a full one drops its oldest entry and counts it
  * (RS_EVENT_RING_COUNT_DROPS). An entry is a struct RS_Event: serial 1-based
  * and monotonic for the life of the process (0 is "no event"; a cursor of 0
@@ -569,7 +542,7 @@ int PluginDrive_PushResult(struct lua_State* L, enum DriveResult result, char co
  * with at least one of `match`/`level`.  An await with neither is a test bug
  * and raises.
  *
- * Deadlines are in SERVER TICKS, counted off DRIVE_EVENT_SERVER_TICK.  A
+ * Deadlines are in SERVER TICKS, counted off RS_EVENT_SERVER_TICK.  A
  * deadline of 0 means "level only, never yield".
  *
  * Owner: core-scheduler.  Everything else calls it from Lua.

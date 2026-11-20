@@ -104,9 +104,14 @@ struct TaskRunner
     int stepping;
     /** Why the last pump ended (TORIRS_QUEUE_CONTRACT_TRACE). */
     char const* pump_end;
-    /** A parallel task whose one step took at least this long is computing,
-     *  not waiting: named once per name per session (0: off). */
+    /** A parallel task whose one step COST at least this much processor
+     *  time is computing, not waiting: named once per name per session (0:
+     *  off). Read on `cost_now_us` when the runner has one (the stepping
+     *  thread's CPU clock, TaskRunner_SetCostClock), else on the queue's
+     *  wall clock; the breach line gives both. */
     uint64_t compute_step_us;
+    /** The clock a step's cost is read on (NULL: the wall clock). */
+    uint64_t (*cost_now_us)(void);
     /** Set while the App boots: the boot's loads are not what that
      *  threshold measures. */
     int compute_check_off;
@@ -343,6 +348,23 @@ TaskRunner_SetClock(
     runner->io->slice.now_ud = now_ud;
 }
 
+/*
+ * The clock the compute check reads a step's COST on: processor time of the
+ * thread that steps the queue (PlatformWindow_ThreadCpuUs on the App's
+ * queues), so a step measured on a loaded machine reads what it computed,
+ * not how long it waited for a core. Without one the check reads the wall
+ * clock. The runner names no platform: the clock is handed in.
+ */
+static inline void
+TaskRunner_SetCostClock(
+    struct TaskRunner* runner,
+    uint64_t (*cost_now_us)(void))
+{
+    assert(runner);
+    assert(cost_now_us);
+    runner->cost_now_us = cost_now_us;
+}
+
 static inline uint64_t
 TaskRunner_Now(struct TaskRunner const* runner)
 {
@@ -523,6 +545,51 @@ TaskRunner_HasReady(struct TaskRunner const* runner)
     return 0;
 }
 
+/*
+ * The frame contract's "the parallel queue is drained every frame", checked
+ * where a frame is PUBLISHED (`site`): no task a pump has stepped may be
+ * ready then -- every one is done, or parked on its read, a trigger, a count
+ * or a cycle. A ready task that has had a turn is one a pump left behind (a
+ * settle that stops when its scripts are done, a packet pump that readied
+ * it), applied a frame late; the breach line names it and a debug build
+ * asserts.
+ *
+ * A task never stepped (`turn` 0) is passed over: it was added after the
+ * frame's last pump, by the walk that builds what is published (an asset the
+ * emit asked for as it drew: AssetLoad:config, a sprite). That is the one
+ * path that cannot pump before its publish: the emit list is already built,
+ * and a pump after it would change the scene the platform renders under it.
+ * Such a task starts at the next frame's top pump and never holds a frame.
+ */
+static inline void
+TaskRunner_CheckPublishedAtStandstill(
+    struct TaskRunner const* parallel_queue,
+    char const* site)
+{
+    struct ToriRS_Task const* task;
+
+    assert(parallel_queue);
+    assert(parallel_queue->queue);
+    assert(site);
+    for( task = parallel_queue->queue->head; task; task = task->next )
+        if( !task->io.pending && !task->parked && task->turn != 0 )
+            break;
+    if( task )
+    {
+        char line[192];
+
+        snprintf(
+            line,
+            sizeof(line),
+            "%s published a frame over a ready parallel task %s: the parallel queue was not "
+            "pumped to a standstill",
+            site,
+            task->name[0] ? task->name : "(unnamed)");
+        TaskRunner_ContractBreach(line);
+        assert(!task);
+    }
+}
+
 /** Is a task on this queue ready and still without its turn this pump? A
  *  task a wake readied after the pump's walk had passed it (a fan-out's last
  *  sibling ending behind its parent) is one: guarantee 1 is owed to it too. */
@@ -697,12 +764,17 @@ TaskRunner_Step(struct TaskRunner* runner)
                 /* The name is copied first: a task that ends is freed by its run. */
                 char name[sizeof(task->name)];
                 int const ordinary = !task->render_blocking;
+                uint64_t const c0 = runner->cost_now_us ? runner->cost_now_us() : 0;
                 uint64_t t0 = TaskRunner_Now(runner);
                 uint64_t dt;
+                uint64_t cost;
 
                 memcpy(name, task->name, sizeof(name));
                 stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
                 dt = TaskRunner_Now(runner) - t0;
+                /* What the step computed: its thread's processor time where
+                 * the runner has that clock, else the wall time it took. */
+                cost = runner->cost_now_us ? runner->cost_now_us() - c0 : dt;
                 if( runner->slow_task_us && dt >= runner->slow_task_us )
                     fprintf(stderr, "task_slow: %s %.2f ms\n", name[0] ? name : "(unnamed)", (double)dt / 1000.0);
                 if( dt > runner->longest_step_us )
@@ -711,7 +783,7 @@ TaskRunner_Step(struct TaskRunner* runner)
                     memcpy(runner->longest_step_name, name, sizeof(runner->longest_step_name));
                 }
                 if( runner->role == TASK_RUNNER_ROLE_PARALLEL && runner->compute_step_us && ordinary &&
-                    !runner->compute_check_off && dt >= runner->compute_step_us )
+                    !runner->compute_check_off && cost >= runner->compute_step_us )
                 {
                     int seen = 0;
                     for( int i = 0; i < runner->compute_named_count; i++ )
@@ -719,15 +791,17 @@ TaskRunner_Step(struct TaskRunner* runner)
                             seen = 1;
                     if( !seen )
                     {
-                        char line[192];
+                        char line[256];
                         if( runner->compute_named_count < (int)(sizeof(runner->compute_named) / sizeof(runner->compute_named[0])) )
                             memcpy(runner->compute_named[runner->compute_named_count++], name, sizeof(name));
                         snprintf(
                             line,
                             sizeof(line),
-                            "parallel task %s computed %.2f ms in one step (threshold %.2f ms): "
-                            "CPU work belongs on the background queue",
+                            "parallel task %s computed %.2f ms in one step (%s; %.2f ms wall; threshold "
+                            "%.2f ms): CPU work belongs on the background queue",
                             name[0] ? name : "(unnamed)",
+                            (double)cost / 1000.0,
+                            runner->cost_now_us ? "thread CPU time" : "wall time",
                             (double)dt / 1000.0,
                             (double)runner->compute_step_us / 1000.0);
                         TaskRunner_ContractBreach(line);

@@ -1450,6 +1450,7 @@ app_run_once_body(
         if( App_BootHoldsLastFrame(app) )
             return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_BOOT);
         RedrawRequest_Clear(&app->redraw_request);
+        TaskRunner_CheckPublishedAtStandstill(&app->frame_runner, "the boot frame");
         return 1;
     }
 
@@ -2947,6 +2948,57 @@ app_run_once_body(
         }
     }
 
+    /*
+     * THE FRAME'S LAST PUMP. Since the drain after the logic ticks, three
+     * things can still leave a parallel task ready: the publish-only packet
+     * pump above (its packets add tasks whose assets may be resident), its
+     * script settle, and the interaction settles (each stops when its
+     * scripts are done, not at a standstill). Drained here, just before the
+     * gate, so every frame this path publishes is published over a parallel
+     * queue at a standstill (TaskRunner_CheckPublishedAtStandstill at the
+     * publish) instead of the task waiting for the next frame's top pump.
+     * What the drain applies can queue a client script (a loc it places
+     * fires its LOC_ADD trigger, app_tasks_locs.c), and that script's settle
+     * can step the queue and leave a task ready again, so the two alternate
+     * until the queue stands still with no script pending.
+     */
+    /* A tree rebuilt last frame took every scripted overlay with it, and the
+     * sweep that found it raised the refire (app_entity_overlay_layout):
+     * the ADD triggers it re-fires queue a subject task and a client script
+     * each, so they are fired here, ahead of the last pump and the gate, and
+     * settled into this frame -- not after the gate, where they were left
+     * for the next frame's pump. */
+    if( RS_ClientTriggerRefire_Take(&app->client_trigger_refire) )
+        app_client_triggers_refire(app);
+    {
+        int steps = 0;
+
+        for( int rounds = 0;; rounds++ )
+        {
+            int moved = 0;
+            enum TaskRunnerStat stat;
+
+            if( rounds > APP_ASYNC_STEP_LIMIT )
+                app_pump_backstop("parallel (the frame's last pump)", rounds, 0);
+            (void)app_pump_parallel(app, 0, &steps, &moved);
+            if( !app->frame_runner.frame_settle_pending )
+                break;
+            TORIRS_PERF_SCOPE_CS2()
+            {
+                stat = app_settle_cs2_frame(app);
+            }
+            if( stat != TASK_RUNNER_IDLE )
+            {
+                TaskRunner_SetHadWork(&app->frame_runner, 1);
+                return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING);
+            }
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
+            {
+                UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            }
+        }
+    }
+
     /* Never publish a tree while a fenced server clientscript has not run.
      * This second gate covers a script request raised during interaction. */
     if( !App_FrameSettled(app) )
@@ -3409,6 +3461,7 @@ app_run_once_body(
         else
             RedrawRequest_Clear(&app->redraw_request);
         app->world_views.frame = App_RunnerView(app);
+        TaskRunner_CheckPublishedAtStandstill(&app->frame_runner, "the game frame");
         return 1;
     }
     return 0;

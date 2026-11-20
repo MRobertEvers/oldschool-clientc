@@ -1151,6 +1151,130 @@ test_the_between_frames_pump(void)
     CHECK(dies_by_abort(between_frames_stepped_main_after_boot));
 }
 
+/* --- the compute check reads a step's COST, not its wall time ----------------
+ *
+ * A parallel step that took long on the wall clock but cost little processor
+ * time (it waited for a core on a loaded machine) is not computing; one that
+ * cost more than the threshold is, whatever the wall clock says. Without a
+ * cost clock the check falls back to the wall time. */
+static struct FakeClock g_burn_wall;
+static uint64_t g_burn_cost_us;
+
+static uint64_t
+burn_cost_now(void)
+{
+    return g_burn_cost_us;
+}
+
+struct Burner
+{
+    struct ToriRS_Task task;
+    uint64_t wall_us;
+    uint64_t cost_us;
+};
+
+static int
+Burner_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct Burner* self = (struct Burner*)base;
+
+    (void)io;
+    g_burn_wall.now_us += self->wall_us;
+    g_burn_cost_us += self->cost_us;
+    return TORIRS_ASYNCIO_STAT_DONE;
+}
+
+static struct ToriRS_TaskVTable k_burner_vtable = { .run = Burner_Run, .free = task_free_libc };
+
+static void
+burn_once(struct TaskRunner* runner, char const* name, uint64_t wall_us, uint64_t cost_us)
+{
+    struct Burner* task = calloc(1, sizeof(*task));
+
+    assert(task);
+    task->task.vtable = &k_burner_vtable;
+    snprintf(task->task.name, sizeof(task->task.name), "%s", name);
+    task->wall_us = wall_us;
+    task->cost_us = cost_us;
+    ToriRS_TaskQueue_Add(runner->queue, &task->task);
+    (void)TaskRunner_Step(runner);
+}
+
+static void
+test_the_compute_check_reads_the_cost_clock(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+
+    runner_init(&runner, &px, &g_burn_wall, TASK_RUNNER_ROLE_PARALLEL);
+    runner.compute_step_us = 4000;
+    TaskRunner_SetCostClock(&runner, burn_cost_now);
+    /* 12 ms on the wall, 1 ms of processor: a loaded machine, not work. */
+    burn_once(&runner, "Waited", 12000, 1000);
+    CHECK(runner.compute_named_count == 0);
+    /* 1 ms on the wall cannot hide 5 ms of processor (clocks disagree only
+     * in a test, but the check must follow the cost one). */
+    burn_once(&runner, "Computed", 1000, 5000);
+    CHECK(runner.compute_named_count == 1);
+    CHECK(runner.compute_named_count == 1 && strcmp(runner.compute_named[0], "Computed") == 0);
+    /* Named once per name. */
+    burn_once(&runner, "Computed", 1000, 5000);
+    CHECK(runner.compute_named_count == 1);
+    runner_free(&runner);
+
+    /* No cost clock: the wall time is the cost. */
+    runner_init(&runner, &px, &g_burn_wall, TASK_RUNNER_ROLE_PARALLEL);
+    runner.compute_step_us = 4000;
+    burn_once(&runner, "WallOnly", 12000, 1000);
+    CHECK(runner.compute_named_count == 1);
+    runner_free(&runner);
+}
+
+/* --- a frame is published over a parallel queue at a standstill -------------
+ *
+ * The check at the publish (TaskRunner_CheckPublishedAtStandstill): a task a
+ * pump stepped and left ready trips it; a task parked on its read, or one
+ * added after the last pump and never stepped (an asset the emit asked for),
+ * does not. */
+static struct TaskRunner g_publish_runner;
+
+static void
+publish_over_a_stepped_ready_task(void)
+{
+    TaskRunner_CheckPublishedAtStandstill(&g_publish_runner, "the test frame");
+}
+
+static void
+test_a_frame_is_published_at_a_standstill(void)
+{
+    struct PlatformX_IO px = { 0 };
+    int ended = 0;
+
+    runner_init(&g_publish_runner, &px, NULL, TASK_RUNNER_ROLE_PARALLEL);
+    /* Parked on a read that never lands, and one never stepped: neither is
+     * work a pump left behind. */
+    ToriRS_TaskQueue_Add(g_publish_runner.queue, new_stuck());
+    (void)TaskRunner_Step(&g_publish_runner);
+    ToriRS_TaskQueue_Add(g_publish_runner.queue, new_yielder(3, &ended));
+    TaskRunner_CheckPublishedAtStandstill(&g_publish_runner, "the test frame");
+    /* Stepped once inside a pump that then stopped short (what a settle
+     * does: one pass, not a pump to a standstill) and still ready:
+     * publishing over it is the breach. The pump number is what a
+     * TaskRunner_PumpBegin gives the pass; set by hand, so no pump end
+     * judges the short pump first. */
+    g_publish_runner.pump = 1;
+    (void)TaskRunner_Step(&g_publish_runner);
+    CHECK(dies_by_abort(publish_over_a_stepped_ready_task));
+    /* Pumped to a standstill: only the parked read is left. */
+    {
+        int steps = 0;
+        (void)TaskRunner_PumpToStandstill(&g_publish_runner, 64, &steps);
+    }
+    CHECK(ended == 1);
+    TaskRunner_CheckPublishedAtStandstill(&g_publish_runner, "the test frame");
+    runner_free(&g_publish_runner);
+}
+
 int
 main(void)
 {
@@ -1164,6 +1288,8 @@ main(void)
     test_who_steps_the_background_queue();
     test_named_waits_resume_and_cancel();
     test_the_between_frames_pump();
+    test_the_compute_check_reads_the_cost_clock();
+    test_a_frame_is_published_at_a_standstill();
     if( g_failures )
     {
         printf("queue_contract_test: %d failure(s)\n", g_failures);

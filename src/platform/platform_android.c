@@ -1648,6 +1648,23 @@ PlatformWindow_TicksUs(void)
     return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)(ts.tv_nsec / 1000);
 }
 
+uint64_t
+PlatformWindow_ThreadCpuUs(void)
+{
+    struct timespec ts;
+    int const rc = clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+
+    assert(rc == 0);
+    (void)rc;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)(ts.tv_nsec / 1000);
+}
+
+int
+PlatformWindow_ThreadCpuIsWall(void)
+{
+    return 0;
+}
+
 void
 PlatformWindow_SleepUntil(uint64_t deadline_ms)
 {

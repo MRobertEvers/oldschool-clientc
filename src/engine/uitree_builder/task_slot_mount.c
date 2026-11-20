@@ -81,7 +81,7 @@ Task_SlotMount_Run(
      * sub_mounted on the cache lane. Unconditional (unlike sub_mounted on the
      * cache lane): a non-positive iface_id here means the slot was cleared,
      * not that nothing to report -- close rides this same event. */
-    App_DriveEvent(self->app, DRIVE_EVENT_SLOT_MOUNTED, self->owner_index, self->iface_id, 0, 0);
+    App_DriveEvent(self->app, RS_EVENT_SLOT_MOUNTED, self->owner_index, self->iface_id, 0, 0);
     PT_END(&self->pt);
 }
 

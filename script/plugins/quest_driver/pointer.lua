@@ -688,10 +688,28 @@ end
 -- nearest copy whose loc_id or resolved_loc_id is the target's, and a copy on
 -- the player's own floor within _same_level_reach beyond it wins over a
 -- nearer one on another floor (seam11, the banner in _target_tile).
+--
+-- A scene element id has no generation: the slot a removed loc frees is the
+-- next one a placed loc takes, so the gate that opens (the closed leaf
+-- removed, the open leaf added beside it) can hand the open leaf the closed
+-- leaf's element id within one frame.  The copy is therefore named by its
+-- element AND by what stood there (_loc_copy: reach_named_loc, _x, _z,
+-- _level); the element holding another loc, or the same loc on another tile,
+-- is the named copy gone.  Reading the element alone passed only while the
+-- client happened to show a frame between the removal and the add (lo-checks,
+-- 2026-11-19: with the parallel queue drained after the world frame, the
+-- pen gate's element 536887617 read loc 1558 at 3181,3289 one poll and loc
+-- 1559 at 3181,3288 the next, and penIn.openDoor timed out).
 function QD.drive._loc_target_tile(target)
     if target.reach_element ~= nil and target.reach_named ~= nil then
         local named_result, named = api_drive.loc_element(target.reach_element)
         if named_result ~= "ok" then
+            return "not_found", nil
+        end
+        if target.reach_named_loc ~= nil
+            and (named.loc_id ~= target.reach_named_loc
+                or named.x ~= target.reach_named_x or named.z ~= target.reach_named_z
+                or named.level ~= target.reach_named_level) then
             return "not_found", nil
         end
         return "ok", named.x, named.z
@@ -8175,6 +8193,12 @@ function QD.player._loc_copy(target, opts)
     end
     target.reach_element = chosen.element_id
     target.reach_named = chosen.element_id
+    -- What stood there, so a recycled element id is not read as the same
+    -- copy (the banner over QD.drive._loc_target_tile).
+    target.reach_named_loc = chosen.loc_id
+    target.reach_named_x = chosen.x
+    target.reach_named_z = chosen.z
+    target.reach_named_level = chosen.level
     return "ok", string.format("the copy at %d,%d,%d (element %s)",
         chosen.x, chosen.z, chosen.level or -1, tostring(chosen.element_id))
 end
@@ -8189,6 +8213,10 @@ QD.player._loc_copy_listed = 6
 function QD.player._loc_copy_clear(target)
     target.reach_element = nil
     target.reach_named = nil
+    target.reach_named_loc = nil
+    target.reach_named_x = nil
+    target.reach_named_z = nil
+    target.reach_named_level = nil
 end
 
 -- Every npc-pool row carrying `target`'s id, keyed by the CLIENT ELEMENT ID

@@ -958,6 +958,26 @@ PlatformWindow_Ticks64(void);
 uint64_t
 PlatformWindow_TicksUs(void);
 
+/**
+ * The calling thread's processor time, in microseconds: what a piece of work
+ * COST, as against how long it took. A step measured while other processes
+ * load every core takes longer on the wall clock but costs the same here, so
+ * a check that asks "did this step compute too much" reads this (the parallel
+ * queue's compute check, TaskRunner_SetCostClock).
+ *
+ * Per lane: CLOCK_THREAD_CPUTIME_ID on macOS, linux and android;
+ * QueryThreadCycleTime scaled by the time-stamp counter's rate on windows;
+ * the browser has one thread and no such clock, so there it is the
+ * monotonic clock (performance.now()) and PlatformWindow_ThreadCpuIsWall()
+ * answers 1. Only differences of two readings on one thread mean anything.
+ */
+uint64_t
+PlatformWindow_ThreadCpuUs(void);
+
+/** 1 when PlatformWindow_ThreadCpuUs is the wall clock on this lane. */
+int
+PlatformWindow_ThreadCpuIsWall(void);
+
 /** Wait until an absolute PlatformWindow_Ticks64() deadline. */
 void
 PlatformWindow_SleepUntil(uint64_t deadline_ms);

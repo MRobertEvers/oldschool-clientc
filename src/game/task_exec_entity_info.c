@@ -320,7 +320,7 @@ host_present(
          * for the whole fight (WorldEntity_NPC.seq_sent_id). */
         if( n->slot >= 0 )
             App_DriveEvent(
-                app, DRIVE_EVENT_NPC_SEQ, n->slot, n->seq,
+                app, RS_EVENT_NPC_SEQ, n->slot, n->seq,
                 (int32_t)(app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES), 0);
         /* Wanted, not loaded here: one load however many ask. */
         if( n->seq >= 0 )
@@ -332,7 +332,7 @@ host_present(
          * half-tiles halved (the centre tile of a sized square). */
         if( n->slot >= 0 )
             App_DriveEvent(
-                app, DRIVE_EVENT_NPC_FACE, n->slot, n->x >> 1, n->z >> 1,
+                app, RS_EVENT_NPC_FACE, n->slot, n->x >> 1, n->z >> 1,
                 (int32_t)(app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES));
         break;
     case RS_ENTITY_NOTE_PLAYER_APPEARANCE:

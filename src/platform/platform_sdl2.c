@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /**
  * One borderless window's state, and what SDL's hit test is handed as its
@@ -5685,6 +5686,32 @@ PlatformWindow_TicksUs(void)
      * counter*1000000 overflows 64 bits after a few days of uptime on a
      * nanosecond-resolution clock even though the microsecond result fits. */
     return (counter / frequency) * 1000000u + (counter % frequency) * 1000000u / frequency;
+#endif
+}
+
+uint64_t
+PlatformWindow_ThreadCpuUs(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    /* One thread and no processor clock in the browser. */
+    return PlatformWindow_TicksUs();
+#else
+    struct timespec ts;
+    int const rc = clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+
+    assert(rc == 0);
+    (void)rc;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)(ts.tv_nsec / 1000);
+#endif
+}
+
+int
+PlatformWindow_ThreadCpuIsWall(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    return 1;
+#else
+    return 0;
 #endif
 }
 

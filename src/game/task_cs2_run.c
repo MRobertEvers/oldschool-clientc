@@ -1755,8 +1755,10 @@ Task_CS2Run_Run(
 
         /* Flat switch (no PT) then linear awaits — protothreads cannot nest switch. */
         task_cs2_plan_yield(self);
+        /* Asked for by name, so it prints in every build (torirs_log.h: a
+         * line someone turned on is a report, not narration). */
         if( getenv("TORIRS_TRACE_CS2_YIELD") )
-            TORIRS_LOG("cs2-yield: script=%d plan=%s wait=%s id=%d id2=%d\n",
+            TORIRS_REPORT("cs2-yield: script=%d plan=%s wait=%s id=%d id2=%d\n",
                 self->script_id,
                 task_cs2_yield_name(self->yield_plan),
                 k_task_cs2_yields[self->yield_plan].wait == TASK_CS2_WAIT_VISUAL ? "visual"

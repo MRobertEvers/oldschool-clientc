@@ -532,7 +532,7 @@ Task_GameProtoExec_Run(
             RS_ServerTick_EndUnfenced(&app->server_tick);
             app->drive_events.batch_open = 0;
             App_DriveEvent(
-                app, DRIVE_EVENT_SERVER_TICK, app->world ? app->world->cycle : 0, 0, 0, 0);
+                app, RS_EVENT_SERVER_TICK, app->world ? app->world->cycle : 0, 0, 0, 0);
             if( app->plugins )
                 PluginHost_ServerTick(app->plugins, app->world ? app->world->cycle : 0);
         }

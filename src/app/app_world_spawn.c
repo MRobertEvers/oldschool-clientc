@@ -904,7 +904,7 @@ App_WorldNpcSpawnAnnounce(
     /* c/d: the scene tile it was added on, once its add record placed it. */
     App_DriveEvent(
         app,
-        DRIVE_EVENT_NPC_SPAWN,
+        RS_EVENT_NPC_SPAWN,
         spawned->server_slot,
         spawned->npc_id,
         spawned->pathing.route_x[0],
