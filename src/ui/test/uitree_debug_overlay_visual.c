@@ -691,7 +691,9 @@ visual_checkbox_skinned(void)
 
     printf("VISUAL: checkboxes, skinned\n");
     ToriRSChrome_Init(&g_ui);
-    g_ui.skin_avail = (1u << TORIRS_CHROME_SKIN_CHECK_ON) | (1u << TORIRS_CHROME_SKIN_CHECK_OFF);
+    memset(g_ui.skin_avail, 0, sizeof(g_ui.skin_avail));
+    ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_CHECK_ON, 1);
+    ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_CHECK_OFF, 1);
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 30, 30, 200, "Toggles");
     w_on = ToriRSChrome_Checkbox(&g_ui, panel, "'Bank tutorial' button", 1);
     w_off = ToriRSChrome_Checkbox(&g_ui, panel, "Incinerator", 0);
@@ -775,10 +777,11 @@ visual_checkbox_style_box(void)
 
     printf("VISUAL: checkboxes, the bordered-well style\n");
     ToriRSChrome_Init(&g_ui);
-    g_ui.skin_avail = (1u << TORIRS_CHROME_SKIN_CHECK_ON) |
-                      (1u << TORIRS_CHROME_SKIN_CHECK_OFF) |
-                      (1u << TORIRS_CHROME_SKIN_CHECK_BOX_ON) |
-                      (1u << TORIRS_CHROME_SKIN_CHECK_BOX_OFF);
+    memset(g_ui.skin_avail, 0, sizeof(g_ui.skin_avail));
+    ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_CHECK_ON, 1);
+    ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_CHECK_OFF, 1);
+    ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_CHECK_BOX_ON, 1);
+    ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_CHECK_BOX_OFF, 1);
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 30, 30, 200, "Toggles");
     w_on = ToriRSChrome_Checkbox(&g_ui, panel, "'Bank tutorial' button", 1);
     w_off = ToriRSChrome_Checkbox(&g_ui, panel, "Incinerator", 0);
@@ -1220,7 +1223,7 @@ visual_skin(void)
 
     /* No skin available: the body is the theme's flat fill. */
     ToriRSChrome_Init(&g_ui);
-    g_ui.skin_avail = 0;
+    memset(g_ui.skin_avail, 0, sizeof(g_ui.skin_avail));
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 24, 20, 160, "Map Editor");
     ToriRSChrome_Label(&g_ui, panel, "m50_50  tile 12,40");
     ToriRSChrome_Label(&g_ui, panel, "u50 o10;1;3 f4");
@@ -1232,7 +1235,8 @@ visual_skin(void)
 
     /* Same panel, skin available: the parchment covers the flat fill. */
     ToriRSChrome_Init(&g_ui);
-    g_ui.skin_avail = 1u << TORIRS_CHROME_SKIN_PANEL_BODY;
+    memset(g_ui.skin_avail, 0, sizeof(g_ui.skin_avail));
+    ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_PANEL_BODY, 1);
     g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
     g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 24, 20, 160, "Map Editor");
@@ -1565,8 +1569,10 @@ visual_dropdown(void)
 
     ToriRSChrome_Init(&g_ui);
     g_ui.theme = torirs_chrome_theme_osrs;
-    g_ui.skin_avail = (1u << TORIRS_CHROME_SKIN_PANEL_BODY) | (1u << TORIRS_CHROME_SKIN_SCROLL_UP) |
-                      (1u << TORIRS_CHROME_SKIN_SCROLL_DOWN);
+    memset(g_ui.skin_avail, 0, sizeof(g_ui.skin_avail));
+    ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_PANEL_BODY, 1);
+    ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_SCROLL_UP, 1);
+    ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_SCROLL_DOWN, 1);
     g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
     g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
 
@@ -1765,7 +1771,7 @@ visual_dropdown_fallbacks(void)
     /* No skin at all: the flat developer look, flat bar included. */
     ToriRSChrome_Init(&g_ui);
     ToriRSChrome_SetTheme(&g_ui, &torirs_chrome_theme_default);
-    g_ui.skin_avail = 0;
+    memset(g_ui.skin_avail, 0, sizeof(g_ui.skin_avail));
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 8, 210, "Catalog");
     dd = ToriRSChrome_Dropdown(&g_ui, panel, "", dd_long, count, 0);
     ToriRSChrome_Build(&g_ui);
@@ -2586,9 +2592,10 @@ visual_panel_close(void)
         uint32_t rest_ok;
 
         ToriRSChrome_Init(&g_ui);
-        g_ui.skin_avail = (1u << TORIRS_CHROME_SKIN_CHECK_ON) |
-                          (1u << TORIRS_CHROME_SKIN_CLOSE) |
-                          (1u << TORIRS_CHROME_SKIN_CLOSE_OVER);
+        memset(g_ui.skin_avail, 0, sizeof(g_ui.skin_avail));
+        ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_CHECK_ON, 1);
+        ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_CLOSE, 1);
+        ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_CLOSE_OVER, 1);
         panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 16, 220, "Plugins");
         ToriRSChrome_Checkbox(&g_ui, panel, "live preview", 1);
         save = ToriRSChrome_Button(&g_ui, panel, "Save");

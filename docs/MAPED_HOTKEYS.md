@@ -216,14 +216,6 @@ The pointer (workbench 6.3, design section 7):
 | Lasso (a drawn loop, or clicked corners, filled with the palette's overlay, its edge cut to the tile shapes) | J | G |
 | Tidy (click an overlay: its run's stepped edge smoothed and refitted to the tile shapes) | Y | G |
 | Building (drag a rectangle: walls, floor, roof flag and roof in one step; a line: an inside wall; click a wall: a door or a window) | 4 | G |
-| Building: drag a rectangle for the whole shell (the Building panel's Shell; arms the tool) | unbound | G |
-| Building: drag a line for a straight inside wall (Wall line) | unbound | G |
-| Building: click a wall piece for a door (again: the wall back) | unbound | G |
-| Building: click a wall piece for a window (again: off) | unbound | G |
-| Building: build the shell on the rectangle last dragged (the Building panel's Build on rectangle) | unbound | G |
-| Save what stands in the rectangle as a stamp (every level; the name is the Rectangle panel's) | unbound | G |
-| Rename the stamp picked in the Stamps panel to its New name | unbound | G |
-| Delete the stamp picked in the Stamps panel | unbound | G |
 | Previous tool (swap with the last armed) | Grave (`) | G |
 | Pick the hovered tile's paint into the palette (underlay, overlay, shape, flags) | I | W |
 | Pick the hovered loc into the catalog | Shift+I | W |
@@ -235,6 +227,25 @@ Region brush: Shift at the press, or **Straight lines** in the Terrain panel for
 every stroke, makes the stroke one straight run from tile centre to tile centre
 at 0, 45 or 90 degrees (a road with clean edges). Shift+Alt+drag is the window
 move, so a straight take-off is Straight lines ticked and a plain Alt+drag.
+
+### Building
+| Action | Chord | Ctx |
+|---|---|---|
+| Building: drag a rectangle for the whole shell (the Building panel's Shell; arms the tool) | unbound | G |
+| Building: drag a line for a straight inside wall (Wall line) | unbound | G |
+| Building: click a wall piece for a door (again: the wall back) | unbound | G |
+| Building: click a wall piece for a window (again: off) | unbound | G |
+| Building: build the shell on the rectangle last dragged (the Building panel's Build on rectangle) | unbound | G |
+
+The Building tool's modes (each arms the tool) and its Build on rectangle
+(the Building panel).
+
+### Stamps
+| Action | Chord | Ctx |
+|---|---|---|
+| Save what stands in the rectangle as a stamp (every level; the name is the Rectangle panel's) | unbound | G |
+| Rename the stamp picked in the Stamps panel to its New name | unbound | G |
+| Delete the stamp picked in the Stamps panel | unbound | G |
 
 ### Brush (height and paint tools)
 | Action | Chord | Ctx |

@@ -1168,6 +1168,51 @@ test_doc(const char* path)
     free(text);
 }
 
+/* The groups are the table's own (fx-editor C1): the Hotkeys panel's filter
+ * once listed twelve by hand while the table named fifteen, and the panel's
+ * check walked off its list (UBSan: index 12 out of bounds). Each group is one
+ * run of the enum, and the three added since have their own entries. */
+static void
+test_groups(void)
+{
+    static const char* const k_want[] = { "File", "Edit", "Place", "Tools", "Building", "Stamps", "Brush", "Level",
+        "Camera", "Picker", "Palette", "View", "Graph", "Camera path", "NPC editor" };
+    int const want = (int)(sizeof(k_want) / sizeof(k_want[0]));
+    struct Editor_HotkeyGroups groups;
+    int split = 0;
+
+    /* One run per group, read from the table itself. */
+    for( int a = 1; a < EDITOR_HK_COUNT; a++ )
+    {
+        const char* group = Editor_HotkeyInfo(a)->group;
+        if( strcmp(group, Editor_HotkeyInfo(a - 1)->group) == 0 )
+            continue;
+        for( int b = 0; b < a; b++ )
+            if( strcmp(Editor_HotkeyInfo(b)->group, group) == 0 )
+            {
+                printf("  %s opens a second run of %s\n", Editor_HotkeyInfo(a)->id, group);
+                split++;
+                break;
+            }
+    }
+    CHECK(split == 0, "every group is one run of the table (%d split)", split);
+
+    Editor_HotkeyGroupsDerive(&groups);
+    CHECK(groups.count == want, "the table names %d groups (%d)", want, groups.count);
+    for( int g = 0; g < want && g < groups.count; g++ )
+        CHECK(strcmp(groups.name[g], k_want[g]) == 0, "group %d is %s (%s)", g, k_want[g], groups.name[g]);
+    for( int a = 0; a < EDITOR_HK_COUNT; a++ )
+        CHECK(strcmp(groups.name[groups.of[a]], Editor_HotkeyInfo(a)->group) == 0, "%s files under its group",
+            Editor_HotkeyInfo(a)->id);
+    CHECK(Editor_HotkeyGroupsFind(&groups, "Building") == 4 && Editor_HotkeyGroupsFind(&groups, "Stamps") == 5
+              && Editor_HotkeyGroupsFind(&groups, "NPC editor") == want - 1,
+        "Building, Stamps and NPC editor are groups of their own");
+    CHECK(groups.of[EDITOR_HK_BUILDING_SHELL] == 4 && groups.of[EDITOR_HK_STAMP_DELETE] == 5
+              && groups.of[EDITOR_HK_NPC_FIX_LEGS] == want - 1,
+        "their actions file under them");
+    CHECK(Editor_HotkeyGroupsFind(&groups, "Tool") == -1, "a name the table does not use is -1");
+}
+
 /* The ergonomics additions (2026-11-03): the palette's (workbench 6.8's
  * Ctrl+K since the merge) and Go to tile's chords, the camera schemes as contexts, and the recent-squares file. */
 static void
@@ -1282,6 +1327,7 @@ main(
     test_placement_chords();
     test_picker_context();
     test_workbench68();
+    test_groups();
     test_doc(argc > 1 ? argv[1] : "../docs/MAPED_HOTKEYS.md");
     printf("editor_hotkeys_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;

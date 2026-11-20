@@ -2244,11 +2244,11 @@ struct ToriRSChrome
     int wrap_used;
 
     /**
-     * Bit per enum ToriRSChromeSkinSlot the drawer actually has an image for.
-     *
-     * 64 bits since the editor's slots took the count past 32: set it with
-     * ToriRSChrome_SetSkinAvailable rather than `1u << slot`, which is
-     * undefined behaviour for a slot of 32 or more.
+     * Bit per enum ToriRSChromeSkinSlot the drawer actually has an image for:
+     * bit (slot & 7) of byte (slot >> 3), sized from the slot count so no slot
+     * shares a bit with another (a 64-bit mask aliased slots 64..68 onto
+     * 0..4). Set it with ToriRSChrome_SetSkinAvailable, read it with
+     * ToriRSChrome_SkinAvailable.
      *
      * The host sets this after it uploads the baked skin; 0 (the Init default)
      * means "no skin", and every skinned draw falls back to its flat form. So
@@ -2256,7 +2256,7 @@ struct ToriRSChrome
      * that has to be remembered -- a build with no skin module, or a host that
      * never uploads one, renders the flat chrome without anything special.
      */
-    uint64_t skin_avail;
+    unsigned char skin_avail[(TORIRS_CHROME_SKIN_SLOT_COUNT + 7) / 8];
     /** Native size of the PANEL_BODY image, so the tiling loop can step by it.
      *  Set alongside skin_avail; ignored when that bit is clear. */
     int skin_tile_w;
@@ -4029,10 +4029,14 @@ ToriRSChrome_DamageClear(struct ToriRSChrome* ui);
 int
 ToriRSChrome_SkinSlotSize(int slot, int* out_w, int* out_h);
 
-/** Mark one baked skin slot as uploaded (or not). The 64-bit successor of
- *  writing `skin_avail` bits by hand. */
+/** Mark one baked skin slot as uploaded (or not). */
 void
 ToriRSChrome_SetSkinAvailable(struct ToriRSChrome* ui, int slot, int available);
+
+/** Whether skin slot `slot` (an enum ToriRSChromeSkinSlot) was marked
+ *  uploaded. */
+int
+ToriRSChrome_SkinAvailable(struct ToriRSChrome const* ui, int slot);
 
 /**
  * The host's clock, for the tooltip delay. ui/ owns no clock, the same way the
