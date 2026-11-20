@@ -6758,16 +6758,50 @@ CS2VM2_Op_ToggleBit(
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, value ^ (1 << bit));
+    /* TOGGLEBIT (4026) has no range test in the reference: Java's << takes
+     * the count mod 32. */
+    return CS2VM2_PushInt(vm, value ^ (int)(1u << (bit & 31)));
 }
 
-/* Contiguous-bit-range mask helper: bits [low, high] inclusive. */
-static inline int
+/* The bit opcodes are Java int shifts. Java takes a shift count mod 32 and
+ * wraps into the sign bit; in C a count outside 0..31 or a 1 shifted into
+ * bit 31 of an int is undefined. So every shift here is a uint32_t shift
+ * cast back, and the reference's own range tests come first: SETBIT,
+ * CLEARBIT and TESTBIT (4008-4010) and the four range ops (4027-4030) leave
+ * the value as it was (TESTBIT answers 0) unless every bit index is 0..31. */
+static inline bool
+cs2_bit_in_range(int bit)
+{
+    return bit >= 0 && bit <= 31;
+}
+
+/* class673.field7141[n] read as an int: the low n bits set, n = 0..32
+ * (32 is -1). The reference indexes a 65-entry table; a range whose high is
+ * below its low indexes it negatively and throws, which ends the script. */
+static inline bool
+cs2_low_bits(
+    int n,
+    int* out_mask)
+{
+    if( n < 0 )
+        return false;
+    *out_mask = n >= 32 ? -1 : (int)((1u << n) - 1u);
+    return true;
+}
+
+/* Contiguous-bit-range mask: bits [low, high] inclusive, low and high 0..31
+ * (Statics.method4760 / method984: field7141[high - low + 1] << low). */
+static inline bool
 cs2_bit_range_mask(
     int low,
-    int high)
+    int high,
+    int* out_mask)
 {
-    return ((1 << (high - low + 1)) - 1) << low;
+    int bits;
+    if( !cs2_low_bits(high - low + 1, &bits) )
+        return false;
+    *out_mask = (int)((uint32_t)bits << low);
+    return true;
 }
 
 int
@@ -6788,7 +6822,12 @@ CS2VM2_Op_SetBitRange(
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, value | cs2_bit_range_mask(low, high));
+    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
+        return CS2VM2_PushInt(vm, value);
+    int mask;
+    if( !cs2_bit_range_mask(low, high, &mask) )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, value | mask);
 }
 
 int
@@ -6809,7 +6848,12 @@ CS2VM2_Op_ClearBitRange(
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, value & ~cs2_bit_range_mask(low, high));
+    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
+        return CS2VM2_PushInt(vm, value);
+    int mask;
+    if( !cs2_bit_range_mask(low, high, &mask) )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, value & ~mask);
 }
 
 int
@@ -6830,7 +6874,11 @@ CS2VM2_Op_GetBitRange(
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, (value >> low) & ((1 << (high - low + 1)) - 1));
+    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
+        return CS2VM2_PushInt(vm, value);
+    /* 4029: value << (31 - high) >>> (low + 31 - high), the count mod 32. */
+    int const up = 31 - high;
+    return CS2VM2_PushInt(vm, (int)(((uint32_t)value << up) >> ((low + up) & 31)));
 }
 
 /* Clear bits [low, high] of value, then write newBits (clamped to the range
@@ -6856,9 +6904,15 @@ CS2VM2_Op_SetBitRangeValue(
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int max_value = (1 << (high - low + 1)) - 1;
+    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
+        return CS2VM2_PushInt(vm, value);
+    int mask;
+    int max_value;
+    if( !cs2_bit_range_mask(low, high, &mask) )
+        return CS2VM_EXECNO_ERROR;
+    cs2_low_bits(high - low + 1, &max_value);
     int clamped = new_bits > max_value ? max_value : new_bits;
-    return CS2VM2_PushInt(vm, (value & ~cs2_bit_range_mask(low, high)) | (clamped << low));
+    return CS2VM2_PushInt(vm, (value & ~mask) | (int)((uint32_t)clamped << low));
 }
 
 int
@@ -7646,7 +7700,9 @@ CS2VM2_Op_TestBit(
     if( CS2VM2_PopInt(vm, &intpop_value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    return CS2VM2_PushInt(vm, (intpop_value & (1 << intpop_bit)) != 0 ? 1 : 0);
+    if( !cs2_bit_in_range(intpop_bit) )
+        return CS2VM2_PushInt(vm, 0);
+    return CS2VM2_PushInt(vm, (intpop_value & (int)(1u << intpop_bit)) != 0 ? 1 : 0);
 }
 
 static int
@@ -8958,7 +9014,9 @@ CS2VM2_Op_SetBit(
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    return CS2VM2_PushInt(vm, value | (1 << bit));
+    if( !cs2_bit_in_range(bit) )
+        return CS2VM2_PushInt(vm, value);
+    return CS2VM2_PushInt(vm, value | (int)(1u << bit));
 }
 
 int
@@ -8979,7 +9037,9 @@ CS2VM2_Op_ClearBit(
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    return CS2VM2_PushInt(vm, value & ~(1 << bit));
+    if( !cs2_bit_in_range(bit) )
+        return CS2VM2_PushInt(vm, value);
+    return CS2VM2_PushInt(vm, value & ~(int)(1u << bit));
 }
 
 int

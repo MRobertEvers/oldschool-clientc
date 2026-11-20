@@ -217,6 +217,27 @@ main(void)
     CHECK(op2(CS2_OP_SETBIT, 0, 3), 8, "SETBIT(0,3)");
     CHECK(op2(CS2_OP_CLEARBIT, 0xF, 1), 0xD, "CLEARBIT(0xF,1)");
     CHECK(op2(CS2_OP_TESTBIT, 0x8, 3), 1, "TESTBIT(0x8,3)");
+
+    /* Bit 31 and bit indices outside 0..31 (rev-239 Statics 4008-4010,
+     * 4026-4030): SETBIT, CLEARBIT, TESTBIT and the range ops test the index
+     * and leave the value (TESTBIT answers 0); TOGGLEBIT has no test and Java
+     * takes its shift count mod 32. Bit 31 is the sign bit, set by a wrap. */
+    CHECK(op2(CS2_OP_SETBIT, 0, 31), -2147483647 - 1, "SETBIT(0,31) sets the sign bit");
+    CHECK(op2(CS2_OP_TESTBIT, -2147483647 - 1, 31), 1, "TESTBIT(INT_MIN,31)");
+    CHECK(op2(CS2_OP_CLEARBIT, -1, 31), 2147483647, "CLEARBIT(-1,31)");
+    CHECK(op2(CS2_OP_SETBIT, 4, 32), 4, "SETBIT(4,32) leaves the value");
+    CHECK(op2(CS2_OP_SETBIT, 0, -1), 0, "SETBIT(0,-1) leaves the value");
+    CHECK(op2(CS2_OP_CLEARBIT, 1, 32), 1, "CLEARBIT(1,32) leaves the value");
+    CHECK(op2(CS2_OP_TESTBIT, 1, 32), 0, "TESTBIT(1,32) is 0");
+    CHECK(op2(CS2_OP_TOGGLEBIT, 0, 33), 2, "TOGGLEBIT(0,33) toggles bit 1");
+    CHECK(op3(CS2_OP_SETBIT_RANGE, 0, 0, 31), -1, "SETBIT_RANGE(0,0,31)");
+    CHECK(op3(CS2_OP_CLEARBIT_RANGE, -1, 0, 31), 0, "CLEARBIT_RANGE(-1,0,31)");
+    CHECK(op3(CS2_OP_GETBIT_RANGE, -1, 0, 31), -1, "GETBIT_RANGE(-1,0,31)");
+    CHECK(op3(CS2_OP_GETBIT_RANGE, -2147483647 - 1, 31, 31), 1, "GETBIT_RANGE(INT_MIN,31,31)");
+    CHECK(op3(CS2_OP_SETBIT_RANGE, 7, 0, 32), 7, "SETBIT_RANGE(7,0,32) leaves the value");
+    CHECK(op3(CS2_OP_GETBIT_RANGE, 0xD8, -1, 5), 0xD8, "GETBIT_RANGE(0xD8,-1,5) leaves the value");
+    CHECK(op4(CS2_OP_SETBIT_RANGE_VALUE, 0, 5, 31, 31), -2147483647 - 1,
+          "SETBIT_RANGE_VALUE(0,5,31,31) clamps to 1 in the sign bit");
     CHECK(op3(CS2_OP_SCALE, 10, 3, 6), 20, "SCALE(10,3,6)");
 
     /* INVPOW = integer root (was previously mis-implemented as base^exp). */
