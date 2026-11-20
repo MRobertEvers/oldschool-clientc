@@ -6558,8 +6558,8 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # the script on the unknown opcode right after stopping the crab's timer, and
 # the crab stood at her edge until it was killed (owner 2026-10-10, "the
 # nylocas get stuck at the edge of maiden"). Both names now build this file,
-# and the headers count: the sources are compiled in one invocation, so no .d
-# file says which header each one read.
+# and the headers count. This list is the coarse rule; each object's own .d
+# file (included at the end of this makefile) names every header it read.
 TORIRSSERVER_HDRS := $(wildcard torirsserver/*.h scriptrun/*.h serverscript/*.h content/*.h \
 		net/*.h net/login/*.h net/proto/*.h net/rev/*.h torirsserver/wire/*/*.h net/rev/packets/*.h \
 		world/*.h engine/*.h engine/world_builder/*.h features/*.h game/rs_entity_sync.h \
@@ -6654,12 +6654,18 @@ ifneq ($(LTO_MODE_STAMP),)
 $(TORIRSSERVER_OBJS): $(LTO_MODE_STAMP)
 endif
 
+# The server compiles the shared World (world/world.c, world_cycle.c) and a
+# few client units whose scene-side functions it never calls; they name the
+# painter, heightmap, minimap, scene element, world builder and UI tree host,
+# none of which is linked here. -flto drops them at OPT=1; without LTO only
+# the dead-code strip does, as it does for the client and the world tests,
+# so an asserts-live (OPT=0) server links on macOS too.
 $(TORIRSSERVER_BIN): $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
 	@mkdir -p $(TORIRSSERVER_OBJ_DIR) $(if $(TORIRSSERVER_LTO_CACHE),$(TORIRSSERVER_LTO_CACHE_DIR))
 	$(file >$(TORIRSSERVER_OBJ_DIR)/link_objs.rsp,$(TORIRSSERVER_OBJS))
 	$(LTO_CACHE_LINK) $(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_OBJS_ARG) \
 		$(TORIRSSERVER_LINK_OBJS) \
-		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_LTO_CACHE)
+		-lm $(JS5_SOCKET_LIBS) $(PLATFORM_STRIP_LDFLAGS) $(TORIRSSERVER_LTO_CACHE)
 	@echo "built $(TORIRSSERVER_BIN)"
 
 # ---- ToriRSMapEd -----------------------------------------------------------
@@ -9154,6 +9160,11 @@ ifeq ($(and $(MAKECMDGOALS),$(if $(filter-out $(PACK_ONLY_GOALS),$(MAKECMDGOALS)
 -include $(wildcard $(OBJ_DIR)/sscompile.d $(OBJ_DIR)/maped_script_check.d)
 else
 -include $(wildcard $(OBJ_DIR)/*.d)
+# The server's objects are compiled one source each into a directory of their
+# own, with the -MMD in CFLAGS, so each has a .d file there: without these an
+# edit to any header outside TORIRSSERVER_HDRS (game/rs_effect_rules.h, read
+# by seven of them) rebuilt nothing.
+-include $(wildcard $(TORIRSSERVER_OBJ_DIR)/*.d)
 endif
 
 # The three revision-239 music packets: encode as RSProt does, parse back.
