@@ -410,47 +410,69 @@ main(void)
     int32_t node = UITree_Push(tree, -1, &spec);
     assert(node >= 0);
 
-    /* The bare managers as the packet model's records, with an event ring of
-     * the test's own: the model half of each packet writes these, and the
-     * app-less presentation writes `tree`. A block that executes against an
-     * App binds the App's records instead (App_ServerStateBind). */
+    /* App_GameProto_Exec requires an App (fa5680f77). A section that needs
+     * more than a zeroed one makes its own; this one has the tree and the
+     * chat bound as app.c binds them. Its records are the App's
+     * (App_ServerStateBind), with the managers, the chat and an event ring of
+     * the test's own in place of the zeroed App's, so the checks below read
+     * them. */
     static struct RS_Event bare_events[64];
     struct RS_EventRing bare_ring;
-    struct UIIfTextStore bare_texts;
-    struct UIIfIntStore bare_hides;
-    struct UIIfIntStore bare_colours;
-    struct UIIfEventTable bare_if_events;
-    int const bare_clock = 0;
     struct RS_ServerState bare_state;
     struct RS_ServerState app_state;
+    struct App* base_app = calloc(1, sizeof(*base_app));
 
+    assert(base_app);
+    base_app->tree = tree;
+    RS_CS2Host_SetChat(&base_app->host, &chat);
     memset(&bare_ring, 0, sizeof(bare_ring));
-    memset(&bare_texts, 0, sizeof(bare_texts));
-    memset(&bare_hides, 0, sizeof(bare_hides));
-    memset(&bare_colours, 0, sizeof(bare_colours));
-    memset(&bare_if_events, 0, sizeof(bare_if_events));
-    bare_state = (struct RS_ServerState){
-        .varps = &varps,
-        .stats = &stats,
-        .invs = &invs,
-        .if_texts = &bare_texts,
-        .if_hides = &bare_hides,
-        .if_colours = &bare_colours,
-        .if_events = &bare_if_events,
-        .chat = &chat,
-        .chat_clock = &bare_clock,
-        .rev_number = -1,
-        .events = {
-            .ring = &bare_ring,
-            .entries = bare_events,
-            .capacity = 64,
-            .full = RS_EVENT_RING_OVERWRITE,
-        },
+    App_ServerStateBind(base_app, &bare_state);
+    bare_state.varps = &varps;
+    bare_state.stats = &stats;
+    bare_state.invs = &invs;
+    bare_state.chat = &chat;
+    bare_state.rev_number = -1;
+    bare_state.events = (struct RS_EventSink){
+        .ring = &bare_ring,
+        .entries = bare_events,
+        .capacity = 64,
+        .full = RS_EVENT_RING_OVERWRITE,
     };
-    struct RS_GameProtoCtx ctx = {
-        .state = &bare_state,
-        .tree = tree,
-    };
+
+    /* The App-free half (game/rs_gameproto_exec.c): the model, and the
+     * tree-only arms. An interface setter's value is the model's store; with
+     * no App nothing puts it on the node. */
+    {
+        struct RS_GameProtoCtx ctx = {
+            .state = &bare_state,
+            .tree = tree,
+        };
+        char text[] = "stored";
+        struct RevPacket p;
+        int32_t idx;
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_VARP_SMALL;
+        p._varp_small.variable = 43;
+        p._varp_small.value = 7;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(VarPManager_GetVarp(&varps, 43) == 7, "the model half applies a varp");
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_IF_SETTEXT;
+        p._if_settext.component_id = 0x1234;
+        p._if_settext.text = text;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(
+            strcmp(UIIfTextStore_Get(bare_state.if_texts, 0x1234), "stored") == 0,
+            "IF_SETTEXT is the model's store");
+        idx = UITree_FindByComponentId(tree, 0x1234);
+        assert(idx >= 0);
+        TEST_EXEC_ASSERT(
+            strcmp(tree->components[idx].u.rs_text.text, "before") == 0,
+            "with no App the node is left to the App's setter");
+        printf("ok - the App-free half writes the model and the tree-only arms\n");
+    }
 
     /* VARP_SMALL 42 = 5 */
     {
@@ -459,7 +481,7 @@ main(void)
         p.packet_type = PKT_NAME_VARP_SMALL;
         p._varp_small.variable = 42;
         p._varp_small.value = 5;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         assert(VarPManager_GetVarp(&varps, 42) == 5);
         printf("ok - VARP_SMALL applied\n");
     }
@@ -470,7 +492,7 @@ main(void)
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_UPDATE_RUNENERGY;
         p._update_run_energy.run_energy = 73;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         assert(stats.run_energy == 73);
         printf("ok - UPDATE_RUNENERGY applied\n");
     }
@@ -483,7 +505,7 @@ main(void)
         p._update_stat.stat = 0;
         p._update_stat.xp = 37224;
         p._update_stat.level = 40;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         assert(stats.current_level[0] == 40);
         printf("ok - UPDATE_STAT applied\n");
     }
@@ -499,7 +521,7 @@ main(void)
         p._update_inv_full.size = 3;
         p._update_inv_full.obj_ids = obj_ids;
         p._update_inv_full.obj_counts = obj_counts;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         assert(InvManager_GetObj(&invs, 3214, 0) == 995);
         assert(InvManager_GetObj(&invs, 3214, 2) == 4151);
         printf("ok - UPDATE_INV_FULL applied\n");
@@ -528,7 +550,7 @@ main(void)
         p._update_inv_full.size = 4;
         p._update_inv_full.obj_ids = worn_ids;
         p._update_inv_full.obj_counts = worn_counts;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_UPDATE_INV_FULL;
@@ -536,14 +558,14 @@ main(void)
         p._update_inv_full.size = 4;
         p._update_inv_full.obj_ids = shop_ids;
         p._update_inv_full.obj_counts = shop_counts;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_UPDATE_INV_PARTIAL;
         p._update_inv_partial.inv_id = shop_inv;
         p._update_inv_partial.count = 1;
         p._update_inv_partial.entries = &entry;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
 
         TEST_EXEC_ASSERT(InvManager_GetObj(&invs, INV_MANAGER_CONTAINER_WORN, 3) == 1351,
             "the weapon slot keeps the bronze axe the server put there");
@@ -564,7 +586,7 @@ main(void)
         p.packet_type = PKT_NAME_IF_SETTEXT;
         p._if_settext.component_id = 0x1234;
         p._if_settext.text = text;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         {
             int32_t idx = UITree_FindByComponentId(tree, 0x1234);
             assert(idx >= 0);
@@ -580,7 +602,7 @@ main(void)
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_MESSAGE_GAME;
         p._message_game.text = text;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         assert(chat.message_count == 1);
         assert(strcmp(chat.messages[0].text, "A goblin appears.") == 0);
         printf("ok - MESSAGE_GAME applied\n");
@@ -744,6 +766,7 @@ main(void)
         static char dummy_builder[1];
 
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         /* A real App's world lives from App_Init to shutdown, and the fence
          * reads its cycle (the plugin tick). */
         app->world = World_New();
@@ -812,6 +835,7 @@ main(void)
     {
         struct App* app = calloc(1, sizeof(*app));
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         app->minimap.flag_tile_x = -1;
         app->minimap.flag_tile_z = -1;
         App_ServerStateBind(app, &app_state);
@@ -874,6 +898,7 @@ main(void)
         unsigned serial;
 
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         App_ServerStateBind(app, &app_state);
         serial = app->host.inv_change_serial;
         memset(&p, 0, sizeof(p));
@@ -928,6 +953,7 @@ main(void)
         struct App* app = calloc(1, sizeof(*app));
         struct RevPacket p;
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         App_ServerStateBind(app, &app_state);
 
         memset(&p, 0, sizeof(p));
@@ -1155,6 +1181,7 @@ main(void)
         struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
 
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         App_ServerStateBind(app, &app_state);
 
         /* MINIMAP_TOGGLE had no parser at all; parse it off the wire rather
@@ -1340,6 +1367,7 @@ main(void)
         RS_GroupStore_Free(&store);
 
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         App_ServerStateBind(app, &app_state);
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_OBJUNLOCK_UPDATE;
@@ -1368,6 +1396,7 @@ main(void)
         struct CamScriptRotateCycles const* r = &app->cam_script.rotate_cycles;
 
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         memset(&view, 0, sizeof(view));
         view.world_camera.pitch = 300;
         view.world_camera.yaw = 100;
@@ -1414,6 +1443,7 @@ main(void)
         int const iface_notice = 6073; /* ...and 655 (plus 652/653/654) here */
 
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         RevConfigRefs_Init(&app->revconfig_refs);
         RevConfigRefs_LoadSources(
             &app->revconfig_refs,
@@ -1607,6 +1637,8 @@ main(void)
         App_PendingInit(app);
         app->phase.app_state = APP_STATE_READY;
         app->tree = UITree_New(4);
+        /* The host's tree is bound, as App init binds it (ba95a2734). */
+        app->host.tree = app->tree;
         memset(&spec, 0, sizeof(spec));
         memset(&layer_behavior, 0, sizeof(layer_behavior));
         spec.behavior = &layer_behavior;
@@ -1797,13 +1829,14 @@ main(void)
         printf("ok - a player-model build is a parallel task, newest composition wins\n");
     }
 
+    UIIfTextStore_Free(&base_app->if_texts);
+    UIIfIntStore_Free(&base_app->if_hides);
+    UIIfIntStore_Free(&base_app->if_colours);
+    UIIfEventTable_Free(&base_app->if_events);
+    free(base_app);
     UITree_Free(tree);
     InvManager_Free(&invs);
     VarPManager_Free(&varps);
-    UIIfTextStore_Free(&bare_texts);
-    UIIfIntStore_Free(&bare_hides);
-    UIIfIntStore_Free(&bare_colours);
-    UIIfEventTable_Free(&bare_if_events);
     printf("net-exec: all tests passed\n");
     return 0;
 }

@@ -30,11 +30,11 @@ struct RS_GameProtoCtx
     struct UITree* tree;
 };
 
-/** One parsed packet with no App: RS_ServerState_Apply, then the interface
- *  setters written to `tree` (a text, hide, colour, model or animation goes
- *  onto the node when it exists; the store already holds it) and the
- *  tree-only arms (RS_GameProto_PresentTree). A control frame is the App's
- *  and is never handed here. */
+/** One parsed packet with no App: RS_ServerState_Apply, then the tree-only
+ *  arms (RS_GameProto_PresentTree). An interface setter's value is the
+ *  model's store; only the App puts it on a node. Every field of `ctx` is
+ *  required and asserted once. A control frame is the App's and is never
+ *  handed here. */
 void
 RS_GameProto_Exec(
     struct RS_GameProtoCtx const* ctx,

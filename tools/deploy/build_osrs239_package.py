@@ -4,14 +4,20 @@
     python tools/deploy/build_osrs239_package.py            # build + stage + zip
     make -C src deploy-osrs239                               # the same
 
-The zip unpacks to a self-contained `torirs-osrs239/` that runs the three
-processes a browser needs (docs/WEB_SERVERS.md) with nothing else installed:
+The zip unpacks to a self-contained `torirs-osrs239/` that carries the five
+servers (docs/WEB_SERVERS.md) with nothing else installed:
 
-    bin/torirsserver[.exe]      the game world, on the game port
-    bin/io_server[.exe]         the page, POST /io cache reads, GET /boot/
-    bin/account_server[.exe]    web logins, invites, hiscores, history: the
-                                one process with saves/accounts.sqlite open,
-                                on 127.0.0.1 only (the other two ask it)
+    bin/torirsserver[.exe]      the game world, on the game port; hosts the
+                                account server unless TORIRS_ACCOUNT_SERVER
+                                names one
+    bin/account_server[.exe]    the login server alone: player accounts, saves,
+                                the lock (for worlds sharing one saves dir)
+    bin/hiscores_server[.exe]   hiscores, history, the adventure log: the one
+                                process with saves/hiscores.sqlite open
+    bin/website_server[.exe]    the public front door: the sign-in gate, user
+                                accounts, OAuth, the account site; forwards
+                                the rest to the IO server
+    bin/io_server[.exe]         the page, POST /io cache reads, GET /boot/, JS5
     build-web/                  the emscripten client and its host page
     cache.osrs239/              the pristine rev-239 cache both servers read
     content/osrs-content/    the slice of the content tree the server opens
@@ -19,8 +25,12 @@ processes a browser needs (docs/WEB_SERVERS.md) with nothing else installed:
     revconfig/, script/         what the page fetches through /boot/
     build-web/android/          with --android: the prod Android app's game
                                 pack (stage_android), served at /android/
-    run.cmd, run.sh             start both in the foreground
-    supervise.ps1               start both, restart whichever exits (Windows)
+    bin/torirsd[.exe]           starts all five from torirsd.ini, in order, and
+                                stops them together
+    torirsd.ini                 the five servers, their order and environment
+    run.cmd, run.sh             torirsd in the foreground
+    supervise.ps1               torirsd, started again whenever it exits
+                                (Windows)
     install-windows-task.ps1    register supervise.ps1 as a startup task,
                                 open the two ports in Windows Firewall
 
@@ -213,7 +223,7 @@ def copy_tree(src: Path, dst: Path, keep=None) -> int:
 
 def stage_admin_art(stage: Path, jobs: int) -> None:
     """build-web/admin-art/: the account site's staff player editor
-    (src/ioserver/io_site_editor.c) -- its page script and style, and the art
+    (src/websiteserver/website_site_editor.c) -- its page script and style, and the art
     tools/entity_viewer/ev_icons renders from the staged cache: every obj's
     inventory icon in atlas sheets with an index, the skill and equipment-slot
     icons, the varp and inv names. Seconds; redone every package because the
@@ -222,7 +232,7 @@ def stage_admin_art(stage: Path, jobs: int) -> None:
     out = stage / "build-web" / "admin-art"
     out.mkdir(parents=True, exist_ok=True)
     for name in ("player_editor.js", "player_editor.css"):
-        shutil.copy2(SRC / "ioserver" / "site" / name, out / name)
+        shutil.copy2(SRC / "websiteserver" / "site" / name, out / name)
     tool_dir = REPO / "tools" / "entity_viewer"
     tool = tool_dir / f"ev_icons{EXE}"
     env = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")}
@@ -383,116 +393,44 @@ def write_replay_manifest(stage: Path) -> None:
 
 
 RUN_CMD = r"""@echo off
+rem Start every server (torirsd.ini); Ctrl-C stops them all, the game first.
 setlocal
 cd /d "%~dp0"
-if "%TORIRS_GAME_PORT%"=="" set TORIRS_GAME_PORT={game_port}
-if "%TORIRS_WEB_PORT%"=="" set TORIRS_WEB_PORT={web_port}
-if "%TORIRSSERVER_BIND%"=="" set TORIRSSERVER_BIND=0.0.0.0
-set TORIRSSERVER_CACHE=cache.osrs239
-set TORIRSSERVER_CONTENT=content/osrs-content
-set TORIRSSERVER_SAVES=saves
-if not exist saves mkdir saves
-if not exist logs mkdir logs
-echo torirs-osrs239: game port %TORIRS_GAME_PORT% (bind %TORIRSSERVER_BIND%), web port %TORIRS_WEB_PORT%
-start "account_server" /b bin\account_server.exe >> logs\account_server.log 2>&1
-start "torirsserver" /b bin\torirsserver.exe %TORIRS_GAME_PORT% --rev osrs239 >> logs\torirsserver.log 2>&1
-bin\io_server.exe --manifest manifests/manifest_osrs239.ini --root build-web --boot-root . --port %TORIRS_WEB_PORT% >> logs\io_server.log 2>&1
+bin\torirsd.exe torirsd.ini
 """
 
 RUN_SH = """#!/bin/sh
-# Start the account server, the game server and io_server; Ctrl-C stops all three.
+# Start every server (torirsd.ini); Ctrl-C stops them all, the game first.
 cd "$(dirname "$0")"
-: "${{TORIRS_GAME_PORT:={game_port}}}"
-: "${{TORIRS_WEB_PORT:={web_port}}}"
-: "${{TORIRSSERVER_BIND:=0.0.0.0}}"
-export TORIRSSERVER_BIND
-export TORIRSSERVER_CACHE=cache.osrs239
-export TORIRSSERVER_CONTENT=content/osrs-content
-export TORIRSSERVER_SAVES=saves
-mkdir -p saves logs
-echo "torirs-osrs239: game port $TORIRS_GAME_PORT (bind $TORIRSSERVER_BIND), web port $TORIRS_WEB_PORT"
-./bin/account_server >> logs/account_server.log 2>&1 &
-ACCOUNTS=$!
-./bin/torirsserver "$TORIRS_GAME_PORT" --rev osrs239 >> logs/torirsserver.log 2>&1 &
-GAME=$!
-trap 'kill $GAME $ACCOUNTS 2>/dev/null' EXIT INT TERM
-./bin/io_server --manifest manifests/manifest_osrs239.ini --root build-web --boot-root . --port "$TORIRS_WEB_PORT" >> logs/io_server.log 2>&1
+exec ./bin/torirsd torirsd.ini
 """
 
 SUPERVISE_PS1 = r"""<#
-Start account_server, torirsserver and io_server from this directory and keep
-them running: whichever exits is started again after a short pause. Logs
-append under logs\. This is what install-windows-task.ps1 registers as the
-startup task; it also runs fine by hand in a console (Ctrl-C stops the
-supervisor, and the three children with it).
-
-  -GamePort N   the game/WebSocket port (default {game_port})
-  -WebPort N    io_server's HTTP port (default {web_port})
-  -Bind ADDR    TORIRSSERVER_BIND (default 0.0.0.0, every interface)
+Run torirsd (every server in torirsd.ini, up together and down together) from
+this directory and start it again whenever it exits -- which it does when any
+one server stops. Its own lines append to logs\torirsd.log; each server's to
+logs\<name>.log. This is what install-windows-task.ps1 registers as the
+startup task; it also runs fine by hand in a console (Ctrl-C stops it, and
+torirsd stops the servers in order).
 #>
-param(
-    [int]$GamePort = {game_port},
-    [int]$WebPort = {web_port},
-    [string]$Bind = "0.0.0.0"
-)
 $ErrorActionPreference = "Continue"
 Set-Location $PSScriptRoot
 New-Item -ItemType Directory -Force -Path saves, logs | Out-Null
-$env:TORIRSSERVER_BIND = $Bind
-$env:TORIRSSERVER_CACHE = "cache.osrs239"
-$env:TORIRSSERVER_CONTENT = "content/osrs-content"
-$env:TORIRSSERVER_SAVES = "saves"
-
-function Start-Accounts {{
-    $p = Start-Process -FilePath (Join-Path $PSScriptRoot "bin\account_server.exe") `
-        -WorkingDirectory $PSScriptRoot -NoNewWindow -PassThru `
-        -RedirectStandardError "logs\account_server.log" `
-        -RedirectStandardOutput "logs\account_server.out.log"
-    $null = $p.Handle
-    $p
-}}
-function Start-Game {{
-    $p = Start-Process -FilePath (Join-Path $PSScriptRoot "bin\torirsserver.exe") `
-        -ArgumentList @("$GamePort", "--rev", "osrs239") -WorkingDirectory $PSScriptRoot `
-        -NoNewWindow -PassThru -RedirectStandardError "logs\torirsserver.log" `
-        -RedirectStandardOutput "logs\torirsserver.out.log"
-    $null = $p.Handle   # without this ExitCode reads back empty after the exit
-    $p
-}}
-function Start-Web {{
-    $p = Start-Process -FilePath (Join-Path $PSScriptRoot "bin\io_server.exe") `
-        -ArgumentList @("--manifest", "manifests/manifest_osrs239.ini", "--root", "build-web",
-                        "--boot-root", ".", "--port", "$WebPort") `
-        -WorkingDirectory $PSScriptRoot -NoNewWindow -PassThru `
-        -RedirectStandardError "logs\io_server.log" -RedirectStandardOutput "logs\io_server.out.log"
-    $null = $p.Handle
-    $p
-}}
-
-$accounts = $null; $game = $null; $web = $null
+$daemon = $null
 try {{
     while ($true) {{
-        if (-not $accounts -or $accounts.HasExited) {{
-            if ($accounts) {{ Add-Content logs\supervise.log "$(Get-Date -Format s) account_server exited ($($accounts.ExitCode)); restarting" }}
-            $accounts = Start-Accounts
-            Add-Content logs\supervise.log "$(Get-Date -Format s) account_server pid $($accounts.Id)"
-        }}
-        if (-not $game -or $game.HasExited) {{
-            if ($game) {{ Add-Content logs\supervise.log "$(Get-Date -Format s) torirsserver exited ($($game.ExitCode)); restarting" }}
-            $game = Start-Game
-            Add-Content logs\supervise.log "$(Get-Date -Format s) torirsserver pid $($game.Id) on $GamePort"
-        }}
-        if (-not $web -or $web.HasExited) {{
-            if ($web) {{ Add-Content logs\supervise.log "$(Get-Date -Format s) io_server exited ($($web.ExitCode)); restarting" }}
-            $web = Start-Web
-            Add-Content logs\supervise.log "$(Get-Date -Format s) io_server pid $($web.Id) on $WebPort"
-        }}
+        $daemon = Start-Process -FilePath (Join-Path $PSScriptRoot "bin\torirsd.exe") `
+            -ArgumentList @("torirsd.ini") -WorkingDirectory $PSScriptRoot -NoNewWindow `
+            -PassThru -RedirectStandardError "logs\torirsd.log" `
+            -RedirectStandardOutput "logs\torirsd.out.log"
+        $null = $daemon.Handle   # without this ExitCode reads back empty after the exit
+        Add-Content logs\supervise.log "$(Get-Date -Format s) torirsd pid $($daemon.Id)"
+        $daemon.WaitForExit()
+        Add-Content logs\supervise.log "$(Get-Date -Format s) torirsd exited ($($daemon.ExitCode)); starting again"
         Start-Sleep -Seconds 5
     }}
 }} finally {{
-    foreach ($p in @($accounts, $game, $web)) {{
-        if ($p -and -not $p.HasExited) {{ Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }}
-    }}
+    if ($daemon -and -not $daemon.HasExited) {{ Stop-Process -Id $daemon.Id -Force -ErrorAction SilentlyContinue }}
 }}
 """
 
@@ -527,7 +465,7 @@ if ($Uninstall) {{
     foreach ($r in $rules) {{
         Get-NetFirewallRule -DisplayName $r.Name -ErrorAction SilentlyContinue | Remove-NetFirewallRule
     }}
-    Get-Process torirsserver, io_server, account_server -ErrorAction SilentlyContinue | Stop-Process -Force
+    Get-Process torirsserver, io_server, hiscores_server -ErrorAction SilentlyContinue | Stop-Process -Force
     Write-Host "stopped servers, removed firewall rules"
     exit 0
 }}
@@ -560,14 +498,15 @@ Write-Host "page: http://localhost:$WebPort/?args=--manifest,manifests/manifest_
 
 README = r"""# torirs-osrs239
 
-The osrs239 world, packaged: the game server, the page server, the browser
-client, the cache and the content the server reads. Unpack anywhere and run.
+The osrs239 world, packaged: its five servers, the browser client, the cache
+and the content the game reads. Unpack anywhere and run.
 
-    run.cmd                          Windows, foreground (Ctrl-C stops both)
     ./run.sh                         macOS / Linux, foreground
+    run.cmd                          Windows, foreground
     install-windows-task.ps1         Windows: start at boot + firewall (elevated)
 
-Then open
+Each of those is one call: `bin/torirsd torirsd.ini`. Ctrl-C (or a stop of the
+unit or task) stops every server, the game first. Then open
 
     http://localhost:{web_port}/?args=--manifest,manifests/manifest_latest.ini
 
@@ -578,22 +517,74 @@ the game server over a WebSocket at `ws_host:ws_port` from it
 that terminates TLS, add `&ws=ws` (or `&ws=wss://host/path`) to the page URL
 and have the proxy pipe that path's WebSocket upgrade to the game port.
 
-Environment knobs (all optional): TORIRS_GAME_PORT, TORIRS_WEB_PORT,
-TORIRSSERVER_BIND (default 0.0.0.0; 127.0.0.1 keeps it local),
-TORIRSSERVER_SAVES (default saves/), TORIRSSERVER_VERBOSE=1.
+## The servers
 
-Logs append under logs/. Player saves live in saves/ -- keep that directory
-when unpacking a newer package over this one.
+Five processes, one deployment. torirsd starts them in this order and stops
+them in the reverse:
+
+| server | binary | what it is | listens |
+| --- | --- | --- | --- |
+| account | `bin/account_server` | the login server: player accounts (passwords, admin and record flags, the web login each is linked to), every character's save, display names, and the lock that says which world has each character | 127.0.0.1:8091 |
+| hiscores | `bin/hiscores_server` | the characters' records: hiscores, experience history, sessions, the adventure log | 127.0.0.1:8093 |
+| io | `bin/io_server` | the client page and its assets, manifests, cache reads, the page's black box | 127.0.0.1:8089 |
+| website | `bin/website_server` | the public front door: the sign-in gate and the user accounts behind it (web logins, invites), OAuth, the account site and staff pages | 0.0.0.0:{web_port} |
+| game | `bin/torirsserver` | the world | 0.0.0.0:{game_port} |
+
+How they talk:
+
+```
+  browser ──HTTP──▶ website ──(signed)──▶ io            the page, its assets, the cache
+     │                 │
+     │                 ├──(signed)──▶ account          sign-in links, the player editor
+     │                 └──(signed)──▶ hiscores         the hiscores and player pages
+     │
+     └──WebSocket──▶ game ──(signed)──▶ account         every login takes the character and
+                       │                                its save; every logout hands the
+                       │                                save back
+                       └──(signed, never waited on)──▶ hiscores   stats, sessions, the log
+```
+
+- **The website is the only door a browser uses**, beside the game's
+  WebSocket. It answers the gate, the account pages and OAuth itself and
+  forwards everything else -- the client page, its files, the cache -- to
+  the IO server.
+- **A user account is not a player account.** A web login (the website's,
+  `saves/website.sqlite`) opens the site and holds player accounts linked to
+  it; a player account (the account server's, `saves/accounts/`) is what you
+  play as.
+- **A character's save belongs to one world at a time.** A login takes it from
+  the account server; while it plays the world keeps it in
+  `saves/worlds/<world>/`; the logout hands it back to `saves/<name>.ini`.
+  A world that crashes hands its characters back when it starts again;
+  until then they cannot log in elsewhere. `./torirsctl release <name>` takes
+  one back from a world that is not coming back.
+- **The hiscores never hold anything up.** The game spools its records to
+  `saves/hiscores_spool.tsv` and sends them when the hiscores server answers.
+- **Every request between servers is signed** with `saves/service.key` (made at
+  the first start): the internal servers refuse anything else. A server on
+  another machine needs the same key.
+
+If any one server exits, torirsd stops the others and exits too, so the set
+always runs whole; supervise.ps1 (or a systemd unit with Restart=always and
+KillMode=mixed) starts it again. Each server logs to `logs/<name>.log`.
+
+Ports, the world's environment and every server's arguments are in
+`torirsd.ini`; edit it to change them (`bin/torirsd --check torirsd.ini`
+prints what it would run).
+
+## Saves and accounts
+
+Logs append under logs/. Everything that persists lives in saves/ -- keep
+that directory when unpacking a newer package over this one.
 
 Logins check passwords. A name's first login sets its password, kept as a
 salted hash in saves/accounts/<name>.ini; to reset a forgotten one, delete
 that file and the next login sets it again. A character saved before
 passwords existed is claimed the same way by whoever logs into it first.
-TORIRSSERVER_DEV=1 turns the check off -- never on a world others can reach.
 
-Accounts, from this directory, beside the running servers (no restart; a
-record is read at each login, and passwords are prompted for, never typed
-on the command line):
+Accounts, from this directory, while the servers run (no restart; a record
+is read at each login, and passwords are prompted for, never typed on the
+command line):
 
     ./torirsctl create-admin <name>     new player account that is staff
     ./torirsctl create-player <name>    new player account
@@ -602,6 +593,8 @@ on the command line):
                                         at /admin/recordings, staff only)
     ./torirsctl password <name>         new password for a player account
     ./torirsctl unlink <name>           release a player from its web login
+    ./torirsctl release <name>          take a character back from a world
+                                        that is not coming back
     ./torirsctl create-login <name>     new web login (the sign-in gate)
     ./torirsctl revoke-login <name>     delete a web login
     ./torirsctl invite [name]           one-time link to make a web login
@@ -616,7 +609,8 @@ the supervisor outside the session:
       CurrentDirectory = 'C:\torirs\osrs239' }}
 
 The firewall must admit whoever fronts it: install-windows-task.ps1 opens
-the two ports for -Remote (default the 10.0.0.0/24 VPN and the local subnet).
+the two public ports for -Remote (default the 10.0.0.0/24 VPN and the local
+subnet).
 
 Built from {sha} on {date} (content {content_sha}).
 """
@@ -638,6 +632,8 @@ TORIRSCTL = r"""#!/usr/bin/env bash
 #                                       staff watch them at /admin/recordings
 #   ./torirsctl password <name>         new password for a player account
 #   ./torirsctl unlink <name>           release a player from its web login
+#   ./torirsctl release <name>          take a character back from a world that
+#                                       is not coming back (its copy is refused)
 #   ./torirsctl create-login <name>     new web login (site + game page)
 #   ./torirsctl revoke-login <name>     delete a web login: it cannot sign in
 #   ./torirsctl invite [name]           one-time link to make a web login
@@ -649,6 +645,11 @@ cd "$(dirname "$0")"
 export TORIRSSERVER_SAVES="${TORIRSSERVER_SAVES:-saves}"
 : "${TORIRSSERVER_GATE_URL:=https://@WS_HOST@}"
 export TORIRSSERVER_GATE_URL
+# Where the servers are (torirsd.ini): --account asks them, signed with
+# saves/service.key.
+export TORIRS_ACCOUNT_SERVER="${TORIRS_ACCOUNT_SERVER:-127.0.0.1:8091}"
+export TORIRS_HISCORES_SERVER="${TORIRS_HISCORES_SERVER:-127.0.0.1:8093}"
+export TORIRS_WEBSITE_SERVER="${TORIRS_WEBSITE_SERVER:-127.0.0.1:@WEB_PORT@}"
 BIN=./bin/torirsserver
 
 usage() {
@@ -706,6 +707,9 @@ case "$command" in
     unlink)
         [ $# -eq 1 ] || usage
         "$BIN" --account unlink "$1" ;;
+    release)
+        [ $# -eq 1 ] || usage
+        "$BIN" --account release "$1" ;;
     create-login)
         [ $# -eq 1 ] || usage
         with_password "$1" login "$1" ;;
@@ -819,6 +823,75 @@ def stage_android(stage: Path, jobs: int, sha: str, content_sha: str, date: str,
         f"data {data_rel}{', apk' if apk else ''}; signed")
 
 
+TORIRSD_INI = """; torirsd.ini: every server of this world, started by ONE call --
+; ./run.sh, run.cmd, supervise.ps1, or a single systemd unit running
+; `bin/torirsd torirsd.ini` with KillMode=mixed. Written by the package
+; (tools/deploy/build_osrs239_package.py); see README.md "The servers".
+;
+; Started in this order, each answering on its `ready` port before the next;
+; stopped in the reverse order (the game first, so it hands every character's
+; save back to the account server while that is still up); and when any one
+; exits, all are stopped and torirsd exits, for its supervisor to start the
+; whole set again.
+
+[torirsd]
+logs = logs
+start_timeout_ms = 180000
+stop_timeout_ms = 90000
+
+[env]
+TORIRSSERVER_SAVES = saves
+TORIRSSERVER_CACHE = cache.{world}
+TORIRSSERVER_CONTENT = content/osrs-content
+TORIRSSERVER_BIND = 0.0.0.0
+TORIRS_ACCOUNT_SERVER = 127.0.0.1:8091
+TORIRS_HISCORES_SERVER = 127.0.0.1:8093
+TORIRS_IO_SERVER = 127.0.0.1:8089
+TORIRS_WEBSITE_SERVER = 127.0.0.1:{web_port}
+{gate_env}
+; The login server: player accounts, their saves, the lock on each character.
+[server.account]
+run = bin/account_server{exe}
+args = --port 8091
+ready = 8091
+
+; Hiscores, experience history, sessions, the adventure log.
+[server.hiscores]
+run = bin/hiscores_server{exe}
+args = --port 8093
+ready = 8093
+
+; The client page and its assets, the web client's IO, the black box.
+[server.io]
+run = bin/io_server{exe}
+args = --behind-website --port 8089 --manifest manifests/manifest_{world}.ini --root build-web --boot-root .
+ready = 8089
+
+; The public front door: the sign-in gate, user accounts, OAuth, the site.
+[server.website]
+run = bin/website_server{exe}
+args = --port {web_port} {website_gate}--io 127.0.0.1:8089
+ready = {web_port}
+
+; The game.
+[server.game]
+run = bin/torirsserver{exe}
+args = {game_port} --rev {world}{game_gate}
+ready = {game_port}
+"""
+
+
+def write_daemon_config(stage: Path, game_port: int, web_port: int, gate_url: str) -> None:
+    """torirsd.ini: the five servers, their order and their environment."""
+    landing = "/?args=--manifest,manifests/manifest_latest.ini&ws=ws"
+    text = TORIRSD_INI.format(
+        world=WORLD, exe=EXE, game_port=game_port, web_port=web_port,
+        gate_env=f"TORIRSSERVER_GATE_URL = {gate_url}\n" if gate_url else "",
+        website_gate=f'--gate "{landing}" ' if gate_url else "",
+        game_gate=" --gate" if gate_url else "")
+    (stage / "torirsd.ini").write_text(text, encoding="utf-8")
+
+
 def stage_scripts(stage: Path, game_port: int, web_port: int, ws_host: str,
                   sha: str, content_sha: str, date: str) -> None:
     fmt = dict(game_port=game_port, web_port=web_port, ws_host=ws_host,
@@ -827,8 +900,9 @@ def stage_scripts(stage: Path, game_port: int, web_port: int, ws_host: str,
     (stage / "run.sh").write_text(for_world(RUN_SH.format(**fmt)), encoding="utf-8", newline="\n")
     # Not .format: the shell's own braces would all need doubling. One
     # placeholder, the public host its invite links name.
-    (stage / "torirsctl").write_text(TORIRSCTL.replace("@WS_HOST@", ws_host),
-                                     encoding="utf-8", newline="\n")
+    (stage / "torirsctl").write_text(
+        TORIRSCTL.replace("@WS_HOST@", ws_host).replace("@WEB_PORT@", str(web_port)),
+        encoding="utf-8", newline="\n")
     (stage / "supervise.ps1").write_text(for_world(SUPERVISE_PS1.format(**fmt)), encoding="utf-8", newline="\r\n")
     (stage / "install-windows-task.ps1").write_text(for_world(INSTALL_PS1.format(**fmt)), encoding="utf-8", newline="\r\n")
     (stage / "README.md").write_text(for_world(README.format(**fmt)), encoding="utf-8")
@@ -868,8 +942,12 @@ def main() -> int:
     ap.add_argument("--skip-build", action="store_true", help="all three of the above")
     ap.add_argument("--no-zip", action="store_true", help="stage only")
     ap.add_argument("--auth", choices=("password", "oauth"), default="password",
-                    help="how players sign in: the password form, or the account "
-                         "server's Play Now flow (oauth; needs io_server --gate)")
+                    help="how players sign in: the password form, or the website's "
+                         "Play Now flow (oauth; needs --gate)")
+    ap.add_argument("--gate", default="", metavar="PUBLIC_URL",
+                    help="put the world behind the sign-in gate (torirsd.ini runs the "
+                         "website and the game with --gate); PUBLIC_URL, e.g. "
+                         "https://torirs.example.com, is what invite links name")
     ap.add_argument("--android", action="store_true",
                     help="also build the prod Android app's game pack into "
                          "build-web/android/ (needs the NDK: ANDROID_NDK_HOME, "
@@ -919,19 +997,29 @@ def main() -> int:
         make(["web"], args.jobs)                     # also builds io_server
     if not args.skip_servers:
         make(["io-server"], args.jobs)
+        make(["website-server"], args.jobs)
         make(["OPT=1", "torirsserver"], args.jobs)
         make(["OPT=1", "account-server"], args.jobs)
+        make(["OPT=1", "hiscores-server"], args.jobs)
+        make(["OPT=1", "torirsd"], args.jobs)
     if args.skip_servers:
         game_bin = server_binary("torirsserver")
         accounts_bin = server_binary("account_server")
+        hiscores_bin = server_binary("hiscores_server")
+        daemon_bin = server_binary("torirsd")
     else:
         game_bin = built_server("torirsserver", ["OPT=1"])
         accounts_bin = built_server("account_server", ["OPT=1"])
-    # io-server always builds into src/build (IO_SERVER_OBJ_DIR), whatever
-    # the variables; its make target above said whether it is current.
+        hiscores_bin = built_server("hiscores_server", ["OPT=1"])
+        daemon_bin = built_server("torirsd", ["OPT=1"])
+    # io-server and website-server always build into src/build
+    # (IO_SERVER_OBJ_DIR), whatever the variables; their make targets above
+    # said whether they are current.
     io_bin = (SRC / "build" / f"io_server{EXE}")
-    if not io_bin.is_file():
-        die(f"{io_bin} missing")
+    website_bin = (SRC / "build" / f"website_server{EXE}")
+    for built in (io_bin, website_bin):
+        if not built.is_file():
+            die(f"{built} missing")
 
     # ---- stage
     stage = args.out / PACKAGE_NAME
@@ -940,9 +1028,13 @@ def main() -> int:
     (stage / "bin").mkdir(parents=True)
     shutil.copy2(game_bin, stage / "bin" / f"torirsserver{EXE}")
     shutil.copy2(io_bin, stage / "bin" / f"io_server{EXE}")
+    shutil.copy2(website_bin, stage / "bin" / f"website_server{EXE}")
     shutil.copy2(accounts_bin, stage / "bin" / f"account_server{EXE}")
+    shutil.copy2(hiscores_bin, stage / "bin" / f"hiscores_server{EXE}")
+    shutil.copy2(daemon_bin, stage / "bin" / f"torirsd{EXE}")
     log(f"servers: {game_bin.relative_to(REPO)}, {io_bin.relative_to(REPO)}, "
-        f"{accounts_bin.relative_to(REPO)}")
+        f"{website_bin.relative_to(REPO)}, {accounts_bin.relative_to(REPO)}, "
+        f"{hiscores_bin.relative_to(REPO)}")
     stage_runtime_dlls(stage / "bin")
     stage_web(stage)
     if LANE:
@@ -961,6 +1053,13 @@ def main() -> int:
     copy_tree(REPO / "revconfig" / WORLD, stage / "revconfig" / WORLD)
     copy_tree(REPO / "script", stage / "script")
     stage_scripts(stage, args.game_port, args.web_port, args.ws_host, sha, content_sha, date)
+    write_daemon_config(stage, args.game_port, args.web_port, args.gate)
+    # The staged torirsd reads the staged file: a config it refuses fails the
+    # package here, not the deployment's first start.
+    check = subprocess.run([str(stage / "bin" / f"torirsd{EXE}"), "--check", "torirsd.ini"],
+                           cwd=stage, capture_output=True, text=True)
+    if check.returncode != 0:
+        die(f"torirsd refuses the staged torirsd.ini:\n{check.stdout}{check.stderr}")
     if args.android:
         stage_android(stage, args.jobs, sha, content_sha, date, args.android_key, args.android_apk)
     log(f"staged {stage}")

@@ -261,7 +261,7 @@ ev_sheet: $(BUILD)/ev_sheet.o $(BUILD)/ev_headless.o $(NATIVE_CORE) $(COMMON_OBJ
 
 # ---- ev_icons: every obj's inventory icon, for the account site ----------
 #
-# The staff player editor (src/ioserver/io_site.c) shows items as the game
+# The staff player editor (src/websiteserver/website_site.c) shows items as the game
 # does; an icon is a model rasterized by the client's ToriDraw path, so they
 # are drawn here once per cache into atlas sheets plus an index (objs.json),
 # with the skill and equipment-slot sprites and the varp names. The deploy

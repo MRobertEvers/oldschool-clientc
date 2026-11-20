@@ -159,6 +159,7 @@ group_getvar(
     int const slot = var & 0xffff;
     struct CacheProvider const* provider = host->provider;
 
+    assert(provider);
     if( group )
     {
         struct RS_GroupValue const* value;
@@ -171,7 +172,7 @@ group_getvar(
         value = &group->values[scope][slot];
         return group_push(vm, var, value->int_value, value->long_value, value->string_value);
     }
-    if( !provider || def_id >= provider->group_types.count ||
+    if( def_id >= provider->group_types.count ||
         slot >= provider->group_types.types[def_id].var_count[scope] )
         return group_push(vm, var, 0, 0, "");
     {
@@ -503,7 +504,8 @@ RS_CS2Host_ExecClientOp(
         return CS2VM2_PushInt(vm, RS_CS2Host_GetOption(host, RS_CS2_OPTION_DEVICE, 6));
     /* getantidrag: native 216 0xc70, the flag SETANTIDRAG (3183) writes. */
     case CS2_OP_GETANTIDRAG:
-        return push_bool(vm, host->tree && host->tree->anti_drag);
+        assert(host->tree);
+        return push_bool(vm, host->tree->anti_drag);
     /* Draw distance is device option 14; no clamp. */
     case CS2_OP_SETDRAWDISTANCE:
         RS_CS2Host_SetOption(host, RS_CS2_OPTION_DEVICE, 14, ints[0]);
@@ -619,7 +621,8 @@ RS_CS2Host_ExecClientOp(
         return CS2VM_EXECNO_OK;
     /* The raw run energy (runenergy_visible is the same value / 100). */
     case CS2_OP_RUNENERGY:
-        return CS2VM2_PushInt(vm, host->stats ? host->stats->run_energy_raw : 0);
+        assert(host->stats);
+        return CS2VM2_PushInt(vm, host->stats->run_energy_raw);
     /* The third byte of UPDATE_STAT for one skill. The client has no bounds
      * check; an index outside its 25 skills throws. */
     case CS2_OP_STAT_UNKNOWN:

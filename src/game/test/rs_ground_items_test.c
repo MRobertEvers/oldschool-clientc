@@ -40,6 +40,7 @@
 #include "game/rs_cs2_host.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
+#include "varp/varp_manager.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -461,6 +462,7 @@ test_settings_number_varp(void)
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
     struct InvManager invs;
+    struct VarPManager varps;
     struct RS_CS2Host host;
     struct CS2VM2 vm;
     struct CS2VM2_Script hub;
@@ -473,7 +475,9 @@ test_settings_number_varp(void)
     printf("ground items: a number row's varp is learned from the cache's own read hub\n");
 
     InvManager_Init(&invs);
-    RS_CS2Host_Init(&host, tree, provider, &invs, NULL, NULL, NULL);
+    /* The hub reads the row's varp, so the host needs somewhere to read it. */
+    VarPManager_Init(&varps);
+    RS_CS2Host_Init(&host, tree, provider, &invs, &varps, NULL, NULL);
     /* Stated here rather than read from a revconfig: the test is about what
      * happens once the id is known, and a run with no revconfig switches the
      * feature off (id 0) exactly as it is meant to. */
@@ -538,6 +542,7 @@ test_settings_number_varp(void)
         "a varp read outside the hub teaches nothing");
 
     CS2VM2_Free(&vm);
+    VarPManager_Free(&varps);
     UITree_Free(tree);
     dat2_buildcache_free(bc);
 }

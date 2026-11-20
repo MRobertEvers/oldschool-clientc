@@ -3,16 +3,54 @@
  */
 #include "account_server.h"
 
-#include "account_db.h"
-#include "account_proto.h"
 #include "mem/torirs_mem.h"
+#include "account_lease.h"
+#include "account_proto.h"
+#include "torirsserver/torirs_server_auth.h"
+#include "torirsserver/torirs_server_savefile.h"
 
 #include <assert.h>
-#include <ctype.h>
+#include <dirent.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+typedef HANDLE ps_lockfile;
+typedef CRITICAL_SECTION ps_mutex;
+#define ps_mutex_init(m) InitializeCriticalSection(m)
+#define ps_mutex_destroy(m) DeleteCriticalSection(m)
+#define ps_lock(m) EnterCriticalSection(m)
+#define ps_unlock(m) LeaveCriticalSection(m)
+#else
+#include <fcntl.h>
+#include <pthread.h>
+#include <sys/file.h>
+#include <unistd.h>
+typedef int ps_lockfile;
+typedef pthread_mutex_t ps_mutex;
+#define ps_mutex_init(m) pthread_mutex_init((m), NULL)
+#define ps_mutex_destroy(m) pthread_mutex_destroy(m)
+#define ps_lock(m) pthread_mutex_lock(m)
+#define ps_unlock(m) pthread_mutex_unlock(m)
+#endif
+
+/* One account's requests run one at a time (a claim and a link of the same
+ * name must not interleave their writes); accounts that hash apart run in
+ * parallel. */
+#define PS_ACCOUNT_STRIPES 64
+
+static struct
+{
+    int open;
+    ps_lockfile lockfile;
+    ps_mutex leases_lock;
+    ps_mutex names_lock;
+    ps_mutex stripes[PS_ACCOUNT_STRIPES];
+    struct AccountLeases leases;
+} g_ps;
 
 /* ------------------------------------------------------------------ */
 /* The answer                                                          */
@@ -28,7 +66,7 @@ struct Answer
 static void
 answer_init(struct Answer* a)
 {
-    a->cap = 4096;
+    a->cap = 512;
     a->len = 0;
     a->data = ToriMem_Alloc(ToriMem_Net(), a->cap);
     assert(a->data);
@@ -61,16 +99,24 @@ answer_printf(
     }
 }
 
-/* A text field, last on its line: tabs and newlines made spaces. */
 static void
-answer_text(
+answer_bytes(
     struct Answer* a,
-    char const* text)
+    char const* bytes,
+    size_t len)
 {
-    char clean[256];
-
-    AccountProto_Clean(text, clean, sizeof(clean));
-    answer_printf(a, "%s", clean);
+    if( len == 0 )
+        return;
+    assert(bytes);
+    if( a->len + len + 1 > a->cap )
+    {
+        a->cap = a->len + len + 1;
+        a->data = ToriMem_Realloc(ToriMem_Net(), a->data, a->cap);
+        assert(a->data);
+    }
+    memcpy(a->data + a->len, bytes, len);
+    a->len += len;
+    a->data[a->len] = '\0';
 }
 
 static void
@@ -99,285 +145,1029 @@ refuse(
     answer_send(&a, res, status);
 }
 
-/* ------------------------------------------------------------------ */
-/* Fields                                                              */
-/* ------------------------------------------------------------------ */
-
-static int
-hex_value(char c)
-{
-    if( c >= '0' && c <= '9' )
-        return c - '0';
-    c = (char)tolower((unsigned char)c);
-    if( c >= 'a' && c <= 'f' )
-        return c - 'a' + 10;
-    return -1;
-}
-
-/* `name`'s value in `a=1&b=2` form encoding, decoded into `out`. 1 when
- * present and it fits. */
-static int
-form_field(
-    char const* data,
-    size_t len,
-    char const* name,
-    char* out,
-    size_t cap)
-{
-    size_t name_len = strlen(name);
-    size_t at = 0;
-
-    while( at < len )
-    {
-        size_t end = at;
-        size_t o = 0;
-
-        while( end < len && data[end] != '&' )
-            end++;
-        if( end - at > name_len && strncmp(data + at, name, name_len) == 0 &&
-            data[at + name_len] == '=' )
-        {
-            for( size_t i = at + name_len + 1; i < end; i++ )
-            {
-                char c = data[i];
-
-                if( c == '+' )
-                    c = ' ';
-                else if( c == '%' && i + 2 < end && hex_value(data[i + 1]) >= 0 &&
-                         hex_value(data[i + 2]) >= 0 )
-                {
-                    c = (char)(hex_value(data[i + 1]) * 16 + hex_value(data[i + 2]));
-                    i += 2;
-                }
-                if( o + 1 >= cap )
-                    return 0;
-                out[o++] = c;
-            }
-            out[o] = '\0';
-            return 1;
-        }
-        at = end + 1;
-    }
-    return 0;
-}
-
-static int
-body_field(
-    struct HttpRequest const* req,
-    char const* name,
-    char* out,
-    size_t cap)
-{
-    return req->body && form_field((char const*)req->body, (size_t)req->body_len, name, out, cap);
-}
-
-static int
-query_field(
-    struct HttpRequest const* req,
-    char const* name,
-    char* out,
-    size_t cap)
-{
-    char const* q = strchr(req->path, '?');
-
-    return q && form_field(q + 1, strlen(q + 1), name, out, cap);
-}
-
-/* Whether the path, query aside, is `route`. */
-static int
-path_is(
-    struct HttpRequest const* req,
-    char const* route)
-{
-    size_t len = strcspn(req->path, "?");
-
-    return strlen(route) == len && strncmp(req->path, route, len) == 0;
-}
-
-/* ------------------------------------------------------------------ */
-/* Routes                                                              */
-/* ------------------------------------------------------------------ */
-
+/* `result <n>`, with a problem sentence when there is one. */
 static void
-route_events(
-    struct HttpRequest const* req,
-    struct HttpResponse* res)
-{
-    static struct ToriRSServerAccountRecord records[ACCOUNT_SERVER_BATCH_MAX];
-    static long long seqs[ACCOUNT_SERVER_BATCH_MAX];
-    char source[64];
-    char* body;
-    char* line;
-    int count = 0;
-    struct Answer a;
-
-    if( !query_field(req, "source", source, sizeof(source)) || !source[0] )
-    {
-        refuse(res, 400, "events need ?source=<world>");
-        return;
-    }
-    body = ToriMem_Alloc(ToriMem_Net(), (size_t)req->body_len + 1);
-    assert(body);
-    if( req->body_len > 0 )
-        memcpy(body, req->body, (size_t)req->body_len);
-    body[req->body_len] = '\0';
-    for( line = body; line && *line; )
-    {
-        char* next = strchr(line, '\n');
-
-        if( next )
-            *next++ = '\0';
-        if( count == ACCOUNT_SERVER_BATCH_MAX ||
-            !AccountProto_RecordParse(line, &records[count], &seqs[count]) ||
-            (count > 0 && seqs[count] <= seqs[count - 1]) )
-        {
-            /* Nothing of a bad batch is applied: the sender keeps it and
-             * says so, rather than a world's history going quietly missing
-             * from the middle. */
-            ToriMem_Free(ToriMem_Net(), body);
-            fprintf(stderr, "account_server: refused a batch from %s at its record %d\n", source,
-                    count + 1);
-            refuse(res, 400, count == ACCOUNT_SERVER_BATCH_MAX ? "too many records"
-                                                               : "not a record, or out of order");
-            return;
-        }
-        count++;
-        line = next;
-    }
-    ToriMem_Free(ToriMem_Net(), body);
-    answer_init(&a);
-    answer_printf(&a, "acked\t%lld\n", AccountDb_ApplyBatch(source, records, seqs, count));
-    answer_send(&a, res, 200);
-}
-
-static void
-route_result(
+answer_result(
     struct HttpResponse* res,
     int result,
     char const* problem)
 {
     struct Answer a;
+    char clean[256];
 
     answer_init(&a);
-    answer_printf(&a, "result\t%d\t", result);
-    answer_text(&a, problem ? problem : "");
-    answer_printf(&a, "\n");
+    ServiceForm_Clean(problem ? problem : "", clean, sizeof(clean));
+    answer_printf(&a, "result\t%d\t%s\n", result, clean);
     answer_send(&a, res, 200);
 }
 
-static void
-each_login(
+/* ------------------------------------------------------------------ */
+/* Fields                                                              */
+/* ------------------------------------------------------------------ */
+
+struct Fields
+{
+    char const* data;
+    size_t len;
+};
+
+static struct Fields
+fields_of(struct HttpRequest const* req)
+{
+    struct Fields f;
+    char const* query;
+
+    if( strcmp(req->method, "GET") == 0 )
+    {
+        query = strchr(req->path, '?');
+        f.data = query ? query + 1 : NULL;
+        f.len = query ? strlen(query + 1) : 0;
+    }
+    else
+    {
+        f.data = (char const*)req->body;
+        f.len = req->body ? (size_t)req->body_len : 0;
+    }
+    return f;
+}
+
+static int
+field(
+    struct Fields const* f,
     char const* name,
+    char* out,
+    size_t cap)
+{
+    return ServiceForm_Get(f->data, f->len, name, out, cap);
+}
+
+static int
+route_is(
+    struct HttpRequest const* req,
+    char const* method,
+    char const* route)
+{
+    size_t len = strlen(route);
+
+    return strcmp(req->method, method) == 0 && strncmp(req->path, route, len) == 0 &&
+           (req->path[len] == '\0' || req->path[len] == '?');
+}
+
+/* ------------------------------------------------------------------ */
+/* Locks                                                               */
+/* ------------------------------------------------------------------ */
+
+static ps_mutex*
+stripe_of(char const* key)
+{
+    uint32_t hash = 2166136261u;
+
+    for( ; *key; key++ )
+        hash = (hash ^ (uint8_t)*key) * 16777619u;
+    return &g_ps.stripes[hash % PS_ACCOUNT_STRIPES];
+}
+
+/* ------------------------------------------------------------------ */
+/* Saves                                                               */
+/* ------------------------------------------------------------------ */
+
+/* The server's copy of `key`'s save, into `a` after its header: `*out_len`
+ * bytes, 0 for a character that has never been saved. Under the account's
+ * stripe. */
+static long
+save_read(
+    char const* key,
+    char** out_bytes)
+{
+    FILE* file = fopen(ToriRSServer_SaveCanonicalPath(key), "rb");
+    long len = 0;
+    char* bytes;
+
+    *out_bytes = NULL;
+    /* No file: a character that has never logged out. */
+    if( !file )
+        return 0;
+    if( fseek(file, 0, SEEK_END) == 0 )
+        len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    if( len <= 0 )
+    {
+        fclose(file);
+        return 0;
+    }
+    bytes = ToriMem_Alloc(ToriMem_Net(), (size_t)len);
+    assert(bytes);
+    if( fread(bytes, 1, (size_t)len, file) != (size_t)len )
+    {
+        /* A save that cannot be read must not be handed out as "none": the
+         * login would start the character afresh. */
+        fprintf(stderr, "account_server: cannot read %s\n", ToriRSServer_SaveCanonicalPath(key));
+        abort();
+    }
+    fclose(file);
+    *out_bytes = bytes;
+    return len;
+}
+
+/* `body` (`len` bytes) as the server's copy of `key`'s save, atomically. */
+static int
+save_write(
+    char const* key,
+    uint8_t const* body,
+    int len)
+{
+    char* text = ToriMem_Alloc(ToriMem_Net(), (size_t)len + 1);
+    int ok;
+
+    assert(text);
+    memcpy(text, body, (size_t)len);
+    text[len] = '\0';
+    ok = ToriRSServer_SaveWriteText(ToriRSServer_SaveCanonicalPath(key), text);
+    ToriMem_Free(ToriMem_Net(), text);
+    return ok;
+}
+
+/* A request whose body is a save: its fields are in the query string. */
+static struct Fields
+query_fields_of(struct HttpRequest const* req)
+{
+    struct Fields f;
+    char const* query = strchr(req->path, '?');
+
+    f.data = query ? query + 1 : NULL;
+    f.len = query ? strlen(query + 1) : 0;
+    return f;
+}
+
+/* ------------------------------------------------------------------ */
+/* Logins and leases                                                   */
+/* ------------------------------------------------------------------ */
+
+/* The `login` answer: the check's result, the account's flags, the lease or
+ * the world that has the character, whether this world had it already, and
+ * the server's copy of the save behind the line. */
+static void
+answer_login(
+    struct HttpResponse* res,
+    char const* verb,
+    int result,
+    int admin,
+    int record,
+    char const* lease,
+    char const* holder,
+    int was_holder,
+    char const* save,
+    long save_len,
+    int with_lease)
+{
+    struct Answer a;
+
+    answer_init(&a);
+    if( with_lease )
+    {
+        answer_printf(&a, "%s\t%d\t%d\t%d\t%s\t%s\t%d\t%ld\n", verb, result, admin, record,
+                      lease[0] ? lease : "-", holder[0] ? holder : "-", was_holder, save_len);
+        answer_bytes(&a, save, (size_t)save_len);
+    }
+    else
+        answer_printf(&a, "%s\t%d\t%d\t%d\n", verb, result, admin, record);
+    answer_send(&a, res, 200);
+}
+
+/* `/auth`, `/login` and `/claim`: `check_password` 0 for a claim. */
+static void
+route_login(
+    struct Fields const* f,
+    struct HttpResponse* res,
+    char const* verb,
+    int check_password,
+    int want_lease)
+{
+    char name[128];
+    char password[128];
+    char world[ACCOUNT_WORLD_MAX];
+    char boot[ACCOUNT_BOOT_HEX + 1] = "";
+    char key[ACCOUNT_KEY_MAX];
+    char lease[ACCOUNT_LEASE_TOKEN_HEX + 1] = "";
+    char holder[ACCOUNT_WORLD_MAX] = "";
+    int was_holder = 0;
+    int result = TORIRSSERVER_AUTH_OK;
+    int admin = 0;
+    int record = 0;
+    char* save = NULL;
+    long save_len = 0;
+    ps_mutex* stripe;
+
+    if( !field(f, "name", name, sizeof(name)) )
+    {
+        refuse(res, 400, "name is required");
+        return;
+    }
+    if( want_lease && (!field(f, "world", world, sizeof(world)) || !world[0]) )
+    {
+        refuse(res, 400, "world is required");
+        return;
+    }
+    field(f, "boot", boot, sizeof(boot));
+    if( check_password && !field(f, "password", password, sizeof(password)) )
+    {
+        refuse(res, 400, "password is required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( !key[0] )
+    {
+        answer_login(res, verb, TORIRSSERVER_AUTH_UNUSABLE, 0, 0, "", "", 0, NULL, 0, want_lease);
+        return;
+    }
+
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    if( check_password )
+    {
+        result = (int)ToriRSServer_AuthLogin(name, password);
+        memset(password, 0, sizeof(password));
+    }
+    if( result == TORIRSSERVER_AUTH_OK || result == TORIRSSERVER_AUTH_CLAIMED )
+    {
+        admin = ToriRSServer_AuthIsAdmin(name);
+        record = ToriRSServer_AuthIsRecorded(name);
+        if( want_lease )
+        {
+            int granted;
+
+            ps_lock(&g_ps.leases_lock);
+            granted = AccountLeases_Acquire(&g_ps.leases, key, world, boot, lease, &was_holder,
+                                           holder, sizeof(holder));
+            ps_unlock(&g_ps.leases_lock);
+            if( granted )
+                save_len = save_read(key, &save);
+            else
+                result = TORIRSSERVER_AUTH_ONLINE;
+        }
+    }
+    ps_unlock(stripe);
+    if( result == TORIRSSERVER_AUTH_ONLINE )
+    {
+        fprintf(stderr, "account_server: '%s' refused on %s: %s has it\n", key, world, holder);
+        admin = 0;
+        record = 0;
+    }
+    answer_login(res, verb, result, admin, record, lease, holder, was_holder, save, save_len,
+                 want_lease);
+    ToriMem_Free(ToriMem_Net(), save);
+}
+
+/* `/logout?world=&name=&lease=` with the save as the body: the world hands
+ * the character back. Taken only from the lease's own world and token --
+ * a world whose character was taken from it cannot overwrite the save of
+ * whoever has it now -- and the save is on disk before the note goes. */
+static void
+route_logout(
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    struct Fields f = query_fields_of(req);
+    char name[128];
+    char world[ACCOUNT_WORLD_MAX];
+    char token[ACCOUNT_LEASE_TOKEN_HEX + 1];
+    char key[ACCOUNT_KEY_MAX];
+    struct AccountLease const* row;
+    char holder[ACCOUNT_WORLD_MAX] = "";
+    int holds;
+    int returned = 0;
+    ps_mutex* stripe;
+
+    if( !field(&f, "name", name, sizeof(name)) || !field(&f, "world", world, sizeof(world)) ||
+        !field(&f, "lease", token, sizeof(token)) )
+    {
+        refuse(res, 400, "world, name and lease are required");
+        return;
+    }
+    if( !req->body || req->body_len <= 0 || req->body_len > ACCOUNT_SAVE_MAX )
+    {
+        refuse(res, 400, "the save is the body");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( !key[0] )
+    {
+        refuse(res, 400, "unusable name");
+        return;
+    }
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    ps_lock(&g_ps.leases_lock);
+    holds = AccountLeases_Holds(&g_ps.leases, key, world, token);
+    row = AccountLeases_Find(&g_ps.leases, key);
+    if( row )
+        snprintf(holder, sizeof(holder), "%s", row->world);
+    ps_unlock(&g_ps.leases_lock);
+    if( holds && save_write(key, req->body, req->body_len) )
+    {
+        ps_lock(&g_ps.leases_lock);
+        returned = AccountLeases_Release(&g_ps.leases, key, world, token);
+        ps_unlock(&g_ps.leases_lock);
+    }
+    else if( holds )
+    {
+        /* Not taken: the lease stays the world's, which keeps its copy and
+         * asks again. */
+        ps_unlock(stripe);
+        refuse(res, 500, "the save could not be written");
+        return;
+    }
+    ps_unlock(stripe);
+    if( !returned )
+        fprintf(stderr, "account_server: %s returned '%s' under a lease it does not hold (%s has "
+                        "it); the save was not taken\n",
+                world, key, holder[0] ? holder : "nobody");
+    answer_result(res, returned, holder);
+}
+
+/* A lease given back with no save: the character never got as far as the
+ * world, so the server's copy stands. */
+static void
+route_release(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char name[128];
+    char world[ACCOUNT_WORLD_MAX];
+    char token[ACCOUNT_LEASE_TOKEN_HEX + 1];
+    char key[ACCOUNT_KEY_MAX];
+    int released;
+
+    if( !field(f, "name", name, sizeof(name)) || !field(f, "world", world, sizeof(world)) ||
+        !field(f, "lease", token, sizeof(token)) )
+    {
+        refuse(res, 400, "world, name and lease are required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    ps_lock(&g_ps.leases_lock);
+    released = key[0] ? AccountLeases_Release(&g_ps.leases, key, world, token) : 0;
+    ps_unlock(&g_ps.leases_lock);
+    answer_result(res, released, NULL);
+}
+
+/* An operator's `--account release`: the character back from whichever
+ * world has it. That world's copy of the save is given up -- its return
+ * will be refused -- so this is for a world that is not coming back. */
+static void
+route_revoke(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char name[128];
+    char key[ACCOUNT_KEY_MAX];
+    char world[ACCOUNT_WORLD_MAX] = "";
+    int revoked;
+    ps_mutex* stripe;
+
+    if( !field(f, "name", name, sizeof(name)) )
+    {
+        refuse(res, 400, "name is required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( !key[0] )
+    {
+        answer_result(res, 0, NULL);
+        return;
+    }
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    ps_lock(&g_ps.leases_lock);
+    revoked = AccountLeases_Revoke(&g_ps.leases, key, world, sizeof(world));
+    ps_unlock(&g_ps.leases_lock);
+    ps_unlock(stripe);
+    if( revoked )
+        fprintf(stderr, "account_server: '%s' taken back from %s by an operator; that world's "
+                        "copy of the save will be refused\n",
+                key, world);
+    answer_result(res, revoked, world);
+}
+
+static void
+hello_dropped(
+    char const* key,
     void* ctx)
 {
-    answer_printf((struct Answer*)ctx, "login\t");
-    answer_text((struct Answer*)ctx, name);
-    answer_printf((struct Answer*)ctx, "\n");
+    char const* world = ctx;
+
+    fprintf(stderr, "account_server: %s holds no save for '%s' any more: the character is free, "
+                    "from the save here\n",
+            world, key);
+}
+
+/* `/hello`: a world has started. Everything it held is dropped except the
+ * characters it names in `keep` -- the saves still on its disk, which it
+ * returns next. */
+static void
+route_hello(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char world[ACCOUNT_WORLD_MAX];
+    char boot[ACCOUNT_BOOT_HEX + 1] = "";
+    size_t list_cap = f->len + 1;
+    char* list;
+    char (*keep)[ACCOUNT_KEY_MAX] = NULL;
+    int keep_count = 0;
+    int keep_cap = 0;
+    int dropped;
+
+    if( !field(f, "world", world, sizeof(world)) || !world[0] )
+    {
+        refuse(res, 400, "world is required");
+        return;
+    }
+    field(f, "boot", boot, sizeof(boot));
+    list = ToriMem_Alloc(ToriMem_Net(), list_cap);
+    assert(list);
+    field(f, "keep", list, list_cap);
+    for( char* item = list; *item; )
+    {
+        char* comma = strchr(item, ',');
+
+        if( comma )
+            *comma = '\0';
+        if( item[0] )
+        {
+            if( keep_count == keep_cap )
+            {
+                keep_cap = keep_cap ? keep_cap * 2 : 64;
+                keep = ToriMem_Realloc(ToriMem_Net(), keep, (size_t)keep_cap * sizeof(*keep));
+                assert(keep);
+            }
+            snprintf(keep[keep_count++], ACCOUNT_KEY_MAX, "%s", item);
+        }
+        if( !comma )
+            break;
+        item = comma + 1;
+    }
+    ps_lock(&g_ps.leases_lock);
+    dropped = AccountLeases_DropWorld(&g_ps.leases, world, boot,
+                                     (char const (*)[ACCOUNT_KEY_MAX])keep,
+                                     keep_count, hello_dropped, world);
+    ps_unlock(&g_ps.leases_lock);
+    fprintf(stderr, "account_server: world %s started, returning %d save(s); %d character(s) it "
+                    "had no save for are free\n",
+            world, keep_count, dropped);
+    ToriMem_Free(ToriMem_Net(), keep);
+    ToriMem_Free(ToriMem_Net(), list);
+    answer_result(res, dropped, NULL);
 }
 
 static void
-route_view_player(
+route_leases(struct HttpResponse* res)
+{
+    struct Answer a;
+
+    answer_init(&a);
+    ps_lock(&g_ps.leases_lock);
+    for( int i = 0; i < g_ps.leases.count; i++ )
+        answer_printf(&a, "lease\t%s\t%s\n", g_ps.leases.rows[i].key, g_ps.leases.rows[i].world);
+    ps_unlock(&g_ps.leases_lock);
+    answer_send(&a, res, 200);
+}
+
+/* `GET /save?name=`: the server's copy, and which world has the character
+ * (whose copy is the newer one) -- the account site's player editor. */
+static void
+route_save_get(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char name[128];
+    char key[ACCOUNT_KEY_MAX];
+    char world[ACCOUNT_WORLD_MAX] = "";
+    struct AccountLease const* row;
+    char* save = NULL;
+    long len;
+    struct Answer a;
+    ps_mutex* stripe;
+
+    if( !field(f, "name", name, sizeof(name)) )
+    {
+        refuse(res, 400, "name is required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( !key[0] )
+    {
+        refuse(res, 400, "unusable name");
+        return;
+    }
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    len = save_read(key, &save);
+    ps_lock(&g_ps.leases_lock);
+    row = AccountLeases_Find(&g_ps.leases, key);
+    if( row )
+        snprintf(world, sizeof(world), "%s", row->world);
+    ps_unlock(&g_ps.leases_lock);
+    ps_unlock(stripe);
+    answer_init(&a);
+    answer_printf(&a, "save\t%d\t%s\t%ld\n", save != NULL, world[0] ? world : "-", len);
+    answer_bytes(&a, save, (size_t)len);
+    answer_send(&a, res, 200);
+    ToriMem_Free(ToriMem_Net(), save);
+}
+
+/* `POST /save?name=` with the save as the body: an edit of a character no
+ * world has. Refused while one does: that world's copy is the newer, and its
+ * logout would replace this. */
+static void
+route_save_put(
     struct HttpRequest const* req,
     struct HttpResponse* res)
 {
-    static struct AccountPlayerView view;
-    char key[ACCOUNT_NAME_MAX];
-    char history[4] = "0";
-    struct Answer a;
+    struct Fields f = query_fields_of(req);
+    char name[128];
+    char key[ACCOUNT_KEY_MAX];
+    char world[ACCOUNT_WORLD_MAX] = "";
+    struct AccountLease const* row;
+    int written = 0;
+    ps_mutex* stripe;
 
-    if( !query_field(req, "key", key, sizeof(key)) )
+    if( !field(&f, "name", name, sizeof(name)) )
     {
-        refuse(res, 400, "a player view needs ?key=");
+        refuse(res, 400, "name is required");
         return;
     }
-    query_field(req, "history", history, sizeof(history));
-    if( !AccountDb_PlayerView(key, history[0] == '1', &view) )
+    if( !req->body || req->body_len <= 0 || req->body_len > ACCOUNT_SAVE_MAX )
     {
-        refuse(res, 404, "no such player");
+        refuse(res, 400, "the save is the body");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( !key[0] )
+    {
+        refuse(res, 400, "unusable name");
+        return;
+    }
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    ps_lock(&g_ps.leases_lock);
+    row = AccountLeases_Find(&g_ps.leases, key);
+    if( row )
+        snprintf(world, sizeof(world), "%s", row->world);
+    ps_unlock(&g_ps.leases_lock);
+    if( !world[0] )
+        written = save_write(key, req->body, req->body_len);
+    ps_unlock(stripe);
+    answer_result(res, written, world);
+}
+
+/* ------------------------------------------------------------------ */
+/* Display names                                                       */
+/* ------------------------------------------------------------------ */
+
+static void
+route_name_owner(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char name[128];
+    char key[ACCOUNT_KEY_MAX];
+    char owner[ACCOUNT_KEY_MAX] = "";
+    int held;
+    struct Answer a;
+
+    if( !field(f, "name", name, sizeof(name)) )
+    {
+        refuse(res, 400, "name is required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( !key[0] )
+    {
+        refuse(res, 400, "unusable name");
+        return;
+    }
+    ps_lock(&g_ps.names_lock);
+    held = ToriRSServer_DisplayNameOwnerFile(name, owner, sizeof(owner));
+    ps_unlock(&g_ps.names_lock);
+    answer_init(&a);
+    answer_printf(&a, "name\t%d\t%s\n", held, held && owner[0] ? owner : "-");
+    answer_send(&a, res, 200);
+}
+
+/* `/name/claim` and `/name/release`. */
+static void
+route_name_change(
+    struct Fields const* f,
+    struct HttpResponse* res,
+    int claim)
+{
+    char name[128];
+    char account[128];
+    char key[ACCOUNT_KEY_MAX];
+    char account_key[ACCOUNT_KEY_MAX];
+    int result = 1;
+
+    if( !field(f, "name", name, sizeof(name)) || !field(f, "account", account, sizeof(account)) )
+    {
+        refuse(res, 400, "name and account are required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    ToriRSServer_SaveFileName(account, account_key, sizeof(account_key));
+    if( !key[0] || !account_key[0] )
+    {
+        refuse(res, 400, "unusable name");
+        return;
+    }
+    ps_lock(&g_ps.names_lock);
+    if( claim )
+        result = ToriRSServer_DisplayNameClaimFile(name, account);
+    else
+        ToriRSServer_DisplayNameReleaseFile(name, account);
+    ps_unlock(&g_ps.names_lock);
+    answer_result(res, result, NULL);
+}
+
+/* ------------------------------------------------------------------ */
+/* Records                                                             */
+/* ------------------------------------------------------------------ */
+
+static void
+account_line(
+    struct Answer* a,
+    char const* key)
+{
+    char owner[ACCOUNT_KEY_MAX] = "";
+    char world[ACCOUNT_WORLD_MAX] = "";
+    int exists;
+    int linked;
+    struct AccountLease const* lease;
+    ps_mutex* stripe = stripe_of(key);
+    FILE* probe;
+
+    ps_lock(stripe);
+    probe = fopen(ToriRSServer_AccountPath(key), "rb");
+    exists = probe != NULL;
+    if( probe )
+        fclose(probe);
+    linked = ToriRSServer_AuthManagedBy(key, owner, sizeof(owner));
+    if( linked != 1 )
+        owner[0] = '\0';
+    answer_printf(a, "account\t%s\t%d\t%d\t%d\t%d\t%s", key, exists, ToriRSServer_AuthIsAdmin(key),
+                  ToriRSServer_AuthIsRecorded(key), linked, owner[0] ? owner : "-");
+    ps_unlock(stripe);
+    ps_lock(&g_ps.leases_lock);
+    lease = AccountLeases_Find(&g_ps.leases, key);
+    if( lease )
+        snprintf(world, sizeof(world), "%s", lease->world);
+    ps_unlock(&g_ps.leases_lock);
+    answer_printf(a, "\t%s\n", world[0] ? world : "-");
+}
+
+static void
+route_account(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char name[128];
+    char key[ACCOUNT_KEY_MAX];
+    struct Answer a;
+
+    if( !field(f, "name", name, sizeof(name)) )
+    {
+        refuse(res, 400, "name is required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( !key[0] )
+    {
+        refuse(res, 400, "unusable name");
         return;
     }
     answer_init(&a);
-    answer_printf(&a, "player\t%lld\t%d\t%lld\t%d\t", view.player.id, view.player.ranked,
-                  view.player.last_seen, view.player.quest_points);
-    answer_text(&a, view.player.key);
-    answer_printf(&a, "\t");
-    answer_text(&a, view.player.name);
-    answer_printf(&a, "\nxp");
-    for( int i = 0; i < TORIRSSERVER_ACCOUNTLOG_STATS; i++ )
-        answer_printf(&a, "\t%lld", view.player.xp[i]);
-    answer_printf(&a, "\nrank\t%d", view.rank_overall);
-    for( int i = 0; i < ACCOUNT_SKILLS; i++ )
-        answer_printf(&a, "\t%d", view.rank[i]);
-    answer_printf(&a, "\n");
-    for( int i = 0; i < view.event_count; i++ )
-    {
-        answer_printf(&a, "event\t%lld\t%d\t%d\t", view.events[i].time, (int)view.events[i].kind,
-                      view.events[i].amount);
-        answer_text(&a, view.events[i].label);
-        answer_printf(&a, "\n");
-    }
-    if( history[0] == '1' && view.has_history )
-    {
-        for( int w = 0; w < ACCOUNT_GAIN_WINDOWS; w++ )
-        {
-            answer_printf(&a, "gain\t%d\t%d", w, view.gain_partial[w]);
-            for( int i = 0; i <= ACCOUNT_SKILLS; i++ )
-                answer_printf(&a, "\t%lld", view.gain_base[w][i]);
-            answer_printf(&a, "\n");
-        }
-        for( int i = 0; i < view.chart_count; i++ )
-            answer_printf(&a, "chart\t%lld\t%lld\n", view.chart_day[i], view.chart_xp[i]);
-    }
-    if( history[0] == '1' )
-    {
-        for( int i = 0; i < view.session_count; i++ )
-        {
-            struct AccountSession const* s = &view.sessions[i];
+    account_line(&a, key);
+    answer_send(&a, res, 200);
+}
 
-            answer_printf(&a, "session\t%lld\t%lld\t%lld\t%d\t%lld\n", s->start, s->end,
-                          s->xp_gained, s->top_stat, s->top_gain);
+static void
+route_accounts(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char filter[ACCOUNT_KEY_MAX] = "";
+    char dir_path[1024];
+    DIR* dir;
+    struct dirent* entry;
+    struct Answer a;
+
+    field(f, "q", filter, sizeof(filter));
+    answer_init(&a);
+    snprintf(dir_path, sizeof(dir_path), "%s/accounts", ToriRSServer_SaveDir());
+    dir = opendir(dir_path);
+    /* No directory: no player account has been made yet. */
+    if( dir )
+    {
+        while( (entry = readdir(dir)) != NULL )
+        {
+            char key[ACCOUNT_KEY_MAX];
+            size_t len = strlen(entry->d_name);
+
+            if( len <= 4 || len - 4 >= sizeof(key) ||
+                strcmp(entry->d_name + len - 4, ".ini") != 0 )
+                continue;
+            snprintf(key, sizeof(key), "%.*s", (int)(len - 4), entry->d_name);
+            if( filter[0] && !strstr(key, filter) )
+                continue;
+            account_line(&a, key);
         }
-        answer_printf(&a, "sessions\t%d\t%lld\n", view.session_total, view.played);
+        closedir(dir);
     }
     answer_send(&a, res, 200);
 }
 
 static void
-route_view_hiscores(
-    struct HttpRequest const* req,
+route_staff(
+    struct Fields const* f,
     struct HttpResponse* res)
 {
-    static struct AccountRow rows[ACCOUNT_SERVER_BATCH_MAX];
-    char field[24];
-    int category = ACCOUNT_OVERALL;
-    int first = 0;
-    int max = 50;
-    int count;
-    struct Answer a;
+    char login[ACCOUNT_KEY_MAX];
 
-    if( query_field(req, "category", field, sizeof(field)) )
-        category = atoi(field);
-    if( query_field(req, "first", field, sizeof(field)) )
-        first = atoi(field);
-    if( query_field(req, "max", field, sizeof(field)) )
-        max = atoi(field);
-    if( first < 0 || max < 1 || max > ACCOUNT_SERVER_BATCH_MAX )
+    if( !field(f, "login", login, sizeof(login)) )
     {
-        refuse(res, 400, "first must be 0 or more, max 1 to 512");
+        refuse(res, 400, "login is required");
         return;
     }
-    count = AccountDb_Hiscores(category, first, max, rows);
-    answer_init(&a);
-    answer_printf(&a, "ranked\t%d\n", AccountDb_RankedCount(category));
-    for( int i = 0; i < count; i++ )
+    answer_result(res, ToriRSServer_AuthLoginIsStaff(login), NULL);
+}
+
+static void
+route_create(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char name[128];
+    char password[128];
+    char admin[8] = "";
+    char key[ACCOUNT_KEY_MAX];
+    char const* problem = NULL;
+    enum ToriRSServerCreateResult result;
+    ps_mutex* stripe;
+
+    if( !field(f, "name", name, sizeof(name)) || !field(f, "password", password, sizeof(password)) )
     {
-        answer_printf(&a, "row\t%lld\t", rows[i].score);
-        answer_text(&a, rows[i].key);
-        answer_printf(&a, "\t");
-        answer_text(&a, rows[i].name);
-        answer_printf(&a, "\n");
+        refuse(res, 400, "name and password are required");
+        return;
     }
+    field(f, "admin", admin, sizeof(admin));
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    result = ToriRSServer_AuthCreate(name, password, atoi(admin) != 0, &problem);
+    ps_unlock(stripe);
+    memset(password, 0, sizeof(password));
+    answer_result(res, (int)result, problem);
+}
+
+static void
+route_password(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char name[128];
+    char password[128];
+    char key[ACCOUNT_KEY_MAX];
+    char const* problem = NULL;
+    int written;
+    ps_mutex* stripe;
+
+    if( !field(f, "name", name, sizeof(name)) || !field(f, "password", password, sizeof(password)) )
+    {
+        refuse(res, 400, "name and password are required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    written = ToriRSServer_AuthSetPassword(name, password, &problem);
+    ps_unlock(stripe);
+    memset(password, 0, sizeof(password));
+    answer_result(res, written, problem);
+}
+
+/* `/account/admin` and `/account/record`. */
+static void
+route_flag(
+    struct Fields const* f,
+    struct HttpResponse* res,
+    int (*set)(char const* display_name, int on))
+{
+    char name[128];
+    char on[8];
+    char key[ACCOUNT_KEY_MAX];
+    int written;
+    ps_mutex* stripe;
+
+    if( !field(f, "name", name, sizeof(name)) || !field(f, "on", on, sizeof(on)) )
+    {
+        refuse(res, 400, "name and on are required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    written = set(name, atoi(on) != 0);
+    ps_unlock(stripe);
+    answer_result(res, written, NULL);
+}
+
+static void
+answer_link(
+    struct HttpResponse* res,
+    enum ToriRSServerLinkResult result,
+    char const* token)
+{
+    struct Answer a;
+
+    answer_init(&a);
+    answer_printf(&a, "link\t%d\t%s\n", (int)result,
+                  result == TORIRSSERVER_LINK_OK && token[0] ? token : "-");
     answer_send(&a, res, 200);
+}
+
+/* `/account/link` (with the account's password) and `/account/assign`
+ * (staff's, without). */
+static void
+route_link(
+    struct Fields const* f,
+    struct HttpResponse* res,
+    int assign)
+{
+    char name[128];
+    char password[128] = "";
+    char user[ACCOUNT_KEY_MAX];
+    char key[ACCOUNT_KEY_MAX];
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1] = "";
+    enum ToriRSServerLinkResult result;
+    ps_mutex* stripe;
+
+    if( !field(f, "name", name, sizeof(name)) || !field(f, "user", user, sizeof(user)) ||
+        (!assign && !field(f, "password", password, sizeof(password))) )
+    {
+        refuse(res, 400, assign ? "name and user are required"
+                                 : "name, password and user are required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    result = assign ? ToriRSServer_AuthAssign(name, user, token)
+                    : ToriRSServer_AuthLink(name, password, user, token);
+    ps_unlock(stripe);
+    memset(password, 0, sizeof(password));
+    answer_link(res, result, token);
+    memset(token, 0, sizeof(token));
+}
+
+static void
+route_verify(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char name[128];
+    char user[ACCOUNT_KEY_MAX];
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char key[ACCOUNT_KEY_MAX];
+    int verified;
+    ps_mutex* stripe;
+
+    if( !field(f, "name", name, sizeof(name)) || !field(f, "user", user, sizeof(user)) ||
+        !field(f, "token", token, sizeof(token)) )
+    {
+        refuse(res, 400, "name, user and token are required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    verified = ToriRSServer_AuthLinkVerify(name, user, token);
+    ps_unlock(stripe);
+    memset(token, 0, sizeof(token));
+    answer_result(res, verified, NULL);
+}
+
+static void
+route_unlink(
+    struct Fields const* f,
+    struct HttpResponse* res)
+{
+    char name[128];
+    char key[ACCOUNT_KEY_MAX];
+    int unlinked;
+    ps_mutex* stripe;
+
+    if( !field(f, "name", name, sizeof(name)) )
+    {
+        refuse(res, 400, "name is required");
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    stripe = stripe_of(key);
+    ps_lock(stripe);
+    unlinked = ToriRSServer_AuthUnlink(name);
+    ps_unlock(stripe);
+    answer_result(res, unlinked, NULL);
+}
+
+/* ------------------------------------------------------------------ */
+/* The handler                                                         */
+/* ------------------------------------------------------------------ */
+
+/* The saves directory's lock, held for the process's life (the system drops
+ * it when the process ends, however it ends). 0 when another process has it. */
+static int
+lockfile_take(char const* path)
+{
+#ifdef _WIN32
+    g_ps.lockfile = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_ALWAYS,
+                                FILE_ATTRIBUTE_NORMAL, NULL);
+    return g_ps.lockfile != INVALID_HANDLE_VALUE;
+#else
+    g_ps.lockfile = open(path, O_RDWR | O_CREAT, 0644);
+    if( g_ps.lockfile < 0 )
+    {
+        fprintf(stderr, "account_server: cannot open %s\n", path);
+        abort();
+    }
+    if( flock(g_ps.lockfile, LOCK_EX | LOCK_NB) == 0 )
+        return 1;
+    close(g_ps.lockfile);
+    return 0;
+#endif
+}
+
+static void
+lockfile_drop(void)
+{
+#ifdef _WIN32
+    CloseHandle(g_ps.lockfile);
+#else
+    close(g_ps.lockfile);
+#endif
+}
+
+int
+AccountServer_Open(void)
+{
+    char path[1024];
+
+    assert(!g_ps.open);
+    snprintf(path, sizeof(path), "%s/account_server.lock", ToriRSServer_SaveDir());
+    ToriRSServer_SaveMkdirParent(path);
+    if( !lockfile_take(path) )
+    {
+        fprintf(stderr, "account_server: another account server has %s (%s)\n",
+                ToriRSServer_SaveDir(), path);
+        return 0;
+    }
+    ps_mutex_init(&g_ps.leases_lock);
+    ps_mutex_init(&g_ps.names_lock);
+    for( int i = 0; i < PS_ACCOUNT_STRIPES; i++ )
+        ps_mutex_init(&g_ps.stripes[i]);
+    snprintf(path, sizeof(path), "%s/account_leases.journal", ToriRSServer_SaveDir());
+    ToriRSServer_SaveMkdirParent(path);
+    {
+        /* The journal's name before the account server was this one's. */
+        char old_path[1024];
+        FILE* probe = fopen(path, "rb");
+
+        snprintf(old_path, sizeof(old_path), "%s/player_leases.journal", ToriRSServer_SaveDir());
+        if( probe )
+            fclose(probe);
+        else if( rename(old_path, path) == 0 )
+            fprintf(stderr, "account_server: %s is now %s\n", old_path, path);
+    }
+    AccountLeases_Open(&g_ps.leases, path);
+    g_ps.open = 1;
+    if( g_ps.leases.count )
+        fprintf(stderr, "account_server: %d character(s) out on their worlds, held until each "
+                        "world returns its save\n",
+                g_ps.leases.count);
+    return 1;
+}
+
+void
+AccountServer_Close(void)
+{
+    if( !g_ps.open )
+        return;
+    AccountLeases_Close(&g_ps.leases);
+    for( int i = 0; i < PS_ACCOUNT_STRIPES; i++ )
+        ps_mutex_destroy(&g_ps.stripes[i]);
+    ps_mutex_destroy(&g_ps.leases_lock);
+    ps_mutex_destroy(&g_ps.names_lock);
+    lockfile_drop();
+    g_ps.open = 0;
 }
 
 void
@@ -386,137 +1176,62 @@ AccountServer_Handle(
     struct HttpRequest const* req,
     struct HttpResponse* res)
 {
-    char name[ACCOUNT_NAME_MAX];
-    char password[128];
-    char code[TORIRSSERVER_INVITE_CODE_BYTES * 2 + 1];
-    char field[16];
-    int is_post;
-    char const* problem = NULL;
+    struct Fields f;
 
     (void)user;
     assert(req);
     assert(res);
-    is_post = strcmp(req->method, "POST") == 0;
+    assert(g_ps.open);
+    f = fields_of(req);
 
-    if( is_post && path_is(req, "/events") )
-    {
-        route_events(req, res);
-        return;
-    }
-    if( is_post && path_is(req, "/gate/login") )
-    {
-        if( !body_field(req, "name", name, sizeof(name)) ||
-            !body_field(req, "password", password, sizeof(password)) )
-        {
-            refuse(res, 400, "name and password");
-            return;
-        }
-        route_result(res, (int)AccountDb_GateLogin(name, password), NULL);
-        memset(password, 0, sizeof(password));
-        return;
-    }
-    if( is_post && path_is(req, "/gate/create") )
-    {
-        enum ToriRSServerCreateResult result;
-
-        if( !body_field(req, "name", name, sizeof(name)) ||
-            !body_field(req, "password", password, sizeof(password)) )
-        {
-            refuse(res, 400, "name and password");
-            return;
-        }
-        result = AccountDb_GateLoginCreate(name, password, &problem);
-        memset(password, 0, sizeof(password));
-        route_result(res, (int)result, problem);
-        return;
-    }
-    if( is_post && path_is(req, "/gate/revoke") )
-    {
-        if( !body_field(req, "name", name, sizeof(name)) )
-        {
-            refuse(res, 400, "name");
-            return;
-        }
-        route_result(res, AccountDb_GateLoginRevoke(name), NULL);
-        return;
-    }
-    if( !is_post && path_is(req, "/gate/list") )
-    {
-        struct Answer a;
-
-        answer_init(&a);
-        AccountDb_GateLoginEach(each_login, &a);
-        answer_send(&a, res, 200);
-        return;
-    }
-    if( is_post && path_is(req, "/invite/create") )
-    {
-        int named = body_field(req, "name", name, sizeof(name)) && name[0];
-        struct Answer a;
-
-        if( named && ToriRSServer_AuthNameProblem(name) )
-        {
-            refuse(res, 400, ToriRSServer_AuthNameProblem(name));
-            return;
-        }
-        AccountDb_InviteCreate(named ? name : NULL, code);
-        answer_init(&a);
-        answer_printf(&a, "code\t%s\n", code);
-        answer_send(&a, res, 200);
-        return;
-    }
-    if( !is_post && path_is(req, "/invite") )
-    {
-        int found = query_field(req, "code", code, sizeof(code)) &&
-                    AccountDb_InviteLookup(code, name, sizeof(name));
-        struct Answer a;
-
-        answer_init(&a);
-        answer_printf(&a, "invite\t%d\t", found);
-        answer_text(&a, found ? name : "");
-        answer_printf(&a, "\n");
-        answer_send(&a, res, 200);
-        return;
-    }
-    if( is_post && path_is(req, "/invite/redeem") )
-    {
-        enum ToriRSServerInviteResult result;
-
-        if( !body_field(req, "code", code, sizeof(code)) ||
-            !body_field(req, "name", name, sizeof(name)) ||
-            !body_field(req, "password", password, sizeof(password)) )
-        {
-            /* A code too long to be one is no invite, as the gate said
-             * before: not a malformed request. */
-            route_result(res, TORIRSSERVER_INVITE_UNKNOWN, NULL);
-            return;
-        }
-        result = AccountDb_InviteRedeem(code, name, password, &problem);
-        memset(password, 0, sizeof(password));
-        route_result(res, (int)result, problem);
-        return;
-    }
-    if( is_post && path_is(req, "/player/ranked") )
-    {
-        if( !body_field(req, "name", name, sizeof(name)) ||
-            !body_field(req, "ranked", field, sizeof(field)) )
-        {
-            refuse(res, 400, "name and ranked");
-            return;
-        }
-        AccountDb_SetRanked(name, atoi(field) != 0);
-        route_result(res, 1, NULL);
-        return;
-    }
-    if( !is_post && path_is(req, "/view/player") )
-    {
-        route_view_player(req, res);
-        return;
-    }
-    if( !is_post && path_is(req, "/view/hiscores") )
-    {
-        route_view_hiscores(req, res);
-        return;
-    }
-    refuse(res, 404, "no such route");
+    if( route_is(req, "POST", "/auth") )
+        route_login(&f, res, "auth", 1, 0);
+    else if( route_is(req, "POST", "/login") )
+        route_login(&f, res, "login", 1, 1);
+    else if( route_is(req, "POST", "/claim") )
+        route_login(&f, res, "login", 0, 1);
+    else if( route_is(req, "POST", "/logout") )
+        route_logout(req, res);
+    else if( route_is(req, "POST", "/release") )
+        route_release(&f, res);
+    else if( route_is(req, "POST", "/hello") )
+        route_hello(&f, res);
+    else if( route_is(req, "GET", "/leases") )
+        route_leases(res);
+    else if( route_is(req, "GET", "/save") )
+        route_save_get(&f, res);
+    else if( route_is(req, "POST", "/save") )
+        route_save_put(req, res);
+    else if( route_is(req, "GET", "/name") )
+        route_name_owner(&f, res);
+    else if( route_is(req, "POST", "/name/claim") )
+        route_name_change(&f, res, 1);
+    else if( route_is(req, "POST", "/name/release") )
+        route_name_change(&f, res, 0);
+    else if( route_is(req, "POST", "/account/release") )
+        route_revoke(&f, res);
+    else if( route_is(req, "GET", "/account") )
+        route_account(&f, res);
+    else if( route_is(req, "GET", "/accounts") )
+        route_accounts(&f, res);
+    else if( route_is(req, "GET", "/staff") )
+        route_staff(&f, res);
+    else if( route_is(req, "POST", "/account/create") )
+        route_create(&f, res);
+    else if( route_is(req, "POST", "/account/password") )
+        route_password(&f, res);
+    else if( route_is(req, "POST", "/account/admin") )
+        route_flag(&f, res, ToriRSServer_AuthSetAdmin);
+    else if( route_is(req, "POST", "/account/record") )
+        route_flag(&f, res, ToriRSServer_AuthSetRecorded);
+    else if( route_is(req, "POST", "/account/link") )
+        route_link(&f, res, 0);
+    else if( route_is(req, "POST", "/account/assign") )
+        route_link(&f, res, 1);
+    else if( route_is(req, "POST", "/account/verify") )
+        route_verify(&f, res);
+    else if( route_is(req, "POST", "/account/unlink") )
+        route_unlink(&f, res);
+    else
+        refuse(res, 404, "no such route");
 }

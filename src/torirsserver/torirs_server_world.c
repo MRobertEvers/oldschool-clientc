@@ -32,7 +32,7 @@
 #include "torirs_server_ids.h"
 #include "torirs_server_runenergy.h"
 #include "torirs_server_save.h"
-#include "torirs_server_accountlog.h"
+#include "torirs_server_hiscoreslog.h"
 #include "torirs_server_auth.h"
 #include "torirs_server_session.h"
 #include "torirs_server_scene.h"
@@ -16606,13 +16606,13 @@ ToriRSServer_WorldRemovePlayer(
      * disconnects, so both get persistence from one call.
      */
     ToriRSServer_SavePlayer(player, ToriRSServer_SavePath(account_name));
-    /* The account server (torirs_server_accountlog.h): the stats as just
+    /* The hiscores server (torirs_server_hiscoreslog.h): the stats as just
      * saved, and the session. Only for a session whose login finished -- one
      * dropped while its scene was still loading never queued its login, and
      * its stats are not loaded yet: a logout of zeros would read as
      * everything lost. */
-    if( srv->account_log && !player->login_scene_pending )
-        ToriRSServer_AccountLogLogout(srv->account_log, player, (long long)time(NULL));
+    if( srv->hiscores_log && !player->login_scene_pending )
+        ToriRSServer_HiscoresLogLogout(srv->hiscores_log, player, (long long)time(NULL));
 
     /*
      * The bank is heap-allocated per player, so a logout that only cleared
@@ -17850,8 +17850,8 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
     const struct ToriRSServerIds* ids = ToriRSServer_Ids();
 
     ToriRSServer_WorldSetActive(srv, player);
-    if( srv->account_log )
-        ToriRSServer_AccountLogLogin(srv->account_log, player, (long long)time(NULL));
+    if( srv->hiscores_log )
+        ToriRSServer_HiscoresLogLogin(srv->hiscores_log, player, (long long)time(NULL));
 
     /* Root-world info batches start by selecting their world and plane. The
      * login rebuild's GPI block only seeds the player-coordinate tracker. */
@@ -21771,9 +21771,9 @@ world_tick_body(struct ToriRSServer* srv)
     BD_MARK();
 
     /* The account database's view of everyone's stats: each player once per
-     * TORIRSSERVER_ACCOUNTLOG_FLUSH_TICKS, staggered by slot so a full world's
+     * TORIRSSERVER_HISCORESLOG_FLUSH_TICKS, staggered by slot so a full world's
      * comparisons do not all land on one tick. */
-    if( srv->account_log )
+    if( srv->hiscores_log )
     {
         struct ToriRSServerPlayer* logged;
 
@@ -21782,9 +21782,9 @@ world_tick_body(struct ToriRSServer* srv)
             int slot = (int)(logged - srv->players);
 
             if( logged->login_scene_pending ||
-                (srv->tick + slot) % TORIRSSERVER_ACCOUNTLOG_FLUSH_TICKS != 0 )
+                (srv->tick + slot) % TORIRSSERVER_HISCORESLOG_FLUSH_TICKS != 0 )
                 continue;
-            ToriRSServer_AccountLogStats(srv->account_log, logged, (long long)time(NULL));
+            ToriRSServer_HiscoresLogStats(srv->hiscores_log, logged, (long long)time(NULL));
         }
     }
 

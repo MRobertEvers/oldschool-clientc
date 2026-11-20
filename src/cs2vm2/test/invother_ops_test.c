@@ -4,6 +4,7 @@
 #include "cs2vm2/cs2vm2_script.h"
 #include "game/rs_cs2_host.h"
 #include "inv/inv_manager.h"
+#include "ui/uitree.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,6 +40,8 @@ int main(void)
     struct RS_CS2Host* host=calloc(1,sizeof(*host));
     assert(host);
     host->invs=&invs;
+    host->tree=UITree_New(16);   /* the inv ops resolve their component */
+    assert(host->tree);
     int ids[]={995,1265,995}, counts[]={10,1,30};
     int own_ids[]={1731}, own_counts[]={1};
     InvManager_EnsureContainer(&invs,963,3,"local");
@@ -59,6 +62,7 @@ int main(void)
     CHECK(CS2_OP_INVOTHER_TOTAL,963,995,45);
     CHECK(CS2_OP_INV_GETOBJ,963,0,1731);
     InvManager_Free(&invs);
+    UITree_Free(host->tree);
     free(host);
     printf("native cargo inventory: %d failures\n",failures);
     return failures ? 1:0;

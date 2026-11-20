@@ -12,7 +12,7 @@
  * the same framing as ToriRSMapEd.
  *
  * Who may: behind the sign-in gate (TORIRSSERVER_GATE=1 / --gate) CTL_HELLO
- * must carry a ticket io_gate.c minted (ToriRSServer_GateTicketCheck) for a
+ * must carry a ticket website_gate.c minted (ToriRSServer_GateTicketCheck) for a
  * STAFF login (ToriRSServer_AuthLoginIsStaff); with no
  * gate only a loopback peer is accepted, at the first byte. Nothing but
  * CTL_HELLO is answered before a HELLO was accepted.

@@ -170,8 +170,9 @@ Task_UITreeBuild_Run(
     UITree_LayoutResolve(
         self->builder->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 
-    /* 4. Run IF3 on_load hooks collected during bake. */
-    if( self->builder->host )
+    /* 4. Run IF3 on_load hooks collected during bake (a CS1 bake has none to
+     * run: its IF1 scripts are the CS1 host's, on the tick). */
+    if( self->builder->scripts == UITREE_BUILDER_SCRIPTS_CS2 )
     {
         for( self->i = 0; self->i < self->builder->onload_count; self->i++ )
         {

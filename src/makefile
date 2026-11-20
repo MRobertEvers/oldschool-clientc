@@ -1183,7 +1183,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_friends.c \
 	torirsserver/torirs_server_ge.c \
 	torirsserver/torirs_server_ids.c \
-	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_accountlog.c torirsserver/torirs_server_recording.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
+	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_hiscoreslog.c torirsserver/torirs_server_recording.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
 	torirsserver/torirs_server_embed.c torirsserver/torirs_server_claim.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c net/flat_json.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	world/wev.c \
@@ -1644,36 +1644,91 @@ ifeq ($(MEMTRACE),1)
 WEB_ASSETS += $(REPO_ROOT)/tools/memtrace/viewer.html
 endif
 # --- Servers -------------------------------------------------------------
-# The two processes a browser run needs, built together because needing both
-# and being told about one is how a web build ends up half-runnable. They stay
-# separate executables â they have different jobs, different lifetimes and
-# different exposure â but there is one command that produces them.
+# The five servers (docs/WEB_SERVERS.md), built together because needing all
+# of them and being told about one is how a deployment ends up half-runnable:
 #
-#   io_server    HTTP: the page, the module, GET /boot/<path>, POST /io
-#   js5_server   the cache, over raw TCP or WebSocket on one port
+#   torirsserver     the game (its own target, `torirsserver`)
+#   account_server   player accounts, their saves, the lock on each character
+#   hiscores_server  the characters' records: hiscores, history, adventure log
+#   website_server   the public front door: the sign-in gate, user accounts,
+#                    OAuth, the account site; forwards the rest to the IO server
+#   io_server        the client page and assets, the web client's IO, JS5
 #
-# Both are always native, even from a web build. See docs/WEB_SERVERS.md.
+# Each is a handler that can also run inside another's process; between
+# processes every request is signed (service/service_auth.h). js5_server is
+# the JS5 half alone, which its tests drive. Always native, even from a web
+# build.
 .PHONY: servers
 servers:
 	$(MAKE) io-server
+	$(MAKE) website-server
 	$(MAKE) js5-server
 	$(MAKE) account-server
-	@echo "servers: src/build/io_server, src/$(OBJ_DIR)/js5_server and src/$(OBJ_DIR)/account_server"
+	$(MAKE) hiscores-server
+	$(MAKE) torirsd
+	@echo "servers: src/build/io_server, src/build/website_server, src/$(OBJ_DIR)/js5_server, src/$(OBJ_DIR)/account_server, src/$(OBJ_DIR)/hiscores_server and src/$(OBJ_DIR)/torirsd"
 
-# The account server (accountserver/account_server.h): the one process that
-# opens <saves>/accounts.sqlite -- web logins, invites, hiscores, history, the
-# adventure log. Worlds send it their records; io_server and --account ask it.
-# Its database is the vendored 3rd/sqlite. Defined here, above every rule that
-# lists it as a prerequisite: a rule's prerequisites expand when the makefile
-# is read, so one defined later is empty there and the object never builds.
-ACCOUNT_SQLITE_OBJ = $(OBJ_DIR)/sqlite3.o
+# What every server links to reach and answer the others: the HTTP server, the
+# signature, the client link, the host, the form helpers -- and what those use
+# (the HMAC and key files, the save directory, a blocking HTTP client, INI).
+# Defined here, above every rule that lists them: a rule's prerequisites
+# expand when the makefile is read, so one defined later is empty there.
+SERVICE_SRCS = service/http_server.c service/service_auth.c service/service_link.c \
+	service/service_host.c service/service_form.c
+SERVICE_DEPS = torirsserver/torirs_server_auth.c torirsserver/torirs_server_savefile.c \
+	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c net/sha256.c \
+	$(INI_SRC)
+# The vendored 3rd/sqlite: the hiscores and the website's user accounts.
+SERVERS_SQLITE_OBJ = $(OBJ_DIR)/sqlite3.o
+
+# The account server (accountserver/account_server.h): the login server --
+# player accounts, their saves, the lock on each character. A world that
+# checks passwords hosts it unless TORIRS_ACCOUNT_SERVER names one, so the
+# world's link (TORIRSSERVER_ACCOUNT_SRCS) carries the server half too.
+ACCOUNT_CLIENT_SRCS = accountserver/account_client.c
+ACCOUNT_SERVER_CORE_SRCS = $(ACCOUNT_CLIENT_SRCS) accountserver/account_server.c \
+	accountserver/account_lease.c
 ACCOUNT_SERVER_SRCS = $(TORIMEM_SRCS) accountserver/account_server_main.c \
-	accountserver/account_server.c accountserver/account_db.c accountserver/account_proto.c \
-	ioserver/http_server.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_history.c \
-	torirsserver/torirs_server_savefile.c net/sha256.c $(INI_SRC)
+	$(ACCOUNT_SERVER_CORE_SRCS) $(SERVICE_SRCS) $(SERVICE_DEPS)
 account-server: $(OBJ_DIR)/account_server
-$(OBJ_DIR)/account_server: $(ACCOUNT_SERVER_SRCS) $(ACCOUNT_SQLITE_OBJ) | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $@ $(ACCOUNT_SERVER_SRCS) $(ACCOUNT_SQLITE_OBJ) -lm $(IO_SERVER_SOCKET_LIBS)
+$(OBJ_DIR)/account_server: $(ACCOUNT_SERVER_SRCS) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $@ $(ACCOUNT_SERVER_SRCS) -lm $(IO_SERVER_SOCKET_LIBS)
+	@echo "built $@"
+
+# torirsd (daemon/torirsd.c): every server of a deployment from one call --
+# started in its file's order, each answering before the next, stopped in
+# reverse, and all stopped when one exits. The deploy package runs it from
+# torirsd.ini.
+TORIRSD_SRCS = daemon/torirsd.c $(INI_SRC)
+torirsd: $(OBJ_DIR)/torirsd
+$(OBJ_DIR)/torirsd: $(TORIRSD_SRCS) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $@ $(TORIRSD_SRCS) $(IO_SERVER_SOCKET_LIBS)
+	@echo "built $@"
+
+# The lease table and the routes (accountserver/account_lease.h,
+# account_server.h): two worlds, one character; a save handed back under the
+# live lease only; a hello that frees only an earlier run's holds; a
+# restart's journal; the editor's save routes, display names and the
+# records' routes through the client, in process; an unsigned request
+# refused.
+test-account-server: $(OBJ_DIR)/AccountServerTest
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/AccountServerTest
+$(OBJ_DIR)/AccountServerTest: accountserver/test/account_server_test.c \
+		$(filter-out accountserver/account_server_main.c,$(ACCOUNT_SERVER_SRCS)) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $@ accountserver/test/account_server_test.c \
+		$(filter-out accountserver/account_server_main.c,$(ACCOUNT_SERVER_SRCS)) -lm $(IO_SERVER_SOCKET_LIBS)
+
+# The hiscores server (hiscoresserver/hiscores_server.h): the one process that
+# opens <saves>/hiscores.sqlite. Worlds send it their records; the website and
+# --account ask it.
+HISCORES_CLIENT_SRCS = hiscoresserver/hiscores_client.c hiscoresserver/hiscores_proto.c
+HISCORES_SERVER_CORE_SRCS = $(HISCORES_CLIENT_SRCS) hiscoresserver/hiscores_server.c \
+	hiscoresserver/hiscores_db.c torirsserver/torirs_server_history.c
+HISCORES_SERVER_SRCS = $(TORIMEM_SRCS) hiscoresserver/hiscores_server_main.c \
+	$(HISCORES_SERVER_CORE_SRCS) $(SERVICE_SRCS) $(SERVICE_DEPS)
+hiscores-server: $(OBJ_DIR)/hiscores_server
+$(OBJ_DIR)/hiscores_server: $(HISCORES_SERVER_SRCS) $(SERVERS_SQLITE_OBJ) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $@ $(HISCORES_SERVER_SRCS) $(SERVERS_SQLITE_OBJ) -lm $(IO_SERVER_SOCKET_LIBS)
 	@echo "built $@"
 
 web: servers
@@ -1777,18 +1832,29 @@ IO_SERVER_FLAVOR = PLATFORM=native OPT=0 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0
 # CORS-permitted origin for the jag routes, so the dat1 source runs in this
 # process. It brings in neither SDL2 nor js5 -- see the two separate NO_
 # flags on the link below.
-IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.c \
+# The IO server's own work (ioserver/io_server.h) -- also linked into the
+# website, which can host it (`website_server --host io`). JS5 is the
+# js5_server's reactor, run on a thread of the IO server with --js5-port.
+JS5_SERVER_LIB_SRCS = js5/server/js5_server.c js5/server/js5_server_conn.c \
+	js5/server/js5_server_session.c js5/server/js5_server_cache.c \
+	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c
+IO_SERVER_CORE_SRCS = ioserver/io_server.c \
 	platform/io_wire.c platform/platform_x_io.c \
 	platform/platform_x_io_ondemand.c \
-	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
 	bootmanifest/bootmanifest.c input/torirs_keymap.c features/features.c \
-	ui/torirs_chrome_exec_kind.c $(INI_SRC) \
-	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c ioserver/io_ctl.c \
-	torirsmaped/torirs_maped_acctsave.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
-	accountserver/account_client.c accountserver/account_proto.c \
-	torirsserver/torirs_server_savefile.c net/sha256.c net/flat_json.c
-# The gate's links are indexed by sqlite: the vendored 3rd/sqlite. The account
-# database is the account server's; io_server asks it (account_client.c).
+	ui/torirs_chrome_exec_kind.c $(JS5_SERVER_LIB_SRCS)
+IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c $(IO_SERVER_CORE_SRCS) \
+	$(SERVICE_SRCS) $(SERVICE_DEPS)
+# The website (websiteserver/website_server_main.c): the gate, its user
+# accounts and links, the site, OAuth -- with the IO server, the account
+# server and the hiscores server it can host, and their clients.
+WEBSITE_CORE_SRCS = websiteserver/website_gate.c websiteserver/website_links.c \
+	websiteserver/website_site.c websiteserver/website_ctl.c websiteserver/website_users.c \
+	websiteserver/website_users_db.c torirsserver/torirs_server_oauth.c \
+	torirsmaped/torirs_maped_acctsave.c net/flat_json.c
+WEBSITE_SERVER_SRCS = $(TORIMEM_SRCS) websiteserver/website_server_main.c \
+	$(WEBSITE_CORE_SRCS) $(IO_SERVER_CORE_SRCS) $(ACCOUNT_SERVER_CORE_SRCS) \
+	$(HISCORES_SERVER_CORE_SRCS) $(SERVICE_SRCS) $(SERVICE_DEPS)
 IO_SERVER_SQLITE_OBJ = $(IO_SERVER_OBJ_DIR)/sqlite3.o
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
 # split on sockstream.c's side) -- closesocket/WSAStartup/select/etc live in
@@ -1805,28 +1871,46 @@ io-server:
 # The objdir is order-only: it is a prerequisite so that it exists, and every
 # object written into it bumps its mtime, which as a normal prerequisite relinked
 # the server on every unrelated build.
-$(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) ioserver/io_site_editor.c \
+$(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
+		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
+		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
+		$(IO_SERVER_OBJ_DIR)/xteas.o | $(IO_SERVER_OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(IO_SERVER_SRCS) \
+		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1 \
+		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
+		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
+		$(IO_SERVER_OBJ_DIR)/xteas.o -lm $(IO_SERVER_SOCKET_LIBS)
+	@echo "built $@"
+
+# The website, built where the IO server is: it links the IO server's objects
+# and flags to host it.
+website-server:
+	$(MAKE) $(IO_SERVER_FLAVOR) $(IO_SERVER_OBJ_DIR)/website_server
+$(IO_SERVER_OBJ_DIR)/website_server: $(WEBSITE_SERVER_SRCS) websiteserver/website_site_editor.c \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) | $(IO_SERVER_OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(IO_SERVER_SRCS) \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(WEBSITE_SERVER_SRCS) \
 		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) -lm $(IO_SERVER_SOCKET_LIBS)
 	@echo "built $@"
 
-# The gate's device-code grant (io_gate.h): authorize, poll, the sign-in
-# form's next, approve and deny, the issued ticket -- through IoGate_Handle.
-IO_GATE_DEVICE_TEST_SRCS = $(filter-out ioserver/io_server_main.c,$(IO_SERVER_SRCS))
-test-io-gate-device:
-	$(MAKE) $(IO_SERVER_FLAVOR) $(IO_SERVER_OBJ_DIR)/IoGateDeviceTest
-	cd $(REPO_ROOT) && ./src/$(IO_SERVER_OBJ_DIR)/IoGateDeviceTest
-$(IO_SERVER_OBJ_DIR)/IoGateDeviceTest: ioserver/test/io_gate_device_test.c $(IO_GATE_DEVICE_TEST_SRCS) ioserver/io_site_editor.c \
+# The gate's device-code grant (websiteserver/website_gate.h): authorize,
+# poll, the sign-in form's next, approve and deny, the issued ticket --
+# through WebsiteGate_Handle.
+WEBSITE_GATE_DEVICE_TEST_SRCS = $(filter-out websiteserver/website_server_main.c,$(WEBSITE_SERVER_SRCS))
+test-website-gate-device:
+	$(MAKE) $(IO_SERVER_FLAVOR) $(IO_SERVER_OBJ_DIR)/WebsiteGateDeviceTest
+	cd $(REPO_ROOT) && ./src/$(IO_SERVER_OBJ_DIR)/WebsiteGateDeviceTest
+$(IO_SERVER_OBJ_DIR)/WebsiteGateDeviceTest: websiteserver/test/website_gate_device_test.c \
+		$(WEBSITE_GATE_DEVICE_TEST_SRCS) websiteserver/website_site_editor.c \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) | $(IO_SERVER_OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ ioserver/test/io_gate_device_test.c $(IO_GATE_DEVICE_TEST_SRCS) \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ websiteserver/test/website_gate_device_test.c \
+		$(WEBSITE_GATE_DEVICE_TEST_SRCS) \
 		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
@@ -6171,15 +6255,16 @@ TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server
 	$(TORIRSSERVER_LOOP_SRCS) \
 	$(TORIRSSERVER_ACCOUNT_SRCS) \
 	net/jbase37.c net/wordpack.c net/chat_huffman.c $(TORIRSSERVER_CORE_SRCS) $(SCRIPTRUN_SRCS)
-# The world's side of the account server (accountserver/account_server.h),
-# standalone only -- the core list is also the embedded client's and the
-# browser build's, which keep no accounts (their worlds have no
-# `account_log`): the spool and its non-blocking sender, the record line, and
-# the blocking client `--account` asks with. No sqlite: the account server
-# alone opens the database.
-TORIRSSERVER_ACCOUNT_SRCS = torirsserver/torirs_server_accountlink.c \
-	accountserver/account_proto.c accountserver/account_client.c \
-	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c
+# The world's side of the other servers, standalone only -- the core list is
+# also the embedded client's and the browser build's, which keep no accounts
+# and send no records: the hiscores spool and its non-blocking sender, the
+# record line, the account server it hosts or asks, the clients `--account`
+# asks the hiscores and the website with, and the signature they all carry.
+# No sqlite: the hiscores and the website alone open databases.
+TORIRSSERVER_ACCOUNT_SRCS = torirsserver/torirs_server_hiscoreslink.c \
+	$(HISCORES_CLIENT_SRCS) websiteserver/website_client.c \
+	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
+	$(ACCOUNT_SERVER_CORE_SRCS) $(SERVICE_SRCS)
 # --scriptrun (torirsserver/torirs_server_scriptrun.c): the in-process script
 # runner, standalone server only -- never TORIRSSERVER_CORE_SRCS, which the
 # embedded client also compiles and which would then carry a second copy of the
@@ -6282,7 +6367,8 @@ TORIRSSERVER_HDRS := $(wildcard torirsserver/*.h scriptrun/*.h serverscript/*.h 
 		net/*.h net/login/*.h net/proto/*.h net/rev/*.h torirsserver/wire/*/*.h net/rev/packets/*.h \
 		world/*.h engine/*.h engine/world_builder/*.h features/*.h game/rs_entity_sync.h \
 		platform/net_transport_ws*.h js5/server/*.h plugin/torirs_plugin_drive_parts.h \
-		plugin/torirs_drive_plan_lua.h)
+		plugin/torirs_drive_plan_lua.h accountserver/*.h hiscoresserver/*.h service/*.h \
+		websiteserver/website_client.h websiteserver/website_users.h)
 # THE TARGET IS THE FILE THE LINKER WRITES, AND EACH SOURCE IS ITS OWN OBJECT
 # (2026-11-10). Until then this was one command, `$(CC) $(CFLAGS) -o
 # $(OBJ_DIR)/torirsserver <160 sources>`, under a target of that name. Two
@@ -8121,13 +8207,15 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 # vectors, then logins through the real client login machine -- a first login
 # sets the password, a wrong one is refused with response 3 and does not take
 # over the session playing, development mode lets anything in.
-test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o $(ACCOUNT_SQLITE_OBJ)
+test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o $(SERVERS_SQLITE_OBJ)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginPasswordTest \
 		torirsserver/test/login_password_test.c $(filter-out net/proto/proto_info.c,$(TORIRSSERVER_CORE_SRCS)) \
-		net/net_out.c accountserver/account_db.c accountserver/account_proto.c \
-		accountserver/account_server.c ioserver/http_server.c torirsserver/torirs_server_history.c \
-		torirsserver/torirs_server_accountlink.c \
-		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(ACCOUNT_SQLITE_OBJ)
+		net/net_out.c hiscoresserver/hiscores_db.c hiscoresserver/hiscores_proto.c \
+		hiscoresserver/hiscores_server.c websiteserver/website_users_db.c \
+		$(SERVICE_SRCS) torirsserver/torirs_server_history.c \
+		torirsserver/torirs_server_hiscoreslink.c platform/platform_x_http.c platform/sockstream.c \
+		platform/platform_mdns.c \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(SERVERS_SQLITE_OBJ)
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest
 
 # mDNS response parser: name compression (including a pointer chain and a

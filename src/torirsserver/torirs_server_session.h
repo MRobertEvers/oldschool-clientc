@@ -60,10 +60,11 @@ enum ToriRSServerSessionState
      */
     TORIRSSERVER_SESSION_JS5,
     /**
-     * A password login is decoded and its password is being checked off the
-     * loop (`auth_async`): the account file read and the PBKDF2 run on the
-     * host's blocking-call pool. Nothing is decoded until the host answers
-     * with ToriRSServer_SessionAuthDone.
+     * A login is decoded and is being checked off the loop (`auth_async`): the
+     * host's blocking-call pool asks the account server for the
+     * password check and the character's lease (`auth_kind` says which).
+     * Nothing is decoded until the host answers with
+     * ToriRSServer_SessionAuthDone.
      */
     TORIRSSERVER_SESSION_AUTH,
     /** Ciphers armed; the game stream is running. */
@@ -140,7 +141,11 @@ struct ToriRSServerSession
     uint8_t* save_bytes;
     long save_len;
     char auth_user[64];
+    /** The password, or for a TOKEN login the one-time login token. */
     char auth_pass[64];
+    /** What the host's pool is asked to check (enum
+     *  ToriRSServerSessionAuthKind). */
+    int auth_kind;
     int32_t auth_seed[4];
     uint64_t auth_claimed;
     int auth_payload_len;
@@ -208,6 +213,11 @@ struct ToriRSServerSession
      *  the player (`ToriRSServerPlayer.account_admin`). */
     int account_admin;
 
+    /** 1 when the account says `record = 1` (torirs_server_recording.h):
+     *  answered with the login's check, copied onto the player
+     *  (`ToriRSServerPlayer.account_record`). */
+    int account_record;
+
     /** The login header's clientType / platformType (rsprot LoginClientType /
      *  LoginPlatformType), kept for the player the session becomes: a mobile
      *  client (enhanced android 7 / ios 8, or platform android 2 / apple 3)
@@ -260,10 +270,23 @@ ToriRSServer_SessionPump(
     struct ToriRSServerSession* session,
     struct ToriRSServer* srv);
 
+/** What a TORIRSSERVER_SESSION_AUTH session asks the host to check. */
+enum ToriRSServerSessionAuthKind
+{
+    /** `auth_pass` is the password. */
+    TORIRSSERVER_SESSION_AUTH_PASSWORD,
+    /** `auth_pass` is a one-time login token (auth type TOKEN), for the
+     *  host to redeem (ToriRSServer_OAuthRedeemOtl) before the lease. */
+    TORIRSSERVER_SESSION_AUTH_TOKEN,
+    /** A GAMERECONNECT: no password, only the lease. The host's claim still
+     *  gives the character back only to the session key it played on. */
+    TORIRSSERVER_SESSION_AUTH_RECONNECT,
+};
+
 /**
  * The answer to a TORIRSSERVER_SESSION_AUTH check: an enum
- * ToriRSServerAuthResult, and whether the account is an admin. Finishes the
- * login exactly as an inline check would have (a refusal is sent and the
+ * ToriRSServerAuthResult, and the account's admin and record flags. Finishes
+ * the login exactly as an inline check would have (a refusal is sent and the
  * session dies; anything else arms the stream and raises the login).
  */
 void
@@ -271,7 +294,8 @@ ToriRSServer_SessionAuthDone(
     struct ToriRSServerSession* session,
     struct ToriRSServer* srv,
     int auth,
-    int admin);
+    int admin,
+    int record);
 
 /** 1 exactly once, on the pump that armed the game stream. The caller answers
  *  it by initialising the world and sending the login burst. */

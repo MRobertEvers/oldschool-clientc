@@ -9,25 +9,12 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
-void
-UITreeBuilder_Init(
+static void
+uitree_builder_init(
     struct UITreeBuilder* builder,
     struct CacheProvider* provider,
     struct UITree* tree,
     struct InvManager* invs,
-    struct RS_CS2Host* host,
-    char const* ini_path)
-{
-    UITreeBuilder_InitEx(builder, provider, tree, invs, host, ini_path, NULL);
-}
-
-void
-UITreeBuilder_InitEx(
-    struct UITreeBuilder* builder,
-    struct CacheProvider* provider,
-    struct UITree* tree,
-    struct InvManager* invs,
-    struct RS_CS2Host* host,
     char const* ini_path,
     char const* cache_ini_path)
 {
@@ -40,7 +27,6 @@ UITreeBuilder_InitEx(
     builder->provider = provider;
     builder->tree = tree;
     builder->invs = invs;
-    builder->host = host;
     /* 0 is a real interface group, so "unset" has to be spelled out. Callers
      * that boot an interface set this after Init (see App_OpenRootInterface). */
     builder->root_interface_id = -1;
@@ -49,6 +35,35 @@ UITreeBuilder_InitEx(
     if( cache_ini_path )
         strncpy(
             builder->cache_ini_path, cache_ini_path, sizeof(builder->cache_ini_path) - 1);
+}
+
+void
+UITreeBuilder_InitCS1(
+    struct UITreeBuilder* builder,
+    struct CacheProvider* provider,
+    struct UITree* tree,
+    struct InvManager* invs,
+    char const* ini_path,
+    char const* cache_ini_path)
+{
+    uitree_builder_init(builder, provider, tree, invs, ini_path, cache_ini_path);
+    builder->scripts = UITREE_BUILDER_SCRIPTS_CS1;
+}
+
+void
+UITreeBuilder_InitCS2(
+    struct UITreeBuilder* builder,
+    struct CacheProvider* provider,
+    struct UITree* tree,
+    struct InvManager* invs,
+    struct RS_CS2Host* host,
+    char const* ini_path,
+    char const* cache_ini_path)
+{
+    assert(host);
+    uitree_builder_init(builder, provider, tree, invs, ini_path, cache_ini_path);
+    builder->scripts = UITREE_BUILDER_SCRIPTS_CS2;
+    builder->host = host;
 }
 
 void

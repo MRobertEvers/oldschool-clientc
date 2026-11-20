@@ -2,179 +2,58 @@
 #define SRC_ACCOUNTSERVER_ACCOUNT_PROTO_H
 
 /*
- * What the account server and its clients agree on: the hiscore categories,
- * the rows and the page views it answers with, and the line a world's record
- * travels as.
+ * What the account server (account_server.h) and its clients
+ * (account_client.h) agree on: its sizes, and an account as its listings
+ * answer it. The wire is the servers' shared shape (service/service_form.h).
  *
- * The server (account_server.h) speaks HTTP on localhost, and every body it
- * answers with is lines of tab-separated fields, the first field naming the
- * line: readable with curl, parsed with a split. A text field (a name, a
- * quest's name) never holds a tab or a newline -- the writer turns any into a
- * space -- and comes last on its line when it may hold anything else.
+ * The account server is the LOGIN server: a PLAYER account is a character --
+ * its password, its admin and record flags, which web login it is linked to,
+ * its save, its display name -- and, since there may be more than one world,
+ * the one place that says which world a character is logged in to. A USER
+ * account is a web login, the website's (websiteserver/website_users_db.h): a
+ * bucket player accounts are linked into, nothing a world logs in with.
  */
 
-#include "torirsserver/torirs_server_accountlog.h"
+#include "service/service_form.h"
 
 #include <stddef.h>
 
-/* The hiscore categories past the stats (0..24): */
-/** Overall: total level, then total experience, over the listed skills. */
-#define ACCOUNT_OVERALL 100
-/** Quest points (varp 101). */
-#define ACCOUNT_QUEST_POINTS 101
-/* The skills the hiscores list and the overall counts: stat ids 0..23.
- * Summoning (24) is a feature-flagged port; its experience is kept, not
- * ranked overall. */
-#define ACCOUNT_SKILLS 24
-/* xp_day's stat for the total experience of the listed skills. */
-#define ACCOUNT_TOTAL_XP 100
-
-#define ACCOUNT_NAME_MAX 64
-#define ACCOUNT_LABEL_MAX 80
-
-/* A player page's history: the gain windows (a day, a week, a month), the
- * chart's reach in days, and how many sessions and log lines it shows. */
-#define ACCOUNT_GAIN_WINDOWS 3
-#define ACCOUNT_CHART_DAYS 365
-#define ACCOUNT_SESSIONS_SHOWN 15
-#define ACCOUNT_EVENTS_SHOWN 20
-
-/* One record's line, newline included. */
-#define ACCOUNT_RECORD_LINE_MAX 1024
-
-struct AccountPlayer
-{
-    long long id;
-    /** As the save is keyed: the page's URL. */
-    char key[ACCOUNT_NAME_MAX];
-    char name[ACCOUNT_NAME_MAX];
-    int ranked;
-    long long last_seen;
-    /** Whole experience per stat. */
-    long long xp[TORIRSSERVER_ACCOUNTLOG_STATS];
-    int quest_points;
-};
-
-struct AccountRow
-{
-    char key[ACCOUNT_NAME_MAX];
-    char name[ACCOUNT_NAME_MAX];
-    /** The category's score: experience, quest points, or for OVERALL
-     *  AccountProto_OverallScore's packing. */
-    long long score;
-};
-
-struct AccountSession
-{
-    long long start;
-    long long end;
-    long long xp_gained;
-    /** -1 when nothing gained. */
-    int top_stat;
-    long long top_gain;
-};
-
-struct AccountEvent
-{
-    long long time;
-    enum ToriRSServerAdventureKind kind;
-    int amount;
-    char label[ACCOUNT_LABEL_MAX];
-};
-
-/*
- * Everything a player's page shows, in one answer (GET /view/player).
- *
- *   player  <id> <ranked> <last_seen> <quest_points> <key> <name>
- *   xp      <25 stats' whole experience>
- *   rank    <overall> <24 skills>          0 = not ranked there
- *   event   <time> <kind> <amount> <label>               newest first
- *
- * and with history=1 (the owner's view):
- *
- *   gain    <window> <partial> <24 skills' base> <total's base>
- *   chart   <day> <total experience>                      oldest first
- *   session <start> <end> <xp_gained> <top_stat> <top_gain> newest first
- *   sessions <count> <played seconds>
- *
- * A gain's base is the experience at the end of the day before the window;
- * `partial` 1 when the history starts later, and the base is then the first
- * recorded day's.
- */
-struct AccountPlayerView
-{
-    struct AccountPlayer player;
-    int rank_overall;
-    int rank[ACCOUNT_SKILLS];
-    struct AccountEvent events[ACCOUNT_EVENTS_SHOWN];
-    int event_count;
-
-    int has_history;
-    int gain_partial[ACCOUNT_GAIN_WINDOWS];
-    /** [window][skill], the total at [window][ACCOUNT_SKILLS]. */
-    long long gain_base[ACCOUNT_GAIN_WINDOWS][ACCOUNT_SKILLS + 1];
-    long long chart_day[ACCOUNT_CHART_DAYS];
-    long long chart_xp[ACCOUNT_CHART_DAYS];
-    int chart_count;
-    struct AccountSession sessions[ACCOUNT_SESSIONS_SHOWN];
-    int session_count;
-    int session_total;
-    long long played;
-};
-
-/** The days each gain window looks back. */
-extern int const g_account_gain_window_days[ACCOUNT_GAIN_WINDOWS];
-
-/** OldSchool's level for whole experience. */
-int
-AccountProto_LevelForXp(long long xp);
-
-/** OVERALL's score: total level above total experience, so one descending
- *  order is level first and experience second. */
-long long
-AccountProto_OverallScore(
-    int total_level,
-    long long total_xp);
-
-void
-AccountProto_OverallSplit(
-    long long score,
-    int* out_total_level,
-    long long* out_total_xp);
+/** Its routes are /svc/account on a ServiceHost; alone, it serves them on
+ *  127.0.0.1 here. */
+#define ACCOUNT_SERVER_PORT 8091
 
 /**
- * A world's record as one line:
- *   <seq> <kind> <time> <admin> <quest_points> <session_start> <event>
- *   <amount> <25 xp_tenths> <25 session_xp_tenths> <name> <label>
- * Returns its length, newline included.
+ * A lease: one world's hold on one character, and with it the character's
+ * save. Granted at the login's check; held, with the save on the world's own
+ * disk, until the world hands the save back at the logout (`/logout`). It does
+ * not lapse -- see account_lease.h.
  */
-int
-AccountProto_RecordFormat(
-    struct ToriRSServerAccountRecord const* record,
-    long long seq,
-    char out[ACCOUNT_RECORD_LINE_MAX]);
+/** A lease's token: 16 random bytes as hex. */
+#define ACCOUNT_LEASE_TOKEN_HEX 32
+/** A world's name: TORIRSSERVER_WORLD, or "<host>:<port>". */
+#define ACCOUNT_WORLD_MAX 64
+/** A world's boot: 8 random bytes as hex, new each time it starts, so its
+ *  `/hello` -- which may arrive late, after a retry -- lets go of only what an
+ *  EARLIER run of it held. */
+#define ACCOUNT_BOOT_HEX 16
+/** A character as the save is keyed (ToriRSServer_SaveFileName). */
+#define ACCOUNT_KEY_MAX 64
+/** The largest save the server takes: a save is a few KB; a full bank, a
+ *  house and every varp stay well under this. */
+#define ACCOUNT_SAVE_MAX (4 * 1024 * 1024)
 
-/** A line (without its newline; modified in place) back into a record. 0
- *  when it is not one: a torn line, or not this format. */
-int
-AccountProto_RecordParse(
-    char* line,
-    struct ToriRSServerAccountRecord* out,
-    long long* out_seq);
-
-/** `line`'s tab-separated fields, in place: their starts into `fields`, at
- *  most `max`. Returns how many. */
-int
-AccountProto_Fields(
-    char* line,
-    char** fields,
-    int max);
-
-/** `text` with any tab, CR or LF made a space, into `out`. */
-void
-AccountProto_Clean(
-    char const* text,
-    char* out,
-    size_t cap);
+/** One player account, as GET /account and GET /accounts answer it. */
+struct AccountPlayerInfo
+{
+    char key[ACCOUNT_KEY_MAX];
+    int admin;
+    int record;
+    /** ToriRSServer_AuthManagedBy's: 1 linked to `owner`, 0 not, -1 the
+     *  record could not be read. */
+    int linked;
+    char owner[ACCOUNT_KEY_MAX];
+    /** The world that has the character, and its save, now; "" when none. */
+    char world[ACCOUNT_WORLD_MAX];
+};
 
 #endif

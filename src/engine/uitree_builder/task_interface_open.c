@@ -108,7 +108,8 @@ open_resolve_sprite(
 {
     struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)ud;
     int scene_id;
-    assert(self && self->bridge);
+    assert(self);
+    assert(self->bridge);
     if( graphic_id < 0 )
         return -1;
     /* Bound, not ensured: a sprite whose read came back empty is filled when
@@ -125,7 +126,8 @@ open_resolve_font(
     int font_id)
 {
     struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)ud;
-    assert(self && self->bridge);
+    assert(self);
+    assert(self->bridge);
     if( font_id < 0 )
         return -1;
     return UITreeSceneBridge_EnsureFont(self->bridge, font_id);
@@ -137,14 +139,16 @@ upload_model_nodes(
     struct UITreeSceneBridge* bridge)
 {
     int mi;
-    assert(tree && bridge);
+    assert(tree);
+    assert(bridge);
     for( mi = 0; mi < tree->models.count; mi++ )
     {
         int32_t i = tree->models.slots[mi];
         struct UITreeComponent* c;
         int cache_id;
         int scene_id;
-        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        assert(i >= 0);
+        assert((uint32_t)i < tree->component_count);
         c = &tree->components[i];
         if( c->type != UIELEM_RS_MODEL )
             continue;
@@ -217,7 +221,8 @@ Task_InterfaceOpen_OnLoadAt(
     int index)
 {
     assert(self);
-    assert(index >= 0 && index < self->onload_count && "onload index out of range");
+    assert(index >= 0);
+    assert(index < self->onload_count && "onload index out of range");
     return &self->onloads[index];
 }
 
@@ -247,7 +252,8 @@ Task_InterfaceOpen_RuntimeHookAt(
     int index)
 {
     assert(self);
-    assert(index >= 0 && index < self->runtime_hook_count && "runtime hook index out of range");
+    assert(index >= 0);
+    assert(index < self->runtime_hook_count && "runtime hook index out of range");
     return &self->runtime_hooks[index];
 }
 
@@ -256,7 +262,8 @@ collect_onloads(
     struct Task_InterfaceOpen* self,
     struct ToriRS_ComponentPack const* pack)
 {
-    assert(self && pack);
+    assert(self);
+    assert(pack);
     self->onload_count = 0;
     for( int i = 0; i < pack->component_count; i++ )
     {
@@ -315,9 +322,9 @@ arm_cache_transmit_hooks(
     struct Task_InterfaceOpen* self,
     struct ToriRS_ComponentPack const* pack)
 {
-    assert(self && pack);
-    if( !self->host )
-        return;
+    assert(self);
+    assert(pack);
+    assert(self->host);
     for( int i = 0; i < pack->component_count; i++ )
         RS_CS2_RegisterCacheTransmitHooks(self->host, self->tree, &pack->components[i]);
 }
@@ -428,7 +435,8 @@ InterfaceOpen_BindGroupModels(
         struct UITreeComponent* c;
         int cache_id;
         int scene_id;
-        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        assert(i >= 0);
+        assert((uint32_t)i < tree->component_count);
         c = &tree->components[i];
         if( c->freed || c->type != UIELEM_RS_MODEL )
             continue;
@@ -511,8 +519,9 @@ InterfaceOpen_ApplyStoredValues(
 static void
 apply_stored_values(struct Task_InterfaceOpen* self)
 {
-    if( !self->texts )
-        return; /* a caller that keeps no stores (InterfaceOpen_SetStores) */
+    assert(self->texts);
+    assert(self->hides);
+    assert(self->colours);
     InterfaceOpen_ApplyStoredValues(
         self->tree, self->host, self->interface_id, self->texts, self->hides, self->colours);
 }
@@ -577,7 +586,8 @@ InterfaceOpen_MountGroupUnder(
         int32_t i = gset->slots[gi];
         struct UITreeComponent* c;
         int cid;
-        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        assert(i >= 0);
+        assert((uint32_t)i < tree->component_count);
         c = &tree->components[i];
         cid = c->component_id;
         if( c->freed || cid < 0 )
@@ -617,7 +627,8 @@ collect_sub_change_hooks(struct Task_InterfaceOpen* self)
         struct UITreeRuntimeHooks const* hooks;
         struct UITreeRuntimeScriptHook const* slot;
         struct InterfaceOpenRuntimeHook* dst;
-        assert(i >= 0 && (uint32_t)i < self->tree->component_count);
+        assert(i >= 0);
+        assert((uint32_t)i < self->tree->component_count);
         c = &self->tree->components[i];
         if( c->freed )
             continue;
@@ -803,7 +814,8 @@ Task_InterfaceOpen_Run(
         {
             int32_t idx = gset->slots[gi];
             struct UITreeComponent* c;
-            assert(idx >= 0 && (uint32_t)idx < self->tree->component_count);
+            assert(idx >= 0);
+            assert((uint32_t)idx < self->tree->component_count);
             c = &self->tree->components[idx];
             if( c->freed || c->component_id < 0 )
                 continue;
@@ -814,8 +826,10 @@ Task_InterfaceOpen_Run(
         }
     }
 
-    /* 4b. The server's stored texts, hides and colours for the group (U3). */
-    apply_stored_values(self);
+    /* 4b. The server's stored texts, hides and colours for the group (U3),
+     * when the creator bound stores (InterfaceOpen_SetStores). */
+    if( self->texts )
+        apply_stored_values(self);
 
     /* 5. Layout at full client canvas (host size via parent abs after reparent). */
     layout_tree(self);

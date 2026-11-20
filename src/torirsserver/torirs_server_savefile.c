@@ -113,11 +113,43 @@ ToriRSServer_SaveFileName(
     name[written] = '\0';
 }
 
+/* A world's held saves (ToriRSServer_SaveSetCharacterDir); "" for none. */
+static char g_character_dir[1024];
+
+void
+ToriRSServer_SaveSetCharacterDir(const char* dir)
+{
+    snprintf(g_character_dir, sizeof(g_character_dir), "%s", dir ? dir : "");
+}
+
+const char*
+ToriRSServer_SaveCharacterDir(void)
+{
+    return g_character_dir[0] ? g_character_dir : NULL;
+}
+
 const char*
 ToriRSServer_SavePath(const char* display_name)
 {
     /* Per thread: the blocking-call pool resolves paths for logins and saves
      * while the loop resolves others. */
+    static _Thread_local char path[1024];
+    char name[64];
+
+    ToriRSServer_SaveFileName(display_name, name, sizeof(name));
+    if( !name[0] )
+    {
+        path[0] = '\0';
+        return path;
+    }
+    snprintf(path, sizeof(path), "%s/%s.ini",
+             g_character_dir[0] ? g_character_dir : ToriRSServer_SaveDir(), name);
+    return path;
+}
+
+const char*
+ToriRSServer_SaveCanonicalPath(const char* display_name)
+{
     static _Thread_local char path[1024];
     char name[64];
 
@@ -265,7 +297,7 @@ display_name_read(
 }
 
 int
-ToriRSServer_DisplayNameOwner(
+ToriRSServer_DisplayNameOwnerFile(
     const char* name,
     char* owner,
     size_t cap)
@@ -280,7 +312,8 @@ ToriRSServer_DisplayNameOwner(
     display_name_path(key, path, sizeof(path));
     if( display_name_read(path, owner, cap) )
         return 1;
-    if( file_exists(ToriRSServer_SavePath(key)) || file_exists(ToriRSServer_AccountPath(key)) )
+    if( file_exists(ToriRSServer_SaveCanonicalPath(key)) ||
+        file_exists(ToriRSServer_AccountPath(key)) )
     {
         snprintf(owner, cap, "%s", key);
         return 1;
@@ -289,7 +322,7 @@ ToriRSServer_DisplayNameOwner(
 }
 
 int
-ToriRSServer_DisplayNameClaim(
+ToriRSServer_DisplayNameClaimFile(
     const char* name,
     const char* account)
 {
@@ -305,7 +338,7 @@ ToriRSServer_DisplayNameClaim(
     ToriRSServer_SaveFileName(account, account_key, sizeof(account_key));
     assert(key[0]);
     assert(account_key[0]);
-    if( ToriRSServer_DisplayNameOwner(name, owner, sizeof(owner)) )
+    if( ToriRSServer_DisplayNameOwnerFile(name, owner, sizeof(owner)) )
         return strcmp(owner, account_key) == 0;
     display_name_path(key, path, sizeof(path));
     ToriRSServer_SaveMkdirParent(path);
@@ -329,7 +362,7 @@ ToriRSServer_DisplayNameClaim(
 }
 
 void
-ToriRSServer_DisplayNameRelease(
+ToriRSServer_DisplayNameReleaseFile(
     const char* name,
     const char* account)
 {
@@ -346,4 +379,46 @@ ToriRSServer_DisplayNameRelease(
     display_name_path(key, path, sizeof(path));
     if( display_name_read(path, owner, sizeof(owner)) && strcmp(owner, account_key) == 0 )
         remove(path);
+}
+
+static const struct ToriRSServerDisplayNames g_display_names_file = {
+    ToriRSServer_DisplayNameOwnerFile,
+    ToriRSServer_DisplayNameClaimFile,
+    ToriRSServer_DisplayNameReleaseFile,
+};
+static const struct ToriRSServerDisplayNames* g_display_names = &g_display_names_file;
+
+void
+ToriRSServer_DisplayNamesUse(const struct ToriRSServerDisplayNames* names)
+{
+    assert(names);
+    assert(names->owner);
+    assert(names->claim);
+    assert(names->release);
+    g_display_names = names;
+}
+
+int
+ToriRSServer_DisplayNameOwner(
+    const char* name,
+    char* owner,
+    size_t cap)
+{
+    return g_display_names->owner(name, owner, cap);
+}
+
+int
+ToriRSServer_DisplayNameClaim(
+    const char* name,
+    const char* account)
+{
+    return g_display_names->claim(name, account);
+}
+
+void
+ToriRSServer_DisplayNameRelease(
+    const char* name,
+    const char* account)
+{
+    g_display_names->release(name, account);
 }
