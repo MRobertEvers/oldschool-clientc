@@ -1,4 +1,5 @@
 #include "world.h"
+#include "torirs_env.h"
 #include "mem/torirs_mem.h"
 
 #include "features/features.h"
@@ -3032,7 +3033,7 @@ world_apply_primary_animation(
          * this branch: see the ToB Matomenos, whose scripted arrival death and
          * engine kill could both play 8097 on one npc.
          */
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("anim: seq %d re-applied while already playing (frame %d, restart mode %d)\n",
                     seq_id, (int)animation->primary.frame, restart);
         if( restart == 1 ) /* RestartMode.RESET */
@@ -3081,7 +3082,7 @@ world_apply_primary_animation(
         world_seq_priority(world, seq_id) <
             world_seq_priority(world, animation->primary.anim_id) )
     {
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_ERR("anim: seq %d (prio %d) refused by incumbent %d (prio %d)\n",
                 seq_id,
                 world_seq_priority(world, seq_id),
@@ -3089,7 +3090,7 @@ world_apply_primary_animation(
                 world_seq_priority(world, animation->primary.anim_id));
         return;
     }
-    if( getenv("TORIRS_ANIM_DEBUG") )
+    if( torirs_env_anim_debug() )
         TORIRS_LOG("anim: seq %d (prio %d) applied over %d [idle seq %d frame %d cycle %d]\n",
             seq_id,
             world_seq_priority(world, seq_id),

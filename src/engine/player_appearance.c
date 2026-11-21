@@ -1,4 +1,5 @@
 #include "engine/player_appearance.h"
+#include "torirs_env.h"
 #include "mem/torirs_mem.h"
 
 #include "asyncio.h"
@@ -138,7 +139,7 @@ Task_PlayerAppearanceLoad_Run(
         player_try_record_kit(self, self->scan_i);
     }
 
-    if( getenv("TORIRS_ANIM_DEBUG") )
+    if( torirs_env_anim_debug() )
         TORIRS_LOG("PlayerAppearanceLoad: scanned=%d found=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
             self->scan_i,
             self->found,

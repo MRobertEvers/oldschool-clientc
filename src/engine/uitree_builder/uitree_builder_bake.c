@@ -1,4 +1,5 @@
 #include "uitree_builder_bake.h"
+#include "torirs_env.h"
 #include "mem/torirs_mem.h"
 
 #include "uitree_builder.h"
@@ -619,7 +620,7 @@ uitree_builder_bake_pack_under_owner(
             scene_id = UITreeSceneBridge_EnsureModel(builder->bridge, cache_id);
             if( scene_id >= 0 )
                 (void)UITree_SetModelAt(tree, index_map[i], scene_id);
-            else if( getenv("TORIRS_ANIM_DEBUG") )
+            else if( torirs_env_anim_debug() )
                 TORIRS_LOG("bake: model widget com=0x%x cache_id=%d not loadable\n",
                     (unsigned)node->component_id,
                     cache_id);
@@ -1363,7 +1364,7 @@ uitree_builder_hide_unmounted_spillover(
          * hide apart from a cache/script one when the mount finally lands. */
         /* Kept: this is exactly the print that identified the bug above, and
          * "which root did the tree just hide" is invisible from anywhere else. */
-        if( getenv("TORIRS_SPILLOVER_DEBUG") )
+        if( torirs_env_spillover_debug() )
             TORIRS_LOG("spillover: hiding root group %d (opening %d, target %d:%d)\n",
                 group,
                 opening_group,

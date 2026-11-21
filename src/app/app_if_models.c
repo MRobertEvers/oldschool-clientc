@@ -10,6 +10,7 @@
  */
 
 #include "app/app_internal.h"
+#include "torirs_env.h"
 #include "mem/torirs_mem.h"
 
 /* Interface chathead: the store remembers what the server told a MODEL
@@ -1130,7 +1131,7 @@ app_player_model_poll(struct App* app)
         bound = 1;
     }
 
-    if( rebuilt && getenv("TORIRS_ANIM_DEBUG") )
+    if( rebuilt && torirs_env_anim_debug() )
         TORIRS_LOG(
             "player_model: rebuilt cycle=%llu scene=%d seq=%d frame=%d bound=%d\n",
             (unsigned long long)FrameClockSerial_LogicCycle(&app->frame_clock.serial),

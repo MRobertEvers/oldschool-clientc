@@ -1611,6 +1611,8 @@ push_element(
     return idx;
 }
 
+static uint32_t uitree_id_hash(int component_id);
+
 static int
 UITree_AllocateDynamicComponentId(
     struct UITree* tree,
@@ -1637,6 +1639,12 @@ UITree_AllocateDynamicComponentId(
          * the map need not be asked (see id_high_counts). */
         if( counts && counts[child_id - 0x8000u] == 0 )
         {
+            /* The node about to be pushed is indexed under this id a moment
+             * from now, at a slot of the map nothing has touched lately: ask
+             * for it, so the insert does not wait on it. */
+            uint32_t const h = uitree_id_hash(uid) & (tree->id_index_cap - 1);
+            __builtin_prefetch(&tree->id_index_keys[h], 1);
+            __builtin_prefetch(&tree->id_index_vals[h], 1);
             tree->next_dynamic_uid = next;
             return uid;
         }
@@ -2460,6 +2468,7 @@ UITree_Free(struct UITree* tree)
     UITree_ParkedEditsDrop(tree);
     ToriMem_Free(ToriMem_Ui(), tree->id_index_keys);
     ToriMem_Free(ToriMem_Ui(), tree->id_index_vals);
+    ToriMem_Free(ToriMem_Ui(), tree->id_high_counts);
     ToriMem_Free(ToriMem_Ui(), tree->timer_walk_order);
     ToriMem_Free(ToriMem_Ui(), tree->layout_order);
     ToriMem_Free(ToriMem_Ui(), tree->layout_depth);

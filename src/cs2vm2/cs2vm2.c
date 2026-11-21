@@ -4986,16 +4986,11 @@ CS2VM2_Op_IF_SetOnEventHandler(
         signature_parse_len = signature_len - 1;
     }
 
-    /* The scratch above is 768 bytes and a registration names two or three
-     * arguments, thousands of times in a container rebuild: clear the
-     * positions the signature names, which are all that is read below. */
-    {
-        size_t named = signature_parse_len > 0 ? (size_t)signature_parse_len : 0;
-        if( named > CS2VM_SETON_INT_ARG_MAX )
-            named = CS2VM_SETON_INT_ARG_MAX;
-        memset(int_args, 0, named * sizeof(int_args[0]));
-        memset(str_by_pos, 0, named * sizeof(str_by_pos[0]));
-    }
+    /* The scratch above is 768 bytes and is NOT cleared: a registration
+     * names two or three arguments, thousands of times in a container
+     * rebuild. Every position the signature names is written exactly once in
+     * the loop below (an int position its int, a string position its string
+     * and a 0 int), and nothing past them is read. */
     if( signature && signature_parse_len > 0 )
     {
         for( int i = signature_parse_len - 1; i >= 0; i-- )
@@ -5024,6 +5019,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
                 if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
                 {
                     str_by_pos[i] = v;
+                    int_args[i] = 0;
                     str_arg_mask |= (uint64_t)1 << i;
                     if( i + 1 > int_arg_count )
                         int_arg_count = i + 1;
@@ -5186,16 +5182,11 @@ CS2VM2_Op_CC_SetOnEventHandler(
         signature_parse_len = signature_len - 1;
     }
 
-    /* The scratch above is 768 bytes and a registration names two or three
-     * arguments, thousands of times in a container rebuild: clear the
-     * positions the signature names, which are all that is read below. */
-    {
-        size_t named = signature_parse_len > 0 ? (size_t)signature_parse_len : 0;
-        if( named > CS2VM_SETON_INT_ARG_MAX )
-            named = CS2VM_SETON_INT_ARG_MAX;
-        memset(int_args, 0, named * sizeof(int_args[0]));
-        memset(str_by_pos, 0, named * sizeof(str_by_pos[0]));
-    }
+    /* The scratch above is 768 bytes and is NOT cleared: a registration
+     * names two or three arguments, thousands of times in a container
+     * rebuild. Every position the signature names is written exactly once in
+     * the loop below (an int position its int, a string position its string
+     * and a 0 int), and nothing past them is read. */
     if( signature && signature_parse_len > 0 )
     {
         for( int i = signature_parse_len - 1; i >= 0; i-- )
@@ -5224,6 +5215,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
                 if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
                 {
                     str_by_pos[i] = v;
+                    int_args[i] = 0;
                     str_arg_mask |= (uint64_t)1 << i;
                     if( i + 1 > int_arg_count )
                         int_arg_count = i + 1;

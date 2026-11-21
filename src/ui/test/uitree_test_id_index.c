@@ -295,6 +295,12 @@ test_id_shortcuts(void)
 {
     printf("TEST: id lookup shortcuts\n");
 
+    /* Counted across the whole test: a tree that built its id map, its count
+     * table, its pools and its string cells must give every block back when it
+     * is freed. (The 64 KB count table was once freed by a checkpoint's
+     * teardown and not by the tree's own.) */
+    intptr_t const blocks_before = ToriMem_Ui()->live_blocks;
+
     int const iface = 161;
     int const other = 300;
     int const parent_id = (iface << 16) | 50;
@@ -386,7 +392,27 @@ test_id_shortcuts(void)
             "an unrelated child is still found");
         check_all_ids(tree, "with a dynamic duplicate");
     }
+    /* Text, options and handlers too, some released into the pools, some live. */
+    {
+        int const args[2] = { 1, 2 };
+        for( int sub = 100; sub < 140; sub++ )
+        {
+            int32_t r = UITree_CcCreate(tree, parent, parent_id, 4, sub);
+            (void)UITree_SetTextAt(tree, r, "label");
+            strcpy(UITree_MenuOptionsMutIn(tree, &tree->components[r])->ops[0], "Use");
+            UITree_HookSetIn(
+                &tree->hook_argv_pool, &UITree_HooksMutIn(tree, &tree->components[r])->on_click, 9, args, 2, 0, NULL, 0);
+        }
+        for( int sub = 100; sub < 120; sub++ )
+            (void)UITree_CcCreate(tree, parent, parent_id, UIELEM_RS_RECT, sub);
+        struct UITree* cp = UITree_CheckpointTake(tree);
+        UITree_CheckpointRestore(tree, cp);
+        UITree_CheckpointFree(cp);
+        (void)UITree_FindByComponentId(tree, parent_id); /* the restored tree rebuilds its map */
+    }
+    TEST_ASSERT(tree->id_high_counts != NULL, "the tree has its id count table");
     UITree_Free(tree);
+    TEST_ASSERT(ToriMem_Ui()->live_blocks == blocks_before, "a freed tree leaves no block behind");
 }
 
 /* A reclaimed node's options and handler blocks go to the tree's pool and

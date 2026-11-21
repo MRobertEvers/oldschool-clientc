@@ -1,4 +1,5 @@
 #include "uitree_anim.h"
+#include "torirs_env.h"
 #include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
@@ -181,7 +182,7 @@ UITreeAnim_Advance(
              * want different fixes. */
             static int debug = -1;
             if( debug < 0 )
-                debug = getenv("TORIRS_ANIM_DEBUG") != NULL;
+                debug = torirs_env_anim_debug() != NULL;
             if( debug )
                 TORIRS_ERR("uitree_anim: com=0x%x seq=%d not posable (anim=%p base=%p frames=%d)\n",
                     c->component_id,

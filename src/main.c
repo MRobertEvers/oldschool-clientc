@@ -4714,7 +4714,7 @@ frame_loop_step(void)
             int* pixels = ToriMem_Calloc(ToriMem_Process(), (size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
             assert(pixels);
             char path[600];
-            if( getenv("TORIRS_ANIM_DEBUG") )
+            if( torirs_env_anim_debug() )
                 TORIRS_LOG("bmp_series: frame_count=%ld\n", main_harness.frame_count);
             extern int g_torirs_painter_force;
             /* TORIRS_PAINTER_ALT=1: write frame_N.bmp painted by world3d AND

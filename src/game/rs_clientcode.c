@@ -1,4 +1,5 @@
 #include "rs_clientcode.h"
+#include "torirs_env.h"
 
 #include "app.h"
 #include "engine/asset_requests.h"
@@ -217,7 +218,7 @@ design_preview_rebuild(struct App* app)
         return 0;
 
     design->redraw = 0;
-    if( getenv("TORIRS_ANIM_DEBUG") )
+    if( torirs_env_anim_debug() )
         TORIRS_LOG("design_preview: rebuilt gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] "
             "colours=[%d,%d,%d,%d,%d]\n",
             design->gender,

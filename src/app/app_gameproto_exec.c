@@ -3007,7 +3007,7 @@ exec_minimap_toggle(
     struct AppGameProtoCtx const* ctx,
     struct PktMinimapToggle const* p)
 {
-    if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
+    if( torirs_env_frame_role_audit() )
         TORIRS_REPORT("frame_native: MINIMAP_TOGGLE state=%d\n", p->state);
     if( MinimapView_SetToggleState(&ctx->app->minimap, p->state) )
         RedrawRequest_Raise(&ctx->app->redraw_request);

@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "torirs_env.h"
 #include "game/rs_server_state.h"
 #include "mem/torirs_mem.h"
 
@@ -836,7 +837,7 @@ Task_AppBoot_Run(
     PT_TASK_YIELD_TO_RENDER(
         TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
 
-    if( getenv("TORIRS_ANIM_DEBUG") )
+    if( torirs_env_anim_debug() )
     {
         /* tree-walk-exempt: boot, before the frame loop */
         for( uint32_t i = 0; i < app->tree->component_count; i++ )

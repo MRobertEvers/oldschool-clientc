@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "torirs_env.h"
 
 /* An entity's graphics: one per wire slot it was sent, at most one per slot
  * byte (WorldEntityFacet_EntitySpotanims), each combined at its position in
@@ -731,7 +732,7 @@ app_world_sync_one_entity_spotanim(
         app_element_pose_after_model_swap(app, element_id);
         EntitySpotanim_NoteMerged(entry, merged, draw, frames, spot_count);
         RedrawRequest_Raise(&app->redraw_request);
-        if( first_combine && getenv("TORIRS_ANIM_DEBUG") )
+        if( first_combine && torirs_env_anim_debug() )
             TORIRS_LOG(
                 "entity_spotanim: combine element=%d graphics=%d\n", element_id, posed_count);
     }

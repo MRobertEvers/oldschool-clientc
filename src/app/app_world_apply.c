@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "torirs_env.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static int
@@ -443,7 +444,7 @@ App_WorldApplyNpcType(
      * ops, the shell supplies the size, turn speed and stance set.
      * See app_npc_entity_facts. */
     app_npc_entity_facts(app, base_npc_type, npctype, &facts);
-    if( getenv("TORIRS_ANIM_DEBUG") )
+    if( torirs_env_anim_debug() )
         TORIRS_LOG(
             "npc_retype: world_idx=%d element=%d type=%d\n", world_idx, element_id, npc_type);
 

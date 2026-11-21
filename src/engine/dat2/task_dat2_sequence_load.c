@@ -1,4 +1,5 @@
 #include "mem/torirs_mem.h"
+#include "torirs_env.h"
 #include "mem/torimem_toridraw.h"
 #include "engine/dat2/task_dat2_sequence_load.h"
 
@@ -231,7 +232,7 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
             anim->replaceheldleft = -1;
             anim->replaceheldright = -1;
         }
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("seq_load: seq=%d skeletal maya=%d bones=%d baked=%d play=%d\n",
                 self->seq_id,
                 self->seq ? self->seq->anim_maya_id : -1,
@@ -265,7 +266,7 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
     if( !anim )
     {
         anim = TORIDRAW_CALLOC(1, sizeof(*anim));
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("seq_load: seq=%d unavailable (config=%p frame_count=%d framemap=%p)\n",
                 self->seq_id,
                 (void*)self->seq,
@@ -454,7 +455,7 @@ Task_Dat2SequenceLoad_Run(
                 }
             }
         }
-        if( !self->skeletal && getenv("TORIRS_ANIM_DEBUG") )
+        if( !self->skeletal && torirs_env_anim_debug() )
             TORIRS_ERR("seq_load: seq=%d skeletal bake failed (maya_id=%d maya=%p base=%p)\n",
                 self->seq_id,
                 self->seq->anim_maya_id,

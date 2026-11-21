@@ -132,4 +132,13 @@ TORIRS_ENV_KNOB(torirs_env_cs2_harness, "TORIRS_CS2_HARNESS")
 TORIRS_ENV_KNOB(torirs_env_touch_ui, "TORIRS_TOUCH_UI")
 TORIRS_ENV_KNOB(torirs_env_chrome_scale, "TORIRS_CHROME_SCALE")
 
+/* Debug traces that sat in per-node loops of an interface open and in the
+ * per-frame animation walk, each a `getenv` per node: on Windows, whose C
+ * runtime scans the environment with string compares, 0.15 ms of a bank
+ * open. */
+TORIRS_ENV_KNOB(torirs_env_anim_debug, "TORIRS_ANIM_DEBUG")
+TORIRS_ENV_KNOB(torirs_env_onsubchange_debug, "TORIRS_ONSUBCHANGE_DEBUG")
+TORIRS_ENV_KNOB(torirs_env_spillover_debug, "TORIRS_SPILLOVER_DEBUG")
+TORIRS_ENV_KNOB(torirs_env_frame_role_audit, "TORIRS_FRAME_ROLE_AUDIT")
+
 #endif /* TORIRS_ENV_H */

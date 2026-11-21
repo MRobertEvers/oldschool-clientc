@@ -155,7 +155,7 @@ upload_model_nodes(
         if( c->u.rs_model.active_model_id >= 0 )
             (void)UITreeSceneBridge_EnsureModel(bridge, c->u.rs_model.active_model_id);
         cache_id = c->u.rs_model.gamecache_model_id;
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("upload_model_nodes: com=0x%x cache_id=%d client_code=%d\n",
                 (unsigned)c->component_id,
                 cache_id,
@@ -166,7 +166,7 @@ upload_model_nodes(
             if( c->behavior.client_code == 327 || c->behavior.client_code == 328 )
             {
                 scene_id = UITreeSceneBridge_EnsurePlayerModel(bridge);
-                if( getenv("TORIRS_ANIM_DEBUG") )
+                if( torirs_env_anim_debug() )
                     TORIRS_LOG("  EnsurePlayerModel -> %d\n", scene_id);
                 if( scene_id >= 0 )
                 {
@@ -747,7 +747,7 @@ collect_sub_change_hooks(struct Task_InterfaceOpen* self)
         slot = &hooks->on_sub_change;
         if( slot->script_id <= 0 )
             continue;
-        if( getenv("TORIRS_ONSUBCHANGE_DEBUG") )
+        if( torirs_env_onsubchange_debug() )
             TORIRS_LOG("onsubchange-collect: sub-iface=%d component 0x%08x (%d|%d) script=%d\n",
                 self->interface_id,
                 (unsigned)c->component_id,

@@ -1,4 +1,5 @@
 #include "mem/torirs_mem.h"
+#include "torirs_env.h"
 #include "mem/torimem_toridraw.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/cache_provider.h"
@@ -59,7 +60,7 @@ seq_register_result(
     if( !anim )
     {
         anim = TORIDRAW_CALLOC(1, sizeof(*anim));
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("dat1 seq_load: seq=%d unavailable\n", self->seq_id);
     }
     if( anim )
@@ -80,7 +81,7 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
 
     if( !seq_list || self->seq_id < 0 || self->seq_id >= seq_list->seqs_count )
     {
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("dat1 seq_load: seq=%d no list (list=%p count=%d)\n",
                 self->seq_id,
                 (void*)seq_list,
@@ -92,7 +93,7 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
     frame_count = seq->frame_count;
     if( frame_count <= 0 || !seq->frames )
     {
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("dat1 seq_load: seq=%d empty (frame_count=%d frames=%p)\n",
                 self->seq_id,
                 frame_count,
@@ -110,7 +111,7 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
 
         if( !frame )
         {
-            if( getenv("TORIRS_ANIM_DEBUG") )
+            if( torirs_env_anim_debug() )
                 TORIRS_LOG("dat1 seq_load: seq=%d frame %d/%d id=%d not in any archive\n",
                     self->seq_id,
                     i,

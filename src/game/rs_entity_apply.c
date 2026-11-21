@@ -1620,7 +1620,7 @@ npc_apply_op(
         }
         break;
     case RSPROT_OP_SEQUENCE:
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("anim: npc SEQUENCE op seq=%d delay=%d slot=%d world_idx=%d%s\n",
                 op->sequence.sequence_id, op->sequence.delay, self->cur_slot, idx,
                 idx >= 0 ? "" : "  <-- NO TARGET, dropped");

@@ -1396,6 +1396,7 @@ app_plugin_frame_work_us(void* user)
 }
 
 #include "plugin/native_script_hooks.gen.h"
+#include "torirs_env.h"
 struct ToriRS_WidgetRef app_widget_ref(struct UITree const*,int32_t);
 static void app_script_hash_word(uint64_t* hash,uint32_t value)
 {
@@ -8286,7 +8287,7 @@ app_plugin_frame_role_fallback(struct UITree const* tree, struct UITreeRoleTable
     if( !CacheProvider_EnumGet(app->provider, element_map) ) return -3;
     if( !app_plugin_frame_enum_value(app, element_map, key, &uid) || uid < 0 ) return -1;
     int32_t node = UITree_FindByComponentId(tree, uid);
-    if( node >= 0 && getenv("TORIRS_FRAME_ROLE_AUDIT") )
+    if( node >= 0 && torirs_env_frame_role_audit() )
         TORIRS_LOG("frameroles: derived %s root=%d enum=%d key=(161|%d) -> (%d|%d)\n",
                    name, root, element_map, key & 65535, uid >> 16, uid & 65535);
     return node;
@@ -8469,7 +8470,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         static uint64_t audited_incarnation;
         static struct UITree const* audited_tree;
         int const root = app_plugin_frame_root(app);
-        if( root > 0 && getenv("TORIRS_FRAME_ROLE_AUDIT") )
+        if( root > 0 && torirs_env_frame_role_audit() )
         {
             int control = -1;
             (void)app_plugin_frame_role_enum_id(app, root, &control);

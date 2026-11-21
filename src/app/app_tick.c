@@ -7,6 +7,7 @@
  */
 
 #include "app/app_internal.h"
+#include "torirs_env.h"
 #include "game/rs_server_state.h"
 
 /* ---- Task_MusicInstall --------------------------------------------------- *
@@ -1063,7 +1064,7 @@ app_logic_tick(struct App* app)
         static int anim_dbg = -1;
         static int anim_dbg_tick = 0;
         if( anim_dbg < 0 )
-            anim_dbg = getenv("TORIRS_ANIM_DEBUG") != NULL;
+            anim_dbg = torirs_env_anim_debug() != NULL;
         if( anim_dbg && ++anim_dbg_tick % 25 == 0 )
         {
             UITREE_SCAN_METER(app->tree);

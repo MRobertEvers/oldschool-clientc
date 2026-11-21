@@ -1,4 +1,5 @@
 #include "mem/torirs_mem.h"
+#include "torirs_env.h"
 #include "mem/torimem_toridraw.h"
 #include "../perf/torirs_perf.h"
 #include "uitree_scene_bridge.h"
@@ -1522,7 +1523,7 @@ UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
 
     {
         int resolved = PlayerAppearance_ResolveDefaultMale(bridge->provider, &app);
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("EnsurePlayerModel: resolved=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
                 resolved, app.kits[0], app.kits[1], app.kits[2], app.kits[3],
                 app.kits[4], app.kits[5], app.kits[6]);

@@ -1,4 +1,5 @@
 #include "world.h"
+#include "torirs_env.h"
 
 #include "entity_facets.h"
 
@@ -959,7 +960,7 @@ World_StepAnimationTrack(
      */
     if( count <= 0 )
     {
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("anim: seq %d has no frames; held at frame 0\n", seq);
         return 0;
     }

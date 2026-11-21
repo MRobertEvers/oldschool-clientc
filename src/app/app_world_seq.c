@@ -7,6 +7,7 @@
  */
 
 #include "app/app_internal.h"
+#include "torirs_env.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -174,7 +175,7 @@ app_world_try_bind_seq(
             ToriDraw_ElementSetAnim(el, anim);
         if( app->world )
             app_world_catch_up_object_seq(app, element_id, anim, app->world->cycle - start_cycle);
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
         {
             /* The rig, not just the binding. A seq binds to any element, but
              * types 0-3 need `vertex_bones` and type 5 needs `face_bones`; a
@@ -201,7 +202,7 @@ app_world_try_bind_seq(
                 m && m->face_alphas ? 1 : 0);
         }
     }
-    else if( getenv("TORIRS_ANIM_DEBUG") )
+    else if( torirs_env_anim_debug() )
         TORIRS_LOG(
             "seq_bind: element=%d seq=%d UNBINDABLE (anim=%p frames=%d)\n",
             element_id,

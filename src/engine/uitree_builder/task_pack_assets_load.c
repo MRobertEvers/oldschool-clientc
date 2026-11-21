@@ -1,4 +1,5 @@
 #include "task_pack_assets_load.h"
+#include "torirs_env.h"
 #include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
@@ -130,7 +131,7 @@ Task_PackAssetsLoad_Run(
             CacheProvider_ComponentPackGet(self->provider, self->iface_id);
         assert(pack && "PackAssetsLoad requires ComponentPack already loaded");
         collect_from_pack(self, pack);
-        if( getenv("TORIRS_ANIM_DEBUG") )
+        if( torirs_env_anim_debug() )
             TORIRS_LOG("PackAssetsLoad: iface=%d components=%d sprites=%d fonts=%d models=%d "
                 "npcs=%d needs_player=%d\n",
                 self->iface_id,
