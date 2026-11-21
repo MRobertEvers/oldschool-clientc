@@ -69,6 +69,127 @@ run_op(
     return result;
 }
 
+/*
+ * One opcode, two ways in.
+ *
+ * An arithmetic opcode runs in the interpreter's hot loop, and on the general
+ * path (through CS2VM2_RunOp) when a run is being traced or profiled. Both
+ * must give one answer, and must agree on whether the script ends: the
+ * reference throws on a divide by zero and on a bit range whose high is below
+ * its low. `traced` arms a trace capture, which is what sends every
+ * instruction down the general path.
+ *
+ * Returns the run's result code; `*out_top` is the value left on the stack
+ * and `*out_depth` how many ints are on it.
+ */
+static int
+run_op_path(
+    int op,
+    const int* args,
+    int argc,
+    int traced,
+    int* out_top,
+    int* out_depth)
+{
+    struct CS2VM2 vm;
+    struct CS2VM2_Script script;
+    struct CS2VM2_TraceRecord records[16];
+    int op_count = argc + 2;
+    int result;
+
+    CS2VM2_Init(&vm);
+    CS2VM2_ScriptInit(&script);
+    script.script_id = 9999;
+    script.op_count = op_count;
+    script.opcodes = calloc((size_t)op_count, sizeof(uint16_t));
+    script.int_operands = calloc((size_t)op_count, sizeof(int));
+    script.string_operands = calloc((size_t)op_count, sizeof(char*));
+    for( int i = 0; i < argc; i++ )
+    {
+        script.opcodes[i] = (uint16_t)CS2_OP_PUSH_CONSTANT_INT;
+        script.int_operands[i] = args[i];
+    }
+    script.opcodes[argc] = (uint16_t)op;
+    script.opcodes[argc + 1] = (uint16_t)CS2_OP_RETURN;
+
+    struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&vm);
+    CS2VM2_PushCallScript(t, &script);
+    if( traced )
+        CS2VM2_TraceCaptureBegin(records, 16);
+    result = CS2VM2_RunScript(t);
+    if( traced )
+        (void)CS2VM2_TraceCaptureEnd();
+
+    *out_depth = t->ints_stack_top;
+    *out_top = t->ints_stack_top > 0 ? t->ints_stack[t->ints_stack_top - 1] : 0;
+
+    free(script.opcodes);
+    free(script.int_operands);
+    free(script.string_operands);
+    return result;
+}
+
+/* Every combination of `values` as the operands of `op`, down both paths. */
+static void
+sweep_both_paths(
+    int op,
+    int argc,
+    char const* name)
+{
+    static const int values[] = { INT32_MIN, INT32_MIN + 1, -100, -33, -32, -1, 0,  1,
+                                  2,         7,             30,   31,  32,  33, 100, 46341,
+                                  65536,     INT32_MAX - 1, INT32_MAX };
+    int const n = (int)(sizeof(values) / sizeof(values[0]));
+    int total = 1;
+    int mismatches = 0;
+    for( int i = 0; i < argc; i++ )
+        total *= n;
+
+    for( int combo = 0; combo < total; combo++ )
+    {
+        int args[4];
+        int c = combo;
+        for( int i = 0; i < argc; i++ )
+        {
+            args[i] = values[c % n];
+            c /= n;
+        }
+        int hot_top, hot_depth, gen_top, gen_depth;
+        int const hot = run_op_path(op, args, argc, 0, &hot_top, &hot_depth);
+        int const gen = run_op_path(op, args, argc, 1, &gen_top, &gen_depth);
+        if( hot != gen || (hot != CS2VM_EXECNO_ERROR && (hot_top != gen_top || hot_depth != gen_depth)) )
+        {
+            if( mismatches++ < 3 )
+                printf(
+                    "  FAIL: %s(%d,%d,%d,%d) hot loop %d/%d depth %d, general path %d/%d depth %d\n",
+                    name,
+                    args[0],
+                    argc > 1 ? args[1] : 0,
+                    argc > 2 ? args[2] : 0,
+                    argc > 3 ? args[3] : 0,
+                    hot,
+                    hot_top,
+                    hot_depth,
+                    gen,
+                    gen_top,
+                    gen_depth);
+        }
+    }
+    CHECK(mismatches, 0, name);
+
+    /* One operand short: both paths end the script, neither reads under the stack. */
+    if( argc > 0 )
+    {
+        int args[4] = { 5, 6, 7, 8 };
+        int top, depth;
+        CHECK(
+            run_op_path(op, args, argc - 1, 0, &top, &depth) ==
+                run_op_path(op, args, argc - 1, 1, &top, &depth),
+            1,
+            "  one operand short: same result code on both paths");
+    }
+}
+
 static int
 op2(
     int op,
@@ -318,6 +439,53 @@ main(void)
             CHECK(saw_bound, 0, "random(2) never returns 2 (exclusive)");
             CHECK(saw_inc_bound, 1, "randominc(1) does return 1 (inclusive)");
         }
+    }
+
+    /* The hot loop and the general path agree on every arithmetic opcode. */
+    {
+        int top, depth;
+        int a2[2];
+
+        sweep_both_paths(CS2_OP_ADD, 2, "ADD both paths");
+        sweep_both_paths(CS2_OP_SUB, 2, "SUB both paths");
+        sweep_both_paths(CS2_OP_MULTIPLY, 2, "MULTIPLY both paths");
+        sweep_both_paths(CS2_OP_DIVIDE, 2, "DIVIDE both paths");
+        sweep_both_paths(CS2_OP_MODULO, 2, "MODULO both paths");
+        sweep_both_paths(CS2_OP_AND, 2, "AND both paths");
+        sweep_both_paths(CS2_OP_OR, 2, "OR both paths");
+        sweep_both_paths(CS2_OP_MIN, 2, "MIN both paths");
+        sweep_both_paths(CS2_OP_MAX, 2, "MAX both paths");
+        sweep_both_paths(CS2_OP_ADDPERCENT, 2, "ADDPERCENT both paths");
+        sweep_both_paths(CS2_OP_SCALE, 3, "SCALE both paths");
+        sweep_both_paths(CS2_OP_ABS, 1, "ABS both paths");
+        sweep_both_paths(CS2_OP_BITCOUNT, 1, "BITCOUNT both paths");
+        sweep_both_paths(CS2_OP_SETBIT, 2, "SETBIT both paths");
+        sweep_both_paths(CS2_OP_CLEARBIT, 2, "CLEARBIT both paths");
+        sweep_both_paths(CS2_OP_TESTBIT, 2, "TESTBIT both paths");
+        sweep_both_paths(CS2_OP_TOGGLEBIT, 2, "TOGGLEBIT both paths");
+        sweep_both_paths(CS2_OP_SETBIT_RANGE, 3, "SETBIT_RANGE both paths");
+        sweep_both_paths(CS2_OP_CLEARBIT_RANGE, 3, "CLEARBIT_RANGE both paths");
+        sweep_both_paths(CS2_OP_GETBIT_RANGE, 3, "GETBIT_RANGE both paths");
+        sweep_both_paths(CS2_OP_SETBIT_RANGE_VALUE, 4, "SETBIT_RANGE_VALUE both paths");
+
+        /* Java int arithmetic at its edges: it wraps, and INT_MIN / -1 is
+         * INT_MIN with remainder 0 where C traps or is undefined. */
+        CHECK(op2(CS2_OP_ADD, INT32_MAX, 1), INT32_MIN, "ADD wraps");
+        CHECK(op2(CS2_OP_SUB, INT32_MIN, 1), INT32_MAX, "SUB wraps");
+        CHECK(op2(CS2_OP_MULTIPLY, 65536, 65536), 0, "MULTIPLY wraps");
+        CHECK(op2(CS2_OP_MULTIPLY, 46341, 46341), -2147479015, "MULTIPLY wraps into the sign bit");
+        CHECK(op2(CS2_OP_DIVIDE, INT32_MIN, -1), INT32_MIN, "INT_MIN / -1 is INT_MIN");
+        CHECK(op2(CS2_OP_MODULO, INT32_MIN, -1), 0, "INT_MIN % -1 is 0");
+        CHECK(op2(CS2_OP_DIVIDE, -7, 2), -3, "DIVIDE truncates toward zero");
+        CHECK(op2(CS2_OP_MODULO, -7, 2), -1, "MODULO takes the dividend's sign");
+
+        /* A divide by zero ends the script on both paths. */
+        a2[0] = 9;
+        a2[1] = 0;
+        CHECK(run_op_path(CS2_OP_DIVIDE, a2, 2, 0, &top, &depth), CS2VM_EXECNO_ERROR, "DIVIDE by zero ends the script (hot loop)");
+        CHECK(run_op_path(CS2_OP_DIVIDE, a2, 2, 1, &top, &depth), CS2VM_EXECNO_ERROR, "DIVIDE by zero ends the script (general path)");
+        CHECK(run_op_path(CS2_OP_MODULO, a2, 2, 0, &top, &depth), CS2VM_EXECNO_ERROR, "MODULO by zero ends the script (hot loop)");
+        CHECK(run_op_path(CS2_OP_MODULO, a2, 2, 1, &top, &depth), CS2VM_EXECNO_ERROR, "MODULO by zero ends the script (general path)");
     }
 
     if( g_fail )

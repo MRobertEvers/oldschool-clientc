@@ -6830,212 +6830,113 @@ CS2VM2_Op_LongToString(
     return CS2VM2_PushStr(vm, out);
 }
 
-int
-CS2VM2_Op_Add(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
+/*
+ * THE INT ARITHMETIC, EACH WRITTEN ONCE.
+ *
+ * An arithmetic opcode has two callers: its handler below, which the general
+ * path reaches through CS2VM2_RunOp, and the hot loop (cs2vm2_run_hot), which
+ * runs it without leaving the loop. Both call the function here, so there is
+ * one place that says what ADD or SETBIT_RANGE computes.
+ *
+ * They are Java int operations. Add, subtract and multiply wrap; in C a
+ * signed overflow is undefined, so they are done unsigned and cast back.
+ * A divide or remainder by zero throws in the reference, which ends the
+ * script: those answer false and the caller ends it. INT_MIN / -1 is INT_MIN
+ * and INT_MIN % -1 is 0 in Java, and a trap on x86 in C, so -1 is spelled
+ * out.
+ *
+ * In the two-operand functions `a` is the value under the top of the stack
+ * and `b` is the top.
+ */
+static inline int
+cs2_math_add(int a, int b)
 {
-    (void)frame;
-    (void)operand;
-    assert(vm);
-    assert(frame);
-    int intpop_a, intpop_b;
-
-    if( CS2VM2_PopInt(vm, &intpop_b) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &intpop_a) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-
-    return CS2VM2_PushInt(vm, intpop_a + intpop_b);
+    return (int)((uint32_t)a + (uint32_t)b);
 }
 
-int
-CS2VM2_Op_Sub(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
+static inline int
+cs2_math_sub(int a, int b)
 {
-    (void)frame;
-    (void)operand;
-    assert(vm);
-    assert(frame);
-    int intpop_a, intpop_b;
-
-    if( CS2VM2_PopInt(vm, &intpop_b) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &intpop_a) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-
-    return CS2VM2_PushInt(vm, intpop_a - intpop_b);
+    return (int)((uint32_t)a - (uint32_t)b);
 }
 
-int
-CS2VM2_Op_Mul(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
+static inline int
+cs2_math_mul(int a, int b)
 {
-    (void)frame;
-    (void)operand;
-    (void)vm;
-    assert(vm);
-    assert(frame);
-    int intpop_a, intpop_b;
-
-    if( CS2VM2_PopInt(vm, &intpop_b) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &intpop_a) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-
-    return CS2VM2_PushInt(vm, intpop_a * intpop_b);
+    return (int)((uint32_t)a * (uint32_t)b);
 }
 
-/* Bitwise / arithmetic ops mirroring the reference client (xrsps MathOps). Each
- * pops its operands (top-of-stack listed first) and pushes one int. */
-
-int
-CS2VM2_Op_And(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
+static inline bool
+cs2_math_div(int a, int b, int* out)
 {
-    (void)frame;
-    assert(vm);
-    assert(frame);
-    (void)operand;
-
-    int a, b;
-    if( CS2VM2_PopInt(vm, &b) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &a) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, a & b);
+    if( b == 0 )
+        return false;
+    *out = b == -1 ? (int)(0u - (uint32_t)a) : a / b;
+    return true;
 }
 
-int
-CS2VM2_Op_Min(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
+static inline bool
+cs2_math_mod(int a, int b, int* out)
 {
-    (void)frame;
-    assert(vm);
-    assert(frame);
-    (void)operand;
-
-    int a, b;
-    if( CS2VM2_PopInt(vm, &b) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &a) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, a < b ? a : b);
+    if( b == 0 )
+        return false;
+    *out = b == -1 ? 0 : a % b;
+    return true;
 }
 
-int
-CS2VM2_Op_Max(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
+static inline int
+cs2_math_and(int a, int b)
 {
-    (void)frame;
-    assert(vm);
-    assert(frame);
-    (void)operand;
+    return a & b;
+}
 
-    int a, b;
-    if( CS2VM2_PopInt(vm, &b) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &a) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, a > b ? a : b);
+static inline int
+cs2_math_or(int a, int b)
+{
+    return a | b;
+}
+
+static inline int
+cs2_math_min(int a, int b)
+{
+    return a < b ? a : b;
+}
+
+static inline int
+cs2_math_max(int a, int b)
+{
+    return a > b ? a : b;
 }
 
 /* value + value * percent / 100. The multiply is done in 64-bit to match the
  * reference's exact (non-overflowing) arithmetic; C truncation toward zero on
  * the divide matches the reference truncation. */
-int
-CS2VM2_Op_AddPercent(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
+static inline int
+cs2_math_addpercent(int value, int percent)
 {
-    (void)frame;
-    assert(vm);
-    assert(frame);
-    (void)operand;
-
-    int value, percent;
-    if( CS2VM2_PopInt(vm, &percent) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, value + (int)(((int64_t)value * percent) / 100));
+    return value + (int)(((int64_t)value * percent) / 100);
 }
 
-int
-CS2VM2_Op_BitCount(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
+/* SCALE (4018): c * a / b in 64-bit, 0 when b is 0. Stack (top first): c, b, a. */
+static inline int
+cs2_math_scale(int a, int b, int c)
 {
-    (void)frame;
-    assert(vm);
-    assert(frame);
-    (void)operand;
-
-    int value;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, __builtin_popcount((unsigned)value));
+    return b != 0 ? (int)(((int64_t)c * (int64_t)a) / (int64_t)b) : 0;
 }
 
-/**
- * ABS (4035): pop one int, push its magnitude.
- *
- * A pure-VM op with no host state, and it had no case here at all — it went to
- * StackMetaStub, which before the cs2_command.gen.h bridge asserted and after
- * it would have pushed 0 for every input. The one path in cache.osrs239 that
- * reaches it is [proc,script5380], the XP-tracker's actions-to-goal estimator
- * (5448 -> 5449 -> 5362 -> 5366 -> 5375 -> 5380), where "abs(x) is always 0"
- * would read as a plausible-but-wrong number on screen rather than a crash.
- *
- * INT_MIN has no positive counterpart in two's complement; negating it is UB in
- * C. The Java client this is ported from has the same wrap (`-INT_MIN ==
- * INT_MIN`), so reproduce it explicitly rather than invoking UB.
- */
-static int
-CS2VM2_Op_Abs(struct CS2VM2_Thread* vm)
+/* INT_MIN has no positive counterpart in two's complement; negating it is UB
+ * in C. The Java client has the same wrap (-INT_MIN == INT_MIN), so it is
+ * reproduced explicitly. */
+static inline int
+cs2_math_abs(int value)
 {
-    assert(vm);
-
-    int value;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( value < 0 )
-        value = (int)(0u - (unsigned)value);
-    return CS2VM2_PushInt(vm, value);
+    return value < 0 ? (int)(0u - (uint32_t)value) : value;
 }
 
-int
-CS2VM2_Op_ToggleBit(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
+static inline int
+cs2_math_bitcount(int value)
 {
-    (void)frame;
-    assert(vm);
-    assert(frame);
-    (void)operand;
-
-    int bit, value;
-    if( CS2VM2_PopInt(vm, &bit) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    /* TOGGLEBIT (4026) has no range test in the reference: Java's << takes
-     * the count mod 32. */
-    return CS2VM2_PushInt(vm, value ^ (int)(1u << (bit & 31)));
+    return __builtin_popcount((unsigned)value);
 }
 
 /* The bit opcodes are Java int shifts. Java takes a shift count mod 32 and
@@ -7079,6 +6980,297 @@ cs2_bit_range_mask(
     return true;
 }
 
+static inline int
+cs2_math_setbit(int value, int bit)
+{
+    return cs2_bit_in_range(bit) ? value | (int)(1u << bit) : value;
+}
+
+static inline int
+cs2_math_clearbit(int value, int bit)
+{
+    return cs2_bit_in_range(bit) ? value & ~(int)(1u << bit) : value;
+}
+
+static inline int
+cs2_math_testbit(int value, int bit)
+{
+    if( !cs2_bit_in_range(bit) )
+        return 0;
+    return (value & (int)(1u << bit)) != 0 ? 1 : 0;
+}
+
+/* TOGGLEBIT (4026) has no range test in the reference: Java's << takes the
+ * count mod 32. */
+static inline int
+cs2_math_togglebit(int value, int bit)
+{
+    return value ^ (int)(1u << (bit & 31));
+}
+
+/* The three range opcodes that build a mask answer false where the reference
+ * throws (a high below its low), which ends the script. */
+static inline bool
+cs2_math_setbit_range(int value, int low, int high, int* out)
+{
+    int mask;
+    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
+    {
+        *out = value;
+        return true;
+    }
+    if( !cs2_bit_range_mask(low, high, &mask) )
+        return false;
+    *out = value | mask;
+    return true;
+}
+
+static inline bool
+cs2_math_clearbit_range(int value, int low, int high, int* out)
+{
+    int mask;
+    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
+    {
+        *out = value;
+        return true;
+    }
+    if( !cs2_bit_range_mask(low, high, &mask) )
+        return false;
+    *out = value & ~mask;
+    return true;
+}
+
+/* 4029: value << (31 - high) >>> (low + 31 - high), the count mod 32. */
+static inline int
+cs2_math_getbit_range(int value, int low, int high)
+{
+    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
+        return value;
+    int const up = 31 - high;
+    return (int)(((uint32_t)value << up) >> ((low + up) & 31));
+}
+
+/* Clear bits [low, high] of value, then write new_bits (clamped to the range
+ * width) shifted into that position. */
+static inline bool
+cs2_math_setbit_range_value(int value, int new_bits, int low, int high, int* out)
+{
+    int mask;
+    int max_value;
+    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
+    {
+        *out = value;
+        return true;
+    }
+    if( !cs2_bit_range_mask(low, high, &mask) )
+        return false;
+    cs2_low_bits(high - low + 1, &max_value);
+    int const clamped = new_bits > max_value ? max_value : new_bits;
+    *out = (value & ~mask) | (int)((uint32_t)clamped << low);
+    return true;
+}
+
+int
+CS2VM2_Op_Add(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    (void)frame;
+    (void)operand;
+    assert(vm);
+    assert(frame);
+    int intpop_a, intpop_b;
+
+    if( CS2VM2_PopInt(vm, &intpop_b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &intpop_a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VM2_PushInt(vm, cs2_math_add(intpop_a, intpop_b));
+}
+
+int
+CS2VM2_Op_Sub(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    (void)frame;
+    (void)operand;
+    assert(vm);
+    assert(frame);
+    int intpop_a, intpop_b;
+
+    if( CS2VM2_PopInt(vm, &intpop_b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &intpop_a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VM2_PushInt(vm, cs2_math_sub(intpop_a, intpop_b));
+}
+
+int
+CS2VM2_Op_Mul(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    (void)frame;
+    (void)operand;
+    (void)vm;
+    assert(vm);
+    assert(frame);
+    int intpop_a, intpop_b;
+
+    if( CS2VM2_PopInt(vm, &intpop_b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &intpop_a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VM2_PushInt(vm, cs2_math_mul(intpop_a, intpop_b));
+}
+
+/* Bitwise / arithmetic ops mirroring the reference client (xrsps MathOps). Each
+ * pops its operands (top-of-stack listed first) and pushes one int. */
+
+int
+CS2VM2_Op_And(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    (void)frame;
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int a, b;
+    if( CS2VM2_PopInt(vm, &b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, cs2_math_and(a, b));
+}
+
+int
+CS2VM2_Op_Min(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    (void)frame;
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int a, b;
+    if( CS2VM2_PopInt(vm, &b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, cs2_math_min(a, b));
+}
+
+int
+CS2VM2_Op_Max(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    (void)frame;
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int a, b;
+    if( CS2VM2_PopInt(vm, &b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, cs2_math_max(a, b));
+}
+
+int
+CS2VM2_Op_AddPercent(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    (void)frame;
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int value, percent;
+    if( CS2VM2_PopInt(vm, &percent) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, cs2_math_addpercent(value, percent));
+}
+
+int
+CS2VM2_Op_BitCount(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    (void)frame;
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int value;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, cs2_math_bitcount(value));
+}
+
+/**
+ * ABS (4035): pop one int, push its magnitude.
+ *
+ * A pure-VM op with no host state, and it had no case here at all — it went to
+ * StackMetaStub, which before the cs2_command.gen.h bridge asserted and after
+ * it would have pushed 0 for every input. The one path in cache.osrs239 that
+ * reaches it is [proc,script5380], the XP-tracker's actions-to-goal estimator
+ * (5448 -> 5449 -> 5362 -> 5366 -> 5375 -> 5380), where "abs(x) is always 0"
+ * would read as a plausible-but-wrong number on screen rather than a crash.
+ *
+ * INT_MIN has no positive counterpart in two's complement; negating it is UB in
+ * C. The Java client this is ported from has the same wrap (`-INT_MIN ==
+ * INT_MIN`), so reproduce it explicitly rather than invoking UB.
+ */
+static int
+CS2VM2_Op_Abs(struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    int value;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, cs2_math_abs(value));
+}
+
+int
+CS2VM2_Op_ToggleBit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    (void)frame;
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int bit, value;
+    if( CS2VM2_PopInt(vm, &bit) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, cs2_math_togglebit(value, bit));
+}
+
 int
 CS2VM2_Op_SetBitRange(
     struct CS2VM2_Thread* vm,
@@ -7097,12 +7289,10 @@ CS2VM2_Op_SetBitRange(
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
-        return CS2VM2_PushInt(vm, value);
-    int mask;
-    if( !cs2_bit_range_mask(low, high, &mask) )
+    int out;
+    if( !cs2_math_setbit_range(value, low, high, &out) )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, value | mask);
+    return CS2VM2_PushInt(vm, out);
 }
 
 int
@@ -7123,12 +7313,10 @@ CS2VM2_Op_ClearBitRange(
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
-        return CS2VM2_PushInt(vm, value);
-    int mask;
-    if( !cs2_bit_range_mask(low, high, &mask) )
+    int out;
+    if( !cs2_math_clearbit_range(value, low, high, &out) )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, value & ~mask);
+    return CS2VM2_PushInt(vm, out);
 }
 
 int
@@ -7149,11 +7337,7 @@ CS2VM2_Op_GetBitRange(
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
-        return CS2VM2_PushInt(vm, value);
-    /* 4029: value << (31 - high) >>> (low + 31 - high), the count mod 32. */
-    int const up = 31 - high;
-    return CS2VM2_PushInt(vm, (int)(((uint32_t)value << up) >> ((low + up) & 31)));
+    return CS2VM2_PushInt(vm, cs2_math_getbit_range(value, low, high));
 }
 
 /* Clear bits [low, high] of value, then write newBits (clamped to the range
@@ -7179,15 +7363,10 @@ CS2VM2_Op_SetBitRangeValue(
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
-        return CS2VM2_PushInt(vm, value);
-    int mask;
-    int max_value;
-    if( !cs2_bit_range_mask(low, high, &mask) )
+    int out;
+    if( !cs2_math_setbit_range_value(value, new_bits, low, high, &out) )
         return CS2VM_EXECNO_ERROR;
-    cs2_low_bits(high - low + 1, &max_value);
-    int clamped = new_bits > max_value ? max_value : new_bits;
-    return CS2VM2_PushInt(vm, (value & ~mask) | (int)((uint32_t)clamped << low));
+    return CS2VM2_PushInt(vm, out);
 }
 
 int
@@ -7208,10 +7387,10 @@ CS2VM2_Op_Div(
     if( CS2VM2_PopInt(vm, &intpop_a) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( intpop_b == 0 )
+    int out;
+    if( !cs2_math_div(intpop_a, intpop_b, &out) )
         return CS2VM_EXECNO_ERROR;
-
-    return CS2VM2_PushInt(vm, intpop_a / intpop_b);
+    return CS2VM2_PushInt(vm, out);
 }
 
 int
@@ -7231,10 +7410,10 @@ CS2VM2_Op_Mod(
     if( CS2VM2_PopInt(vm, &intpop_a) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( intpop_b == 0 )
+    int out;
+    if( !cs2_math_mod(intpop_a, intpop_b, &out) )
         return CS2VM_EXECNO_ERROR;
-
-    return CS2VM2_PushInt(vm, intpop_a % intpop_b);
+    return CS2VM2_PushInt(vm, out);
 }
 
 int
@@ -7257,11 +7436,7 @@ CS2VM2_Op_Scale(
     if( CS2VM2_PopInt(vm, &a) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int result = 0;
-    if( b != 0 )
-        result = (int)(((int64_t)c * (int64_t)a) / (int64_t)b);
-
-    return CS2VM2_PushInt(vm, result);
+    return CS2VM2_PushInt(vm, cs2_math_scale(a, b, c));
 }
 
 int
@@ -7981,9 +8156,7 @@ CS2VM2_Op_TestBit(
     if( CS2VM2_PopInt(vm, &intpop_value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( !cs2_bit_in_range(intpop_bit) )
-        return CS2VM2_PushInt(vm, 0);
-    return CS2VM2_PushInt(vm, (intpop_value & (int)(1u << intpop_bit)) != 0 ? 1 : 0);
+    return CS2VM2_PushInt(vm, cs2_math_testbit(intpop_value, intpop_bit));
 }
 
 static int
@@ -9299,9 +9472,7 @@ CS2VM2_Op_SetBit(
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( !cs2_bit_in_range(bit) )
-        return CS2VM2_PushInt(vm, value);
-    return CS2VM2_PushInt(vm, value | (int)(1u << bit));
+    return CS2VM2_PushInt(vm, cs2_math_setbit(value, bit));
 }
 
 int
@@ -9322,9 +9493,7 @@ CS2VM2_Op_ClearBit(
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( !cs2_bit_in_range(bit) )
-        return CS2VM2_PushInt(vm, value);
-    return CS2VM2_PushInt(vm, value & ~(int)(1u << bit));
+    return CS2VM2_PushInt(vm, cs2_math_clearbit(value, bit));
 }
 
 int
@@ -9345,7 +9514,7 @@ CS2VM2_Op_Or(
     if( CS2VM2_PopInt(vm, &b) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    return CS2VM2_PushInt(vm, a | b);
+    return CS2VM2_PushInt(vm, cs2_math_or(a, b));
 }
 
 int
@@ -16040,45 +16209,329 @@ cs2_profile_row_for(int script_id)
 }
 
 /*
- * The fast loop's dispatch. The thirteen opcodes it runs are 0, 6..10, 31..34
- * and 4000..4002; switched on directly the compiler built a tree of compares,
- * three to five branches an instruction and mispredicted with the opcode
- * mix. This maps an opcode to a small dense number, 0 for "not one of these",
- * so the switch is one table jump.
+ * THE HOT LOOP.
+ *
+ * Pushing a constant or a local, storing a local, the int branches and the
+ * int arithmetic are most of the instructions a client script executes (81%
+ * of the bank's build scripts for the first nine alone), and each is a move
+ * or two. cs2vm2_run_hot runs a stretch of them without leaving: the program
+ * counter, the int stack's top and the locals are held in registers for the
+ * whole stretch and written back once, and no instruction is a call. None of
+ * these asks the host, so none can yield.
+ *
+ * It stops at the first instruction that is not one of them, or that cannot
+ * run as it stands (a stack too shallow or too deep, a divide by zero). That
+ * instruction has changed nothing; the general path runs it and reports
+ * whatever is wrong exactly as it always did.
+ *
+ * g_cs2vm2_hot_op maps an opcode to the loop's own small dense number, 0 for
+ * "not one of these", so the dispatch is one table jump. Switched on the
+ * opcodes directly (0, 6..10, 31..34, 4000..4035) the compiler built a tree
+ * of compares, three to five branches an instruction.
+ *
+ * The arithmetic itself is the cs2_math_* functions, the same ones the
+ * general handlers call. To put another opcode here: give it a number, a row
+ * in the table and a case.
  */
 enum
 {
-    CS2VM2_FAST_NONE = 0,
-    CS2VM2_FAST_PUSH_CONSTANT_INT,
-    CS2VM2_FAST_PUSH_INT_LOCAL,
-    CS2VM2_FAST_POP_INT_LOCAL,
-    CS2VM2_FAST_ADD,
-    CS2VM2_FAST_SUB,
-    CS2VM2_FAST_MULTIPLY,
-    CS2VM2_FAST_BRANCH,
-    CS2VM2_FAST_BRANCH_EQUALS,
-    CS2VM2_FAST_BRANCH_NOT,
-    CS2VM2_FAST_BRANCH_LESS_THAN,
-    CS2VM2_FAST_BRANCH_GREATER_THAN,
-    CS2VM2_FAST_BRANCH_LESS_THAN_OR_EQUALS,
-    CS2VM2_FAST_BRANCH_GREATER_THAN_OR_EQUALS,
+    CS2VM2_HOT_NONE = 0,
+    CS2VM2_HOT_PUSH_CONSTANT_INT,
+    CS2VM2_HOT_PUSH_INT_LOCAL,
+    CS2VM2_HOT_POP_INT_LOCAL,
+    CS2VM2_HOT_BRANCH,
+    CS2VM2_HOT_BRANCH_EQUALS,
+    CS2VM2_HOT_BRANCH_NOT,
+    CS2VM2_HOT_BRANCH_LESS_THAN,
+    CS2VM2_HOT_BRANCH_GREATER_THAN,
+    CS2VM2_HOT_BRANCH_LESS_THAN_OR_EQUALS,
+    CS2VM2_HOT_BRANCH_GREATER_THAN_OR_EQUALS,
+    CS2VM2_HOT_ADD,
+    CS2VM2_HOT_SUB,
+    CS2VM2_HOT_MULTIPLY,
+    CS2VM2_HOT_DIVIDE,
+    CS2VM2_HOT_MODULO,
+    CS2VM2_HOT_AND,
+    CS2VM2_HOT_OR,
+    CS2VM2_HOT_MIN,
+    CS2VM2_HOT_MAX,
+    CS2VM2_HOT_ADDPERCENT,
+    CS2VM2_HOT_SCALE,
+    CS2VM2_HOT_ABS,
+    CS2VM2_HOT_BITCOUNT,
+    CS2VM2_HOT_SETBIT,
+    CS2VM2_HOT_CLEARBIT,
+    CS2VM2_HOT_TESTBIT,
+    CS2VM2_HOT_TOGGLEBIT,
+    CS2VM2_HOT_SETBIT_RANGE,
+    CS2VM2_HOT_CLEARBIT_RANGE,
+    CS2VM2_HOT_GETBIT_RANGE,
+    CS2VM2_HOT_SETBIT_RANGE_VALUE,
 };
-#define CS2VM2_FAST_TABLE_SIZE 4096u
-static const uint8_t g_cs2vm2_fast_op[CS2VM2_FAST_TABLE_SIZE] = {
-    [CS2_OP_PUSH_CONSTANT_INT] = CS2VM2_FAST_PUSH_CONSTANT_INT,
-    [CS2_OP_PUSH_INT_LOCAL] = CS2VM2_FAST_PUSH_INT_LOCAL,
-    [CS2_OP_POP_INT_LOCAL] = CS2VM2_FAST_POP_INT_LOCAL,
-    [CS2_OP_ADD] = CS2VM2_FAST_ADD,
-    [CS2_OP_SUB] = CS2VM2_FAST_SUB,
-    [CS2_OP_MULTIPLY] = CS2VM2_FAST_MULTIPLY,
-    [CS2_OP_BRANCH] = CS2VM2_FAST_BRANCH,
-    [CS2_OP_BRANCH_EQUALS] = CS2VM2_FAST_BRANCH_EQUALS,
-    [CS2_OP_BRANCH_NOT] = CS2VM2_FAST_BRANCH_NOT,
-    [CS2_OP_BRANCH_LESS_THAN] = CS2VM2_FAST_BRANCH_LESS_THAN,
-    [CS2_OP_BRANCH_GREATER_THAN] = CS2VM2_FAST_BRANCH_GREATER_THAN,
-    [CS2_OP_BRANCH_LESS_THAN_OR_EQUALS] = CS2VM2_FAST_BRANCH_LESS_THAN_OR_EQUALS,
-    [CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS] = CS2VM2_FAST_BRANCH_GREATER_THAN_OR_EQUALS,
+#define CS2VM2_HOT_TABLE_SIZE 4096u
+static const uint8_t g_cs2vm2_hot_op[CS2VM2_HOT_TABLE_SIZE] = {
+    [CS2_OP_PUSH_CONSTANT_INT] = CS2VM2_HOT_PUSH_CONSTANT_INT,
+    [CS2_OP_PUSH_INT_LOCAL] = CS2VM2_HOT_PUSH_INT_LOCAL,
+    [CS2_OP_POP_INT_LOCAL] = CS2VM2_HOT_POP_INT_LOCAL,
+    [CS2_OP_BRANCH] = CS2VM2_HOT_BRANCH,
+    [CS2_OP_BRANCH_EQUALS] = CS2VM2_HOT_BRANCH_EQUALS,
+    [CS2_OP_BRANCH_NOT] = CS2VM2_HOT_BRANCH_NOT,
+    [CS2_OP_BRANCH_LESS_THAN] = CS2VM2_HOT_BRANCH_LESS_THAN,
+    [CS2_OP_BRANCH_GREATER_THAN] = CS2VM2_HOT_BRANCH_GREATER_THAN,
+    [CS2_OP_BRANCH_LESS_THAN_OR_EQUALS] = CS2VM2_HOT_BRANCH_LESS_THAN_OR_EQUALS,
+    [CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS] = CS2VM2_HOT_BRANCH_GREATER_THAN_OR_EQUALS,
+    [CS2_OP_ADD] = CS2VM2_HOT_ADD,
+    [CS2_OP_SUB] = CS2VM2_HOT_SUB,
+    [CS2_OP_MULTIPLY] = CS2VM2_HOT_MULTIPLY,
+    [CS2_OP_DIVIDE] = CS2VM2_HOT_DIVIDE,
+    [CS2_OP_MODULO] = CS2VM2_HOT_MODULO,
+    [CS2_OP_AND] = CS2VM2_HOT_AND,
+    [CS2_OP_OR] = CS2VM2_HOT_OR,
+    [CS2_OP_MIN] = CS2VM2_HOT_MIN,
+    [CS2_OP_MAX] = CS2VM2_HOT_MAX,
+    [CS2_OP_ADDPERCENT] = CS2VM2_HOT_ADDPERCENT,
+    [CS2_OP_SCALE] = CS2VM2_HOT_SCALE,
+    [CS2_OP_ABS] = CS2VM2_HOT_ABS,
+    [CS2_OP_BITCOUNT] = CS2VM2_HOT_BITCOUNT,
+    [CS2_OP_SETBIT] = CS2VM2_HOT_SETBIT,
+    [CS2_OP_CLEARBIT] = CS2VM2_HOT_CLEARBIT,
+    [CS2_OP_TESTBIT] = CS2VM2_HOT_TESTBIT,
+    [CS2_OP_TOGGLEBIT] = CS2VM2_HOT_TOGGLEBIT,
+    [CS2_OP_SETBIT_RANGE] = CS2VM2_HOT_SETBIT_RANGE,
+    [CS2_OP_CLEARBIT_RANGE] = CS2VM2_HOT_CLEARBIT_RANGE,
+    [CS2_OP_GETBIT_RANGE] = CS2VM2_HOT_GETBIT_RANGE,
+    [CS2_OP_SETBIT_RANGE_VALUE] = CS2VM2_HOT_SETBIT_RANGE_VALUE,
 };
+
+/* The shapes the arithmetic cases share. `a` is under `b`, `b` is the top;
+ * with three operands `c` is the top. Each leaves one result where its
+ * deepest operand was. */
+#define CS2VM2_HOT_UNARY(expr)                \
+    {                                         \
+        if( top < 1 )                         \
+            goto stop;                        \
+        int const a = stack[top - 1];         \
+        stack[top - 1] = (expr);              \
+        pc += 1;                              \
+    }                                         \
+    break
+#define CS2VM2_HOT_BINARY(expr)               \
+    {                                         \
+        if( top < 2 )                         \
+            goto stop;                        \
+        int const a = stack[top - 2];         \
+        int const b = stack[top - 1];         \
+        stack[top - 2] = (expr);              \
+        top -= 1;                             \
+        pc += 1;                              \
+    }                                         \
+    break
+/* `call` answers false where the reference ends the script. */
+#define CS2VM2_HOT_BINARY_CHECKED(call)       \
+    {                                         \
+        int out;                              \
+        if( top < 2 )                         \
+            goto stop;                        \
+        int const a = stack[top - 2];         \
+        int const b = stack[top - 1];         \
+        if( !(call) )                         \
+            goto stop;                        \
+        stack[top - 2] = out;                 \
+        top -= 1;                             \
+        pc += 1;                              \
+    }                                         \
+    break
+#define CS2VM2_HOT_TERNARY_CHECKED(call)      \
+    {                                         \
+        int out;                              \
+        if( top < 3 )                         \
+            goto stop;                        \
+        int const a = stack[top - 3];         \
+        int const b = stack[top - 2];         \
+        int const c = stack[top - 1];         \
+        if( !(call) )                         \
+            goto stop;                        \
+        stack[top - 3] = out;                 \
+        top -= 2;                             \
+        pc += 1;                              \
+    }                                         \
+    break
+#define CS2VM2_HOT_BRANCH_IF(cmp)             \
+    {                                         \
+        if( top < 2 )                         \
+            goto stop;                        \
+        top -= 2;                             \
+        pc += 1 + (stack[top] cmp stack[top + 1] ? operand : 0); \
+    }                                         \
+    break
+
+/*
+ * Run hot instructions from the frame's program counter. The caller has
+ * counted the instruction there and knows it exists.
+ *
+ * True: stopped at an instruction for the general path, already counted.
+ * False: stopped at the script's end or the cycle limit, which are the
+ * caller's loop head's to report; it counts that instruction itself.
+ */
+static inline bool
+cs2vm2_run_hot(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int* cycles)
+{
+    uint16_t const* const ops = frame->script->opcodes;
+    int const* const args = frame->script->int_operands;
+    int const op_count = frame->script->op_count;
+    int* const stack = vm->ints_stack;
+    int* locals = frame->int_locals;
+    int locals_dirty = frame->int_locals_dirty;
+    int top = vm->ints_stack_top;
+    int pc = frame->pc;
+    bool for_general = true;
+
+    for( ;; )
+    {
+        unsigned const opcode = ops[pc];
+        int const operand = args[pc];
+
+        switch( opcode < CS2VM2_HOT_TABLE_SIZE ? g_cs2vm2_hot_op[opcode] : CS2VM2_HOT_NONE )
+        {
+        case CS2VM2_HOT_PUSH_CONSTANT_INT:
+            if( top >= CS2VM_STACK_MAX )
+                goto stop;
+            stack[top++] = operand;
+            pc += 1;
+            break;
+        case CS2VM2_HOT_PUSH_INT_LOCAL:
+            if( top >= CS2VM_STACK_MAX || operand < 0 || operand >= CS2VM_MAX_LOCALS )
+                goto stop;
+            stack[top++] = operand < locals_dirty ? locals[operand] : 0;
+            pc += 1;
+            break;
+        case CS2VM2_HOT_POP_INT_LOCAL:
+            if( top <= 0 || operand < 0 || operand >= CS2VM_MAX_LOCALS )
+                goto stop;
+            if( operand < locals_dirty )
+            {
+                locals[operand] = stack[--top];
+            }
+            else
+            {
+                /* First write to this slot: the frame grows its buffer and
+                 * raises its mark, and both are read again. */
+                *cs2vm2_frame_int_local_ref(frame, operand) = stack[--top];
+                locals = frame->int_locals;
+                locals_dirty = frame->int_locals_dirty;
+            }
+            pc += 1;
+            break;
+
+        case CS2VM2_HOT_BRANCH:
+            pc += 1 + operand;
+            break;
+        case CS2VM2_HOT_BRANCH_EQUALS:
+            CS2VM2_HOT_BRANCH_IF(==);
+        case CS2VM2_HOT_BRANCH_NOT:
+            CS2VM2_HOT_BRANCH_IF(!=);
+        case CS2VM2_HOT_BRANCH_LESS_THAN:
+            CS2VM2_HOT_BRANCH_IF(<);
+        case CS2VM2_HOT_BRANCH_GREATER_THAN:
+            CS2VM2_HOT_BRANCH_IF(>);
+        case CS2VM2_HOT_BRANCH_LESS_THAN_OR_EQUALS:
+            CS2VM2_HOT_BRANCH_IF(<=);
+        case CS2VM2_HOT_BRANCH_GREATER_THAN_OR_EQUALS:
+            CS2VM2_HOT_BRANCH_IF(>=);
+
+        case CS2VM2_HOT_ADD:
+            CS2VM2_HOT_BINARY(cs2_math_add(a, b));
+        case CS2VM2_HOT_SUB:
+            CS2VM2_HOT_BINARY(cs2_math_sub(a, b));
+        case CS2VM2_HOT_MULTIPLY:
+            CS2VM2_HOT_BINARY(cs2_math_mul(a, b));
+        case CS2VM2_HOT_DIVIDE:
+            CS2VM2_HOT_BINARY_CHECKED(cs2_math_div(a, b, &out));
+        case CS2VM2_HOT_MODULO:
+            CS2VM2_HOT_BINARY_CHECKED(cs2_math_mod(a, b, &out));
+        case CS2VM2_HOT_AND:
+            CS2VM2_HOT_BINARY(cs2_math_and(a, b));
+        case CS2VM2_HOT_OR:
+            CS2VM2_HOT_BINARY(cs2_math_or(a, b));
+        case CS2VM2_HOT_MIN:
+            CS2VM2_HOT_BINARY(cs2_math_min(a, b));
+        case CS2VM2_HOT_MAX:
+            CS2VM2_HOT_BINARY(cs2_math_max(a, b));
+        case CS2VM2_HOT_ADDPERCENT:
+            CS2VM2_HOT_BINARY(cs2_math_addpercent(a, b));
+        case CS2VM2_HOT_ABS:
+            CS2VM2_HOT_UNARY(cs2_math_abs(a));
+        case CS2VM2_HOT_BITCOUNT:
+            CS2VM2_HOT_UNARY(cs2_math_bitcount(a));
+        case CS2VM2_HOT_SETBIT:
+            CS2VM2_HOT_BINARY(cs2_math_setbit(a, b));
+        case CS2VM2_HOT_CLEARBIT:
+            CS2VM2_HOT_BINARY(cs2_math_clearbit(a, b));
+        case CS2VM2_HOT_TESTBIT:
+            CS2VM2_HOT_BINARY(cs2_math_testbit(a, b));
+        case CS2VM2_HOT_TOGGLEBIT:
+            CS2VM2_HOT_BINARY(cs2_math_togglebit(a, b));
+        case CS2VM2_HOT_SCALE:
+        {
+            if( top < 3 )
+                goto stop;
+            stack[top - 3] = cs2_math_scale(stack[top - 3], stack[top - 2], stack[top - 1]);
+            top -= 2;
+            pc += 1;
+            break;
+        }
+        case CS2VM2_HOT_SETBIT_RANGE:
+            CS2VM2_HOT_TERNARY_CHECKED(cs2_math_setbit_range(a, b, c, &out));
+        case CS2VM2_HOT_CLEARBIT_RANGE:
+            CS2VM2_HOT_TERNARY_CHECKED(cs2_math_clearbit_range(a, b, c, &out));
+        case CS2VM2_HOT_GETBIT_RANGE:
+        {
+            if( top < 3 )
+                goto stop;
+            stack[top - 3] = cs2_math_getbit_range(stack[top - 3], stack[top - 2], stack[top - 1]);
+            top -= 2;
+            pc += 1;
+            break;
+        }
+        case CS2VM2_HOT_SETBIT_RANGE_VALUE:
+        {
+            /* Stack (top first): high, low, new bits, value. */
+            int out;
+            if( top < 4 )
+                goto stop;
+            if( !cs2_math_setbit_range_value(
+                    stack[top - 4], stack[top - 3], stack[top - 2], stack[top - 1], &out) )
+                goto stop;
+            stack[top - 4] = out;
+            top -= 3;
+            pc += 1;
+            break;
+        }
+        default:
+            goto stop;
+        }
+
+        if( pc >= op_count || *cycles >= CS2VM_MAX_CYCLES )
+        {
+            for_general = false;
+            goto stop;
+        }
+        (*cycles)++;
+    }
+
+stop:
+    vm->ints_stack_top = top;
+    frame->pc = pc;
+    return for_general;
+}
+#undef CS2VM2_HOT_UNARY
+#undef CS2VM2_HOT_BINARY
+#undef CS2VM2_HOT_BINARY_CHECKED
+#undef CS2VM2_HOT_TERNARY_CHECKED
+#undef CS2VM2_HOT_BRANCH_IF
 
 static int
 cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
@@ -16125,190 +16578,19 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
             return CS2VM_EXECNO_DONE;
         }
 
-        int opcode = frame->script->opcodes[frame->pc];
-        int operand = frame->script->int_operands[frame->pc];
-
-        /*
-         * THE NINE THAT ARE MOST OF A SCRIPT. Pushing a constant or a local,
-         * storing a local, add / subtract / multiply and the int branches are
-         * 81% of the instructions the bank's build scripts execute, and each
-         * is one or two moves. Run here they take no call into
-         * CS2VM2_RunOp, whose frame carries every inlined handler's host
-         * request and is stack-probed on entry. None of them asks the host,
-         * so none can yield.
-         *
-         * Each arm is its handler's own arithmetic. A stack that is too
-         * shallow or too deep falls out of the switch untouched, and the full
-         * path below reports it exactly as it always did. Not for an
-         * observed run, nor for a script in the RS2 dialect, whose overlay
-         * may give one of these ids another meaning.
-         */
+        /* The hot loop first: a stretch of pushes, stores, branches and
+         * arithmetic runs there. Not for an observed run, which wants every
+         * instruction to pass the trace and the profile below, nor for a
+         * script in the RS2 dialect, whose overlay may give one of those ids
+         * another meaning. */
         if( !observed && !(frame->script->dialect && frame->script->dialect->rs2_commands) )
         {
-            /* A run of these stays here: the program counter and the int
-             * stack's top are kept in registers for the whole run and written
-             * back once, when it ends. Left in the frame and the thread they
-             * were a store and a reload per instruction, each instruction
-             * waiting on the one before it. `more` is cleared by the first
-             * opcode that is not one of these, or whose stack is wrong; that
-             * instruction has changed nothing and goes down the full path. */
-            uint16_t const* const ops = frame->script->opcodes;
-            int const* const args = frame->script->int_operands;
-            int const op_count = frame->script->op_count;
-            int* locals = frame->int_locals;
-            int locals_dirty = frame->int_locals_dirty;
-            int top = vm->ints_stack_top;
-            int pc = frame->pc;
-            int more = 1;
-
-            for( ;; )
-            {
-                switch( (unsigned)opcode < CS2VM2_FAST_TABLE_SIZE ? g_cs2vm2_fast_op[opcode] : 0 )
-                {
-                case CS2VM2_FAST_PUSH_CONSTANT_INT:
-                    if( top >= CS2VM_STACK_MAX )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    vm->ints_stack[top++] = operand;
-                    pc += 1;
-                    break;
-                case CS2VM2_FAST_PUSH_INT_LOCAL:
-                    if( top >= CS2VM_STACK_MAX || operand < 0 || operand >= CS2VM_MAX_LOCALS )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    vm->ints_stack[top++] = operand < locals_dirty ? locals[operand] : 0;
-                    pc += 1;
-                    break;
-                case CS2VM2_FAST_POP_INT_LOCAL:
-                    if( top <= 0 || operand < 0 || operand >= CS2VM_MAX_LOCALS )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    if( operand < locals_dirty )
-                    {
-                        locals[operand] = vm->ints_stack[--top];
-                    }
-                    else
-                    {
-                        /* First write to this slot: the frame grows its buffer
-                         * and raises its mark, and both are read again. */
-                        *cs2vm2_frame_int_local_ref(frame, operand) = vm->ints_stack[--top];
-                        locals = frame->int_locals;
-                        locals_dirty = frame->int_locals_dirty;
-                    }
-                    pc += 1;
-                    break;
-                case CS2VM2_FAST_ADD:
-                    if( top < 2 )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    vm->ints_stack[top - 2] = vm->ints_stack[top - 2] + vm->ints_stack[top - 1];
-                    top -= 1;
-                    pc += 1;
-                    break;
-                case CS2VM2_FAST_SUB:
-                    if( top < 2 )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    vm->ints_stack[top - 2] = vm->ints_stack[top - 2] - vm->ints_stack[top - 1];
-                    top -= 1;
-                    pc += 1;
-                    break;
-                case CS2VM2_FAST_MULTIPLY:
-                    if( top < 2 )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    vm->ints_stack[top - 2] = vm->ints_stack[top - 2] * vm->ints_stack[top - 1];
-                    top -= 1;
-                    pc += 1;
-                    break;
-                case CS2VM2_FAST_BRANCH:
-                    pc += 1 + operand;
-                    break;
-                case CS2VM2_FAST_BRANCH_EQUALS:
-                    if( top < 2 )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    top -= 2;
-                    pc += 1 + (vm->ints_stack[top] == vm->ints_stack[top + 1] ? operand : 0);
-                    break;
-                case CS2VM2_FAST_BRANCH_NOT:
-                    if( top < 2 )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    top -= 2;
-                    pc += 1 + (vm->ints_stack[top] != vm->ints_stack[top + 1] ? operand : 0);
-                    break;
-                case CS2VM2_FAST_BRANCH_LESS_THAN:
-                    if( top < 2 )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    top -= 2;
-                    pc += 1 + (vm->ints_stack[top] < vm->ints_stack[top + 1] ? operand : 0);
-                    break;
-                case CS2VM2_FAST_BRANCH_GREATER_THAN:
-                    if( top < 2 )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    top -= 2;
-                    pc += 1 + (vm->ints_stack[top] > vm->ints_stack[top + 1] ? operand : 0);
-                    break;
-                case CS2VM2_FAST_BRANCH_LESS_THAN_OR_EQUALS:
-                    if( top < 2 )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    top -= 2;
-                    pc += 1 + (vm->ints_stack[top] <= vm->ints_stack[top + 1] ? operand : 0);
-                    break;
-                case CS2VM2_FAST_BRANCH_GREATER_THAN_OR_EQUALS:
-                    if( top < 2 )
-                    {
-                        more = 0;
-                        break;
-                    }
-                    top -= 2;
-                    pc += 1 + (vm->ints_stack[top] >= vm->ints_stack[top + 1] ? operand : 0);
-                    break;
-                default:
-                    more = 0;
-                    break;
-                }
-                if( !more )
-                    break;
-                /* The script's end and the cycle limit are the loop head's to
-                 * report; it counts this next instruction itself. */
-                if( pc >= op_count || cycles >= CS2VM_MAX_CYCLES )
-                    break;
-                cycles++;
-                opcode = ops[pc];
-                operand = args[pc];
-            }
-            vm->ints_stack_top = top;
-            frame->pc = pc;
-            if( more )
+            if( !cs2vm2_run_hot(vm, frame, &cycles) )
                 continue;
         }
+
+        int opcode = frame->script->opcodes[frame->pc];
+        int operand = frame->script->int_operands[frame->pc];
 
         char const* str_operand_str = NULL;
         if( frame->script->string_operands )
