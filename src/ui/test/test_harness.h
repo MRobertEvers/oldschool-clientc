@@ -329,6 +329,7 @@ void test_touch_swipe_scrolls_layer(void);
 void test_touch_drag_on_draggable_does_not_swipe(void);
 void test_feedback_overlay_never_takes_a_click(void);
 void test_id_index(void);
+void test_block_pool(void);
 void test_child_subid(void);
 void test_menu_submenus(void);
 void test_component_params(void);

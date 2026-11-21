@@ -39,6 +39,8 @@ packetbuffer_init(
     packetbuffer->opcode_high = 0;
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
+    packetbuffer->data_cap = 0;
+    packetbuffer->pool = NULL;
     packetbuffer->control = 0;
     packetbuffer->control_type = 0;
     packetbuffer->control_header_read = 0;
@@ -187,12 +189,30 @@ packetbuffer_read(
             packetbuffer->state = PKTBUF_PREPARE_RECEIVE;
             goto step;
         case PKTBUF_PREPARE_RECEIVE:
-            packetbuffer->data = ToriMem_Calloc(
-                ToriMem_Net(),
-                1,
-                packetbuffer->packet_length > 0 ? (size_t)packetbuffer->packet_length : 1);
+        {
+            struct NetPacketPool* const pool = NET_PACKET_POOL_ON ? packetbuffer->pool : NULL;
+            int const need = packetbuffer->packet_length > 0 ? packetbuffer->packet_length : 1;
+
+            if( pool && pool->payload && pool->payload_cap >= need )
+            {
+                /* The pool's buffer, zeroed as far as this packet reads it. */
+                packetbuffer->data = pool->payload;
+                packetbuffer->data_cap = pool->payload_cap;
+                pool->payload = NULL;
+                pool->payload_cap = 0;
+                memset(packetbuffer->data, 0, (size_t)need);
+            }
+            else
+            {
+                int const cap =
+                    pool && need < NET_PACKET_POOL_PAYLOAD_MIN ? NET_PACKET_POOL_PAYLOAD_MIN : need;
+                packetbuffer->data = ToriMem_Calloc(ToriMem_Net(), 1, (size_t)cap);
+                assert(packetbuffer->data);
+                packetbuffer->data_cap = cap;
+            }
             packetbuffer->state = PKTBUF_READ_DATA;
             goto step;
+        }
         case PKTBUF_READ_DATA:
         {
             int remaining_packet_len = packetbuffer->packet_length - packetbuffer->data_size;
@@ -246,13 +266,27 @@ packetbuffer_ready(struct PacketBuffer* packetbuffer)
 void
 packetbuffer_reset(struct PacketBuffer* packetbuffer)
 {
-    ToriMem_Free(ToriMem_Net(), packetbuffer->data);
+    struct NetPacketPool* const pool = packetbuffer->pool;
+
+    /* The payload goes back to the pool for the next packet when the pool
+     * has none, or has a shorter one; otherwise it is freed. */
+    if( packetbuffer->data && NET_PACKET_POOL_ON && pool &&
+        packetbuffer->data_cap <= NET_PACKET_POOL_PAYLOAD_KEEP &&
+        packetbuffer->data_cap > pool->payload_cap )
+    {
+        ToriMem_Free(ToriMem_Net(), pool->payload);
+        pool->payload = packetbuffer->data;
+        pool->payload_cap = packetbuffer->data_cap;
+    }
+    else
+        ToriMem_Free(ToriMem_Net(), packetbuffer->data);
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
     packetbuffer->packet_length = 0;
     packetbuffer->packet_type = 0;
 
     packetbuffer_init(packetbuffer, packetbuffer->random, packetbuffer->rev);
+    packetbuffer->pool = pool;
 }
 
 int
@@ -291,7 +325,9 @@ packetbuffer_take_data(struct PacketBuffer* packetbuffer)
 {
     uint8_t* data = packetbuffer->data;
 
+    /* The caller owns it now and frees it as any block. */
     packetbuffer->data = NULL;
+    packetbuffer->data_cap = 0;
     return data;
 }
 

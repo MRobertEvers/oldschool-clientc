@@ -113,6 +113,7 @@ main(void)
     test_feedback_overlay_never_takes_a_click();
     test_minimenu();
     test_id_index();
+    test_block_pool();
     test_child_subid();
     test_menu_submenus();
     test_component_params();

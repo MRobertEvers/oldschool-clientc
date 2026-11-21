@@ -34,6 +34,18 @@ rebuild_square_rect(
     int* mx1,
     int* mz1);
 
+/**
+ * Free the executor's finished task objects.
+ *
+ * One task object is made per server packet and dropped when the packet has
+ * been applied: 4 KB each, eighty on the tick a bank opens. The executor keeps
+ * finished ones and the next packet takes one (task_gameproto_exec.c). Call
+ * this once the packet queue has been freed; tasks released after it are
+ * freed, not kept.
+ */
+void
+GameProtoExec_TaskPoolFree(void);
+
 /** Takes ownership of the packet's heap fields (freed with the task). */
 struct ToriRS_Task*
 CreateTask_GameProtoExec(

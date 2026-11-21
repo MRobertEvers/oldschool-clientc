@@ -90,6 +90,20 @@ UITree_MenuOptionsSet(
 }
 
 void
+UITree_MenuOptionsSetIn(
+    struct UITree* tree,
+    struct UITreeComponent* component,
+    struct UITreeMenuOptions const* src)
+{
+    assert(tree);
+    assert(component);
+    /* The block Set is about to need, taken from the pool first. */
+    if( src && src != component->menu_options && !menu_options_is_empty(src) )
+        (void)UITree_MenuOptionsMutIn(tree, component);
+    UITree_MenuOptionsSet(component, src);
+}
+
+void
 UITree_MenuOptionsFree(struct UITreeComponent* component)
 {
     if( !component || !component->menu_options )

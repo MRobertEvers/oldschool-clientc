@@ -456,4 +456,7 @@ src/replay/replay_world_apply.c
 # for the plugin host (the load memo and the open-url flag) on top of 1434.
 # Raised to 1444 by the merge of fx4-build O2: App_Shutdown frees the map keys
 # App loaded (three lines on top of 1441).
-app.c-lines: 1444
+# Raised to 1447 by the bank-open allocation work: App_Shutdown frees the
+# packet executor's task pool (GameProtoExec_TaskPoolFree) once the queues are
+# gone. Teardown order is app.c's to state; the pool itself is the executor's.
+app.c-lines: 1447

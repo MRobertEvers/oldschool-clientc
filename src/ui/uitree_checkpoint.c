@@ -222,6 +222,11 @@ ckpt_tree_dup(
     dst->canvas_candidate_capacity = 0;
     dst->canvas_candidates_valid = 0;
     dst->anchor_plan = NULL;
+    /* The pools hold the source tree's released blocks, not the copy's. */
+    memset(&dst->menu_options_pool, 0, sizeof(dst->menu_options_pool));
+    memset(&dst->hooks_pool, 0, sizeof(dst->hooks_pool));
+    memset(&dst->hook_argv_pool, 0, sizeof(dst->hook_argv_pool));
+    memset(&dst->string_pool, 0, sizeof(dst->string_pool));
     /* Scratch the live tree keeps for itself. */
     dst->emit_visited = NULL;
     dst->emit_visited_cap = 0;

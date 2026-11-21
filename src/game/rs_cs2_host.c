@@ -466,10 +466,10 @@ rs_cs2_apply_op(
     if( idx < 0 )
         return;
     strncpy(
-        UITree_MenuOptionsMut(&tree->components[idx])->ops[index - 1],
+        UITree_MenuOptionsMutIn(tree, &tree->components[idx])->ops[index - 1],
         text ? text : "",
         UITREE_MENU_OPTION_LEN - 1);
-    UITree_MenuOptionsMut(&tree->components[idx])->ops[index - 1][UITREE_MENU_OPTION_LEN - 1] =
+    UITree_MenuOptionsMutIn(tree, &tree->components[idx])->ops[index - 1][UITREE_MENU_OPTION_LEN - 1] =
         '\0';
     /* TORIRS_OPS_DEBUG=1: which script wrote which verb onto which component.
      * The rev-230 inventory's rows are entirely script-assigned, so a wrong or
@@ -498,10 +498,18 @@ rs_cs2_clear_ops(
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 )
         return;
-    for( i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
-        UITree_MenuOptionsMut(&tree->components[idx])->ops[i][0] = '\0';
-    UITree_MenuOptionsMut(&tree->components[idx])->option[0] = '\0';
-    UITree_MenuSubmenuClear(UITree_MenuOptionsMut(&tree->components[idx]), 0);
+    /* A node with no options block has nothing to clear, and a block made
+     * only to be cleared is 888 bytes of zeroes the node then keeps: a
+     * container rebuild clears the ops of every row it creates, before it
+     * knows which rows will be given any. */
+    if( UITree_HasMenuOptions(&tree->components[idx]) )
+    {
+        struct UITreeMenuOptions* const options = UITree_MenuOptionsMutIn(tree, &tree->components[idx]);
+        for( i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+            options->ops[i][0] = '\0';
+        options->option[0] = '\0';
+        UITree_MenuSubmenuClear(options, 0);
+    }
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -524,7 +532,7 @@ rs_cs2_apply_op_submenu(
     if( idx < 0 )
         return;
     UITree_MenuSubmenuSetEntry(
-        UITree_MenuOptionsMut(&tree->components[idx]), op_index, sub_index, text ? text : "");
+        UITree_MenuOptionsMutIn(tree, &tree->components[idx]), op_index, sub_index, text ? text : "");
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -2536,6 +2544,8 @@ void
 RS_CS2Host_Free(struct RS_CS2Host* host)
 {
     assert(host);
+    RS_CS2TaskPool_Free(&host->run_task_pool);
+    RS_CS2TaskPool_Free(&host->timer_task_pool);
     RS_CS2ClientState_Free(&host->client);
     RS_ClanStore_Free(&host->clan);
     RS_GroupStore_Free(&host->groups);
@@ -7780,16 +7790,16 @@ exec_set_on_cc_transmit(
 
 static struct UITreeRuntimeScriptHook*
 rs_cs2_runtime_hook_slot(
+    struct UITree* tree,
     struct UITreeComponent* node,
     enum CS2VM_HostRequestKind kind)
 {
     struct UITreeRuntimeHooks* hooks;
 
+    assert(tree);
     assert(node);
     /* Registration is the only writer, so it is also where the block is born. */
-    hooks = UITree_HooksMut(node);
-    if( !hooks )
-        return NULL;
+    hooks = UITree_HooksMutIn(tree, node);
     switch( kind )
     {
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
@@ -8029,7 +8039,7 @@ exec_set_on_if_event(
     if( script_id <= 0 && !node->runtime_hooks )
         return CS2VM_EXECNO_OK;
 
-    slot = rs_cs2_runtime_hook_slot(node, kind);
+    slot = rs_cs2_runtime_hook_slot(tree, node, kind);
     if( !slot )
         return CS2VM_EXECNO_OK;
 
@@ -8094,7 +8104,7 @@ exec_set_on_cc_event(
     if( script_id <= 0 && !node->runtime_hooks )
         return CS2VM_EXECNO_OK;
 
-    slot = rs_cs2_runtime_hook_slot(node, kind);
+    slot = rs_cs2_runtime_hook_slot(tree, node, kind);
     if( !slot )
         return CS2VM_EXECNO_OK;
 
@@ -13301,6 +13311,7 @@ rs_cs2_host_exec_dispatch(
 #define RS_CS2_HOST_CKPT_WORLD_FIELDS(F) F(local_coord) F(local_pid) F(dest_coord) F(hover_coord)
 
 #define RS_CS2_HOST_CKPT_LIVE_FIELDS(F)                                                            \
+    F(run_task_pool) F(timer_task_pool)                                                            \
     F(tree) F(provider) F(invs) F(varps) F(stats) F(social) F(chat) F(chat_filter_mode) F(bridge)  \
     F(events_override_for_component) F(events_user) F(if_written) F(if_written_user)               \
     F(script_callback) F(script_callback_user) F(script_callback_running) F(loc_at_coord)          \
@@ -13384,6 +13395,9 @@ RS_CS2Host_CheckpointTake(struct RS_CS2Host const* host)
     cp = ToriMem_Memdup(ToriMem_Script(), host, sizeof(*cp));
     assert(cp);
     rs_cs2_host_ckpt_dup_deep(cp, host);
+    /* The pools hold the live host's finished tasks, not the copy's. */
+    memset(&cp->run_task_pool, 0, sizeof(cp->run_task_pool));
+    memset(&cp->timer_task_pool, 0, sizeof(cp->timer_task_pool));
     return cp;
 }
 

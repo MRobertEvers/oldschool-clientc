@@ -1,6 +1,7 @@
 #ifndef SRC_UI_UITREE_HOOK_H
 #define SRC_UI_UITREE_HOOK_H
 
+#include "ui/uitree_pool.h"
 #include <stdint.h>
 
 /*
@@ -230,6 +231,43 @@ UITree_HooksBlockNew(void);
 /** Clear every slot (releasing tails) and free the block. NULL is a no-op. */
 void
 UITree_HooksBlockFree(struct UITreeRuntimeHooks* hooks);
+
+/** Clear every slot (releasing tails); the block itself stays. */
+void
+UITree_HooksBlockClear(struct UITreeRuntimeHooks* hooks);
+
+/**
+ * The three below are UITree_HookSet, UITree_HookClear and
+ * UITree_HooksBlockClear for a caller that keeps a pool of released int
+ * argument lists (a tree: UITree::hook_argv_pool). A list of up to
+ * UITREE_HOOK_ARGV_SMALL ints is always allocated UITREE_HOOK_ARGV_SMALL ints
+ * long, by every setter, so a released one fits any later small list. Longer
+ * lists are exact and never pooled.
+ */
+#define UITREE_HOOK_ARGV_SMALL 16
+/** How many released small lists one pool keeps. */
+#define UITREE_HOOK_ARGV_POOL_MAX 4096u
+
+void
+UITree_HookSetIn(
+    struct UITreeBlockPool* argv_pool,
+    struct UITreeRuntimeScriptHook* hook,
+    int script_id,
+    int const* argv,
+    int argc,
+    uint64_t str_mask,
+    char const* const* strv,
+    int str_argc);
+
+void
+UITree_HookClearTo(
+    struct UITreeBlockPool* argv_pool,
+    struct UITreeRuntimeScriptHook* hook);
+
+void
+UITree_HooksBlockClearTo(
+    struct UITreeBlockPool* argv_pool,
+    struct UITreeRuntimeHooks* hooks);
 
 /** Deep copy every slot. `dst` must be a live block; its old tails are freed. */
 void

@@ -3,6 +3,7 @@
 
 #include "cs2vm2/cs2vm2_host.h"
 #include "game/rs_clan.h"
+#include "game/rs_cs2_task_pool.h"
 #include "game/rs_group_store.h"
 #include "game/rs_clientop.h"
 #include "game/rs_friends_chat.h"
@@ -775,6 +776,10 @@ struct RS_CS2StatTransmitHook
 
 struct RS_CS2Host
 {
+    /** Finished script-run and timer task objects, kept for the next script
+     *  (game/rs_cs2_task_pool.h). */
+    struct RS_CS2TaskPool run_task_pool;
+    struct RS_CS2TaskPool timer_task_pool;
     struct UITree* tree;
     struct CacheProvider* provider;
     struct InvManager* invs;

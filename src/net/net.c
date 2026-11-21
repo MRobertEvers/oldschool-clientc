@@ -159,6 +159,49 @@ ToriRS_Network_SetSeedFn(
         loginproto_set_seed_fn(net->loginproto, seed_fn, user);
 }
 
+/* A queue item, from the network's packet pool when it holds one. */
+static struct RevPacketItem*
+packet_item_new(struct ToriRS_Network* net)
+{
+    struct RevPacketItem* item = net->packet_pool.free_items;
+    if( item )
+    {
+        net->packet_pool.free_items = item->next_nullable;
+        net->packet_pool.free_item_count--;
+        return item;
+    }
+    item = ToriMem_Alloc(ToriMem_Net(), sizeof(*item));
+    assert(item);
+    return item;
+}
+
+/* The item's packet has been freed or handed on by now. */
+static void
+packet_item_release(struct ToriRS_Network* net, struct RevPacketItem* item)
+{
+    if( !NET_PACKET_POOL_ON || net->packet_pool.free_item_count >= NET_PACKET_POOL_ITEMS_KEEP )
+    {
+        ToriMem_Free(ToriMem_Net(), item);
+        return;
+    }
+    item->next_nullable = net->packet_pool.free_items;
+    net->packet_pool.free_items = item;
+    net->packet_pool.free_item_count++;
+}
+
+static void
+packet_pool_free(struct ToriRS_Network* net)
+{
+    while( net->packet_pool.free_items )
+    {
+        struct RevPacketItem* const item = net->packet_pool.free_items;
+        net->packet_pool.free_items = item->next_nullable;
+        ToriMem_Free(ToriMem_Net(), item);
+    }
+    ToriMem_Free(ToriMem_Net(), net->packet_pool.payload);
+    memset(&net->packet_pool, 0, sizeof(net->packet_pool));
+}
+
 static void
 free_packet_list(struct ToriRS_Network* net)
 {
@@ -167,7 +210,7 @@ free_packet_list(struct ToriRS_Network* net)
     {
         struct RevPacketItem* next = item->next_nullable;
         gameproto_free(&item->packet);
-        ToriMem_Free(ToriMem_Net(), item);
+        packet_item_release(net, item);
         item = next;
     }
     net->packets_head = NULL;
@@ -185,6 +228,9 @@ ToriRS_Network_Free(struct ToriRS_Network* net)
     if( net->packet_buffer.data )
         packetbuffer_reset(&net->packet_buffer);
     free_packet_list(net);
+    /* After the two above: both hand what they release to the pool. */
+    packet_pool_free(net);
+    net->packet_buffer.pool = NULL;
     if( net->random_in )
         isaac_free(net->random_in);
     if( net->random_out )
@@ -515,6 +561,7 @@ loginproto_drive(struct ToriRS_Network* net)
         net->resume_in_flight = 0;
         login_free(net);
         packetbuffer_init(&net->packet_buffer, net->random_in, net->rev);
+        net->packet_buffer.pool = &net->packet_pool;
         /* A new game stream: no group is open on it. */
         net->group_open = 0;
         net->group_left = 0;
@@ -549,8 +596,7 @@ push_parsed_packet(
     struct ToriRS_Network* net,
     struct RevPacket const* packet)
 {
-    struct RevPacketItem* item = ToriMem_Alloc(ToriMem_Net(), sizeof(*item));
-    assert(item);
+    struct RevPacketItem* item = packet_item_new(net);
     item->packet = *packet;
     item->held = net->group_open;
     item->next_nullable = NULL;
@@ -780,7 +826,7 @@ ToriRS_Network_PopPacket(
         net->packets_tail = NULL;
 
     *out = item->packet; /* heap fields transfer to the caller */
-    ToriMem_Free(ToriMem_Net(), item);
+    packet_item_release(net, item);
     return 1;
 }
 

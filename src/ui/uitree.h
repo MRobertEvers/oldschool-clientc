@@ -1,6 +1,8 @@
 #ifndef SRC_UITREE_H
 #define SRC_UITREE_H
 
+#include <string.h>
+#include "ui/uitree_pool.h"
 #include "ui/uitree_component_options.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_hook.h"
@@ -1279,6 +1281,41 @@ UITree_HooksMut(struct UITreeComponent* c);
 void
 UITree_HooksFree(struct UITreeComponent* c);
 
+struct UITree;
+
+/** UITree_HooksMut for a node of `tree`: the block comes from the tree's pool
+ *  of released blocks when it holds one. */
+struct UITreeRuntimeHooks*
+UITree_HooksMutIn(
+    struct UITree* tree,
+    struct UITreeComponent* c);
+
+/** Release the block into `tree`'s pool; its handlers' arguments are freed. */
+void
+UITree_HooksReleaseTo(
+    struct UITree* tree,
+    struct UITreeComponent* c);
+
+/** UITree_MenuOptionsMut for a node of `tree`, from the tree's pool likewise. */
+struct UITreeMenuOptions*
+UITree_MenuOptionsMutIn(
+    struct UITree* tree,
+    struct UITreeComponent* component);
+
+/** UITree_MenuOptionsSet for a node of `tree`: a block it has to allocate
+ *  comes from the tree's pool. */
+void
+UITree_MenuOptionsSetIn(
+    struct UITree* tree,
+    struct UITreeComponent* component,
+    struct UITreeMenuOptions const* src);
+
+/** Release the options block into `tree`'s pool; its submenus are freed. */
+void
+UITree_MenuOptionsReleaseTo(
+    struct UITree* tree,
+    struct UITreeComponent* component);
+
 /**
  * Chrome actions a configured hotkey can trigger.
  *
@@ -1381,6 +1418,10 @@ struct UITreeOwnedCount
     uint64_t owner;
     int32_t live;
 };
+
+/** How many released blocks a tree keeps of each kind (argument lists:
+ *  UITREE_HOOK_ARGV_POOL_MAX, ui/uitree_hook.h). */
+#define UITREE_BLOCK_POOL_MAX 1024u
 
 struct UITree
 {
@@ -1567,6 +1608,14 @@ struct UITree
     int32_t id_last_id_plus1;
     int32_t id_last_idx;
     uint32_t id_last_gen;
+    /** The tree's own pools (ui/uitree_pool.h): released menu-options
+     *  blocks, handler blocks and handler argument lists, each capped
+     *  (UITREE_BLOCK_POOL_MAX, UITREE_HOOK_ARGV_POOL_MAX), and the cells its
+     *  short strings live in. Emptied when the tree is torn down. */
+    struct UITreeBlockPool menu_options_pool;
+    struct UITreeBlockPool hooks_pool;
+    struct UITreeBlockPool hook_argv_pool;
+    struct UITreeStringPool string_pool;
     /** Cached layout scratch (see UITree_LayoutResolve). `order`/`depth` depend
      *  only on tree topology and are recomputed only when `generation` changes;
      *  `changed` carries "this node's box moved in this pass" down to the

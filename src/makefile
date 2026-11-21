@@ -5181,7 +5181,7 @@ endif
 test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test $(TORIMEM_SRCS) \
-		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
+		ui/uitree.c ui/uitree_checkpoint.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
 		ui/torirs_chrome_inkwell.c \

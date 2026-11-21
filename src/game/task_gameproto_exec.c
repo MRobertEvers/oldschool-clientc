@@ -608,6 +608,77 @@ Task_GameProtoExec_Run(
     PT_END(&self->pt);
 }
 
+/*
+ * THE PACKET EXECUTOR'S TASK POOL. See GameProtoExec_TaskPoolFree in the
+ * header. There is one client app in a process and its packets are applied
+ * on one thread, so this is the executor's own state, like its vtable.
+ *
+ * Under AddressSanitizer nothing is kept, so a task used after it ended is
+ * still reported.
+ */
+#if defined(__SANITIZE_ADDRESS__)
+#define GAMEPROTO_EXEC_POOL_ON 0
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define GAMEPROTO_EXEC_POOL_ON 0
+#endif
+#endif
+#ifndef GAMEPROTO_EXEC_POOL_ON
+#define GAMEPROTO_EXEC_POOL_ON 1
+#endif
+#define GAMEPROTO_EXEC_POOL_KEEP 128u
+
+static struct
+{
+    /* Finished tasks, linked through their first pointer-sized bytes. */
+    void* head;
+    uint32_t count;
+    uint32_t closed;
+} s_exec_task_pool;
+
+static struct Task_GameProtoExec*
+exec_task_new(void)
+{
+    struct Task_GameProtoExec* task = s_exec_task_pool.head;
+    if( task )
+    {
+        memcpy(&s_exec_task_pool.head, task, sizeof(void*));
+        s_exec_task_pool.count--;
+        memset(task, 0, sizeof(*task));
+        return task;
+    }
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
+    assert(task);
+    return task;
+}
+
+static void
+exec_task_release(struct Task_GameProtoExec* task)
+{
+    if( !GAMEPROTO_EXEC_POOL_ON || s_exec_task_pool.closed ||
+        s_exec_task_pool.count >= GAMEPROTO_EXEC_POOL_KEEP )
+    {
+        ToriMem_Free(ToriMem_Session(), task);
+        return;
+    }
+    memcpy(task, &s_exec_task_pool.head, sizeof(void*));
+    s_exec_task_pool.head = task;
+    s_exec_task_pool.count++;
+}
+
+void
+GameProtoExec_TaskPoolFree(void)
+{
+    while( s_exec_task_pool.head )
+    {
+        void* const task = s_exec_task_pool.head;
+        memcpy(&s_exec_task_pool.head, task, sizeof(void*));
+        ToriMem_Free(ToriMem_Session(), task);
+    }
+    s_exec_task_pool.count = 0;
+    s_exec_task_pool.closed = 1;
+}
+
 static void
 Task_GameProtoExec_Free(struct ToriRS_Task* base)
 {
@@ -617,7 +688,7 @@ Task_GameProtoExec_Free(struct ToriRS_Task* base)
      * before (task_free). */
     App_ViewRebuildEnd(self->app, &self->rebuild, 0);
     gameproto_free(&self->packet);
-    ToriMem_Free(ToriMem_Session(), self);
+    exec_task_release(self);
 }
 
 static struct ToriRS_TaskVTable Task_GameProtoExec_VTable = {
@@ -633,8 +704,7 @@ CreateTask_GameProtoExec(
     struct Task_GameProtoExec* task;
 
     assert(app && packet);
-    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
-    assert(task);
+    task = exec_task_new();
     task->task.vtable = &Task_GameProtoExec_VTable;
     strncpy(task->task.name, "GameProtoExec", sizeof(task->task.name) - 1);
     task->app = app;

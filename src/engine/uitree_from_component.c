@@ -41,9 +41,7 @@ bake_runtime_hook_from_torirs(
     if( script_id <= 0 )
         return;
 
-    hooks = UITree_HooksMut(node);
-    if( !hooks )
-        return;
+    hooks = UITree_HooksMutIn(tree, node);
     slot = (struct UITreeRuntimeScriptHook*)((char*)hooks + slot_off);
 
     if( src->argc > 1 )

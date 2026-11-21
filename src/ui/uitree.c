@@ -1041,6 +1041,76 @@ UITree_HooksFree(struct UITreeComponent* c)
     c->runtime_hooks = NULL;
 }
 
+struct UITreeRuntimeHooks*
+UITree_HooksMutIn(
+    struct UITree* tree,
+    struct UITreeComponent* c)
+{
+    assert(tree);
+    assert(c);
+    if( !c->runtime_hooks )
+    {
+        c->runtime_hooks = (struct UITreeRuntimeHooks*)UITreeBlockPool_Take(
+            &tree->hooks_pool, sizeof(struct UITreeRuntimeHooks));
+        if( !c->runtime_hooks )
+            c->runtime_hooks = UITree_HooksBlockNew();
+        assert(c->runtime_hooks);
+    }
+    return c->runtime_hooks;
+}
+
+void
+UITree_HooksReleaseTo(
+    struct UITree* tree,
+    struct UITreeComponent* c)
+{
+    struct UITreeRuntimeHooks* hooks;
+    assert(tree);
+    assert(c);
+    hooks = c->runtime_hooks;
+    if( !hooks )
+        return;
+    c->runtime_hooks = NULL;
+    UITree_HooksBlockClearTo(&tree->hook_argv_pool, hooks);
+    if( !UITreeBlockPool_Give(&tree->hooks_pool, hooks, UITREE_BLOCK_POOL_MAX) )
+        ToriMem_Free(ToriMem_Ui(), hooks);
+}
+
+struct UITreeMenuOptions*
+UITree_MenuOptionsMutIn(
+    struct UITree* tree,
+    struct UITreeComponent* component)
+{
+    assert(tree);
+    assert(component);
+    if( !component->menu_options )
+    {
+        component->menu_options = (struct UITreeMenuOptions*)UITreeBlockPool_Take(
+            &tree->menu_options_pool, sizeof(struct UITreeMenuOptions));
+        if( !component->menu_options )
+            (void)UITree_MenuOptionsMut(component);
+        assert(component->menu_options);
+    }
+    return component->menu_options;
+}
+
+void
+UITree_MenuOptionsReleaseTo(
+    struct UITree* tree,
+    struct UITreeComponent* component)
+{
+    struct UITreeMenuOptions* options;
+    assert(tree);
+    assert(component);
+    options = component->menu_options;
+    if( !options )
+        return;
+    component->menu_options = NULL;
+    UITree_MenuSubmenuFree(options);
+    if( !UITreeBlockPool_Give(&tree->menu_options_pool, options, UITREE_BLOCK_POOL_MAX) )
+        ToriMem_Free(ToriMem_Ui(), options);
+}
+
 /* The key UITree_FindChildBySubid matches a child on: its dynamic slot for
  * cc_create'd children, the low half of its uid for cache-baked ones. Immutable
  * while the child is linked (both fields are set once, at push). */
@@ -2036,6 +2106,105 @@ uitree_adopt_edits(struct UITree* tree, int32_t idx)
     }
 }
 
+/* ---- the tree's string pool (ui/uitree_pool.h) ---- */
+
+char*
+UITreeStringPool_Dup(struct UITreeStringPool* pool, char const* text)
+{
+    char* cell;
+    size_t n;
+    assert(pool);
+    assert(text);
+    n = strlen(text) + 1;
+    if( !UITREE_POOLS_ON || n > UITREE_STRING_CELL )
+        return NULL;
+    cell = (char*)pool->free_cells;
+    if( cell )
+    {
+        memcpy(&pool->free_cells, cell, sizeof(void*));
+    }
+    else
+    {
+        if( pool->fresh == 0 )
+        {
+            struct UITreeStringChunk* chunk =
+                (struct UITreeStringChunk*)ToriMem_Alloc(ToriMem_Ui(), sizeof(*chunk));
+            assert(chunk);
+            chunk->next = pool->chunks;
+            pool->chunks = chunk;
+            pool->fresh = UITREE_STRING_CHUNK_CELLS;
+        }
+        pool->fresh--;
+        cell = pool->chunks->cells + (size_t)pool->fresh * UITREE_STRING_CELL;
+    }
+    /* A whole cell every time, so nothing of the last string is left in it. */
+    memset(cell, 0, UITREE_STRING_CELL);
+    memcpy(cell, text, n);
+    pool->live++;
+    return cell;
+}
+
+bool
+UITreeStringPool_Free(struct UITreeStringPool* pool, char* text)
+{
+    assert(pool);
+    assert(text);
+    for( struct UITreeStringChunk* chunk = pool->chunks; chunk; chunk = chunk->next )
+    {
+        if( text >= chunk->cells && text < chunk->cells + sizeof(chunk->cells) )
+        {
+            assert(((size_t)(text - chunk->cells) % UITREE_STRING_CELL) == 0);
+            assert(pool->live > 0);
+            memcpy(text, &pool->free_cells, sizeof(void*));
+            pool->free_cells = text;
+            pool->live--;
+            return true;
+        }
+    }
+    return false;
+}
+
+void
+UITreeStringPool_Release(struct UITreeStringPool* pool)
+{
+    assert(pool);
+    assert(pool->live == 0);
+    while( pool->chunks )
+    {
+        struct UITreeStringChunk* const chunk = pool->chunks;
+        pool->chunks = chunk->next;
+        ToriMem_Free(ToriMem_Ui(), chunk);
+    }
+    memset(pool, 0, sizeof(*pool));
+}
+
+/* A node's text: in the tree's string pool when it is short, an allocation of
+ * its own when it is not. */
+static char*
+uitree_text_dup(struct UITree* tree, char const* text)
+{
+    char* copy;
+    assert(tree);
+    assert(text);
+    copy = UITreeStringPool_Dup(&tree->string_pool, text);
+    if( !copy )
+    {
+        copy = ToriMem_Strdup(ToriMem_Ui(), text);
+        assert(copy);
+    }
+    return copy;
+}
+
+static void
+uitree_text_free(struct UITree* tree, char* text)
+{
+    assert(tree);
+    if( !text )
+        return;
+    if( !UITreeStringPool_Free(&tree->string_pool, text) )
+        ToriMem_Free(ToriMem_Ui(), text);
+}
+
 static void
 uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
 {
@@ -2070,12 +2239,12 @@ uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
     }
     if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
     {
-        ToriMem_Free(ToriMem_Ui(), (void*)c->u.rs_text.text);
+        uitree_text_free(tree, (char*)c->u.rs_text.text);
         c->u.rs_text.text = NULL;
     }
     if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text_active )
     {
-        ToriMem_Free(ToriMem_Ui(), (void*)c->u.rs_text.text_active);
+        uitree_text_free(tree, (char*)c->u.rs_text.text_active);
         c->u.rs_text.text_active = NULL;
     }
     if( c->type == UIELEM_RS_INV )
@@ -2107,7 +2276,7 @@ uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
     c->child_key_index = NULL;
     c->child_key_index_cap = 0;
     c->child_key_index_bad = 0;
-    ToriMem_Free(ToriMem_Ui(), c->data_text);
+    uitree_text_free(tree, c->data_text);
     c->data_text = NULL;
     for( int i = 0; i < c->params_count; i++ )
         ToriMem_Free(ToriMem_Ui(), c->params[i].str);
@@ -2132,9 +2301,9 @@ uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
     b->scripts_count = 0;
     /* Both lazy blocks, and the submenus the options block owns — see
      * ui/uitree_component_options.h. */
-    UITree_MenuOptionsFree(c);
+    UITree_MenuOptionsReleaseTo(tree, c);
     UITree_OpKeysFree(c);
-    UITree_HooksFree(c);
+    UITree_HooksReleaseTo(tree, c);
 }
 
 static void uitree_id_index_note_removed(struct UITree* tree, int32_t idx);
@@ -2262,6 +2431,10 @@ UITree_Free(struct UITree* tree)
     /* tree-walk-exempt: teardown */
     for( uint32_t i = 0; i < tree->component_count; i++ )
         uitree_component_free_owned(tree, &tree->components[i]);
+    UITreeBlockPool_Drain(&tree->menu_options_pool);
+    UITreeBlockPool_Drain(&tree->hooks_pool);
+    UITreeBlockPool_Drain(&tree->hook_argv_pool);
+    UITreeStringPool_Release(&tree->string_pool);
     UITree_ParkedEditsDrop(tree);
     ToriMem_Free(ToriMem_Ui(), tree->id_index_keys);
     ToriMem_Free(ToriMem_Ui(), tree->id_index_vals);
@@ -2299,6 +2472,10 @@ UITree_CheckpointFreeContents(struct UITree* tree)
     /* tree-walk-exempt: session checkpoint teardown, never per frame */
     for( uint32_t i = 0; i < tree->component_count; i++ )
         uitree_component_free_owned(tree, &tree->components[i]);
+    UITreeBlockPool_Drain(&tree->menu_options_pool);
+    UITreeBlockPool_Drain(&tree->hooks_pool);
+    UITreeBlockPool_Drain(&tree->hook_argv_pool);
+    UITreeStringPool_Release(&tree->string_pool);
     UITree_ParkedEditsDrop(tree);
     ToriMem_Free(ToriMem_Ui(), tree->id_index_keys);
     ToriMem_Free(ToriMem_Ui(), tree->id_index_vals);
@@ -3344,13 +3521,11 @@ UITree_Push(
     char* text_active_owned = NULL;
     if( spec->type == UIELEM_RS_TEXT && spec->u.rs_text.text )
     {
-        text_owned = ToriMem_Strdup(ToriMem_Ui(), spec->u.rs_text.text);
-        assert(text_owned);
+        text_owned = uitree_text_dup(tree, spec->u.rs_text.text);
     }
     if( spec->type == UIELEM_RS_TEXT && spec->u.rs_text.text_active )
     {
-        text_active_owned = ToriMem_Strdup(ToriMem_Ui(), spec->u.rs_text.text_active);
-        assert(text_active_owned);
+        text_active_owned = uitree_text_dup(tree, spec->u.rs_text.text_active);
     }
 
     int32_t idx = push_element(tree, parent_index);
@@ -3381,7 +3556,7 @@ UITree_Push(
     /* Specs carry labels and ops by value but never a submenu block (those only
      * arrive later, via CC/IF_SETOPSUBMENU) — copy through so a spec that ever
      * grows one is duplicated instead of aliased into the node. */
-    UITree_MenuOptionsSet(component, &spec->menu_options);
+    UITree_MenuOptionsSetIn(tree, component, &spec->menu_options);
     component->slot_tag = spec->slot_tag;
     component->role_id = spec->role_id;
     component->no_click_through = spec->no_click_through;
@@ -4796,12 +4971,11 @@ UITree_SetTextAt(
         return true;
     }
 
-    copy = ToriMem_Strdup(ToriMem_Ui(), text);
-    assert(copy);
+    copy = uitree_text_dup(tree, text);
 
     if( c->type == UIELEM_RS_TEXT )
     {
-        ToriMem_Free(ToriMem_Ui(), (void*)c->u.rs_text.text);
+        uitree_text_free(tree, (char*)c->u.rs_text.text);
         c->u.rs_text.text = copy;
         uitree_widget_native_write_drops_edits(c, true, false);
     }
@@ -4809,7 +4983,7 @@ UITree_SetTextAt(
     {
         /* Layers (and other non-TEXT types) still accept if_settext — loot
          * script 4298 stores the source name on info-slot layers this way. */
-        ToriMem_Free(ToriMem_Ui(), c->data_text);
+        uitree_text_free(tree, c->data_text);
         c->data_text = copy;
     }
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
@@ -7254,7 +7428,9 @@ UITree_ClearOpSubmenu(
     idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    UITree_MenuSubmenuClear(UITree_MenuOptionsMut(&tree->components[idx]), op_index);
+    /* A node with no options block has no submenu to clear. */
+    if( UITree_HasMenuOptions(&tree->components[idx]) )
+        UITree_MenuSubmenuClear(UITree_MenuOptionsMutIn(tree, &tree->components[idx]), op_index);
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -7302,7 +7478,7 @@ UITree_ApplyRuntimeHook(
 
     /* Clamping and the tail allocations both belong to the slot type — see
      * ui/uitree_hook.h for why they are no longer inline arrays. */
-    UITree_HookSet(slot, script_id, argv, argc, str_mask, strs, str_argc);
+    UITree_HookSetIn(&tree->hook_argv_pool, slot, script_id, argv, argc, str_mask, strs, str_argc);
     uitree_sync_hook_sets(tree, idx);
     uitree_note_mutation(tree, idx, UITREE_IMPACT_REACHABILITY);
     return true;
@@ -7332,8 +7508,8 @@ UITree_ApplyOpBase(
         return true;
     }
     strncpy(
-        UITree_MenuOptionsMut(&tree->components[idx])->option, text, UITREE_MENU_OPTION_LEN - 1);
-    UITree_MenuOptionsMut(&tree->components[idx])->option[UITREE_MENU_OPTION_LEN - 1] = '\0';
+        UITree_MenuOptionsMutIn(tree, &tree->components[idx])->option, text, UITREE_MENU_OPTION_LEN - 1);
+    UITree_MenuOptionsMutIn(tree, &tree->components[idx])->option[UITREE_MENU_OPTION_LEN - 1] = '\0';
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -7359,10 +7535,10 @@ UITree_ApplyTargetVerb(
         return true;
     }
     strncpy(
-        UITree_MenuOptionsMut(&tree->components[idx])->target_verb,
+        UITree_MenuOptionsMutIn(tree, &tree->components[idx])->target_verb,
         text,
         UITREE_MENU_OPTION_LEN - 1);
-    UITree_MenuOptionsMut(&tree->components[idx])->target_verb[UITREE_MENU_OPTION_LEN - 1] =
+    UITree_MenuOptionsMutIn(tree, &tree->components[idx])->target_verb[UITREE_MENU_OPTION_LEN - 1] =
         '\0';
     UITree_MarkNodeDirty(tree, idx);
     return true;

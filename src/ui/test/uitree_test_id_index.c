@@ -1,3 +1,4 @@
+#include "ui/uitree_checkpoint.h"
 #include "test_harness.h"
 
 #include <stdlib.h>
@@ -280,6 +281,227 @@ test_id_index(void)
             }
         }
         TEST_ASSERT(mismatches == 0, "the last answer agrees with the scan through a rebuild");
+    }
+    UITree_Free(tree);
+}
+
+/* A reclaimed node's options and handler blocks go to the tree's pool and
+ * come back, zeroed, for the next node that needs one. What must hold: a
+ * recycled block carries nothing of the node that had it; the pool is bounded;
+ * and a tree torn down with blocks pooled frees them (the leak audit and ASan
+ * see that half). Under ASan nothing is pooled, so the counts are checked
+ * only where free lists are on. */
+void
+test_block_pool(void)
+{
+    printf("TEST: released-block pool\n");
+
+    int const iface = 161;
+    int const parent_id = (iface << 16) | 40;
+    int const pooling = UITREE_POOLS_ON;
+    int const args[3] = { 7, 8, 9 };
+    char const* const strs[1] = { "label" };
+    struct UITree* tree = UITree_New(8);
+    TEST_ASSERT(tree != NULL, "UITree_New");
+
+    int32_t parent = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, parent_id, 0, 0, 100, 100);
+    TEST_ASSERT(parent >= 0, "push parent");
+    TEST_ASSERT(tree->menu_options_pool.count == 0 && tree->hooks_pool.count == 0, "pools start empty");
+    TEST_ASSERT(tree->hook_argv_pool.count == 0, "argument pool starts empty");
+
+    /* Row 0: options with a submenu, and a handler with int and string
+     * arguments. */
+    int32_t row = UITree_CcCreate(tree, parent, parent_id, UIELEM_RS_RECT, 0);
+    TEST_ASSERT(row >= 0, "create row");
+    TEST_ASSERT(!UITree_HasMenuOptions(&tree->components[row]), "a new row has no options block");
+    struct UITreeMenuOptions* opts = UITree_MenuOptionsMutIn(tree, &tree->components[row]);
+    TEST_ASSERT(opts != NULL, "options block on first write");
+    strcpy(opts->ops[0], "Withdraw-1");
+    strcpy(opts->option, "Bank");
+    TEST_ASSERT(UITree_MenuSubmenuSetEntry(opts, 2, 3, "Withdraw-10"), "set a submenu entry");
+    struct UITreeRuntimeHooks* hooks = UITree_HooksMutIn(tree, &tree->components[row]);
+    TEST_ASSERT(hooks != NULL, "handler block on first write");
+    UITree_HookSet(&hooks->on_click, 1234, args, 3, 0, strs, 1);
+    TEST_ASSERT(hooks->on_click.script_id == 1234, "handler stored");
+
+    /* Replace the row: its blocks are released. */
+    int32_t row2 = UITree_CcCreate(tree, parent, parent_id, UIELEM_RS_RECT, 0);
+    TEST_ASSERT(row2 >= 0, "replace row");
+    TEST_ASSERT(!UITree_HasMenuOptions(&tree->components[row2]), "the replacement has no options block");
+    TEST_ASSERT(tree->components[row2].runtime_hooks == NULL, "the replacement has no handler block");
+    if( pooling )
+    {
+        TEST_ASSERT(tree->menu_options_pool.count == 1, "the options block was pooled");
+        TEST_ASSERT(tree->hooks_pool.count == 1, "the handler block was pooled");
+        TEST_ASSERT(tree->hook_argv_pool.count == 1, "the handler's argument list was pooled");
+    }
+
+    /* The recycled blocks say nothing. */
+    struct UITreeMenuOptions* opts2 = UITree_MenuOptionsMutIn(tree, &tree->components[row2]);
+    struct UITreeRuntimeHooks* hooks2 = UITree_HooksMutIn(tree, &tree->components[row2]);
+    if( pooling )
+    {
+        TEST_ASSERT(opts2 == opts, "the options block came back from the pool");
+        TEST_ASSERT(hooks2 == hooks, "the handler block came back from the pool");
+        TEST_ASSERT(tree->menu_options_pool.count == 0 && tree->hooks_pool.count == 0, "pools emptied");
+    }
+    {
+        struct UITreeMenuOptions zero_opts;
+        struct UITreeRuntimeHooks zero_hooks;
+        memset(&zero_opts, 0, sizeof(zero_opts));
+        memset(&zero_hooks, 0, sizeof(zero_hooks));
+        TEST_ASSERT(memcmp(opts2, &zero_opts, sizeof(zero_opts)) == 0, "recycled options block is zeroed");
+        TEST_ASSERT(memcmp(hooks2, &zero_hooks, sizeof(zero_hooks)) == 0, "recycled handler block is zeroed");
+    }
+    TEST_ASSERT(UITree_MenuSubmenuEntry(opts2, 2, 3)[0] == '\0', "no submenu survives");
+
+    /* A released argument list serves a handler with a different count, and
+     * carries none of the old values past the new count. */
+    {
+        int const one[1] = { 42 };
+        int const five[5] = { 1, 2, 3, 4, 5 };
+        int many[UITREE_HOOK_ARGV_SMALL + 3];
+        for( int i = 0; i < UITREE_HOOK_ARGV_SMALL + 3; i++ )
+            many[i] = 100 + i;
+        UITree_HookSetIn(&tree->hook_argv_pool, &hooks2->on_click, 500, one, 1, 0, NULL, 0);
+        if( pooling )
+            TEST_ASSERT(tree->hook_argv_pool.count == 0, "the argument list came back from the pool");
+        TEST_ASSERT(hooks2->on_click.argc == 1 && UITree_HookArg(&hooks2->on_click, 0) == 42, "one argument reads back");
+        TEST_ASSERT(hooks2->on_click.argv[1] == 0 && hooks2->on_click.argv[2] == 0, "the recycled list is zeroed past the count");
+        UITree_HookSetIn(&tree->hook_argv_pool, &hooks2->on_click, 501, five, 5, 0, NULL, 0);
+        TEST_ASSERT(hooks2->on_click.argc == 5 && UITree_HookArg(&hooks2->on_click, 4) == 5, "five arguments read back in the same slot");
+        if( pooling )
+            TEST_ASSERT(tree->hook_argv_pool.count == 0, "replacing a handler reuses its own list");
+        /* A long list is exact and is never pooled. */
+        UITree_HookSetIn(&tree->hook_argv_pool, &hooks2->on_timer, 502, many, UITREE_HOOK_ARGV_SMALL + 3, 0, NULL, 0);
+        TEST_ASSERT(UITree_HookArg(&hooks2->on_timer, UITREE_HOOK_ARGV_SMALL + 2) == 100 + UITREE_HOOK_ARGV_SMALL + 2, "a long list reads back");
+        UITree_HookClearTo(&tree->hook_argv_pool, &hooks2->on_timer);
+        TEST_ASSERT(tree->hook_argv_pool.count == 0, "a long list is freed, not pooled");
+        /* Set without a pool, cleared into one: the sizes agree. */
+        UITree_HookSet(&hooks2->on_timer, 503, five, 5, 0, NULL, 0);
+        UITree_HookClearTo(&tree->hook_argv_pool, &hooks2->on_timer);
+        if( pooling )
+            TEST_ASSERT(tree->hook_argv_pool.count == 1, "a list set without a pool can be pooled");
+    }
+
+    /* The second time through the same accessor returns the same block. */
+    TEST_ASSERT(UITree_MenuOptionsMutIn(tree, &tree->components[row2]) == opts2, "accessor is stable");
+    TEST_ASSERT(UITree_HooksMutIn(tree, &tree->components[row2]) == hooks2, "handler accessor is stable");
+
+    /* Short text lives in the tree's string pool; a long string does not. A
+     * recycled cell carries nothing of the last string. */
+    {
+        /* 4 is the cache's text widget type (cc_create's own numbering). */
+        int32_t label = UITree_CcCreate(tree, parent, parent_id, 4, 900);
+        TEST_ASSERT(label >= 0 && tree->components[label].type == UIELEM_RS_TEXT, "create a text row");
+        TEST_ASSERT(UITree_SetTextAt(tree, label, "Withdraw-All-but-one"), "set short text");
+        char const* const first = tree->components[label].u.rs_text.text;
+        TEST_ASSERT(strcmp(first, "Withdraw-All-but-one") == 0, "short text reads back");
+        if( pooling )
+            TEST_ASSERT(tree->string_pool.live == 1, "the short string is in a cell");
+        TEST_ASSERT(UITree_SetTextAt(tree, label, "Hi"), "replace with shorter text");
+        TEST_ASSERT(strcmp(tree->components[label].u.rs_text.text, "Hi") == 0, "shorter text reads back");
+        if( pooling )
+            TEST_ASSERT(tree->string_pool.live == 1, "the replaced string's cell was released");
+        TEST_ASSERT(
+            UITree_SetTextAt(tree, label, "A label that is certainly longer than the short size"),
+            "set long text");
+        TEST_ASSERT(
+            strcmp(tree->components[label].u.rs_text.text,
+                "A label that is certainly longer than the short size") == 0,
+            "long text reads back");
+        TEST_ASSERT(tree->string_pool.live == 0, "a long string is not in a cell");
+        TEST_ASSERT(UITree_SetTextAt(tree, label, "Ok"), "back to short text");
+        if( pooling )
+        {
+            char const* const again = tree->components[label].u.rs_text.text;
+            TEST_ASSERT(tree->string_pool.live == 1, "short again: one cell in use");
+            TEST_ASSERT(again[3] == '\0' && again[20] == '\0', "a recycled cell is zeroed past its text");
+        }
+        /* Thirty-one characters is the longest short string; thirty-two is long. */
+        TEST_ASSERT(UITree_SetTextAt(tree, label, "1234567890123456789012345678901"), "31 characters");
+        TEST_ASSERT(strlen(tree->components[label].u.rs_text.text) == 31, "31 characters read back");
+        if( pooling )
+            TEST_ASSERT(tree->string_pool.live == 1, "31 characters fit a cell");
+        TEST_ASSERT(UITree_SetTextAt(tree, label, "12345678901234567890123456789012"), "32 characters");
+        TEST_ASSERT(strlen(tree->components[label].u.rs_text.text) == 32, "32 characters read back");
+        TEST_ASSERT(tree->string_pool.live == 0, "32 characters do not");
+
+        /* More strings than one chunk holds, then all released. */
+        {
+            int const rows = (int)UITREE_STRING_CHUNK_CELLS + 50;
+            int bad = 0;
+            for( int sub = 0; sub < rows; sub++ )
+            {
+                char want[24];
+                int32_t r = UITree_CcCreate(tree, parent, parent_id, 4, 1000 + sub);
+                snprintf(want, sizeof(want), "row %d", sub);
+                bad += r < 0 || !UITree_SetTextAt(tree, r, want);
+            }
+            for( int sub = 0; sub < rows; sub++ )
+            {
+                char want[24];
+                int32_t r = UITree_FindChildBySubid(tree, parent, parent_id, 1000 + sub);
+                snprintf(want, sizeof(want), "row %d", sub);
+                bad += r < 0 || strcmp(tree->components[r].u.rs_text.text, want) != 0;
+            }
+            TEST_ASSERT(bad == 0, "every string across two chunks reads back");
+            if( pooling )
+                TEST_ASSERT(tree->string_pool.live == (uint32_t)rows, "one cell a row");
+            UITree_CcDeleteAll(tree, parent);
+            TEST_ASSERT(tree->string_pool.live == 0, "every cell released with its row");
+        }
+    }
+
+    /* The pool is bounded: more rows than it holds, all released at once. */
+    {
+        int const rows = (int)UITREE_BLOCK_POOL_MAX + 40;
+        for( int sub = 0; sub < rows; sub++ )
+        {
+            int32_t r = UITree_CcCreate(tree, parent, parent_id, UIELEM_RS_RECT, sub);
+            TEST_ASSERT(r >= 0, "create many rows");
+            strcpy(UITree_MenuOptionsMutIn(tree, &tree->components[r])->ops[1], "Examine");
+            UITree_HookSet(&UITree_HooksMutIn(tree, &tree->components[r])->on_timer, 77, args, 2, 0, NULL, 0);
+        }
+        UITree_CcDeleteAll(tree, parent);
+        TEST_ASSERT(tree->menu_options_pool.count <= UITREE_BLOCK_POOL_MAX, "options pool is bounded");
+        TEST_ASSERT(tree->hooks_pool.count <= UITREE_BLOCK_POOL_MAX, "handler pool is bounded");
+        if( pooling )
+        {
+            TEST_ASSERT(tree->menu_options_pool.count == UITREE_BLOCK_POOL_MAX, "options pool filled");
+            TEST_ASSERT(tree->hooks_pool.count == UITREE_BLOCK_POOL_MAX, "handler pool filled");
+        }
+    }
+
+    /* A checkpoint's copy does not share the live tree's pooled blocks, and a
+     * string that was in a cell survives the round trip. */
+    {
+        int32_t kept = UITree_CcCreate(tree, parent, parent_id, 4, 77);
+        TEST_ASSERT(kept >= 0 && UITree_SetTextAt(tree, kept, "kept label"), "a short string before the checkpoint");
+        struct UITree* cp = UITree_CheckpointTake(tree);
+        TEST_ASSERT(cp != NULL, "checkpoint");
+        TEST_ASSERT(cp->menu_options_pool.count == 0 && cp->menu_options_pool.head == NULL, "copy has an empty options pool");
+        TEST_ASSERT(cp->hooks_pool.count == 0 && cp->hooks_pool.head == NULL, "copy has an empty handler pool");
+        TEST_ASSERT(cp->hook_argv_pool.count == 0 && cp->hook_argv_pool.head == NULL, "copy has an empty argument pool");
+        TEST_ASSERT(cp->string_pool.chunks == NULL && cp->string_pool.live == 0, "copy has an empty string pool");
+        UITree_CheckpointRestore(tree, cp);
+        TEST_ASSERT(tree->menu_options_pool.count == 0 && tree->hooks_pool.count == 0, "a restored tree starts its pools again");
+        TEST_ASSERT(tree->string_pool.chunks == NULL && tree->string_pool.live == 0, "a restored tree starts its string pool again");
+        kept = UITree_FindChildBySubid(tree, parent, parent_id, 77);
+        TEST_ASSERT(
+            kept >= 0 && strcmp(tree->components[kept].u.rs_text.text, "kept label") == 0,
+            "the string reads back after the restore");
+        TEST_ASSERT(UITree_SetTextAt(tree, kept, "changed"), "and can be replaced");
+        TEST_ASSERT(strcmp(tree->components[kept].u.rs_text.text, "changed") == 0, "the replacement reads back");
+        UITree_CheckpointFree(cp);
+    }
+
+    /* Torn down with blocks pooled. */
+    {
+        int32_t r = UITree_CcCreate(tree, parent, parent_id, UIELEM_RS_RECT, 0);
+        (void)UITree_MenuOptionsMutIn(tree, &tree->components[r]);
+        (void)UITree_HooksMutIn(tree, &tree->components[r]);
+        UITree_CcDeleteAll(tree, parent);
     }
     UITree_Free(tree);
 }

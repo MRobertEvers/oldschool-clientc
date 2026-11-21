@@ -29,6 +29,54 @@ enum PacketBufferState
     PKTBUF_PROCESS
 };
 
+/*
+ * THE NETWORK'S PACKET POOL.
+ *
+ * What one server packet needs on its way from the socket to the client's
+ * queue: a payload buffer while it is framed and parsed, and a queue item
+ * while it waits to be applied. Both were an allocation and a free per
+ * packet, eighty of each on the tick a bank opens. A network object keeps
+ * them instead (ToriRS_Network::packet_pool):
+ *
+ *  - Packets are framed one at a time, so ONE payload buffer serves them all.
+ *    It is handed back when a packet is done and taken again for the next,
+ *    grown when a packet is larger than it.
+ *  - Queue items are kept on a free list.
+ *
+ * ToriRS_Network_Free empties it. Under AddressSanitizer nothing is kept
+ * (NET_PACKET_POOL_ON is 0): a payload is then exactly its packet's length,
+ * so a parser that reads past the end of its packet is reported.
+ */
+#if defined(__SANITIZE_ADDRESS__)
+#define NET_PACKET_POOL_ON 0
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define NET_PACKET_POOL_ON 0
+#endif
+#endif
+#ifndef NET_PACKET_POOL_ON
+#define NET_PACKET_POOL_ON 1
+#endif
+
+/** A payload buffer starts at least this long, so the first small packet's
+ *  buffer fits the next several. */
+#define NET_PACKET_POOL_PAYLOAD_MIN 512
+/** A payload buffer longer than this is not kept: one map-rebuild packet
+ *  would otherwise pin its size for the session. */
+#define NET_PACKET_POOL_PAYLOAD_KEEP 65536
+/** Queue items kept. */
+#define NET_PACKET_POOL_ITEMS_KEEP 256u
+
+struct RevPacketItem;
+
+struct NetPacketPool
+{
+    uint8_t* payload;
+    int payload_cap;
+    struct RevPacketItem* free_items;
+    uint32_t free_item_count;
+};
+
 struct PacketBuffer
 {
     struct GameProtoRevTable const* rev;
@@ -52,6 +100,12 @@ struct PacketBuffer
 
     uint8_t* data;
     int data_size;
+    /** Bytes `data` was allocated with (at least packet_length). */
+    int data_cap;
+    /** Where `data` comes from and goes back to; NULL for a buffer that
+     *  allocates each payload (packetbuffer_init leaves it NULL, the network
+     *  object sets it). */
+    struct NetPacketPool* pool;
 };
 
 void

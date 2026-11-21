@@ -1612,13 +1612,22 @@ CS2VM2_Op_JoinString(
         return CS2VM2_PushStr(vm, s);
     }
 
-    char** parts = ToriMem_Calloc(ToriMem_Script(), (size_t)count, sizeof(char*));
+    /* The parts, for as long as the join takes. A join of a few strings
+     * (nearly all of them) keeps them here; only a long one allocates. */
+    char* parts_here[16];
+    char** parts = parts_here;
+    if( count > (int)(sizeof(parts_here) / sizeof(parts_here[0])) )
+    {
+        parts = ToriMem_Calloc(ToriMem_Script(), (size_t)count, sizeof(char*));
+        assert(parts);
+    }
 
     for( int i = count - 1; i >= 0; i-- )
     {
         if( CS2VM2_PopStr(vm, &parts[i]) != CS2VM_EXECNO_OK )
         {
-            ToriMem_Free(ToriMem_Script(), parts);
+            if( parts != parts_here )
+                ToriMem_Free(ToriMem_Script(), parts);
             return CS2VM_EXECNO_ERROR;
         }
     }
@@ -1640,7 +1649,8 @@ CS2VM2_Op_JoinString(
         }
     }
     *out = '\0';
-    ToriMem_Free(ToriMem_Script(), parts);
+    if( parts != parts_here )
+        ToriMem_Free(ToriMem_Script(), parts);
 
     return CS2VM2_PushStr(vm, joined);
 }
@@ -4888,6 +4898,32 @@ CS2VM2_Op_IF_SetHide(
 #define CS2VM_SETON_ZERO_HEAD(member) \
     memset(&(member), 0, (size_t)((char*)(member).str_args - (char*)&(member)))
 
+/* A transmit handler's trigger ids, for as long as its registration takes:
+ * the host copies them before the request returns. A short list (nearly all
+ * of them) lives in the caller's frame; only a long one allocates. */
+#define CS2VM2_TRIGGER_IDS_HERE 32
+static inline int*
+cs2vm2_trigger_ids_new(int* here, int count)
+{
+    int* ids = here;
+    assert(count > 0);
+    if( count > CS2VM2_TRIGGER_IDS_HERE )
+    {
+        ids = ToriMem_Calloc(ToriMem_Script(), (size_t)count, sizeof(int));
+        assert(ids);
+    }
+    else
+        memset(here, 0, (size_t)count * sizeof(int));
+    return ids;
+}
+
+static inline void
+cs2vm2_trigger_ids_free(int* ids, int const* here)
+{
+    if( ids != here )
+        ToriMem_Free(ToriMem_Script(), ids);
+}
+
 /**
  * Set event handler by widget UID (IF_SETON* opcodes)
  *
@@ -4914,6 +4950,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
     assert(frame);
 
     int widget_uid, script_id, trigger_count = 0;
+    int trigger_ids_here[CS2VM2_TRIGGER_IDS_HERE];
     int* trigger_ids = NULL;
     char* signature = NULL;
     int int_args[CS2VM_SETON_INT_ARG_MAX] = { 0 };
@@ -4935,13 +4972,13 @@ CS2VM2_Op_IF_SetOnEventHandler(
             return CS2VM_EXECNO_ERROR;
         if( trigger_count > 0 )
         {
-            trigger_ids = ToriMem_Calloc(ToriMem_Script(), (size_t)trigger_count, sizeof(int));
+            trigger_ids = cs2vm2_trigger_ids_new(trigger_ids_here, trigger_count);
 
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VM2_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
                 {
-                    ToriMem_Free(ToriMem_Script(), trigger_ids);
+                    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
                 }
             }
@@ -4962,7 +4999,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
                  * no 241 script sets one. Fail rather than pop the wrong stack. */
                 TORIRS_LOG("CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
                     signature);
-                ToriMem_Free(ToriMem_Script(), trigger_ids);
+                cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                 return CS2VM_EXECNO_ERROR;
             }
             if( c == 's' || c == 'W' || c == 'X' )
@@ -4970,7 +5007,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
                 char* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    ToriMem_Free(ToriMem_Script(), trigger_ids);
+                    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
                 }
                 /* Past str_by_pos' 32 slots the value is dropped; the pool owns it. */
@@ -4987,7 +5024,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
                 int v = 0;
                 if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    ToriMem_Free(ToriMem_Script(), trigger_ids);
+                    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
                 }
                 if( i < (int)(sizeof(int_args) / sizeof(int_args[0])) )
@@ -5002,7 +5039,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
-        ToriMem_Free(ToriMem_Script(), trigger_ids);
+        cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
         return CS2VM_EXECNO_ERROR;
     }
 
@@ -5072,14 +5109,14 @@ CS2VM2_Op_IF_SetOnEventHandler(
         CS2VM_IF_SETON_CASE(IF_INPUT_SETONSUBMIT);
         CS2VM_IF_SETON_CASE(IF_INPUT_SETONCHANGE);
     default:
-        ToriMem_Free(ToriMem_Script(), trigger_ids);
+        cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
         assert(0 && "unexpected IF set-on host request");
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_IF_SETON_CASE
 
     int result = CS2VM2_Ask(vm, &request, mark);
-    ToriMem_Free(ToriMem_Script(), trigger_ids);
+    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
     return result;
 }
 
@@ -5105,6 +5142,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
     assert(frame);
 
     int script_id, trigger_count = 0;
+    int trigger_ids_here[CS2VM2_TRIGGER_IDS_HERE];
     int* trigger_ids = NULL;
     char* signature = NULL;
     int int_args[CS2VM_SETON_INT_ARG_MAX] = { 0 };
@@ -5123,13 +5161,13 @@ CS2VM2_Op_CC_SetOnEventHandler(
             return CS2VM_EXECNO_ERROR;
         if( trigger_count > 0 )
         {
-            trigger_ids = ToriMem_Calloc(ToriMem_Script(), (size_t)trigger_count, sizeof(int));
+            trigger_ids = cs2vm2_trigger_ids_new(trigger_ids_here, trigger_count);
 
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VM2_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
                 {
-                    ToriMem_Free(ToriMem_Script(), trigger_ids);
+                    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
                 }
             }
@@ -5150,7 +5188,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
                  * no 241 script sets one. Fail rather than pop the wrong stack. */
                 TORIRS_LOG("CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
                     signature);
-                ToriMem_Free(ToriMem_Script(), trigger_ids);
+                cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                 return CS2VM_EXECNO_ERROR;
             }
             if( c == 's' || c == 'W' || c == 'X' )
@@ -5158,7 +5196,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
                 char* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    ToriMem_Free(ToriMem_Script(), trigger_ids);
+                    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
                 }
                 /* Past str_by_pos' 32 slots the value is dropped; the pool owns it. */
@@ -5175,7 +5213,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
                 int v = 0;
                 if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    ToriMem_Free(ToriMem_Script(), trigger_ids);
+                    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
                 }
                 if( i < (int)(sizeof(int_args) / sizeof(int_args[0])) )
@@ -5190,7 +5228,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
-        ToriMem_Free(ToriMem_Script(), trigger_ids);
+        cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
         return CS2VM_EXECNO_ERROR;
     }
 
@@ -5261,14 +5299,14 @@ CS2VM2_Op_CC_SetOnEventHandler(
         CS2VM_CC_SETON_CASE(CC_INPUT_SETONCHANGE);
         CS2VM_CC_SETON_CASE(CC_CRMVIEW_SETONUPDATED);
     default:
-        ToriMem_Free(ToriMem_Script(), trigger_ids);
+        cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
         assert(0 && "unexpected CC set-on host request");
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CC_SETON_CASE
 
     int result = CS2VM2_Ask(vm, &request, mark);
-    ToriMem_Free(ToriMem_Script(), trigger_ids);
+    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
     return result;
 }
 
@@ -5716,6 +5754,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
     (void)operand;
 
     int widget_uid, script_id, trigger_count = 0;
+    int trigger_ids_here[CS2VM2_TRIGGER_IDS_HERE];
     int* trigger_ids = NULL;
     char* signature = NULL;
 
@@ -5732,13 +5771,13 @@ CS2VM2_Op_IF_SetOnInvTransmit(
             return CS2VM_EXECNO_ERROR;
         if( trigger_count > 0 )
         {
-            trigger_ids = ToriMem_Calloc(ToriMem_Script(), (size_t)trigger_count, sizeof(int));
+            trigger_ids = cs2vm2_trigger_ids_new(trigger_ids_here, trigger_count);
 
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VM2_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
                 {
-                    ToriMem_Free(ToriMem_Script(), trigger_ids);
+                    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
                 }
             }
@@ -5764,7 +5803,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                  * no 241 script sets one. Fail rather than pop the wrong stack. */
                 TORIRS_LOG("CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
                     signature);
-                ToriMem_Free(ToriMem_Script(), trigger_ids);
+                cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                 return CS2VM_EXECNO_ERROR;
             }
             if( c == 's' || c == 'W' || c == 'X' )
@@ -5772,7 +5811,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                 char* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    ToriMem_Free(ToriMem_Script(), trigger_ids);
+                    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
                 }
                 /* Past str_by_pos' 32 slots the value is dropped; the pool owns it. */
@@ -5789,7 +5828,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                 int v = 0;
                 if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    ToriMem_Free(ToriMem_Script(), trigger_ids);
+                    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
                 }
                 if( i < (int)(sizeof(int_args) / sizeof(int_args[0])) )
@@ -5804,7 +5843,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
-        ToriMem_Free(ToriMem_Script(), trigger_ids);
+        cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
         return CS2VM_EXECNO_ERROR;
     }
 
@@ -5836,7 +5875,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         request.u.IF_SETONINVTRANSMIT.str_arg_count = CS2VM_SETON_STR_ARG_MAX;
 
     int result = CS2VM2_Ask(vm, &request, mark);
-    ToriMem_Free(ToriMem_Script(), trigger_ids);
+    cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
     if( result != CS2VM_EXECNO_OK )
         return result;
 

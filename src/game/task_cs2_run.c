@@ -2043,7 +2043,7 @@ Task_CS2Run_Free(struct ToriRS_Task* task)
     for( int i = 0; i < self->str_arg_count; i++ )
         ToriMem_Free(self->task.mem, self->str_args[i]);
     ToriMem_Free(ToriMem_Script(), self->long_args);
-    ToriMem_Free(ToriMem_Script(), self);
+    RS_CS2TaskPool_Release(&self->host->run_task_pool, self);
 }
 
 static struct ToriRS_TaskVTable Task_CS2Run_VTable = {
@@ -2204,8 +2204,7 @@ task_cs2_run_new(
     assert(host);
     assert(host->provider);
 
-    self = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*self));
-    assert(self);
+    self = RS_CS2TaskPool_New(&host->run_task_pool, sizeof(*self));
 
     self->task.vtable = &Task_CS2Run_VTable;
     strcpy(self->task.name, "CS2Run");

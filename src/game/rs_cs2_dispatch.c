@@ -219,7 +219,8 @@ Task_CS2TimerFire_Run(
 static void
 Task_CS2TimerFire_Free(struct ToriRS_Task* base)
 {
-    ToriMem_Free(ToriMem_Script(), base);
+    struct Task_CS2TimerFire* self = (struct Task_CS2TimerFire*)base;
+    RS_CS2TaskPool_Release(&self->host->timer_task_pool, self);
 }
 
 static struct ToriRS_TaskVTable Task_CS2TimerFire_VTable = {
@@ -238,8 +239,7 @@ RS_CS2_DispatchTimer(
     assert(host);
     assert(runner);
     assert(host->tree);
-    task = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*task));
-    assert(task);
+    task = RS_CS2TaskPool_New(&host->timer_task_pool, sizeof(*task));
     task->task.vtable = &Task_CS2TimerFire_VTable;
     strncpy(task->task.name, "CS2TimerFire", sizeof(task->task.name) - 1);
     task->host = host;

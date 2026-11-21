@@ -7,6 +7,7 @@
  * layer may include that header or name `struct App`.
  */
 
+#include "game/task_gameproto_exec.h"
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 
@@ -1405,6 +1406,8 @@ App_Shutdown(struct App* app)
     ToriRS_IOBatch_Free(app->packet_runner.io);
     ToriRS_TaskQueue_Free(app->frame_runner.queue);
     ToriRS_IOBatch_Free(app->frame_runner.io);
+    /* The queues are gone, so no packet task is left to finish. */
+    GameProtoExec_TaskPoolFree();
     App_PendingFree(app);
     App_AssetsFree(app);
     RS_ClientScriptQueue_Free(&app->pending_clientscripts);

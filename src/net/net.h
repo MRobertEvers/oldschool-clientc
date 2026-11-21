@@ -94,6 +94,9 @@ struct ToriRS_Network
     /** game -> platform: CONNECT / SEND_DATA frames (not on the command bus). */
     struct ToriRS_CmdRing out;
 
+    /** Payload buffer and queue items kept between packets (packetbuffer.h). */
+    struct NetPacketPool packet_pool;
+
     /** Parsed inbound packets, oldest first. */
     struct RevPacketItem* packets_head;
     struct RevPacketItem* packets_tail;

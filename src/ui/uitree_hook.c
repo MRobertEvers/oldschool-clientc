@@ -104,8 +104,20 @@ UITree_HookStrArgv(
 void
 UITree_HookClear(struct UITreeRuntimeScriptHook* hook)
 {
+    UITree_HookClearTo(NULL, hook);
+}
+
+void
+UITree_HookClearTo(
+    struct UITreeBlockPool* argv_pool,
+    struct UITreeRuntimeScriptHook* hook)
+{
     assert(hook);
-    ToriMem_Free(ToriMem_Ui(), hook->argv);
+    /* A small list is UITREE_HOOK_ARGV_SMALL ints long whoever set it: the
+     * one place a list is allocated (UITree_HookSetIn) makes it so. */
+    if( !hook->argv || !argv_pool || hook->argc > UITREE_HOOK_ARGV_SMALL ||
+        !UITreeBlockPool_Give(argv_pool, hook->argv, UITREE_HOOK_ARGV_POOL_MAX) )
+        ToriMem_Free(ToriMem_Ui(), hook->argv);
     if( hook->strv )
     {
         for( int i = 0; i < hook->str_argc; i++ )
@@ -157,9 +169,23 @@ UITree_HookSet(
     char const* const* strv,
     int str_argc)
 {
+    UITree_HookSetIn(NULL, hook, script_id, argv, argc, str_mask, strv, str_argc);
+}
+
+void
+UITree_HookSetIn(
+    struct UITreeBlockPool* argv_pool,
+    struct UITreeRuntimeScriptHook* hook,
+    int script_id,
+    int const* argv,
+    int argc,
+    uint64_t str_mask,
+    char const* const* strv,
+    int str_argc)
+{
     assert(hook);
 
-    UITree_HookClear(hook);
+    UITree_HookClearTo(argv_pool, hook);
     if( script_id <= 0 )
         return;
 
@@ -206,7 +232,15 @@ UITree_HookSet(
 
     if( argc > 0 )
     {
-        hook->argv = (int*)ToriMem_Alloc(ToriMem_Ui(), (size_t)argc * sizeof(int));
+        if( argc <= UITREE_HOOK_ARGV_SMALL )
+        {
+            size_t const small = (size_t)UITREE_HOOK_ARGV_SMALL * sizeof(int);
+            hook->argv = argv_pool ? (int*)UITreeBlockPool_Take(argv_pool, small) : NULL;
+            if( !hook->argv )
+                hook->argv = (int*)ToriMem_Calloc(ToriMem_Ui(), 1, small);
+        }
+        else
+            hook->argv = (int*)ToriMem_Alloc(ToriMem_Ui(), (size_t)argc * sizeof(int));
         assert(hook->argv);
         memcpy(hook->argv, argv, (size_t)argc * sizeof(int));
         hook->argc = argc;
@@ -331,9 +365,24 @@ UITree_HooksBlockFree(struct UITreeRuntimeHooks* hooks)
 {
     if( !hooks )
         return;
-    for( int i = 0; i < UITREE_HOOK_SLOT_COUNT; i++ )
-        UITree_HookClear(UITree_HooksSlotAt(hooks, i));
+    UITree_HooksBlockClear(hooks);
     ToriMem_Free(ToriMem_Ui(), hooks);
+}
+
+void
+UITree_HooksBlockClear(struct UITreeRuntimeHooks* hooks)
+{
+    UITree_HooksBlockClearTo(NULL, hooks);
+}
+
+void
+UITree_HooksBlockClearTo(
+    struct UITreeBlockPool* argv_pool,
+    struct UITreeRuntimeHooks* hooks)
+{
+    assert(hooks);
+    for( int i = 0; i < UITREE_HOOK_SLOT_COUNT; i++ )
+        UITree_HookClearTo(argv_pool, UITree_HooksSlotAt(hooks, i));
 }
 
 void
