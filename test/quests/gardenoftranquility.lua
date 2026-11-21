@@ -26,12 +26,12 @@ return {
         "::give lawrune 8", "::give airrune 26", "::give earthrune 2", "::give firerune 2", "::give waterrune 3",
         "::give dagger_wolfbane 1",
         "::give ring_of_charos 1",
-        "::give rake 1", "::give seed_dibber 1", "::give spade 1", "::give secateurs 1",
+        "::give rake 1", "::give gardening_trowel 1", "::give seed_dibber 1", "::give spade 1", "::give secateurs 1",
         "::give plantpot_compost 1", "::give watering_can_8 1",
         -- No bait: the well takes the rod alone (garden_althric.rs2:52).
         "::give fishing_rod 1",
         "::give hammer 1", "::give pestle_and_mortar 1", "::give blankrune 1",
-        "::give plant_cure 2",
+        "::give plant_cure 4",
         -- Exactly what each patch takes, so the planted stacks leave the pack
         -- (the roses and the fished ring need the room: 28 slots at the well).
         "::give marigold_seed 1", "::give onion_seed 3", "::give cabbage_seed 3",
@@ -39,7 +39,7 @@ return {
     },
     run = function(t)
         t.quest.bind({ varp = "varb961_garden_quest",
-            constants = { not_started = 0, told = 10, asked_ring = 20, retry = 30, chapter = 40, roald = 50, complete = 60 },
+            constants = { not_started = 0, told = 10, asked_ring = 20, quiz = 30, chapter = 40, roald = 50, complete = 60 },
             row = "quest_gardenoftranquillity", display = "Garden of Tranquillity", points = 2 })
         -- WALLS (door rule, owner 2026-10-03; re-driven in b62). Every goto
         -- departs from and lands on open ground; every door, gate, trapdoor
@@ -107,14 +107,19 @@ return {
         t.exec("goto-talkToEllamaria", t.player.goto_tile, 3230, 3477, 0)
         t.exec("talkToEllamaria", t.player.talk_to, "queen_ellamaria", 1)
         t.exec("talkToEllamaria-dialog", t.chat.play, {
-            "player:You seem troubled",
-            "npc:I want to build",
-            "options",
-            "choose:/I would be happy to help/",
-            "player:I would be happy",
-            "npc:Wonderful",
+            -- RSProx index 4635 [151..232]
+            "player:What's going on here?", "npc:No, one has just had them installed.",
+            "player:One? I'm not sure", "npc:Oh dear - the common classes", "player:Ri-ight",
+            "npc:Yes, be off with you", "player:No problem, sorry", "npc:Peasant - WAIT!!!",
+            "player:Are you speaking to me?", "npc:Who else would I be speaking to", "player:Well for a moment",
+            "npc:Oh yes, sarcasm", "player:Well, seeing as you put it", "npc:Do you know of anyone",
+            "npc:Oh, marvellous!", "player:You'll have to ask me nicely", "npc:Oh, what I have to deal with",
+            "choose:Yes.",
+            "player:I would be happy to help", "npc:Ah, more sarcasm", "player:I'm not sure if that's a compliment",
+            "npc:To answer your first question", "player:King Roald?", "npc:The very same",
+            "player:Thanks, I'm sure.", "npc:I have given you a list", "player:One listens with bated breath",
+            "npc:Obtaining the seeds", "npc:You must go at once",
         })
-        t.exec("talkToEllamaria-close", t.chat.continue_, true)
         t.ticks(2)
         t.expect("quest.stage.told", t.quest.expect_stage("told"))
         t.exec("list", t.inv.await, "garden_list", 1, 10)
@@ -125,36 +130,39 @@ return {
             at = { 3088, 3251, 0 }, near = { 3088, 3250 }, far = { 3088, 3252 } })
         t.exec("talkToWom", t.player.talk_to, "wise_old_man", 1)
         t.exec("talkToWom-dialog", t.chat.play, {
-            "player:Queen Ellamaria has sent me",
-            "npc:Ah, another",
-            "npc:Two goblins",
-            "options",
-            "choose:/Colours do not matter/",
-            "npc:Hmm",
+            -- [319..363]
+            "npc:Greetings,", "choose:/Queen Ellamaria has sent me/",
+            "player:Queen Ellamaria has sent me", "npc:Ellamaria? Well,", "player:You know Queen Ellamaria?",
+            "npc:Oh yes, we go way back", "player:Really?", "npc:No, in her youth", "player:I'll certainly look at her",
+            "npc:So what sort of guidance", "player:I am supposed to gain", "npc:That is an area",
+            "player:Charos? I must say", "player:Charos...", "player:Yes, I remember!", "npc:You have found the Ring",
+            "player:Yes, I have it stored", "npc:Important?!?",
         })
         t.ticks(2)
-        t.expect("quest.stage.retry", t.quest.expect_stage("retry"))
+        t.expect("quest.stage.asked_ring", t.quest.expect_stage("asked_ring"))
         t.exec("talkToWom2", t.player.talk_to, "wise_old_man", 1)
         t.exec("talkToWom2-dialog", t.chat.play, {
-            "player:Can I retake",
-            "npc:Ah, another",
-            "npc:Two goblins",
-            "choose:/Show them a range/",
-            "npc:A sensible",
-            "choose:/Take his generous/",
-            "npc:Good",
-            "choose:/It's absolutely/",
-            "npc:Flattery",
-            "choose:/Put on the silly/",
-            "npc:Bravery",
-            "choose:/You of course/",
-            "npc:Never argue",
-            "choose:/Ask me nicely/",
-            "npc:Tact",
-            "choose:/No, especially/",
-            "npc:Ha!",
-            "mesbox:The Wise Old Man enchants",
-            "npc:Wear it",
+            -- [390..432]
+            "npc:Greetings,", "choose:/I have returned to you/",
+            "player:I have returned to you", "npc:The Ring of Charos? What's that?", "player:I thought you told me to-",
+            "npc:Just joking", "npc:Charos rose to power", "player:The art of persuasion?", "npc:Indeed. Charos had many uses",
+            "player:The Ring of Charos.", "npc:Exactly.", "player:What happened to Charos?", "npc:Charos had a castle built",
+            "npc:and turned them on his master.", "npc:Fenkenstrain probably found", "player:So what you are telling me",
+            "npc:...he would naturally come looking", "player:Still - it doesn't inspire", "npc:I could activate the power",
+            "player:Okay, go ahead...",
+        })
+        -- [433..515] the recorder's answers: A, A, C, C, B, C, C
+        for i, a in ipairs({ "a", "a", "c", "c", "b", "c", "c" }) do
+            t.exec("quiz" .. i, t.ui.await_open, "garden_quiz", 10)
+            local qr, qw = t.ui.widget("garden_quiz:garden_quiz_" .. a)
+            t.check("quiz" .. i .. ".press", qw ~= nil and t.ui.invoke(qw, 1) == "ok", "garden_quiz:garden_quiz_" .. a .. " " .. tostring(qr))
+            t.ticks(2)
+        end
+        t.expect("quest.stage.quiz", t.quest.expect_stage("quiz"))
+        t.exec("talkToWom2-verdict", t.chat.play, {
+            "player:Okay, I've answered your questions", "npc:Mmmm, it was close but..", "npc:... Congratulations!",
+            "objbox:The wise old man passes his hand", "npc:The Ring of Charos has now been opened",
+            "player:Thanks for your help", "npc:Funny, I thought",
         })
         t.ticks(2)
         t.expect("quest.stage.chapter", t.quest.expect_stage("chapter"))
@@ -165,19 +173,22 @@ return {
         t.exec("goto-talkToElstan", t.player.goto_tile, 3056, 3310, 0)
         t.exec("talkToElstan", t.player.talk_to, "elstan", 1)
         t.exec("talkToElstan-dialog", t.chat.play, {
-            "player:Do you have any delphinium",
-            "player:[Charm] That is why",
-            "npc:Well, I certainly",
-            "player:[Charm] Not just AN",
-            "npc:Ha!",
-            "npc:I could spare",
-            "player:Okay, I'll grow",
+            -- [672..810]
+            "choose:/Do you have any delphinium seeds/", "player:Do you have any delphinium seeds", "npc:I do have delphinium seeds",
+            "choose:/That is why I have come/", "player:That is why I have come", "npc:Ah, now that I like the sound",
+            "choose:/Not just AN expert/", "player:Not just AN expert", "npc:I can't say that I'm surprised",
+            "choose:/Oh no, I love listening/", "player:Oh no, I love listening", "npc:You do!",
+            "choose:/Millions/", "player:Millions?", "npc:Ah, but there's plenty of time", "player:Er .. what",
+            "player:Yes, delphinium seeds!", "npc:As I'm in an especially good mood", "player:And what's that?",
+            "npc:I need some marigolds", "player:So, a bunch of marigolds", "npc:Yes, and while I'm at it",
+            "choose:/Okay, I'll grow you some marigolds/", "player:Okay, I'll grow you some marigolds",
         })
         t.ticks(2)
         t.expect("elstan.talked", t.var.expect("varb967_garden_elstan_varbit", 1))
         t.exec("goto-plantMarigolds", t.player.goto_tile, 3055, 3309, 0)
         t.exec("rakeMarigolds", t.player.click_loc, "farming_flower_patch_1", 1)
-        t.ticks(30)
+        -- a weed on a roll per 4-tick sweep (farming.constant): room for it
+        t.ticks(120)
         for i = 1, 12 do
             local wr, wc = t.inv.count("weeds")
             if wc == 0 then break end
@@ -190,7 +201,7 @@ return {
         for i = 1, 4 do
             t.exec("wait-growth" .. i, t.clock.skip, 6)
             t.exec("catchup-talk" .. i, t.player.talk_to, "elstan", 1)
-            t.exec("catchup-talk-dialog" .. i, t.chat.play, { "npc:Have you managed" })
+            t.exec("catchup-talk-dialog" .. i, t.chat.play, { "choose:/What did I agree/", "player:What did I agree", "npc:I need some marigolds so that" })
             t.ticks(2)
         end
         t.exec("collectMarigold", t.player.click_loc, "farming_flower_patch_1", 1)
@@ -199,8 +210,8 @@ return {
         t.exec("marigold-in-pack", t.inv.await, "marigold", 1, 10)
         t.exec("giveElstanMarigold", t.player.talk_to, "elstan", 1)
         t.exec("giveElstanMarigold-dialog", t.chat.play, {
-            "player:I have those marigolds",
-            "npc:Wonderful",
+            "choose:/I have those marigolds/", "player:I have those marigolds for you.",
+            "npc:Ah, fantastic", "npc:Yes, here you go", "objbox:Elstan gives you some delphinium seeds.",
         })
         t.exec("delphinium", t.inv.await, "garden_delphinium_seed", 4, 10)
         t.expect("elstan.done", t.var.expect("varb967_garden_elstan_varbit", 4))
@@ -236,15 +247,15 @@ return {
         -- Priest in Peril's farewell advice (mausoleum_drezel.rs2:145-154): 60 -> 61.
         t.exec("talkToLyra.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
         t.exec("talkToLyra.talkToDrezel-dialog", t.chat.play, {
-            "player:So can I pass through that barrier now?",
-            "npc:Ah, ",
-            "npc:Morytania is an evil land",
-            "npc:You should take some basic precautions",
-            "npc:In many ways Werewolves",
-            "npc:and it is a holy relic",
-            "npc:wolf form is incredibly powerful",
-            "player:Okay, I will keep it equipped",
+            -- Priest in Peril's blessing (mausoleum_drezel.rs2)
+            "player:So can I pass through that barrier now?", "npc:Into Morytania? Yes, you can.",
+            "npc:I must warn you though", "npc:Worst of all are the vampyres", "player:I'll be careful.",
+            "npc:The first settlement", "npc:You should keep that dagger", "player:I see. Thanks.",
+            "npc:One last thing.", "player:The Myreque?", "npc:Yes. They're a band", "npc:Veliaf, the leader",
+            "player:I'll keep an eye out", "npc:Right, I think that's everything.", "mesbox:Drezel blesses you",
+            "npc:Good luck out there.", "choose:/See you later/",
         })
+        t.exec("talkToLyra.talkToDrezel-drain", t.chat.drain, { max_pages = 4 })
         t.exec("talkToLyra.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
         t.exec("talkToLyra.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
             at = { 3440, 9886, 0 }, near = { 3440, 9887 },
@@ -253,18 +264,25 @@ return {
         t.exec("goto-talkToLyra", t.player.goto_tile, 3607, 3528, 0)
         t.exec("talkToLyra", t.player.talk_to, "lyra", 1)
         t.exec("talkToLyra-dialog", t.chat.play, {
-            "player:Do you have any orchid",
-            "player:[Charm] If you tell",
-            "npc:It's... complicated",
-            "player:[Charm] Times must",
-            "npc:If you could grow",
-            "player:That's a deal",
+            -- [1526..1827]
+            "choose:/Do you have any orchid seeds/", "player:Do you have any orchid seeds", "npc:Please, do not bother me",
+            "choose:/If you tell me your problems/", "player:If you tell me your problems", "npc:As you ask so nicely",
+            "player:Try me.", "npc:You must think it strange",
+            "choose:/Yes, I was wondering/", "player:Yes, I was wondering", "npc:My mother, Alice",
+            "choose:/Times must be very hard/", "player:Times must be very hard", "npc:It is but the smallest",
+            "choose:/Whatever you've done/", "player:Whatever you've done", "npc:You say this",
+            "choose:/And what is the nature/", "player:And what is the nature", "npc:Mother and I must pay",
+            "choose:/If not yours/", "player:If not yours", "npc:Sometimes I travel",
+            "choose:/How can you deal/", "player:How can you deal", "npc:Please - ask me no more.",
+            "player:Okay, can I have them then", "npc:You must pass a test first.",
+            "choose:/grow a patch of onions/", "player:That's a deal", "npc:Speak to me when they are fully grown.",
         })
         t.ticks(2)
         t.expect("lyra.talked", t.var.expect("varb968_garden_lyra_varbit", 1))
         t.exec("goto-rakeOnions", t.player.goto_tile, 3602, 3531, 0)
         t.exec("rakeOnions", t.player.click_loc, "farming_veg_patch_7", 1)
-        t.ticks(40)
+        -- a weed on a roll per 4-tick sweep (farming.constant): room for it
+        t.ticks(120)
         for i = 1, 12 do
             local wr, wc = t.inv.count("weeds")
             if wc == 0 then break end
@@ -279,20 +297,25 @@ return {
         t.exec("seeds-consumed", t.inv.await, "onion_seed", 0, 5)
         -- too early: Lyra says still waiting
         t.exec("talkToLyra-early", t.player.talk_to, "lyra", 1)
-        t.exec("talkToLyra-early-dialog", t.chat.play, { "npc:Still waiting" })
+        t.exec("talkToLyra-early-dialog", t.chat.play, { "choose:/What did you ask me to do/", "player:What did you ask me to do?", "npc:I need you to grow some onions" })
         -- the shared allotment grows one stage per 10 real minutes per catch-up
         for i = 1, 8 do
             t.exec("wait-growth" .. i, t.clock.skip, 11)
+            -- unprotected (Lyra refuses), so a disease is cured as it comes
+            t.exec("cureOnions" .. i, t.player.use_on, "plant_cure", t.player.by_symbol("loc", "farming_veg_patch_7"))
+            t.ticks(6)
+            t.chat.drain({ max_pages = 2 })
             t.exec("talkToLyraAgain" .. i, t.player.talk_to, "lyra", 1)
-            if t.chat.kind() == "player" then break end
-            t.exec("catchup-dialog" .. i, t.chat.play, { "npc:*" })
+            local lr2, lv2 = t.var.varbit("varb968_garden_lyra_varbit")
+            if lr2 == "ok" and lv2 == 2 then break end
+            t.exec("catchup-dialog" .. i, t.chat.play, { "choose:/What did you ask me to do/", "player:What did you ask", "npc:I need you to grow some onions" })
             t.ticks(2)
         end
         local vr, vv = t.var.varbit("varb714_varbit_714")
         t.check("patch7-state", vr == "ok" and vv == 17, "varbit_714 = " .. tostring(vv) .. " (want 17: onions grown, 13 when planted)")
         t.exec("talkToLyraAgain-dialog", t.chat.play, {
-            "player:Okay, I've grown those onions",
-            "npc:Wonderful",
+            "choose:/Okay, I've grown those onions/", "player:Okay, I've grown those onions",
+            "npc:Yes, you have demonstrated", "objbox:Lyra gives you some orchid seeds.",
         })
         t.exec("orchids-pink", t.inv.await, "garden_orchid_pink_seed", 3, 10)
         t.exec("orchids-yellow", t.inv.await, "garden_orchid_yellow_seed", 3, 10)
@@ -304,18 +327,23 @@ return {
         t.exec("goto-talkToKragen", t.player.goto_tile, 2669, 3376, 0)
         t.exec("talkToKragen", t.player.talk_to, "kragen", 1)
         t.exec("talkToKragen-dialog", t.chat.play, {
-            "player:Do you have any snowdrop",
-            "player:[Charm] You seem",
-            "npc:Aye",
-            "player:[Charm] So what ails",
-            "npc:If you could grow",
-            "player:That's a deal",
+            -- [2000..2187]
+            "choose:/Do you have any snowdrop seeds/", "player:Do you have any snowdrop seeds", "npc:No I don't, as it happens.",
+            "choose:/You seem to be a little irritable/", "player:You seem to be a little irritable", "npc:Oh, you think so",
+            "choose:/I don't like to see a fellow/", "player:I don't like to see", "npc:I must say, you don't often",
+            "choose:/So what ails you/", "player:So what ails you", "npc:All these people",
+            "choose:/Well, is there anything/", "player:Well, is there anything", "npc:Oh, that's very kind",
+            "choose:/So what can I do for you/", "player:So what can I do for you", "npc:I'd like just for once",
+            "player:How about some potatoes?", "npc:Nah, there's a whole field", "player:Cabbages? Sounds good",
+            "npc:Oh, in one of these allotments",
+            "choose:/let you know when your cabbages/", "player:That's a deal",
         })
         t.ticks(2)
         t.expect("kragen.talked", t.var.expect("varb971_garden_kragen_varbit", 1))
         t.exec("goto-rakeCabbage", t.player.goto_tile, 2669, 3380, 0)
         t.exec("rakeCabbage", t.player.click_loc, "farming_veg_patch_5", 1)
-        t.ticks(30)
+        -- a weed on a roll per 4-tick sweep (farming.constant): room for it
+        t.ticks(120)
         for i = 1, 12 do
             local wr, wc = t.inv.count("weeds")
             if wc == 0 then break end
@@ -327,25 +355,48 @@ return {
         t.expect("patch5.marker", t.var.expect("varb974_garden_patch_5_varbit", 1))
         for i = 1, 8 do
             t.exec("wait-growth-cabbage" .. i, t.clock.skip, 11)
+            t.exec("cureCabbage" .. i, t.player.use_on, "plant_cure", t.player.by_symbol("loc", "farming_veg_patch_5"))
+            t.ticks(6)
+            t.chat.drain({ max_pages = 2 })
             t.exec("talkToKragenAgain" .. i, t.player.talk_to, "kragen", 1)
-            if t.chat.kind() == "player" then break end
-            t.exec("catchup-dialog-cabbage" .. i, t.chat.play, { "npc:*" })
+            local kr2, kv2 = t.var.varbit("varb971_garden_kragen_varbit")
+            if kr2 == "ok" and kv2 == 2 then break end
+            t.exec("catchup-dialog-cabbage" .. i, t.chat.play, { "choose:/What did you ask me to do/", "player:What did you ask", "npc:You said that you would grow me some cabbages" })
             t.ticks(2)
         end
         t.exec("talkToKragenAgain-dialog", t.chat.play, {
-            "player:Okay, I've grown those cabbages",
-            "npc:Excellent",
+            "choose:/Okay, I've grown those cabbages/", "player:Okay, I've grown those cabbages",
+            "npc:Yes, I saw", "npc:Yes, here you go", "objbox:Kragen gives you some snowdrop seeds.",
         })
         t.exec("snowdrop", t.inv.await, "garden_snowdrop_seed", 4, 10)
+        -- the cures' empty vials and the spare cures out of the way (the
+        -- monastery seeds, the ring and Bernald's cure need the room)
+        for i = 1, 6 do
+            local vr, vc = t.inv.count("vial_empty")
+            if vr ~= "ok" or vc == 0 then break end
+            t.player.drop("vial_empty")
+            t.ticks(1)
+        end
+        for i = 1, 4 do
+            local cr2, cc2 = t.inv.count("plant_cure")
+            if cr2 ~= "ok" or cc2 <= 2 then break end
+            t.player.drop("plant_cure")
+            t.ticks(1)
+        end
         t.expect("kragen.done", t.var.expect("varb971_garden_kragen_varbit", 3))
         -- Dantaera
         t.exec("goto-talkToDantaera", t.player.goto_tile, 2812, 3463, 0)
         t.exec("talkToDantaera", t.player.talk_to, "dantaera", 1)
         t.exec("talkToDantaera-dialog", t.chat.play, {
-            "player:Do you know how",
-            "player:[Charm] I think",
-            "npc:There's an old dying",
-            "player:Thank you",
+            -- [985..1105]
+            "choose:/Do you know how I could grow/", "player:Do you know how I could grow", "npc:There are no more White Trees",
+            "choose:/I think that there is something/", "player:I think that there is something", "npc:Am I so transparent?",
+            "choose:/A secret is a dreadful burden/", "player:A secret is a dreadful burden", "npc:It is not hard to keep",
+            "player:I don't see how.", "npc:Very well - I feel deep trust", "player:What happened to them?",
+            "npc:Man desired the wood", "player:I can fill in the rest.", "npc:She stands atop Ice Mountain",
+            "player:If I took a cutting", "npc:Yes, but she only has life",
+            "choose:/Unless you allow me/", "player:Unless you allow me", "npc:I know, but I try not",
+            "player:Then will you allow me", "npc:Do so with my blessing.",
         })
         t.ticks(2)
         t.expect("dantaera.talked", t.var.expect("varb976_garden_dantaera_varbit", 1))
@@ -355,6 +406,7 @@ return {
         falador_teleport("useSecateursOnWhiteTree.faladorTeleport")
         t.exec("goto-useSecateursOnWhiteTree", t.player.goto_tile, 3006, 3497, 0)
         t.exec("useSecateursOnWhiteTree", t.player.use_on, "secateurs", t.player.by_symbol("loc", "garden_white_tree_dead"))
+        t.exec("useSecateursOnWhiteTree-dialog", t.chat.play, { "player:Here is the shoot that Dantaera spoke of." })
         t.exec("shoot", t.inv.await, "garden_white_tree_shoot", 1, 15)
         t.expect("dantaera.cut", t.var.expect("varb976_garden_dantaera_varbit", 2))
         t.exec("useShootOnPot", t.player.use_item_on_item, "garden_white_tree_shoot", "plantpot_compost")
@@ -370,14 +422,18 @@ return {
         t.exec("goto-talkToAlthric", t.player.goto_tile, 3052, 3503, 0)
         t.exec("talkToAlthric", t.player.talk_to, "brother_althric", 1)
         t.exec("talkToAlthric-dialog", t.chat.play, {
-            "player:[Charm] These are the most beautiful",
-            "npc:Why, thank you",
+            -- [2334], [2348..2353]
+            "choose:/These are the most beautiful/", "player:These are the most beautiful", "npc:Nice of you to say so",
+            "player:Oh ... no, that's not true", "npc:Nonsense, you reek",
         })
         t.ticks(2)
         t.expect("althric.talked", t.var.expect("varb977_garden_althric_varbit", 1))
         -- roses are refused before the ring is in the well
         t.exec("roses-early", t.player.click_loc, "garden_roses_white", 1)
-        t.ticks(4)
+        -- [2374..2378] the ring still carried
+        t.exec("roses-early-dialog", t.chat.play, { "npc:Are you messing about with my rosebushes again?",
+            "player:Er ... no ...", "npc:You still have not gotten rid" })
+        t.ticks(2)
         local rr, rc = t.inv.count("garden_rosebush_seed_white")
         t.check("roses-refused-early", rr == "ok" and rc == 0, "white rose seeds = " .. tostring(rc))
         t.exec("unequip-ring", t.player.unequip, "ring_of_charos_unlocked")
@@ -385,24 +441,32 @@ return {
         t.exec("useCharosOnWell", t.player.use_on, "ring_of_charos_unlocked", t.player.by_symbol("loc", "well"))
         t.ticks(4)
         t.expect("ring.in-well", t.var.expect("varb966_garden_ring_in_well_varbit", 1))
-        t.expect("althric.can_pick", t.var.expect("varb977_garden_althric_varbit", 2))
         t.exec("ring-gone", t.inv.await, "ring_of_charos_unlocked", 0, 5)
         t.exec("goto-pickWhiteRoses", t.player.goto_tile, 3054, 3503, 0)
+        -- [2459..2471] his leave, then the seeds
+        t.exec("leaveRoses", t.player.click_loc, "garden_roses_white", 1)
+        t.exec("leaveRoses-dialog", t.chat.play, { "npc:Are you messing about", "player:Er ... no ...",
+            "npc:Ah, I sense that you speak", "player:I threw it down the Edgeville well", "npc:That is good. Although" })
+        t.expect("althric.can_pick", t.var.expect("varb977_garden_althric_varbit", 2))
         t.exec("pickWhiteRoses", t.player.click_loc, "garden_roses_white", 1)
+        t.exec("pickWhiteRoses-box", t.chat.play, { "objbox:You take some seeds from the white rosebush." })
         t.exec("white", t.inv.await, "garden_rosebush_seed_white", 4, 10)
         t.exec("goto-pickPinkRoses", t.player.goto_tile, 3051, 3504, 0)
         t.exec("pickPinkRoses", t.player.click_loc, "garden_roses_pink", 1)
+        t.exec("pickPinkRoses-box", t.chat.play, { "objbox:You take some seeds from the pink rosebush." })
         t.exec("pink", t.inv.await, "garden_rosebush_seed_pink", 4, 10)
         -- the red bushes (3048,3503-3506) are beside the pink ones: click_loc walks there
         t.exec("pickRedRoses", t.player.click_loc, "garden_roses_red", 1)
+        t.exec("pickRedRoses-box", t.chat.play, { "objbox:You take some seeds from the red rosebush." })
         t.exec("red", t.inv.await, "garden_rosebush_seed_red", 4, 10)
         t.exec("goto-fishForRing", t.player.goto_tile, 3085, 3501, 0)
-        for i = 1, 40 do
-            t.exec("fishForRing" .. i, t.player.use_on, "fishing_rod", t.player.by_symbol("loc", "well"))
-            t.ticks(3)
-            local r, c = t.inv.count("ring_of_charos_unlocked")
-            if r == "ok" and c == 1 then break end
-        end
+        -- [2697..2725]: the line in, the ring out 27 ticks later
+        -- a slot for the ring: the shoot's watering can has done its job
+        t.player.drop("watering_can_7")
+        t.ticks(2)
+        t.exec("fishForRing", t.player.use_on, "fishing_rod", t.player.by_symbol("loc", "well"))
+        t.ticks(30)
+        t.exec("fishForRing-box", t.chat.play, { "objbox:...and you retrieve the Ring of Charos." })
         t.exec("ring-back", t.inv.await, "ring_of_charos_unlocked", 1, 10)
         t.expect("ring.out-of-well", t.var.expect("varb966_garden_ring_in_well_varbit", 0))
         t.exec("wear-ring2", t.player.equip, "ring_of_charos_unlocked")
@@ -417,16 +481,18 @@ return {
         bernald_in("talkToBernald")
         t.exec("talkToBernald", t.player.talk_to, "bernald", 1)
         t.exec("talkToBernald-dialog", t.chat.play, {
-            "player:Your grapevines",
-            "npc:They're diseased",
-            "player:[Charm] But it is the only way",
-            "npc:If you can cure",
-            "player:I accept",
+            -- [2881..2972]
+            "npc:Do you know anything about grapevine diseases?", "player:I might - what's the problem?",
+            "npc:You see those grapevines", "player:Yes. They don't look", "npc:They've come down",
+            "player:I could probably help", "npc:Anything, you just need to ask!", "player:Well, I'd like a supply",
+            "npc:I'm afraid I can't do that.",
+            "choose:/But it is the only way/", "player:But it is the only way", "npc:Hmm, you may be right.",
+            "choose:I accept the deal.", "player:I accept the deal.", "npc:Oh thank you!",
         })
         t.ticks(2)
         t.expect("bernald.talked", t.var.expect("varb988_garden_bernald_varbit", 1))
         t.exec("useCureOnVine", t.player.use_on, "plant_cure", t.player.by_symbol("loc", "garden_burthorpe_vines"))
-        t.ticks(4)
+        t.ticks(10)
         t.expect("bernald.used_cure", t.var.expect("varb988_garden_bernald_varbit", 2))
         -- Alain, ring unequipped
         bernald_out("talkToAlain")
@@ -434,8 +500,13 @@ return {
         t.exec("goto-talkToAlain", t.player.goto_tile, 2933, 3440, 0)
         t.exec("talkToAlain", t.player.talk_to, "farming_gardener_tree_1", 1)
         t.exec("talkToAlain-dialog", t.chat.play, {
-            "player:I need to ask you about strong plant cures",
-            "npc:Ah",
+            -- [3327..3374] (the ring off: no [Charm] menu)
+            "choose:/I need to ask you about strong plant cures/", "player:I need to ask you about strong plant cures.",
+            "npc:Well, you have come to the right person", "player:Bernald up in Burthorpe", "npc:Ah, so is this the famous",
+            "player:The very one.", "npc:I'm afraid that my researches", "player:Er, I did have some",
+            "npc:I see. Well, if it involves", "player:Are you sure there's nothing", "npc:Well...",
+            "npc:There is one thing you could try.", "player:Do you mean the rune essence?", "npc:You know of that",
+            "player:Thank you Alain",
         })
         t.ticks(2)
         t.expect("bernald.talked_alain", t.var.expect("varb988_garden_bernald_varbit", 3))
@@ -448,10 +519,10 @@ return {
         t.exec("wear-ring3", t.player.equip, "ring_of_charos_unlocked")
         bernald_in("useMagicalCureOnVine")
         t.exec("useMagicalCureOnVine", t.player.use_on, "plant_cure_strong", t.player.by_symbol("loc", "garden_burthorpe_vines"))
-        t.ticks(4)
+        t.ticks(10)
         t.expect("bernald.cured", t.var.expect("varb988_garden_bernald_varbit", 4))
         t.exec("talkToBernaldForSeeds", t.player.talk_to, "bernald", 1)
-        t.exec("talkToBernaldForSeeds-dialog", t.chat.play, { "npc:The vines look wonderful" })
+        t.exec("talkToBernaldForSeeds-dialog", t.chat.play, { "npc:My vines are cured!", "npc:Yes, here you go", "objbox:Bernald gives you some Burthorpe Vine seeds." })
         t.exec("vine-seeds", t.inv.await, "garden_vine_seed", 4, 10)
         t.expect("bernald.done", t.var.expect("varb988_garden_bernald_varbit", 5))
         bernald_out("plantDelphinium")
@@ -459,7 +530,7 @@ return {
         t.exec("goto-garden", t.player.goto_tile, 3230, 3478, 0)
         for _, p in ipairs(patches) do
             t.exec("rake" .. p[1], t.player.click_loc, p[2], 1)
-            t.ticks(40)
+            t.var.await_server(p[5], 3, 150)
             t.expect("weeded" .. p[1], t.var.expect(p[5], 3))
             for i = 1, 12 do
                 local wr, wc = t.inv.count("weeds")
@@ -474,7 +545,7 @@ return {
         end
         -- white tree: rake, spade + sapling
         t.exec("rakeWhiteTree", t.player.click_loc, "garden_white_tree_patch", 1)
-        t.ticks(40)
+        t.var.await_server("varb985_garden_white_tree_varbit", 3, 150)
         t.expect("weededWhiteTree", t.var.expect("varb985_garden_white_tree_varbit", 3))
         for i = 1, 12 do
             local wr, wc = t.inv.count("weeds")
@@ -503,14 +574,15 @@ return {
         t.exec("goto-ellamaria", t.player.goto_tile, 3230, 3477, 0)
         t.exec("talkToEllamariaForTrolley", t.player.talk_to, "queen_ellamaria", 1)
         t.exec("trolley-dialog", t.chat.play, {
-            "player:How am I supposed",
-            "npc:Take this trolley",
+            -- [3906..3915]
+            "choose:/How am I supposed to move statues/", "player:How am I supposed to move statues",
+            "npc:You use the dormant object", "player:Push?", "npc:Yes peasant, push.",
         })
         t.exec("trolley", t.inv.await, "garden_trolley_obj", 1, 10)
         for i = 1, 4 do
             t.exec("wait-growth" .. i, t.clock.skip, 5)
             t.exec("catchup-talk" .. i, t.player.talk_to, "queen_ellamaria", 1)
-            t.exec("catchup-drain" .. i, t.chat.drain, { max_pages = 10 })
+            t.exec("catchup-menu" .. i, t.chat.play, { "choose:/Will these patches need/", "player:Will these patches", "npc:Well, you are supposed" })
             t.ticks(2)
         end
         t.expect("grown-delphinium", t.var.expect("varb982_garden_delphiniums_varbit", 7))
@@ -520,14 +592,14 @@ return {
         lumbridge_teleport("useTrolleyOnLumbridgeStatue.lumbridgeTeleport")
         t.exec("goto-lumbridgeStatue", t.player.goto_tile, 3231, 3219, 0)
         t.exec("useTrolleyOnLumbridgeStatue", t.player.use_on, "garden_trolley_obj", t.player.by_symbol("loc", "garden_lumbridge_statue"))
-        t.ticks(4)
+        t.ticks(14)
         t.expect("king.in-transit", t.var.expect("varb964_garden_king_statue_varbit", 1))
         t.expect("trolley.king", t.var.expect("varb965_garden_trolley_varbit", 2))
         t.exec("trolley-consumed", t.inv.await, "garden_trolley_obj", 0, 5)
         for _, m in ipairs({
-            { "pushLumbridgeStatue-lumE1", 1, 0, 3 },
+            { "pushLumbridgeStatue-lumE1", 1, 0, 4 },
             { "pushLumbridgeStatue-lumN", 0, 1, 8 },
-            { "pushLumbridgeStatue-lumE2", 1, 0, 17 },
+            { "pushLumbridgeStatue-lumE2", 1, 0, 8 },
         }) do
             local left, k = m[4], 0
             while left > 0 do
@@ -541,10 +613,11 @@ return {
                 left = left - (big and 4 or 1)
             end
         end
+        t.ticks(8) -- the jump: the fade, the move five ticks on
         local lr, lrow = t.npc.nearest("garden_trolley", 80)
         t.check("lum-jumped-to-varrock", lr == "ok" and lrow.z > 3400, "trolley at " .. tostring(lrow and lrow.x) .. "," .. tostring(lrow and lrow.z))
         for _, m in ipairs({
-            { "pushLumbridgeStatue-varE", 1, 0, 11 },
+            { "pushLumbridgeStatue-varE", 1, 0, 12 },
             { "pushLumbridgeStatue-varS", 0, -1, 5 },
             { "pushLumbridgeStatue-varE2", 1, 0, 4 },
             { "pushLumbridgeStatue-varS2", 0, -1, 8 },
@@ -566,19 +639,31 @@ return {
         t.check("pushLumbridgeStatue", lumpr == "ok" and math.abs(lumprow.x - 3233) <= 2 and math.abs(lumprow.z - 3487) <= 2,
             "want within 2 of the king's plinth 3233,3487 (garden_statues.rs2 [proc,garden_trolley_place]); trolley pushed to the plinth, now at " .. tostring(lumprow and lumprow.x) .. "," .. tostring(lumprow and lumprow.z))
         t.exec("placeLumbridgeStatue", t.player.press, "garden_trolley", 5, 8)
-        t.ticks(4)
+        t.ticks(8)
         t.expect("king.placed", t.var.expect("varb964_garden_king_statue_varbit", 2))
         t.expect("trolley.empty", t.var.expect("varb965_garden_trolley_varbit", 0))
-        t.exec("trolley-returned", t.inv.await, "garden_trolley_obj", 1, 10)
+        -- [4551..4561] the trolley stays with the statue: another from her
+        t.exec("goto-ellamaria-trolley2", t.player.goto_tile, 3230, 3477, 0)
+        t.exec("talkToEllamariaForTrolley2", t.player.talk_to, "queen_ellamaria", 1)
+        t.exec("trolley2-dialog", t.chat.play, {
+            "choose:/How am I supposed to move statues/", "player:How am I supposed to move statues",
+            "npc:You use the dormant object", "player:Push?", "npc:Yes peasant, push.",
+        })
+        t.exec("trolley2", t.inv.await, "garden_trolley_obj", 1, 10)
         -- Falador
         falador_teleport("useTrolleyOnFaladorStatue.faladorTeleport")
         t.exec("goto-faladorStatue", t.player.goto_tile, 2965, 3383, 0)
+        local bbmark = t.cutscene.mark()
         t.exec("useTrolleyOnFaladorStatue", t.player.use_on, "garden_trolley_obj", t.player.by_symbol("loc", "falador_statue_saradomin"))
-        t.ticks(4)
+        -- [4601..4756] Billy and Bob, then the load
+        t.ticks(175)
+        t.exec("cutscene:garden_billybob", t.cutscene.await, "garden_billybob", { since = bbmark, timeout = 10,
+            expect = { { op = "moveto", height = 600 }, { op = "lookat", height = 25 }, { op = "reset" } } })
+        t.expect("billybob.seen", t.var.expect("varb962_garden_cutscene_billybob", 1))
         t.expect("sara.in-transit", t.var.expect("varb963_garden_saradomin_statue_varbit", 1))
         t.expect("trolley.sara", t.var.expect("varb965_garden_trolley_varbit", 1))
         for _, m in ipairs({
-            { "pushFaladorStatue-falN", 0, 1, 19 },
+            { "pushFaladorStatue-falN", 0, 1, 10 },
         }) do
             local left, k = m[4], 0
             while left > 0 do
@@ -592,10 +677,11 @@ return {
                 left = left - (big and 4 or 1)
             end
         end
+        t.ticks(8) -- the jump: the fade, the move five ticks on
         local fr, frow = t.npc.nearest("garden_trolley", 80)
         t.check("fal-jumped-to-varrock", fr == "ok" and frow.x > 3000, "trolley at " .. tostring(frow and frow.x) .. "," .. tostring(frow and frow.z))
         for _, m in ipairs({
-            { "pushFaladorStatue-fvarE", 1, 0, 11 },
+            { "pushFaladorStatue-fvarE", 1, 0, 12 },
             { "pushFaladorStatue-fvarS", 0, -1, 5 },
             { "pushFaladorStatue-fvarE2", 1, 0, 4 },
             { "pushFaladorStatue-fvarS2", 0, -1, 11 },
@@ -618,14 +704,16 @@ return {
         t.check("pushFaladorStatue", falpr == "ok" and math.abs(falprow.x - 3230) <= 2 and math.abs(falprow.z - 3479) <= 2,
             "want within 2 of Saradomin's plinth 3230,3479 (garden_statues.rs2 [proc,garden_trolley_place]); trolley pushed to the plinth, now at " .. tostring(falprow and falprow.x) .. "," .. tostring(falprow and falprow.z))
         t.exec("placeFaladorStatue", t.player.press, "garden_trolley", 5, 8)
-        t.ticks(4)
+        t.ticks(8)
         t.expect("sara.placed", t.var.expect("varb963_garden_saradomin_statue_varbit", 2))
         -- approval and Roald
         t.exec("goto-ellamaria2", t.player.goto_tile, 3230, 3477, 0)
         t.exec("talkToEllmariaAfterGrown", t.player.talk_to, "queen_ellamaria", 1)
         t.exec("approve-dialog", t.chat.play, {
-            "player:Everything has grown",
-            "npc:It's beautiful",
+            -- [7451..7456]
+            "player:Well, I think that's everything...", "npc:One finds that hard to believe.",
+            "npc:Oh yes, very nice", "player:Rollie?!?", "npc:You will address my husband",
+            "player:Oh, you want me to go and get Roald",
         })
         t.ticks(2)
         t.expect("quest.stage.roald", t.quest.expect_stage("roald"))
@@ -637,15 +725,21 @@ return {
         t.exec("talkToRoald.roomDoorIn", t.player.pass_door, { closed = "ds2_varrock_door", open = "ds2_varrock_door_open",
             at = { 3222, 3479, 0 }, near = { 3222, 3480 }, far = { 3222, 3477 } })
         t.exec("talkToRoald", t.player.talk_to, "king_roald", 1)
+        local finmark = t.cutscene.mark()
         t.exec("talkToRoald-dialog", t.chat.play, {
-            "player:Ask King Roald to follow me",
-            "npc:Follow you?",
-            "player:[Charm] Of course",
-            "npc:Hmph",
-            "player:[Charm] The Queen asked",
-            "npc:Ellamaria?",
-            "player:Would you like to follow me",
-            "npc:Lead on",
+            -- [7605..7618]
+            "player:Greetings, your majesty.", "npc:Yes, citizen. Do you need something?",
+            "choose:/Would you like to follow me/", "player:Would you like to follow me", "npc:Follow you?!?",
+            "choose:/Of course, your majesty/", "player:Of course, your majesty", "npc:Forgiveness is something",
+            "choose:/The Queen asked me to bring you/", "player:The Queen asked me to bring you.", "npc:Ellie?",
+            "npc:Now that's a different matter.",
+        })
+        -- [7619..7798] the garden tour, then her last pages ([7800..7835])
+        t.ticks(185)
+        t.exec("cutscene:garden_finale", t.cutscene.await, "garden_finale", { since = finmark, timeout = 10,
+            expect = { { op = "moveto", height = 2625 }, { op = "lookat", height = 250 }, { op = "reset" } } })
+        t.exec("finale-dialog", t.chat.play, {
+            "npc:Excuse my husband", "player:Only sometimes?", "npc:Are you being rude again", "npc:Yes, and that's all he deserves!",
         })
         t.ticks(4)
         t.exec("seed", t.inv.await, "apple_tree_seed", 1, 10)

@@ -8475,6 +8475,17 @@ function QD.player.press(npc, op, ticks, opts)
     if type(click) == "table" then
         element = click.element_id
     end
+    -- world_op (the client's and scriptrun's npc press) answers a result and
+    -- no element. With one copy of the type in the pool before the press,
+    -- that copy IS the one pressed; with several, the selector above names it
+    -- or nothing is claimed. Without this every npc press that neither speaks
+    -- nor opens a page read `no_row` (Garden of Tranquility's trolley: 127
+    -- recorded pushes, every one moving the only trolley there is).
+    if element == nil and before_count == 1 then
+        for key, _ in pairs(before) do
+            element = key
+        end
+    end
     local was = nil
     if element ~= nil then
         was = before[element]
