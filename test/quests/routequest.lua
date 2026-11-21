@@ -1,55 +1,104 @@
--- In Search of the Myreque, driven as a 4-leg relay (guide: InSearchOfTheMyreque.java).
--- Leg 1: Vanstrom, the druid pouch, Cyreg, the swamp boat, the tree and the three bridge rungs.
+-- In Search of the Myreque, the recorded flow (RSProx index 4632 + 4633, rev 242.1;
+-- docs/rsprox-analysis/quests/in_search_of_the_myreque.md), as a 4-leg relay:
+--   1. Vanstrom (the No, then the Yes), Cyreg's persuasion, the planks, the boat, the tree, the three rungs;
+--   2. Curpile (a round lost to the knock-out, Cyreg, the boat back, a round won), the doors, the hideout
+--      (Harold's greeting), Veliaf;
+--   3. the five members, Veliaf's weapons, the ambush (in a copy), the hound let loose, the escape;
+--   4. back into the hound's copy, the kill, Veliaf, the false wall, the ladder, the Stranger and the scroll.
+local function where(t)
+    local r, tl = t.world.tile()
+    if type(tl) ~= "table" then return tostring(r) end
+    return tl.x .. "," .. tl.z .. "," .. tl.level
+end
+
+-- Curpile's answers, by question (4632 [1895], [1909], [1925], [2075], [2082], [2090]; the
+-- female member and the leader are the wiki's).
+local ANSWERS = {
+    { q = "boatman", a = "Cyreg Paddlehorn." },
+    { q = "scholar", a = "Polmafi Ferdygris." },
+    { q = "vampyre family", a = "Drakan." },
+    { q = "youngest", a = "Ivan Strom." },
+    { q = "female", a = "Sani Piliu." },
+    { q = "leader", a = "Veliaf Hurtz." },
+}
+
+-- One round of Curpile's three questions, read off each menu's title (the question); `wrong_at`
+-- answers that question "I don't know."
+local function quiz(t, name, wrong_at)
+    local verdicts = { "npc:Okay, interesting answer. That's tha first question done.",
+        "npc:Interesting... That's tha second question answered.",
+        "npc:Hmm.... Very interesting. That's tha third question" }
+    local openers = { nil, "npc:Right then, here's ya second question.", "npc:Okay, time for tha third and final question." }
+    for n = 1, 3 do
+        if openers[n] then t.exec(name .. "-open" .. n, t.chat.play, { openers[n] }) end
+        local title = nil
+        for _ = 1, 6 do
+            local r, tt = t.chat.options_title()
+            if r == "ok" then title = tostring(tt) break end
+            t.ticks(1)
+        end
+        local pick = nil
+        for _, e in ipairs(ANSWERS) do if title and title:find(e.q, 1, true) then pick = e.a end end
+        t.check(name .. "-q" .. n, pick ~= nil, tostring(title))
+        if n == wrong_at or pick == nil then
+            t.exec(name .. "-a" .. n, t.chat.play, { "choose:I don't know.", "player:I don't know." })
+        else
+            t.exec(name .. "-a" .. n, t.chat.play, { "choose:" .. pick, "player:" .. pick })
+        end
+        t.exec(name .. "-v" .. n, t.chat.play, { verdicts[n] })
+    end
+end
+
+-- The arrival box after a boat (4632 [1783], [2021]); a ghast's hit in the Hollows can close it
+-- before it is read, so its absence is noted, not failed.
+local function arrival(t, name, text)
+    local k = t.chat.kind()
+    if k == "mesbox" then
+        t.exec(name, t.chat.play, { "mesbox:" .. text })
+        t.ticks(1)
+    else
+        t.check(name, true, "no box up at the read (chat kind " .. tostring(k) .. "): a ghast's hit closes it")
+    end
+end
+
 return {
     id = "routequest",
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
-        "::complete quest_priestinperil", -- the way into Morytania on foot: the Paterdomus trapdoor and holy barrier (sets the golden-key gate bit too)
+        "::complete quest_priestinperil", -- the way into Morytania on foot: the Paterdomus trapdoor and holy barrier
         "::complete quest_restlessghost", -- Priest in Peril's own requirement
-        "::complete quest_naturespirit", -- guide requirement: Nature Spirit (druidspirit_complete)
-        "::give dagger_wolfbane 1", -- Priest in Peril's reward (::complete grants no items); Drezel's advice branch needs it held (mausoleum_drezel.rs2:29-34)
-        "::setlevel agility 25", -- guide requirement: 25 Agility
-        "::setlevel attack 70", "::setlevel strength 70", "::setlevel defence 70", "::setlevel hitpoints 80", -- later legs' fights
-        "::give steel_longsword 1", -- guide: steel weapons brought to the Myreque
+        "::complete quest_naturespirit", -- the quest's requirement (druidspirit_complete)
+        "::give dagger_wolfbane 1", -- Priest in Peril's reward; Drezel's advice branch needs it held
+        "::setlevel agility 25", -- the quest's 25 Agility
+        "::setlevel attack 70", "::setlevel strength 70", "::setlevel defence 70", "::setlevel hitpoints 80", -- the hound
+        "::setlevel prayer 43", -- Protect from Melee for the hound (4633 [23]: the recorder prays it)
+        "::give steel_longsword 1", -- the weapons Vanstrom names (4632 [684])
         "::give steel_sword 2",
         "::give steel_mace 1",
         "::give steel_warhammer 1",
         "::give steel_dagger 1",
-        "::give nails 225", -- guide: steel nails for the bridge rungs
-        "::give woodplank 6", -- guide: planks (three to Cyreg, three for the bridge)
-        "::give hammer 1", -- guide: hammer for the bridge
-        "::give druid_pouch 5", -- guide: a druid pouch with five charges
-        "::give coins 100", -- guide: the ten gold boat fee; each knocked-out quiz round pays it again (routequest_board_mortton)
+        "::give nails 225", -- Cyreg's list (4632 [1402]): a hammer, 225 steel nails, six planks, ten gold
+        "::give woodplank 6",
+        "::give hammer 1",
+        "::give druid_pouch 5", -- something against the ghasts
+        "::give coins 100", -- the fee, twice (the knock-out sends the player back to Mort'ton)
     },
     bind = {
         varp = "varp387_routequest",
         row = "quest_routequest",
         constants = { not_started = 0, started = 5, spoke_to_boatman = 10, boatman_agreed = 15, boatman_repaired = 20,
             entered_hollowed = 25, found_guard = 52, answered_questions = 55, entered_underground = 60,
-            introduced_veliaf = 65, ambush = 80, saved_myreque = 85, told_exit_route = 90, discovered_wall = 95,
-            found_exit = 97, spoke_to_stranger = 100, complete = 105 },
+            introduced_veliaf = 65, gave_weapons = 67, enter_cutscene = 70, ambush = 80, saved_myreque = 85,
+            told_exit_route = 90, discovered_wall = 95, found_exit = 97, spoke_to_stranger = 100, complete = 110 },
         display = "In Search of the Myreque",
         points = 2,
     },
 
     legs = {
         { name = "vanstrom_to_bridge", run = function(t)
-            local function where()
-                local r, tl = t.world.tile()
-                if type(tl) ~= "table" then return tostring(r) end
-                return tl.x .. "," .. tl.z .. "," .. tl.level
-            end
-            local function pages(name, maxn, choose)
-                for i = 1, maxn do
-                    local k = t.chat.kind()
-                    local _, tx = t.chat.text()
-                    t.check(name .. "-p" .. i, true, tostring(k) .. " :: " .. tostring(tx))
-                    if k == "none" then return end
-                    if k == "options" then t.chat.choose(choose or "/Ok, thanks/"); t.ticks(1)
-                    else t.chat.continue_(true); t.ticks(1) end
-                end
-            end
+            do local _, d = t.ticklog.start(); t.note("ticklog: " .. tostring(d)) end
+            t.ticklog.mark("leg.vanstrom_to_bridge")
             t.ticks(3)
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
@@ -82,16 +131,10 @@ return {
                 near = { 3430, 9897 }, far_ok = function(tile) return tile.z > 6400 and tile.x >= 3432 end,
                 far_desc = "Drezel's side of the second gate, x >= 3432", ticks = 60 })
             t.exec("enterMorytania.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
-            t.exec("enterMorytania.talkToDrezel-dialog", t.chat.play, {
-                "player:So can I pass through that barrier now?",
-                "npc:Ah, ",
-                "npc:Morytania is an evil land",
-                "npc:You should take some basic precautions",
-                "npc:In many ways Werewolves",
-                "npc:and it is a holy relic",
-                "npc:wolf form is incredibly powerful",
-                "player:Okay, I will keep it equipped",
-            })
+            -- Priest in Peril's Drezel (that quest's own port): his advice pages, whatever they say now.
+            -- His advice ends on a menu of further questions: stop there and close it.
+            t.exec("enterMorytania.talkToDrezel-dialog", t.chat.drain, { max_pages = 30, stop_at = "options" })
+            t.chat.close()
             t.exec("enterMorytania.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
             t.exec("enterMorytania.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
                 at = { 3440, 9886, 0 }, near = { 3440, 9887 },
@@ -99,373 +142,351 @@ return {
                 far_desc = "east of the Salve at 3423,3485 (mausoleum_interactions.rs2 p_telejump(0_53_54_31_29))" })
             t.exec("enterMorytania.holyBarrier-msg", t.msg.expect, "You pass through the holy barrier")
 
-            -- talkToVanstrom (3423,3485 -> 3503,3478 REACH closed-doors len=95)
+
+            -- Vanstrom (4632 [625..777]): the start offered, refused, offered again and taken.
             t.exec("goto-talkToVanstrom", t.player.goto_tile, 3503, 3478, 0)
-            t.exec("talkToVanstrom", t.player.talk_to, "route_vanstrom_klause_sitting", 1)
-            t.exec("talkToVanstrom-dialog", t.chat.play, {
-                "npc:Hello there, how goes it", "player:Quite well", "npc:Hmm, well, I am a little concerned",
-                "choose:/Why do they need help/",
-                "player:Why do they need help?", "npc:I should imagine", "npc:However, the Myreque", "player:What help", "npc:I'd have taken",
-                "player:What kind of weapons", "npc:Steel I believe",
-                "choose:/Perhaps I could help/",
-                "player:Perhaps I could help", "npc:Oh yes?",
-                "choose:/Yes, I.ll do it/", "choose:Yes.",
-                "player:Yes, I'll do it!", "npc:That's great news",
-            })
-            t.ticks(2)
+            local intro = {
+                "npc:Hello there. The name's Vanstrom Klause. How goes it", "player:Quite well, thanks for asking.",
+                "npc:Hmm... Well, I am a little concerned", "player:What friends are these?",
+                "npc:Well, friends may be the wrong term", "player:What work?",
+                "npc:Fighting against the vampyres", "player:The Myreque? Yes, I've heard of them.",
+                "npc:Really? Well, then you'll understand", "player:And how is it you want to help them?",
+                "npc:As I say, I'm not actually too sure.",
+            }
+            t.exec("talkToVanstrom.no", t.player.talk_to, "multi_vanstrom_stranger_entity", 1)
+            local no = {}
+            for _, e in ipairs(intro) do no[#no + 1] = e end
+            no[#no + 1] = "choose:No."
+            no[#no + 1] = "player:I wish I could help, but I'm busy at the moment."
+            no[#no + 1] = "npc:Oh well, I'm sure someone will be along to help soon."
+            t.exec("talkToVanstrom.no-dialog", t.chat.play, no)
+            t.chat.continue_(true); t.ticks(2)
+            t.expect("quest.stage.not_started.after_no", t.quest.expect_stage("not_started"))
+            t.exec("talkToVanstrom", t.player.talk_to, "multi_vanstrom_stranger_entity", 1)
+            local yes = {}
+            for _, e in ipairs(intro) do yes[#yes + 1] = e end
+            for _, e in ipairs({ "choose:Yes.",
+                "player:Well, perhaps I could deliver some weapons", "npc:Really? You would help? Fantastic!",
+                "npc:From what I hear, the weapons needed to slay", "player:So what weapons did you want",
+                "npc:Well, vampyres are not the only foes", "player:But you've not actually been able",
+                "npc:Unfortunately not.", "player:I'm sure I'll be able to get my hands on some.",
+                "npc:They'll need delivering to our Myreque friends.", "player:Sounds like a good place to start then.",
+                "npc:How wonderful! Good luck, adventurer.",
+                "choose:Where can I find this boatman?", "player:Where can I find this boatman?",
+                "npc:I hear he lives in Mort'ton.", "npc:Most of the town has supposedly fallen",
+                "player:And you say he's had dealings", "npc:So I hear.",
+                "choose:Remind me, what weapons do I need?", "player:Remind me, what weapons do I need?",
+                "npc:You've forgotten already?", "npc:I'd suggest a longsword",
+                "choose:What else do you know about the Myreque?", "player:What else do you know about the Myreque?",
+                "npc:The vampyres are an evil heel", "npc:The Myreque are the only ones brave enough",
+                "npc:No one knows for sure", "player:And this group in Mort Myre?", "npc:Yes, indeed!",
+                "choose:I'd better be off.", "player:I'd better be off." }) do yes[#yes + 1] = e end
+            t.exec("talkToVanstrom-dialog", t.chat.play, yes)
+            t.chat.continue_(true); t.ticks(2)
             t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
-            -- fillDruidPouch: the pouch (five charges) is brought along from Nature Spirit; read it back.
-            local _, pouch = t.inv.count("druid_pouch")
-            t.check("fillDruidPouch", pouch == 5, "druid pouch charges in backpack: " .. tostring(pouch) .. " (given in setup, guide: at least 5)")
-
-            -- talkToCyreg
+            -- Cyreg (4632 [1299..1415], [1632..1669]).
             t.exec("goto-talkToCyreg", t.player.goto_tile, 3522, 3285, 0)
             t.exec("talkToCyreg", t.player.talk_to, "route_cyreg_paddlehorn", 1)
-            t.exec("talkToCyreg-dialog-1", t.chat.play, {
-                "npc:Hello there", "player:Hello there, I have some weapons", "npc:Hmm, I'm sure I don't know", "player:Come on, I know",
-                "npc:Ok, seriously", "player:Can you tell me how to find", "npc:Their base is well hidden",
-                "choose:/they.ll just die without/",
-                "player:Well, I guess", "npc:Hmm, you don't seem", "player:What's that supposed", "npc:They're resourceful folks",
-                "choose:/Resourceful enough/",
-                "player:Resourceful enough", "npc:Maybe they are",
-                "choose:/deaths are on your head/",
-                "player:If you don't tell me", "npc:There's death aplenty",
-                "choose:/What kind of a man/",
-                "player:What kind of a man", "npc:Don't dare to judge me", "npc:Very well, if you would", "player:But will you help me?",
-                "npc:No, I won't take you",
+            t.exec("talkToCyreg-dialog", t.chat.play, {
+                "npc:Hello there, friend.", "player:Hello there. I'm guessing you're the boatman?",
+                "npc:Well I am 'a' boatman.", "player:I hear you have dealings with the Myreque.",
+                "npc:Hmm... I don't think I know", "player:Come on, I know you've helped them",
+                "npc:Well... let's say I had worked for them before", "player:Do I look like a vampyre?",
+                "npc:Maybe! You know they can shapeshift", "player:Surely if I was a vampyre",
+                "npc:Hmm... Perhaps... But I'm sorry",
+                "choose:Oh come on, you can tell me!", "player:Oh come on, you can tell me!", "npc:I'm sorry, I just can't...",
+                "choose:Well, I guess they'll just die without weapons.", "player:Well, I guess they'll just die",
+                "npc:Well, you don't seem too concerned",
+                "choose:Resourceful enough to get their own steel weapons?", "player:Resourceful enough",
+                "npc:Maybe they are...",
+                "choose:If you don't tell me, their deaths are on your head!", "player:If you don't tell me",
+                "npc:There's death aplenty in this forsaken place...",
+                "choose:Why do you say that this place is forsaken?", "player:Why do you say that this place is forsaken?",
+                "npc:All of these lands are forsaken",
+                "choose:What kind of a man are you to say that you don't care?", "player:What kind of a man are you",
+                "npc:Don't dare to judge me", "player:You're risking death either way.", "npc:Hmm...",
+                "npc:I suppose you do make a point.", "player:So you'll help me?",
+                "npc:No, I won't take you, but if you're happy to pay", "player:What for?",
+                "npc:The boat took some damage", "npc:You should also bring a hammer", "npc:Oh, and don't forget the weapons",
+                "choose:Here are some planks for you.", "player:Here are some planks for you.",
+                "objbox:The boatman takes three wooden planks", "npc:Right. When you're ready",
+                "npc:Keep heading north on foot", "npc:Don't forget, you'll want to take three more planks",
+                "npc:Oh, and don't forget the weapons",
+                "choose:Tell me about yourself.", "player:Tell me about yourself.", "npc:I'm just a humble boatman.",
+                "choose:Tell me more about the Myreque.", "player:Tell me more about the Myreque.", "npc:What do you want to know?",
+                "choose:Tell me about the members of the Myreque.", "player:Tell me about the members of the Myreque.",
+                "npc:Well you have Radigad Ponfit.", "npc:Then there's Veliaf Hurtz", "npc:Next there's Ivan Strom.",
+                "npc:You've also got Sani Piliu", "npc:There's Harold Evans.", "npc:Finally, you have Polmafi Ferdygris.",
+                "player:And that's all of them?", "npc:In Mort Myre it is.",
+                "choose:Let's talk about something else.", "player:Let's talk about something else.",
+                "choose:Tell me about the Drakans.", "player:Tell me more about the vampyres.",
+                "npc:They're led by the Drakans.", "npc:No one out here ever sees the Drakans",
+                "choose:Could I use your boat?", "player:Could I use your boat?", "npc:You can, but I'll have to charge you",
+                "choose:Yes, I'll pay the ten gold.", "player:Yes, I'll pay the ten gold.",
             })
-            t.ticks(2)
-            t.expect("quest.stage.boatman_agreed", t.quest.expect_stage("boatman_agreed"))
-            pages("talkToCyreg-pouch", 14, "/Here are some planks/")
-            t.ticks(2)
-            t.expect("quest.stage.boatman_repaired", t.quest.expect_stage("boatman_repaired"))
-            local _, planks = t.inv.count("woodplank")
-            t.check("talkToCyreg-planks", true, tostring(planks) .. " planks left after Cyreg")
-
-            -- boardBoat
-            -- (the boat's own tile 3524,3283 is solid: pressed from where Cyreg stands, never a goto onto it)
-            t.exec("boardBoat", t.player.click_loc, "route_rowboat_mortton", 1)
-            t.exec("boardBoat-dialog", t.chat.play, { "npc:It costs 10 gold", "choose:/Yes. I.ll pay/" })
-            t.ticks(2)
-            t.check("boardBoat-paid", true, "paid ten gold, chat " .. tostring(t.chat.kind()))
             t.chat.continue_(true)
-            t.ticks(24)
+            t.ticks(20)
+            arrival(t, "boat-arrive", "You arrive at the Hollows.")
             t.expect("quest.stage.entered_hollowed", t.quest.expect_stage("entered_hollowed"))
-            t.check("boat-landed", true, "landed at " .. where())
+            local _, landed = t.world.tile()
+            t.check("boat-landed", type(landed) == "table" and landed.x == 3498 and landed.z == 3380,
+                "landed at " .. where(t) .. " (4632 [2020]: 3498,3380)")
 
-            -- climbTree (and its three sub-states)
+            -- The tree and the three rungs (4632 [1805..1831]).
             t.exec("goto-climbTree", t.player.goto_tile, 3502, 3425, 0)
-            t.exec("climbTree", t.player.click_loc, "spooky_tree_base_forbridge", 2)
+            t.exec("climbTree", t.player.click_loc, "spooky_tree_base_forbridge", 2, { at = { 3502, 3426, 0 } })
             t.ticks(4)
-            local at = where()
-            t.check("climbTree2", at ~= "3502,3425,0", "after the tree climb the player stands at " .. at)
-            t.check("climbTree3", at ~= "3502,3425,0", "same climb, plank-and-hammer state: at " .. at)
-            t.check("climbTree4", at ~= "3502,3425,0", "same climb, weapons-only state: at " .. at)
-            t.drive.camera(0, 450, 700)
-            t.ticks(2)
-
-            -- repairBridge rungs
+            local _, up = t.world.tile()
+            t.check("climbTree-where", type(up) == "table" and up.x == 3502 and up.z == 3427 and up.level == 0,
+                "on the bridge at " .. where(t) .. " (4632 [1812]: 3502,3427,0)")
             for n = 1, 3 do
-                local name = (n == 1) and "repairBridge" or ("repairBridge" .. n)
-                t.exec(name, t.player.click_loc, "route_swampbridge_" .. n, 1)
-                t.ticks(8)
+                t.exec("repairBridge" .. n, t.player.click_loc, "route_swampbridge_" .. n, 1)
+                t.ticks(5)
                 local _, np = t.inv.count("woodplank")
                 local _, nn = t.inv.count("nails")
-                t.check(name .. "-after", true, where() .. " planks " .. tostring(np) .. " nails " .. tostring(nn))
+                t.check("repairBridge" .. n .. "-after", tonumber(nn) == 225 - 75 * n,
+                    where(t) .. " planks " .. tostring(np) .. " nails " .. tostring(nn))
             end
-            t.expect("quest.stage.found_guard", t.quest.expect_stage("found_guard"))
-
-            -- A ghast attacks on the bridge landing; leave its range by plain travel to the Fyod camp, then wait.
-            t.exec("leg.1.goto-camp", t.player.goto_tile, 3508, 3438, 0)
-            t.ticks(14)
-            t.check("leg.1.state", true, "ends at " .. where() .. ", stage found_guard (52) read from the server; carries steel weapons, hammer, druid pouch (nails, planks, coins spent)")
+            t.exec("climbDown", t.player.click_loc, "spooky_tree_base_forbridge", 1, { at = { 3502, 3431, 0 } })
+            t.ticks(3)
+            local _, down = t.world.tile()
+            t.check("climbDown-where", type(down) == "table" and down.x == 3502 and down.z == 3432,
+                "off the bridge at " .. where(t) .. " (4632 [1831]: 3502,3432)")
+            t.exec("leg.1.goto-camp", t.player.goto_tile, 3507, 3438, 0)
+            t.ticks(4)
+            t.check("leg.1.state", true, "ends at " .. where(t) .. ", stage entered_hollowed (25)")
         end },
         { name = "curpile_to_veliaf", run = function(t)
-            local function where()
-                local r, tl = t.world.tile()
-                if type(tl) ~= "table" then return tostring(r) end
-                return tl.x .. "," .. tl.z .. "," .. tl.level
-            end
-            local function pages(name, maxn, choose)
-                for i = 1, maxn do
-                    local k = t.chat.kind()
-                    local _, tx = t.chat.text()
-                    t.check(name .. "-p" .. i, true, tostring(k) .. " :: " .. tostring(tx))
-                    if k == "none" then return end
-                    if k == "options" then t.chat.choose(choose or "/Ok, thanks/"); t.ticks(1)
-                    else t.chat.continue_(true); t.ticks(1) end
-                end
-            end
+            t.ticklog.mark("leg.curpile_to_veliaf")
             t.ticks(2)
-            -- repairBridge1: the three rungs were mended in leg 1 (repairBridge, repairBridge2, repairBridge3); read the server stage.
-            local _, stg = t.var.server("varp387_routequest")
-            t.check("repairBridge1", stg == 52, "bridge mended in leg 1, server stage routequest=" .. tostring(stg) .. " (found_guard 52) at " .. where())
-
-            -- Curpile asks three of six questions (routequest_start_and_route.rs2:~560). The guide's talkToCurpile1/3/4/5/6 are the
-            -- Sani/Veliaf/Cyreg/Drakan/Polmafi answers; a round with a wrong answer knocks the player out to Mort'ton, so
-            -- uncovered questions are answered right and covered ones wrong until every answer has been given, then one clean round.
-            local keys = {
-                { key = "youngest", pick = "Ivan Strom", step = "talkToCurpile2" },
-                { key = "female", pick = "Sani Piliu", step = "talkToCurpile1" },
-                { key = "leader", pick = "Veliaf Hurtz", step = "talkToCurpile3" },
-                { key = "scholar", pick = "Polmafi Ferdygris", step = "talkToCurpile6" },
-                { key = "boatman", pick = "Cyreg Paddlehorn", step = "talkToCurpile4" },
-                { key = "family", pick = "Drakan", step = "talkToCurpile5" },
-            }
-            local covered = {}
-            local function uncovered_count()
-                local n = 0
-                for _, k in ipairs(keys) do if not covered[k.step] then n = n + 1 end end
-                return n
-            end
-            -- A wrong answer knocks the player out to Mort'ton (3522,3285): the way back is the real one, every
-            -- time (door rule): the boat (ten coins), a goto across the open Hollows to the south tree, the
-            -- tree's own Cross-bridge op (the mended bridge), then the open ground to Curpile's camp.
-            local function back_to_camp(rname)
-                t.exec(rname .. ".boat", t.player.click_loc, "route_rowboat_mortton", 1)
-                t.exec(rname .. ".boat-dialog", t.chat.play, { "npc:It costs 10 gold", "choose:/Yes. I.ll pay/" })
-                t.ticks(2)
-                t.chat.continue_(true)
-                t.ticks(24)
-                t.check(rname .. ".boat-landed", true, "landed at " .. where())
-                t.exec("goto-" .. rname .. ".tree", t.player.goto_tile, 3502, 3425, 0)
-                t.exec(rname .. ".crossBridge", t.player.click_loc, "spooky_tree_base_forbridge", 1, { at = { 3502, 3426, 0 } })
-                t.ticks(4)
-                t.check(rname .. ".crossBridge-where", true, "crossed the bridge, now at " .. where())
-            end
-            local solved = false
-            for round = 1, 10 do
-                local rname = "talkToCurpile-round" .. round
-                if round > 1 then back_to_camp(rname) end
-                t.exec("goto-" .. rname, t.player.goto_tile, 3508, 3438, 0)
-                t.exec(rname, t.player.talk_to, "route_curpile_fyod_child", 1)
-                t.exec(rname .. "-intro", t.chat.play, { "npc:Hey, what're you doin", "choose:/I.ve come to help the Myreque/", "player:I've come to help the Myreque", "npc:Okay, I see ya got da weapons",
-                    "player:But I just want", "npc:Well, dat's as maybe", "npc:so say I asks", "player:Sounds fine", "npc:Hey...don't tempt me" })
-                local all_right = true
-                for q = 1, 3 do
-                    local _, tx = t.chat.text()
-                    tx = tostring(tx)
-                    local hit = nil
-                    for _, k in ipairs(keys) do if tx:find(k.key) then hit = k end end
-                    t.check(rname .. "-q" .. q, hit ~= nil, tx)
-                    t.chat.continue_(true); t.ticks(1)
-                    local right = true
-                    if hit == nil then right = false
-                    elseif covered[hit.step] then right = (uncovered_count() == 0)
-                    elseif q == 3 and all_right and uncovered_count() > 1 then right = false end
-                    if hit and right then
-                        t.exec(hit.step .. "-r" .. round, t.chat.choose, "/" .. hit.pick:gsub("%.", "") .. "/")
-                        covered[hit.step] = true
-                    else
-                        all_right = false
-                        t.exec(rname .. "-a" .. q .. "-dontknow", t.chat.choose, "/know/")
-                    end
-                    t.ticks(1)
-                    t.chat.continue_(true); t.ticks(1)
-                end
-                for i = 1, 10 do
-                    local k = t.chat.kind(); local _, tx = t.chat.text()
-                    if k == "none" then break end
-                    t.check(rname .. "-end" .. i, true, tostring(k) .. " :: " .. tostring(tx))
-                    t.chat.continue_(true); t.ticks(1)
-                end
-                t.ticks(8)
-                local _, st = t.var.server("varp387_routequest")
-                t.check(rname .. "-verdict", true, "round " .. round .. " all_right=" .. tostring(all_right) .. " stage " .. tostring(st) .. " at " .. where())
-                if st == 55 then solved = true break end
-            end
-            t.check("talkToCurpile", solved, "quiz passed, server stage answered_questions; answers given: " .. tostring(6 - uncovered_count()) .. " of 6")
+            -- The doors before Curpile's questions (a guessed line: no recording tries them).
+            t.exec("doorsLocked", t.player.click_loc, "freedomfighterentrancer", 1, { at = { 3509, 3447, 0 } })
+            t.exec("doorsLocked-box", t.chat.play, { "mesbox:The doors are locked." })
+            t.exec("goto-curpile1", t.player.goto_tile, 3507, 3438, 0)
+            -- Curpile (4632 [1836..1935]): the punch, the questions, a round lost.
+            t.exec("talkToCurpile.punch", t.player.talk_to, "route_curpile_fyod_child", 1)
+            t.exec("talkToCurpile.punch-dialog", t.chat.play, {
+                "npc:Hey... What're you doin' here?", "choose:I don't have to answer to you!",
+                "player:I don't have to answer to you!", "npc:You do if you know what's good for ya!" })
+            t.chat.continue_(true); t.ticks(2)
+            t.exec("talkToCurpile.punch-msg", t.msg.expect, "Curpile punches you.")
+            t.exec("talkToCurpile", t.player.talk_to, "route_curpile_fyod_child", 1)
+            t.exec("talkToCurpile-dialog", t.chat.play, {
+                "npc:Hey... What're you doin' here?", "choose:No reason!", "player:No reason!",
+                "npc:Well, you's gotta know that you're tresspassin'",
+                "choose:I'm lost. Can you show me the way out?", "player:I'm lost. Can you show me the way out?",
+                "npc:You's got yourself here...",
+                "choose:I've come to help the Myreque. I've brought weapons.", "player:I've come to help the Myreque.",
+                "npc:Okay, I see ya got some weapons", "npc:Now, you seems all sincered up to me...",
+                "player:But I just want to deliver these weapons.", "npc:Okay, I's got an idea.",
+                "player:Sounds fine to me... Go ahead, shoot!", "npc:Hey... Don't tempt me!", "npc:Okay, here's ya first question." })
+            t.expect("quest.stage.found_guard", t.quest.expect_stage("found_guard"))
+            quiz(t, "round1", 3)
+            t.exec("round1-lost", t.chat.play, { "npc:I'm sorry, but you's only got two questions correct!" })
+            t.ticks(14)
+            -- The knock-out (4632 [1935..1950]): back beside Cyreg.
+            t.exec("knockout", t.chat.play, { "mesbox:Curpile knocks you out and takes you back to Mort'ton.",
+                "player:Ow... my head...", "npc:So your hunt for the Myreque is going well then?",
+                "choose:Could I use your boat?", "player:Could I use your boat?", "npc:You can, but I'll have to charge you",
+                "choose:Yes, I'll pay the ten gold.", "player:Yes, I'll pay the ten gold." })
+            t.chat.continue_(true)
+            t.ticks(20)
+            arrival(t, "boat2-arrive", "You arrive at the Hollows.")
+            -- Back over the mended bridge (4632 [2058..2067]): up the south tree, along the rungs, down the north tree.
+            t.exec("goto-crossBridge", t.player.goto_tile, 3502, 3425, 0)
+            t.exec("crossBridge.up", t.player.click_loc, "spooky_tree_base_forbridge", 1, { at = { 3502, 3426, 0 } })
+            t.ticks(4)
+            t.exec("crossBridge.down", t.player.click_loc, "spooky_tree_base_forbridge", 1, { at = { 3502, 3431, 0 } })
+            t.ticks(8)
+            local _, over = t.world.tile()
+            t.check("crossBridge-where", type(over) == "table" and over.x == 3502 and over.z == 3432,
+                "over the bridge at " .. where(t) .. " (4632 [2067]: 3502,3432)")
+            t.exec("goto-curpile2", t.player.goto_tile, 3508, 3439, 0)
+            t.exec("talkToCurpile2", t.player.talk_to, "route_curpile_fyod_child", 1)
+            t.exec("talkToCurpile2-dialog", t.chat.play, { "npc:Back again? You's ain't getting in",
+                "player:Well, let's hear them then.", "npc:Okay, here's ya first question." })
+            quiz(t, "round2", 0)
+            t.exec("round2-won", t.chat.play, { "npc:Okay, I believes ya..." })
+            t.ticks(2)
             t.expect("quest.stage.answered_questions", t.quest.expect_stage("answered_questions"))
 
-            -- enterDoors
-            t.exec("goto-enterDoors", t.player.goto_tile, 3509, 3445, 0)
-            t.exec("enterDoors", t.player.click_loc, "freedomfighterentrancer", 1)
-            t.ticks(4)
+            -- The doors (4632 [2111..2123]) and the first cave on the right (4632 [2184..2203]).
+            t.exec("enterDoors", t.player.click_loc, "freedomfighterentrancer", 1, { at = { 3509, 3447, 0 } })
+            t.ticks(8)
             t.expect("quest.stage.entered_underground", t.quest.expect_stage("entered_underground"))
-            t.check("enterDoors-where", true, "standing at " .. where())
+            local _, under = t.world.tile()
+            t.check("enterDoors-where", type(under) == "table" and under.x == 3500 and under.z == 9811,
+                "below at " .. where(t) .. " (4632 [2122]: 3500,9811)")
+            t.player.walk_to(3492, 9824, 60)
+            t.exec("enterCave", t.player.click_loc, "route_cavewalltunnel", 1, { at = { 3492, 9823, 0 } })
+            t.ticks(7)
+            t.exec("enterCave-harold", t.chat.play, { "npc:Hey! Who are you and why are you here?",
+                "player:It's okay. I'm a friend.", "npc:Weapons? You'd better talk to Veliaf then." })
+            t.ticks(1)
+            local _, inside = t.world.tile()
+            t.check("enterCave-where", type(inside) == "table" and inside.x == 3505 and inside.z == 9832,
+                "in the hideout at " .. where(t) .. " (4632 [2190]: 3505,9832)")
 
-            -- enterCave
-            t.exec("enterCave", t.player.click_loc, "route_cavewalltunnel", 1, { at = { 3492, 9823 } })
-            t.ticks(4)
-            t.check("enterCave-where", true, "in the hideout at " .. where())
-
-            -- talkToVeliaf
+            -- Veliaf (4632 [2252..2288]).
             t.exec("talkToVeliaf", t.player.talk_to, "route_veliaf_hurtz_parent", 1)
-            pages("talkToVeliaf", 40)
-            t.ticks(3)
+            t.exec("talkToVeliaf-dialog", t.chat.play, { "player:Hello there.", "npc:You... I saw you come in.",
+                "player:I'm ", "npc:I see... And why should we trust you?", "player:Because I already gained the trust",
+                "npc:A good start I suppose", "player:True, but someone I wouldn't have been able to fool is Drezel.",
+                "npc:Drezel? You know him?", "player:Yes, and he told me to seek you out.",
+                "npc:Hmm... Very well.", "npc:In the meantime, given you're here to help" })
+            t.chat.continue_(true); t.ticks(2)
             t.expect("quest.stage.introduced_veliaf", t.quest.expect_stage("introduced_veliaf"))
-            local _, fin = t.var.server("varp387_routequest")
-            t.check("leg.2.end", fin == 65, "ends at " .. where() .. ", server stage routequest=" .. tostring(fin) .. " (introduced_veliaf 65); backpack keeps the steel weapons for the Myreque, hammer, druid pouch")
         end },
         { name = "myreque_to_cutscene", run = function(t)
-            -- LEG 3 BEGIN: talkToHarold
-            local function where()
-                local r, tl = t.world.tile()
-                if type(tl) ~= "table" then return tostring(r) end
-                return tl.x .. "," .. tl.z .. "," .. tl.level
-            end
-            local function pages(name, maxn, choose)
-                for i = 1, maxn do
-                    local k = t.chat.kind()
-                    local _, tx = t.chat.text()
-                    t.check(name .. "-p" .. i, true, tostring(k) .. " :: " .. tostring(tx))
-                    if k == "none" then return end
-                    if k == "options" then t.chat.choose(choose or "/Ok, thanks/"); t.ticks(1)
-                    else t.chat.continue_(true); t.ticks(1) end
-                end
-            end
+            t.ticklog.mark("leg.myreque_to_cutscene")
             t.ticks(2)
-            local _, st0 = t.var.server("varp387_routequest")
-            t.check("leg.3.start", st0 == 65, "begins at " .. where() .. ", server stage routequest=" .. tostring(st0) .. " (introduced_veliaf 65)")
-
-            -- The five introductions (routequest_hideout.rs2:70-300; each ends on its own "Ok, thanks." menu row).
-            local function talk(step, sym)
+            -- The five members (4632 [2302..2422]), each met once, each topic asked.
+            local function member(step, sym, opening, job, myreque)
                 t.exec(step, t.player.talk_to, sym, 1)
-                pages(step, 40)
-                t.ticks(2)
+                local list = {}
+                for _, e in ipairs(opening) do list[#list + 1] = e end
+                list[#list + 1] = "choose:What's your job here?"
+                list[#list + 1] = "player:What's your job here?"
+                for _, e in ipairs(job) do list[#list + 1] = e end
+                list[#list + 1] = "choose:Could you tell me more about the Myreque?"
+                list[#list + 1] = "player:Could you tell me more about the Myreque?"
+                for _, e in ipairs(myreque) do list[#list + 1] = e end
+                list[#list + 1] = "choose:Okay, thanks."
+                list[#list + 1] = "player:Okay, thanks."
+                t.exec(step .. "-dialog", t.chat.play, list)
+                t.chat.continue_(true); t.ticks(2)
             end
-            talk("talkToHarold", "route_harold_evans")
-            talk("talkToRadigad", "route_radigad_ponfit_parent")
-            talk("talkToSani", "route_sani_piliu")
-            talk("talkToPolmafi", "route_polmafi_ferdygris_parent")
-            talk("talkToIvan", "route_ivan_strom_parent")
-            local _, bits = t.var.server("varp6878_routequest_myreque_bits")
-            t.check("talkToMembers", bits == 31, "all five members met, routequest_myreque_bits=" .. tostring(bits) .. " (routequest_hideout.rs2:62 routequest_member_met)")
+            member("talkToSani", "route_sani_piliu", { "npc:Hello. Very nice to meet you!", "player:I'm ",
+                "npc:The pleasure's all mine!", "player:Well, perhaps a little", "npc:Sure, go ahead." },
+                { "npc:Well, it's fair to say", "player:What skills?", "npc:Before I joined the Myreque",
+                  "player:That's horrible!", "npc:It's okay.", "npc:Anyway, what it meant was", "npc:He saw that I would be an asset" },
+                { "npc:Well, Veliaf is the leader", "npc:Anyway, our hope is", "npc:That's the long term goal though.",
+                  "player:You make it sound easy!", "npc:With determination" })
+            member("talkToPolmafi", "route_polmafi_ferdygris_parent", { "npc:Ah, I see you've introduced yourself to Veliaf. Now",
+                "player:Do you mind if I ask a few questions?", "npc:Not at all." },
+                { "npc:I'm a key advisor to Veliaf.", "npc:We don't give up though." },
+                { "npc:We're the last hope", "npc:There are multiple groups of us.", "npc:Veliaf leads this group." })
+            member("talkToIvan", "route_ivan_strom_parent", { "player:Hi there. Veliaf said", "npc:Okay. Well, my name is Ivan.",
+                "player:Would you mind if I asked you a few questions?", "npc:That's fine." },
+                { "npc:To be honest, I shouldn't actually be here", "player:What were you meant to be learning", "npc:I'm meant to be training as a priest." },
+                { "npc:We're the only ones brave enough" })
+            member("talkToRadigad", "route_radigad_ponfit_parent", { "npc:Ah, I see you've introduced yourself to Veliaf. Are you",
+                "player:Maybe, but I'd like to ask", "npc:Sure, go ahead." },
+                { "npc:I help with anything I can really." },
+                { "npc:We're the only resistance", "npc:Hopefully we can find more people", "player:So there aren't other members",
+                  "npc:There are, but I hear", "npc:I'm not sure how true that is" })
+            member("talkToHarold", "route_harold_evans", { "npc:Hello there. Forgive me", "player:It's fine.", "npc:Sure. I'll do my best" },
+                { "npc:Cheating death seems to be my main role." },
+                { "npc:We're a good team", "npc:Many of the others", "npc:Truth be told though", "player:Juves?", "npc:Juveniles," })
+            local _, bits = t.var.server("varb2496_thsfm_spoken_allmyreque")
+            t.check("talkToMembers", bits == 31, "thsfm_spoken_allmyreque=" .. tostring(bits) .. " (4632 [2405]: 31)")
 
-            -- Veliaf again: hand over the steel weapons, then the ambush cutscene plays (routequest_hideout.rs2:276-330, 438-550).
-            local mark = t.cutscene.mark()
-            t.exec("talkToVeliafAgain", t.player.talk_to, "route_veliaf_hurtz_parent", 1)
-            pages("talkToVeliafAgain", 60, "/talk about the weapons/")
-            t.exec("talkToVeliafAgain.cutscene", t.cutscene.await, "talkToVeliafAgain", { since = mark, expect = { { op = "moveto" }, { op = "lookat" }, { op = "reset" } } })
-            t.ticks(3)
-            local _, stc = t.var.server("varp387_routequest")
-            t.check("talkToVeliafForCutscene", stc >= 70, "cutscene played, server stage routequest=" .. tostring(stc) .. " (enter_cutscene 70, ambush 80)")
-            local _, lsw = t.inv.count("steel_longsword")
-            local _, ssw = t.inv.count("steel_sword")
-            t.check("weapons-handed-over", lsw == 0 and ssw == 0, "steel_longsword " .. tostring(lsw) .. ", steel_sword " .. tostring(ssw) .. " left in the backpack")
-            -- The hound attacks the moment the scene ends (routequest_hound.rs2:12) and no checkpoint is written in combat. The guide
-            -- sends the player back out and in again (leg 4: climbTreeHellhound, enterCaveHellhound), so leg 3 leaves through the
-            -- hideout's wall tunnel, whose cleanup removes the hound (routequest_hideout.rs2:14-17, routequest_hound.rs2:63).
-            t.exec("leaveHideout", t.player.click_loc, "route_cavewalltunnel", 1, { at = { 3505, 9831 } })
-            t.ticks(6)
-            t.check("leaveHideout-where", true, "left the hideout through the wall tunnel, now at " .. where() .. " (the quiet checkpoint below proves the hound is no longer attacking)")
-            t.ticks(8)
-            -- LEG 3 END
+            -- In Aid of the Myreque's garlic chest (4632 [2230..2239]): open it, search it twice.
+            t.exec("garlicChest.open", t.player.click_loc, "burgh_chest_closed", 1, { at = { 3515, 9837, 0 } })
             t.ticks(4)
-            local _, fin = t.var.server("varp387_routequest")
-            t.check("leg.3.end", fin == 80, "ends at " .. where() .. ", server stage routequest=" .. tostring(fin) .. " (ambush 80); steel weapons handed over, hammer and druid pouch kept; left the hideout, hound cleaned up (re-entering the cave via route_cavewalltunnel 3492,9823 brings it back)")
+            for n = 1, 2 do
+                t.exec("garlicChest.search" .. n, t.player.click_loc, "burgh_chest_open", 1, { at = { 3515, 9837, 0 } })
+                t.ticks(4)
+            end
+            t.exec("garlicChest.msg", t.msg.expect, "...you find a bulb of garlic which you add to your inventory.")
+            local _, garlic = t.inv.count("garlic")
+            local _, gc = t.var.server("varb2009_myq2_garlic_chest")
+            t.check("garlicChest", tonumber(garlic) == 2 and gc == 2,
+                "garlic " .. tostring(garlic) .. ", myq2_garlic_chest " .. tostring(gc) .. " (4632 [2239]: 2 and 2)")
+
+            -- Veliaf and the weapons (4632 [2436..2487]), then the ambush in a copy ([2487..2553]).
+            t.exec("talkToVeliafAgain", t.player.talk_to, "route_veliaf_hurtz_parent", 1)
+            t.exec("talkToVeliafAgain-dialog", t.chat.play, { "npc:Well met. I see you've introduced yourself to everyone.",
+                "choose:So you're the leader of this group?", "player:So you're the leader of this group?", "npc:That's right.",
+                "choose:Can you tell me about your organisation?", "player:Can you tell me about your organisation?",
+                "npc:Well I wouldn't say we're an organisation.", "npc:Anyway though",
+                "choose:What can you tell me about Morytania?", "player:What can you tell me about Morytania?",
+                "npc:If legend is to be believed", "player:Who is Lowerniel Drakan?", "npc:Lowerniel Vergidiyad Drakan",
+                "player:You sound very bitter.", "npc:So would you",
+                "choose:What are your plans for the future?", "player:What are your plans for the future?",
+                "npc:At the moment we're maintaining a low profile", "npc:Looking further ahead",
+                "choose:Let's talk about the weapons.", "player:Let's talk about the weapons.",
+                "npc:Alright, let's see what you have for us...", "objbox:You give the weapons to Veliaf.",
+                "npc:We'll be able to make good use of these." })
+            local mark = t.cutscene.mark()
+            t.ticks(8)
+            t.exec("ambush-dialog1", t.chat.play, { "npc:What the...", "npc:Vampyre!" })
+            t.ticks(6)
+            t.exec("ambush-dialog2", t.chat.play, { "npc:It's Vanstrom!", "player:Wait... What?",
+                "npc:Well done, adventurer!", "npc:The Drakans have been wanting you lot dealt with", "npc:We're dead!" })
+            t.ticks(8)
+            t.exec("ambush-dialog3", t.chat.play, { "npc:Quite right.", "npc:No!" })
+            t.ticks(8)
+            t.exec("ambush-dialog4", t.chat.play, { "npc:And now... A little gift for the rest of you." })
+            t.exec("ambush.cutscene", t.cutscene.await, "ambush", { since = mark,
+                expect = { { op = "moveto", height = 555 }, { op = "lookat", height = 85 }, { op = "reset" } } })
+            t.ticks(2)
+            t.expect("quest.stage.ambush", t.quest.expect_stage("ambush"))
+            local _, lsw = t.inv.count("steel_longsword")
+            t.check("weapons-handed-over", tonumber(lsw) == 0, "steel_longsword " .. tostring(lsw) .. " left in the backpack")
+            -- The escape (4632 [2566..2577]): out of the copy at the passage mouth.
+            t.exec("escape", t.player.click_loc, "route_cavewalltunnel_escape", 1)
+            t.exec("escape-confirm", t.chat.play, { "choose:Yes." })
+            t.ticks(6)
+            local _, out = t.world.tile()
+            t.check("escape-where", type(out) == "table" and out.x == 3492 and out.z == 9824,
+                "out at " .. where(t) .. " (4632 [2574]: 3492,9824)")
         end },
         { name = "hellhound_to_stranger", run = function(t)
-            -- LEG 4 BEGIN: climbTreeHellhound
-            local function where()
-                local r, tl = t.world.tile()
-                if type(tl) ~= "table" then return tostring(r) end
-                return tl.x .. "," .. tl.z .. "," .. tl.level
-            end
-            -- The way in again from the surface (guide: the tree, the wooden doors, the cave on the east side).
-            local function way_in(tag)
-                -- Out of the dungeon the way a real player walks: the passage to the underground wooden doors
-                -- (freedomfighterundergroundentrancel/r 3500,9812), which open onto the ground north of Curpile's hollow
-                -- tree (LostCity routequest_myreque.rs2 p_teleport(0_54_53_53_57) = 3509,3449; transports.tsv:2127,2129;
-                -- wiki In_Search_of_the_Myreque?oldid=15365477 "circle around his tree to the north ... the doors").
-                t.player.walk_to(3500, 9811, 60) -- the doors' south side, 28 steps from the hideout tunnel's mouth
-                t.check("walk-undergroundDoors" .. tag, true, "walked the passage to " .. where())
-                t.exec("leaveCave" .. tag, t.player.click_loc, "freedomfighterundergroundentrancer", 1, { at = { 3501, 9812, 0 } })
-                t.ticks(4)
-                local _, out = t.world.tile()
-                t.check("leaveCave" .. tag .. "-where", type(out) == "table" and out.x == 3509 and out.z == 3449 and out.level == 0,
-                    "out through the underground doors onto the marsh north of the hollow tree, now at " .. where() .. " (3509,3449)")
-                -- already in front of the surface doors (their north side); click them from where the player stands
-                t.exec("enterDoors" .. tag, t.player.click_loc, "freedomfighterentrancer", 1)
-                t.ticks(4)
-                t.check("enterDoors" .. tag .. "-where", true, "through the wooden doors, now at " .. where())
-                t.player.walk_to(3493, 9823, 60) -- stops beside the tunnel mouth; the click below enters it
-                t.check("walk-enterCave" .. tag, true, "walked the passage to " .. where())
-                t.exec("enterCave" .. tag, t.player.click_loc, "route_cavewalltunnel", 1, { at = { 3492, 9823 } })
-                t.ticks(4)
-                t.check("enterCave" .. tag .. "-where", true, "into the hideout chamber, now at " .. where())
-            end
-            local function gear()
-                -- guide: combat gear; a rune scimitar and lobsters (fight prerequisites, not quest work)
-                t.cheat("::give rune_scimitar 1")
-                t.cheat("::give lobster 12")
-                t.ticks(2)
-                t.exec("equip.scimitar", t.player.equip, "rune_scimitar")
-                local _, lob = t.inv.count("lobster")
-                t.check("leg.4.food", lob == 12, "lobsters in the backpack: " .. tostring(lob))
-            end
+            t.ticklog.mark("leg.hellhound_to_stranger")
             t.ticks(2)
-            local _, st0 = t.var.server("varp387_routequest")
-            t.check("leg.4.start", st0 == 80, "begins at " .. where() .. ", server stage routequest=" .. tostring(st0) .. " (ambush 80)")
-            gear()
-
-            way_in("Hellhound")
-            -- killHellhound: it is added the moment the chamber is entered (routequest_hound.rs2:4-11)
+            t.expect("quest.stage.ambush.again", t.quest.expect_stage("ambush"))
+            t.cheat("::give rune_scimitar 1")
+            t.cheat("::give lobster 12")
+            t.ticks(2)
+            t.exec("equip.scimitar", t.player.equip, "rune_scimitar")
+            -- Back in through the passage mouth (4633 [12..18]): a fresh copy, the hound set on the player.
+            t.exec("enterCaveHellhound", t.player.click_loc, "route_cavewalltunnel", 1, { at = { 3492, 9823, 0 } })
+            t.ticks(6)
+            t.exec("prayMelee", t.prayer.set, "protectfrommelee", true)
             t.exec("killHellhound", t.player.attack, "skeleton_hellhound", 2, 30)
-            local _, food_before = t.inv.count("lobster")
-            local _, hound_detail = t.exec("killHellhound.dead", t.npc.await_dead_engaged, 300, 50, { eat = { item = "lobster", below = 40 } })
-            -- The fight's margin: lowest hp >= a quarter of max AND food left.
-            local lowest = tonumber(tostring(hound_detail):match("lowest hp (%d+)/"))
-            local _, hp_now = t.skill.read("hitpoints")
-            local max_hp = type(hp_now) == "table" and hp_now.base_level or nil
-            local _, food_left = t.inv.count("lobster")
-            t.check("killHellhound.margin", lowest ~= nil and max_hp ~= nil and lowest * 4 >= max_hp and (tonumber(food_left) or 0) >= 1,
-                "lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp) .. ", lobsters " .. tostring(food_before) .. " -> " .. tostring(food_left)
-                    .. " (margin: lowest hp >= a quarter of max AND food left)")
-            t.ticks(3)
+            t.exec("killHellhound.dead", t.npc.await_dead_engaged, 300, 50, { eat = { item = "lobster", below = 40 } })
+            t.ticks(6)
             t.expect("quest.stage.saved_myreque", t.quest.expect_stage("saved_myreque"))
-
-            -- the guide sends the player out and in again to hear the way out
-            t.exec("leaveChamber", t.player.click_loc, "route_cavewalltunnel", 1, { at = { 3505, 9831 } })
-            t.ticks(4)
-            t.check("leaveChamber-where", true, "left the chamber, now at " .. where())
-            way_in("Leave")
-            t.exec("talkToVeliafToLeave", t.player.talk_to, "route_veliaf_hurtz_parent", 1)
-            for i = 1, 30 do
-                local k = t.chat.kind()
-                local _, tx = t.chat.text()
-                t.check("talkToVeliafToLeave-p" .. i, true, tostring(k) .. " :: " .. tostring(tx))
-                if k == "none" then break end
-                if k == "options" then
-                    local ok = t.chat.choose("/How do I get out/")
-                    if ok ~= "ok" then t.chat.choose("/Ok, thanks/") end
-                    t.ticks(1)
-                else t.chat.continue_(true); t.ticks(1) end
-            end
-            t.ticks(2)
+            t.ticks(6)
+            -- Veliaf speaks as the black lifts (4633 [60..92]).
+            t.exec("veliafMourns", t.chat.play, { "npc:Sani... Harold... That murderer killed them!",
+                "player:I'm so sorry. This is all my fault.", "npc:I don't understand...", "player:He was the one that asked me",
+                "npc:I see...", "npc:I'm sorry, friend, but he clearly took advantage of you.", "player:No, but I'm still responsible.",
+                "npc:Yes... The burden of what happened here", "player:That's not enough.", "npc:He will almost certainly have moved on now.",
+                "player:Maybe, but I have to try.", "npc:Well, I won't stop you", "npc:If you head back into the main cave",
+                "player:That's very useful. Thanks.", "npc:Once you are done", "choose:Okay, thanks.", "player:Okay, thanks." })
+            t.chat.continue_(true); t.ticks(2)
             t.expect("quest.stage.told_exit_route", t.quest.expect_stage("told_exit_route"))
-
-            -- leaveCave: the wall tunnel inside the chamber, then the passage to the false wall and the ladder
-            t.exec("leaveCave", t.player.click_loc, "route_cavewalltunnel", 1, { at = { 3505, 9831 } })
+            local _, back = t.world.tile()
+            t.check("houndDead-where", type(back) == "table" and back.x == 3506 and back.z == 9837,
+                "out of the copy at " .. where(t) .. " (4633 [56]: 3506,9837)")
+            -- The way out (4633 [150..222]): the cave mouth, the false wall, the ladder.
+            t.exec("leaveCave", t.player.click_loc, "route_cavewalltunnel", 1, { at = { 3505, 9831, 0 } })
+            t.ticks(6)
+            t.exec("falseWall", t.player.click_loc, "thrttavernbasementfalsewall", 1, { at = { 3480, 9837, 0 } })
             t.ticks(4)
-            t.check("leaveCave-where", true, "out in the passage, now at " .. where())
-            t.exec("falseWall", t.player.click_loc, "thrttavernbasementfalsewall", 1)
+            t.expect("quest.stage.discovered_wall", t.quest.expect_stage("discovered_wall"))
+            t.exec("goUpToCanifis", t.player.click_loc, "thrttavernbasementladder", 1, { at = { 3477, 9846, 0 } })
             t.ticks(4)
-            t.check("falseWall-where", true, "through the false wall, now at " .. where())
-            t.exec("goUpToCanifis", t.player.click_loc, "thrttavernbasementladder", 1)
-            t.ticks(4)
-            t.check("goUpToCanifis-where", true, "up the ladder, now at " .. where())
             t.expect("quest.stage.found_exit", t.quest.expect_stage("found_exit"))
-
-            -- talkToStranger: the quest ends here
-            t.exec("goto-talkToStranger", t.player.goto_tile, 3503, 3475, 0)
+            local _, top = t.world.tile()
+            t.check("goUpToCanifis-where", type(top) == "table" and top.x == 3495 and top.z == 3465,
+                "up at " .. where(t) .. " (4633 [222]: 3495,3465)")
+            -- The Stranger (4633 [258..268]) and the scroll.
             local snap_r, snap = t.skill.snapshot()
-            t.check("snapshot", snap_r == "ok", "xp before the hand-in, attack " .. tostring(snap and snap.attack and snap.attack.experience))
-            t.exec("talkToStranger", t.player.talk_to, "canafis_stranger", 1)
-            for i = 1, 20 do
-                local k = t.chat.kind()
-                local _, tx = t.chat.text()
-                t.check("talkToStranger-p" .. i, true, tostring(k) .. " :: " .. tostring(tx))
-                if k == "none" or k == "other_input" then break end
-                t.chat.continue_(true); t.ticks(1)
-            end
+            t.check("snapshot", snap_r == "ok", "xp before the hand-in")
+            t.exec("goto-talkToStranger", t.player.goto_tile, 3503, 3478, 0)
+            t.exec("talkToStranger", t.player.talk_to, "multi_vanstrom_stranger_entity", 1)
+            t.exec("talkToStranger-dialog", t.chat.play, { "npc:Hello, friend. What can I do for you?",
+                "player:Oh, sorry. I thought you were someone else.", "npc:Who did you think I was?",
+                "player:I thought... Well, I guess it doesn't matter now.", "npc:If you say so, friend." })
             t.ticks(3)
             t.quest.expect_complete()
             for _, sk in ipairs({ "attack", "defence", "strength", "hitpoints", "crafting" }) do
                 t.expect("reward." .. sk .. "_xp", t.skill.expect_gain(sk, 600, snap))
             end
-            -- LEG 4 END
         end },
     },
 }
