@@ -497,8 +497,8 @@ return {
             "objbox:You give Dunstan the certificate.",
             "npc:Thank you!",
             "npc:Now to keep my end of the bargain.",
-            "objbox:You give Dunstan an iron bar and the climbing boots.",
-            "objbox:Dunstan has given you the spiked boots.",
+            "objbox:You give Dunstan an Iron bar and the climbing boots.",
+            "objbox:Dunstan has given you the Spiked boots.",
             "player:Thank you!",
             "npc:No problem.",
         })

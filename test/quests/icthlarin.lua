@@ -488,7 +488,8 @@ return {
         goto_("carpet", 3308, 3110)
         t.exec("carpet", t.player.talk_to, "magic_carpet_seller1", 3)
         t.exec("carpet-menu", t.chat.drain, { stop_at = "options", max_pages = 4 })
-        t.exec("carpet-pick", t.chat.choose, "I want to travel to Pollnivneach.")
+        -- Travel (op 3) is the menu alone (RSProx index 4629 [5781]): the short names.
+        t.exec("carpet-pick", t.chat.choose, "Pollnivneach")
         t.exec("carpet-fare", t.chat.drain, { max_pages = 5 })
         t.ticks(70)
     end,

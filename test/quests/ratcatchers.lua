@@ -608,9 +608,9 @@ return {
                 "after the doorway " .. tile_text(t) .. " (south of z 3116), shantay_pass " .. count(t, "shantay_pass") .. " (handed over)")
             local coins1 = count(t, "coins")
             t.exec("useCoinOnPot.rugMerchant", t.player.talk_to, "magic_carpet_seller1", 3)
-            t.exec("useCoinOnPot.rugMerchant-dialog", t.chat.play, {
-                "npc:*", "npc:*", "choose:I want to travel to Pollnivneach.", "player:I want to travel to Pollnivneach.",
-            })
+            -- Travel (op 3) is the menu alone: RSProx index 4629 [5781] "Carpet rides cost 100 coins."
+            -- over Uzer / Bedabin camp / Pollnivneach / Cancel, the ride on the pick.
+            t.exec("useCoinOnPot.rugMerchant-dialog", t.chat.play, { "choose:Pollnivneach" })
             local landed_r = t.await({
                 level = function()
                     local r, tl = t.world.tile()
