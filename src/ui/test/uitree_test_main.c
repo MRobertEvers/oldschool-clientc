@@ -114,6 +114,7 @@ main(void)
     test_minimenu();
     test_id_index();
     test_block_pool();
+    test_id_shortcuts();
     test_child_subid();
     test_menu_submenus();
     test_component_params();

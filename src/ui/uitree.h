@@ -1625,6 +1625,23 @@ struct UITree
      *  stale, so is this. */
     struct UITreeIdCacheEntry id_cache[UITREE_ID_CACHE_SLOTS];
     uint32_t id_cache_gen;
+    /** Two facts the map's build and its in-step updates keep, good only
+     *  while the map is in step with id_generation:
+     *
+     *  `id_dynamic_dups`: how many times a dynamic node was indexed under an
+     *  id another dynamic node already held, since the last rebuild. While
+     *  it is 0 a dynamic node is THE answer for its id (a dynamic node beats
+     *  any static one), which is what lets cc_find hand the lookup the child
+     *  it just found (UITree_NoteDynamicChild) without asking the map.
+     *
+     *  `id_high_counts[c - 0x8000]`: how many live nodes have `c` as the low
+     *  sixteen bits of their id, for c >= 0x8000, the range dynamic ids are
+     *  allocated from. Zero means that low id is free in every interface, so
+     *  cc_create's allocator need not ask the map about an id it is about to
+     *  invent, a lookup that always missed and always walked a cold probe
+     *  chain. 64 KB, made by the first rebuild. */
+    uint32_t id_dynamic_dups;
+    uint16_t* id_high_counts;
     /** The tree's own pools (ui/uitree_pool.h): released menu-options
      *  blocks, handler blocks and handler argument lists, each capped
      *  (UITREE_BLOCK_POOL_MAX, UITREE_HOOK_ARGV_POOL_MAX), and the cells its
@@ -2298,6 +2315,15 @@ UITree_NodeNeedsEmit(struct UITreeComponent const* component);
 /** Force dirty on types that redraw every frame (world/minimap/compass/cross/minimenu). */
 void
 UITree_MarkFrameAlwaysDirtyTypes(struct UITree* tree);
+
+/** Tell the lookup that node `idx`, a dynamic child a caller has just found
+ *  by other means (cc_find, by sub-id), is the answer for its component id,
+ *  so the opcodes that follow reach it without the map. Does nothing unless
+ *  that is certain. */
+void
+UITree_NoteDynamicChild(
+    struct UITree* tree,
+    int32_t idx);
 
 /** The map lookup behind UITree_FindByComponentId; call that. */
 int32_t

@@ -51,6 +51,19 @@ struct CacheProvider
      *  defeat retained UI emission. */
     uint64_t ui_asset_revision;
 
+    /** Recent answers of CacheProvider_ClientScriptGet, in front of the map:
+     *  a script calls other scripts by id thousands of times in one
+     *  interface build (10,000 on a bank open) and they are the same hundred
+     *  scripts. Direct-mapped on the id's low bits; id + 1 is stored, so a
+     *  zeroed slot holds none. A loaded script is never replaced
+     *  (CacheProvider_ClientScriptAdd keeps the first), so an entry is good
+     *  until the whole script cache is dropped, which empties this too. */
+    struct CacheProvider_ScriptFront
+    {
+        int id_plus1;
+        struct CS2VM2_Script* script;
+    } clientscript_front[256];
+
     struct HMap* model_cache;
     struct HMap* sprite_cache;
     /** Sprite ids the sprites table does not list (CacheProvider_SpriteMarkAbsent).

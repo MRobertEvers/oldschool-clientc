@@ -6015,6 +6015,8 @@ exec_cc_find(
         {
             rs_cs2_set_cc_target(
                 vm, dot_operand, tree->components[child_idx].component_id);
+            /* The script sets this child's properties next, by id. */
+            UITree_NoteDynamicChild(tree, child_idx);
             found = 1;
         }
     }

@@ -63,6 +63,10 @@ UITreeBlockPool_Take(struct UITreeBlockPool* pool, size_t size)
         return NULL;
     memcpy(&pool->head, block, sizeof(void*));
     pool->count--;
+    /* A released block has not been touched since, so it is cold, and a
+     * rebuild takes hundreds in a row: ask for the next one now. */
+    if( pool->head )
+        __builtin_prefetch(pool->head, 1);
     memset(block, 0, size);
     return block;
 }

@@ -285,6 +285,110 @@ test_id_index(void)
     UITree_Free(tree);
 }
 
+/* Two shortcuts sit beside the id map and must never change an answer:
+ * cc_find hands the lookup the dynamic child it found (UITree_NoteDynamicChild),
+ * and cc_create's allocator skips asking the map about a low id no live node
+ * has. Each is exact only under a condition; these are the cases on both
+ * sides of it. */
+void
+test_id_shortcuts(void)
+{
+    printf("TEST: id lookup shortcuts\n");
+
+    int const iface = 161;
+    int const other = 300;
+    int const parent_id = (iface << 16) | 50;
+    struct UITree* tree = UITree_New(8);
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    int32_t parent = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, parent_id, 0, 0, 100, 100);
+    int32_t far = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, (other << 16) | 1, 0, 0, 100, 100);
+    TEST_ASSERT(parent >= 0 && far >= 0, "push two interfaces");
+
+    /* A static node already holds a low id in the dynamic range, in this
+     * interface and in another one. The allocator must not hand this
+     * interface's out; the other interface's is no obstacle. */
+    int const taken = (iface << 16) | 0x8003;
+    int32_t squatter = UITree_TestPushXy(tree, parent, UIELEM_RS_RECT, taken, 0, 0, 5, 5);
+    int32_t elsewhere = UITree_TestPushXy(tree, far, UIELEM_RS_RECT, (other << 16) | 0x8001, 0, 0, 5, 5);
+    TEST_ASSERT(squatter >= 0 && elsewhere >= 0, "push the two squatters");
+    TEST_ASSERT(UITree_FindByComponentId(tree, taken) == squatter, "map is built");
+
+    int clash = 0;
+    int mismatch = 0;
+    int32_t rows[12];
+    for( int sub = 0; sub < 12; sub++ )
+    {
+        rows[sub] = UITree_CcCreate(tree, parent, parent_id, UIELEM_RS_RECT, sub);
+        int const id = rows[sub] >= 0 ? tree->components[rows[sub]].component_id : -1;
+        clash += id == taken;
+        mismatch += rows[sub] < 0 || UITree_FindByComponentId(tree, id) != rows[sub];
+        for( int earlier = 0; earlier < sub; earlier++ )
+            clash += tree->components[rows[earlier]].component_id == id;
+    }
+    TEST_ASSERT(clash == 0, "no dynamic child was given an id a live node holds");
+    TEST_ASSERT(mismatch == 0, "every new child is found by its id");
+    TEST_ASSERT(UITree_FindByComponentId(tree, taken) == squatter, "the squatter still answers for its id");
+    check_all_ids(tree, "after allocation around a squatter");
+
+    /* Rows replaced over and over: the ids released are free again, the ids
+     * in use are not, and the map agrees with the scan throughout. */
+    for( int round = 0; round < 5; round++ )
+    {
+        for( int sub = 0; sub < 12; sub++ )
+        {
+            int32_t r = UITree_CcCreate(tree, parent, parent_id, UIELEM_RS_RECT, sub);
+            int const id = r >= 0 ? tree->components[r].component_id : -1;
+            mismatch += r < 0 || UITree_FindByComponentId(tree, id) != find_linear(tree, id);
+            clash += id == taken;
+        }
+        check_all_ids(tree, "rows replaced");
+    }
+    TEST_ASSERT(clash == 0 && mismatch == 0, "replacement keeps ids unique and found");
+
+    /* cc_find's note: after it, the child is found, and it is the scan's answer. */
+    {
+        int32_t child = UITree_FindChildBySubid(tree, parent, parent_id, 7);
+        TEST_ASSERT(child >= 0, "find a row by sub-id");
+        int const id = tree->components[child].component_id;
+        (void)UITree_FindByComponentId(tree, parent_id); /* something else was asked last */
+        UITree_NoteDynamicChild(tree, child);
+        TEST_ASSERT(UITree_FindByComponentId(tree, id) == child, "noted child is found");
+        TEST_ASSERT(find_linear(tree, id) == child, "and is the scan's answer");
+        UITree_NoteDynamicChild(tree, -1);
+        UITree_NoteDynamicChild(tree, squatter); /* not dynamic: ignored */
+        TEST_ASSERT(UITree_FindByComponentId(tree, taken) == squatter, "a static node is not noted");
+    }
+
+    /* Two dynamic nodes with one id: the lower index answers, and noting the
+     * other must not change that. */
+    {
+        int const dup = (iface << 16) | 0x9100;
+        struct UITreeNodeSpec spec;
+        memset(&spec, 0, sizeof(spec));
+        spec.type = UIELEM_RS_RECT;
+        spec.component_id = dup;
+        spec.dynamic = 1;
+        spec.dynamic_child_index = 500;
+        int32_t first = UITree_Push(tree, parent, &spec);
+        spec.dynamic_child_index = 501;
+        int32_t second = UITree_Push(tree, parent, &spec);
+        TEST_ASSERT(first >= 0 && second >= 0 && first != second, "push two dynamic nodes with one id");
+        int32_t const winner = find_linear(tree, dup);
+        int32_t const loser = winner == first ? second : first;
+        TEST_ASSERT(UITree_FindByComponentId(tree, dup) == winner, "the scan's winner answers");
+        UITree_NoteDynamicChild(tree, loser);
+        TEST_ASSERT(UITree_FindByComponentId(tree, dup) == winner, "noting the other node changes nothing");
+        /* Nor does noting an unrelated dynamic child while a duplicate exists. */
+        int32_t child = UITree_FindChildBySubid(tree, parent, parent_id, 3);
+        UITree_NoteDynamicChild(tree, child);
+        TEST_ASSERT(
+            child >= 0 && UITree_FindByComponentId(tree, tree->components[child].component_id) == child,
+            "an unrelated child is still found");
+        check_all_ids(tree, "with a dynamic duplicate");
+    }
+    UITree_Free(tree);
+}
+
 /* A reclaimed node's options and handler blocks go to the tree's pool and
  * come back, zeroed, for the next node that needs one. What must hold: a
  * recycled block carries nothing of the node that had it; the pool is bounded;

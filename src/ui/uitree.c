@@ -1523,6 +1523,11 @@ push_element_unlinked(struct UITree* tree)
     {
         idx = tree->free_head;
         tree->free_head = tree->components[idx].free_next;
+        /* A freed slot has not been touched since its node was reclaimed, so
+         * it is cold; a rebuild takes hundreds in a row. Ask for the next one
+         * now and it has arrived by the time the next node is pushed. */
+        if( tree->free_head >= 0 )
+            __builtin_prefetch(&tree->components[tree->free_head], 1);
     }
     else
     {
@@ -1554,13 +1559,19 @@ push_element_unlinked(struct UITree* tree)
     }
 
     struct UITreeComponent* component = &tree->components[idx];
-    memset(component, 0, sizeof(struct UITreeComponent));
     /* Retained native caches may outlive the tree they originally read.
      * A process-wide nonce prevents their index/incarnation pairs from ever
-     * matching a component allocated in another tree. */
+     * matching a component allocated in another tree.
+     *
+     * Taken BEFORE the node is cleared. On x86 an atomic add cannot complete
+     * until every earlier store has left the store buffer, and the 568 bytes
+     * cleared below are stores to a cold slot: taken after them, this one
+     * add waited on all of those cache misses, once a node. */
     static _Atomic uint64_t next_incarnation = 1;
-    component->incarnation = atomic_fetch_add(&next_incarnation, 1);
-    if( !component->incarnation ) abort();
+    uint64_t const incarnation = atomic_fetch_add(&next_incarnation, 1);
+    if( !incarnation ) abort();
+    memset(component, 0, sizeof(struct UITreeComponent));
+    component->incarnation = incarnation;
     component->parent = -1;
     component->first_child = -1;
     component->next_sibling = -1;
@@ -1608,6 +1619,10 @@ UITree_AllocateDynamicComponentId(
     assert(tree);
 
     uint16_t next = tree->next_dynamic_uid;
+    /* Good only while the map is in step: that is when they are maintained. */
+    uint16_t const* const counts =
+        tree->id_index_valid && tree->id_index_gen == tree->id_generation ? tree->id_high_counts
+                                                                           : NULL;
     if( next < 0x8000u )
         next = 0x8000u;
 
@@ -1618,6 +1633,13 @@ UITree_AllocateDynamicComponentId(
         next = (uint16_t)((child_id + 1u) & 0xffffu);
         if( next < 0x8000u )
             next = 0x8000u;
+        /* No live node in any interface has this low id: the id is free, and
+         * the map need not be asked (see id_high_counts). */
+        if( counts && counts[child_id - 0x8000u] == 0 )
+        {
+            tree->next_dynamic_uid = next;
+            return uid;
+        }
         if( UITree_FindByComponentId(tree, uid) < 0 )
         {
             tree->next_dynamic_uid = next;
@@ -2498,6 +2520,8 @@ UITree_CheckpointFreeContents(struct UITree* tree)
     tree->id_index_cap = 0;
     tree->id_index_valid = 0;
     memset(tree->id_cache, 0, sizeof(tree->id_cache));
+    ToriMem_Free(ToriMem_Ui(), tree->id_high_counts);
+    tree->id_high_counts = NULL;
     tree->timer_walk_order = NULL;
     tree->timer_walk_order_cap = 0;
     tree->timer_walk_order_count = 0;
@@ -3094,6 +3118,26 @@ uitree_id_hash(int component_id)
     return h;
 }
 
+/* id_high_counts (ui/uitree.h): one node with this id came or went. */
+#define UITREE_ID_HIGH_FIRST 0x8000
+#define UITREE_ID_HIGH_COUNT 0x8000u
+static inline void
+uitree_id_high_count(struct UITree* tree, int id, int delta)
+{
+    int const low = id & 0xffff;
+    uint16_t* count;
+    if( !tree->id_high_counts || low < UITREE_ID_HIGH_FIRST )
+        return;
+    count = &tree->id_high_counts[low - UITREE_ID_HIGH_FIRST];
+    if( delta > 0 )
+    {
+        if( *count < UINT16_MAX )
+            (*count)++;
+    }
+    else if( *count > 0 && *count < UINT16_MAX ) /* a saturated count stays: it is no longer exact */
+        (*count)--;
+}
+
 /* Carry the recent-answers table across one id assignment or reclaim, for the
  * callers that carried the map across it. `old_gen` is the generation before
  * the bump; a table that was not good for it is emptied. Only `id`'s answer
@@ -3152,6 +3196,8 @@ uitree_id_index_put(struct UITree* tree, int component_id, int32_t idx)
             }
             int const new_dyn = tree->components[idx].dynamic ? 1 : 0;
             int const cur_dyn = tree->components[cur].dynamic ? 1 : 0;
+            if( new_dyn && cur_dyn )
+                tree->id_dynamic_dups++;
             if( new_dyn != cur_dyn ? new_dyn : idx < cur )
                 tree->id_index_vals[h] = idx;
             return tree->id_index_vals[h];
@@ -3183,12 +3229,24 @@ UITree_RebuildIdIndex(struct UITree* tree)
     for( uint32_t i = 0; i < tree->id_index_cap; i++ )
         tree->id_index_keys[i] = -1;
 
+    tree->id_dynamic_dups = 0;
+    if( !tree->id_high_counts )
+    {
+        tree->id_high_counts =
+            (uint16_t*)ToriMem_Alloc(ToriMem_Ui(), UITREE_ID_HIGH_COUNT * sizeof(uint16_t));
+        assert(tree->id_high_counts);
+    }
+    memset(tree->id_high_counts, 0, UITREE_ID_HIGH_COUNT * sizeof(uint16_t));
+
     UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         int const id = tree->components[i].component_id;
         if( id >= 0 )
+        {
             uitree_id_index_put(tree, id, (int32_t)i);
+            uitree_id_high_count(tree, id, 1);
+        }
     }
 
     tree->id_index_gen = tree->id_generation;
@@ -3239,6 +3297,7 @@ uitree_id_index_note_removed(struct UITree* tree, int32_t idx)
         return;
     }
     tree->id_index_gen = tree->id_generation;
+    uitree_id_high_count(tree, id, -1);
     uitree_id_cache_carry(tree, old_gen, id, -1);
 }
 
@@ -3307,10 +3366,41 @@ uitree_id_index_note_added(struct UITree* tree, int32_t idx)
         if( tree->id_index_cap < tree->component_count * 2u )
             return;
         winner = uitree_id_index_put(tree, id, idx);
+        uitree_id_high_count(tree, id, 1);
     }
     tree->id_index_gen = tree->id_generation;
     /* The script that created this node sets its properties next, by id. */
     uitree_id_cache_carry(tree, old_gen, id, winner);
+}
+
+void
+UITree_NoteDynamicChild(
+    struct UITree* tree,
+    int32_t idx)
+{
+    struct UITreeIdCacheEntry* e;
+    int id;
+    assert(tree);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return;
+    id = tree->components[idx].component_id;
+    /* Certain only when the map is in step (so the duplicate count is
+     * current), no dynamic node shares an id with another, and this node is
+     * dynamic: then it is the node the map answers with for its id. */
+    if( id < 0 || !tree->components[idx].dynamic || tree->id_dynamic_dups != 0 ||
+        !tree->id_index_valid || tree->id_index_gen != tree->id_generation )
+        return;
+#ifdef UITREE_ID_INDEX_VERIFY
+    assert(UITree_FindByComponentId_Linear(tree, id) == idx);
+#endif
+    if( tree->id_cache_gen != tree->id_generation )
+    {
+        memset(tree->id_cache, 0, sizeof(tree->id_cache));
+        tree->id_cache_gen = tree->id_generation;
+    }
+    e = &tree->id_cache[UITREE_ID_CACHE_SLOT(id)];
+    e->id_plus1 = id + 1;
+    e->idx = idx;
 }
 
 int32_t

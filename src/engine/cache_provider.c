@@ -542,6 +542,7 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->componentpack_cache = NULL;
     cache_provider_hmap_free(provider->clientscript_cache);
     provider->clientscript_cache = NULL;
+    memset(provider->clientscript_front, 0, sizeof(provider->clientscript_front));
     cache_provider_hmap_free(provider->objtype_cache);
     provider->objtype_cache = NULL;
     cache_provider_hmap_free(provider->npctype_cache);
@@ -2399,13 +2400,24 @@ CacheProvider_ClientScriptGet(
     int script_id)
 {
     struct MapEntry_ProviderClientScript* entry;
+    struct CacheProvider_ScriptFront* front;
 
     assert(provider);
+
+    front = &provider->clientscript_front[(unsigned)script_id & 255u];
+    if( script_id >= 0 && front->id_plus1 == script_id + 1 )
+        return front->script;
 
     entry = (struct MapEntry_ProviderClientScript*)hmap_search(
         provider->clientscript_cache, &script_id, HMAP_FIND);
     if( !entry )
         return NULL;
+    /* Only a loaded script is remembered: a miss is a load in flight. */
+    if( entry->script && script_id >= 0 )
+    {
+        front->id_plus1 = script_id + 1;
+        front->script = entry->script;
+    }
     return entry->script;
 }
 
@@ -2442,6 +2454,8 @@ CacheProvider_ClientScriptsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->clientscript_cache);
     provider->clientscript_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderClientScript), CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY);
+    /* Every script the front table names has just been freed. */
+    memset(provider->clientscript_front, 0, sizeof(provider->clientscript_front));
 }
 
 /* Lowercase `name` into `out` (NUL-terminated, capped at out_size) and return a
