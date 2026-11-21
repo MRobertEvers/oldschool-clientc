@@ -2497,7 +2497,7 @@ UITree_CheckpointFreeContents(struct UITree* tree)
     tree->id_index_vals = NULL;
     tree->id_index_cap = 0;
     tree->id_index_valid = 0;
-    tree->id_last_id_plus1 = 0;
+    memset(tree->id_cache, 0, sizeof(tree->id_cache));
     tree->timer_walk_order = NULL;
     tree->timer_walk_order_cap = 0;
     tree->timer_walk_order_count = 0;
@@ -3094,13 +3094,38 @@ uitree_id_hash(int component_id)
     return h;
 }
 
+/* Carry the recent-answers table across one id assignment or reclaim, for the
+ * callers that carried the map across it. `old_gen` is the generation before
+ * the bump; a table that was not good for it is emptied. Only `id`'s answer
+ * can have changed: `winner` is the node the map now answers with, or -1 to
+ * leave the map to answer. */
+static void
+uitree_id_cache_carry(struct UITree* tree, uint32_t old_gen, int id, int32_t winner)
+{
+    if( tree->id_cache_gen != old_gen )
+        memset(tree->id_cache, 0, sizeof(tree->id_cache));
+    if( id >= 0 )
+    {
+        struct UITreeIdCacheEntry* const e = &tree->id_cache[UITREE_ID_CACHE_SLOT(id)];
+        if( winner >= 0 )
+        {
+            e->id_plus1 = id + 1;
+            e->idx = winner;
+        }
+        else if( e->id_plus1 == id + 1 )
+            e->id_plus1 = 0;
+    }
+    tree->id_cache_gen = tree->id_generation;
+}
+
 /* Insert (or resolve a tie for) one component into the open-addressed map.
+ * Returns the node the map answers with for the id afterwards.
  * Reproduces the linear scan's winner for an id: a dynamic node beats a
  * non-dynamic one, and within a class the lowest array index wins. The rule is
  * stated in terms of the two candidates rather than insertion order, because
  * incremental inserts (UITree_Push reusing a free-list slot) do not arrive in
  * ascending index order the way a full rebuild's sweep does. */
-static void
+static int32_t
 uitree_id_index_put(struct UITree* tree, int component_id, int32_t idx)
 {
     uint32_t const mask = tree->id_index_cap - 1;
@@ -3112,7 +3137,7 @@ uitree_id_index_put(struct UITree* tree, int component_id, int32_t idx)
         {
             tree->id_index_keys[h] = component_id;
             tree->id_index_vals[h] = idx;
-            return;
+            return idx;
         }
         if( k == component_id )
         {
@@ -3123,13 +3148,13 @@ uitree_id_index_put(struct UITree* tree, int component_id, int32_t idx)
                 tree->id_index_vals[h] = idx;
                 if( tree->id_index_tombs )
                     tree->id_index_tombs--;
-                return;
+                return idx;
             }
             int const new_dyn = tree->components[idx].dynamic ? 1 : 0;
             int const cur_dyn = tree->components[cur].dynamic ? 1 : 0;
             if( new_dyn != cur_dyn ? new_dyn : idx < cur )
                 tree->id_index_vals[h] = idx;
-            return;
+            return tree->id_index_vals[h];
         }
         h = (h + 1) & mask;
     }
@@ -3180,6 +3205,7 @@ uitree_id_index_note_removed(struct UITree* tree, int32_t idx)
 {
     bool const in_step = tree->id_index_valid && tree->id_index_gen == tree->id_generation;
     int const id = tree->components[idx].component_id;
+    uint32_t const old_gen = tree->id_generation;
     tree->id_generation++;
     if( !in_step || id < 0 )
         return;
@@ -3213,6 +3239,7 @@ uitree_id_index_note_removed(struct UITree* tree, int32_t idx)
         return;
     }
     tree->id_index_gen = tree->id_generation;
+    uitree_id_cache_carry(tree, old_gen, id, -1);
 }
 
 /* Record that `idx` just had its component_id assigned (UITree_Push). Bumps
@@ -3266,6 +3293,8 @@ static void
 uitree_id_index_note_added(struct UITree* tree, int32_t idx)
 {
     bool const in_step = tree->id_index_valid && tree->id_index_gen == tree->id_generation;
+    uint32_t const old_gen = tree->id_generation;
+    int32_t winner = -1;
     tree->id_generation++;
     if( !in_step )
         return;
@@ -3277,9 +3306,11 @@ uitree_id_index_note_added(struct UITree* tree, int32_t idx)
     {
         if( tree->id_index_cap < tree->component_count * 2u )
             return;
-        uitree_id_index_put(tree, id, idx);
+        winner = uitree_id_index_put(tree, id, idx);
     }
     tree->id_index_gen = tree->id_generation;
+    /* The script that created this node sets its properties next, by id. */
+    uitree_id_cache_carry(tree, old_gen, id, winner);
 }
 
 int32_t
@@ -3296,8 +3327,6 @@ UITree_FindByComponentIdSlow(
      * so mutate through the const handle. Keyed on id_generation (id assignments
      * and reclaims only) — topology churn does not invalidate id lookups. */
     struct UITree* t = (struct UITree*)tree;
-    if( t->id_last_id_plus1 == component_id + 1 && t->id_last_gen == t->id_generation )
-        return t->id_last_idx;
     if( !t->id_index_valid || t->id_index_gen != t->id_generation )
         UITree_RebuildIdIndex(t);
 
@@ -3339,9 +3368,14 @@ UITree_FindByComponentIdSlow(
 #endif
     if( result >= 0 )
     {
-        t->id_last_id_plus1 = component_id + 1;
-        t->id_last_idx = result;
-        t->id_last_gen = t->id_generation;
+        struct UITreeIdCacheEntry* const e = &t->id_cache[UITREE_ID_CACHE_SLOT(component_id)];
+        if( t->id_cache_gen != t->id_generation )
+        {
+            memset(t->id_cache, 0, sizeof(t->id_cache));
+            t->id_cache_gen = t->id_generation;
+        }
+        e->id_plus1 = component_id + 1;
+        e->idx = result;
     }
     return result;
 }
@@ -3556,7 +3590,10 @@ UITree_Push(
     /* Specs carry labels and ops by value but never a submenu block (those only
      * arrive later, via CC/IF_SETOPSUBMENU) — copy through so a spec that ever
      * grows one is duplicated instead of aliased into the node. */
-    UITree_MenuOptionsSetIn(tree, component, &spec->menu_options);
+    if( spec->no_menu_options )
+        UITree_MenuOptionsReleaseTo(tree, component);
+    else
+        UITree_MenuOptionsSetIn(tree, component, &spec->menu_options);
     component->slot_tag = spec->slot_tag;
     component->role_id = spec->role_id;
     component->no_click_through = spec->no_click_through;
@@ -4107,7 +4144,9 @@ UITree_CcCreate(
     int const child_component_id = UITree_AllocateDynamicComponentId(tree, iface_id);
 
     struct UITreeNodeSpec spec;
-    memset(&spec, 0, sizeof(spec));
+    /* A script-created node has no menu options yet; see no_menu_options. */
+    memset(&spec, 0, offsetof(struct UITreeNodeSpec, menu_options));
+    spec.no_menu_options = 1;
     spec.component_id = child_component_id;
     spec.dynamic = 1;
     spec.dynamic_child_index = sub_id;

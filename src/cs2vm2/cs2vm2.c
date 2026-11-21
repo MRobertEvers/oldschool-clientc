@@ -4953,9 +4953,9 @@ CS2VM2_Op_IF_SetOnEventHandler(
     int trigger_ids_here[CS2VM2_TRIGGER_IDS_HERE];
     int* trigger_ids = NULL;
     char* signature = NULL;
-    int int_args[CS2VM_SETON_INT_ARG_MAX] = { 0 };
+    int int_args[CS2VM_SETON_INT_ARG_MAX];
     int int_arg_count = 0;
-    char* str_by_pos[CS2VM_SETON_INT_ARG_MAX] = { 0 };
+    char* str_by_pos[CS2VM_SETON_INT_ARG_MAX];
     uint64_t str_arg_mask = 0;
 
     if( CS2VM2_PopInt(vm, &widget_uid) != CS2VM_EXECNO_OK )
@@ -4986,6 +4986,16 @@ CS2VM2_Op_IF_SetOnEventHandler(
         signature_parse_len = signature_len - 1;
     }
 
+    /* The scratch above is 768 bytes and a registration names two or three
+     * arguments, thousands of times in a container rebuild: clear the
+     * positions the signature names, which are all that is read below. */
+    {
+        size_t named = signature_parse_len > 0 ? (size_t)signature_parse_len : 0;
+        if( named > CS2VM_SETON_INT_ARG_MAX )
+            named = CS2VM_SETON_INT_ARG_MAX;
+        memset(int_args, 0, named * sizeof(int_args[0]));
+        memset(str_by_pos, 0, named * sizeof(str_by_pos[0]));
+    }
     if( signature && signature_parse_len > 0 )
     {
         for( int i = signature_parse_len - 1; i >= 0; i-- )
@@ -5054,7 +5064,8 @@ CS2VM2_Op_IF_SetOnEventHandler(
         request.u.name.signature = signature;                          \
         request.u.name.trigger_ids = trigger_ids;                      \
         request.u.name.trigger_count = trigger_count;                  \
-        for( int i = 0; i < CS2VM_SETON_INT_ARG_MAX; i++ )            \
+        /* The head was zeroed; the count is all that was popped. */ \
+        for( int i = 0; i < int_arg_count; i++ )                      \
             request.u.name.int_args[i] = int_args[i];                 \
         request.u.name.int_arg_count = int_arg_count;                  \
         request.u.name.str_arg_mask = str_arg_mask;                    \
@@ -5145,9 +5156,9 @@ CS2VM2_Op_CC_SetOnEventHandler(
     int trigger_ids_here[CS2VM2_TRIGGER_IDS_HERE];
     int* trigger_ids = NULL;
     char* signature = NULL;
-    int int_args[CS2VM_SETON_INT_ARG_MAX] = { 0 };
+    int int_args[CS2VM_SETON_INT_ARG_MAX];
     int int_arg_count = 0;
-    char* str_by_pos[CS2VM_SETON_INT_ARG_MAX] = { 0 };
+    char* str_by_pos[CS2VM_SETON_INT_ARG_MAX];
     uint64_t str_arg_mask = 0;
 
     if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK )
@@ -5175,6 +5186,16 @@ CS2VM2_Op_CC_SetOnEventHandler(
         signature_parse_len = signature_len - 1;
     }
 
+    /* The scratch above is 768 bytes and a registration names two or three
+     * arguments, thousands of times in a container rebuild: clear the
+     * positions the signature names, which are all that is read below. */
+    {
+        size_t named = signature_parse_len > 0 ? (size_t)signature_parse_len : 0;
+        if( named > CS2VM_SETON_INT_ARG_MAX )
+            named = CS2VM_SETON_INT_ARG_MAX;
+        memset(int_args, 0, named * sizeof(int_args[0]));
+        memset(str_by_pos, 0, named * sizeof(str_by_pos[0]));
+    }
     if( signature && signature_parse_len > 0 )
     {
         for( int i = signature_parse_len - 1; i >= 0; i-- )
@@ -5243,7 +5264,8 @@ CS2VM2_Op_CC_SetOnEventHandler(
         request.u.name.signature = signature;                          \
         request.u.name.trigger_ids = trigger_ids;                      \
         request.u.name.trigger_count = trigger_count;                  \
-        for( int i = 0; i < CS2VM_SETON_INT_ARG_MAX; i++ )            \
+        /* The head was zeroed; the count is all that was popped. */ \
+        for( int i = 0; i < int_arg_count; i++ )                      \
             request.u.name.int_args[i] = int_args[i];                 \
         request.u.name.int_arg_count = int_arg_count;                  \
         request.u.name.str_arg_mask = str_arg_mask;                    \

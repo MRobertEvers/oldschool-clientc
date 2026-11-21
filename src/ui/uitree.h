@@ -1419,6 +1419,15 @@ struct UITreeOwnedCount
     int32_t live;
 };
 
+/** Slots in UITree::id_cache, and the slot an id lands in. */
+#define UITREE_ID_CACHE_SLOTS 16u
+#define UITREE_ID_CACHE_SLOT(component_id) (((uint32_t)(component_id) * 2654435761u) >> 28)
+struct UITreeIdCacheEntry
+{
+    int32_t id_plus1;
+    int32_t idx;
+};
+
 /** How many released blocks a tree keeps of each kind (argument lists:
  *  UITREE_HOOK_ARGV_POOL_MAX, ui/uitree_hook.h). */
 #define UITREE_BLOCK_POOL_MAX 1024u
@@ -1599,15 +1608,23 @@ struct UITree
      *  they count against the load factor or probing could never terminate. */
     uint32_t id_index_tombs;
     uint8_t id_index_valid; /* 0 until first successful build */
-    /** The last id UITree_FindByComponentId answered with a live node, and the
-     *  id_generation it answered at. A client script sets a dozen properties
-     *  of one component in a row, each naming it by id; this answers all but
-     *  the first without touching the map. id + 1, so a zeroed tree holds
-     *  none. Any id assignment or reclaim moves id_generation and so drops
-     *  it. */
-    int32_t id_last_id_plus1;
-    int32_t id_last_idx;
-    uint32_t id_last_gen;
+    /** Recent answers of UITree_FindByComponentId: a small direct-mapped
+     *  table in front of the map (the slot is a hash of the id; id + 1 is
+     *  stored, so a zeroed slot holds none). A client script names a
+     *  component by id in every opcode, and a container rebuild alternates
+     *  between the group's root, the container and the row it is filling: one
+     *  remembered answer loses two of those three every row, sixteen keep
+     *  them all. The map itself is a hundred kilobytes of keys and values, so
+     *  a lookup that reaches it is two cache misses on a machine whose cache
+     *  is busy with the rebuild; this table is two lines.
+     *
+     *  Good for `id_cache_gen` only. It is carried across an id assignment
+     *  or a reclaim exactly where the map itself is (the in-step paths of
+     *  uitree_id_index_note_added / _note_removed), where the one id whose
+     *  answer can change is re-seated or dropped; anywhere the map is left
+     *  stale, so is this. */
+    struct UITreeIdCacheEntry id_cache[UITREE_ID_CACHE_SLOTS];
+    uint32_t id_cache_gen;
     /** The tree's own pools (ui/uitree_pool.h): released menu-options
      *  blocks, handler blocks and handler argument lists, each capped
      *  (UITREE_BLOCK_POOL_MAX, UITREE_HOOK_ARGV_POOL_MAX), and the cells its
@@ -2107,9 +2124,15 @@ struct UITreeNodeSpec
             int shadowed;
         } rs_inv_text;
     } u;
-    struct UITreeMenuOptions menu_options;
     /** OR of enum UITreeHotkeyEffect (see UITreeComponent.hotkey_effects). */
     uint32_t hotkey_effects;
+    /** Set by a caller that has no menu options to give. `menu_options` is
+     *  then never read, so the caller need not even zero it: it is 888 bytes,
+     *  most of the spec, and cc_create builds a spec per row with none
+     *  (UITree_CcCreate zeroes the spec up to `menu_options` only). */
+    uint8_t no_menu_options;
+    /** LAST, for the reason above. */
+    struct UITreeMenuOptions menu_options;
 };
 
 char const*
@@ -2291,11 +2314,11 @@ UITree_FindByComponentId(
     int component_id)
 {
     assert(tree);
-    /* A negative id is never the last answer: -1 + 1 is what a tree that has
-     * answered nothing yet holds. */
-    if( component_id >= 0 && tree->id_last_id_plus1 == component_id + 1 &&
-        tree->id_last_gen == tree->id_generation )
-        return tree->id_last_idx;
+    /* A negative id is never in the table: -1 + 1 is what an empty slot holds. */
+    struct UITreeIdCacheEntry const* const e = &tree->id_cache[UITREE_ID_CACHE_SLOT(component_id)];
+    if( component_id >= 0 && e->id_plus1 == component_id + 1 &&
+        tree->id_cache_gen == tree->id_generation )
+        return e->idx;
     return UITree_FindByComponentIdSlow(tree, component_id);
 }
 

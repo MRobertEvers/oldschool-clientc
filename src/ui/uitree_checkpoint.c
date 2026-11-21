@@ -200,6 +200,7 @@ ckpt_tree_dup(
     dst->id_index_cap = 0;
     dst->id_index_tombs = 0;
     dst->id_index_valid = 0;
+    memset(dst->id_cache, 0, sizeof(dst->id_cache));
     dst->timer_walk_order = NULL;
     dst->timer_walk_order_cap = 0;
     dst->timer_walk_order_count = 0;
