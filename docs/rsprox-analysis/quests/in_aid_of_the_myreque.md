@@ -229,7 +229,10 @@ Npc block kinds (`npc_block_inventory.py`): Ivan's hits/seqs/headbar, the Mist's
 `mist_disappear` (1262, 9 ticks after it appears, 5/5), Veliaf's slashes and say, Gadderanks'
 transformation all present. Added from this audit: the Mist (`timer=9`, its face and reset), the four
 sitting villagers' `sitting_eating` every 10..14 ticks (322 recorded; `timer=12` + `[ai_timer]`),
-Gadderanks' `enabled_ops 31` + `level 0` with his change. Still MISSING only where the test does
+Gadderanks' `enabled_ops 31` + `level 0` with his change. He does not die ([4510]: blow, fall,
+transformation, ops and level on one tick; talked to at [4520]): `param=death_script,yes`, so the
+engine's own death no longer runs under the change (it hid his menu a tick on and freed him two
+ticks after that). Still MISSING only where the test does
 not go: route 2's juvinates are never hit by the player; several villagers are not talked to.
 
 Movement (the generated `wander 5` default on every Burgh npc, measured against 4634's npc info):
@@ -242,9 +245,6 @@ could not talk to him: he drifted to 3492,3211, three tiles across the booth, ou
 
 ## Open
 
-- After Gadderanks' type change our `enabled_ops 31` goes out a tick after the transformation
-  (preceded by an `ops 0`); Jagex sends ops, transformation and level on one tick ([4510]). Engine
-  (`npc_changetype`'s ops), not content.
 - Ivan's flight is fitted to two lost runs (flees the tick after his bar is 8/30; juvinates go for him
   until the player engages them); his punches deal no damage (none recorded).
 - The two post-Gadderanks answers ("How do you like your town?", "What's happening around here?")
