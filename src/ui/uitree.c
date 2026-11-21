@@ -2320,6 +2320,7 @@ UITree_CheckpointFreeContents(struct UITree* tree)
     tree->id_index_vals = NULL;
     tree->id_index_cap = 0;
     tree->id_index_valid = 0;
+    tree->id_last_id_plus1 = 0;
     tree->timer_walk_order = NULL;
     tree->timer_walk_order_cap = 0;
     tree->timer_walk_order_count = 0;

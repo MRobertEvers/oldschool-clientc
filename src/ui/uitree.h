@@ -2242,7 +2242,10 @@ UITree_FindByComponentId(
     int component_id)
 {
     assert(tree);
-    if( tree->id_last_id_plus1 == component_id + 1 && tree->id_last_gen == tree->id_generation )
+    /* A negative id is never the last answer: -1 + 1 is what a tree that has
+     * answered nothing yet holds. */
+    if( component_id >= 0 && tree->id_last_id_plus1 == component_id + 1 &&
+        tree->id_last_gen == tree->id_generation )
         return tree->id_last_idx;
     return UITree_FindByComponentIdSlow(tree, component_id);
 }

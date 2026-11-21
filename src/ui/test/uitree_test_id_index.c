@@ -228,6 +228,60 @@ test_id_index(void)
             UITree_FindByComponentId(tree, dup) == reused, "index picks the lower index too");
     }
     UITree_Free(tree);
+
+    /* The last answer is kept beside the map. The shape that exercises it is a
+     * container rebuild: the script asks for the group's root, the container
+     * and the row in turn, and every row replaces the one before it in the
+     * same slot. An answer held from before a replace must never outlive the
+     * node it named, and a tree that has answered nothing must not answer -1
+     * with node 0. */
+    tree = UITree_New(4);
+    TEST_ASSERT(tree != NULL, "UITree_New (last answer)");
+    TEST_ASSERT(UITree_FindByComponentId(tree, -1) < 0, "-1 misses on an empty tree");
+    TEST_ASSERT(UITree_FindByComponentId(tree, 0) < 0, "id 0 misses on an empty tree");
+    {
+        int const root_id = 161 << 16;
+        int32_t root = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, root_id, 0, 0, 300, 300);
+        int32_t box = UITree_TestPushXy(tree, root, UIELEM_RS_LAYER, parent_id, 0, 0, 200, 200);
+        int held[8];
+        int mismatches = 0;
+        TEST_ASSERT(root >= 0 && box >= 0, "push root + container");
+        TEST_ASSERT(UITree_FindByComponentId(tree, -1) < 0, "-1 misses on a filled tree");
+
+        for( int i = 0; i < 8; i++ )
+            held[i] = -1;
+        for( int round = 0; round < 6; round++ )
+        {
+            for( int sub = 0; sub < 48; sub++ )
+            {
+                mismatches += UITree_FindByComponentId(tree, root_id) != root;
+                mismatches += UITree_FindByComponentId(tree, parent_id) != box;
+                int32_t row = UITree_CcCreate(tree, box, parent_id, UIELEM_RS_RECT, sub);
+                int const row_id = row >= 0 ? tree->components[row].component_id : -1;
+                mismatches += row < 0;
+                mismatches += UITree_FindByComponentId(tree, row_id) != row;
+                mismatches += UITree_FindByComponentId(tree, row_id) != find_linear(tree, row_id);
+                mismatches += UITree_FindByComponentId(tree, parent_id) != box;
+                /* Ids held from earlier rows and rounds: some name live rows,
+                 * some name rows since replaced, some have been handed out
+                 * again. Whatever they are, the answer is the scan's. */
+                for( int i = 0; i < 8; i++ )
+                    mismatches +=
+                        UITree_FindByComponentId(tree, held[i]) != find_linear(tree, held[i]);
+                held[(round * 48 + sub) % 8] = row_id;
+            }
+            check_all_ids(tree, "container rebuild round");
+            if( round == 3 )
+            {
+                UITree_CcDeleteAll(tree, box);
+                for( int i = 0; i < 8; i++ )
+                    mismatches +=
+                        UITree_FindByComponentId(tree, held[i]) != find_linear(tree, held[i]);
+            }
+        }
+        TEST_ASSERT(mismatches == 0, "the last answer agrees with the scan through a rebuild");
+    }
+    UITree_Free(tree);
 }
 
 /* The submenu block hangs off menu_options by pointer and is owned per component,
