@@ -1192,19 +1192,29 @@ d_varp(lua_State* L)
 /* api_drive.var_content: the server's own copy of a varp, for the vars the
  * client never holds (a content-allocated varp the client cannot address,
  * ScriptrunCore_VarpAddressable, or one declared transmit=no).  The
- * scriptrun twin of DriveState_VarpContent. */
+ * scriptrun twin of DriveState_VarpContent.
+ *
+ * The third answer is whether the varp ever reaches the client: content
+ * declares it transmit=yes and the client's array can address it.  The
+ * driver picks its channel from that static fact, as it does for a varbit:
+ * the client's record of an unsent varp it CAN address is a confident 0, not
+ * a not_found (Ratcatchers' King Rat flag, varp 7877, read 0 through a whole
+ * fight once the client's array grew past it). */
 static int
 d_var_content(lua_State* L)
 {
     struct ScriptBot* bot = bot_of(L);
     int id = (int)luaL_checkinteger(L, 1);
+    const struct ToriRSServerVarpDef* def;
 
     assert(bot->player);
     if( id < 0 || id >= TORIRSSERVER_VARP_COUNT )
         return push_result(L, "not_found", NULL);
+    def = ToriRSServer_ContentVarp(id);
     lua_pushstring(L, "ok");
     lua_pushinteger(L, (lua_Integer)ToriRSServer_VarpsGet(&bot->player->varps, id));
-    return 2;
+    lua_pushboolean(L, def && def->transmit && id < ToriRSServer_VarpClientCount());
+    return 3;
 }
 
 static int
@@ -2353,6 +2363,31 @@ enum
  * the one row its cache button type names, and only OK (with no client code),
  * Toggle and Select send IF_BUTTON. The op's TEXT is not tested: the client
  * reads it off the live node, where a clientscript may have set it. */
+/* Whether an IF1 widget offers the one row its button type gives it: NULL when
+ * it does, or why the client would send nothing for a click on it. */
+static char const*
+if1_row_refusal(struct RSCache_Dat2Component const* comp)
+{
+    assert(comp);
+    switch( comp->buttonType )
+    {
+    case IF1_BUTTON_OK:
+        if( comp->clientCode == 0 || (comp->option && comp->option[0]) )
+            return NULL;
+        return "an IF1 OK button with client code and no option text offers no row";
+    case IF1_BUTTON_TOGGLE:
+    case IF1_BUTTON_SELECT:
+        return (comp->option && comp->option[0]) ? NULL : "an IF1 button with no option text offers no row";
+    case IF1_BUTTON_TARGET:
+        return "an IF1 target button arms a spell (spell_arm), it sends no IF_BUTTON";
+    case IF1_BUTTON_CLOSE:
+        return "an IF1 close button closes the modal (key escape), it sends no IF_BUTTON";
+    case IF1_BUTTON_CONTINUE:
+        return "an IF1 continue button resumes the pause, it sends no IF_BUTTON";
+    }
+    return "an IF1 widget with no button type and no server events offers no row";
+}
+
 static char const*
 if_click_refusal(
     struct ScriptBot const* bot,
@@ -2378,23 +2413,30 @@ if_click_refusal(
                                                           "server has armed none (IF_SETEVENTS)";
     if( op != 1 )
         return "an IF1 widget offers no numbered op but its button type's one row";
-    switch( comp->buttonType )
-    {
-    case IF1_BUTTON_OK:
-        if( comp->clientCode == 0 || (comp->option && comp->option[0]) )
-            return NULL;
-        return "an IF1 OK button with client code and no option text offers no row";
-    case IF1_BUTTON_TOGGLE:
-    case IF1_BUTTON_SELECT:
-        return (comp->option && comp->option[0]) ? NULL : "an IF1 button with no option text offers no row";
-    case IF1_BUTTON_TARGET:
-        return "an IF1 target button arms a spell (spell_arm), it sends no IF_BUTTON";
-    case IF1_BUTTON_CLOSE:
-        return "an IF1 close button closes the modal (key escape), it sends no IF_BUTTON";
-    case IF1_BUTTON_CONTINUE:
-        return "an IF1 continue button resumes the pause, it sends no IF_BUTTON";
-    }
-    return "an IF1 widget with no button type and no server events offers no row";
+    return if1_row_refusal(comp);
+}
+
+/* The op-less press (op 0): IF_BUTTON with the component alone, what the client
+ * sends for a static IF1 button (app_send_if_button) and Jagex's does too
+ * (RSProx index 4448 [1878]: `[if_button] com=ratcatcher_flute:rc_flute_d`).
+ * Content binds it as [if_button,<com>]; the numbered IF_BUTTONX never reaches
+ * that trigger. NULL when the press is one the client would send. */
+static char const*
+if_plain_click_refusal(
+    struct ScriptBot const* bot,
+    int component,
+    int sub)
+{
+    struct RSCache_Dat2Component const* comp;
+
+    if( sub >= 0 )
+        return "a dynamic child is pressed as (container, sub): op 1, not the op-less press";
+    comp = cache_component(bot, component);
+    if( !comp )
+        return "no such component in the client's cache";
+    if( comp->if3 )
+        return "an IF3 component is pressed by a numbered op; the op-less press is an IF1 button's";
+    return if1_row_refusal(comp);
 }
 
 /* A spell button's target mask, as the client arms it (app_minimenu.c, the
@@ -2967,6 +3009,19 @@ send_if_buttonx(
     handle(bot, PKTOUT_NAME_IF_BUTTONX, payload, 9);
 }
 
+/* IF_BUTTON: g4 component, nothing else (handle_if_button) -- the op-less
+ * press of a static IF1 button. */
+static void
+send_if_button(
+    struct ScriptBot* bot,
+    int component)
+{
+    uint8_t payload[4];
+
+    put4(payload, component);
+    handle(bot, PKTOUT_NAME_IF_BUTTON, payload, 4);
+}
+
 /* IF_SUBOP: IF_BUTTONX plus g1 subop, the op's submenu entry 0-based on the
  * wire (the client's net_out_opheld_subop). */
 static void
@@ -3478,11 +3533,20 @@ d_if_click(lua_State* L)
     int sub = (int)(handle >> 32) - 1;   /* d_component's slot, -1: none */
     int op = (int)luaL_optinteger(L, 2, 1);
 
-    if( op < 1 || op > 10 )
+    if( op < 0 || op > 10 )
         return push_result(L, "refused", "op out of range");
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
     disarm(bot);
+    if( op == 0 )
+    {
+        char const* why = if_plain_click_refusal(bot, component, sub);
+
+        if( why )
+            return push_result(L, "refused", why);
+        send_if_button(bot, component);
+        return push_result(L, "ok", "op-less button sent (IF_BUTTON)");
+    }
     if( op == 1 && sub < 0 && stone_button_press(bot, component) )
         return push_result(L, "ok", "stone button: resume_pausebutton sent");
     if( op == 1 && sub < 0 )

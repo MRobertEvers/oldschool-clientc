@@ -181,7 +181,10 @@ return {
             t.exec("equipCatspeak", t.player.equip, "ics_little_amulet_of_catspeak")
             -- The Ardougne Teleport scroll (elena_teleport_scroll.rs2): read once, the spell is learnt.
             t.exec("readArdougneScroll", t.player.inv_op, "ardougnescroll", 1)
-            t.exec("readArdougneScroll-dialog", t.chat.play, { "mesbox:You memorise", "mesbox:You can now cast" })
+            -- One item box (RSProx index 4360 [1181]: objectbox 193 on the read's tick, the scroll gone).
+            t.exec("readArdougneScroll-dialog", t.chat.play, {
+                "objbox:You memorise what is written on the scroll. You can now use the Ardougne Teleport Spell.",
+            })
             local _, el = t.var.server("varp165_elenaquest")
             t.check("readArdougneScroll.learnt", el == 30 and count(t, "ardougnescroll") == 0,
                 "varp165_elenaquest = " .. tostring(el) .. " (elena_complete_read_scroll = 30), scroll left " .. count(t, "ardougnescroll"))
@@ -449,7 +452,10 @@ return {
             local function feed(label, hurt)
                 local tb = count(t, "trout")
                 face_hole()
-                t.exec(label, t.player.use_on, "trout", wall)
+                -- Not a graded row of its own: a fish pressed on the tick the fight is won answers
+                -- "Nothing interesting happens." and is the note below; a fish that should have been
+                -- eaten and was not fails `.ate`.
+                local use_r, use_d = t.player.use_on("trout", wall)
                 for _ = 1, 4 do
                     if count(t, "trout") < tb then break end
                     t.ticks(1)
@@ -460,7 +466,8 @@ return {
                     t.note(label .. ": the fight ended (stage " .. v2 .. ") before the trout landed; trout kept " .. tb)
                 else
                     t.check(label .. ".ate", count(t, "trout") == tb - 1,
-                        "trout " .. tb .. " -> " .. count(t, "trout") .. "; cat hurt " .. hurt .. " -> " .. tostring(hurt2) .. " of 5")
+                        "trout " .. tb .. " -> " .. count(t, "trout") .. "; cat hurt " .. hurt .. " -> " .. tostring(hurt2) .. " of 5; use_on "
+                            .. tostring(use_r) .. " " .. tostring(use_d))
                     fed = fed + 1
                 end
             end
@@ -584,23 +591,21 @@ return {
                 runes = VARROCK_RUNES, where = "Varrock square" })
             t.exec("goto-useCoinOnPot.shantay", t.player.goto_tile, 3304, 3123, 0)
             local coins0, pass0 = count(t, "coins"), count(t, "shantay_pass")
-            t.exec("useCoinOnPot.buyPass", t.player.talk_to, "shantay", 1)
-            t.exec("useCoinOnPot.buyPass-dialog", t.chat.play, {
-                "npc:Hello effendi, I am Shantay.", "npc:I see you're new.",
-                "choose:I want to buy a shantay pass for 5 gold coins.", "player:I want to buy a shantay pass for",
-                "mesbox:You purchase a Shantay Pass.",
-            })
+            -- Buy-pass is Shantay's own op (RSProx index 4448 [1186], 4621 [504], 4629 [3903]): the item
+            -- box, five coins out, the pass in. His Talk-to is other pages now (4448 [1348]).
+            t.exec("useCoinOnPot.buyPass", t.player.talk_to, "shantay", 4)
+            t.exec("useCoinOnPot.buyPass-dialog", t.chat.play, { "objbox:You purchase a Shantay Pass." })
             t.check("useCoinOnPot.buyPass-paid", count(t, "shantay_pass") == pass0 + 1 and count(t, "coins") == coins0 - 5,
                 "shantay_pass " .. pass0 .. " -> " .. count(t, "shantay_pass") .. ", coins " .. coins0 .. " -> " .. count(t, "coins") .. " (5 coins, shantay.rs2)")
             -- North of the doorway (z 3116) so the pass-check branch runs (shantay_pass.rs2:75-84).
             t.exec("walk-useCoinOnPot.toDoorway", t.player.walk_route, { { 3304, 3118 } })
-            t.exec("useCoinOnPot.doorway", t.player.click_loc, "shantay_pass_henge_doorway", 1, { at = { 3302, 3116, 0 } })
-            t.exec("useCoinOnPot.doorway-dialog", t.chat.play, {
-                "mesbox:There is a large poster on the wall", "mesbox:The Desert is a VERY Dangerous place",
-                "mesbox:That seems pretty scary!", "choose:Yeah, that poster doesn't scare me!",
-                "npc:Can I see your Shantay Desert Pass", "mesbox:You hand over a Shantay Pass.", "player:Sure, here you go!",
-                "npc:Here, have a disclaimer",
-            })
+            -- The doorway from the north opens the desert warning (cws_warning_10); its "warn1" takes the
+            -- pass and walks the player through (RSProx index 4448 [1209..1216], 4452 [866..867]).
+            t.exec("useCoinOnPot.doorway", t.player.click_loc, "shantay_pass_henge_doorway", 1)
+            local warn_open = t.ui.await_open("cws_warning_10", 15)
+            local warn_r, warn_w = t.ui.widget("cws_warning_10:warn1")
+            t.check("useCoinOnPot.doorway-dialog", warn_open == "ok" and warn_r == "ok" and select(1, t.ui.invoke(warn_w, 1)) == "ok",
+                "desert warning " .. tostring(warn_open) .. ", warn1 " .. tostring(warn_r))
             t.await({ level = function() local r, tl = t.world.tile() return r == "ok" and tl.z < 3116 end,
                 note = "the queued Shantay gate teleport" }, 10)
             local _, st = t.world.tile()
@@ -643,23 +648,62 @@ return {
             t.exec("goto-returnToSarim", t.player.goto_tile, 3018, 3234, 0)
             t.exec("clickSnakeCharm", t.player.inv_op, "snake_flute", 1)
             t.exec("clickSnakeCharm-open", t.ui.await_open, "ratcatcher_flute", 10)
-            -- playSnakeCharm (QH RatCharming): D, G, E, F#, D raised, B, C#, A, each an IF1
-            -- press (op 0, the plain IF_BUTTON a real click sends).
-            local tune = {
-                { "rc_flute_d", 1 }, { "rc_flute_g", 2 }, { "rc_flute_e", 3 }, { "rc_flute_fsharp", 4 },
-                { "rc_flute_up_octave", nil }, { "rc_flute_d", 5 }, { "rc_flute_up_octave", nil },
-                { "rc_flute_b", 6 }, { "rc_flute_csharp", 7 }, { "rc_flute_a", 8 },
-            }
-            for i, n in ipairs(tune) do
-                local _, w = t.ui.widget("ratcatcher_flute:" .. n[1])
-                t.ui.invoke(w, 0)
-                t.ticks(2)
-                local _, len = t.var.server("varb1421_ratcatch_music_len")
-                local _, hi = t.var.server("varb1413_vc_note_current_hi")
-                local ok = (n[2] == nil) or (len == n[2]) or (n[2] == 8)
-                t.check("playSnakeCharm-" .. i .. "-" .. n[1], ok, "music_len=" .. tostring(len) .. " hi=" .. tostring(hi))
+            -- playSnakeCharm: the tune is written a note to a page, eight pages, then Play (RSProx index
+            -- 4448 [1876]..[2103], the recorder's twelve openings of this interface). The fingerings
+            -- are the recorded ones (D 63, E 62, F# 60, G 56, A 48, B 32, C# 1; raised, 64 more) and the
+            -- tune is Quest Helper RatCharming's stored notes: 63, 56, 62, 60, 127, 32, 1, 48. Every
+            -- press is the op-less IF_BUTTON an IF1 button sends ([1878]), op 0 here.
+            local function sv(name) return select(2, t.var.server(name)) end
+            local function press(com)
+                local _, w = t.ui.widget("ratcatcher_flute:" .. com)
+                return (t.ui.invoke(w, 0))
             end
-            local ar, ad = t.var.await_server("varb1404_ratcatch_var", 105, 8)
+            -- [1876]: page 1, the back arrow's layer hidden. This runner does not model hidden layers, so
+            -- the press is made and the page must not move.
+            press("rc_flute_prev_note")
+            t.ticks(2)
+            t.check("playSnakeCharm.page1", sv("varb1420_vc_note_number") == 0,
+                "vc_note_number " .. tostring(sv("varb1420_vc_note_number")) .. " after a previous-page press on page 1 (want 0)")
+            local tune = {
+                { { "rc_flute_d" }, 63 }, { { "rc_flute_g" }, 56 }, { { "rc_flute_e" }, 62 }, { { "rc_flute_fsharp" }, 60 },
+                { { "rc_flute_up_octave", "rc_flute_d" }, 127 }, { { "rc_flute_b" }, 32 }, { { "rc_flute_csharp" }, 1 },
+                { { "rc_flute_a" }, 48 },
+            }
+            for page, row in ipairs(tune) do
+                local pressed = {}
+                for _, com in ipairs(row[1]) do
+                    pressed[#pressed + 1] = com .. " " .. tostring(press(com))
+                    t.ticks(1)
+                end
+                t.check("playSnakeCharm-" .. page, sv("varb1411_vc_note_current") == row[2] and sv("varb1420_vc_note_number") == page - 1,
+                    table.concat(pressed, ", ") .. ": vc_note_current " .. tostring(sv("varb1411_vc_note_current")) .. " (want " .. row[2]
+                        .. "), page " .. tostring(sv("varb1420_vc_note_number")) .. " (want " .. (page - 1) .. ")")
+                if page < #tune then
+                    local turn = press("rc_flute_next_note")
+                    -- A press on the tick after a turn is refused ([1935], [1946], ...): two ticks.
+                    t.ticks(2)
+                    local stored = "varb" .. (1394 + page) .. "_vc_note" .. page
+                    t.check("playSnakeCharm-" .. page .. ".turn", sv("varb1420_vc_note_number") == page and sv(stored) == row[2]
+                        and sv("varb1411_vc_note_current") == 0,
+                        "next page " .. tostring(turn) .. ": page " .. tostring(sv("varb1420_vc_note_number")) .. " (want " .. page .. "), "
+                            .. stored .. " " .. tostring(sv(stored)) .. " (want " .. row[2] .. "), fingers "
+                            .. tostring(sv("varb1411_vc_note_current")) .. " (want 0, a blank page)")
+                end
+            end
+            -- [1985]: on page 8 the forward arrow's layer is hidden; the same press must not move the page.
+            press("rc_flute_next_note")
+            t.ticks(2)
+            t.check("playSnakeCharm.page8", sv("varb1420_vc_note_number") == 7 and sv("varb1411_vc_note_current") == 48,
+                "page " .. tostring(sv("varb1420_vc_note_number")) .. " (want 7), fingers " .. tostring(sv("varb1411_vc_note_current"))
+                    .. " (want 48) after a next-page press on page 8")
+            -- Play ([1989]): the page's note stored, the length 8, the modal shut, eight notes a tick apart.
+            local play = press("rc_flute_play")
+            t.ticks(2)
+            t.check("playSnakeCharm.play", play == "ok" and sv("varb1421_ratcatch_music_len") == 8 and sv("varb1402_vc_note8") == 48
+                and t.ui.await_open("ratcatcher_flute", 1) ~= "ok",
+                "play " .. tostring(play) .. ": ratcatch_music_len " .. tostring(sv("varb1421_ratcatch_music_len")) .. " (want 8), vc_note8 "
+                    .. tostring(sv("varb1402_vc_note8")) .. " (want 48), the flute shut")
+            local ar, ad = t.var.await_server("varb1404_ratcatch_var", 105, 14)
             t.expect("playSnakeCharm.await", ar, ad)
             t.expect("quest.stage.tune_played", t.quest.expect_stage("tune_played"))
             t.expect("playSnakeCharm.message", t.msg.expect("procession of rats"))

@@ -11036,8 +11036,11 @@ return {
         -- IfButtonHandler.ts:31 does.  Ratcatchers bound its snake charm's
         -- notes as the IF3 op form [if_button1,ratcatcher_flute:*], so no
         -- press played the tune (seam1_flute_before: music_len stayed 0); the
-        -- content now binds [if_button,...].  Graded on the first note of the
-        -- tune (D) pressed with op 0 raising varb1421_ratcatch_music_len to 1.
+        -- content now binds [if_button,...].  Graded on the tune's first note
+        -- (D) pressed with op 0 putting its fingering, 63, in
+        -- varb1411_vc_note_current (RSProx index 4448 [1878]: the IF_BUTTON
+        -- and `vc_note_current` 0 -> 63 on one tick; the length is only
+        -- written by Play).
         seam("seam.if1_button_unnumbered_trigger", function()
             local goto_tile = verb("player", "goto_tile")
             local inv_op = verb("player", "inv_op")
@@ -11062,7 +11065,7 @@ return {
             settle(2)
             local function teardown()
                 key("escape")
-                setup_cheat("::setvar varb1421_ratcatch_music_len 0")
+                setup_cheat("::setvar varb1411_vc_note_current 0")
                 setup_cheat("::setvar varb1404_ratcatch_var 0")
                 setup_cheat("::clearinv")
                 setup_cheat("::tele lumbridge")
@@ -11081,19 +11084,19 @@ return {
             local landed = "not_run"
             if open_result == "ok" and widget_result == "ok" then
                 press_result = invoke(note, 0)
-                landed = await_server("varb1421_ratcatch_music_len", 1, 6)
+                landed = await_server("varb1411_vc_note_current", 63, 6)
             end
-            local _, length = server("varb1421_ratcatch_music_len")
+            local _, length = server("varb1411_vc_note_current")
             teardown()
             local text = "snake_flute op1 -> " .. describe(op_result) .. " " .. describe(op_detail)
                 .. "; flute open -> " .. describe(open_result) .. " " .. describe(open_detail)
                 .. "; rc_flute_d widget -> " .. describe(widget_result) .. " " .. describe(note)
-                .. "; invoke(op 0) -> " .. describe(press_result) .. "; music_len await 1 -> "
+                .. "; invoke(op 0) -> " .. describe(press_result) .. "; vc_note_current await 63 -> "
                 .. describe(landed) .. " (read " .. describe(length) .. ")"
             if open_result ~= "ok" or widget_result ~= "ok" then
                 return "no_subject", text .. " -- the snake charm did not open"
             end
-            if landed ~= "ok" or length ~= 1 then
+            if landed ~= "ok" or length ~= 63 then
                 return "refused", text .. " -- the op-0 press did not run [if_button,ratcatcher_flute:rc_flute_d]"
             end
             return "ok", text

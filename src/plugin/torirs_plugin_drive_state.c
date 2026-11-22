@@ -488,14 +488,20 @@ lua_drive_var_content(struct lua_State* L)
     int varp_id = PluginDrive_ArgInt(L, 1);
     int value = 0;
     enum DriveResult result;
+    struct ToriRSServerVarpDef const* def;
 
     assert(app);
     result = DriveState_VarpContent(app, varp_id, &value);
     if( result != DRIVE_OK )
         return PluginDrive_PushResult(L, result, NULL);
+    /* The third answer: does this varp ever reach the client (declared
+     * transmit=yes, and an id the client's array holds)?  The driver reads the
+     * server's copy when it does not -- drive_state_varbit_content's rule. */
+    def = ToriRSServer_ContentVarp(varp_id);
     lua_pushstring(L, DriveResultName(result));
     lua_pushinteger(L, value);
-    return 2;
+    lua_pushboolean(L, def && def->transmit && varp_id < ToriRSServer_VarpClientCount());
+    return 3;
 }
 
 /* api_drive.varbit_content(id) -> ("ok", value, base_varp, reaches_client)

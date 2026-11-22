@@ -97,6 +97,19 @@ QD._VAR_CONTENT_SOURCE = "server content copy; no client copy"
 -- (result, value, source) for a resolved varp id: var_server first, the
 -- server's own copy only when var_server answered `not_found`.
 function QD._var_server_varp(id)
+    -- A varp content never sends (transmit=no, or undeclared) is read off the
+    -- server's own copy, whatever the client's array holds: once that array
+    -- grew past the content-allocated ids, var_server answered ok/0 for them
+    -- instead of not_found and the fallback below never ran (Ratcatchers'
+    -- King Rat flag, varp 7877).  The channel is the static transmit fact
+    -- var_content reports, the varbit path's rule (seam35); an older binary
+    -- answers no third value and falls through.
+    if type(api_drive.var_content) == "function" then
+        local content_result, content_value, reaches_client = api_drive.var_content(id)
+        if content_result == "ok" and reaches_client == false then
+            return "ok", content_value, QD._VAR_CONTENT_SOURCE
+        end
+    end
     local result, value = api_drive.var_server(id)
     if result ~= "not_found" then
         return result, value, "server"
