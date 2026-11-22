@@ -493,6 +493,10 @@ ToriRSServer_Send(
      * session. Whole payloads, never cut, and in send order. */
     if( srv && srv->packet_sink )
         srv->packet_sink(player, opcode, pkt_name, payload, len, srv->packet_sink_ctx);
+    /* A recorded bot (`--scriptrun --record`) has no session to get past:
+     * what it is handed is what a client would have been sent. */
+    if( player->recording && !player->session )
+        ToriRSServer_RecordingServerPacket(player->recording, opcode, payload, len, var);
 
     /*
      * No session is a world with no client — the selftest. Everything above

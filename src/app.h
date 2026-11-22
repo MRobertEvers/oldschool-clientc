@@ -2098,6 +2098,26 @@ App_SpeedRelock(void);
 int
 App_SpeedUnlocked(void);
 
+/** THE SPEED LIMIT between real time and unlocked: the frame's clock (the
+ *  `now` App_RunOnce is handed) runs at `milli` thousandths of the wall clock,
+ *  so the logic accumulator pays that multiple of 50 cycles a second and every
+ *  animation, timer and clientscript clock follows. 1000 is real time, the
+ *  default. For an RSProx replay only (main.c main_rsprox_replay_frame follows
+ *  its transport's NetTransport_ReplaySpeed), whose clock is the client's
+ *  cycles at any speed but 1000; no server across a socket would keep step.
+ *  The unlocked clock above, when set, wins: it does not read the time. */
+void
+App_SpeedScaleSet(int milli);
+
+int
+App_SpeedScale(void);
+
+/** `wall_ms` on the scaled clock: continuous across a change of speed (only
+ *  the time since the last call is scaled), and `wall_ms` itself while the
+ *  speed has never left 1000. Call once a frame with the frame's time. */
+uint64_t
+App_SpeedScaleClock(uint64_t wall_ms);
+
 /** Every logic cycle the frame loop actually ran, counted after the settle
  *  fence (a cycle charged and owed to the next frame is counted when it
  *  runs). The unlocked clock's world time is this x 20 ms. */

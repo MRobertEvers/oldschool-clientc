@@ -51,9 +51,18 @@ struct ToriRSServerRecording
 };
 
 static struct ToriRSServerRecording g_recordings[RECORDING_SLOTS];
+/* ToriRSServer_RecordingClockSet: 0 = the wall clock. */
+static int64_t g_clock_ms;
+
+void
+ToriRSServer_RecordingClockSet(int64_t ms)
+{
+    assert(ms >= 0);
+    g_clock_ms = ms;
+}
 
 static int64_t
-wall_ms(void)
+real_ms(void)
 {
 #ifdef _WIN32
     FILETIME ft;
@@ -70,6 +79,13 @@ wall_ms(void)
     gettimeofday(&tv, NULL);
     return (int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 #endif
+}
+
+/* The recordings' clock: the one a caller set, else the wall's. */
+static int64_t
+wall_ms(void)
+{
+    return g_clock_ms ? g_clock_ms : real_ms();
 }
 
 /* --- the gather buffer ---------------------------------------------------- */
@@ -287,6 +303,36 @@ free_slot(void)
     return NULL;
 }
 
+/* A new file at `path` in the free slot `rec`, its header written, and the
+ * player's recording set: or nothing, said on stderr. */
+static void
+open_new(
+    struct ToriRSServerRecording* rec,
+    struct ToriRSServerPlayer* player,
+    const char* key,
+    const char* path,
+    int64_t now)
+{
+    memset(rec, 0, sizeof(*rec));
+    snprintf(rec->key, sizeof(rec->key), "%s", key);
+    snprintf(rec->path, sizeof(rec->path), "%s", path);
+    ToriRSServer_SaveMkdirParent(rec->path);
+    rec->file = open_unbuffered(rec->path, "wb");
+    if( !rec->file )
+    {
+        fprintf(stderr, "torirsserver: recording %s: cannot open; %s plays unrecorded\n",
+                rec->path, player->display_name);
+        memset(rec, 0, sizeof(*rec));
+        return;
+    }
+    rec->in_use = 1;
+    rec->last_ms = now;
+    put_header(rec, player, now);
+    write_out(rec);
+    player->recording = rec;
+    fprintf(stderr, "torirsserver: recording %s to %s\n", player->display_name, rec->path);
+}
+
 void
 ToriRSServer_RecordingLogin(
     struct ToriRSServerPlayer* player,
@@ -294,6 +340,7 @@ ToriRSServer_RecordingLogin(
 {
     char key[64];
     char dir[1024];
+    char path[1100];
     char stamp[32];
     struct ToriRSServerRecording* rec;
     int64_t now;
@@ -344,25 +391,34 @@ ToriRSServer_RecordingLogin(
 #endif
     strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", &tm_utc);
     snprintf(dir, sizeof(dir), "%s/recordings/%s", ToriRSServer_SaveDir(), key);
+    snprintf(path, sizeof(path), "%s/%s.bin", dir, stamp);
+    open_new(rec, player, key, path, now);
+}
 
-    memset(rec, 0, sizeof(*rec));
-    snprintf(rec->key, sizeof(rec->key), "%s", key);
-    snprintf(rec->path, sizeof(rec->path), "%s/%s.bin", dir, stamp);
-    ToriRSServer_SaveMkdirParent(rec->path);
-    rec->file = open_unbuffered(rec->path, "wb");
-    if( !rec->file )
+int
+ToriRSServer_RecordingOpenPath(
+    struct ToriRSServerPlayer* player,
+    const char* path)
+{
+    struct ToriRSServerRecording* rec;
+    char key[64];
+
+    assert(player);
+    assert(path);
+    assert(path[0]);
+    player->recording = NULL;
+    rec = free_slot();
+    if( !rec )
     {
-        fprintf(stderr, "torirsserver: recording %s: cannot open; %s plays unrecorded\n",
-                rec->path, player->account_name);
-        memset(rec, 0, sizeof(*rec));
-        return;
+        fprintf(stderr, "torirsserver: %d recordings already open; %s plays unrecorded\n",
+                RECORDING_SLOTS, player->display_name);
+        return 0;
     }
-    rec->in_use = 1;
-    rec->last_ms = now;
-    put_header(rec, player, now);
-    write_out(rec);
-    player->recording = rec;
-    fprintf(stderr, "torirsserver: recording %s to %s\n", player->display_name, rec->path);
+    /* Keyed by the player's own name, never an account's: a parked one is
+     * claimed by no login. */
+    ToriRSServer_SaveFileName(player->display_name, key, sizeof(key));
+    open_new(rec, player, key, path, wall_ms());
+    return player->recording != NULL;
 }
 
 /* --- packets -------------------------------------------------------------- */

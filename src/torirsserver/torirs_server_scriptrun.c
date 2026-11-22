@@ -4,7 +4,7 @@
  *
  *   torirsserver --scriptrun <test.lua> [--bots N] [--name NAME] [--ticks N]
  *                [--script-root DIR] [--session DIR] [--quiet]
- *                [--tick-ms N] [--control-port N]
+ *                [--tick-ms N] [--control-port N] [--record PATH]
  *
  * THE BOT. One sessionless player per seat (as the bot runner makes them,
  * torirs_server_botrun.c), each with
@@ -29,6 +29,16 @@
  * `--tick-ms N` paces the loop to at least N ms a tick instead (600 is a live
  * server's clock), for a run something outside the process acts on.
  *
+ * THE RECORDING. `--record PATH` writes the first bot's session to PATH as an
+ * RSProx recording (torirs_server_recording.h): every payload it is handed,
+ * which is every packet a client in its place would be sent, stamped on the
+ * tick clock -- 600 ms a tick from the run's start, whatever the loop's own
+ * pace -- so the client's replay plays a run made in seconds at a live
+ * server's speed (the account site's staff Tests page, website_site_tests.c).
+ * Only the server's side is in it: the bot's inputs are not packets until the
+ * world decodes them. A bot that relogs (t.relog) ends its recording at the
+ * disconnect.
+ *
  * THE CONTROL LINK. `--control-port N` listens on 127.0.0.1:N for the game
  * server's control link (torirs_server_control.h, first byte 0xED): the editor
  * server's live link attaches to a running scriptrun exactly as it does to a
@@ -48,6 +58,7 @@
 #include "torirs_server_wire.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_save.h"
+#include "torirs_server_recording.h"
 #include "torirs_server_vessel.h"
 #include "engine/world_builder/collision_map.h"
 #include "features/features.h"
@@ -5933,6 +5944,8 @@ ToriRSServer_ScriptRun(
     int tick_ms = 0;
     int control_port = 0;
     int control_fd = -1;
+    char const* record_path = NULL;
+    int64_t record_base_ms = 0;
     int64_t started;
     int ticks_run = 0;
     int status = 0;
@@ -5946,7 +5959,7 @@ ToriRSServer_ScriptRun(
     {
         fprintf(stderr, "usage: torirsserver --scriptrun <test.lua> [--bots N] [--name NAME] "
                         "[--ticks N] [--script-root DIR] [--session DIR] [--quiet] "
-                        "[--tick-ms N] [--control-port N]\n");
+                        "[--tick-ms N] [--control-port N] [--record PATH]\n");
         return 2;
     }
     run.test_path = argv[2];
@@ -5972,6 +5985,8 @@ ToriRSServer_ScriptRun(
             control_port = atoi(argv[++i]);
         else if( strcmp(argv[i], "--check-collision") == 0 )
             run.check_collision = 1;
+        else if( strcmp(argv[i], "--record") == 0 && i + 1 < argc )
+            record_path = argv[++i];
     }
     if( bots < 1 || bots > SCRIPTRUN_BOTS_MAX )
     {
@@ -6129,6 +6144,18 @@ ToriRSServer_ScriptRun(
             goto out;
         }
         srv->active_player = player;
+        if( record_path && i == 0 )
+        {
+            /* The tick clock starts now: the header's timestamp is the run's
+             * wall start, every delta after it 600 ms a tick. */
+            record_base_ms = (int64_t)time(NULL) * 1000;
+            ToriRSServer_RecordingClockSet(record_base_ms);
+            if( !ToriRSServer_RecordingOpenPath(player, record_path) )
+            {
+                status = 2;
+                goto out;
+            }
+        }
         ToriRSServer_WorldLogin(player);
         /* No MAP_BUILD_COMPLETE here: the bot has not been sent the login's
          * scene yet. It answers it from the loop, a boundary later (login_tick
@@ -6234,6 +6261,9 @@ ToriRSServer_ScriptRun(
          * what an adopted link sent. */
         if( control_fd >= 0 )
             ToriRSServer_ControlListenPump(control_fd);
+        /* The tick's packets are stamped one tick on from the last. */
+        if( record_base_ms )
+            ToriRSServer_RecordingClockSet(record_base_ms + (int64_t)(ticks_run + 1) * 600);
         ToriRSServer_WorldTick(srv);
         ticks_run++;
         if( tick_ms > 0 )
@@ -6298,6 +6328,14 @@ ToriRSServer_ScriptRun(
         status = failed ? 1 : 0;
     }
 out:
+    if( record_base_ms )
+    {
+        /* What the last tick gathered is written at its end; the file is
+         * closed with the bot's slot. */
+        if( run.count > 0 && run.bots[0].player )
+            ToriRSServer_RecordingPark(run.bots[0].player);
+        ToriRSServer_RecordingClockSet(0);
+    }
     if( control_fd >= 0 )
     {
         ToriRSServer_ControlListenClose(control_fd);

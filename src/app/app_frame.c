@@ -1590,7 +1590,11 @@ app_run_once_body(
          */
         /* One clamp, shared: a stall must cost the movers and the animations
          * the same amount of time, or they resume out of step. */
-        int ticks = FrameClockStep_Pay(&app->frame_clock.step, now_ms, APP_LOGIC_TICK_MS, APP_MAX_CATCHUP_TICKS);
+        /* A sped-up replay (App_SpeedScaleSet) pays its multiple of a stall
+         * too: 4x on a 50 ms frame is ten cycles, not the five a real-time
+         * stall is held to. */
+        int const catchup = APP_MAX_CATCHUP_TICKS * ((App_SpeedScale() + 999) / 1000);
+        int ticks = FrameClockStep_Pay(&app->frame_clock.step, now_ms, APP_LOGIC_TICK_MS, catchup);
         /*
          * A bounded headless run ticks ONCE per frame, on the frame and not on
          * the wall clock.

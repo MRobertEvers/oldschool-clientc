@@ -1891,7 +1891,7 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
 # and flags to host it.
 website-server:
 	$(MAKE) $(IO_SERVER_FLAVOR) $(IO_SERVER_OBJ_DIR)/website_server
-$(IO_SERVER_OBJ_DIR)/website_server: $(WEBSITE_SERVER_SRCS) websiteserver/website_site_editor.c \
+$(IO_SERVER_OBJ_DIR)/website_server: $(WEBSITE_SERVER_SRCS) websiteserver/website_site_editor.c websiteserver/website_site_tests.c \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) | $(IO_SERVER_OBJ_DIR)
@@ -1910,7 +1910,7 @@ test-website-gate-device:
 	$(MAKE) $(IO_SERVER_FLAVOR) $(IO_SERVER_OBJ_DIR)/WebsiteGateDeviceTest
 	cd $(REPO_ROOT) && ./src/$(IO_SERVER_OBJ_DIR)/WebsiteGateDeviceTest
 $(IO_SERVER_OBJ_DIR)/WebsiteGateDeviceTest: websiteserver/test/website_gate_device_test.c \
-		$(WEBSITE_GATE_DEVICE_TEST_SRCS) websiteserver/website_site_editor.c \
+		$(WEBSITE_GATE_DEVICE_TEST_SRCS) websiteserver/website_site_editor.c websiteserver/website_site_tests.c \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) | $(IO_SERVER_OBJ_DIR)

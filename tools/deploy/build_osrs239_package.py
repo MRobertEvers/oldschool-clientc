@@ -23,6 +23,8 @@ servers (docs/WEB_SERVERS.md) with nothing else installed:
     content/osrs-content/    the slice of the content tree the server opens
     manifests/                  the boot manifest, rewritten for this layout
     revconfig/, script/         what the page fetches through /boot/
+    script/tests/               the quest tests and their manifest, played by
+                                the staff Tests page (stage_quest_tests)
     build-web/android/          with --android: the prod Android app's game
                                 pack (stage_android), served at /android/
     bin/torirsd[.exe]           starts all five from torirsd.ini, in order, and
@@ -279,6 +281,27 @@ def stage_content(stage: Path) -> None:
         return rel.suffix == ".jm2" or rel.name == "multiway.csv"
     total += copy_tree(CONTENT / "maps", out / "maps", keep_maps)
     log(f"content: {total / 1e6:.0f} MB")
+
+
+def stage_quest_tests(stage: Path) -> None:
+    """The quest tests the staff Tests page plays (src/websiteserver/
+    website_site_tests.c): test/quests/*.lua and its fixtures under
+    script/tests/quests/ -- where the scripts manifest names them (the checkout
+    reaches them through the script/tests/quests link, which copy_tree does not
+    follow) -- and the manifest itself, script/tests/tests.ini."""
+    src = REPO / "test" / "quests"
+    out = stage / "script" / "tests" / "quests"
+
+    def keep(rel: Path, is_dir: bool) -> bool:
+        if is_dir:
+            return rel.parts[0] == "fixtures"
+        return rel.suffix in (".lua", ".ini")
+
+    total = copy_tree(src, out, keep)
+    manifest = stage / "script" / "tests" / "tests.ini"
+    subprocess.run([sys.executable, str(REPO / "tools" / "raid_gate" / "prepare_scripts.py"),
+                    "--out", str(manifest)], cwd=REPO, check=True, capture_output=True)
+    log(f"quest tests: {total / 1e6:.1f} MB, manifest {manifest.relative_to(stage)}")
 
 
 def stage_web(stage: Path) -> None:
@@ -1052,6 +1075,7 @@ def main() -> int:
     write_replay_manifest(stage)
     copy_tree(REPO / "revconfig" / WORLD, stage / "revconfig" / WORLD)
     copy_tree(REPO / "script", stage / "script")
+    stage_quest_tests(stage)
     stage_scripts(stage, args.game_port, args.web_port, args.ws_host, sha, content_sha, date)
     write_daemon_config(stage, args.game_port, args.web_port, args.gate)
     # The staged torirsd reads the staged file: a config it refuses fails the

@@ -94,6 +94,52 @@ App_SpeedUnlocked(void)
     return s_speed_unlocked;
 }
 
+/* App_SpeedScaleSet: thousandths of real time; and the scaled clock's state. */
+static int s_speed_scale = 1000;
+static int s_speed_scaled;
+static uint64_t s_speed_wall_last;
+static uint64_t s_speed_clock;
+static uint64_t s_speed_carry;
+
+void
+App_SpeedScaleSet(int milli)
+{
+    assert(milli > 0);
+    s_speed_scale = milli;
+}
+
+int
+App_SpeedScale(void)
+{
+    return s_speed_scale;
+}
+
+uint64_t
+App_SpeedScaleClock(uint64_t wall_ms)
+{
+    uint64_t scaled;
+
+    if( !s_speed_scaled )
+    {
+        if( s_speed_scale == 1000 )
+            return wall_ms;
+        /* The first scaled frame starts from real time, so nothing jumps. */
+        s_speed_scaled = 1;
+        s_speed_clock = wall_ms;
+        s_speed_wall_last = wall_ms;
+        return wall_ms;
+    }
+    /* A clock that went back (a test clock, a replaced pacer) is no time. */
+    if( wall_ms > s_speed_wall_last )
+    {
+        scaled = (wall_ms - s_speed_wall_last) * (uint64_t)s_speed_scale + s_speed_carry;
+        s_speed_clock += scaled / 1000;
+        s_speed_carry = scaled % 1000;
+    }
+    s_speed_wall_last = wall_ms;
+    return s_speed_clock;
+}
+
 void
 App_LogicCyclesNote(int cycles)
 {

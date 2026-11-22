@@ -482,6 +482,7 @@ page_begin(
             { "/admin/users", "Users" },
             { "/admin/players", "Players" },
             { "/admin/recordings", "Recordings" },
+            { "/admin/tests", "Tests" },
         };
 
         buf_puts(b, "<nav class=\"subnav\">");
@@ -1799,8 +1800,27 @@ serve_recording(
     res->owns_body = 1;
 }
 
-/* `/admin/replay?f=<account>/<file>`: the game page in replay mode, framed,
- * with a scrubber over its ToriRS_Replay controls (web/torirs_host.js). */
+/* The replay page's speeds: the select's values, `u` unlocked. `speed=` on
+ * the page's URL picks one (the Tests page links with its own choice). */
+static char const* const k_replay_speeds[][2] = {
+    { "1", "1x" }, { "1.5", "1.5x" }, { "2", "2x" }, { "4", "4x" }, { "u", "Unlocked" },
+};
+
+static char const*
+replay_speed_pick(char const* asked)
+{
+    for( size_t i = 0; i < sizeof(k_replay_speeds) / sizeof(k_replay_speeds[0]); i++ )
+    {
+        if( strcmp(asked, k_replay_speeds[i][0]) == 0 )
+            return k_replay_speeds[i][0];
+    }
+    return "1";
+}
+
+/* `/admin/replay?f=<account>/<file>[&speed=1|1.5|2|4|u]`: the game page in
+ * replay mode, framed, with a scrubber over its ToriRS_Replay controls
+ * (web/torirs_host.js) and the speed: a multiple of the recording's pace, or
+ * unlocked (as fast as the browser runs it). */
 static void
 page_replay(
     struct WebsiteGate* gate,
@@ -1810,11 +1830,15 @@ page_replay(
 {
     struct SiteBuf b;
     char f[96] = "";
+    char asked[8] = "";
     char account[SITE_NAME_MAX];
     char const* file;
+    char const* speed;
     size_t slash;
 
     WebsiteGate_QueryField(req, "f", f, sizeof(f));
+    WebsiteGate_QueryField(req, "speed", asked, sizeof(asked));
+    speed = replay_speed_pick(asked);
     slash = strcspn(f, "/");
     if( slash == 0 || slash >= sizeof(account) || f[slash] != '/' )
     {
@@ -1848,14 +1872,21 @@ page_replay(
                  "title=\"Replay\"></iframe>"
                  "<div class=\"scrub\">"
                  "<button class=\"btn\" id=\"play\" disabled>Pause</button>"
-                 "<label style=\"margin:0\"><input type=\"checkbox\" id=\"fast\" "
-                 "style=\"display:inline;width:auto\"> Fast</label>"
+                 "<label style=\"margin:0\">Speed <select id=\"speed\" "
+                 "style=\"display:inline;width:auto;margin:0\">");
+    for( size_t i = 0; i < sizeof(k_replay_speeds) / sizeof(k_replay_speeds[0]); i++ )
+        buf_printf(&b, "<option value=\"%s\"%s>%s</option>", k_replay_speeds[i][0],
+                   strcmp(speed, k_replay_speeds[i][0]) == 0 ? " selected" : "",
+                   k_replay_speeds[i][1]);
+    buf_puts(&b, "</select></label>"
                  "<input type=\"range\" id=\"pos\" min=\"0\" max=\"0\" value=\"0\" disabled>"
                  "<span class=\"tick\" id=\"tick\">loading&hellip;</span>"
                  "<form id=\"go\" style=\"margin:0\" class=\"row\"><input type=\"number\" "
                  "id=\"to\" min=\"0\" placeholder=\"tick\"><button class=\"btn quiet\">Go"
                  "</button></form></div>"
-                 "<p class=\"note\">A tick is 0.6 s. Seeking replays the session from the "
+                 "<p class=\"note\">A tick is 0.6 s; 2x plays two ticks in that time, and "
+                 "Unlocked as many as your browser can draw. Seeking replays the session "
+                 "from the "
                  "nearest checkpoint, so a far jump forward takes a moment the first time. "
                  "The player's own clicks are not shown, only what the server sent "
                  "back.</p>");
@@ -1866,10 +1897,12 @@ page_replay(
     buf_esc(&b, file);
     buf_puts(&b, "';\n"
         "var gl=false;try{gl=!!document.createElement('canvas').getContext('webgl2');}catch(e){}\n"
+        "var sp=document.getElementById('speed');\n"
         "var q=new URLSearchParams({replay:file,args:'--manifest,manifests/manifest_replay.ini'"
         "+(gl?',--webgl2-zbuffer':''),ws:'ws'});\n"
+        "if(sp.value==='u')q.set('unlocked','1');else if(sp.value!=='1')q.set('speed',sp.value);\n"
         "var frame=document.getElementById('replay');frame.src='/?'+q;\n"
-        "var play=document.getElementById('play'),fast=document.getElementById('fast'),"
+        "var play=document.getElementById('play'),"
         "pos=document.getElementById('pos'),tick=document.getElementById('tick'),"
         "go=document.getElementById('go'),to=document.getElementById('to');\n"
         "var dragging=false;\n"
@@ -1880,7 +1913,11 @@ page_replay(
         "function seek(t){var c=ctl();if(c)c.seek(Math.max(0,t|0));}\n"
         "play.onclick=function(){var c=ctl();if(!c)return;var st=c.status();if(!st)return;"
         "if(st.held)c.run();else c.hold();};\n"
-        "fast.onchange=function(){var c=ctl();if(c)c.setUnlocked(fast.checked);};\n"
+        "function applySpeed(){var c=ctl();if(!c)return false;var u=sp.value==='u';"
+        "if(!u&&!c.setSpeed(+sp.value))return false;return c.setUnlocked(u);}\n"
+        "sp.onchange=function(){applySpeed();"
+        "try{var a=new URL(location.href);a.searchParams.set('speed',sp.value);"
+        "history.replaceState(null,'',a);}catch(e){}};\n"
         "pos.oninput=function(){dragging=true;tick.textContent='tick '+pos.value+' ('+secs(+pos.value)+')';};\n"
         "pos.onchange=function(){dragging=false;seek(+pos.value);};\n"
         "go.onsubmit=function(e){e.preventDefault();if(to.value!=='')seek(+to.value);};\n"
@@ -1888,7 +1925,7 @@ page_replay(
         "if(!st){return;}\n"
         "play.disabled=false;pos.disabled=false;pos.max=st.ticks;\n"
         "if(!dragging)pos.value=st.tick;\n"
-        "play.textContent=st.held?'Play':'Pause';fast.checked=!!st.unlocked;\n"
+        "play.textContent=st.held?'Play':'Pause';\n"
         "if(!dragging)tick.textContent='tick '+st.tick+' / '+st.ticks+' ('+secs(st.tick)+' / '"
         "+secs(st.ticks)+')'+(st.seeking?' seeking\\u2026':'');},250);\n"
         "})();</script>");
@@ -2420,6 +2457,7 @@ handle_create(
 
 /* The player editor: /admin/players/<key> (its own file, this unit's). */
 #include "website_site_editor.c"
+#include "website_site_tests.c"
 
 /* ------------------------------------------------------------------ */
 /* Routes                                                              */
@@ -2567,6 +2605,8 @@ WebsiteSite_Handle(
             return 1;
         }
         if( pe_route(gate, who, req, res, is_get, is_post) )
+            return 1;
+        if( tests_route(gate, who, req, res, is_get, is_post) )
             return 1;
         if( is_post && WebsiteGate_PathIs(req->path, "/admin/players/link") )
         {

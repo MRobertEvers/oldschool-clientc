@@ -43,6 +43,12 @@
  * animation, timer and clientscript clock still sees the gaps the recorder saw.
  * Both are deltas, so switching between them mid-replay does not jump.
  *
+ * A SPEED between the two (NetTransport_ReplaySetSpeed: 1.5x, 2x, 4x, the
+ * account site's replay page) is the unlocked rule under a limit: the clock
+ * is the client's cycles x 20 ms, and the client runs its cycles at that
+ * multiple of the wall clock (App_SpeedScaleSet), so the recording, the
+ * animations and the clientscript clocks all keep the one ratio.
+ *
  * THE SESSION'S CONNECTIONS. A login is one of three things, and the answer is
  * what the official client would have been answered:
  *
@@ -222,6 +228,9 @@ struct NetTransportReplay
 
     /* The two clocks, read every poll so a switch between them is seamless. */
     int unlocked;
+    /** NetTransport_ReplaySetSpeed: the client's pace in thousandths of real
+     *  time while locked; 1000 is the recording's own. */
+    int speed_milli;
     unsigned long long cycles_now;
     unsigned long long cycles_last;
     uint64_t wall_last;
@@ -685,6 +694,14 @@ replay_unlocked(struct NetTransportReplay* self)
     return self->unlocked || ReplayScrub_Seeking(self->scrub);
 }
 
+/* Unlocked, or locked at a speed other than real time: the client's cycles are
+ * the clock either way. */
+static int
+replay_follows_cycles(struct NetTransportReplay* self)
+{
+    return replay_unlocked(self) || self->speed_milli != 1000;
+}
+
 /*
  * A seek behind the playhead (REPLAY_NEXT_RESTART): the session ends the way a
  * server that went away ends it. What is staged goes with it, the client sees
@@ -712,7 +729,7 @@ play(
     uint64_t const wall = PlatformWindow_Ticks64();
     uint64_t step;
 
-    if( replay_unlocked(self) )
+    if( replay_follows_cycles(self) )
         step = (uint64_t)(self->cycles_now - self->cycles_last) * REPLAY_CYCLE_MS;
     else
     {
@@ -986,6 +1003,7 @@ NetTransport_NewReplay(
     self->rev = rev;
     self->last_status = -1;
     self->phase = REPLAY_IDLE;
+    self->speed_milli = 1000;
     self->enc = isaac_new(NULL, 0);
     self->dec = isaac_new(NULL, 0);
     assert(self->enc);
@@ -1094,6 +1112,27 @@ int
 NetTransport_ReplayUnlocked(struct NetTransport* t)
 {
     return replay_unlocked(as_replay(t));
+}
+
+void
+NetTransport_ReplaySetSpeed(
+    struct NetTransport* t,
+    int speed_milli)
+{
+    struct NetTransportReplay* self = as_replay(t);
+
+    assert(speed_milli >= NET_TRANSPORT_REPLAY_SPEED_MIN);
+    assert(speed_milli <= NET_TRANSPORT_REPLAY_SPEED_MAX);
+    if( self->speed_milli == speed_milli )
+        return;
+    self->speed_milli = speed_milli;
+    TORIRS_REPORT("replay: speed %d.%03dx\n", speed_milli / 1000, speed_milli % 1000);
+}
+
+int
+NetTransport_ReplaySpeed(struct NetTransport* t)
+{
+    return as_replay(t)->speed_milli;
 }
 
 void
@@ -1281,6 +1320,7 @@ NetTransport_ReplayGetStatus(
     out->clock_ms = ReplayScrub_ClockMs(scrub);
     out->duration_ms = self->rec.duration_ms;
     out->unlocked = replay_unlocked(self);
+    out->speed_milli = self->speed_milli;
     out->waiting_map = ReplayScrub_WaitingMap(scrub);
     out->revision = self->rec.revision;
     out->world = self->rec.world_id;

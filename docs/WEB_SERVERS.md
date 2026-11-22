@@ -614,7 +614,8 @@ still the landing URL given to `--gate` (`/?args=...`), which every page's
 | `/admin/players/<name>` | staff only: the player editor -- skills, backpack and equipment, bank, other containers and varps, with the game's own icons; online players edited live through the game, offline ones in their save (below) |
 | `/admin/players[?q=K]` | staff only: every player account (`<saves>/accounts/`) with the login it is linked to; per row a login to **Link** it to (or **Move** it to, from another login) with no player password, and **Unlink** |
 | `/admin/recordings[?account=K]` | staff only: every recorded session (account, start, length, size, Watch, .bin) and every player account's recording switch |
-| `/admin/replay?f=<account>/<file>` | staff only: the game page in replay mode (`/?replay=...` on `manifests/manifest_replay.ini`, JS5 over the game socket), with play/pause, Fast, and a tick scrubber over its `ToriRS_Replay` controls |
+| `/admin/replay?f=<account>/<file>[&speed=1\|1.5\|2\|4\|u]` | staff only: the game page in replay mode (`/?replay=...` on `manifests/manifest_replay.ini`, JS5 over the game socket), with play/pause, a speed (1x, 1.5x, 2x, 4x of the recording's own pace, or Unlocked), and a tick scrubber over its `ToriRS_Replay` controls |
+| `/admin/tests` | staff only: every quest test the package carries; **Run** plays one on this machine (`torirsserver --scriptrun --record`, a throwaway character from the test's fixture, in a world of its own), then its steps with PASS/FAIL and **Watch** in the replay page (below) |
 
 **Creating** (`POST /account/create`, `/admin/users/create`;
 `WebsiteGate_CreatePlayer`) writes the same record `torirsserver --account create`
@@ -692,7 +693,29 @@ read at each login. Staff is a web login with a linked player account that has
 `admin = 1`; nobody else gets the pages or the files. An idle player is about
 20 KB a minute. The files are the same format the rsprox tools and
 rsprox-index read, and the native client plays one with
-`--manifest manifests/manifest_osrs242_replay.ini --replay <file>`.
+`--manifest manifests/manifest_osrs242_replay.ini --replay <file>`
+(`--replay-speed 2` for twice its pace).
+
+### Watching a quest test
+
+The browser's client cannot play a quest test: the driver needs the
+in-process world, which the web build does not link. `/admin/tests`
+(`src/websiteserver/website_site_tests.c`) plays it on the server instead: one
+`bin/torirsserver --scriptrun script/tests/quests/<id>.lua --record ...` at a
+time, at nice 10, with the world's cache and content but none of the live
+services (account and hiscores servers, the gate, the saves) and
+`TORIRSSERVER_DEV=1` for the tests' setup cheats. The character is new each
+run, made from the test's fixture under `<saves>/test_runs/<id>/` (its
+`out.log` and `ledger.tsv` beside it, replaced by the next run of that test).
+The recording is the bot's side of the session, stamped 600 ms a tick
+whatever the runner's own pace (`ToriRSServer_RecordingClockSet`), at
+`<saves>/recordings/test_<id>/<yyyymmdd-hhmmss>.bin`, so the Recordings page
+lists it too. A run takes seconds; the page polls `/admin/tests/status` and,
+with "Watch when it finishes", opens the replay at the chosen speed. Not in
+it: the bot's own inputs (the replay shows what the server sent), and
+anything after a test logs out (`t.relog` ends the recording). The package
+carries `test/quests/*.lua`, its fixtures and the scripts manifest
+`script/tests/tests.ini` (`stage_quest_tests`).
 
 ### The hiscores server
 

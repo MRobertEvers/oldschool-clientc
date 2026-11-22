@@ -2821,6 +2821,11 @@ main_rsprox_replay_frame(void)
      * seek (replay/replay_checkpoint_play.h). */
     ReplayCheckpointPlay_Frame(&app, sock);
     main_rsprox_replay_seek_frame();
+    /* The speed limit (NetTransport_ReplaySetSpeed): the client runs its
+     * cycles at that multiple of the wall clock, which the transport then
+     * plays the recording off. */
+    if( NetTransport_ReplaySpeed(sock) != App_SpeedScale() )
+        App_SpeedScaleSet(NetTransport_ReplaySpeed(sock));
     unlocked = NetTransport_ReplayUnlocked(sock);
     if( unlocked != App_SpeedUnlocked() )
     {
@@ -6506,7 +6511,9 @@ frame_loop_step(void)
         main_loop_trace.cycle_start = FrameClockSerial_LogicCycle(&app.frame_clock.serial);
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
     {
-        app_redraw = App_RunOnce(&app, logic_now, input);
+        /* The frame's time on the replay's speed limit: the wall clock's own
+         * unless a replay is sped up (App_SpeedScaleSet). */
+        app_redraw = App_RunOnce(&app, App_SpeedScaleClock(logic_now), input);
         app_committed = app_redraw;
         main_boot_bar_report(app_committed);
         if( main_loop_trace.start_us == 0 )
@@ -8185,6 +8192,20 @@ torirs_replay_set_unlocked(int unlocked)
     return 1;
 }
 
+/* The locked pace in thousandths of real time (the page's speed select: 1000,
+ * 1500, 2000, 4000); unlocking is torirs_replay_set_unlocked. 0 for a value
+ * out of range. */
+EMSCRIPTEN_KEEPALIVE int
+torirs_replay_set_speed(int speed_milli)
+{
+    if( !sock || !NetTransport_IsReplay(sock) )
+        return 0;
+    if( speed_milli < NET_TRANSPORT_REPLAY_SPEED_MIN || speed_milli > NET_TRANSPORT_REPLAY_SPEED_MAX )
+        return 0;
+    NetTransport_ReplaySetSpeed(sock, speed_milli);
+    return 1;
+}
+
 /*
  * The scrubber (replay/replay_scrub.h, the page's seek / step / hold / run).
  * Each answers 1 when the transport took it. A seek from a client the
@@ -8228,7 +8249,7 @@ torirs_replay_run(void)
     return 1;
 }
 
-/* {"phase","tick","ticks","clock_ms","duration_ms","unlocked","waiting_map",
+/* {"phase","tick","ticks","clock_ms","duration_ms","unlocked","speed","waiting_map",
  * "revision","world","sessions","held","seeking","seek_target","seek_from",
  * "seek_phase","timestamp_ms"}, malloc'd; the page frees it with _free. */
 EMSCRIPTEN_KEEPALIVE char*
@@ -8245,11 +8266,11 @@ torirs_replay_status_json(void)
     assert(json);
     snprintf(json, (size_t)cap,
              "{\"phase\":\"%s\",\"tick\":%d,\"ticks\":%d,\"clock_ms\":%llu,"
-             "\"duration_ms\":%llu,\"unlocked\":%d,\"waiting_map\":%d,\"revision\":%d,"
+             "\"duration_ms\":%llu,\"unlocked\":%d,\"speed\":%d,\"waiting_map\":%d,\"revision\":%d,"
              "\"world\":%d,\"sessions\":%d,\"held\":%d,\"seeking\":%d,\"seek_target\":%d,"
              "\"seek_from\":%d,\"seek_phase\":\"%s\",\"timestamp_ms\":%lld}",
              st.phase, st.tick, st.tick_count, st.clock_ms, st.duration_ms, st.unlocked,
-             st.waiting_map, st.revision, st.world, st.sessions, st.held, st.seeking,
+             st.speed_milli, st.waiting_map, st.revision, st.world, st.sessions, st.held, st.seeking,
              st.seek_target, st.seek_from, st.seek_phase, st.timestamp_ms);
     return json;
 }
@@ -8561,7 +8582,7 @@ main_print_usage(char const* program)
         "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
         "[--pass P] [--rev lc254|lc245_2|lc289|osrs230|osrs239|osrs241|osrs242] "
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
-        "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] "
+        "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] [--replay-speed X] "
         "[--replay <rsprox.bin[.gz]>] [--replay-at <tick>[,<tick>...]] [--replay-digest] "
         "[--world-layout static|edit] "
         "[--editor-view] [--maped tcp://host:port] [--maped-group N] "
@@ -8806,6 +8827,22 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--replay-digest") == 0 )
         {
             rsprox_replay.digest.on = 1;
+            continue;
+        }
+        if( strcmp(argv[argi], "--replay-speed") == 0 && argi + 1 < argc )
+        {
+            /* Refused at once, like --pacer: a typo would otherwise take a
+             * full boot to surface. */
+            double const x = atof(argv[++argi]);
+            int const milli = (int)(x * 1000.0 + 0.5);
+
+            if( milli < NET_TRANSPORT_REPLAY_SPEED_MIN || milli > NET_TRANSPORT_REPLAY_SPEED_MAX )
+            {
+                fprintf(stderr, "torirs: --replay-speed %s is not %.2f..%.0f\n", argv[argi],
+                        NET_TRANSPORT_REPLAY_SPEED_MIN / 1000.0, NET_TRANSPORT_REPLAY_SPEED_MAX / 1000.0);
+                exit(2);
+            }
+            rsprox_replay.speed_milli = milli;
             continue;
         }
         if( strcmp(argv[argi], "--pacer") == 0 && argi + 1 < argc )
@@ -11334,6 +11371,9 @@ main(
                     ReplayNpcTypes_NewFromCacheDir(cfg.cache_dir, CacheProvider_Profile(app.provider));
                 if( rsprox_replay.npc_types )
                     NetTransport_ReplaySetNpcTypeLengths(sock, ReplayNpcTypes_Lengths, rsprox_replay.npc_types);
+                /* --replay-speed (or the page's ?speed=): the locked pace. */
+                if( rsprox_replay.speed_milli )
+                    NetTransport_ReplaySetSpeed(sock, rsprox_replay.speed_milli);
                 /* Its control frames are expected (net/torirs_control.h). */
                 ToriRS_Network_MarkReplay(app.net);
             }

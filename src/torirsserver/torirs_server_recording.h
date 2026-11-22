@@ -33,9 +33,12 @@
  * indexes. The packet log has no index or trailer, so a recording in progress
  * is a valid recording of everything so far.
  *
- * Only the socket host records (torirs_server_host.c). The scriptrun's
- * sessionless bots, the selftest and the in-client embedded world never call
- * ToriRSServer_RecordingLogin, so no player of theirs has a recording.
+ * The socket host records accounts (torirs_server_host.c). The one other
+ * recorder is `--scriptrun --record PATH` (torirs_server_scriptrun.c): its
+ * first bot's session goes to PATH through ToriRSServer_RecordingOpenPath, on
+ * the tick clock (ToriRSServer_RecordingClockSet), so a run made at CPU speed
+ * replays at a live server's pace. The selftest and the in-client embedded
+ * world record nothing.
  */
 
 #include <stdint.h>
@@ -55,6 +58,26 @@ void
 ToriRSServer_RecordingLogin(
     struct ToriRSServerPlayer* player,
     int reconnect);
+
+/**
+ * Record `player`'s session to `path` whatever its account says: the
+ * scriptrun's `--record` (a sessionless bot, so ToriRSServer_Send records it
+ * before its session check). Same contract as ToriRSServer_RecordingLogin
+ * otherwise: before ToriRSServer_WorldLogin, `player->recording` set, NULL and
+ * said on stderr when the file cannot be opened. Returns whether it opened.
+ */
+int
+ToriRSServer_RecordingOpenPath(
+    struct ToriRSServerPlayer* player,
+    const char* path);
+
+/**
+ * The clock the packet deltas are taken from: `ms` from now on (a caller that
+ * steps it, as the scriptrun does by 600 a tick), or the wall clock again when
+ * `ms` is 0, the default.
+ */
+void
+ToriRSServer_RecordingClockSet(int64_t ms);
 
 /** One server->client game packet, as ToriRSServer_Send framed it: `var` 0 for
  *  a fixed-size prot, 1 for a var-byte, 2 for a var-short. */

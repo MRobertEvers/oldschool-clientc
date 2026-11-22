@@ -733,6 +733,9 @@
   }
   window.ToriRS_Replay = {
     setUnlocked(on) { return replayVerb('_torirs_replay_set_unlocked', on ? 1 : 0); },
+    // x times the recording's own pace while locked (1, 1.5, 2, 4); status().speed
+    // is the setting in thousandths. Unlocked overrides it.
+    setSpeed(x) { return replayVerb('_torirs_replay_set_speed', Math.round(x * 1000)); },
     seek(tick) { return replayVerb('_torirs_replay_seek', tick | 0); },
     step(ticks) { return replayVerb('_torirs_replay_step', ticks | 0); },
     hold() { return replayVerb('_torirs_replay_hold'); },
@@ -871,7 +874,8 @@
        * detects gzip itself) played back as the server, the way rsprox-index's
        * replay view boots this page. Staged into MEMFS like a boot file, because
        * --replay opens it by name before anything else runs; ?unlocked=1 starts
-       * it unlocked. A recording that cannot be fetched is said so here and the
+       * it unlocked, ?speed=2 (1.5, 4, ...) at that multiple of its own pace
+       * (--replay-speed). A recording that cannot be fetched is said so here and the
        * client boots without it, to its login screen.
        */
       const replayUrl = params.get('replay');
@@ -883,6 +887,10 @@
           boot.write(REPLAY_PATH, bytes);
           args.push('--replay', `/${REPLAY_PATH}`);
           if (params.get('unlocked') === '1') { args.push('--unlocked'); }
+          const speed = params.get('speed');
+          if (speed && /^[0-9]+(\.[0-9]+)?$/.test(speed) && speed !== '1') {
+            args.push('--replay-speed', speed);
+          }
           log(`torirs: replay ${replayUrl} (${kb(bytes.length)})`);
           await replayCache(bytes);
         } catch (err) {

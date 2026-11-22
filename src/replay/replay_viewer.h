@@ -65,6 +65,10 @@ struct ReplayViewer
      *  seek to T and hold there; each later tick is sought, and held at, once
      *  the one before it has landed. The rest of the list. */
     char const* at;
+    /** --replay-speed X (1.5, 2, 4): the locked pace in thousandths, set on
+     *  the transport when it is made (NetTransport_ReplaySetSpeed); 0 = the
+     *  recording's own. */
+    int speed_milli;
     struct ReplayViewerDigest digest;
     struct ReplayViewerSeek seek;
     /** The npc types the transport's world ledger reads a typed npc

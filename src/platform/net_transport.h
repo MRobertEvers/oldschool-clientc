@@ -91,6 +91,16 @@ void NetTransport_ReplaySetUnlocked(struct NetTransport* t, int unlocked);
 /** The clock in force: the setting above, or unlocked while a seek runs. */
 int NetTransport_ReplayUnlocked(struct NetTransport* t);
 
+/** The pace while locked, in thousandths of the recording's own: 1500, 2000,
+ *  4000 (the account site's replay page). Any speed but 1000 takes the clock
+ *  from the client's cycles, which the client runs at that multiple of the
+ *  wall clock (main.c follows this every frame, App_SpeedScaleSet). Unlocked
+ *  overrides it. */
+#define NET_TRANSPORT_REPLAY_SPEED_MIN 250
+#define NET_TRANSPORT_REPLAY_SPEED_MAX 16000
+void NetTransport_ReplaySetSpeed(struct NetTransport* t, int speed_milli);
+int NetTransport_ReplaySpeed(struct NetTransport* t);
+
 /** SERVER_TICK_ENDs the client has executed, ever (RS_ServerTick_Serial of App.server_tick),
  *  every frame before the poll: a seek lands, and a hold reports, on the
  *  client's own count. */
@@ -184,6 +194,8 @@ struct NetTransportReplayStatus
     unsigned long long clock_ms;
     unsigned long long duration_ms;
     int unlocked;
+    /** NetTransport_ReplaySetSpeed's setting (1000 = real time). */
+    int speed_milli;
     /** Held at a rebuild until the client reports MAP_BUILD_COMPLETE. */
     int waiting_map;
     int revision;
