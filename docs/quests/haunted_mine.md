@@ -1,5 +1,9 @@
 # Haunted Mine modernization audit
 
+> Superseded 2026-11-22: the quest was rebuilt from RSProx index 4647; see
+> [docs/rsprox-analysis/quests/haunted_mine.md](../rsprox-analysis/quests/haunted_mine.md).
+> The audit below describes the Quest Helper port that was replaced.
+
 Status: `audit-pending` — an ideal-path player can force the local route from
 the Zealot to the completion scroll, but the result is not a valid Haunted
 Mine implementation. Crafting is checked at quest start instead of at the

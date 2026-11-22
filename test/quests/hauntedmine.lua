@@ -1,26 +1,20 @@
--- Haunted Mine (quest_hauntedmine).
+-- Haunted Mine (quest_hauntedmine), rebuilt 2026-11-22 from RSProx index 4647 (the owner's own
+-- playthrough; docs/rsprox-analysis/quests/haunted_mine.md). It follows the recorded order and
+-- walks the recorded failures on purpose, each its own row (`fail.*`):
+--   * the Zealot's pocket before he has told of the key, and the Zamorak answer that ends the talk;
+--   * the crystal hall's front doors (locked to everyone the recording shows);
+--   * the lift before the valve, the locked valve, the valve race LOST (the cheeky ghost shuts it
+--     28 ticks after it comes, 49 after the valve) and the dead lift after it;
+--   * the flooded stair without a fungus (the dark room, its page, stage 6);
+--   * a dropped fungus, a cart run that sinks (the fungus lost), one that comes back (lever a down),
+--     a fungus carried out into the sunlight;
+--   * the crystal doors without the key, a second key refused.
+-- Every climb lands on the recorded tile from the recorded approach tile (~hmq_climb's fixed
+-- offsets); the lifts are pressed from inside the lift, where the recorder stood.
 --
--- WALLS (door rule, owner 2026-10-03): every door, gate, trapdoor, ladder, stair, crawl and lift
--- between the player and a target is pressed on every visit, in and out. Checked with
--- test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/{reach,comp,locs_near}.py (doors
--- closed):
---   * Lumbridge -> the Salve: only through the Varrock members' gate 3319,3467-3468; Morytania only
---     the way Priest in Peril opens it: the Paterdomus trapdoor 3405,3507, pip_underground_door1
---     3405,9895 and door2 3431,9897 (walk-through), Drezel's advice (60 -> 61) and the holy barrier
---     3440,9886 (p_telejump to 3423,3485). From there to the Zealot is open ground (reach margin 250:
---     REACH closed-doors len=677, so the Mort Myre gate 3443,3458 is not the only way).
---   * The mine: two cart-tunnel crawls (hauntedmine_back_entrance2 3429,3225 approached from
---     3428,3225; hauntedmine_back_entrance1 3430,3233 approached from 3429,3233; both tiles in the
---     overland component of the Zealot), and every level below them is a p_teleport ladder
---     (hauntedmine_dungeon.rs2): each one is a t.player.climb row graded on its landing.
---   * The lift room's lift (lift_side_r) p_teleports into the flooded pool and wades the player out to
---     the south shore 2725,4452 (hauntedmine_dungeon.rs2:415 + :422 p_exactmove(^hmq_flooded_shore)):
---     a climb row graded on that exact tile. The shore is in the corridor of both stair tops.
---   * Treus Dayth's room x 2775-2798 z 4442-4469 behind hauntedmine_boss_door 2799,4453 (a
---     door_selfstage door, maps/m43_69.jl2): pass_door in and out.
---   * The crystal room behind hauntedmine_rewarddoor_l 2773,4450 (south edge of 2773,4450).
---   * The flooded level's two stair tops (2746,4436 / 2692,4436) share one corridor (comp.py: 223
---     tiles); the stairs below each are p_teleports (hauntedmine_dayth.rs2).
+-- WALLS (door rule, owner 2026-10-03): every door, gate, trapdoor, ladder, crawl and lift between
+-- the player and a target is pressed on every visit. Morytania is entered the way Priest in Peril
+-- opens it (the Paterdomus trapdoor, the two gates, Drezel's blessing, the holy barrier).
 return {
     id = "hauntedmine",
     fixture = "fresh_lumbridge.ini",
@@ -47,11 +41,15 @@ return {
         -- Priest in Peril's own reward (::complete grants no items); Drezel's holy-barrier advice
         -- needs it held (mausoleum_drezel.rs2:29-34).
         "::give dagger_wolfbane 1",
+        -- The flooded chamber soaks it ([3215]): the soak is a row.
+        "::give tinderbox 1",
     },
     run = function(t)
+        t.ticklog.start()
         t.quest.bind({
             varp = "varp382_hauntedmine",
-            constants = { not_started = 0, started = 1, dayth_killed = 9, key_collected = 10, complete = 11 },
+            constants = { not_started = 0, started = 1, entered = 3, valve_found = 4, lift_taken = 5, dark = 6,
+                dayth_room = 7, ambushed = 8, dayth_killed = 9, crystals_reached = 10, complete = 11 },
             row = "quest_hauntedmine",
             display = "Haunted Mine",
             points = 2,
@@ -93,13 +91,23 @@ return {
         t.exec("enterMorytania.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
         t.exec("enterMorytania.talkToDrezel-dialog", t.chat.play, {
             "player:So can I pass through that barrier now?",
-            "npc:Ah, ",
-            "npc:Morytania is an evil land",
-            "npc:You should take some basic precautions",
-            "npc:In many ways Werewolves",
-            "npc:and it is a holy relic",
-            "npc:wolf form is incredibly powerful",
-            "player:Okay, I will keep it equipped",
+            "npc:Into Morytania? Yes, you can.",
+            "npc:I must warn you though, Morytania is an evil land.",
+            "npc:Worst of all are the vampyres",
+            "player:I'll be careful. Anything else I should know?",
+            "npc:The first settlement you'll likely come across is Canifis",
+            "npc:You should keep that dagger I gave you to hand.",
+            "player:I see. Thanks.",
+            "npc:One last thing.",
+            "player:The Myreque?",
+            "npc:Yes. They're a band of freedom fighters.",
+            "npc:Veliaf, the leader of their Mort Myre group",
+            "player:I'll keep an eye out for them.",
+            "npc:Right, I think that's everything.",
+            "mesbox:Drezel blesses you",
+            "npc:Good luck out there. Stay safe.",
+            "choose:And you. See you later.",
+            "player:And you. See you later.",
         })
         t.exec("enterMorytania.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
         t.exec("enterMorytania.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
@@ -108,314 +116,538 @@ return {
             far_desc = "east of the Salve at 3423,3485 (mausoleum_interactions.rs2 p_telejump(0_53_54_31_29))" })
 
         -- ---------------------------------------------------------------
-        -- The Zealot (open ground outside the mine).
+        -- The Zealot (RSProx index 4647 [531..741]). Failures first: the pocket before he has told of
+        -- the key, and the Zamorak answer that ends the talk; then the start.
         -- ---------------------------------------------------------------
         t.exec("goto-zealot", t.player.goto_tile, 3443, 3258, 0)
+        t.exec("fail.pickpocketTooSoon", t.player.press, "saradominist_zealot", 3, 8)
+        t.exec("fail.pickpocketTooSoon.line", t.msg.expect, "I doubt he's got much of value on him.")
+        t.exec("fail.zamorak", t.player.talk_to, "saradominist_zealot", 1)
+        t.exec("fail.zamorak-dialog", t.chat.play, {
+            "player:Hello there.",
+            "npc:State thy allegiance stranger.",
+            "choose:I serve only Zamorak.",
+            "player:I serve only Zamorak. Strength through chaos.",
+            "npc:Then begone.",
+            "choose:Fine, I didn't want to talk to you either.",
+            "player:Fine, I didn't want",
+            "npc:Fear not fiend",
+        })
+        t.ticks(2)
+        t.expect("fail.zamorak.notStarted", t.quest.expect_stage("not_started"))
         t.exec("talkToZealot", t.player.talk_to, "saradominist_zealot", 1)
         t.exec("talkToZealot-dialog", t.chat.play, {
-            "npc:State thy allegiance",
-            "choose:/Saradomin/",
-            "player:I follow",
-            "npc:Ah, a wise",
-            "choose:/challenges/",
-            "player:I come seeking",
-            "npc:A noble cause",
-            "choose:What quest is that then?",
-            "player:What quest",
-            "npc:I seek to reclaim",
-            "npc:*",
-            "npc:*",
-            "choose:/other way/",
-            "player:Is there any other",
-            "npc:Indeed I have",
-            "npc:*",
-            "choose:/borrow/",
-            "player:Can I borrow",
-            "npc:*",
-            "options",
+            "player:Hello there.",
+            "npc:State thy allegiance stranger.",
+            "choose:I follow the path of Saradomin.",
+            "player:I follow the path of Saradomin. Strength through",
+            "npc:Ah, a wise choice my friend.",
+            "choose:I could ask the same of you.",
+            "player:I could ask the same of you.",
+            "npc:Saradomin has granted you wisdom.",
+            "npc:I am upon a quest.",
+            "choose:Yes.",
+            "player:What quest is that then?",
+            "npc:Well, below the very ground",
+            "npc:As with many things",
+            "npc:The mines are also the site",
+            "npc:These crystals are thought",
+            "npc:It is not known what happened",
+            "npc:Saradomin has entrusted me alone",
+            "player:How can an abandoned mine be dangerous?",
+            "npc:Because the mines are said to be haunted.",
+            "npc:Dayth failed and fell",
+            "npc:Zamorak, furious at his mage",
+            "npc:Further, Zamorak's then ruler",
+            "choose:Is there any other way into the mines?",
+            "player:Is there any other way into the mines?",
+            "npc:Indeed I have found hope",
+            "npc:Further, I have come into possession of a key",
+            "choose:Can I borrow your key?",
+            "player:Can I borrow your key?",
+            "npc:I am afraid my task can be entrusted",
+            "choose:Please? I'll be very careful with it.",
+            "player:Please? I'll be very careful with it.",
+            "npc:You know not what you deal with.",
+            "choose:I'll trade for it.",
+            "player:I'll trade for it.",
+            "npc:Saradomin provides for my every need.",
         })
-        t.key("escape")
         t.ticks(2)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
-        local hk, hv = t.var.server("varb2397_hauntedmine_heardaboutkey")
-        t.check("heardaboutkey", hk == "ok" and hv == 1, "varb2397_hauntedmine_heardaboutkey " .. tostring(hk) .. " " .. tostring(hv) .. " (want 1)")
+        t.exec("startedLine", t.msg.expect, "You've started a new quest:")
+        t.exec("heardaboutkey", t.var.await_server, "varb2397_hauntedmine_heardaboutkey", 1, 4)
         t.exec("pickpocketZealot", t.player.press, "saradominist_zealot", 3, 8)
+        t.exec("pickpocketZealot.line", t.msg.expect, "You pick the zealot's pocket and retrieve a small silvery key.")
         t.exec("zealotkey", t.inv.await, "hauntedmine_lift_key", 1, 6)
         t.exec("wield", t.player.equip, "magic_shortbow")
         t.exec("wield-arrows", t.player.equip, "rune_arrow")
-        -- Rapid (combat_tab.rs2 [if_button,combat_interface:style_slot_1] -> %com_mode 1; combat.rs2:314
-        -- a ranged swing one tick sooner): Treus Dayth is a DPS race, the hazards grow as he weakens.
-        do
-            local tab_result = t.ui.tab("combat")
-            t.ticks(2)
-            local wr, w = t.ui.widget("combat_interface:style_slot_1")
-            t.ui.invoke(w, 1)
-            t.ticks(2)
-            local _, mode = t.var.varp("varp43_com_mode")
-            t.check("rangedRapid", tab_result == "ok" and wr == "ok" and mode == 1, "combat tab " .. tostring(tab_result)
-                .. ", style_slot_1 " .. tostring(wr) .. "; varp43_com_mode " .. tostring(mode) .. " (want 1, Rapid)")
-            t.ui.tab("inventory")
-            t.ticks(1)
-        end
 
+        -- Every climb in the mine lands on the player's own tile shifted by the ladder's fixed offset
+        -- (hauntedmine_dungeon.rs2 ~hmq_climb, 62 of 62 recorded): `src` is the recorded approach tile.
+        local function climb(name, loc, op_name, at, src, dest, why, extra)
+            local spec = { loc = loc, op = 1, op_name = op_name, at = { at[1], at[2], 0 }, src = src,
+                dest = { dest[1], dest[2], 0 }, same_level = why }
+            for k, v in pairs(extra or {}) do spec[k] = v end
+            t.exec(name, t.player.climb, spec)
+        end
+        -- The recorder's way off the lift's shore ([2713..2729]).
+        local SHORE_WEST = { { 2724, 4450 }, { 2722, 4448 }, { 2721, 4444 }, { 2721, 4441 }, { 2720, 4438 },
+            { 2710, 4437 }, { 2700, 4439 }, { 2691, 4438 } }
+        local SHIFT = "hauntedmine_dungeon.rs2 ~hmq_climb (the ladder's fixed offset, RSProx index 4647)"
+        local STAIR = "hauntedmine_dayth.rs2 [oploc1,..stairs..] p_teleport (RSProx index 4647)"
+        local LIFT = "hauntedmine_dungeon.rs2 @hmq_lift_down / [oploc1,lift_flooded] (RSProx index 4647 [2703], [3258])"
+        -- A lift: pressed from wherever the player stands (the op walks them in, the recorder's own
+        -- way round takes ~20 ticks, [2687..2702]); graded on the landing tile.
+        local INTO_LIFT = { { 2802, 4503 }, { 2802, 4498 }, { 2804, 4494 }, { 2805, 4493 }, { 2807, 4493 } }
+        local function into_lift(name)
+            local wr, wt = t.world.tile()
+            if wr == "ok" and type(wt) == "table" and wt.x == 2807 and wt.z == 4493 then return end
+            t.exec(name .. ".intoLift", t.player.walk_route, INTO_LIFT)
+        end
+        local function ride(name, sym, at, dest, ticks)
+            if sym ~= "lift_flooded" then into_lift(name) end
+            local r, d = t.player.click_loc(sym, 1, { at = at })
+            local got = t.await({
+                level = function()
+                    local wr, tt = t.world.tile()
+                    return wr == "ok" and type(tt) == "table" and tt.x == dest[1] and tt.z == dest[2]
+                end,
+                note = name .. ": the landing",
+            }, ticks or 60)
+            local wr, tt = t.world.tile()
+            t.check(name, got == "ok", "click_loc " .. sym .. " -> " .. tostring(r) .. " " .. tostring(d)
+                .. "; at " .. tostring(type(tt) == "table" and (tt.x .. "," .. tt.z) or tt)
+                .. " (want " .. dest[1] .. "," .. dest[2] .. ")")
+        end
         local function click(name, sym, x, z, op)
             t.exec(name, t.player.click_loc, sym, op or 1, { at = { x, z } })
             t.ticks(3)
         end
-        -- One mine climb: every ladder, crawl and stair here is a p_teleport (hauntedmine_dungeon.rs2,
-        -- hauntedmine_dayth.rs2). A landing in the surface frame <-> the underground frame (z // 6400)
-        -- is a plain climb; one inside the frame names the script line that moves the player.
-        local function climb(name, loc, op_name, at, dest, same, src, ticks)
-            local spec = { loc = loc, op = 1, op_name = op_name, at = { at[1], at[2], 0 }, dest = { dest[1], dest[2], 0 },
-                src = src, ticks = ticks }
-            if same ~= nil then
-                spec.same_level = same
-            end
-            t.exec(name, t.player.climb, spec)
+
+        -- ---------------------------------------------------------------
+        -- The front entrance: the crystal hall's doors are locked ([505..518]).
+        -- ---------------------------------------------------------------
+        climb("frontEntrance", "hauntedmine_main_entrance", "Enter", { 3452, 3243 }, { 3454, 3242 }, { 2792, 4592 },
+            "hauntedmine_dungeon.rs2 [oploc1,hauntedmine_main_entrance] p_teleport (RSProx index 4647 [505])")
+        click("fail.frontDoorLocked", "hauntedmine_rewarddoor_l", 2789, 4593)
+        t.exec("fail.frontDoorLocked.line", t.msg.expect, "This door appears to be locked.")
+        climb("frontEntranceOut", "hauntedmine_main_entrance_inside", "Exit", { 2790, 4589 }, { 2792, 4592 }, { 3454, 3242 },
+            "hauntedmine_dungeon.rs2 [oploc1,hauntedmine_main_entrance_inside] p_teleport ([518])")
+
+        -- ---------------------------------------------------------------
+        -- In by the cart and the thin tunnel (stage 3), down to the lift room.
+        -- ---------------------------------------------------------------
+        t.exec("goto-cart", t.player.walk_to, 3446, 3236, 40)
+        local ccr, ccd = t.player.click_loc("hauntedmine_obstacle_cart", 1, { at = { 3445, 3236 } })
+        t.note("climbCart: click_loc -> " .. tostring(ccr) .. " " .. tostring(ccd))
+        t.ticks(5)
+        do
+            local _, tile = t.world.tile()
+            t.check("climbCart.landed", type(tile) == "table" and tile.x == 3444 and tile.z == 3236,
+                "after the obstacle cart: " .. tostring(type(tile) == "table" and (tile.x .. "," .. tile.z) or tile)
+                    .. " (want 3444,3236: the recorded exactmove, [851])")
         end
+        climb("enterMine", "hauntedmine_secondary_entrance", "Crawl-down", { 3440, 3232 }, { 3441, 3232 }, { 3436, 9637 })
+        t.expect("quest.stage.entered", t.var.await_server("varp382_hauntedmine", 3, 4))
+        climb("downToLevel2North", "hauntedmine_laddertop", "Climb-down", { 3413, 9633 }, { 3413, 9634 }, { 2773, 4578 })
+        climb("downToLevel3North", "hauntedmine_laddertop_1sw", "Climb-down", { 2797, 4599 }, { 2797, 4598 },
+            { 2733, 4534 }, SHIFT)
+        climb("downToLiftRoom", "hauntedmine_laddertop_1e", "Climb-down", { 2732, 4529 }, { 2732, 4528 },
+            { 2796, 4528 }, SHIFT)
 
         -- ---------------------------------------------------------------
-        -- South tunnel: fungus -> cart -> levers -> panel, and back out.
+        -- The lift room: the unpowered lift, the locked valve (stage 4), the chisel, the lost race.
         -- ---------------------------------------------------------------
-        t.exec("walk-enterMine", t.player.walk_to, 3428, 3225, 40)
-        climb("enterMine", "hauntedmine_back_entrance2", "Crawl-down", { 3429, 3225 }, { 3420, 9620 }, nil, { 3428, 3225 })
-        climb("goDownFromLevel1South", "hauntedmine_laddertop", "Climb-down", { 3422, 9625 }, { 2782, 4568 })
-        climb("goDownFromLevel2South", "hauntedmine_laddertop_1sw", "Climb-down", { 2798, 4567 }, { 2733, 4510 },
-            "hauntedmine_dungeon.rs2:53 p_teleport(^hmq_level3_south_enter)")
-        climb("goDownToFungusRoom", "hauntedmine_laddertop_1e", "Climb-down", { 2725, 4486 }, { 2789, 4488 },
-            "hauntedmine_dungeon.rs2:76 p_teleport(^hmq_cartroom_enter)")
-        click("pickFungus", "glowing_mushroom2", 2793, 4493)
-        t.exec("fungus-held", t.inv.await, "glowing_fungus", 1, 6)
-        click("putFungusInCart", "hauntedmine_puzzle_cart", 2778, 4506)
-        t.exec("begincart", t.msg.expect, "You place the glowing fungus")
-        t.exec("fungus-gone-from-pack", t.inv.await, "glowing_fungus", 0, 4)
-        -- The four levers the target needs flipped from 0 (quest_hauntedmine.constant ^hmq_lever_target_*:
-        -- a=1 b=1 e=1 i=1, the rest 0; lever1 -> b, lever2 -> a, lever5 -> e, lever6 -> i,
-        -- hauntedmine_dungeon.rs2:227-273), then the points panel sends the cart.
-        click("pullLeverA", "hauntedmine_point_lever1", 2785, 4517)
-        click("pullLeverB", "hauntedmine_point_lever2", 2784, 4517)
-        click("pullLeverE", "hauntedmine_point_lever5", 2785, 4515)
-        click("pullLeverF", "hauntedmine_point_lever6", 2768, 4533)
-        click("readPanel", "hauntedmine_points_info", 2769, 4522)
-        t.exec("endcart", t.msg.expect, "mine cart trundles")
-        t.exec("endcart.var", t.var.await_server, "varb2396_hauntedmine_endcart_fungus", 1, 4)
-        -- back out the south tunnel, every ladder climbed; the cart room's floor winds round the tracks
-        -- (one walk_to from the panel stalled at the fungus wall, run 1), so it is walked in hops
-        t.exec("walk-goUpFromFungusRoom", t.player.walk_route, { { 2770, 4521 }, { 2777, 4520 }, { 2778, 4513 },
-            { 2779, 4506 }, { 2786, 4505 }, { 2791, 4502 }, { 2793, 4496 }, { 2793, 4490 }, { 2789, 4487 } })
-        climb("goUpFromFungusRoom", "hauntedmine_ladder_1w", "Climb-up", { 2789, 4486 }, { 2733, 4510 },
-            "hauntedmine_dungeon.rs2:158 p_teleport(^hmq_level3_south_enter)", { 2789, 4487 })
-        climb("goUpFromLevel3South", "hauntedmine_ladder_1ne", "Climb-up", { 2734, 4503 }, { 2797, 4566 },
-            "hauntedmine_dungeon.rs2:145 p_teleport(^hmq_level2_south_top)")
-        climb("goUpFromLevel2South", "hauntedmine_ladder", "Climb-up", { 2782, 4569 }, { 3420, 9620 })
-        climb("leaveLevel1South", "lotr_back_entrance1_inside", "Crawl-through", { 3408, 9623 }, { 3429, 3225 })
-
-        -- ---------------------------------------------------------------
-        -- North tunnel: collect the fungus, the lift room, the valve, the lift.
-        -- ---------------------------------------------------------------
-        t.exec("walk-enterMineNorth", t.player.walk_to, 3429, 3233, 30)
-        climb("enterMineNorth", "hauntedmine_back_entrance1", "Crawl-down", { 3430, 3233 }, { 3405, 9631 }, nil, { 3429, 3233 })
-        climb("goDownLevel1North", "hauntedmine_laddertop", "Climb-down", { 3413, 9633 }, { 2773, 4576 })
-        climb("goDownLevel2North", "hauntedmine_laddertop_1sw", "Climb-down", { 2797, 4599 }, { 2732, 4534 },
-            "hauntedmine_dungeon.rs2:57 p_teleport(^hmq_level3_north_enter)")
-        climb("goDownToCollectFungus", "hauntedmine_laddertop_1e", "Climb-down", { 2710, 4540 }, { 2774, 4538 },
-            "hauntedmine_dungeon.rs2:72 p_teleport(^hmq_collectroom_enter)")
-        click("collectFungus", "hauntedmine_puzzle_cart", 2774, 4537)
-        t.exec("collectFungus-dialog", t.chat.play, { "player:Take it" })
-        t.exec("fungus-collected", t.inv.await, "glowing_fungus", 1, 6)
-        climb("goUpFromCollectRoom", "hauntedmine_ladder_1w", "Climb-up", { 2774, 4540 }, { 2710, 4538 },
-            "hauntedmine_dungeon.rs2:154 p_teleport(^hmq_collect_exit)")
-        t.exec("walk-goDownFromLevel3NorthEast", t.player.walk_route, { { 2710, 4538 }, { 2712, 4532 }, { 2719, 4533 },
-            { 2727, 4533 }, { 2734, 4534 }, { 2739, 4531 }, { 2736, 4526 }, { 2731, 4529 } })
-        climb("goDownFromLevel3NorthEast", "hauntedmine_laddertop_1e", "Climb-down", { 2732, 4529 }, { 2797, 4529 },
-            "hauntedmine_dungeon.rs2:74 p_teleport(^hmq_liftladder_enter)", { 2731, 4529 })
-        t.exec("walk-chisel", t.player.walk_route, { { 2797, 4529 }, { 2802, 4526 }, { 2804, 4520 }, { 2802, 4514 },
-            { 2803, 4509 }, { 2800, 4504 }, { 2801, 4501 } })
+        t.exec("walk-lift", t.player.walk_route, { { 2797, 4529 }, { 2802, 4526 }, { 2804, 4520 }, { 2802, 4514 },
+            { 2803, 4509 } })
+        click("fail.valveLocked", "hauntedmine_lift_valve", 2808, 4496)
+        t.exec("fail.valveLocked.line", t.msg.expect, "The valve seems to be locked in position.")
+        t.expect("quest.stage.valveFound", t.var.await_server("varp382_hauntedmine", 4, 4))
+        t.exec("walk-chisel", t.player.walk_to, 2801, 4500, 80)
         t.exec("pickUpChisel", t.player.click_obj, "chisel", 3)
         t.exec("chisel", t.inv.await, "chisel", 1, 6)
-        t.drive.camera(0, 383, 300)
-        -- The valve (hauntedmine_dungeon.rs2:363-386). Walk beside it first: use_on does not follow a
-        -- 50-tick walk from the crate (verbs-inventory-shops: use_on past its settle).
-        t.exec("walk-valve", t.player.walk_to, 2807, 4496, 60)
-        -- Turn before the key: the valve is locked until the Zealot's key is used on it (:374-378). The
-        -- press is the attempt; the lock (its line, liftpoweredonce still 0) is the row.
-        local tr, td = t.player.click_loc("hauntedmine_lift_valve", 1, { at = { 2808, 4496 } })
-        t.note("Turn before the key (attempt): click_loc hauntedmine_lift_valve -> " .. tostring(tr) .. " " .. tostring(td))
-        t.ticks(2)
-        do
-            local lr, ld = t.msg.expect("locked in position. There is a small keyhole")
-            local _, once0 = t.var.server("varb2393_hauntedmine_liftpoweredonce")
-            local _, now0 = t.var.server("varb2394_hauntedmine_liftpowerednow")
-            t.check("valveLockedWithoutKey", lr == "ok" and once0 == 0 and now0 == 0, tostring(lr) .. " "
-                .. tostring(ld) .. "; varb2393_hauntedmine_liftpoweredonce " .. tostring(once0)
-                .. ", varb2394_hauntedmine_liftpowerednow " .. tostring(now0) .. " (want the lock line, 0 and 0)")
-        end
-        -- useKeyOnValve: [oplocu,hauntedmine_lift_valve] with the key unlocks it (:363-371) and opens the
-        -- flow at once (@hmq_valve_turn, :381-386), so a Turn after the key only says "already open"
-        -- (:382-384); the guide's openValve ("Turn the valve") is that same flow, graded on the line and
-        -- liftpowerednow (openValve.*). The key is kept.
+        into_lift("fail.liftUnpowered")
+        t.player.click_loc("lift_side_l", 1, { at = { 2807, 4494 } })
+        t.ticks(3)
+        t.exec("fail.liftUnpowered-dialog", t.chat.play, { "mesbox:The lift doesn't respond, it needs to be powered" })
+        t.player.walk_to(2807, 4496, 80)
         local valve = t.player.by_symbol("loc", "hauntedmine_lift_valve")
         t.exec("useKeyOnValve", t.player.use_on, "hauntedmine_lift_key", valve)
         t.exec("useKeyOnValve.line", t.msg.expect, "The key unlocks the valve.")
-        t.exec("useKeyOnValve.var", t.var.await_server, "varb2393_hauntedmine_liftpoweredonce", 1, 4)
+        t.exec("openValve.line", t.msg.expect, "You open the valve. Water begins to flow")
+        t.exec("openValve.var", t.var.await_server, "varb2394_hauntedmine_liftpowerednow", 1, 4)
         do
             local kr, keys = t.inv.count("hauntedmine_lift_key")
-            t.check("useKeyOnValve.keyKept", kr == "ok" and keys == 1,
-                "hauntedmine_lift_key in pack " .. tostring(keys) .. " (want 1: the valve keeps no key)")
+            t.check("useKeyOnValve.keyKept", kr == "ok" and keys == 1, "hauntedmine_lift_key " .. tostring(keys) .. " (want 1)")
         end
-        t.exec("openValve.flowing", t.msg.expect, "Water begins to flow through the lift mechanism")
-        t.exec("openValve.var", t.var.await_server, "varb2394_hauntedmine_liftpowerednow", 1, 4)
-        -- The lift: p_teleport into the pool (:415), then the wade to the south shore 2725,4452
-        -- (:422 p_exactmove(^hmq_flooded_shore), quest_hauntedmine.constant:224 0_42_69_37_36).
-        t.exec("goDownLift", t.player.climb, { loc = "lift_side_r", op = 1, op_name = "Go-down", at = { 2807, 4492, 0 },
-            dest = { 2725, 4452, 0 }, ticks = 70, same_level = "hauntedmine_dungeon.rs2:415 "
-                .. "p_teleport(^hmq_floodedroom_enter) + :422 p_exactmove(^hmq_flooded_shore)" })
-        t.exec("lift-line", t.msg.expect, "You take the lift down")
-        t.exec("lift-wade", t.msg.expect, "You wade out to the south shore")
+        -- The race lost on purpose: the cheeky ghost comes at +49, reaches the valve at +69, shuts it at +77.
+        t.exec("fail.raceLost.ghost", t.npc.await_present, "hauntedmine_cheeky_ghost", 20, 60)
+        t.exec("fail.raceLost.shut", t.var.await_server, "varb2394_hauntedmine_liftpowerednow", 0, 40)
+        t.exec("fail.raceLost.line", t.msg.expect, "You hear the sound of a valve being turned.")
+        t.exec("fail.raceLost.toLift", t.player.walk_route, { { 2803, 4500 }, { 2802, 4503 } })
+        into_lift("fail.raceLost")
+        t.player.click_loc("lift_side_l", 1, { at = { 2807, 4494 } })
+        t.ticks(3)
+        t.exec("fail.raceLost.liftDead-dialog", t.chat.play, { "mesbox:The lift doesn't respond" })
+        click("reopenValve", "hauntedmine_lift_valve", 2808, 4496)
+        t.exec("reopenValve.line", t.msg.expect, "You open the valve. Water begins to flow")
+        ride("goDownLift", "lift_side_r", { 2807, 4492 }, { 2725, 4452 })
+        t.exec("goDownLift.line", t.msg.expect, "You get in the lift. Now powered, the lift descends")
+        t.expect("quest.stage.liftTaken", t.var.await_server("varp382_hauntedmine", 5, 4))
+        t.exec("goDownLift.plunge", t.msg.expect, "plunging you straight into the middle of a chamber flooded")
+        t.exec("goDownLift.soak", t.msg.expect, "The water soaks your tinderbox!")
+        t.exec("goDownLift.damp", t.inv.await, "damp_tinderbox", 1, 4)
 
         -- ---------------------------------------------------------------
-        -- The flooded level: from the shore along the corridor to the east stair top. One walk_to
-        -- 2747,4440 from the shore stalled at 2745,4438 beside the stair (r2 run 1), so it goes in hops
-        -- down the shore's west side and along the corridor (reach.py: each hop REACH, len <= 11).
+        -- The flooded level without a light: the west stair's dark room (stage 6) and back.
         -- ---------------------------------------------------------------
-        t.exec("walk-flooded-east", t.player.walk_route, { { 2722, 4447 }, { 2720, 4438 }, { 2730, 4437 },
-            { 2740, 4437 }, { 2747, 4440 } })
-        t.drive.camera(0, 383, 300)
-        climb("goDownToDayth", "hauntedmine_dark_stairs_top", "Walk-down", { 2746, 4436 }, { 2810, 4453 },
-            "hauntedmine_dayth.rs2:24 p_teleport(^hmq_dayth_stair_enter)")
+        t.exec("walk-flooded-west", t.player.walk_route, SHORE_WEST)
+        climb("fail.darkRoom", "hauntedmine_dark_stairs_top", "Walk-down", { 2692, 4436 }, { 2691, 4438 },
+            { 2712, 4593 }, STAIR, { chat = { "player:It's kind of dark down here. I should probably find" } })
+        t.expect("quest.stage.dark", t.var.await_server("varp382_hauntedmine", 6, 4))
+        climb("fail.darkRoom.out", "hauntedmine_dark_stairs_bottom", "Walk-up", { 2709, 4591 }, { 2712, 4593 },
+            { 2691, 4437 }, STAIR)
+        t.exec("walk-flooded-lift", t.player.walk_route, { { 2700, 4439 }, { 2710, 4437 }, { 2720, 4438 },
+            { 2721, 4441 }, { 2721, 4444 }, { 2722, 4448 }, { 2724, 4452 } })
+        ride("liftUp", "lift_flooded", { 2726, 4456 }, { 2807, 4493 })
 
         -- ---------------------------------------------------------------
-        -- Treus Dayth's room, behind hauntedmine_boss_door 2799,4453 (door_selfstage: the leaf swings
-        -- one tile west, onto 2798,4453's north edge).
+        -- Out and round by the south tunnel to the cart room.
         -- ---------------------------------------------------------------
-        local BOSS_IN = { closed = "hauntedmine_boss_door", open = "hauntedmine_boss_door", at = { 2799, 4453, 0 },
-            near = { 2800, 4453 }, far = { 2797, 4453 } }
-        local BOSS_OUT = { closed = "hauntedmine_boss_door", open = "hauntedmine_boss_door", at = { 2799, 4453, 0 },
-            near = { 2797, 4453 }, far = { 2801, 4453 } }
-        t.exec("tryToPickUpKey.bossDoorIn", t.player.pass_door, BOSS_IN)
-        -- Protect from Missiles goes up BEFORE the key: Dayth spawns on the press and swings on his
-        -- 4-tick ai_timer (hauntedmine_dayth.rs2:89-93, 122-154), the prayer read on that tick.
+        t.exec("walk-liftRoomLadder", t.player.walk_route, { { 2805, 4500 }, { 2803, 4509 }, { 2802, 4514 },
+            { 2804, 4520 }, { 2802, 4526 }, { 2796, 4528 } })
+        climb("upFromLiftRoom", "hauntedmine_ladder_1w", "Climb-up", { 2796, 4529 }, { 2796, 4528 }, { 2732, 4528 }, SHIFT)
+        t.exec("walk-level3North", t.player.walk_to, 2733, 4534, 30)
+        climb("upToLevel2North", "hauntedmine_ladder_1ne", "Climb-up", { 2733, 4535 }, { 2733, 4534 }, { 2797, 4598 }, SHIFT)
+        t.exec("walk-level2North", t.player.walk_to, 2774, 4577, 60)
+        climb("upToTunnel", "hauntedmine_ladder", "Climb-up", { 2773, 4577 }, { 2774, 4577 }, { 3414, 9633 })
+        t.exec("walk-tunnelNorth", t.player.walk_to, 3405, 9631, 30)
+        climb("outNorth", "hauntedmine_back_entrance1_inside", "Crawl-through", { 3404, 9631 }, { 3405, 9631 }, { 3429, 3233 })
+        t.exec("walk-backEntrance2", t.player.walk_to, 3428, 3225, 20)
+        climb("inSouth", "hauntedmine_back_entrance2", "Crawl-down", { 3429, 3225 }, { 3428, 3225 }, { 3409, 9623 })
+        t.exec("walk-tunnelSouth", t.player.walk_to, 3422, 9624, 30)
+        climb("downToLevel2South", "hauntedmine_laddertop", "Climb-down", { 3422, 9625 }, { 3422, 9624 }, { 2782, 4568 })
+        t.exec("walk-level2South", t.player.walk_to, 2798, 4568, 40)
+        climb("downToLevel3South", "hauntedmine_laddertop_1sw", "Climb-down", { 2798, 4567 }, { 2798, 4568 },
+            { 2734, 4504 }, SHIFT)
+        t.exec("walk-level3South", t.player.walk_to, 2725, 4487, 60)
+        climb("downToCartRoom", "hauntedmine_laddertop_1e", "Climb-down", { 2725, 4486 }, { 2725, 4487 },
+            { 2789, 4487 }, SHIFT)
+
+        -- ---------------------------------------------------------------
+        -- The cart puzzle: a dropped fungus crumbles; a run that sinks takes the fungus; one with
+        -- lever a down comes back; the solution sends it through ([1820..2275], [3553], [3758]).
+        -- ---------------------------------------------------------------
+        local LEVERS = {
+            a = { sym = "hauntedmine_point_lever2", x = 2784, z = 4517, var = "varb2386_hauntedmine_lever_a" },
+            b = { sym = "hauntedmine_point_lever1", x = 2785, z = 4517, var = "varb2385_hauntedmine_lever_b" },
+            c = { sym = "hauntedmine_point_lever3", x = 2786, z = 4517, var = "varb2387_hauntedmine_lever_c" },
+            d = { sym = "hauntedmine_point_lever4", x = 2786, z = 4515, var = "varb2388_hauntedmine_lever_d" },
+            e = { sym = "hauntedmine_point_lever5", x = 2785, z = 4515, var = "varb2389_hauntedmine_lever_e" },
+            i = { sym = "hauntedmine_point_lever6", x = 2768, z = 4533, var = "varb2390_hauntedmine_lever_i" },
+            j = { sym = "hauntedmine_point_lever7", x = 2769, z = 4533, var = "varb2391_hauntedmine_lever_j" },
+            k = { sym = "hauntedmine_point_lever8", x = 2770, z = 4533, var = "varb2392_hauntedmine_lever_k" },
+        }
+        local ORDER = { "a", "b", "c", "d", "e", "i", "j", "k" }
+        -- Pull every lever whose bit differs from `want` ("ABcdEIjk": upper case = 1).
+        local function set_levers(name, want)
+            local pulled = 0
+            t.player.walk_to(2785, 4516, 120)
+            for n, key in ipairs(ORDER) do
+                local ch = want:sub(n, n)
+                local target = (ch == ch:upper()) and 1 or 0
+                local lv = LEVERS[key]
+                if key == "i" then
+                    t.player.walk_to(2769, 4532, 120)
+                end
+                local _, now = t.var.server(lv.var)
+                if now ~= target then
+                    click(name .. ".lever_" .. key, lv.sym, lv.x, lv.z)
+                    t.exec(name .. ".lever_" .. key .. ".var", t.var.await_server, lv.var, target, 6)
+                    pulled = pulled + 1
+                end
+            end
+            t.note(name .. ": " .. pulled .. " lever(s) pulled to " .. want)
+        end
+        local function start_run(name)
+            click(name .. ".panel", "hauntedmine_points_info", 2769, 4522)
+            t.ticks(2)
+            local wr, w = t.ui.widget("hauntedmine_controls:start")
+            t.check(name .. ".startButton", wr == "ok", "hauntedmine_controls:start -> " .. tostring(wr))
+            t.ui.invoke(w, 1)
+        end
+        local POOLS_TO_CART = { { 2793, 4496 }, { 2791, 4502 }, { 2786, 4505 }, { 2779, 4506 } }
+        local CART_TO_PANEL = { { 2778, 4513 }, { 2777, 4520 }, { 2770, 4521 } }
+        local PANEL_TO_POOLS = { { 2777, 4520 }, { 2778, 4513 }, { 2779, 4506 }, { 2786, 4505 }, { 2791, 4502 },
+            { 2793, 4496 } }
+        local function fungus(name)
+            click(name, "glowing_mushroom2", 2793, 4493)
+            t.exec(name .. ".held", t.inv.await, "glowing_fungus", 1, 6)
+        end
+        local cart = t.player.by_symbol("loc", "hauntedmine_puzzle_cart")
+        local function to_cart(name)
+            t.exec(name .. ".walk", t.player.walk_route, POOLS_TO_CART)
+            t.exec(name, t.player.use_on, "glowing_fungus", cart)
+            t.exec(name .. ".line", t.msg.expect, "You place the glowing fungus in the mine cart.")
+            t.exec(name .. ".var", t.var.await_server, "varb2395_hauntedmine_begincart_fungus", 1, 4)
+            t.exec(name .. ".toPanel", t.player.walk_route, CART_TO_PANEL)
+        end
+        t.exec("walk-pools", t.player.walk_to, 2793, 4490, 20)
+        fungus("pickFungus")
+        t.exec("pickFungus.line", t.msg.expect, "You pull the fungus from the water. It is very cold to the touch.")
+        local dr, dd = t.player.drop("glowing_fungus")
+        t.note("drop glowing_fungus -> " .. tostring(dr) .. " " .. tostring(dd))
+        t.exec("fail.dropFungus.line", t.msg.expect, "When you drop the fungus it crumbles mysteriously to dust.")
+        t.exec("fail.dropFungus.gone", t.inv.await, "glowing_fungus", 0, 4)
+        fungus("pickFungus2")
+        to_cart("fungusInCart")
+        -- The first look at the panel starts the puzzle and rolls the levers.
+        click("firstLook", "hauntedmine_points_info", 2769, 4522)
+        t.exec("firstLook.started", t.var.await_server, "varb2384_hauntedmine_pointspuzzlestarted", 1, 4)
+        t.key("escape")
+        t.ticks(2)
+        set_levers("sink", "ABcdeiJk")
+        start_run("fail.sink")
+        t.exec("fail.sink.line", t.msg.await, "Oh dear, the mine cart seems to have sunk.", 16)
+        t.exec("fail.sink.fungusLost", t.var.await_server, "varb2395_hauntedmine_begincart_fungus", 0, 4)
+        t.key("escape")
+        t.ticks(2)
+        set_levers("returned", "aBcdeiJk")
+        start_run("fail.returned")
+        t.exec("fail.returned.line", t.msg.await, "How useful, it's come right back to where it started.", 16)
+        t.key("escape")
+        t.ticks(2)
+        t.exec("walk-pools2", t.player.walk_route, PANEL_TO_POOLS)
+        fungus("pickFungus3")
+        to_cart("fungusInCart2")
+        set_levers("solve", "ABcdEIjk")
+        start_run("success")
+        t.ticks(12)
+        t.exec("success-dialog", t.chat.play, { "player:I wonder if that cart is anywhere useful now?" })
+        t.exec("success.endcart", t.var.await_server, "varb2396_hauntedmine_endcart_fungus", 1, 4)
+        t.key("escape")
+        t.ticks(2)
+        t.exec("walk-pools3", t.player.walk_route, PANEL_TO_POOLS)
+        -- A fungus carried out into the sunlight crumbles ([2019]).
+        fungus("pickFungus4")
+        t.exec("walk-cartRoomLadder", t.player.walk_route, { { 2793, 4490 }, { 2789, 4487 } })
+        climb("upFromCartRoom", "hauntedmine_ladder_1w", "Climb-up", { 2789, 4486 }, { 2789, 4487 }, { 2725, 4487 }, SHIFT)
+        t.player.walk_to(2735, 4503, 60)
+        climb("upToLevel2South", "hauntedmine_ladder_1ne", "Climb-up", { 2734, 4503 }, { 2735, 4503 }, { 2799, 4567 }, SHIFT)
+        t.exec("walk-level2South-up", t.player.walk_to, 2783, 4569, 40)
+        climb("upToTunnelSouth", "hauntedmine_ladder", "Climb-up", { 2782, 4569 }, { 2783, 4569 }, { 3423, 9625 })
+        t.exec("walk-tunnelSouth-out", t.player.walk_to, 3409, 9623, 30)
+        climb("fail.sunlight", "lotr_back_entrance1_inside", "Crawl-through", { 3408, 9623 }, { 3409, 9623 }, { 3428, 3225 },
+            nil, { chat = { "mesbox:As you crawl out into the sunlight, the strange fungus" } })
+        t.exec("fail.sunlight.ashes", t.inv.await, "glowing_fungus", 0, 4)
+
+        -- ---------------------------------------------------------------
+        -- In by the north tunnel to the far cart; the fungus; down the lift with it.
+        -- ---------------------------------------------------------------
+        t.exec("walk-backEntrance1", t.player.walk_to, 3429, 3233, 20)
+        climb("inNorth", "hauntedmine_back_entrance1", "Crawl-down", { 3430, 3233 }, { 3429, 3233 }, { 3405, 9631 })
+        t.exec("walk-tunnelNorth2", t.player.walk_to, 3413, 9634, 30)
+        climb("downToLevel2North2", "hauntedmine_laddertop", "Climb-down", { 3413, 9633 }, { 3413, 9634 }, { 2773, 4578 })
+        t.exec("walk-level2North2", t.player.walk_to, 2797, 4598, 60)
+        climb("downToLevel3North2", "hauntedmine_laddertop_1sw", "Climb-down", { 2797, 4599 }, { 2797, 4598 },
+            { 2733, 4534 }, SHIFT)
+        t.exec("walk-collectLadder", t.player.walk_route, { { 2727, 4533 }, { 2719, 4533 }, { 2712, 4532 }, { 2710, 4539 } })
+        climb("downToCollectRoom", "hauntedmine_laddertop_1e", "Climb-down", { 2710, 4540 }, { 2710, 4539 },
+            { 2774, 4539 }, SHIFT)
+        -- The crumbled fungi are ashes in the pack; a full pack would get the fungus at its feet ([2547]).
+        while true do
+            local ar, an = t.inv.count("ashes")
+            if ar ~= "ok" or an < 1 then break end
+            t.player.drop("ashes")
+            t.ticks(2)
+        end
+        click("collectFungus", "hauntedmine_puzzle_cart", 2774, 4537)
+        t.exec("collectFungus-dialog", t.chat.play, { "choose:Take it." })
+        t.exec("collectFungus.held", t.inv.await, "glowing_fungus", 1, 6)
+        t.exec("collectFungus.var", t.var.await_server, "varb2396_hauntedmine_endcart_fungus", 0, 4)
+        click("collectFungus.empty", "hauntedmine_puzzle_cart", 2774, 4537)
+        t.exec("collectFungus.empty.line", t.msg.expect, "The cart is empty.")
+        climb("upFromCollectRoom", "hauntedmine_ladder_1w", "Climb-up", { 2774, 4540 }, { 2774, 4539 }, { 2710, 4539 }, SHIFT)
+        t.exec("walk-liftLadder2", t.player.walk_route, { { 2712, 4532 }, { 2719, 4533 }, { 2727, 4533 }, { 2734, 4534 },
+            { 2739, 4531 }, { 2736, 4526 }, { 2732, 4528 } })
+        climb("downToLiftRoom2", "hauntedmine_laddertop_1e", "Climb-down", { 2732, 4529 }, { 2732, 4528 },
+            { 2796, 4528 }, SHIFT)
+        t.exec("walk-lift2", t.player.walk_route, { { 2797, 4529 }, { 2802, 4526 }, { 2804, 4520 }, { 2802, 4514 },
+            { 2803, 4509 } })
+        -- The second race's ghost shut the valve after the ride down (as at [2708]); from stage 5 the
+        -- valve stays open once turned, with no ghost ([3177], [3291], [5283]).
+        t.player.walk_to(2807, 4496, 80)
+        click("turnValveAgain", "hauntedmine_lift_valve", 2808, 4496)
+        t.exec("turnValveAgain.line", t.msg.expect, "You open the valve. Water begins to flow")
+        t.exec("walk-afterValve", t.player.walk_route, { { 2803, 4500 }, { 2802, 4503 } })
+        ride("goDownLift2", "lift_side_l", { 2807, 4494 }, { 2725, 4452 })
+        t.exec("goDownLift2.line", t.msg.expect, "The lift descends further into the mines...")
+
+        -- ---------------------------------------------------------------
+        -- With the fungus: the crystal hall (locked without the key), then Dayth's room (stage 7).
+        -- ---------------------------------------------------------------
+        t.exec("walk-flooded-west2", t.player.walk_route, SHORE_WEST)
+        climb("downToCrystalHall", "hauntedmine_dark_stairs_top", "Walk-down", { 2692, 4436 }, { 2691, 4438 },
+            { 2758, 4454 }, STAIR)
+        t.player.walk_to(2772, 4451, 40)
+        click("fail.crystalDoorLocked", "hauntedmine_rewarddoor_r", 2772, 4450)
+        t.exec("fail.crystalDoorLocked.line", t.msg.expect, "This door appears to be locked.")
+        climb("upFromCrystalHall", "hauntedmine_light_stairs_bottom", "Walk-up", { 2755, 4452 }, { 2758, 4453 },
+            { 2691, 4437 }, STAIR)
+        t.exec("walk-flooded-east", t.player.walk_route, { { 2700, 4439 }, { 2710, 4437 }, { 2720, 4437 },
+            { 2730, 4437 }, { 2740, 4437 }, { 2750, 4436 } })
+        climb("downToDayth", "hauntedmine_dark_stairs_top", "Walk-down", { 2746, 4436 }, { 2750, 4436 },
+            { 2811, 4454 }, STAIR)
+        t.expect("quest.stage.daythRoom", t.var.await_server("varp382_hauntedmine", 7, 4))
+        t.exec("walk-bossDoor", t.player.walk_to, 2799, 4453, 20)
+        click("bossDoorIn", "hauntedmine_boss_door", 2799, 4453)
         do
-            local _, pts = t.skill.read("prayer")
+            local _, tile = t.world.tile()
+            t.check("bossDoorIn.through", type(tile) == "table" and tile.x <= 2798,
+                "after the boss door: " .. tostring(type(tile) == "table" and (tile.x .. "," .. tile.z) or tile)
+                    .. " (want inside, x <= 2798: the walk-through, [5354])")
+        end
+
+        -- ---------------------------------------------------------------
+        -- The key and Treus Dayth (the fight: hauntedmine_dayth_fight.rs2).
+        -- ---------------------------------------------------------------
+        do
             local tab_result = t.ui.tab("prayer")
             t.ticks(2)
             local wr, w = t.ui.widget("prayerbook:prayer14")
             t.ui.invoke(w, 1)
             t.ticks(2)
             local _, on = t.var.varbit("varb4117_prayer_protectfrommissiles")
-            t.check("killDayth.protectMissiles", tab_result == "ok" and wr == "ok" and on == 1
-                and type(pts) == "table" and pts.level >= 40,
-                "varb4117_prayer_protectfrommissiles " .. tostring(on) .. "; prayer points before "
-                    .. tostring(type(pts) == "table" and (tostring(pts.level) .. "/" .. tostring(pts.base_level)) or pts))
+            t.check("dayth.protectMissiles", tab_result == "ok" and wr == "ok" and on == 1,
+                "varb4117_prayer_protectfrommissiles " .. tostring(on))
+            t.ui.tab("inventory")
         end
-        t.drive.camera(0, 383, 400)
-        -- tryToPickUpKey: the press answers late or not at all (run 3: `timeout ... did not move in 8
-        -- tick(s)` while the line below was already in the chatbox), so the press is the attempt and
-        -- Dayth's rising is the row.
-        local kpr, kpd = t.player.press("hauntedmine_boss_key", 1, 8)
-        t.note("press hauntedmine_boss_key op 1 -> " .. tostring(kpr) .. " " .. tostring(kpd))
-        local rr, rd = t.msg.expect("Treus Dayth rises")
-        if rr ~= "ok" then rr, rd = t.msg.await("Treus Dayth rises", 40) end
-        t.expect("tryToPickUpKey", rr, rd)
-        -- The fighting tile 2793,4452: off the cart track rows (hauntedmine_dayth.rs2:213-219
-        -- [proc,hmq_on_dayth_track]: up to 9 EVERY tick once Dayth is at 25 hp or less) and 5 or more from
-        -- every crane (size 3, m43_69.spawn 2782,4458 2787,4446 2787,4451 2793,4458; up to 10 each 5 ticks
-        -- within 3, hauntedmine_dayth.rs2:189-196). Top-down and zoomed out, so a re-engage on a shifted
-        -- Dayth is not a `covered` press probed pixel by pixel while he hits (run 12 died inside one).
-        t.exec("walk-fightTile", t.player.walk_to, 2793, 4452, 12)
-        t.drive.camera(0, 383, 900)
-        -- One Attack and one kill wait, both eating under 85 (b63-seam1: t.player.attack's opts.eat, and
-        -- await_dead_engaged's re-engagements eat before every press and press fast under the line --
-        -- runs 12, 15 and 18 died inside a re-attack that probed pixels with nobody eating). The wait
-        -- follows Dayth's npc_tele to his new slot (run 21: 6 re-engagements, dead in 129 ticks).
-        local EAT = { eat = { item = "shark", below = 85 } }
-        local food_result0, food_before = t.inv.count("shark")
-        local _, attack_d = t.exec("attackDayth", t.player.attack, "hauntedmine_boss_ghost", 2, 20, EAT)
-        local _, kill_d = t.exec("killDayth", t.npc.await_dead_engaged, 300, 30, EAT)
-        t.exec("dayth-killed", t.var.await, "varp382_hauntedmine", 9, 10)
-        do
-            -- the lowest hp each eater READ (every tick of the press and the wait), never a fallback
-            local low_attack = tonumber(tostring(attack_d):match("lowest hp (%d+)/"))
-            local low_kill = tonumber(tostring(kill_d):match("lowest hp (%d+)/"))
-            local lowest = (low_attack ~= nil and low_kill ~= nil) and math.min(low_attack, low_kill) or nil
-            local _, hitpoints = t.skill.read("hitpoints")
-            local max_hp = type(hitpoints) == "table" and hitpoints.base_level or nil
-            local food_result, food_left = t.inv.count("shark")
-            t.check("killDayth.margin", lowest ~= nil and max_hp ~= nil and food_result0 == "ok" and food_result == "ok"
-                and lowest * 4 >= max_hp and food_left >= 1,
-                "lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp) .. " (attack press " .. tostring(low_attack)
-                    .. ", kill wait " .. tostring(low_kill) .. "), sharks " .. tostring(food_before) .. " -> "
-                    .. tostring(food_left) .. " (margin: lowest hp >= a quarter of max AND at least one shark left)")
+        t.exec("walk-key", t.player.walk_to, 2789, 4454, 12)
+        t.exec("takeKey.ambush", t.player.press, "hauntedmine_boss_key", 1, 8)
+        t.ticks(5)
+        t.exec("takeKey.ambush-dialog", t.chat.play, {
+            "player:What the... ?",
+            "mesbox:You hear a disembodied voice laughing at you",
+        })
+        t.expect("quest.stage.ambushed", t.var.await_server("varp382_hauntedmine", 8, 6))
+        -- He rises over T..T+13 ([5543..5556]) and fades on two hits in three, gliding to another
+        -- spot (haunted_mine_dayth.md): press Attack whenever the visible form is up, else wait.
+        local EAT = { eat = { item = "shark", below = 70 } }
+        -- The server's reading of this player's Dayth (::hmq_dayth_state, hauntedmine_dayth_fight.rs2):
+        -- nil when none, else { form = 1 Treus Dayth | 2 the ghost, hp }.
+        local function dayth()
+            t.cheat("::hmq_dayth_state")
+            t.ticks(2)
+            local msgs = t.raid.cox_messages(6)
+            for i = 1, #msgs do
+                local f, hp = string.match(msgs[i], "hmq_dayth_state: (%-?%d+) (%-?%d+)")
+                if f then
+                    if tonumber(f) == 0 then return nil end
+                    return { form = tonumber(f), hp = tonumber(hp) }
+                end
+            end
+            return nil
         end
-        -- Protection held the whole fight (prayer will not regenerate: 43 points staged, read before the
-        -- key), then off: the fight is over.
+        t.ticks(14)
+        local presses, waits, low = 0, 0, 99
+        for _ = 1, 150 do
+            local _, hp = t.skill.read("hitpoints")
+            if type(hp) == "table" then
+                low = math.min(low, hp.level or 99)
+                if (hp.level or 99) < 70 then
+                    t.player.eat("shark")
+                    t.ticks(1)
+                end
+            end
+            local d = dayth()
+            if d == nil then break end
+            if d.form == 1 then
+                t.player.attack("hauntedmine_boss_ghost", 2, 6, EAT)
+                presses = presses + 1
+            else
+                t.ticks(2)
+                waits = waits + 1
+            end
+        end
+        t.note("Dayth: " .. presses .. " attack press(es), " .. waits .. " wait(s) while he was a ghost; lowest hp " .. low)
+        t.exec("killDayth-dialog", t.chat.play, { "mesbox:As you make the killing strike, the machinery" })
+        t.expect("quest.stage.daythKilled", t.var.await_server("varp382_hauntedmine", 9, 6))
         do
-            local _, on_kill = t.var.varbit("varb4117_prayer_protectfrommissiles")
-            local _, pts_kill = t.skill.read("prayer")
             t.ui.tab("prayer")
             t.ticks(2)
             local _, w = t.ui.widget("prayerbook:prayer14")
             t.ui.invoke(w, 1)
             t.ticks(2)
-            local _, on = t.var.varbit("varb4117_prayer_protectfrommissiles")
-            local _, pts = t.skill.read("prayer")
-            t.check("killDayth.prayerHeld", on_kill == 1 and type(pts_kill) == "table" and pts_kill.level > 0,
-                "at the kill: varb4117_prayer_protectfrommissiles " .. tostring(on_kill) .. ", prayer points "
-                    .. tostring(type(pts_kill) == "table" and pts_kill.level or pts_kill) .. " (want 1 and > 0)")
-            t.check("killDayth.prayerOff", on == 0, "varb4117_prayer_protectfrommissiles " .. tostring(on)
-                .. "; prayer points left " .. tostring(type(pts) == "table" and pts.level or pts))
+            t.ui.tab("inventory")
         end
-        -- the key from beside it: from the fighting tile the press landed on a crate (run 8)
-        t.exec("walk-pickUpKey", t.player.walk_to, 2790, 4454, 12)
-        local pkr, pkd = t.player.press("hauntedmine_boss_key", 1, 8)
-        t.note("pickUpKey press: " .. tostring(pkr) .. " " .. tostring(pkd))
-        t.exec("pickUpKey", t.inv.await, "hauntedmine_reward_key", 1, 8)
-        t.exec("goUpFromDayth.bossDoorOut", t.player.pass_door, BOSS_OUT)
-        t.drive.camera(1024, 383, 300)
-        climb("goUpFromDayth", "hauntedmine_light_stairs_bottom", "Walk-up", { 2812, 4452 }, { 2746, 4439 },
-            "hauntedmine_dayth.rs2:56 p_teleport(^hmq_dark_dayth_exit)")
+        t.exec("walk-key2", t.player.walk_to, 2789, 4454, 12)
+        t.exec("takeKey", t.player.press, "hauntedmine_boss_key", 1, 8)
+        t.ticks(2)
+        t.exec("takeKey-dialog", t.chat.play, { "objbox:You take the key. It doesn't resist anymore." })
+        t.exec("takeKey.held", t.inv.await, "hauntedmine_reward_key", 1, 4)
+        t.exec("fail.secondKey", t.player.press, "hauntedmine_boss_key", 1, 8)
+        t.exec("fail.secondKey.line", t.msg.expect, "You already have a key like that.")
 
         -- ---------------------------------------------------------------
-        -- West along the flooded corridor to the crystal stair, the reward door, the outcrop.
+        -- Out, west to the crystal hall, the doors (stage 10), the crystal (stage 11).
         -- ---------------------------------------------------------------
-        local WEST = { { 2740, 4437 }, { 2730, 4437 }, { 2720, 4437 }, { 2710, 4437 }, { 2700, 4439 }, { 2693, 4440 } }
-        local EAST = { { 2700, 4439 }, { 2710, 4437 }, { 2720, 4437 }, { 2730, 4437 }, { 2740, 4437 }, { 2747, 4440 } }
-        t.exec("walk-flooded-west", t.player.walk_route, WEST)
-        climb("goDownToCrystals", "hauntedmine_dark_stairs_top", "Walk-down", { 2692, 4436 }, { 2758, 4453 },
-            "hauntedmine_dayth.rs2:37 p_teleport(^hmq_crystalentrance_enter)")
-        local REWARD_IN = { closed = "hauntedmine_rewarddoor_l", open = "hauntedmine_rewarddoor_l", at = { 2773, 4450, 0 },
-            near = { 2773, 4450 }, far = { 2773, 4448 } }
-        local REWARD_OUT = { closed = "hauntedmine_rewarddoor_l", open = "hauntedmine_rewarddoor_l", at = { 2773, 4450, 0 },
-            near = { 2773, 4448 }, far = { 2773, 4451 } }
-        t.exec("openRewardDoor", t.player.pass_door, REWARD_IN)
+        t.exec("walk-bossDoorOut", t.player.walk_to, 2798, 4453, 20)
+        click("bossDoorOut", "hauntedmine_boss_door", 2799, 4453)
+        climb("upFromDayth", "hauntedmine_light_stairs_bottom", "Walk-up", { 2812, 4452 }, { 2811, 4453 },
+            { 2750, 4437 }, STAIR)
+        t.exec("walk-flooded-west3", t.player.walk_route, { { 2740, 4437 }, { 2730, 4437 }, { 2720, 4437 },
+            { 2710, 4437 }, { 2700, 4439 }, { 2691, 4438 } })
+        climb("downToCrystalHall2", "hauntedmine_dark_stairs_top", "Walk-down", { 2692, 4436 }, { 2691, 4438 },
+            { 2758, 4454 }, STAIR)
+        t.exec("walk-crystalDoor", t.player.walk_to, 2772, 4450, 30)
+        click("crystalDoors", "hauntedmine_rewarddoor_r", 2772, 4450)
+        t.expect("quest.stage.crystalsReached", t.var.await_server("varp382_hauntedmine", 10, 6))
+        -- The journal at stage 10, row for row against RSProx index 4647 [7065] (17 rows).
+        do
+            local want = {
+                "I met a fanatic Saradominist just outside the Morytanian",
+                "mines.  He told me that the mines had been sealed, but",
+                "contained within them crystals of a great power over evil.",
+                "I managed to get into the mines via a thin tunnel high up in the",
+                "mountains.",
+                "Now I must reach the lower levels where apparently the",
+                "crystals can be found.",
+                "I managed to start the lift which allowed me to get to the lower",
+                "levels.",
+                "Now I can continue my search for the crystals.",
+                "The lower levels of the mine were too dark to navigate.",
+                "I had to use a glowing fungus from the upper levels to light",
+                "the way.",
+                "I found a key in the lower levels.  I had to fight a powerful",
+                "ghost who tried to prevent me taking it.",
+                "I used this key to reach the legendary crystals, now I just",
+                "need to find some way to make use of them.",
+            }
+            local r, j = t.ui.journal_open("Haunted Mine")
+            local lines = (r == "ok" and j and j.lines) or {}
+            if r == "ok" then t.ui.journal_close() end
+            local diff = nil
+            for i = 1, math.max(#want, #lines) do
+                local got = lines[i] and tostring(lines[i]):gsub("<[^>]*>", "") or nil
+                if got ~= want[i] then
+                    diff = "row " .. i .. ": want '" .. tostring(want[i]) .. "' read '" .. tostring(got) .. "'"
+                    break
+                end
+            end
+            t.check("journal.stage10", r == "ok" and diff == nil, tostring(r) .. " " .. #lines .. " rows; "
+                .. (diff or "every row matches [7065]"))
+        end
         local _, xpsnap = t.skill.snapshot()
-        local _, shards_before = t.inv.count("crystalshard_necklace_unstrung")
-        click("cutCrystal", "crystalcorner", 2787, 4428)
+        local crystal = t.player.by_symbol("loc", "crystalcorner")
+        t.exec("walk-crystal", t.player.walk_to, 2787, 4429, 40)
+        t.exec("cutCrystal", t.player.use_on, "chisel", crystal)
+        t.exec("cutCrystal.line", t.msg.expect, "You cut a shard from the crystal.")
         t.exec("stage-complete", t.var.await, "varp382_hauntedmine", 11, 10)
         t.quest.expect_complete()
-        -- crystal_outcrop: hauntedmine_dayth.rs2:296-300 -- one salve shard, 22,000 Strength XP, 2 quest points
         t.check("reward.strength_xp", t.skill.expect_gain("strength", 22000, xpsnap))
-        local _, shards_after = t.inv.count("crystalshard_necklace_unstrung")
-        t.check("reward.salve_shard", shards_before == 0 and shards_after == 1,
-            "crystalshard_necklace_unstrung " .. tostring(shards_before) .. " -> " .. tostring(shards_after) .. " (want 0 -> 1)")
-
-        -- ---------------------------------------------------------------
-        -- The dark rooms: down each stair without a lit fungus, and back up.
-        -- ---------------------------------------------------------------
-        local dr, dd = t.player.drop("glowing_fungus")
-        t.check("drop-fungus", tostring(dd):find("crumbles to ashes", 1, true) ~= nil, tostring(dr) .. " " .. tostring(dd))
-        t.exec("leaveCrystalRoom.rewardDoorOut", t.player.pass_door, REWARD_OUT)
-        climb("leaveCrystalRoom", "hauntedmine_light_stairs_bottom", "Walk-up", { 2755, 4452 }, { 2692, 4439 },
-            "hauntedmine_dayth.rs2:58 p_teleport(^hmq_dark_crystal_exit)")
-        climb("dark-crystal", "hauntedmine_dark_stairs_top", "Walk-down", { 2692, 4436 }, { 2711, 4591 },
-            "hauntedmine_dayth.rs2:29 p_teleport(^hmq_dark_crystal_enter)")
-        climb("leaveDarkCrystalRoom", "hauntedmine_dark_stairs_bottom", "Walk-up", { 2709, 4591 }, { 2692, 4439 },
-            "hauntedmine_dayth.rs2:45 p_teleport(^hmq_dark_crystal_exit)")
-        t.exec("walk-flooded-east2", t.player.walk_route, EAST)
-        climb("dark-dayth", "hauntedmine_dark_stairs_top", "Walk-down", { 2746, 4436 }, { 2730, 4562 },
-            "hauntedmine_dayth.rs2:20 p_teleport(^hmq_dark_dayth_enter)")
-        climb("leaveDarkDaythRoom", "hauntedmine_dark_stairs_bottom", "Walk-up", { 2731, 4561 }, { 2746, 4439 },
-            "hauntedmine_dayth.rs2:48 p_teleport(^hmq_dark_dayth_exit)")
+        local _, shards = t.inv.count("crystalshard_necklace_unstrung")
+        t.check("reward.salve_shard", shards == 1, "crystalshard_necklace_unstrung " .. tostring(shards) .. " (want 1)")
         t.finish(0)
     end,
 }

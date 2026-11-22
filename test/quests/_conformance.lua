@@ -9825,6 +9825,8 @@ return {
             setup_cheat("::setlevel defence 99")
             setup_cheat("::give magic_shortbow 1")
             setup_cheat("::give rune_arrow 400")
+            -- The key raises him only at stage 7 or 8 (hauntedmine_dayth.rs2, RSProx index 4647 [5534]).
+            setup_cheat("::setvar varp382_hauntedmine 7")
             setup_cheat("::god 1")
             settle(2)
         end)
@@ -9852,10 +9854,17 @@ return {
             end
             camera(0, 383, 400)
             local press_result, press_detail = press("hauntedmine_boss_key", 1, 8)
-            local rises = expect_line("Treus Dayth rises")
-            if rises ~= "ok" then
-                rises = await("Treus Dayth rises", 40)
-            end
+            -- The rise as recorded: "What the... ?", the voice's mesbox, its continue (stage 8),
+            -- then T..T+13 before Treus Dayth stands ([5534..5556]).
+            local play = verb("chat", "play")
+            local server_var = verb("var", "server")
+            if not play then return missing("chat", "play") end
+            if not server_var then return missing("var", "server") end
+            settle(5)
+            play({ "player:What the... ?", "mesbox:You hear a disembodied voice laughing at you" })
+            settle(14)
+            local _, risen_stage = server_var("varp382_hauntedmine")
+            local rises = (risen_stage == 8) and "ok" or "absent"
             if rises ~= "ok" then
                 dayth_teardown()
                 return "no_subject", "the key press did not raise Dayth: " .. describe(press_result) .. " "
