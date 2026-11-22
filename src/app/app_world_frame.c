@@ -190,12 +190,18 @@ app_world_frame(
     /* Per attached view (the runner camera split): each camera follows the
      * same player its own way, and a cutscene's scripted camera -- cam_script,
      * shared -- takes every one of them (owner decision 2). */
+    /* The scripted camera walks once a 20 ms cycle, as client.java's doCycle
+     * (method2548) walks it, so its pace is the game's and not the frame
+     * rate's: `cycles` steps here, none on a frame that ran no cycle. The
+     * shake's sine advances on the same clock (`field1288[i]++`). */
+    for( int c = 0; c < cycles; c++ )
+        CamScript_ShakeAdvance(&app->cam_script);
     CamScript_GlideFrameBegin(&app->cam_script);
     for( int view = 0; view < app->world_views.split.view_count; view++ )
     {
         app->world_views.frame = &app->world_views.views[view];
-        app_world_camera_cinema(app);
-        app_world_camera_follow(app);
+        app_world_camera_cinema(app, cycles);
+        app_world_camera_follow(app, cycles);
     }
     app_world_camera_smooth_reset_end(app);
     app->world_views.frame = App_RunnerView(app);

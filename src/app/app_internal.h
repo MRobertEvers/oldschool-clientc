@@ -711,11 +711,19 @@ app_map_editor_camera_to_tile(
 int
 app_cinema_level(struct App* app);
 
+/** The scripted camera's walk for the `cycles` 20 ms cycles this frame ran
+ *  (client.java method2548, once a doCycle); none moves nothing. */
 void
-app_world_camera_cinema(struct App* app);
+app_world_camera_cinema(
+    struct App* app,
+    int cycles);
 
+/** The follow camera, once a frame; a CAM_SMOOTHRESET glide inside it walks
+ *  once for each of the frame's `cycles`. */
 void
-app_world_camera_follow(struct App* app);
+app_world_camera_follow(
+    struct App* app,
+    int cycles);
 
 void
 app_world_camera_smooth_reset_end(struct App* app);

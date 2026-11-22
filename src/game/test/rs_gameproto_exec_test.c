@@ -1649,7 +1649,7 @@ main(void)
         wev = Wevs_Spawn(&app->wevs, 1, WORLDVIEW_ROOT, &config, 3, 3220 << 7, 3150 << 7, 0, 0, WEV_OP_MASK_ALL);
         assert(wev);
 
-        app_world_camera_follow(app);
+        app_world_camera_follow(app, 1);
         TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_x == (50 << 7) + 64,
             "with no target the camera follows the local player");
 
@@ -1658,7 +1658,7 @@ main(void)
         p._cam_target.type = CAM_SCRIPT_TARGET_WORLDENTITY;
         p._cam_target.index = 900;
         App_GameProto_Exec(app, &app_state, &p);
-        app_world_camera_follow(app);
+        app_world_camera_follow(app, 1);
         TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_x == (3220 - 3200) << 7,
             "a world entity target: the hull's x in the root scene");
         TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_z == (3150 - 3136) << 7,
@@ -1667,7 +1667,7 @@ main(void)
         p._cam_target.type = CAM_SCRIPT_TARGET_COORD;
         p._cam_target.index = (1 << 28) | (3210 << 14) | 3140;
         App_GameProto_Exec(app, &app_state, &p);
-        app_world_camera_follow(app);
+        app_world_camera_follow(app, 1);
         TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_x == (10 << 7) + 64,
             "a root coordinate target: the centre of its tile");
         TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_z == (4 << 7) + 64, "on both axes");
@@ -1676,7 +1676,7 @@ main(void)
          * 16-tile rectangle (-1024) and carried to the hull at (2560, 1792). */
         p._cam_target.index = (6400 + 3) << 14 | (6400 + 5);
         App_GameProto_Exec(app, &app_state, &p);
-        app_world_camera_follow(app);
+        app_world_camera_follow(app, 1);
         TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_x == 2560 + 448 - 1024,
             "a deck coordinate target: the deck tile pushed out through the hull");
         TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_z == 1792 + 704 - 1024, "on both axes");
@@ -1685,7 +1685,7 @@ main(void)
         p._cam_target.type = CAM_SCRIPT_TARGET_WORLDENTITY;
         p._cam_target.index = 901;
         App_GameProto_Exec(app, &app_state, &p);
-        app_world_camera_follow(app);
+        app_world_camera_follow(app, 1);
         TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_x == (50 << 7) + 64,
             "a hull that is not there leaves the local player's focus");
 

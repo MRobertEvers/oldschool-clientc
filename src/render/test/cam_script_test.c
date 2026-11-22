@@ -84,6 +84,21 @@ test_walk_yaw_takes_the_short_way(void)
     TEST_ASSERT(CamScript_WalkYaw(10, 2040, 4, 0) == 6, "backwards across it");
     TEST_ASSERT(CamScript_WalkYaw(2, 2040, 20, 0) == 2040, "stopping on the target");
     TEST_ASSERT(CamScript_WalkYaw(100, 100, 50, 50) == 100, "arrived stays");
+    TEST_ASSERT(CamScript_WalkYawFine(16380, 10, 8, 0) == 4, "a fine yaw crosses its own seam");
+    TEST_ASSERT(CamScript_WalkYawFine(10, 16380, 8, 0) == 2, "backwards too");
+    TEST_ASSERT(CamScript_WalkYawFine(8000, 0, 80, 10) == 7840, "the short way, 80 + 80 of 8000 left");
+    /* The proportional term in eighths keeps what 2048ths drop: 919 -> 432
+     * at rate 10/10 (RSProx 4637 [3004]) after 25 cycles is 606 here, 615
+     * walked in 2048ths. */
+    {
+        int fine = 919 * 8, coarse = 919;
+        for( int i = 0; i < 25; i++ )
+        {
+            fine = CamScript_WalkYawFine(fine, 432 * 8, 80, 10);
+            coarse = CamScript_WalkYaw(coarse, 432, 10, 10);
+        }
+        TEST_ASSERT(coarse - (fine + 4) / 8 >= 5, "2048ths lag the deob's turn");
+    }
 }
 
 static void
@@ -116,6 +131,11 @@ test_moveto_and_lookat_set_their_half(void)
         int x, z, h;
         CamScript_LookTarget(&g_cam, &x, &z, &h);
         TEST_ASSERT(x == 5 && z == 6 && h == 7, "the look target reads back");
+    }
+    {
+        int r, r2;
+        CamScript_LookRates(&g_cam, &r, &r2);
+        TEST_ASSERT(r == 8 * 8 && r2 == 120, "the look rate is kept in eighths (Statics.field6955 = rate << 3)");
     }
 }
 
@@ -259,13 +279,20 @@ test_the_shake_roll_is_shared_per_frame(void)
     CamScript_Shake(&g_cam, 1, 0, 0, 100);
     TEST_ASSERT(CamScript_ShakeOn(&g_cam, 1) && !CamScript_ShakeOn(&g_cam, 0), "one axis shakes");
     CamScript_RollShake(&g_cam, 1, 7);
-    TEST_ASSERT(g_cam.shake_cycle[1] == 1, "a roll advances the axis's cycle");
+    TEST_ASSERT(g_cam.shake_roll.valid && g_cam.shake_roll.frame == 7, "a roll is kept for its frame");
+    TEST_ASSERT(g_cam.shake_cycle[1] == 0, "and leaves the sine where the cycles put it");
+    g_cam.shake_roll.jitter[1] = 99;
     CamScript_RollShake(&g_cam, 1, 7);
-    TEST_ASSERT(g_cam.shake_cycle[1] == 1, "a shared paint of the same frame reuses the roll");
+    TEST_ASSERT(g_cam.shake_roll.jitter[1] == 99, "a shared paint of the same frame reuses the roll");
     CamScript_RollShake(&g_cam, 0, 7);
-    TEST_ASSERT(g_cam.shake_cycle[1] == 2, "an unshared paint always rolls");
+    TEST_ASSERT(g_cam.shake_roll.jitter[1] == 0, "an unshared paint always rolls");
+    g_cam.shake_roll.jitter[1] = 99;
     CamScript_RollShake(&g_cam, 1, 8);
-    TEST_ASSERT(g_cam.shake_cycle[1] == 3, "a new frame rolls");
+    TEST_ASSERT(g_cam.shake_roll.jitter[1] == 0, "a new frame rolls");
+    CamScript_ShakeAdvance(&g_cam);
+    CamScript_ShakeAdvance(&g_cam);
+    TEST_ASSERT(g_cam.shake_cycle[1] == 2, "the sine advances a step a client cycle");
+    TEST_ASSERT(g_cam.shake_cycle[0] == 2, "on every axis, shaking or not (client.java field1288)");
     TEST_ASSERT(!CamScript_ShakeJitter(&g_cam, 0, &jitter), "a still axis has no jitter");
     TEST_ASSERT(jitter == 12345, "and leaves the output alone");
     TEST_ASSERT(CamScript_ShakeJitter(&g_cam, 1, &jitter) && jitter == 0, "spread 0, amplitude 0");

@@ -99,6 +99,40 @@ CamScript_Walk(
     return current;
 }
 
+static int
+cam_script_walk_yaw(
+    int current,
+    int target,
+    int rate,
+    int rate2,
+    int turn)
+{
+    int const half = turn / 2;
+    int delta = target - current;
+
+    if( delta > half )
+        delta -= turn;
+    else if( delta < -half )
+        delta += turn;
+
+    if( delta > 0 )
+        current = (current + rate + delta * rate2 / 1000) & (turn - 1);
+    else if( delta < 0 )
+        current = (current - rate - -delta * rate2 / 1000) & (turn - 1);
+
+    if( delta != 0 )
+    {
+        int remaining = target - current;
+        if( remaining > half )
+            remaining -= turn;
+        else if( remaining < -half )
+            remaining += turn;
+        if( (remaining < 0 && delta > 0) || (remaining > 0 && delta < 0) )
+            current = target;
+    }
+    return current;
+}
+
 int
 CamScript_WalkYaw(
     int current,
@@ -106,29 +140,17 @@ CamScript_WalkYaw(
     int rate,
     int rate2)
 {
-    int delta = target - current;
+    return cam_script_walk_yaw(current, target, rate, rate2, 2048);
+}
 
-    if( delta > 1024 )
-        delta -= 2048;
-    else if( delta < -1024 )
-        delta += 2048;
-
-    if( delta > 0 )
-        current = (current + rate + delta * rate2 / 1000) & 0x7ff;
-    else if( delta < 0 )
-        current = (current - rate - -delta * rate2 / 1000) & 0x7ff;
-
-    if( delta != 0 )
-    {
-        int remaining = target - current;
-        if( remaining > 1024 )
-            remaining -= 2048;
-        else if( remaining < -1024 )
-            remaining += 2048;
-        if( (remaining < 0 && delta > 0) || (remaining > 0 && delta < 0) )
-            current = target;
-    }
-    return current;
+int
+CamScript_WalkYawFine(
+    int current,
+    int target,
+    int rate,
+    int rate2)
+{
+    return cam_script_walk_yaw(current, target, rate, rate2, CAM_SCRIPT_FINE_TURN);
 }
 
 /* --- what the packets set ------------------------------------------------ */
@@ -170,7 +192,8 @@ CamScript_LookAt(
     cam->look_lx = local_x;
     cam->look_lz = local_z;
     cam->look_height = height;
-    cam->look_rate = rate;
+    /* client.java's CAM_LOOKAT: Statics.field6955 = method1911(rate) = rate << 3. */
+    cam->look_rate = rate << 3;
     cam->look_rate2 = rate2;
     cam->rotate_cycles.active = 0;
     cam->look_cycles.active = 0;
@@ -787,10 +810,17 @@ CamScript_RollShake(
         jitter += (int)(sin((double)cam->shake_cycle[axis] * ((double)cam->shake_speed[axis] / 100.0)) *
                         cam->shake_amplitude[axis]);
         cam->shake_roll.jitter[axis] = jitter;
-        cam->shake_cycle[axis]++;
     }
     cam->shake_roll.frame = frame;
     cam->shake_roll.valid = 1;
+}
+
+void
+CamScript_ShakeAdvance(struct CamScript* cam)
+{
+    assert(cam);
+    for( int axis = 0; axis < CAM_SCRIPT_SHAKE_AXES; axis++ )
+        cam->shake_cycle[axis]++;
 }
 
 int

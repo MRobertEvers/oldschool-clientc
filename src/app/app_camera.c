@@ -23,11 +23,6 @@ app_cinema_point(
     int* out_x,
     int* out_y,
     int* out_z);
-static void
-app_cinema_angles(
-    struct App* app,
-    int* out_pitch,
-    int* out_yaw);
 static int
 app_world_cam_dist_zoom(struct App* app);
 static struct WorldCameraLimits
@@ -481,26 +476,96 @@ app_cinema_angles_to(
     *out_yaw = (int)(atan2((double)dx, (double)dz) * -325.949) & 0x7ff;
 }
 
-/* Pitch/yaw that point the eye at the look-at target (deob Statics.method234's
- * aim, eased by Statics.method4719). */
-static void
-app_cinema_angles(
-    struct App* app,
-    int* out_pitch,
-    int* out_yaw)
-{
-    int tx, ty, tz;
-    int look_lx, look_lz, look_height;
-
-    CamScript_LookTarget(&app->cam_script, &look_lx, &look_lz, &look_height);
-    app_cinema_point(app, look_lx, look_lz, look_height, &tx, &ty, &tz);
-    app_cinema_angles_to(app, tx, ty, tz, out_pitch, out_yaw);
-}
-
 static int
 app_cam_cycle(struct App* app)
 {
     return app->world ? app->world->cycle : 0;
+}
+
+/* The deob's radians -> angle (class209.method11839): truncate, then mask. */
+static int
+app_cinema_fine_angle(double radians)
+{
+    return (int)(radians * 2607.5945876176133) & (CAM_SCRIPT_FINE_TURN - 1);
+}
+
+/*
+ * Pitch/yaw, in CAM_SCRIPT_FINE_TURN units, that point the frame view's eye at
+ * scene point (tx, ty, tz) -- client.java method2548's aim, which the walk
+ * (Statics.method6251) then clamps and turns toward.
+ *
+ * `signed_pitch`: the walk's aim folds a pitch past half a turn to negative
+ * (`if (var63 > 8192) var63 -= 16384`), so a point ABOVE the eye clamps to the
+ * flattest pitch. CAM_LOOKAT's snap does not fold (client.java:1121), so there
+ * a point above the eye clamps to the steepest, and the walk then turns it
+ * back. Masked into 0..2047 and clamped, as this used to do for both, a point
+ * above the eye always looked steeply down.
+ */
+static void
+app_cinema_fine_angles_to(
+    struct App* app,
+    int tx,
+    int ty,
+    int tz,
+    int signed_pitch,
+    int* out_pitch,
+    int* out_yaw)
+{
+    struct WorldCameraLimits const limits = app_world_camera_limits(app);
+    int dx, dy, dz, distance, pitch;
+
+    dx = tx - app->world_views.frame->world_camera_pos.x;
+    dy = ty - app->world_views.frame->world_camera_pos.y;
+    dz = tz - app->world_views.frame->world_camera_pos.z;
+    distance = (int)sqrt((double)dx * dx + (double)dz * dz);
+
+    pitch = app_cinema_fine_angle(atan2((double)dy, (double)distance));
+    if( signed_pitch && pitch > CAM_SCRIPT_FINE_TURN / 2 )
+        pitch -= CAM_SCRIPT_FINE_TURN;
+    /* Statics.method7244: the same limits as the player's camera, in eighths. */
+    if( pitch < limits.pitch_flattest * 8 )
+        pitch = limits.pitch_flattest * 8;
+    if( pitch > limits.pitch_steepest * 8 )
+        pitch = limits.pitch_steepest * 8;
+
+    *out_pitch = pitch;
+    *out_yaw = -app_cinema_fine_angle(atan2((double)dx, (double)dz)) & (CAM_SCRIPT_FINE_TURN - 1);
+}
+
+/* The view's look angles in CAM_SCRIPT_FINE_TURN units: its own, while
+ * world_camera still shows them; else world_camera's, scaled up. */
+static void
+app_cinema_fine_load(
+    struct App_WorldView const* view,
+    int* out_pitch,
+    int* out_yaw)
+{
+    if( view->cam_fine.valid && view->cam_fine.shown_pitch == view->world_camera.pitch &&
+        view->cam_fine.shown_yaw == view->world_camera.yaw )
+    {
+        *out_pitch = view->cam_fine.pitch;
+        *out_yaw = view->cam_fine.yaw;
+        return;
+    }
+    *out_pitch = view->world_camera.pitch * 8;
+    *out_yaw = view->world_camera.yaw * 8;
+}
+
+/* Keep the fine angles and show the nearest 2048th. */
+static void
+app_cinema_fine_store(
+    struct App_WorldView* view,
+    int pitch,
+    int yaw)
+{
+    yaw &= CAM_SCRIPT_FINE_TURN - 1;
+    view->cam_fine.valid = 1;
+    view->cam_fine.pitch = pitch;
+    view->cam_fine.yaw = yaw;
+    view->world_camera.pitch = (pitch + 4) >> 3;
+    view->world_camera.yaw = ((yaw + 4) >> 3) & 0x7ff;
+    view->cam_fine.shown_pitch = view->world_camera.pitch;
+    view->cam_fine.shown_yaw = view->world_camera.yaw;
 }
 
 /*
@@ -729,101 +794,107 @@ App_CinemaCameraSnapAngle(struct App* app)
     saved = app->world_views.frame;
     for( int view = 0; view < app->world_views.split.view_count; view++ )
     {
-        /* app_cinema_angles reads the eye of the view it aims (world_views.frame). */
+        int tx, ty, tz, look_lx, look_lz, look_height, pitch, yaw;
+
+        /* The aim reads the eye of the view it aims (world_views.frame).
+         * Unsigned, as client.java's CAM_LOOKAT snap is. */
         app->world_views.frame = &app->world_views.views[view];
-        app_cinema_angles(
-            app, &app->world_views.views[view].world_camera.pitch, &app->world_views.views[view].world_camera.yaw);
+        CamScript_LookTarget(&app->cam_script, &look_lx, &look_lz, &look_height);
+        app_cinema_point(app, look_lx, look_lz, look_height, &tx, &ty, &tz);
+        app_cinema_fine_angles_to(app, tx, ty, tz, 0, &pitch, &yaw);
+        app_cinema_fine_store(&app->world_views.views[view], pitch, yaw);
     }
     app->world_views.frame = saved;
 }
 
-/* Deob Statics.method234 (ar.bz). Runs every frame the script is up: the eye
- * walks toward the move-to point (Statics.method10397) and turns toward the
- * look-at point (Statics.method4719), a flat rate plus rate2/1000 of what is
- * left, so a rate2 under 100 glides instead of cutting. A half whose rates are
- * 0 (as CAM_RESET leaves them) holds still. */
-void
-app_world_camera_cinema(struct App* app)
+/*
+ * One 20 ms client cycle of the scripted camera, at cycle `cycle`: client.java
+ * method2548's camera block, which runs once per doCycle (client.ht ->
+ * method2548), never per drawn frame. The eye walks toward the move-to point
+ * (Statics.method7339) and turns toward the look-at point
+ * (Statics.method6251), a flat rate plus rate2/1000 of what is left, so a
+ * rate2 under 100 glides instead of cutting. A half whose rates are 0 (as
+ * CAM_RESET leaves them) holds still.
+ */
+static void
+app_world_camera_cinema_cycle(
+    struct App* app,
+    int cycle)
 {
+    struct App_WorldView* view = app->world_views.frame;
     int tx, ty, tz, pitch, yaw;
     int rate, rate2;
     int mx, mz, my, ignore_terrain;
     int move_lx, move_lz, move_height;
     int look_lx, look_lz, look_height;
 
-    CamScript_MoveRates(&app->cam_script, &rate, &rate2);
-    if( !CamScript_IsScripted(&app->cam_script) || !app->world )
-        return;
-    /* client.java's frame step: `if (field698) method3868 else if (field904)
-     * method234`. The glide needs the follow camera's answer, so it runs there. */
-    if( !CamScript_HoldsEye(&app->cam_script) )
-        return;
-
-    if( CamScript_MoveCyclesAt(&app->cam_script, app_cam_cycle(app), &mx, &mz, &my, &ignore_terrain) )
+    if( CamScript_MoveCyclesAt(&app->cam_script, cycle, &mx, &mz, &my, &ignore_terrain) )
     {
         /* The eased move owns the eye; the rate walk below waits for the next
          * CAM_MOVETO. */
-        app->world_views.frame->world_camera_pos.x = mx;
-        app->world_views.frame->world_camera_pos.z = mz;
-        app->world_views.frame->world_camera_pos.y =
-            ignore_terrain ? my : app_world_height(app, mx, mz, app_cinema_level(app)) - my;
+        view->world_camera_pos.x = mx;
+        view->world_camera_pos.z = mz;
+        view->world_camera_pos.y = ignore_terrain ? my : app_world_height(app, mx, mz, app_cinema_level(app)) - my;
     }
     else
     {
+        CamScript_MoveRates(&app->cam_script, &rate, &rate2);
         CamScript_MoveTarget(&app->cam_script, &move_lx, &move_lz, &move_height);
         app_cinema_point(app, move_lx, move_lz, move_height, &tx, &ty, &tz);
 
-        app->world_views.frame->world_camera_pos.x =
-            CamScript_Walk(app->world_views.frame->world_camera_pos.x, tx, rate, rate2);
-        app->world_views.frame->world_camera_pos.y =
-            CamScript_Walk(app->world_views.frame->world_camera_pos.y, ty, rate, rate2);
-        app->world_views.frame->world_camera_pos.z =
-            CamScript_Walk(app->world_views.frame->world_camera_pos.z, tz, rate, rate2);
+        view->world_camera_pos.x = CamScript_Walk(view->world_camera_pos.x, tx, rate, rate2);
+        view->world_camera_pos.y = CamScript_Walk(view->world_camera_pos.y, ty, rate, rate2);
+        view->world_camera_pos.z = CamScript_Walk(view->world_camera_pos.z, tz, rate, rate2);
     }
 
     if( CamScript_Rotating(&app->cam_script) )
     {
-        if( CamScript_RotatePitchAt(&app->cam_script, app_cam_cycle(app), &pitch) )
-            app->world_views.frame->world_camera.pitch = app_world_clamp_pitch(app, pitch);
-        if( CamScript_RotateYawAt(&app->cam_script, app_cam_cycle(app), &yaw) )
-            app->world_views.frame->world_camera.yaw = yaw;
-        RedrawRequest_Raise(&app->redraw_request);
+        if( CamScript_RotatePitchAt(&app->cam_script, cycle, &pitch) )
+            view->world_camera.pitch = app_world_clamp_pitch(app, pitch);
+        if( CamScript_RotateYawAt(&app->cam_script, cycle, &yaw) )
+            view->world_camera.yaw = yaw;
         return;
     }
 
-    /* Deob Statics.method234's field1243 branch: the look-at point eases and the
-     * ordinary turn follows it, at a flat rate of 100 in the deob's 14-bit angles
-     * (class61.field571) that outlasts the ease; on arrival the ordinary look-at
-     * resumes on the same point. */
-    if( CamScript_LookCyclesStep(&app->cam_script, app_cam_cycle(app), &tx, &tz, &look_height) )
+    /* The look-at ease (client.java field1276/field1283): its point moves and
+     * the ordinary turn follows it at a flat rate of 100 that outlasts the
+     * ease; on arrival the ordinary look-at resumes on the same point. */
+    if( CamScript_LookCyclesStep(&app->cam_script, cycle, &tx, &tz, &look_height) )
     {
         ty = app_world_height(app, tx, tz, app_cinema_level(app)) - look_height;
-        app_cinema_angles_to(app, tx, ty, tz, &pitch, &yaw);
     }
     else
     {
-        app_cinema_angles(app, &pitch, &yaw);
+        CamScript_LookTarget(&app->cam_script, &look_lx, &look_lz, &look_height);
+        app_cinema_point(app, look_lx, look_lz, look_height, &tx, &ty, &tz);
     }
-    CamScript_LookRates(&app->cam_script, &rate, &rate2);
-    app->world_views.frame->world_camera.pitch =
-        CamScript_Walk(app->world_views.frame->world_camera.pitch, pitch, rate, rate2);
+    {
+        int target_pitch, target_yaw;
 
-    app->world_views.frame->world_camera.yaw =
-        CamScript_WalkYaw(app->world_views.frame->world_camera.yaw, yaw, rate, rate2);
+        app_cinema_fine_angles_to(app, tx, ty, tz, 1, &target_pitch, &target_yaw);
+        app_cinema_fine_load(view, &pitch, &yaw);
+        CamScript_LookRates(&app->cam_script, &rate, &rate2);
+        pitch = CamScript_Walk(pitch, target_pitch, rate, rate2);
+        yaw = CamScript_WalkYawFine(yaw, target_yaw, rate, rate2);
+        app_cinema_fine_store(view, pitch, yaw);
+    }
 
-    /* TORIRS_CAM_DEBUG=1: trace the scripted camera. */
+    /* TORIRS_CAM_DEBUG=1: trace the scripted camera, a line a cycle. */
     if( getenv("TORIRS_CAM_DEBUG") )
     {
         CamScript_MoveTarget(&app->cam_script, &move_lx, &move_lz, &move_height);
         CamScript_LookTarget(&app->cam_script, &look_lx, &look_lz, &look_height);
         TORIRS_LOG(
-            "cam eye=%d,%d,%d pitch=%d yaw=%d -> move=%d,%d h=%d look=%d,%d h=%d "
+            "cam cyc=%d eye=%d,%d,%d pitch=%d yaw=%d fine=%d,%d -> move=%d,%d h=%d look=%d,%d h=%d "
             "shake=%d%d%d%d%d\n",
-            app->world_views.frame->world_camera_pos.x,
-            app->world_views.frame->world_camera_pos.y,
-            app->world_views.frame->world_camera_pos.z,
-            app->world_views.frame->world_camera.pitch,
-            app->world_views.frame->world_camera.yaw,
+            cycle,
+            view->world_camera_pos.x,
+            view->world_camera_pos.y,
+            view->world_camera_pos.z,
+            view->world_camera.pitch,
+            view->world_camera.yaw,
+            view->cam_fine.pitch,
+            view->cam_fine.yaw,
             move_lx,
             move_lz,
             move_height,
@@ -836,7 +907,30 @@ app_world_camera_cinema(struct App* app)
             CamScript_ShakeOn(&app->cam_script, 3),
             CamScript_ShakeOn(&app->cam_script, 4));
     }
+}
 
+/* The scripted camera for the `cycles` 20 ms client cycles this frame ran
+ * (the world's clock has already been advanced past them). A frame that ran
+ * none moves nothing: at 350 frames a second a walk per frame finished a
+ * 3-second pan in a fifth of one (RSProx 4637 [3004], rate 5). */
+void
+app_world_camera_cinema(
+    struct App* app,
+    int cycles)
+{
+    int const end = app_cam_cycle(app);
+
+    assert(cycles >= 0);
+    if( !CamScript_IsScripted(&app->cam_script) || !app->world )
+        return;
+    /* client.java's frame step: `if (field698) method3868 else if (field904)
+     * method234`. The glide needs the follow camera's answer, so it runs there. */
+    if( !CamScript_HoldsEye(&app->cam_script) )
+        return;
+    if( cycles == 0 )
+        return;
+    for( int c = 0; c < cycles; c++ )
+        app_world_camera_cinema_cycle(app, end - (cycles - 1 - c));
     RedrawRequest_Raise(&app->redraw_request);
 }
 
@@ -859,8 +953,16 @@ app_world_camera_smooth_reset_step(
     view->world_camera_pos.x = CamScript_Walk(view->world_camera_pos.x, eye->x, move_rate, move_rate2);
     view->world_camera_pos.y = CamScript_Walk(view->world_camera_pos.y, eye->y, move_rate, move_rate2);
     view->world_camera_pos.z = CamScript_Walk(view->world_camera_pos.z, eye->z, move_rate, move_rate2);
-    view->world_camera.pitch = CamScript_Walk(view->world_camera.pitch, pitch, look_rate, look_rate2);
-    view->world_camera.yaw = CamScript_WalkYaw(view->world_camera.yaw, yaw, look_rate, look_rate2);
+    {
+        int fine_pitch, fine_yaw;
+
+        /* Statics.method6251, in its own units: the follow camera's angles
+         * are 2048ths, so the target is theirs times eight. */
+        app_cinema_fine_load(view, &fine_pitch, &fine_yaw);
+        fine_pitch = CamScript_Walk(fine_pitch, pitch * 8, look_rate, look_rate2);
+        fine_yaw = CamScript_WalkYawFine(fine_yaw, yaw * 8, look_rate, look_rate2);
+        app_cinema_fine_store(view, fine_pitch, fine_yaw);
+    }
 
     if( view->world_camera_pos.x == eye->x && view->world_camera_pos.y == eye->y &&
         view->world_camera_pos.z == eye->z && view->world_camera.pitch == pitch &&
@@ -1132,7 +1234,9 @@ app_world_camera_target_focus(
 }
 
 void
-app_world_camera_follow(struct App* app)
+app_world_camera_follow(
+    struct App* app,
+    int cycles)
 {
     int world_idx;
     struct WorldEntity_Player* player;
@@ -1372,7 +1476,11 @@ app_world_camera_follow(struct App* app)
         struct ToriDraw_Position eye;
 
         ToriRS_OrbitCameraEye(target_x, target_y, target_z, pitch, yaw, distance, &eye);
-        app_world_camera_smooth_reset_step(app, &eye, pitch, yaw);
+        /* The glide's walk is a doCycle's (client.java method2548 ->
+         * Statics.method9447), toward where this frame's follow camera
+         * stands. */
+        for( int c = 0; c < cycles; c++ )
+            app_world_camera_smooth_reset_step(app, &eye, pitch, yaw);
         return;
     }
     ToriRS_OrbitCameraEye(

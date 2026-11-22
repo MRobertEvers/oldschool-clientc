@@ -65,6 +65,9 @@ struct ReplayViewer
      *  seek to T and hold there; each later tick is sought, and held at, once
      *  the one before it has landed. The rest of the list. */
     char const* at;
+    /** --replay-from T: --replay-at T, then play on from there once the seek
+     *  has landed (a scene watched from its start). Cleared when it runs. */
+    int run_after_seek;
     /** --replay-speed X (1.5, 2, 4): the locked pace in thousandths, set on
      *  the transport when it is made (NetTransport_ReplaySetSpeed); 0 = the
      *  recording's own. */

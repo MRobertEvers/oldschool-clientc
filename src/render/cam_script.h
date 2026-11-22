@@ -64,9 +64,14 @@ enum CamScriptOp
 /** Shake axes: x, y, z, yaw, pitch. */
 #define CAM_SCRIPT_SHAKE_AXES 5
 
-/** The flat turn rate the look-at ease follows its point at: class61.field571
- *  (100) in the client's 2048 angle units. */
-#define CAM_SCRIPT_LOOK_CYCLES_FLAT_RATE 12
+/** The flat turn rate the look-at ease follows its point at: class61.field571,
+ *  100 in the deob's 16384-per-turn angles (CamScript.look_rate's units). */
+#define CAM_SCRIPT_LOOK_CYCLES_FLAT_RATE 100
+
+/** The deob's angles: 16384 to a turn (class610), eight of ours. The scripted
+ *  look walk runs in them (Statics.method6251); 2048 units drop the
+ *  proportional term's low bits and lag the turn. */
+#define CAM_SCRIPT_FINE_TURN 16384
 
 /** CAM_SHAKE's per-frame roll, shared by every paint of one frame. */
 struct CamScriptShakeRoll
@@ -147,7 +152,9 @@ struct CamScript
     /** Views that reached the follow camera this frame; the glide ends when
      *  every one has. */
     int smooth_reset_arrived;
-    /** Scene-local tiles, heights above the ground, and the walk's rates. */
+    /** Scene-local tiles, heights above the ground, and the walk's rates.
+     *  look_rate is in CAM_SCRIPT_FINE_TURN units, as the deob keeps it
+     *  (Statics.field6955 = the packet's rate << 3). */
     int move_lx, move_lz, move_height, move_rate, move_rate2;
     int look_lx, look_lz, look_height, look_rate, look_rate2;
     struct CamScriptMoveCycles move_cycles;
@@ -220,6 +227,16 @@ CamScript_Ease(
  *  plus `rate2`/1000 of what is left, never overshooting. */
 int
 CamScript_Walk(
+    int current,
+    int target,
+    int rate,
+    int rate2);
+
+/** The same walk for a yaw in 0..CAM_SCRIPT_FINE_TURN-1 (deob
+ *  Statics.method6251's yaw half): the short way round, stopping on the target
+ *  when the sign of the remaining turn flips. */
+int
+CamScript_WalkYawFine(
     int current,
     int target,
     int rate,
@@ -548,9 +565,18 @@ CamScript_ShakeOn(
     int axis);
 
 /**
- * Roll the shake for frame `frame`: each shaking axis a sine plus a random
- * spread (rand()), its cycle advanced. When `shared`, a roll already taken
- * for this frame is reused instead, and nothing is rolled or advanced.
+ * One 20 ms client cycle of every shake axis's sine (deob client.java
+ * method2548's `field1288[i]++`, every cycle, shaking or not). The sine's
+ * pace is the cycle's, never the frame rate's.
+ */
+void
+CamScript_ShakeAdvance(struct CamScript* cam);
+
+/**
+ * Roll the shake for frame `frame`: each shaking axis its sine at the current
+ * cycle plus a random spread (rand(), drawn per frame as the deob's
+ * Math.random() is). When `shared`, a roll already taken for this frame is
+ * reused instead, and nothing is rolled.
  */
 void
 CamScript_RollShake(

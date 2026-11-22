@@ -66,10 +66,29 @@ struct ToriRS_CmdBus;
  * which view each site will take) is a choice made where a stage begins,
  * never a global. A NULL view is a contract violation.
  */
+/*
+ * The scripted camera's look angles in the deob's 16384-per-turn units
+ * (CAM_SCRIPT_FINE_TURN): the walk turns in them (Statics.method6251) and the
+ * view shows the nearest 2048th. `shown_*` is what was last written to
+ * world_camera; anything else that moves the camera (the follow camera, an
+ * eased rotate, a snap from 2048ths) leaves them different, and the next walk
+ * starts from world_camera again.
+ */
+struct App_WorldViewCamFine
+{
+    int valid;
+    int pitch;
+    int yaw;
+    int shown_pitch;
+    int shown_yaw;
+};
+
 struct App_WorldView
 {
     struct ToriDraw_Camera world_camera;
     struct ToriDraw_Position world_camera_pos;
+    /** The scripted look walk's own angles. See App_WorldViewCamFine. */
+    struct App_WorldViewCamFine cam_fine;
     /* Reference orbit camera (Client-TS followCamera): velocity-driven
      * yaw/pitch, a 1/16-eased anchor that trails the player, and a terrain
      * pitch clamp (cameraPitchClamp, 24.8 fixed) that keeps the eye above

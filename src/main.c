@@ -2798,6 +2798,19 @@ main_rsprox_replay_seek_frame(void)
             }
         }
     }
+    /* --replay-from: the seek has landed and the client holds there; play on. */
+    if( rsprox_replay.run_after_seek && !rsprox_replay.at && !seeking &&
+        rsprox_replay.digest.seek_issued )
+    {
+        struct NetTransportReplayStatus st;
+
+        NetTransport_ReplayGetStatus(sock, &st);
+        if( strcmp(st.phase, "playing") == 0 && st.held )
+        {
+            rsprox_replay.run_after_seek = 0;
+            NetTransport_ReplayRun(sock);
+        }
+    }
     main_rsprox_replay_digest_frame(seeking);
     /* TORIRS_REPLAY_CHECKPOINT_CHECK (replay/replay_checkpoint_check.h). */
     if( ReplayCheckpointCheck_Frame(&app, sock, seeking) )
@@ -8583,7 +8596,7 @@ main_print_usage(char const* program)
         "[--pass P] [--rev lc254|lc245_2|lc289|osrs230|osrs239|osrs241|osrs242] "
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] [--replay-speed X] "
-        "[--replay <rsprox.bin[.gz]>] [--replay-at <tick>[,<tick>...]] [--replay-digest] "
+        "[--replay <rsprox.bin[.gz]>] [--replay-at <tick>[,<tick>...]] [--replay-from <tick>] [--replay-digest] "
         "[--world-layout static|edit] "
         "[--editor-view] [--maped tcp://host:port] [--maped-group N] "
         "[--camera x,z,level,yaw,pitch,zoom] "
@@ -8822,6 +8835,12 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--replay-at") == 0 && argi + 1 < argc )
         {
             rsprox_replay.at = argv[++argi];
+            continue;
+        }
+        if( strcmp(argv[argi], "--replay-from") == 0 && argi + 1 < argc )
+        {
+            rsprox_replay.at = argv[++argi];
+            rsprox_replay.run_after_seek = 1;
             continue;
         }
         if( strcmp(argv[argi], "--replay-digest") == 0 )
@@ -9232,7 +9251,7 @@ main_argument_takes_value(char const* argument)
            strcmp(argument, "--js5-fallback-port") == 0 ||
            strcmp(argument, "--js5-revision") == 0 || strcmp(argument, "--windowmode") == 0 ||
            strcmp(argument, "--window") == 0 || strcmp(argument, "--replay") == 0 ||
-           strcmp(argument, "--replay-at") == 0 ||
+           strcmp(argument, "--replay-at") == 0 || strcmp(argument, "--replay-from") == 0 ||
            strcmp(argument, "--world-layout") == 0 || strcmp(argument, "--maped") == 0 ||
            strcmp(argument, "--maped-group") == 0 || strcmp(argument, "--camera") == 0 ||
            strcmp(argument, "--editor-panel") == 0 || strcmp(argument, "--agent-port") == 0 ||
