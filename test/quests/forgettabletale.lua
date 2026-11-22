@@ -283,19 +283,33 @@ return {
             -- plantKelda: rake the weeds, then use the seeds on the weeded patch
             t.exec("goto-plantKelda", t.player.goto_tile, 2854, 10201, 0)
             t.exec("plantKelda-rake", t.player.click_loc, "farming_hops_patch_keldagrim", 1)
-            t.exec("plantKelda-weeded", t.var.await, "varb823_forget_farming", 3, 40)
+            t.exec("plantKelda-weeded", t.var.await, "varb823_forget_farming", 3, 200)
             local patch = t.player.by_symbol("loc", "farming_hops_patch_keldagrim")
             t.exec("plantKelda", t.player.use_on, "kelda_hop_seed", patch)
             t.exec("plantKelda-growing", t.var.await, "varb823_forget_farming", 4, 12)
             t.check("plantKelda-planted", select(2, t.inv.count("kelda_hop_seed")) == 0,
                 "kelda seeds left: " .. tostring(select(2, t.inv.count("kelda_hop_seed"))))
 
-            -- waitForKelda: forget_farming.rs2 [proc,forget_kelda_catchup] advances one growth
-            -- stage per ^forget_kelda_stage_minutes (4) of wall-clock date_minutes: 16 minutes.
+            -- waitForKelda: the farming clock (RSProx index 4637 [2217..3884]): a stage on each
+            -- five-minute mark after the planting, four of them, so at most 20 minutes; the
+            -- last one says "Perhaps I should take a look and see if my Kelda hops have grown..."
             -- The documented fast-forward for a real-time wait is t.clock.skip; the quest's own
             -- forget_tick softtimer then runs the catch-up.
-            t.exec("waitForKelda-skip", t.clock.skip, 16)
+            local _, before = t.chat.lines(0)
+            local kelda_since = 0
+            for _, row in ipairs(before or {}) do
+                if row.serial > kelda_since then kelda_since = row.serial end
+            end
+            t.exec("waitForKelda-skip", t.clock.skip, 20)
             t.exec("waitForKelda", t.var.await, "varb823_forget_farming", 8, 110)
+            local kelda_seen = false
+            local _, after = t.chat.lines(kelda_since)
+            for _, row in ipairs(after or {}) do
+                if tostring(row.text):find("Perhaps I should take a look and see if my Kelda hops have grown...", 1, true) then
+                    kelda_seen = true
+                end
+            end
+            t.check("waitForKelda-line", kelda_seen, "the grown line (4637 [3884])")
 
             -- harvestHops: [oploc1,kelda_hops_fullygrown] (spade in setup)
             t.exec("harvestHops", t.player.click_loc, "farming_hops_patch_keldagrim", 1)

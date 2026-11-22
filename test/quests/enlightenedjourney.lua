@@ -5,7 +5,9 @@
 -- redberries from Wydin, dyes from Aggie, silk from the silk trader, potatoes by Fill on a sack,
 -- willow branches from a grown sapling plus secateurs, logs with Bob's axe
 -- (routes in test/quests/wip/enlightenedjourney/relay.md).
--- Cutscenes (first/second launch, basket weaving) are spec-pending (CUTSCENES.tsv).
+-- Pages, scenes, the flight and its crash rules are RSProx index 4637/4641/4644's
+-- (docs/rsprox-analysis/quests/enlightened_journey.md); the flight route is the
+-- recorder's landing run, 4644 [3496..3566].
 
 return {
     id = "enlightenedjourney",
@@ -28,8 +30,8 @@ return {
         t.quest.bind({
             varp = "varb2866_zep_quest",
             constants = {
-                not_started = 0, talk_one = 5, talk_two = 6, talk_three = 10, prototype = 20,
-                second_trial = 40, after_mob = 60, gathering = 70, basket_build = 80,
+                not_started = 0, started = 5, blueprint = 6, materials = 10, origami = 20,
+                second_test = 40, after_mob = 60, gathering = 70, basket = 80,
                 fly_ready = 90, landed = 100, complete = 200,
             },
             row = "quest_enlightenedjourney",
@@ -74,7 +76,7 @@ return {
             far_ok = function(tile) return tile.x <= 3088 end, far_desc = "in Aggie's house, x <= 3088" })
         local aggie = t.player.by_symbol("npc", "aggie")
         t.exec("makeRedDye", t.player.use_on, "redberries", aggie)
-        t.exec("makeRedDye-dialog", t.chat.play, { "player:Okay, make me some red dye please.", "mesbox:You hand the berries" })
+        t.exec("makeRedDye-dialog", t.chat.play, { "player:Okay, make me some red dye, please.", "objbox:You hand the redberries" })
         t.exec("reddye.has", t.inv.await, "reddye", 1, 5)
         t.exec("makeYellowDye", t.player.use_on, "onion", aggie)
         t.exec("makeYellowDye-dialog", t.chat.play, { "*" })
@@ -104,7 +106,7 @@ return {
             t.exec("buySilk-" .. i, t.player.talk_to, "silk_trader", 1)
             t.exec("buySilk-" .. i .. "-dialog", t.chat.play, {
                 "npc:Do you want to buy any fine silks?", "choose:How much are they?", "player:How much are they?",
-                "npc:3 gp.", "choose:Okay, that sounds good.", "player:Okay, that sounds good.", "mesbox:You buy some silk for 3 gp.",
+                "npc:3 gp.", "choose:Okay, that sounds good.", "player:Okay, that sounds good.", "objbox:You buy some silk for 3 gp.",
             })
             t.exec("buySilk-" .. i .. ".count", t.inv.await, "silk", i, 5)
         end
@@ -119,8 +121,9 @@ return {
             "player:Yes",
             "npc:Very well",
             "mesbox:The monk quickly searches you.",
+            "npc:All is satisfactory.",
         })
-        t.ticks(8)
+        t.ticks(30)
         local _, dk = t.world.tile()
         t.check("travelToEntrana-deck", dk.x >= 2830 and dk.x <= 2838 and dk.z >= 3328 and dk.z <= 3334,
             "tile " .. dk.x .. "," .. dk.z .. " level " .. tostring(t.world.level()))
@@ -129,30 +132,43 @@ return {
         local _, pk = t.world.tile()
         t.check("useGangPlank-pier", pk.z >= 3334, "tile " .. pk.x .. "," .. pk.z)
 
-        -- talkToAuguste (three yeses over three talks)
+        -- talkToAuguste: the start (4637 [2737..2799]) and the design
         t.exec("goto-talkToAuguste", t.player.goto_tile, 2808, 3355, 0)
         t.exec("talkToAuguste", t.player.talk_to, "zep_piccard", 1)
         t.exec("talkToAuguste-dialog-1", t.chat.play, {
-            "npc:Ah, hello", "npc:I've grown", "player:A hot air balloon", "npc:Indeed",
-            "choose:Yes! Sign me up.", "player:Yes! Sign me up", "npc:Splendid",
+            "npc:Greetings! Would you like", "player:Who are you?", "npc:I am Auguste.", "player:Balloo-what?",
+            "npc:Well, they do...", "player:And go where no man", "npc:Maybe! That sounds good.", "player:Why not take the boat",
+            "npc:Ugh! Ocean!", "player:Whoa, ok, no ocean.", "npc:I have devised", "npc:Are you an experienced adventurer",
+            "choose:Yes.", "player:Yes! Sign me up.", "npc:Wonderful! Let's get started.",
+            "player:Wait, I still don't know", "npc:Of course, of course", "player:Which is what exactly?", "npc:Let me show you!",
         })
         t.ticks(2)
-        t.expect("quest.stage.talk_one", t.quest.expect_stage("talk_one"))
+        t.expect("quest.stage.blueprint", t.quest.expect_stage("blueprint"))
+        local _, w_bp = t.ui.widget("zep_if_balloon_blueprint:com_2")
+        t.check("blueprint.close", t.ui.invoke(w_bp, 1), "zep_if_balloon_blueprint:com_2")
+        t.ticks(1)
+        -- 6 -> 10 ([2816..2854])
         t.exec("talkToAuguste-2", t.player.talk_to, "zep_piccard", 1)
         t.exec("talkToAuguste-dialog-2", t.chat.play, {
-            "npc:Ah, you came back", "choose:Umm, yes. What's your point?",
-            "player:Umm, yes", "npc:My point is",
+            "player:How exactly do you plan", "npc:Have you noticed how ashes", "choose:Umm, yes. What's your point?",
+            "player:What's your point?", "npc:Don't you see?", "npc:I had this epiphany", "player:Come again?",
+            "npc:We are going to sew", "player:You seem pretty confident", "npc:Well, no.", "npc:That's where you come in!",
+            "npc:You are going to collect", "npc:You will need to get three sheets", "player:What am I supposed to do",
+            "npc:When you have all of it", "player:Where do I get all this stuff?", "npc:You're the adventurer",
         })
         t.ticks(2)
-        t.expect("quest.stage.talk_two", t.quest.expect_stage("talk_two"))
+        t.expect("quest.stage.materials", t.quest.expect_stage("materials"))
+        -- 10 -> 20 ([2926..2945]): everything held
         t.exec("talkToAuguste-3", t.player.talk_to, "zep_piccard", 1)
         t.exec("talkToAuguste-dialog-3", t.chat.play, {
-            "npc:One last matter", "choose:Yes.", "player:Yes", "npc:Wonderful",
+            "npc:Have you gotten the materials?", "choose:Yes.", "player:Yes.", "npc:Good, you have everything!",
+            "player:How do you make the origami balloon?", "npc:First, use the papyrus", "npc:Next, add the unlit candle",
+            "npc:Once you have done that",
         })
         t.ticks(2)
-        t.expect("quest.stage.prototype", t.quest.expect_stage("prototype"))
+        t.expect("quest.stage.origami", t.quest.expect_stage("origami"))
 
-        -- usePapyrusOnWool, useCandleOnBalloon
+        -- usePapyrusOnWool, useCandleOnBalloon ([2951], [2955])
         local frame_r, frame_d = t.player.use_item_on_item("papyrus", "ball_of_wool")
         t.check("usePapyrusOnWool", frame_r == "ok" and select(2, t.inv.count("zep_test_balloon_struc")) == 1,
             "use papyrus on wool -> " .. tostring(frame_r) .. " " .. tostring(frame_d))
@@ -161,29 +177,58 @@ return {
         t.check("useCandleOnBalloon", ball_r == "ok" and select(2, t.inv.count("zep_test_balloon")) == 1,
             "use candle on frame -> " .. tostring(ball_r) .. " " .. tostring(ball_d))
 
-        -- talkToAugusteAgain
-        t.exec("talkToAugusteAgain", t.player.talk_to, "zep_piccard", 1)
-        t.exec("talkToAugusteAgain-dialog", t.chat.play, {
-            "player:Yes, I have them here", "npc:Wonderful", "npc:Now, that was only",
+        -- the first experiment ([2995..3046])
+        local exp1_mark = t.cutscene.mark()
+        t.exec("giveOrigami", t.player.talk_to, "zep_piccard", 1)
+        t.exec("giveOrigami-dialog", t.chat.play, { "player:I finished the origami balloon!", "npc:Wonderful! I'll take that" })
+        t.await({ level = function() return t.chat.kind() ~= "none" end, note = "experimentOne.page" }, 30)
+        t.exec("experimentOne-dialog", t.chat.play, {
+            "npc:That was perfect.", "player:Did you not see the burning?", "npc:One more test.",
+            "player:Burning? Fire? Hello?", "npc:We shall meekly go!", "player:We're doomed.",
         })
-        t.ticks(2)
-        t.expect("quest.stage.second_trial", t.quest.expect_stage("second_trial"))
+        if exp1_mark then
+            t.exec("experimentOne.cutscene", t.cutscene.await, "experimentOne", { since = exp1_mark, quiet = 200, expect = {
+                { op = "moveto", height = 400 }, { op = "lookat", height = 300 },
+                { op = "moveto", height = 525 }, { op = "lookat", height = 350 }, { op = "reset" },
+            } })
+        end
+        t.ticks(8)
+        t.expect("quest.stage.second_test", t.quest.expect_stage("second_test"))
 
-        -- talkToAugusteWithPapyrus (2 papyrus + sack of potatoes)
+        -- the second experiment and the flash mob ([3080..3129])
+        local exp2_mark = t.cutscene.mark()
         t.exec("talkToAugusteWithPapyrus", t.player.talk_to, "zep_piccard", 1)
         t.exec("talkToAugusteWithPapyrus-dialog", t.chat.play, {
-            "player:Yes, I have them here", "npc:Perfect", "npc:Great Guthix",
+            "npc:Do you have the other two sheets", "choose:Yes, I have them here.", "player:Yes, I have them here.",
+            "npc:Commendable.",
         })
-        t.ticks(2)
+        t.await({ level = function() return t.chat.kind() ~= "none" end, note = "experimentTwo.page" }, 40)
+        t.exec("experimentTwo-dialog", t.chat.play, { "player:Well, that went down like a lead balloon." })
+        if exp2_mark then
+            t.exec("experimentTwo.cutscene", t.cutscene.await, "experimentTwo", { since = exp2_mark, quiet = 200, expect = {
+                { op = "moveto", height = 400 }, { op = "lookat", height = 300 },
+                { op = "moveto", height = 525 }, { op = "lookat", height = 350 },
+                { op = "moveto", height = 500 }, { op = "lookat", height = 150 }, { op = "reset" },
+            } })
+        end
+        t.ticks(8)
         t.expect("quest.stage.after_mob", t.quest.expect_stage("after_mob"))
 
-        -- talkToAugusteAfterMob
+        -- after the mob: the list, the sapling and the apples ([3139..3203])
         t.exec("talkToAugusteAfterMob", t.player.talk_to, "zep_piccard", 1)
         t.exec("talkToAugusteAfterMob-dialog", t.chat.play, {
-            "player:What in Guthix", "npc:I have a theory", "player:Right", "npc:In any case", "npc:for the burner", "end",
+            "player:Those peasants", "npc:Ahh, the flash mob", "player:And this isn't worrying", "npc:Don't worry!",
+            "npc:Those experiments went", "player:Was I the ONLY one", "npc:Yes, very well indeed.", "npc:This task will be",
+            "player:This is madness.", "npc:You need to get the following", "npc:Yellow dye", "npc:and eight sandbags.",
+            "npc:Sandbags can be made", "npc:However, there are other", "npc:You can bring items back",
+            "player:What tree?", "npc:I am going to give you", "npc:If you give the basket", "npc:Don't lose the sapling!",
+            "npc:Once the tree is fully grown", "npc:Here you go.",
         })
         t.ticks(2)
         t.expect("quest.stage.gathering", t.quest.expect_stage("gathering"))
+        t.check("afterMob-sapling", select(2, t.inv.count("zep_plantpot_willow_sapling")) == 1
+            and select(2, t.inv.count("basket_apple_5")) == 1,
+            "sapling " .. tostring(select(2, t.inv.count("zep_plantpot_willow_sapling"))) .. ", apples " .. tostring(select(2, t.inv.count("basket_apple_5"))))
 
         -- fillSacks: use an empty sack on the sandpit, eight times
         -- the sand pit (2816,3341) covers 2816-2817,3341-3342: stand east of it
@@ -212,26 +257,20 @@ return {
             at = { 2822, 3354, 0 }, near = { 2822, 3354 }, far = { 2824, 3354 },
             far_ok = function(tile) return tile.x >= 2823 end, far_desc = "outside Auguste's house, x >= 2823" })
         t.exec("goto-giveAuguste", t.player.goto_tile, 2808, 3355, 0)
-        t.exec("giveDye", t.player.talk_to, "zep_piccard", 1)
-        t.exec("giveDye-dialog", t.chat.play, {
-            "npc:Do you have anything", "choose:Give dye.", "player:Dye", "npc:Ah, wonderful, red", "npc:Ah, wonderful, yellow",
-        })
-        t.exec("giveSandbags", t.player.talk_to, "zep_piccard", 1)
-        t.exec("giveSandbags-dialog", t.chat.play, {
-            "npc:Do you have anything", "choose:Give sandbags.", "player:Sandbags", "npc:Sandbags, thank you",
-        })
-        t.exec("giveSilk", t.player.talk_to, "zep_piccard", 1)
-        t.exec("giveSilk-dialog", t.chat.play, {
-            "npc:Do you have anything", "choose:Give silk.", "player:Silk", "npc:Silk for the balloon",
-        })
-        t.exec("giveBowl", t.player.talk_to, "zep_piccard", 1)
-        t.exec("giveBowl-dialog", t.chat.play, {
-            "npc:Do you have anything", "choose:Give bowl.", "player:Bowl", "npc:Ah, the bowl", "npc:That's everything", "*", "end",
+        -- the materials, one menu ([3264..3345]); the dye's one answer hands both
+        t.exec("giveItems", t.player.talk_to, "zep_piccard", 1)
+        t.exec("giveItems-dialog", t.chat.play, {
+            "npc:Do you have anything for me?", "choose:Yes, I want to give you some items.",
+            "player:Yes, I want to give you some items.",
+            "choose:Bowl.", "player:Here's the bowl.", "npc:Ah the bowl.",
+            "choose:Silk.", "player:Here's the silk.", "npc:Silk for the balloon",
+            "choose:Dye.", "player:Here's the dye.", "npc:Ah, wonderful, yellow dye.", "npc:Red dye! Thank you.",
+            "choose:Sandbags.", "player:Here are the sandbags.", "npc:Sandbags, thank you.",
+            "npc:That's the last of it!", "npc:You just need to build the basket",
+            "choose:Fine thanks.", "player:Fine thanks.",
         })
         t.ticks(2)
-        t.expect("quest.stage.basket_build", t.quest.expect_stage("basket_build"))
-        t.check("giveAuguste-sapling", select(2, t.inv.count("zep_plantpot_willow_sapling")) == 1,
-            "sapling " .. tostring(select(2, t.inv.count("zep_plantpot_willow_sapling"))) .. ", apples " .. tostring(select(2, t.inv.count("basket_apple_5"))))
+        t.expect("quest.stage.basket", t.quest.expect_stage("basket"))
 
         -- TRIP 2: grow Auguste's sapling into a willow and cut its branches
         -- (wiki Enlightened Journey oldid 15292357 note; Willow branch oldid 15184331)
@@ -253,12 +292,20 @@ return {
         t.exec("goto-patch", t.player.goto_tile, 3002, 3376, 0)
         local _, ps0 = t.var.server("varb701_varbit_701")
         if ps0 ~= 3 then
-            t.exec("rakePatch", t.player.click_loc, "farming_tree_patch_2", 1)
-            t.exec("rakePatch.weeded", t.var.await_server, "varb701_varbit_701", 3, 80)
+            -- the rake keeps sweeping with no line to answer the click: the
+            -- weeded state is the check, not the click's settle
+            t.player.click_loc("farming_tree_patch_2", 1)
+            t.exec("rakePatch.weeded", t.var.await_server, "varb701_varbit_701", 3, 200)
         end
         local patch = t.player.by_symbol("loc", "farming_tree_patch_2")
         t.exec("plantSapling", t.player.use_on, "zep_plantpot_willow_sapling", patch)
         t.exec("plantSapling.state", t.var.await_server, "varb701_varbit_701", 15, 10)
+        -- the basket of apples to the patch's gardener (Auguste: "he will look
+        -- after the tree for you while it grows"): no disease roll after this
+        t.exec("payGardener", t.player.talk_to, "farming_gardener_tree_2", 3)
+        t.exec("payGardener-dialog", t.chat.play, {
+            "choose:Yes.", "npc:That'll do nicely",
+        })
         for stage = 1, 6 do
             t.exec("growWillow" .. stage .. "-skip", t.clock.skip, 40)
             t.exec("growWillow" .. stage, t.var.await_server, "varb701_varbit_701", 15 + stage, 560)
@@ -279,79 +326,66 @@ return {
         for _, junk in ipairs({ "plantpot_empty", "rake", "spade" }) do
             t.exec("dropJunk-" .. junk, t.player.drop, junk)
         end
-        -- ten logs; the axe stays on the mainland (wiki: axes cannot be taken to Entrana)
-        t.exec("goto-bob", t.player.goto_tile, 3230, 3203, 0)
-        t.exec("bob-trade", t.player.talk_to, "bob", 3)
-        t.exec("bob-trade-dialog", t.chat.play, { "player:Have you anything to sell?", "npc:Yes! I buy and sell axes!" })
-        t.exec("bob-attach", t.shop.attach, "axeshop")
-        t.exec("buyAxe", t.shop.buy, "bronze_axe", 1)
-        local cr2, cd2 = t.shop.close()
-        t.check("bob-close", cr2 == "ok", tostring(cr2) .. ": " .. tostring(cd2))
-        t.exec("goto-trees", t.player.goto_tile, 3165, 3225, 0)
-        -- the trees west of Lumbridge castle, by tile: "nearest tree" walked the
-        -- player over the river into the goblins once (killed, run b of this copy)
-        local trees = { {3168,3233}, {3171,3236}, {3178,3238}, {3181,3237}, {3180,3224},
-            {3173,3216}, {3170,3213}, {3179,3212}, {3177,3208}, {3161,3208}, {3158,3209},
-            {3156,3214}, {3154,3217}, {3154,3224}, {3146,3226}, {3145,3222} }
-        for i = 1, 32 do
-            local _, have = t.inv.count("logs")
-            if have >= 10 then break end
-            local at = trees[((i - 1) % #trees) + 1]
-            t.exec("chopTree-" .. i, t.player.click_loc, "tree", 1, { at = at })
-            t.inv.await("logs", have + 1, 30)
-            t.note("chopTree-" .. i .. ": logs " .. tostring(have) .. " -> " .. tostring(select(2, t.inv.count("logs"))))
-        end
+        -- ten logs for the flight. Bob's shop and the trees west of the castle
+        -- (goblins) are not this quest's content: the test gives the logs it spends.
+        t.check("giveLogs", t.cheat("::give logs 10") == "ok", "::give logs 10")
         t.exec("logs.has", t.inv.expect_has, "logs", 10)
-        t.exec("dropAxe", t.player.drop, "bronze_axe")
         t.exec("goto-travelToEntrana2", t.player.goto_tile, 3047, 3236, 0)
         t.exec("travelToEntrana2", t.player.talk_to, "shipmonk1_c", 1)
         t.exec("travelToEntrana2-dialog", t.chat.play, {
             "npc:Do you seek passage", "choose:Yes, okay, I'm ready to go.", "player:Yes", "npc:Very well", "mesbox:The monk quickly searches you.",
+            "npc:All is satisfactory.",
         })
-        t.ticks(8)
+        t.ticks(30)
         t.exec("useGangPlank2", t.player.click_loc, "ship_from_entrana_off", 1)
         t.ticks(8)
         t.exec("goto-basket", t.player.goto_tile, 2808, 3355, 0)
 
-        -- talkToAugusteWithBranches: twelve willow branches on the basket frame
+        -- the basket ([3506..3528]): the page, then the crane shot
+        local basket_mark = t.cutscene.mark()
         local basket = t.player.by_symbol("loc", "zep_multi_basket_entrana")
         local wr, wd = t.player.use_on("willow_branch", basket)
-        t.ticks(2)
-        t.exec("weave-dismiss", t.chat.continue_, true)
-        t.check("talkToAugusteWithBranches", wr == "ok", "use branches on basket -> " .. tostring(wr) .. " " .. tostring(wd))
+        t.check("useBranches", wr == "ok", "use branches on basket -> " .. tostring(wr) .. " " .. tostring(wd))
+        t.exec("basket-dialog", t.chat.play, { "npc:Great! Let me just put it all together" })
+        if basket_mark then
+            t.exec("basket.cutscene", t.cutscene.await, "basket", { since = basket_mark, quiet = 200, expect = {
+                { op = "moveto", height = 1050 }, { op = "lookat", height = 200 },
+                { op = "moveto", height = 1950 }, { op = "lookat", height = 400 }, { op = "reset" },
+            } })
+        end
+        t.ticks(4)
         t.expect("quest.stage.fly_ready", t.quest.expect_stage("fly_ready"))
 
-        -- talkToAugusteWithLogsAndTinderbox: ten logs + tinderbox, then fly
+        -- the flight: "Okay." with ten logs and a tinderbox (4641 [38..44])
         t.exec("talkToAugusteFly", t.player.talk_to, "zep_piccard", 1)
         t.exec("talkToAugusteFly-dialog", t.chat.play, {
-            "npc:Excellent", "npc:We must avoid", "npc:Dropping a sandbag", "choose:Okay.", "player:Okay",
+            "npc:Well, let's get going!", "choose:Okay.", "player:Okay.",
         })
-        t.ticks(3)
+        t.ticks(2)
+        t.check("flight-logs", select(2, t.inv.count("logs")) == 0, "logs left " .. tostring(select(2, t.inv.count("logs"))))
         local _, w_sand = t.ui.widget("zep_interface_side:zep_btn_sandbags")
         local _, w_log = t.ui.widget("zep_interface_side:zep_btn_logs")
         local _, w_relax = t.ui.widget("zep_interface_side:zep_btn_relax")
         local _, w_tug = t.ui.widget("zep_interface_side:zep_btn_tug")
         local _, w_emerg = t.ui.widget("zep_interface_side:zep_btn_tug_emerg")
-        local route = {
-            "S", "L", "R","R","R","R","R","R","R","R","R", "E", "R","R", "T", "R","R","R","R","R",
-            "R", "L", "R", "L", "R","R","R","R","R","R","R","R","R","R", "L", "R","R","R","R","R",
-            "R","R","R","R","R","R","R","R", "E", "T", "R","R","R", "L", "R","R","R","R", "T", "R",
-        }
+        -- 4644 [3496..3566], press for press (57: three screens of 19 moves)
+        local route = "SLRRRRRRRRRERRTRRRRRLRLRRRRRRRRRRLRRRRRRRRRRRRETRRRLRRRRT"
         local ctl = { S = w_sand, L = w_log, R = w_relax, T = w_tug, E = w_emerg }
-        for i, key in ipairs(route) do
-            t.ui.invoke(ctl[key], 1)
+        for i = 1, #route do
+            t.ui.invoke(ctl[route:sub(i, i)], 1)
             t.ticks(1)
         end
-        t.ticks(3)
-        t.check("flight-landed", select(2, t.quest.stage()) == 100, "stage " .. tostring(select(2, t.quest.stage())))
-        t.exec("flight-dismiss", t.chat.continue_, true)
+        t.ticks(6)
         t.expect("quest.stage.landed", t.quest.expect_stage("landed"))
+        local _, land = t.world.tile()
+        t.check("flight-taverley", land.x == 2941 and land.z == 3420, "landed on " .. tostring(land.x) .. "," .. tostring(land.z))
 
-        -- talkToAugusteToFinish (Taverley)
+        -- the completion (4644 [3685..3701], on Entrana there; Auguste stands at
+        -- Taverley until the player leaves, and is talked to there)
         local _, snap = t.skill.snapshot()
         t.exec("talkToAugusteToFinish", t.player.talk_to, "zep_multi_piccard", 1)
         t.exec("talkToAugusteToFinish-dialog", t.chat.play, {
-            "npc:We have travelled", "npc:I'm considering",
+            "npc:We have travelled in a way", "npc:You were a wonderful assistant", "npc:For all your hard work",
         })
         t.ticks(3)
         t.quest.expect_complete()
