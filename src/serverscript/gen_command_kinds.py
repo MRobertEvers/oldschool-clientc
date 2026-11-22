@@ -66,6 +66,7 @@ EXTRA_DECLARATIONS = [
     "[command,spotanim_map_specific](spotanim $spotanim, coord $coord, int $height, int $delay)",
     "[command,p_tint](int $start_cycle, int $end_cycle, int $hue, int $saturation, int $lightness, int $weight)",
     "[command,p_faceangle](int $angle, boolean $instant)",
+    "[command,p_facereset]",
     "[command,p_orientation]()(int)",
     "[command,p_headbar_clear](healthbar $bar)",
     "[command,p_transparency](int $start_cycle, int $end_cycle, int $from, int $to, boolean $usestart)",

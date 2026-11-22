@@ -655,10 +655,11 @@
 #define SS_OP_FRIENDCHAT_DISABLE 11369
 #define SS_OP_FRIENDCHAT_REJOINNAME 11370
 #define SS_OP_FRIENDCHAT_CURRENT 11371
+#define SS_OP_P_FACERESET 11372
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11372
+#define SS_OPCODE_MAX 11373
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 633
+#define SS_OPCODE_COUNT 634
 
 #endif

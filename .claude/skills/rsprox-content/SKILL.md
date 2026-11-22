@@ -169,6 +169,60 @@ recording. A quest is done when every row of steps 1-3 and every recorded npc-in
 14. **Write the doc as you go**: one table per section (R / ours / verdict), the action and
     teleport inventories with a verdict per row, and an Open list. A row with no verdict means
     the port is not done.
+15. **Build every branch of a mechanism, not the recorded ones. The Open list is not a
+    place to park work the recording can decide.** A recording shows some instances of a
+    system (some cart rides, some puzzle layouts, some dialogue branches, some loot rolls, a
+    few fares); the content must handle every instance the system allows. So:
+    - **Model, validate, then generate.** Fit the rule from the recorded instances (the
+      geometry the server sends -- loc builds, interface layouts, enums -- plus the movement
+      each instance produced), write it as a script or generator, and prove it reproduces
+      EVERY recorded instance packet for packet (tile by tile, tick by tick) before trusting
+      it. Then build the unrecorded instances from the same rule, and label only the values
+      the rule had to guess.
+    - **Test every branch**: a generated test that drives each leaf (every dead end, every
+      empty switch, every destination), not only the path the quest needs.
+    - **"The recorded path works, the rest jumps to the end" is a shortcut, not a port.**
+      Forgettable Tale (2026-11-22) first shipped its tunnel puzzle as "the first three moves,
+      then a teleport to where the route ends", a hand-copied route table, the track region
+      shared by all players and nine of 80 ride outcomes reachable. The recording already held
+      every track piece of all three junction groups (the server's `loc_add_change` build of
+      the region, ~600 per group), and its 20 rides fixed the movement rules. Rebuilt: three
+      generated junction trees (8, 12, 19 switches, numbered breadth-first, one recorded
+      exception), every ride reproduced 20/20, all 80 leaves tested
+      (`test/quests/forgettabletale_tracks.lua`), each group in the player's own copy.
+    - **"Reproduces every recorded instance" means every FIELD, not the one you checked.**
+      That "20/20" compared landing tiles only. The packet-level audit afterwards found the
+      step delays (90 before a turn, with a tick's wait after) and every step's angle wrong:
+      `p_exactmove`'s last argument is `^exact_north..^exact_west` (0..3), and the recorded
+      1536 went out as north on every Keldagrim cart. Validate delays, gaps, angles and
+      sounds as well as positions (`tools/rsprox/forgettable_tale/delays.py`), then diff the
+      running content's wire against the recording (below).
+    - **Audit each scene on the wire, not from the transcript.** Drive the scene under
+      scriptrun with `TORIRS_SCRIPTRUN_WIRELOG=<file>` (a scratch driver that sets the stage
+      and the state with `::setvar` when scriptrun cannot press the interface on the way),
+      then `tools/rsprox/wirelog_tells.py --rec <txt> --rfrom/--rto --ours <file> --anchor-r
+      --anchor-o --xlate <copy offset> --only-diff`, per scene, until each left line has a
+      named reason. In Forgettable Tale this found, after the scenes were "ported": eight
+      hops through the copy before every tunnel landing, three pans with one timing, a room's
+      song, Jagex's fuller panel lock, overhead lines said in 184-px pieces with the head
+      animating for the pieces, five missing sounds and the kebab taken 160 ticks early.
+    - **A copy is built from zones: read its rebuild_region before believing a "jump".** The
+      default transcript translates every copied tile back to its template tile, so a copy
+      composed from zones of different planes reads as plane changes and far teleports that
+      never happened. Forgettable Tale's tunnels are the template's planes 0-1 with the
+      platforms' plane-2/3 zones copied in past each mouth; the transcript showed every cart
+      "jumping" to plane 3, and the port jumped. Transcribe with every filter on
+      (`~/.rsprox-index-cache/home-wire`, for `rebuild_region` and its `build_area` zone list)
+      and read the moves in the `--raw` transcript (copy coordinates); build the copy zone by
+      zone (`map_instance_alloc` + `map_instance_setchunk`), including the zones Jagex leaves
+      OUT (the pub's plane-1 zone over the chair, so its camera sees in).
+    - **Before writing an Open row, ask what in the recordings decides it.** Index the other
+      sessions too (`rsprox_index.py search`), the `--bas` and `--raw` variants, the zone
+      builds, the interface packets. "Library: the book shows no text" was open while the
+      recording carried every row of the book and both letters; "the beer's stats are not
+      ported" while its `update_stat_v2` lines and the bases 1,400 ticks earlier decided the
+      formula. An Open row is for what no recording, cache entry or validated rule can settle,
+      and it says which recording would settle it.
 
 ## The loop
 
@@ -1021,6 +1075,14 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
    (`python3 tools/quest_gate/cutscene_sweep.py | grep " NONE "` lists the rest).
 
 ## Traps that have each cost a wrong fix
+
+- **Every branch, not the recorded path** (step 15): fit the mechanism's rule from the
+  recorded instances, prove it reproduces all of them, generate the rest and test every leaf.
+  The Forgettable Tale tunnels shipped "three moves then jump to the end" for 80 rides while the
+  recording held all their track (2026-11-22).
+- **A forced move then a far teleport: the client lands at the move's end.** Our encoder sends
+  `p_exactmove` relative to the player's tile after the jump, so `p_exactmove` + `p_telejump`
+  across a plane (a tunnel mouth) carries the player off on the far side. Jump without the move.
 
 - **A quest's cutscenes are part of the port, always** (step 2b): list every scene, card, fade
   and camera move in every session before writing a line, and port each from its packets. A

@@ -4829,6 +4829,10 @@ struct ToriRSServerPlayer
      *  no jingle running. */
     int music_jingle_start_tick;
     int music_jingle_end_tick;
+    /** An earlier jingle's end still to come when a later one started: each
+     *  jingle's end brings the tab's track back (RSProx index 4368 [230] and
+     *  [235]; 4646 [5303] and [5311]); -1 with none. */
+    int music_jingle_prev_end_tick;
     /** The track the region last chose for the player (music_enter_track,
      *  `midi_song_here`), whatever a script has played over it since; -1
      *  before the first. */
@@ -9985,6 +9989,17 @@ ToriRSServer_NoteModalMount(
     struct ToriRSServer* srv,
     int uid,
     int group);
+/** Cache clientscript `messagebox_bind_actions` (content's
+ *  ^clientscript_messagebox_bind_actions, interface_chat/configs/chat.constant). */
+#define TORIRSSERVER_CLIENTSCRIPT_MESSAGEBOX_BIND_ACTIONS 1508
+
+/** A messagebox leaving the chat modal: clientscript 1508
+ *  (`messagebox_bind_actions`) with "0" when `messagebox` is what the chat
+ *  modal holds, nothing otherwise. Jagex sends it every time a messagebox is
+ *  shut or replaced (RSProx index 4646: 128 of 128, never for another
+ *  interface); the box's own open sends one too, from content. */
+void
+ToriRSServer_MessageboxUnbind(struct ToriRSServerPlayer* player);
 /** Open the "Enter amount" prompt. Zero payload; the answer arrives as
  *  RESUME_P_COUNTDIALOG. */
 void

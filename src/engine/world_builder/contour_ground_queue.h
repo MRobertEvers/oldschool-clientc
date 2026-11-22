@@ -39,6 +39,13 @@ contour_ground_q_push(
 void
 contour_ground_q_clear(struct ContourGroundQueue* q);
 
+/* Drop every entry from `count` on (the ones a runtime loc add pushed and has
+ * already contoured). */
+void
+contour_ground_q_truncate(
+    struct ContourGroundQueue* q,
+    int count);
+
 void
 contour_ground_q_free(struct ContourGroundQueue* q);
 

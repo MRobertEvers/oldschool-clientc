@@ -44001,8 +44001,14 @@ ToriRSServer_WorldSelftest(void)
                     if( ToriRSServer_Varp(player, stamp) != 0 )
                         landed = tick + 1;
                 }
-                SELFTEST_CHECK(landed >= 15 && landed <= 20,
-                               "the channel should land around tick 17, got %d", landed);
+                /* RSProx's schedule (home_teleport.rs2): the teleport 23 ticks
+                 * after the tick after the click (index 4618 [139], 4289 [1338],
+                 * 4480 [1727], 3258: 6 of 6), the stamp with it -- this loop's
+                 * tick 24 or 25 by where the click falls in it. The old p_delay
+                 * chain landed around 17. */
+                SELFTEST_CHECK(landed >= 24 && landed <= 25,
+                               "the channel should land on the recorded +23 (loop tick 24..25), got %d",
+                               landed);
                 /* map_findsquare spreads arrival by ^home_teleport_spread=2
                  * around 3222,3218, so the claim is the square, not the tile. */
                 SELFTEST_CHECK(player->x >= 3220 && player->x <= 3224 && player->z >= 3216 &&

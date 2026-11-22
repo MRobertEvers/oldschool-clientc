@@ -98,6 +98,13 @@ and what is already settled.
 
 ## 5. Auditing our content against it
 
+**Use the recordings for everything they can decide, and every branch of what they show.** A
+recording shows some instances of a system; implement the system: fit its rule from the
+recorded instances, prove the rule reproduces all of them, build the unrecorded instances from
+it and test each (the `rsprox-content` skill, porting step 15). Do not list as Open what a
+recording, the zone builds, the interface packets or another session can settle; search the
+index for that session first.
+
 To IMPLEMENT or rebuild content from a recording (ops, maplinks, locs, projectiles, sounds, interfaces, npc info, dialogues, movement), use the `rsprox-content` skill: `tools/rsprox/rsprox_interact.py` traces one interaction tick by tick, and `.claude/skills/rsprox-content/PACKETS.md` explains every packet. Npc `[facing]`, `[say]` and `[enabled_ops]` are part of every port, not only its audit (that skill's "Porting a quest", step 12).
 
 

@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11372] = {
+static const char* const g_ss_opcode_names[11373] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -640,6 +640,7 @@ static const char* const g_ss_opcode_names[11372] = {
     [11369] = "FRIENDCHAT_DISABLE",
     [11370] = "FRIENDCHAT_REJOINNAME",
     [11371] = "FRIENDCHAT_CURRENT",
+    [11372] = "P_FACERESET",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -649,7 +650,7 @@ static const char* const g_ss_opcode_names[11372] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11372] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11373] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1283,6 +1284,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11372] = {
     [11369] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_DISABLE */
     [11370] = { 0, 0, 0, 1, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_REJOINNAME */
     [11371] = { 0, 0, 0, 1, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_CURRENT */
+    [11372] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* P_FACERESET */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

@@ -193,6 +193,7 @@ function QD.world.loc_near(sym, radius, opts)
                     symbol = sym,
                     match = match,
                     element_id = row.element_id,
+                    resolved_loc_id = row.resolved_loc_id,
                     tile_x = row.x,
                     tile_z = row.z,
                     level = row.level,

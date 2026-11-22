@@ -66,6 +66,17 @@ contour_ground_q_clear(struct ContourGroundQueue* q)
 }
 
 void
+contour_ground_q_truncate(
+    struct ContourGroundQueue* q,
+    int count)
+{
+    assert(q);
+    assert(count >= 0);
+    assert(count <= q->count);
+    q->count = count;
+}
+
+void
 contour_ground_q_free(struct ContourGroundQueue* q)
 {
     if( !q )

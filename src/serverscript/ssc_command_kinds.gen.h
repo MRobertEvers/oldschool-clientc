@@ -3,7 +3,7 @@
  * reference server's content/scripts/engine.rs2. Do not edit by hand --
  * re-run the generator.
  *
- * 426 commands.
+ * 427 commands.
  */
 
 #ifndef SRC_SERVERSCRIPT_SSC_COMMAND_KINDS_GEN_H
@@ -452,6 +452,7 @@ static const struct SSC_CommandTypes g_ssc_command_types[] = {
     { 11321, "stockmarket_slot", "int int obj int int int int", "" },
     { 11322, "ge_offer_place", "int int obj int int", "int" },
     { 11327, "p_orientation", "", "int" },
+    { 11372, "p_facereset", "", "" },
 };
 
 #endif

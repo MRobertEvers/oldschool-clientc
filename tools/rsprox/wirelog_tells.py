@@ -116,6 +116,12 @@ def parse_rec(path, t0, t1):
     return out
 
 
+def num_id(v):
+    """`liquid (2401)` -> `2401`: RSProx names a sound or song, our log has its id."""
+    m = re.search(r"\((-?\d+)\)\s*$", v)
+    return m.group(1) if m else v
+
+
 def rec_event(kind, rest):
     def field(name):
         m = re.search(name + r"=([^,]*(?:\([^)]*\))?)", rest)
@@ -173,11 +179,11 @@ def rec_event(kind, rest):
         return f"{kind} {1 if field('hide') == 'true' else 0}"
     if kind == "synth_sound":
         loops = field("loops") or "1"
-        return f"synth_sound {field('id')} {loops} {field('delay') or '0'}"
+        return f"synth_sound {num_id(field('id'))} {loops} {field('delay') or '0'}"
     if kind.startswith("midi_song_withsecondary"):
         return f"midi_song_withsecondary {field('primaryid')} {field('secondaryid')}"
     if kind.startswith("midi_song"):
-        return f"midi_song {field('id')}"
+        return f"midi_song {num_id(field('id'))}"
     if kind == "cam_reset":
         return "cam_reset"
     if kind == "cam_shake":
@@ -194,7 +200,7 @@ def rec_event(kind, rest):
         name = "cam_moveto" if kind.startswith("cam_moveto") else "cam_lookat"
         return f"{name} {x},{z} {field('height')} {field('rate')} {field('rate2')}"
     if kind == "cam_unlock":
-        return f"cam_unlock {field('unlock')}"
+        return f"cam_unlock {1 if field('unlock') == 'true' else 0}"
     return None
 
 
@@ -276,6 +282,8 @@ def parse_ours(path, t0, t1, xlate, by_varp):
             ev = f"synth_sound {a[0]} {a[1]} {a[2]}"
         elif kind == "cam_reset":
             ev = "cam_reset"
+        elif kind == "cam_unlock":
+            ev = f"cam_unlock {a[0]}"
         elif kind == "cam_shake":
             ev = f"cam_shake {a[0]} {a[1]} {a[2]} {a[3]}"
         elif kind == "cam_moveto_cycles":
@@ -290,7 +298,8 @@ def parse_ours(path, t0, t1, xlate, by_varp):
         elif kind == "face_angle":
             ev = f"face_angle {a[0]}"
         elif kind == "face_entity":
-            ev = f"face_entity {a[0]}"
+            # -1 is the FACING block's reset kind: RSProx's `[facing] type=reset`
+            ev = "face_reset" if a[0] == "-1" else f"face_entity {a[0]}"
         elif kind == "transparency":
             ev = f"transparency {a[0]} {a[1]} {a[2]} {a[3]} {a[4]}"
         elif kind == "exactmove":

@@ -1,33 +1,195 @@
--- A Forgettable Tale of a Drunken Dwarf (quest_forgettabletale), a 12-leg relay
--- (docs/quest_authoring/relay.md). Ladder: python3 tools/quest_gate/ladder.py forgettabletale --leg K.
--- Each leg is self-contained: it shares no Lua local with another leg.
+-- A Forgettable Tale of a Drunken Dwarf (quest_forgettabletale), driven through the content
+-- rebuilt from RSProx index 4637 and 4646 (docs/rsprox-analysis/quests/forgettable_tale.md).
+-- Every page below is the recording's, as the .rs2 files carry it:
+--   forget_veldaban.rs2 (the start, the flyover, the report), forget_keldagrim.rs2 (the Drunken
+--   Dwarf, Rowdy, Gauss, Khorvak, the tale), forget_farming.rs2 (Rind, the patch),
+--   forget_brewing.rs2 (Blandebir, the vat, the barrel), forget_tunnels.rs2 (tickets, carts,
+--   conductor, director, the tunnel entry pans), forget_puzzle.rs2 (stones, machinery, routes),
+--   forget_story.rs2 (listening room, library, the last scene), forget_pub.rs2 (the ending).
+-- Legs (docs/quest_authoring/relay.md): each leg is self-contained; the file-level helpers below
+-- take `t` and share no state. The puzzle machinery resets every junction when it is opened
+-- (forget_puzzle.rs2 [oploc1,keldagrim_track_junction_control_box]), so each route is set in one
+-- opening, and a leg never ends with a route half set.
+
+-- ---------------------------------------------------------------- helpers
+local GREEN = "turnleft_trackjunction_control_card"   -- forget_puzzle.rs2: the green stone
+local YELLOW = "turnright_trackjunction_control_card" -- the yellow stone
+local SWITCHES = "abcdefghijklmnopqrs"
+
+local function n(t, sym) return select(2, t.inv.count(sym)) or 0 end
+local function sv(t, sym) return select(2, t.var.server(sym)) end
+local function here(t)
+    local r, tl = t.world.tile()
+    local _, lvl = t.world.level()
+    if r ~= "ok" or type(tl) ~= "table" then return nil, tostring(tl) end
+    local x, z = tl.x, tl.z
+    -- The tunnels are the player's own copy (forget_tunnels.rs2 ~forget_enter_tunnels),
+    -- 64-aligned: read a tile there as the template square's (29_77).
+    if x >= 6400 then
+        x, z = 1856 + x % 64, 4928 + z % 64
+    end
+    return { x = x, z = z, level = lvl }, x .. "," .. z .. "," .. tostring(lvl)
+end
+-- A template tile of the tunnel square (29_77) in the player's copy, for an exact click.
+local function tc(t, x, z)
+    local r, tl = t.world.tile()
+    if r ~= "ok" or type(tl) ~= "table" or tl.x < 6400 then return x, z end
+    return tl.x - tl.x % 64 + (x - 1856), tl.z - tl.z % 64 + (z - 4928)
+end
+local function at(t, x, z, level)
+    local tl = here(t)
+    return tl ~= nil and tl.x == x and tl.z == z and tl.level == level
+end
+local function await_at(t, note, x, z, level, ticks)
+    t.await({ level = function() return at(t, x, z, level) end, note = note }, ticks)
+end
+
+-- Wait for the page `list[1]` names (its text up, or a menu for "choose:"), then read the list
+-- with chat.play. A page the content opens after a delay (a fade, a timed scene, a box's
+-- p_delay) is waited for here, so chat.play never grades the gap before it.
+local function play(t, row, list, ticks)
+    local kind, text = list[1]:match("^(%a+):(.*)$")
+    t.await({
+        level = function()
+            local k = t.chat.kind()
+            if k == "none" then return false end
+            if kind == "choose" then return k == "options" end
+            local raw = t.read._presented_text(t.read._text_symbols)
+            if raw == nil then return false end
+            return t.read._strip_tags(tostring(raw)):find(text, 1, true) ~= nil
+        end,
+        note = row .. ": waiting for '" .. list[1] .. "'",
+    }, ticks or 12)
+    t.exec(row, t.chat.play, list)
+end
+
+-- A camera sequence read from the mark taken before the click that started it. `quiet` covers
+-- the longest gap between two camera packets (the last scene's 80 ticks, the pub's 100).
+local function scene(t, row, mark, expect)
+    if mark == nil then return end
+    t.exec(row, t.cutscene.await, row, { since = mark, quiet = 200, timeout = 200, expect = expect })
+end
+
+local function stones(t)
+    return "carried green " .. n(t, GREEN) .. " yellow " .. n(t, YELLOW) .. ", slab green "
+        .. tostring(sv(t, "varb861_forget_num_left")) .. " yellow " .. tostring(sv(t, "varb862_forget_num_right"))
+end
+
+-- A storage box: the op, the mesbox three ticks on, the stones it held added to the pack.
+-- `box` names a platform's box by its tile, template-equivalent in the copy: a platform zone
+-- is copied to two places in group one, so the nearest box can be the other platform's
+-- (4646 --raw: the recorder's boxes at 34,25 / 49,42 / 42,25 / 50,17 / 34,35 / 50,34).
+local function search_box(t, row, line, green, yellow, box)
+    local g0, y0 = n(t, GREEN), n(t, YELLOW)
+    local opts = nil
+    if box then
+        local bx, bz = tc(t, box[1], box[2])
+        opts = { at = { bx, bz, 1 } }
+    end
+    t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1, opts)
+    play(t, row .. "-dialog", { "mesbox:" .. line }, 12)
+    local g1, y1 = n(t, GREEN), n(t, YELLOW)
+    t.check(row .. "-stones", g1 - g0 == green and y1 - y0 == yellow,
+        "green " .. g0 .. " -> " .. g1 .. " (want +" .. green .. "), yellow " .. y0 .. " -> " .. y1
+        .. " (want +" .. yellow .. ")")
+end
+
+-- One opening of the machinery: every junction set as the route wants (forget_route_expected,
+-- 1 green / 2 yellow), Ok pressed, the route checked.
+local function junction(t, i) return sv(t, "varb" .. (842 + i) .. "_forget_if" .. (i + 1)) end
+local function set_route(t, start_row, iface, steps, ok_row, route)
+    t.exec(start_row, t.player.click_loc, "keldagrim_track_junction_control_box", 1)
+    t.exec(start_row .. "-open", t.ui.await_open, iface, 30)
+    t.check(start_row .. "-loaded", sv(t, "varb861_forget_num_left") == n(t, GREEN)
+        and sv(t, "varb862_forget_num_right") == n(t, YELLOW), stones(t))
+    for _, s in ipairs(steps) do
+        local i, want, name = s[1], s[2], s[3]
+        local _, w = t.ui.widget(iface .. ":switch_" .. SWITCHES:sub(i + 1, i + 1))
+        if w == nil then
+            t.check(name, false, iface .. " has no switch for junction " .. i)
+            return
+        end
+        for _ = 1, 3 do
+            if junction(t, i) == want then break end
+            -- op 1, as Jagex's client sends it (4646: `[if_buttonx] com=forget_puzzle1:switch_a
+            -- (248:35), op=1`); the op-less press is an IF1 button's, which these are not.
+            t.ui.invoke(w, 1)
+            t.ticks(2)
+        end
+        local v = junction(t, i)
+        t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want .. " (" .. stones(t) .. ")")
+    end
+    local _, okw = t.ui.widget(iface .. ":ok_button")
+    if okw == nil then
+        t.check(ok_row, false, iface .. " has no ok_button")
+        return
+    end
+    t.ui.invoke(okw, 1)
+    local closed = t.ui.await_close(iface, 30)
+    -- The ride follows the junctions themselves (forget_tracks.rs2); Ok only closes.
+    t.check(ok_row, closed == "ok", "interface closed: " .. tostring(closed) .. " (route " .. route .. ")")
+end
+
+-- The hub cart to a platform (routes 1 2 4 5 7 8), and the platform's cart back.
+local function ride_to_platform(t, row, small)
+    t.exec(row, t.player.click_loc, "forget_train_cart", 1)
+    -- A platform: plane 1 of the copy (its zones are the template's plane 3), its box remembered (~forget_cart_platform); which
+    -- box is the platform's: 1 for the first route of a group, 2 for the second.
+    local want = small and 1 or 2
+    t.await({ level = function()
+        local tl = here(t)
+        return tl ~= nil and tl.level == 1 and sv(t, "varp7868_forget_route") == want
+    end, note = row .. ": the platform" }, 60)
+    local _, txt = here(t)
+    t.check(row .. "-platform", (here(t) or {}).level == 1 and sv(t, "varp7868_forget_route") == want,
+        "at " .. txt .. ", box " .. tostring(sv(t, "varp7868_forget_route")) .. " (want platform box " .. want .. ")")
+end
+-- `cart` is the platform's own cart tile (template-equivalent in the copy), for the same
+-- reason as search_box's `box` (--raw 3059, 3152, 3798, 3939, 4416, 4543).
+local function ride_back(t, row, cart)
+    local cx, cz = tc(t, cart[1], cart[2])
+    t.exec(row, t.player.click_loc, "forget_train_return_cart", 1, { at = { cx, cz, 1 } })
+    await_at(t, row .. ": the hub", 1863, 4956, 1, 20)
+    local _, txt = here(t)
+    t.check(row .. "-hub", at(t, 1863, 4956, 1), "at " .. txt .. " (want the hub 1863,4956,1)")
+end
 
 return {
     id = "forgettabletale",
     fixture = "fresh_lumbridge.ini",
     max_frames = 240000,
     setup = {
-        "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
-        -- Quest Helper requirements: The Giant Dwarf + Fishing Contest (forget_meets_quest_reqs),
-        -- Cooking 22 and Farming 17 (Veldaban's mesbox)
+        "::clearinv", -- the fixture's tutorial slots
+        -- Requirements: The Giant Dwarf + Fishing Contest (forget_meets_quest_reqs), Cooking 22 and
+        -- Farming 17 (forget_meets_requirements, the planting gate)
         "::complete quest_giantdwarf",
         "::complete quest_fishingcontest",
         "::setlevel cooking 22",
         "::setlevel farming 17",
-        -- Quest Helper items brought along: 2 barley malt, 2 buckets of water, dibber, rake,
-        -- about 400 coins (Veldaban), a dwarven stout (Khorvak's drink), a beer (the Drunken
-        -- Dwarf) and an empty beer glass (Gauss's toast; leg 3+), a kebab for the last step.
+        -- The Giant Dwarf leaves the player in a company; the recorder's was the Green Gemstone
+        -- (4646 [2629..2656]), whose director takes the boarding down at stage 80.
+        "::setvar varb578_giantdwarf_current_company 4",
+        -- Rowdy dwarf names one of 24 items on the first ask (forget_rowdy_talk); the recording's
+        -- was a fake beard (4637 [1174], index 12). A request already set is kept, so the test
+        -- gives the recorded one and brings it.
+        "::setvar varp7869_forget_rowdy_item 12",
+        "::give feud_karidian_fakebeard 1",
+        -- Brought along: two beers (the Drunken Dwarf's, and the one drunk at the end), a beer
+        -- glass (Gauss's toast, then the stout), a kebab (held for the ending), the brewing
+        -- ingredients, the patch tools and coins (tickets 2x50, yeast 25).
+        "::give beer 2",
+        "::give beer_glass 1",
+        "::give kebab 1",
         "::give barley_malt 2",
         "::give bucket_water 2",
         "::give dibber 1",
         "::give rake 1",
-        "::give coins 500",
-        "::give dwarven_stout 1",
-        "::give beer 1",
-        "::give beer_glass 1",
-        "::give kebab 1",
-        -- leg 2: a spade to harvest the kelda patch (forget_farming.rs2 [oploc1,kelda_hops_fullygrown])
-        "::give spade 1",
+        "::give coins 300",
+        -- A weapon in hand, so the rides' stash is exercised: every Keldagrim cart takes the
+        -- weapon off for the ride and gives it back on landing (4494 [2820..2838], 4637
+        -- [1508..1527]; keldagrim_travel.rs2 ~keldagrim_cart_seat).
+        "::give bronze_dagger 1",
+        "::wield bronze_dagger",
     },
     bind = {
         varp = "varb822_forget_quest",
@@ -44,240 +206,258 @@ return {
     },
     legs = {
         { name = "keldagrim_seeds", run = function(t)
-            -- LEG 1: travelToKeldagrim .. talkToGauss (the first three kelda seeds' givers)
+            -- LEG 1: the start and the flyover, the Drunken Dwarf, and the four seeds
             t.ticks(3)
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-            -- to the open tile beside the trapdoor (3140,3504 is the trapdoor's own blocking tile: goto_table "target tile solid")
+            -- The Grand Exchange trapdoor's Travel: the forced ride to the station (keldagrim_travel.rs2)
             t.exec("goto-travelToKeldagrim", t.player.goto_tile, 3141, 3504, 0)
-            t.exec("travelToKeldagrim", t.player.click_loc, "ge_keldagrim_trapdoor", 1)
-            t.exec("travelToKeldagrim-dialog", t.chat.play, {
-                "npc:Ahoy up there!",
-                "choose:Yes please.",
-                "player:Yes please.",
-            })
-            -- The forced cart ride ends at the station (RSProx index 4495 [948];
-            -- keldagrim_travel.rs2), and Veldaban's HQ is entered by its door.
-            t.await({
-                level = function()
-                    local r, tl = t.world.tile()
-                    return r == "ok" and tl.x == 2909 and tl.z == 10174
-                end,
-                note = "the ride to the station",
-            }, 40)
-            local _, tile = t.world.tile()
-            local _, tlvl = t.world.level()
-            t.check("travelToKeldagrim-arrived", type(tile) == "table" and tlvl == 0 and tile.x == 2909 and tile.z == 10174,
-                "after the ride the player stands at " .. (type(tile) == "table" and (tile.x .. "," .. tile.z) or tostring(tile))
-                .. " level " .. tostring(tlvl) .. " (want the station 2909,10174,0)")
+            t.exec("travelToKeldagrim", t.player.click_loc, "ge_keldagrim_trapdoor", 2, { at = { 3140, 3504, 0 } })
+            -- Seated, the dagger off (4494 [2820]); back in hand with the landing ([2838]).
+            local seated = t.await({ level = function()
+                local r, c = t.ui._worn_count("bronze_dagger")
+                return r == "ok" and c == 0
+            end, note = "the dagger off on the cart" }, 20)
+            t.check("travelToKeldagrim-unarmed", seated == "ok", "dagger off on the cart: " .. tostring(seated))
+            await_at(t, "the ride to the station", 2909, 10174, 0, 40)
+            local _, ride = here(t)
+            local wr, wc = t.ui._worn_count("bronze_dagger")
+            t.check("travelToKeldagrim-arrived", at(t, 2909, 10174, 0), "at " .. ride .. " (want the station 2909,10174,0)")
+            t.check("travelToKeldagrim-rearmed", wr == "ok" and wc == 1 and n(t, "bronze_dagger") == 0,
+                "worn dagger " .. tostring(wr) .. " " .. tostring(wc) .. ", in the pack " .. n(t, "bronze_dagger"))
             t.exec("goto-veldabanDoor", t.player.goto_tile, 2827, 10219, 0)
             t.exec("veldabanDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door",
                 open = "dwarf_keldagrim_door_open", at = { 2827, 10218, 0 }, near = { 2827, 10219 }, far = { 2827, 10217 } })
 
+            -- forget_veldaban_start, 4637 [521..763]; the stage and the flyover go with the last click
+            local fly = t.cutscene.mark()
             t.exec("talkToVeldaban", t.player.talk_to, "dwarf_city_black_guard_leader", 1)
-            t.exec("talkToVeldaban-dialog", t.chat.play, {
-                "npc:Ah, human. The Consortium",
-                "npc:Half the world",
-                "npc:Have you heard of the Red Axe",
-                "npc:Are you interested",
+            play(t, "talkToVeldaban-dialog", {
+                "npc:Have you heard?",
+                "player:You mean, half the world has suddenly become a sailor?",
+                "npc:No, not that. It's the Red Axe!",
+                "player:What have those grumpy little guys done now?",
+                "npc:They've left the city!",
+                "player:Oh dear, is that serious?",
+                "npc:It's never happened before!",
+                "player:So what happens now?",
+                "npc:Well... I may require your services again.",
                 "choose:Very interested!",
                 "player:Very interested!",
-                "npc:Good. There is a dwarf",
+                "npc:We need some more information about what the Red Axe is up to.",
+                "player:Are you asking me to... spy on them?",
+                "npc:The other directors of the Consortium",
+                "player:So where would you like me to go?",
+                "npc:That's the problem.",
+                "player:Yes?",
+                "npc:There is a dwarf, all the way to the northeast",
                 "choose:Yes.",
-                "player:Yes.",
-                "npc:Then you know",
-                "npc:Our questions",
-                "npc:Will you speak",
-                "choose:Sounds like just the job for me!",
-                "player:Sounds like just the job",
-                "mesbox:You will need level",
-                "npc:Excellent",
+                "player:Yes, I do believe I have.",
+                "npc:That's him, poor fellow.",
+                "npc:But he seems to know something about the Red Axe",
+                "npc:Problem is, no one believes him.",
+                "npc:But if he does indeed know something",
+                "npc:Do you want to help the Black Guard with this?",
+                "choose:Yes.",
+                "player:Sounds like just the job for me!",
+                "npc:Excellent, good luck to you in your quest!",
             })
-            t.ticks(4)
             t.expect("quest.stage.talk_drunkdwarf", t.quest.expect_stage("talk_drunkdwarf"))
+            -- The flyover (forget_opening_scene, 4637 [771..845]): the city under the camera, the
+            -- title card, then the player at the Drunken Dwarf's door with his line.
+            play(t, "openingFlyover-dialog", { "player:Well, here I am... at the drunken dwarf's relative's residence" }, 100)
+            scene(t, "openingFlyover.cutscene", fly, {
+                { op = "moveto", coord = "0_45_159_8_0", height = 1200 },
+                { op = "lookat", coord = "0_45_159_0_2", height = 700 },
+                { op = "moveto", coord = "0_45_159_31_6", height = 1200 },
+                { op = "lookat", coord = "0_45_159_34_44", height = 700 },
+                { op = "moveto", coord = "0_45_159_29_38", height = 1200 },
+                { op = "reset" },
+            })
+            local _, door = here(t)
+            t.check("openingFlyover-door", at(t, 2913, 10218, 0), "after the flyover at " .. door .. " (want 2913,10218,0)")
 
-            -- Veldaban's last line moves the player himself: forget_veldaban.rs2:91
-            -- p_teleport(movecoord(^forget_drunkdwarf_coord, 0, 0, -3)) = 2913,10218,0, the street
-            -- outside the Drunken Dwarf's door, so the HQ is left by the content, not by a goto.
-            -- The house (dwarf_keldagrim_door_poor 2913,10219, wall on its north edge: inside
-            -- z >= 10220; maps/m45_159.jl2) is entered through its door.
-            local _, vt = t.world.tile()
-            t.check("talkToVeldaban-sentOn", type(vt) == "table" and vt.x == 2913 and vt.z == 10218 and select(2, t.world.level()) == 0,
-                "after Veldaban the player stands at " .. (type(vt) == "table" and (vt.x .. "," .. vt.z) or tostring(vt))
-                .. " level " .. tostring(select(2, t.world.level())) .. " (want 2913,10218,0, forget_veldaban.rs2:91)")
+            -- The Drunken Dwarf: every talk opens his menu; the Red Axe row (4637 [1034..1051])
             t.exec("talkToDrunkDwarf.houseDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
                 open = "dwarf_keldagrim_door_poor_open", at = { 2913, 10219, 0 }, near = { 2913, 10219 }, far = { 2913, 10220 } })
             t.exec("talkToDrunkDwarf", t.player.talk_to, "dwarf_city_drunken_dwarf", 1)
-            t.exec("talkToDrunkDwarf-dialog", t.chat.play, {
-                "npc:*hic* Who're you?",
+            play(t, "talkToDrunkDwarf-dialog", {
                 "choose:I need to know about the Red Axe...",
-                "player:I need to know about the Red Axe",
-                "npc:*hic* The Red Axe?",
+                "player:I need to know about the Red Axe...",
+                "npc:THE RED AXE WILL COME FOR YOU!",
+                "player:What, what do you mean?",
+                "npc:I c-c-c-can't think shtraight",
+                "player:You don't look very sober to me!",
+                "npc:DON'T contradict me!",
+                "player:Have you ever considered to stop drinking?",
+                "npc:I'll shtop, right after you get me shome of the good shtuff!",
             })
-            t.ticks(3)
             t.expect("quest.stage.bring_beer", t.quest.expect_stage("bring_beer"))
 
-            -- goTalkDrunkDwarfAgain: give the Drunken Dwarf the beer
+            -- goTalkDrunkDwarfAgain: the beer from the pack and the first seed (4637 [1094..1129])
+            local beers = n(t, "beer")
             t.exec("goTalkDrunkDwarfAgain", t.player.talk_to, "dwarf_city_drunken_dwarf", 1)
-            t.exec("goTalkDrunkDwarfAgain-dialog", t.chat.play, {
-                "player:Here, have a beer.",
-                "npc:*hic* Ahh, cheers!",
-                "npc:Truth is, one beer",
-                "npc:I've still got one kelda seed",
-                "mesbox:The Drunken Dwarf hands you a kelda seed",
+            play(t, "goTalkDrunkDwarfAgain-dialog", {
+                "choose:I need to know about the Red Axe...",
+                "player:I need to know about the Red Axe...",
+                "npc:Did you get me shome of the good stuff yet?",
+                "player:Yes, here you go.",
+                "npc:What wash that?",
+                "player:What's the REALLY good stuff then?",
+                "npc:Some of them original Kelda Stout!",
+                "player:Hey, er, I don't think that's good for you.",
+                "npc:I know, but get me shome of it anyway.",
+                "player:What am I supposed to do with a seed?",
+                "npc:You silly human!",
+                "npc:Hop hop hop!",
+                "player:Where do I get the other seeds then?",
+                "npc:Some of me drinking buddies might have 'em.",
+                "npc:Drinking buddies. Yes, find me some drinking buddies.",
+                "player:Right, I think what you're trying to say is...",
+                "npc:You're awfully shmart for a human!",
+                "player:Maybe that's just because I don't drink as much as you.",
             })
-            t.ticks(3)
             t.expect("quest.stage.collect_seeds", t.quest.expect_stage("collect_seeds"))
-            t.check("goTalkDrunkDwarfAgain-seed", select(2, t.inv.count("kelda_hop_seed")) == 1,
-                "kelda seeds held: " .. tostring(select(2, t.inv.count("kelda_hop_seed"))))
+            t.check("goTalkDrunkDwarfAgain-seed", n(t, "kelda_hop_seed") == 1 and n(t, "beer") == beers - 1,
+                "kelda seeds " .. n(t, "kelda_hop_seed") .. " (want 1), beers " .. beers .. " -> " .. n(t, "beer"))
 
-            -- talkToRowdyDwarf: he names an item (a random one of 24); fetching arbitrary junk
-            -- such as acne potions is not a guide step, so the named item is staged.
+            -- talkToRowdyDwarf: the ask names the item (forced to the recorded fake beard in
+            -- setup), the second talk takes it and gives the seed (4637 [1150..1390])
             t.exec("talkToRowdyDwarf.houseDoorOut", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
                 open = "dwarf_keldagrim_door_poor_open", at = { 2913, 10219, 0 }, near = { 2913, 10220 }, far = { 2913, 10218 } })
             t.exec("goto-talkToRowdyDwarf", t.player.goto_tile, 2914, 10198, 0)
             t.exec("talkToRowdyDwarf", t.player.talk_to, "dwarf_city_rowdy_dwarf", 1)
-            t.exec("talkToRowdyDwarf-dialog", t.chat.play, {
-                "player:The Drunken Dwarf said you might",
-                "npc:Ha! Maybe I do.",
+            play(t, "talkToRowdyDwarf-dialog", {
+                "player:Hold on a second there, I need your help!",
+                "npc:Help, from me?",
+                "player:No, I try not to get drunk",
+                "npc:Mmmm, beer.",
+                "player:I need to brew Kelda stout",
+                "npc:Mmmm, Kelda stout.",
+                "player:Do you know where I can find any seeds?",
+                "npc:I might... oh yesh",
+                "player:But you're not going to just give it to me, are you?",
+                "npc:No.",
+                "player:Alright then, what do you want for it?",
+                "npc:Get me... a fake beard.",
+                "player:What?? Where am I going to get that!",
+                "npc:You can at least make the effort.",
             })
-            t.ticks(2)
-            local rowdy_items = { "acne_potion", "amulet_mould", "anchovie_pizza", "ashes", "banana", "bat_bones",
-                "broken_glass", "feud_camel_pooh_bucket", "burnt_chicken", "cabbage", "eye_patch",
-                "feud_karidian_fakebeard", "flier", "king_worm", "pink_skirt", "potato", "red_cape",
-                "spinning_plate", "studded_chaps", "steel_dart", "swamp_tar", "horsey_brown", "vampire_dust",
-                "white_apron" }
-            local want_result, want = t.var.server("varp7869_forget_rowdy_item")
-            if want_result ~= "ok" then want_result, want = t.var.varbit("varp7869_forget_rowdy_item") end
-            local item = rowdy_items[want]
-            t.check("talkToRowdyDwarf-request", item ~= nil, "Rowdy asked for item index " .. tostring(want) .. " (" .. tostring(want_result) .. ")" .. " = " .. tostring(item))
-            if item == nil then t.blocked("seam: cannot read forget_rowdy_item (" .. tostring(want_result) .. ")") return end
-            -- lint: kit-give rowdy draw: forget_keldagrim.rs2 [proc,forget_rowdy_talk] rolls one of 24 junk items per player at this talk (random(^forget_rowdy_item_count)); setup cannot know which, and all 24 do not fit beside the quest kit
-            t.cheat("::give " .. item .. " 1")
-            t.ticks(2)
-            local item_before = select(2, t.inv.count(item))
+            t.check("talkToRowdyDwarf-request", sv(t, "varp7869_forget_rowdy_item") == 12
+                and sv(t, "varb829_forget_seed2_told") == 1,
+                "forget_rowdy_item=" .. tostring(sv(t, "varp7869_forget_rowdy_item")) .. " (want 12, the fake beard), seed2_told="
+                .. tostring(sv(t, "varb829_forget_seed2_told")))
             t.exec("talkToRowdyDwarf-trade", t.player.talk_to, "dwarf_city_rowdy_dwarf", 1)
-            t.exec("talkToRowdyDwarf-trade-dialog", t.chat.play, {
-                "player:The Drunken Dwarf said you might",
-                "player:I've brought you a",
-                "npc:Ha, that's just what I wanted!",
-                "mesbox:The Rowdy Dwarf hands you a kelda seed",
+            play(t, "talkToRowdyDwarf-trade-dialog", {
+                "player:Do you have any Kelda seeds?",
+                "npc:Oh yesh... a fake beard.",
+                "player:Look, I've got it here!",
+                "npc:Shplendid! Give that to me please!",
+                "player:Now how about those seeds?",
+                "npc:Well, I've got a Kelda hop seed right here!",
+                "player:Wow, really?",
+                "npc:Nah, I'm just kidding!",
+                "player:I suppose you wouldn't ever have a proper job",
+                "npc:What wash that?",
+                "player:Nothing...",
             })
-            t.ticks(2)
-            t.check("talkToRowdyDwarf-seed", select(2, t.inv.count("kelda_hop_seed")) == 2,
-                "kelda seeds held: " .. tostring(select(2, t.inv.count("kelda_hop_seed"))))
-            local item_after = select(2, t.inv.count(item))
-            t.check("talkToRowdyDwarf-itemTaken", item_before == 1 and item_after == 0,
-                item .. " held " .. tostring(item_before) .. " before the trade, " .. tostring(item_after) .. " after (forget_rowdy_take_item)")
+            t.check("talkToRowdyDwarf-seed", n(t, "kelda_hop_seed") == 2 and n(t, "feud_karidian_fakebeard") == 0,
+                "kelda seeds " .. n(t, "kelda_hop_seed") .. " (want 2), fake beards left " .. n(t, "feud_karidian_fakebeard"))
 
-            -- travelToWWM: the ticket first (getWWMTicket), then the cart
+            -- getWWMTicket: track 4's Travel op, White Wolf Mountain with Fishing Contest done
+            -- (keldagrim_travel.rs2 [opnpc3,dwarf_city_train_conductor4], 4637 [1470..1480])
             t.exec("goto-getWWMTicket", t.player.goto_tile, 2906, 10171, 0)
-            t.exec("getWWMTicket", t.player.talk_to, "dwarf_city_train_conductor4", 1)
-            t.exec("getWWMTicket-dialog", t.chat.play, {
-                "npc:Welcome to the cart station",
-                "choose:I'd like to buy a ticket.",
-                "player:I'd like to buy a ticket.",
-                "npc:Where to?",
-                "choose:To White Wolf Mountain.",
-                "player:To White Wolf Mountain.",
-                "npc:That will be",
-                "choose:Buy.",
-                "player:Buy.",
-                "mesbox:You buy a ticket",
-            })
-            t.ticks(2)
-            t.check("getWWMTicket-ticket", select(2, t.inv.count("dwarf_minecart_ticket_kelda_whitewolf")) == 1,
-                "tickets held: " .. tostring(select(2, t.inv.count("dwarf_minecart_ticket_kelda_whitewolf"))))
-            -- to the open platform tile beside the cart (2919,10169 is solid: goto_table "target tile solid")
+            t.exec("getWWMTicket", t.player.talk_to, "dwarf_city_train_conductor4", 3)
+            play(t, "getWWMTicket-dialog", { "choose:White Wolf Mountain (50 coins)" })
+            t.exec("getWWMTicket-ticket", t.inv.await, "dwarf_minecart_ticket_kelda_whitewolf", 1, 5)
+            -- travelToWWM: the track-4 cart (forget_tunnels.rs2 [oploc1,keldagrim_train_cart])
             t.exec("goto-travelToWWM", t.player.goto_tile, 2919, 10170, 0)
-            t.exec("travelToWWM", t.player.click_loc, "keldagrim_train_cart", 1)
-            t.ticks(8)
-            -- forget_tunnels.rs2:108-118: the ticket is taken, p_teleport(^forget_khorvak_coord = 2864,9878,0)
-            local _, at = t.world.tile()
-            t.check("travelToWWM-arrived", type(at) == "table" and at.x == 2864 and at.z == 9878
-                and select(2, t.inv.count("dwarf_minecart_ticket_kelda_whitewolf")) == 0,
-                "after the cart the player stands at " .. (type(at) == "table" and (at.x .. "," .. at.z) or tostring(at))
-                .. " (want 2864,9878), tickets left " .. tostring(select(2, t.inv.count("dwarf_minecart_ticket_kelda_whitewolf"))))
+            t.exec("travelToWWM", t.player.click_loc, "keldagrim_train_cart", 1, { at = { 2919, 10169, 0 } })
+            -- The ride, RSProx 4637 [1485..1530]: the mountain's station at 2876,9869.
+            await_at(t, "the cart to White Wolf Mountain", 2876, 9869, 0, 40)
+            local _, wwm = here(t)
+            t.check("travelToWWM-arrived", at(t, 2876, 9869, 0) and n(t, "dwarf_minecart_ticket_kelda_whitewolf") == 0,
+                "at " .. wwm .. " (want 2876,9869,0), tickets left " .. n(t, "dwarf_minecart_ticket_kelda_whitewolf"))
 
-            -- talkToKhorvak, then goGiveKhorvakBeer: one conversation in the content
-            -- (forget_khorvak_talk): the drink offer, then the stout is handed over at once.
-            t.exec("goto-talkToKhorvak", t.player.goto_tile, 2864, 9878, 0)
+            -- talkToKhorvak: the borrow row, the seed with the last page (4637 [1684..1776])
             t.exec("talkToKhorvak", t.player.talk_to, "dwarfrock_engineer2", 1)
-            t.exec("talkToKhorvak-dialog", t.chat.play, {
-                "player:The Drunken Dwarf said you might",
-                "npc:Maybe I do.",
-                "choose:What if I offer you a drink?",
-                "player:What if I offer you a drink?",
-                "npc:Now you're talking.",
-                "player:I have one right here.",
-                "npc:Ha, cheers!",
-                "mesbox:Khorvak hands you a kelda seed",
+            play(t, "talkToKhorvak-dialog", {
+                "player:Hello there. I'm looking for some Kelda hop seeds.",
+                "npc:Oh, we've got an expert here!",
+                "player:It sounds ghastly to me.",
+                "npc:Oh, I've got a sheed you might like to borrow!",
+                "player:Borrow??",
+                "npc:Then we've got no deal!",
+                "choose:No wait, I want to borrow it after all.",
+                "player:No wait, I want to borrow it after all.",
+                "npc:You are going to give it back",
+                "player:Of course, of course!",
+                "npc:That'sh very deshent of you, human.",
+                "player:Only too happy to help!",
+                "npc:Hey, err... wait...",
+                "player:Err, yes?",
+                "npc:How are you goin' to give me back my sheed",
+                "npc:You'll be too drunk to find your way back here!",
+                "player:Oh, don't worry...",
+                "npc:That'sh alright then, here you go.",
             })
-            t.ticks(2)
-            t.check("goGiveKhorvakBeer", select(2, t.inv.count("kelda_hop_seed")) == 3
-                and select(2, t.inv.count("dwarven_stout")) == 0,
-                "stout given, kelda seeds held: " .. tostring(select(2, t.inv.count("kelda_hop_seed")))
-                .. ", stouts: " .. tostring(select(2, t.inv.count("dwarven_stout"))))
+            t.check("goGiveKhorvakBeer", n(t, "kelda_hop_seed") == 3,
+                "kelda seeds " .. n(t, "kelda_hop_seed") .. " (want 3: Khorvak lends his, no stout needed)")
 
-            -- back to Keldagrim by the return cart, then Gauss
-            -- to the open tile north-west of the cart (2875,9868 is the cart's own solid tile; reach.py: 2874,9870 REACH)
-            t.exec("goto-takeCartFromWWMToKelda", t.player.goto_tile, 2874, 9870, 0)
-            t.exec("getKeldaTicket", t.player.talk_to, "dwarf_city_train_conductor6", 1)
-            t.exec("getKeldaTicket-dialog", t.chat.play, {
-                "npc:Welcome to the cart station",
-                "choose:I'd like to buy a ticket.",
-                "player:I'd like to buy a ticket.",
-                "npc:That will be",
-                "choose:Buy.",
-                "player:Buy.",
-                "mesbox:You buy a ticket",
-            })
-            t.ticks(2)
+            -- getKeldaTicket and takeCartFromWWMToKelda (4637 [1975..1977])
+            t.exec("goto-getKeldaTicket", t.player.goto_tile, 2874, 9870, 0)
+            t.exec("getKeldaTicket", t.player.talk_to, "dwarf_city_train_conductor6", 3)
+            play(t, "getKeldaTicket-dialog", { "choose:Keldagrim (50 coins)" })
+            t.exec("getKeldaTicket-ticket", t.inv.await, "dwarf_minecart_ticket_whitewolf_kelda", 1, 5)
             t.exec("takeCartFromWWMToKelda", t.player.click_loc, "whitewolfmountain_train_cart", 1)
-            t.ticks(8)
-            -- forget_tunnels.rs2:126-135: the ticket is taken, p_teleport(^forget_conductor4_coord = 2906,10172,0)
-            local _, back = t.world.tile()
-            t.check("takeCartFromWWMToKelda-arrived", type(back) == "table" and back.x == 2906 and back.z == 10172
-                and select(2, t.inv.count("dwarf_minecart_ticket_whitewolf_kelda")) == 0,
-                "after the cart the player stands at " .. (type(back) == "table" and (back.x .. "," .. back.z) or tostring(back))
-                .. " (want 2906,10172), tickets left " .. tostring(select(2, t.inv.count("dwarf_minecart_ticket_whitewolf_kelda"))))
+            -- Back, 4637 [1979..2004]: off the cart at track 5, 2909,10174.
+            await_at(t, "the cart back to Keldagrim", 2909, 10174, 0, 40)
+            local _, back = here(t)
+            t.check("takeCartFromWWMToKelda-arrived", at(t, 2909, 10174, 0) and n(t, "dwarf_minecart_ticket_whitewolf_kelda") == 0,
+                "at " .. back .. " (want 2909,10174,0), tickets left " .. n(t, "dwarf_minecart_ticket_whitewolf_kelda"))
 
+            -- talkToGauss: the toast (a beer or a glass in the pack, neither spent), the seed three
+            -- ticks after the chat closes (4637 [2141..2171])
             t.exec("goto-talkToGauss", t.player.goto_tile, 2838, 10195, 0)
             t.exec("talkToGauss", t.player.talk_to, "dwarf_city_dwarf_man6", 1)
-            t.exec("talkToGauss-dialog", t.chat.play, {
-                "player:The Drunken Dwarf said you had",
-                "npc:Ha! So he did tell you.",
-                "npc:Fetch a drink",
+            play(t, "talkToGauss-dialog", {
+                "npc:A good day to you, sir!",
+                "player:And to you!",
+                "player:Say, you know a lot about beer, right?",
+                "npc:A fair bit if I say so myself",
+                "player:Do you know anything about Kelda stout?",
+                "npc:Ah, very rare that is!",
+                "player:Yes, that's what I heard",
+                "npc:Then you'll probably need some seeds!",
+                "player:Have you got any?",
+                "npc:Have a toast to our good health with me",
+                "player:Drinking is bad for you, but I'll make an exception this time.",
+                "npc:Hurrah for the human!",
+                "player:Cheers!",
+                "npc:Cheers!",
             })
-            t.ticks(2)
-
-            local _, sx = t.world.tile()
-            local _, lvl = t.world.level()
-            local _, stage = t.var.server("varb822_forget_quest")
-            t.check("leg.1.end", stage == 30 and select(2, t.inv.count("kelda_hop_seed")) == 3, "tile " .. tostring(type(sx) == "table" and (tostring(sx.x) .. "," .. tostring(sx.z)) or sx) .. " level " .. tostring(lvl) .. ", forget_quest=" .. tostring(stage)
-                .. ", seeds " .. tostring(select(2, t.inv.count("kelda_hop_seed"))))
+            play(t, "talkToGauss-seed-dialog", { "npc:That was fun! Here, I've got one Kelda seed left." }, 10)
+            t.check("talkToGauss-seed", n(t, "kelda_hop_seed") == 4 and n(t, "beer_glass") == 1,
+                "kelda seeds " .. n(t, "kelda_hop_seed") .. " (want 4), beer glass " .. n(t, "beer_glass") .. " (want 1: kept)")
+            local _, txt = here(t)
+            t.check("leg.1.state", sv(t, "varb822_forget_quest") == 30 and n(t, "kelda_hop_seed") == 4,
+                "at " .. txt .. ", forget_quest=" .. tostring(sv(t, "varb822_forget_quest")) .. ", seeds " .. n(t, "kelda_hop_seed"))
         end },
         { name = "kelda_patch", run = function(t)
-            -- LEG 2: the toast with Gauss (4th seed), Rind, rake + plant, the real wait, harvest
-            t.exec("goto-talkToGauss-toast", t.player.goto_tile, 2838, 10195, 0)
-            t.exec("talkToGauss-toast", t.player.talk_to, "dwarf_city_dwarf_man6", 1)
-            t.exec("talkToGauss-toast-dialog", t.chat.play, {
-                "player:The Drunken Dwarf said you had",
-                "player:To the Drunken Dwarf",
-                "npc:To the kelda!",
-                "mesbox:Gauss hands you a kelda seed",
-            })
-            t.ticks(2)
-            t.check("talkToGauss-seed", select(2, t.inv.count("kelda_hop_seed")) == 4,
-                "kelda seeds held: " .. tostring(select(2, t.inv.count("kelda_hop_seed"))))
-
+            -- LEG 2: Rind's leave, the patch, the wait, the harvest, up to the brewery
             t.exec("goto-talkToRind", t.player.goto_tile, 2854, 10197, 0)
             t.exec("talkToRind", t.player.talk_to, "dwarf_city_gardener_dwarf", 1)
-            t.exec("talkToRind-dialog", t.chat.play, {
-                "player:I've got four kelda seeds",
-                "npc:Kelda hops!",
+            play(t, "talkToRind-dialog", {
+                "player:I need some help.",
+                "npc:What can a humble gardener like myself help you with?",
+                "player:I have four Kelda seeds here, but need some advice on growing them.",
+                "npc:Marvelous, those seeds are quite rare",
+                "npc:First of all, you must remember that these seeds only grow underground.",
+                "npc:There is a patch in the palace garden",
+                "player:Thanks! Is there anything else I need to know?",
+                "npc:Just take care of the weed in the patch",
+                "player:Thank you! Your advice is much appreciated!",
             })
-            t.ticks(2)
             t.expect("talkToRind-stage", t.quest.expect_stage("grow_kelda"))
 
             -- plantKelda: rake the weeds, then use the seeds on the weeded patch
@@ -311,887 +491,372 @@ return {
             end
             t.check("waitForKelda-line", kelda_seen, "the grown line (4637 [3884])")
 
-            -- harvestHops: [oploc1,kelda_hops_fullygrown] (spade in setup)
+            -- harvestHops: a hand pick, no spade, no line (forget_farming.rs2 [oploc1,kelda_hops_fullygrown], 4646 [287..293])
             t.exec("harvestHops", t.player.click_loc, "farming_hops_patch_keldagrim", 1)
             t.exec("harvestHops-hops", t.inv.await, "kelda_hops", 1, 20)
             t.expect("quest.stage.brew_stout", t.quest.expect_stage("brew_stout"))
 
-            -- goUpstairsPub: forget_brewing.rs2:10 [oploc1,dwarf_keldagrim_stairs_lower] (2916,10196,0)
-            -- The Laughing Miner's doorway is 2914,10196 (north wall z 10197; maps/m45_159.jl2 holds the
-            -- leaf as dwarf_keldagrim_door_poor_open): goto the street outside, pass the door (a leaf
-            -- standing open is asserted, never pressed), climb the stairs (forget_brewing.rs2:10
-            -- p_teleport(^forget_pub_upstairs_coord = 1_45_159_36_17 = 2916,10193,1)).
+            -- goUpstairsPub: the Laughing Miner's doorway (2914,10196), then its staircase
+            -- (forget_brewing.rs2 [oploc1,dwarf_keldagrim_stairs_lower] -> ^forget_pub_upstairs_coord 2914,10196,1)
             t.exec("goto-goUpstairsPub", t.player.goto_tile, 2914, 10198, 0)
             t.exec("goUpstairsPub.pubDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
                 open = "dwarf_keldagrim_door_poor_open", at = { 2914, 10196, 0 }, near = { 2914, 10198 }, far = { 2914, 10195 } })
             t.exec("goUpstairsPub", t.player.climb, { loc = "dwarf_keldagrim_stairs_lower", op_name = "Climb-up",
-                at = { 2915, 10196, 0 }, dest = { 2916, 10193, 1 } })
-            local _, lvl2 = t.world.level()
-            local _, tile2 = t.world.tile()
-            t.check("goUpstairsPub-level", lvl2 == 1, "level " .. tostring(lvl2) .. " at "
-                .. tostring(type(tile2) == "table" and (tile2.x .. "," .. tile2.z) or tile2))
-            local _, stage = t.var.server("varb822_forget_quest")
-            t.check("leg.2.end", lvl2 == 1, "tile " .. tostring(type(tile2) == "table" and (tile2.x .. "," .. tile2.z) or tile2)
-                .. " level " .. tostring(lvl2) .. ", forget_quest=" .. tostring(stage)
-                .. ", kelda_hops " .. tostring(select(2, t.inv.count("kelda_hops"))))
+                at = { 2915, 10196, 0 }, dest = { 2914, 10196, 1 } })
+            local _, txt = here(t)
+            t.check("leg.2.state", select(2, t.world.level()) == 1 and n(t, "kelda_hops") == 1,
+                "at " .. txt .. ", forget_quest=" .. tostring(sv(t, "varb822_forget_quest")) .. ", kelda hops " .. n(t, "kelda_hops"))
         end },
-        { name = "brew_and_secret_cart", run = function(t)
-            -- LEG 3: pot, yeast, vat, valve, barrel, stairs, conductor, director, secret cart
-            local function n(sym) return select(2, t.inv.count(sym)) end
+        { name = "brewing", run = function(t)
+            -- LEG 3: the pot, the yeast, the vat, the wait, the valve, the barrel (4646 [684..2217])
             t.exec("goto-pickupPot", t.player.goto_tile, 2916, 10192, 1)
             t.exec("pickupPot", t.player.click_obj, "pot_empty", 3)
-            t.ticks(3)
-            t.check("pickupPot-held", n("pot_empty") == 1, "pots " .. tostring(n("pot_empty")))
+            t.exec("pickupPot-held", t.inv.await, "pot_empty", 1, 5)
+            -- buyYeast: Blandebir's menu loops until "That's all I need to know, thanks."
+            local coins0 = n(t, "coins")
             t.exec("buyYeast", t.player.talk_to, "blandebir", 1)
-            t.exec("buyYeast-dialog", t.chat.play, {
+            play(t, "buyYeast-dialog", {
+                "player:Hello, I wonder if you could help me on this whole brewing thing...",
+                "npc:I might be able to - what do you need to know?",
+                "choose:Do you have any spare ale yeast?",
                 "player:Do you have any spare ale yeast?",
-                "npc:Ale yeast? Yes",
+                "npc:Well, as a matter of fact I do",
                 "choose:That's a good deal - please fill my pot with ale yeast for 25GP.",
-                "player:That's a good deal",
-                "mesbox:Blandebir fills your pot",
+                "player:That's a good deal - please fill my pot with ale yeast for 25GP.",
+                "choose:That's all I need to know, thanks.",
+                "player:That's all I need to know, thanks.",
             })
-            t.ticks(2)
-            t.check("buyYeast-held", n("ale_yeast") == 1, "yeast " .. tostring(n("ale_yeast")))
+            t.check("buyYeast-held", n(t, "ale_yeast") == 1 and n(t, "pot_empty") == 0 and n(t, "coins") == coins0 - 25,
+                "ale yeast " .. n(t, "ale_yeast") .. ", pots " .. n(t, "pot_empty") .. ", coins " .. coins0 .. " -> " .. n(t, "coins"))
+
+            -- the vat (forget_brewing.rs2 [oplocu,brewing_vat_1]): each step an objectbox
             local vat = t.player.by_symbol("loc", "brewing_vat_1")
-            -- forget_brewing.rs2:53-105 [oplocu,brewing_vat_1]: each use takes the guide's amount
             t.exec("addWater", t.player.use_on, "bucket_water", vat)
-            t.exec("addWater-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 1, 30)
-            t.check("addWater-items", n("bucket_water") == 0 and n("bucket_empty") == 2,
-                "buckets of water " .. tostring(n("bucket_water")) .. " (want 0), empty buckets " .. tostring(n("bucket_empty")) .. " (want 2)")
+            play(t, "addWater-dialog", { "objbox:You add some water to the vat." })
+            t.check("addWater-v", sv(t, "varb736_brewing_vat_varbit_1") == 1 and n(t, "bucket_water") == 0 and n(t, "bucket_empty") == 2,
+                "vat " .. tostring(sv(t, "varb736_brewing_vat_varbit_1")) .. " (want 1), buckets of water " .. n(t, "bucket_water")
+                .. ", empty buckets " .. n(t, "bucket_empty"))
             t.exec("addMalts", t.player.use_on, "barley_malt", vat)
-            t.exec("addMalts-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 2, 30)
-            t.check("addMalts-items", n("barley_malt") == 0, "barley malt " .. tostring(n("barley_malt")) .. " (want 0: both went in)")
+            play(t, "addMalts-dialog", { "objbox:You add some barley malt to the vat." })
+            t.check("addMalts-v", sv(t, "varb736_brewing_vat_varbit_1") == 2 and n(t, "barley_malt") == 0,
+                "vat " .. tostring(sv(t, "varb736_brewing_vat_varbit_1")) .. " (want 2), barley malt " .. n(t, "barley_malt"))
             t.exec("addKelda", t.player.use_on, "kelda_hops", vat)
-            t.exec("addKelda-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 68, 30)
-            t.check("addKelda-items", n("kelda_hops") == 0, "kelda hops " .. tostring(n("kelda_hops")) .. " (want 0)")
+            play(t, "addKelda-dialog", { "objbox:You add some kelda hops to the vat." })
+            t.check("addKelda-v", sv(t, "varb736_brewing_vat_varbit_1") == 68 and n(t, "kelda_hops") == 0,
+                "vat " .. tostring(sv(t, "varb736_brewing_vat_varbit_1")) .. " (want 68), kelda hops " .. n(t, "kelda_hops"))
             t.exec("addYeast", t.player.use_on, "ale_yeast", vat)
-            t.exec("addYeast-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 69, 30)
-            t.check("addYeast-items", n("ale_yeast") == 0 and n("pot_empty") == 1,
-                "ale yeast " .. tostring(n("ale_yeast")) .. " (want 0), empty pots " .. tostring(n("pot_empty")) .. " (want 1: the pot comes back)")
-            t.exec("waitBrewing-skip", t.clock.skip, 40)
-            t.exec("waitBrewing", t.var.await_server, "varb736_brewing_vat_varbit_1", 71, 130)
+            play(t, "addYeast-dialog", { "objbox:You add a pot of ale yeast into the vat and the contents begin to ferment." })
+            t.check("addYeast-v", sv(t, "varb736_brewing_vat_varbit_1") == 69 and n(t, "ale_yeast") == 0 and n(t, "pot_empty") == 1,
+                "vat " .. tostring(sv(t, "varb736_brewing_vat_varbit_1")) .. " (want 69), ale yeast " .. n(t, "ale_yeast")
+                .. ", empty pots " .. n(t, "pot_empty") .. " (want 1: the pot comes back)")
+
+            -- waitBrewing: two stages on the farming clock's five-minute marks (4646 [1367], [1864])
+            t.exec("waitBrewing-skip", t.clock.skip, 10)
+            t.exec("waitBrewing", t.var.await_server, "varb736_brewing_vat_varbit_1", 71, 110)
+
             t.exec("turnValve", t.player.click_loc, "vat_valve_1", 1)
-            t.exec("turnValve-v", t.var.await_server, "varb738_brewing_barrel_varbit_1", 3, 30)
+            play(t, "turnValve-dialog", { "mesbox:You turn the valve, releasing one pint of Kelda Stout into the barrel." })
+            t.check("turnValve-v", sv(t, "varb738_brewing_barrel_varbit_1") == 3 and sv(t, "varb736_brewing_vat_varbit_1") == 0,
+                "barrel " .. tostring(sv(t, "varb738_brewing_barrel_varbit_1")) .. " (want 3), vat "
+                .. tostring(sv(t, "varb736_brewing_vat_varbit_1")) .. " (want 0)")
             local barrel = t.player.by_symbol("loc", "brewing_barrel_1")
-            local glass0 = n("beer_glass")
             t.exec("useGlassOnBarrel", t.player.use_on, "beer_glass", barrel)
-            t.exec("useGlassOnBarrel-v", t.inv.await, "kelda_stout", 1, 20)
-            t.check("useGlassOnBarrel-glass", glass0 >= 1 and n("beer_glass") == glass0 - 1, "beer glasses " .. tostring(glass0) .. " -> " .. tostring(n("beer_glass")) .. " (one filled with the stout, forget_brewing.rs2:168)")
+            play(t, "useGlassOnBarrel-dialog", { "objbox:You fill the glass with Kelda Stout. The barrel is now empty." })
+            t.check("useGlassOnBarrel-stout", n(t, "kelda_stout") == 1 and n(t, "beer_glass") == 0,
+                "kelda stout " .. n(t, "kelda_stout") .. ", beer glasses " .. n(t, "beer_glass"))
             t.expect("quest.stage.give_stout", t.quest.expect_stage("give_stout"))
-            -- forget_brewing.rs2:14 p_teleport(^forget_pub_stairs_lower_coord = 0_45_159_36_20 = 2916,10196,0)
+
+            -- goDownFromPub: forget_brewing.rs2 [oploc1,dwarf_keldagrim_stairs_upper] -> 2917,10196,0
             t.exec("goDownFromPub", t.player.climb, { loc = "dwarf_keldagrim_stairs_upper", op_name = "Climb-down",
-                at = { 2915, 10196, 1 }, dest = { 2916, 10196, 0 } })
-            -- giveStout (goGiveDrunkenDwarfKelda): out of the pub by its doorway, the street, the
-            -- Drunken Dwarf's door in, hand him the stout, hear more, his door out
+                at = { 2915, 10196, 1 }, dest = { 2917, 10196, 0 } })
+            local _, txt = here(t)
+            t.check("leg.3.state", at(t, 2917, 10196, 0) and n(t, "kelda_stout") == 1,
+                "at " .. txt .. ", forget_quest=" .. tostring(sv(t, "varb822_forget_quest")))
+        end },
+        { name = "tale_and_tunnel", run = function(t)
+            -- LEG 4: the stout and the tale, the conductor, the director, the secret cart
             t.exec("giveStout.pubDoorOut", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
                 open = "dwarf_keldagrim_door_poor_open", at = { 2914, 10196, 0 }, near = { 2914, 10195 }, far = { 2914, 10198 } })
             t.exec("goto-giveStout", t.player.goto_tile, 2913, 10218, 0)
             t.exec("giveStout.houseDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
                 open = "dwarf_keldagrim_door_poor_open", at = { 2913, 10219, 0 }, near = { 2913, 10219 }, far = { 2913, 10220 } })
+            -- 4646 [2327..2356]: the stout and 65 go with "Here you go then."; "First of all..." starts the tale
             t.exec("giveStout", t.player.talk_to, "dwarf_city_drunken_dwarf", 1)
-            t.exec("giveStout-dialog", t.chat.play, {
-                "player:I've brought you a kelda stout.",
-                "npc:Is that... it can't be",
-                "npc:*glug glug glug*",
+            play(t, "giveStout-dialog", {
+                "choose:I need to know about the Red Axe...",
+                "player:I need to know about the Red Axe...",
+                "npc:I want my Kelda shtout!",
+                "player:I've got some Kelda stout right here.",
+                "npc:Now there'sh a good human, gimme that!",
+                "player:Are you sure? This is pretty bad stuff.",
+                "npc:You want to hear about the Red Kebabsh or what?",
+                "player:Here you go then.",
+                "npc:Ooooh, THAT'sh the good shtuff!",
+                "npc:The Red Axe? You want to know about them, do you?",
+                "npc:A long time ago, quite a while ago, yes...",
+                "player:The what? The Magenta Accordion?",
+                "npc:It is, it is!",
+                "player:Alright, if you say so...",
+                "npc:Right, so I had just left my company.",
+                "npc:I explored this old mine",
+                "npc:First of all...",
             })
-            t.ticks(2)
-            t.check("giveStout-stout", n("kelda_stout") == 0, "kelda stout held " .. tostring(n("kelda_stout")) .. " (want 0: he drank it)")
+            t.check("giveStout-stout", n(t, "kelda_stout") == 0, "kelda stout held " .. n(t, "kelda_stout") .. " (want 0: he drank it)")
             t.expect("quest.stage.hear_more", t.quest.expect_stage("hear_more"))
-            t.exec("hearMore", t.player.talk_to, "dwarf_city_drunken_dwarf", 1)
-            t.exec("hearMore-dialog", t.chat.play, {
-                "npc:Right, where was I",
-                "npc:The tunnel was boarded up",
-                "player:Thank you, that's exactly",
-            })
-            t.ticks(2)
+            -- The tale (4646 [2356..2405]): four fades, three timed pages with no continue, then
+            -- the last page with one; 70 goes out with the Drunken Dwarf's last page.
+            play(t, "hearTale-dialog", {
+                "npc:...and I don't really remember anything after that.",
+                "player:That was very interesting!",
+                "player:But I shall investigate that tunnel immediately!",
+                "npc:If you shay sho...",
+            }, 80)
             t.expect("quest.stage.ask_conductor", t.quest.expect_stage("ask_conductor"))
-            -- talkToCartConductor
+
+            -- talkToCartConductor: the southern conductor's tunnel row (4646 [2559..2586])
             t.exec("talkToCartConductor.houseDoorOut", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
                 open = "dwarf_keldagrim_door_poor_open", at = { 2913, 10219, 0 }, near = { 2913, 10220 }, far = { 2913, 10218 } })
             t.exec("goto-talkToCartConductor", t.player.goto_tile, 2922, 10168, 0)
             t.exec("talkToCartConductor", t.player.talk_to, "dwarf_city_train_conductor8", 1)
-            t.exec("talkToCartConductor-dialog", t.chat.play, {
-                "npc:Welcome to the cart station",
+            play(t, "talkToCartConductor-dialog", {
                 "choose:Ask about closed off tunnel.",
-                "player:Ask about closed off tunnel.",
-                "npc:Ah, the old spur",
-                "npc:It is their tunnel now",
+                "player:Excuse me, can you tell me what's behind that boarded up tunnel to the south?",
+                "npc:Why, that part of the mines hasn't been used in a long time.",
+                "player:I need to go through there.",
+                "npc:I don't have the authority to do that kind of thing.",
+                "player:Then who do I talk to?",
+                "npc:I don't know. Perhaps you have an influential friend?",
             })
-            t.ticks(2)
             t.expect("quest.stage.ask_director", t.quest.expect_stage("ask_director"))
-            -- gdwarf_consortium.rs2 [oploc1,dwarf_keldagrim_wide_stairs_lower] ~climb(1) (ladders.rs2
-            -- ~maplink_try): maplink.dbrow:8257 maplink_0_45_159_13_33_up (src 2893,10209,0) lands
-            -- 1_45_159_16_33 = 2896,10209,1, on the Consortium floor beside the copy pressed
-            t.exec("goto-goUpToDirector", t.player.goto_tile, 2895, 10208, 0)
-            t.exec("goUpToDirector", t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_lower", op_name = "Climb-up",
-                at = { 2894, 10209, 0 }, dest = { 2896, 10209, 1 } })
-            -- across the Consortium floor on foot (one open floor, no door between: reach.py level 1)
-            t.exec("walk-talkToDirector", t.player.walk_route, { { 2893, 10211 }, { 2887, 10209 }, { 2884, 10204 },
-                { 2876, 10204 }, { 2869, 10203 } }, { level = 1 })
-            t.exec("talkToDirector", t.player.talk_to, "dwarf_city_director_blue_opal", 1)
-            t.exec("talkToDirector-dialog", t.chat.play, {
-                "npc:Yes? I am busy",
+
+            -- goUpToDirector / talkToDirector: the player's own company's director, the Green
+            -- Gemstone's (forget_tunnels.rs2 forget_director_talk, 4646 [2629..2656])
+            t.exec("goto-goUpToDirector", t.player.goto_tile, 2893, 10209, 0)
+            t.exec("goUpToDirector", t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_lower", op = 1, op_name = "Climb-up",
+                at = { 2894, 10209, 0 }, src = { 2893, 10209 }, dest = { 2896, 10209, 1 } })
+            t.exec("talkToDirector.present", t.npc.await_present, "dwarf_city_director_green_gemstone", 30, 15)
+            t.exec("talkToDirector", t.player.talk_to, "dwarf_city_director_green_gemstone", 1)
+            play(t, "talkToDirector-dialog", {
+                "npc:Have you seen the statue?",
                 "choose:Can you help me with a boarded up tunnel?",
                 "player:Can you help me with a boarded up tunnel?",
-                "npc:The old spur",
-                "npc:Very well",
+                "npc:Ah, and what would be lurking behind this particular tunnel?",
+                "player:I think it leads to something that might be related to the Red Axe.",
+                "npc:The Red Axe!",
+                "npc:This is indeed an important issue.",
+                "player:Can you help me get the boarding removed then?",
+                "npc:I'll order the removal at once!",
+                "player:Thanks! I'll investigate the tunnel immediately!",
             })
-            t.ticks(2)
             t.expect("quest.stage.tunnels_first", t.quest.expect_stage("tunnels_first"))
-            -- back across the Consortium floor on foot (one open floor, no door between: reach.py
-            -- level 1) to the guide's stairs (upper copy 2895,10209,1); gdwarf_consortium.rs2
-            -- [oploc1,dwarf_keldagrim_wide_stairs_upper] ~climb(-1): maplink.dbrow:8299
-            -- maplink_1_45_159_16_33_down (src 2896,10209,1) lands 0_45_159_13_33 = 2893,10209,0, the street
-            t.exec("walk-goDownFromDirector", t.player.walk_route, { { 2869, 10205 }, { 2865, 10207 }, { 2872, 10208 },
-                { 2876, 10204 }, { 2884, 10204 }, { 2887, 10209 }, { 2893, 10211 }, { 2895, 10211 } }, { level = 1 })
-            t.exec("goDownFromDirector", t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_upper", op_name = "Climb-down",
-                at = { 2895, 10209, 1 }, dest = { 2893, 10209, 0 } })
-            -- takeSecretCart: empty hands, two free slots; walk off the landing onto the street first
-            t.exec("goDownFromDirector.offStairs", t.player.walk_route, { { 2893, 10207 } }, { level = 0 })
+            t.check("talkToDirector-boarding", sv(t, "varb825_forget_boarding_removed") == 1,
+                "forget_boarding_removed=" .. tostring(sv(t, "varb825_forget_boarding_removed")))
+            -- goDownFromDirector: the same stairs' upper copy (maplink to 2893,10209,0)
+            t.exec("goto-goDownFromDirector", t.player.goto_tile, 2896, 10209, 1)
+            t.exec("goDownFromDirector", t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_upper", op = 1, op_name = "Climb-down",
+                at = { 2895, 10209, 1 }, src = { 2896, 10209 }, dest = { 2893, 10209, 0 } })
+
+            -- takeSecretCart: the ride, the fade, the hub, the first-entry pan and the player's
+            -- line (forget_tunnels.rs2 forget_secret_cart / forget_enter_tunnels, 4646 [2950..2980], [2807..2826])
             t.exec("goto-takeSecretCart", t.player.goto_tile, 2919, 10166, 0)
-            t.exec("takeSecretCart", t.player.click_loc, "keldagrim_train_cart", 1)
-            t.ticks(6)
-            local _, at = t.world.tile()
-            t.check("takeSecretCart-hub", type(at) == "table" and at.x >= 1850 and at.x <= 1870 and at.z >= 4950 and at.z <= 4960,
-                "at " .. tostring(type(at) == "table" and (at.x .. "," .. at.z) or at) .. " level " .. tostring(select(2, t.world.level())))
-            local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("varb822_forget_quest")
-            t.check("leg.3.end", type(endtile) == "table", "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
-                .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. ", kelda_stout " .. tostring(select(2, t.inv.count("kelda_stout"))))
+            local pan = t.cutscene.mark()
+            t.exec("takeSecretCart", t.player.click_loc, "keldagrim_train_cart", 1, { at = { 2919, 10164, 0 } })
+            play(t, "tunnelEntry-dialog", { "player:I'm deep underground now, but how am I supposed to get across here?" }, 40)
+            -- the first pan drifts its eye only: no second look (4646 [2808])
+            scene(t, "tunnelEntry.cutscene", pan, { { op = "moveto", height = 1000 }, { op = "lookat", height = 500 },
+                { op = "moveto", height = 1000 }, { op = "reset" } })
+            local _, txt = here(t)
+            t.check("takeSecretCart-hub", at(t, 1863, 4956, 1) and sv(t, "varb837_forget_region_status") == 1,
+                "at " .. txt .. " (want the hub 1863,4956,1), region_status " .. tostring(sv(t, "varb837_forget_region_status")))
         end },
         { name = "puzzle_group_one", run = function(t)
-            -- LEG 4 BEGIN: searchBox1
-            local ROUTE1 = { [0] = 2, [2] = 1 } -- junction index (0-based) -> 1 green / 2 yellow (guide puzzle1P1/P2)
-            local function stones(sym) return select(2, t.var.server(sym)) end
-            t.exec("goto-hub", t.player.goto_tile, 1861, 4954, 1)
-            t.exec("searchBox1", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-            t.ticks(2)
-            t.exec("startPuzzle1", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle1-open", t.ui.await_open, "forget_puzzle1", 30)
-            local function com(i) return "forget_puzzle1:switch_" .. ("abcdefgh"):sub(i + 1, i + 1) end
-            for i = 0, 7 do -- clear every junction first so its stone comes back
-                for _ = 1, 3 do
-                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
-                    local _, w = t.ui.widget(com(i))
-                    t.ui.invoke(w, 0)
-                    t.ticks(1)
-                end
-            end
-            local names = { [0] = "puzzle1P1", [2] = "puzzle1P2" }
-            for _, i in ipairs({ 0, 2 }) do
-                local want = ROUTE1[i]
-                for _ = 1, 3 do
-                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
-                    local _, w = t.ui.widget(com(i))
-                    t.ui.invoke(w, 0)
-                    t.ticks(1)
-                end
-                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
-                t.check(names[i], v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
-            end
-            local _, okw = t.ui.widget("forget_puzzle1:ok_button")
-            t.ui.invoke(okw, 0)
-            local closed = t.ui.await_close("forget_puzzle1", 30)
-            t.check("puzzle1Ok", closed == "ok", "interface closed: " .. tostring(closed)
-                .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 1")
-            t.exec("takePuzzle1Cart", t.player.click_loc, "forget_train_cart", 1)
-            t.ticks(6)
-            t.check("platform1-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            t.exec("searchPuzzle1Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-            t.ticks(2)
-            t.check("stones-after-box1", stones("varb862_forget_num_right") == 1, "green " .. tostring(stones("varb862_forget_num_right")))
-            t.exec("returnFromPuzzle1", t.player.click_loc, "forget_train_return_cart", 1)
-            t.ticks(6)
-            local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("varb822_forget_quest")
-            t.check("leg.4.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
-                "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
-                .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))))
-            -- LEG 4 END
+            -- LEG 5: the first group's three routes (forget_route_expected 1..3), the listening room
+            search_box(t, "searchBox1", "You find a green stone and a yellow stone in the storage box.", 1, 1)
+            set_route(t, "startPuzzle1", "forget_puzzle1", { { 0, 2, "puzzle1P1" }, { 2, 1, "puzzle1P2" } }, "puzzle1Ok", 1)
+            ride_to_platform(t, "takePuzzle1Cart", true)
+            search_box(t, "searchPuzzle1Box", "You search the box and find another stone with a green marking on it.", 1, 0, { 1890, 4953 })
+            ride_back(t, "returnFromPuzzle1", { 1889, 4955 })
+            set_route(t, "startPuzzle2", "forget_puzzle1",
+                { { 0, 1, "puzzle2P1" }, { 1, 2, "puzzle2P2" }, { 4, 1, "puzzle2P3" } }, "puzzle2Ok", 2)
+            ride_to_platform(t, "takePuzzle2Cart", false)
+            search_box(t, "searchPuzzle2Box", "You search the box and find another stone with a yellow marking on it.", 0, 1, { 1905, 4970 })
+            ride_back(t, "returnFromPuzzle2", { 1905, 4968 })
+            set_route(t, "startPuzzle3", "forget_puzzle1",
+                { { 0, 2, "puzzle3P1" }, { 2, 2, "puzzle3P2" }, { 5, 1, "puzzle3P3" }, { 6, 1, "puzzle3P4" } }, "puzzle3Ok", 3)
+            -- route 3: the listening room (forget_story.rs2 forget_enter_listening_room / forget_listen,
+            -- 4646 [3362..3464]): thirteen timed pages, then the player's own
+            t.exec("takePuzzle3Cart", t.player.click_loc, "forget_train_cart", 1)
+            play(t, "listenToConversation-dialog", { "player:Pesky human huh? Well, I think I have enough info now." }, 160)
+            t.expect("quest.stage.listening_room", t.quest.expect_stage("listening_room"))
+            -- The room is a copy of its own, the template's plane 2 on its plane 0 (4646 [3365]).
+            t.check("listenToConversation-room", select(2, t.world.level()) == 0 and n(t, GREEN) == 0 and n(t, YELLOW) == 0
+                and sv(t, "varb869_forget_room1_once") == 1,
+                "level " .. tostring(select(2, t.world.level())) .. ", " .. stones(t) .. ", room1_once="
+                .. tostring(sv(t, "varb869_forget_room1_once")))
+            -- leaveListeningRoom1: 110, the fade, the hub, the second group's pan (4646 [3571..3593])
+            local pan = t.cutscene.mark()
+            t.exec("leaveListeningRoom1", t.player.click_loc, "forget_story_exit_next", 1)
+            play(t, "tunnelEntry2-dialog", { "player:Looks like another chasm I need to cross." }, 40)
+            scene(t, "tunnelEntry2.cutscene", pan, { { op = "moveto", height = 650 }, { op = "lookat", height = 400 },
+                { op = "moveto", height = 650 }, { op = "lookat", height = 400 }, { op = "reset" } })
+            t.expect("quest.stage.tunnels_second", t.quest.expect_stage("tunnels_second"))
+            local _, txt = here(t)
+            t.check("leg.5.state", at(t, 1863, 4956, 1), "at " .. txt .. ", " .. stones(t))
         end },
         { name = "puzzle_group_two", run = function(t)
-            -- LEG 5 BEGIN: startPuzzle2
-            -- junction index (0-based) -> 1 green / 2 yellow: group 1 route 2 (guide puzzle2P1..P3, forget_puzzle.rs2:93 route_expected 200/201/204)
-            local ROUTE2 = { [0] = 1, [1] = 2, [4] = 1 }
-            local ROUTE3 = { [0] = 2 } -- puzzle3P1 only; leg 6 sets the rest (route 3: 300/302/305/306)
-            local function stones(sym) return select(2, t.var.server(sym)) end
-            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
-            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
-            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
-            local function box_search(row, check, group)
-                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
-                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-                t.ticks(2)
-                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, lvl = t.world.level()
-                local wy, wg, where
-                if lvl == 1 then
-                    wy = (group == 1) and 1 or 2
-                    wg = (group == 3) and 2 or 1
-                    where = "hub box"
-                else
-                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
-                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
-                    wg = (group == 1 and which == 2) and 0 or 1
-                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
-                end
-                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
-                    and y1 - y0 == wy and g1 - g0 == wg
-                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
-                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
-            end
-            local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijkl"):sub(i + 1, i + 1) end
-            local function clear(iface, count)
-                for i = 0, count - 1 do -- clear every junction first so its stone comes back
-                    for _ = 1, 3 do
-                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
-                        local _, w = t.ui.widget(com(iface, i))
-                        t.ui.invoke(w, 0)
-                        t.ticks(1)
-                    end
-                end
-            end
-            local function setj(iface, i, want, name)
-                for _ = 1, 3 do
-                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
-                    local _, w = t.ui.widget(com(iface, i))
-                    t.ui.invoke(w, 0)
-                    t.ticks(1)
-                end
-                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
-                t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
-            end
-            t.exec("goto-hub-routes", t.player.goto_tile, 1861, 4954, 1)
-            t.exec("startPuzzle2", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle2-open", t.ui.await_open, "forget_puzzle1", 30)
-            clear("forget_puzzle1", 8)
-            setj("forget_puzzle1", 0, ROUTE2[0], "puzzle2P1")
-            setj("forget_puzzle1", 1, ROUTE2[1], "puzzle2P2")
-            setj("forget_puzzle1", 4, ROUTE2[4], "puzzle2P3")
-            local _, okw = t.ui.widget("forget_puzzle1:ok_button")
-            t.ui.invoke(okw, 0)
-            local closed = t.ui.await_close("forget_puzzle1", 30)
-            t.check("puzzle2Ok", closed == "ok" and select(2, t.var.server("varp7868_forget_route")) == 2,
-                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 2")
-            t.exec("takePuzzle2Cart", t.player.click_loc, "forget_train_cart", 1)
-            t.ticks(6)
-            t.check("platform2-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            box_search("searchPuzzle2Box", "stones-after-box2", 1)
-            t.exec("returnFromPuzzle2", t.player.click_loc, "forget_train_return_cart", 1)
-            t.ticks(6)
-            t.exec("startPuzzle3", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle3-open", t.ui.await_open, "forget_puzzle1", 30)
-            clear("forget_puzzle1", 8)
-            setj("forget_puzzle1", 0, ROUTE3[0], "puzzle3P1")
-            t.key("escape") -- leave the machinery open-free so the boundary is quiet; the junction stays set
-            t.ticks(3)
-            local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("varb822_forget_quest")
-            t.check("leg.5.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
-                "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
-                .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. ", junction1=" .. tostring(select(2, t.var.server("varb842_forget_if1")))
-                .. ", stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
-            -- LEG 5 END
-        end },
-        { name = "listening_room", run = function(t)
-            -- LEG 6 BEGIN: puzzle3P2
-            local function stones(sym) return select(2, t.var.server(sym)) end
-            local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijkl"):sub(i + 1, i + 1) end
-            local function setj(iface, i, want, name)
-                for _ = 1, 3 do
-                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
-                    local _, w = t.ui.widget(com(iface, i))
-                    t.ui.invoke(w, 0)
-                    t.ticks(1)
-                end
-                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
-                t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
-            end
-            -- group 1 route 3 (forget_puzzle.rs2:93 route_expected 300/302/305/306); junction 0 (yellow) was set by leg 5
-            t.exec("goto-hub-library", t.player.goto_tile, 1861, 4955, 1)
-            t.exec("startPuzzle3-reopen", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle3-reopen-open", t.ui.await_open, "forget_puzzle1", 30)
-            setj("forget_puzzle1", 2, 2, "puzzle3P2")
-            setj("forget_puzzle1", 5, 1, "puzzle3P3")
-            setj("forget_puzzle1", 6, 1, "puzzle3P4")
-            local _, okw = t.ui.widget("forget_puzzle1:ok_button")
-            t.ui.invoke(okw, 0)
-            local closed = t.ui.await_close("forget_puzzle1", 30)
-            t.check("puzzle3Ok", closed == "ok" and select(2, t.var.server("varp7868_forget_route")) == 3,
-                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 3")
-            t.exec("takePuzzle3Cart", t.player.click_loc, "forget_train_cart", 1)
-            t.ticks(6)
-            t.expect("quest.stage.listening_room", t.quest.expect_stage("listening_room"))
-            t.check("listening-room-level", select(2, t.world.level()) == 2, "level " .. tostring(select(2, t.world.level())))
-            -- the guide's leaveListeningRoom1 says "once you finish listening": the director's talk is forget_story.rs2:44 forget_listen
-            t.exec("listenToConversation", t.player.talk_to, "forget_redaxe_director_cutscene_alt", 1)
-            t.exec("listenToConversation-dialog", t.chat.play, {
-                "npc:The Consortium is blind to it. Every cart in Keldagrim rolls right over our heads and not one of them has ever looked down.",
-                "npc:And the tunnels reach all the way under the trading floor, boss?",
-                "npc:All the way. When the time comes we come up in their own strongroom. The dwarves will not know what hit them.",
-                "npc:Ogres want their share. Ogres want gold, and dwarf ale!",
-                "npc:You will have both, once our friends from the west have delivered what they promised. Now, back to work, all of you.",
-            })
-            t.ticks(3)
-            t.check("listened", select(2, t.var.server("varb870_forget_room1_listening")) == 1, "forget_room1_listening=" .. tostring(select(2, t.var.server("varb870_forget_room1_listening"))))
-            t.exec("leaveListeningRoom1", t.player.click_loc, "forget_story_exit_next", 1)
-            t.ticks(6)
-            t.expect("quest.stage.tunnels_second", t.quest.expect_stage("tunnels_second"))
-            t.exec("searchBox2", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-            t.ticks(2)
-            t.check("stones-after-hub-box", stones("varb861_forget_num_left") == 2 and stones("varb862_forget_num_right") == 1,
-                "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. " (group 2 hub box: 2 yellow 1 green, forget_puzzle.rs2:330)")
-            t.exec("startPuzzle4", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle4-open", t.ui.await_open, "forget_puzzle2", 30)
-            -- group 2 route 4: 400=green, 401=yellow, 404=yellow (leg 7 sets 404)
-            setj("forget_puzzle2", 0, 1, "puzzle4P1")
-            setj("forget_puzzle2", 1, 2, "puzzle4P2")
-            t.key("escape")
-            t.ticks(3)
-            local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("varb822_forget_quest")
-            t.check("leg.6.state", type(endtile) == "table" and select(2, t.world.level()) == 1,
-                "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
-                .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. ", junctions 1,2=" .. tostring(select(2, t.var.server("varb842_forget_if1"))) .. "," .. tostring(select(2, t.var.server("varb843_forget_if2")))
-                .. ", stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
-                .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
-            -- LEG 6 END
-        end },
-        { name = "puzzle_group_two_routes", run = function(t)
-            -- LEG 7 BEGIN: puzzle4P3
-            local function stones(sym) return select(2, t.var.server(sym)) end
-            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
-            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
-            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
-            local function box_search(row, check, group)
-                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
-                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-                t.ticks(2)
-                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, lvl = t.world.level()
-                local wy, wg, where
-                if lvl == 1 then
-                    wy = (group == 1) and 1 or 2
-                    wg = (group == 3) and 2 or 1
-                    where = "hub box"
-                else
-                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
-                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
-                    wg = (group == 1 and which == 2) and 0 or 1
-                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
-                end
-                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
-                    and y1 - y0 == wy and g1 - g0 == wg
-                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
-                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
-            end
-            local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijkl"):sub(i + 1, i + 1) end
-            local function clear(iface, count)
-                for i = 0, count - 1 do
-                    for _ = 1, 3 do
-                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
-                        local _, w = t.ui.widget(com(iface, i))
-                        t.ui.invoke(w, 0)
-                        t.ticks(1)
-                    end
-                end
-            end
-            local function setj(iface, i, want, name)
-                for _ = 1, 3 do
-                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
-                    local _, w = t.ui.widget(com(iface, i))
-                    t.ui.invoke(w, 0)
-                    t.ticks(1)
-                end
-                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
-                t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
-            end
-            -- group 2 route 4: 400 green, 401 yellow, 404 yellow (forget_puzzle.rs2:93); junctions 0 and 1 were set by leg 6
-            t.exec("goto-hub-nine", t.player.goto_tile, 1861, 4955, 1)
-            t.exec("startPuzzle4-reopen", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle4-reopen-open", t.ui.await_open, "forget_puzzle2", 30)
-            setj("forget_puzzle2", 4, 2, "puzzle4P3")
-            local _, okw = t.ui.widget("forget_puzzle2:ok_button")
-            t.ui.invoke(okw, 0)
-            local closed = t.ui.await_close("forget_puzzle2", 30)
-            t.check("puzzle4Ok", closed == "ok" and select(2, t.var.server("varp7868_forget_route")) == 4,
-                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 4")
-            t.exec("takePuzzle4Cart", t.player.click_loc, "forget_train_cart", 1)
-            t.ticks(6)
-            t.check("platform4-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            box_search("searchPuzzle4Box", "stones-after-box4", 2)
-            t.exec("returnFromPuzzle4", t.player.click_loc, "forget_train_return_cart", 1)
-            t.ticks(6)
-            -- group 2 route 5: 500 yellow, 502 yellow, 505 green, 510 green
-            t.exec("startPuzzle5", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle5-open", t.ui.await_open, "forget_puzzle2", 30)
-            clear("forget_puzzle2", 12)
-            setj("forget_puzzle2", 0, 2, "puzzle5P1")
-            setj("forget_puzzle2", 2, 2, "puzzle5P2")
-            setj("forget_puzzle2", 5, 1, "puzzle5P3")
-            setj("forget_puzzle2", 10, 1, "puzzle5P4")
-            local _, ok5 = t.ui.widget("forget_puzzle2:ok_button")
-            t.ui.invoke(ok5, 0)
-            local closed5 = t.ui.await_close("forget_puzzle2", 30)
-            t.check("puzzle5Ok", closed5 == "ok" and select(2, t.var.server("varp7868_forget_route")) == 5,
-                "interface closed: " .. tostring(closed5) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 5")
-            local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("varb822_forget_quest")
-            t.check("leg.7.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
-                "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
-                .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. ", route=5 set (cart not yet taken), stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
-                .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
-            -- LEG 7 END
-        end },
-        { name = "puzzle_group_two_library", run = function(t)
-            -- LEG 8 BEGIN: takePuzzle5Cart
-            local function stones(sym) return select(2, t.var.server(sym)) end
-            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
-            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
-            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
-            local function box_search(row, check, group)
-                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
-                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-                t.ticks(2)
-                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, lvl = t.world.level()
-                local wy, wg, where
-                if lvl == 1 then
-                    wy = (group == 1) and 1 or 2
-                    wg = (group == 3) and 2 or 1
-                    where = "hub box"
-                else
-                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
-                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
-                    wg = (group == 1 and which == 2) and 0 or 1
-                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
-                end
-                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
-                    and y1 - y0 == wy and g1 - g0 == wg
-                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
-                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
-            end
-            local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijkl"):sub(i + 1, i + 1) end
-            local function clear(iface, count)
-                for i = 0, count - 1 do
-                    for _ = 1, 3 do
-                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
-                        local _, w = t.ui.widget(com(iface, i))
-                        t.ui.invoke(w, 0)
-                        t.ticks(1)
-                    end
-                end
-            end
-            local function setj(iface, i, want, name)
-                for _ = 1, 3 do
-                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
-                    local _, w = t.ui.widget(com(iface, i))
-                    t.ui.invoke(w, 0)
-                    t.ticks(1)
-                end
-                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
-                t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
-            end
-            -- route 5 was set by leg 7; the cart goes to the medium platform (forget_puzzle.rs2:440)
-            t.exec("takePuzzle5Cart", t.player.click_loc, "forget_train_cart", 1)
-            t.ticks(6)
-            t.check("platform5-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            box_search("searchPuzzle5Box", "stones-after-box5", 2)
-            t.exec("returnFromPuzzle5", t.player.click_loc, "forget_train_return_cart", 1)
-            t.ticks(6)
-            -- group 2 route 6: 600 green, 601 green, 603 yellow, 609 green, 611 yellow (forget_puzzle.rs2:93)
-            t.exec("startPuzzle6", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle6-open", t.ui.await_open, "forget_puzzle2", 30)
-            clear("forget_puzzle2", 12)
-            setj("forget_puzzle2", 0, 1, "puzzle6P1")
-            setj("forget_puzzle2", 1, 1, "puzzle6P2")
-            setj("forget_puzzle2", 3, 2, "puzzle6P3")
-            setj("forget_puzzle2", 9, 1, "puzzle6P4")
-            setj("forget_puzzle2", 11, 2, "puzzle6P5")
-            local _, ok6 = t.ui.widget("forget_puzzle2:ok_button")
-            t.ui.invoke(ok6, 0)
-            local closed6 = t.ui.await_close("forget_puzzle2", 30)
-            t.check("puzzle6Ok", closed6 == "ok" and select(2, t.var.server("varp7868_forget_route")) == 6,
-                "interface closed: " .. tostring(closed6) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 6")
+            -- LEG 6: the second group's routes 4..6 and the library
+            search_box(t, "searchBox2", "You find a green stone and two yellow stones in the storage box.", 1, 2)
+            set_route(t, "startPuzzle4", "forget_puzzle2",
+                { { 0, 1, "puzzle4P1" }, { 1, 2, "puzzle4P2" }, { 4, 2, "puzzle4P3" } }, "puzzle4Ok", 4)
+            ride_to_platform(t, "takePuzzle4Cart", true)
+            search_box(t, "searchPuzzle4Box", "You search the box and find another stone with a green marking on it.", 1, 0, { 1898, 4953 })
+            ride_back(t, "returnFromPuzzle4", { 1898, 4955 })
+            set_route(t, "startPuzzle5", "forget_puzzle2",
+                { { 0, 2, "puzzle5P1" }, { 2, 2, "puzzle5P2" }, { 5, 1, "puzzle5P3" }, { 10, 1, "puzzle5P4" } }, "puzzle5Ok", 5)
+            ride_to_platform(t, "takePuzzle5Cart", false)
+            search_box(t, "searchPuzzle5Box", "You search the box and find yet another stone with a green marking on it.", 1, 0, { 1906, 4945 })
+            ride_back(t, "returnFromPuzzle5", { 1906, 4947 })
+            set_route(t, "startPuzzle6", "forget_puzzle2",
+                { { 0, 1, "puzzle6P1" }, { 1, 1, "puzzle6P2" }, { 3, 2, "puzzle6P3" }, { 9, 1, "puzzle6P4" }, { 11, 2, "puzzle6P5" } },
+                "puzzle6Ok", 6)
+            -- route 6: the library (forget_story.rs2 forget_enter_library, 4646 [4085..4266])
             t.exec("takePuzzle6Cart", t.player.click_loc, "forget_train_cart", 1)
-            t.ticks(6)
+            -- The route 6 run is ~40 ticks with the bridge (4646 [4038..4077]).
+            -- Its own copy, plane 0 (4646 [4077] rebuild_region: template planes 2/3 onto 0/1).
+            await_at(t, "the library", 1899, 4965, 0, 90)
             t.expect("quest.stage.library", t.quest.expect_stage("library"))
-            local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("varb822_forget_quest")
-            t.check("leg.8.end", type(endtile) == "table",
-                "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
-                .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. " (library), stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
-                .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
-            -- LEG 8 END
-        end },
-        { name = "library_and_puzzle_seven", run = function(t)
-            -- LEG 9 BEGIN: searchBookcase
-            local function stones(sym) return select(2, t.var.server(sym)) end
-            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
-            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
-            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
-            local function box_search(row, check, group)
-                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
-                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-                t.ticks(2)
-                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, lvl = t.world.level()
-                local wy, wg, where
-                if lvl == 1 then
-                    wy = (group == 1) and 1 or 2
-                    wg = (group == 3) and 2 or 1
-                    where = "hub box"
-                else
-                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
-                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
-                    wg = (group == 1 and which == 2) and 0 or 1
-                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
-                end
-                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
-                    and y1 - y0 == wy and g1 - g0 == wg
-                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
-                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
-            end
-            local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijklmnopqrst"):sub(i + 1, i + 1) end
-            local function clear(iface, count)
-                for i = 0, count - 1 do
-                    for _ = 1, 3 do
-                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
-                        local _, w = t.ui.widget(com(iface, i))
-                        t.ui.invoke(w, 0)
-                        t.ticks(1)
-                    end
-                end
-            end
-            local function setj(iface, i, want, name)
-                for _ = 1, 3 do
-                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
-                    local _, w = t.ui.widget(com(iface, i))
-                    t.ui.invoke(w, 0)
-                    t.ticks(1)
-                end
-                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
-                t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
-            end
-            -- forget_story.rs2:61 the bookcase must be the one at 2_29_77_48_39 = 1904,4967
-            t.exec("searchBookcase", t.player.click_loc, "dwarf_keldagrim_metal_bookcase", 1, { at = { 1904, 4967, 2 } })
-            t.exec("searchBookcase-dialog", t.chat.play, { "mesbox:You search the bookcase and find a Red Axe employee handbook" })
-            t.ticks(2)
-            t.check("bookcase-read", select(2, t.var.server("varb833_forget_room2_bookcase")) == 1, "forget_room2_bookcase=" .. tostring(select(2, t.var.server("varb833_forget_room2_bookcase"))))
+            local _, lib = here(t)
+            t.check("takePuzzle6Cart-library", at(t, 1899, 4965, 0), "at " .. lib .. " (want 1899,4965,0 of the library's copy, 4646 [4077])")
+            -- The records' bookcase (4646 [4090]), in the copy.
+            local bx, bz = tc(t, 1906, 4970)
+            t.exec("searchBookcase", t.player.click_loc, "dwarf_keldagrim_metal_bookcase", 1, { at = { bx, bz, 0 } })
+            play(t, "searchBookcase-dialog", { "mesbox:You find an interesting book that seems to contain a lot of data about Red Axe employees." })
             t.exec("searchCrate2", t.player.click_loc, "forget_metal_crate_withpapers2", 1)
-            t.exec("searchCrate2-dialog", t.chat.play, { "mesbox:You find a second sheet of paper" })
-            t.ticks(2)
+            play(t, "searchCrate2-dialog", { "mesbox:You find something that seems to shed some light on what happened to the drunken dwarf" })
             t.exec("searchCrate1", t.player.click_loc, "forget_metal_crate_withpapers1", 1)
-            t.exec("searchCrate1-dialog", t.chat.play, { "mesbox:You find a sheet of paper" })
-            t.ticks(2)
-            t.check("crates-read", select(2, t.var.server("varb834_forget_room2_paper1")) == 1 and select(2, t.var.server("varb835_forget_room2_paper2")) == 1,
-                "paper1=" .. tostring(select(2, t.var.server("varb834_forget_room2_paper1"))) .. " paper2=" .. tostring(select(2, t.var.server("varb835_forget_room2_paper2"))))
+            play(t, "searchCrate1-dialog", { "mesbox:You find a copy of a letter, addressed to the boatman" })
+            t.check("library-read", sv(t, "varb833_forget_room2_bookcase") == 1 and sv(t, "varb834_forget_room2_paper1") == 1
+                and sv(t, "varb835_forget_room2_paper2") == 1,
+                "bookcase=" .. tostring(sv(t, "varb833_forget_room2_bookcase")) .. " paper1=" .. tostring(sv(t, "varb834_forget_room2_paper1"))
+                .. " paper2=" .. tostring(sv(t, "varb835_forget_room2_paper2")))
+            -- leaveLibrary: "Move deeper into the mines?" Yes; 118, the fade, the third group's pan
+            local pan = t.cutscene.mark()
             t.exec("leaveLibrary", t.player.click_loc, "forget_story_exit_next", 1)
-            t.exec("leaveLibrary-dialog", t.chat.play, { "choose:Yes." })
-            t.ticks(6)
+            play(t, "leaveLibrary-dialog", { "choose:Yes." })
+            play(t, "tunnelEntry3-dialog", { "player:What the Guthix is this? Another chasm? And even more tracks!" }, 40)
+            scene(t, "tunnelEntry3.cutscene", pan, { { op = "moveto", height = 700 }, { op = "lookat", height = 500 },
+                { op = "moveto", height = 700 }, { op = "lookat", height = 500 }, { op = "reset" } })
             t.expect("quest.stage.tunnels_third", t.quest.expect_stage("tunnels_third"))
-            box_search("searchBox3", "stones-after-box3", 3)
-            t.exec("startPuzzle7", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle7-open", t.ui.await_open, "forget_puzzle3", 30)
-            clear("forget_puzzle3", 19)
-            -- route 7 (forget_puzzle.rs2:93): 700 green, 701 green, 703 yellow, 705 yellow
-            setj("forget_puzzle3", 0, 1, "puzzle7P1")
-            setj("forget_puzzle3", 1, 1, "puzzle7P2")
-            setj("forget_puzzle3", 3, 2, "puzzle7P3")
-            setj("forget_puzzle3", 5, 2, "puzzle7P4")
-            local _, ok7 = t.ui.widget("forget_puzzle3:ok_button")
-            t.ui.invoke(ok7, 0)
-            local closed7 = t.ui.await_close("forget_puzzle3", 30)
-            t.check("puzzle7Ok", closed7 == "ok" and select(2, t.var.server("varp7868_forget_route")) == 7,
-                "interface closed: " .. tostring(closed7) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 7")
-            local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("varb822_forget_quest")
-            t.check("leg.9.end", type(endtile) == "table",
-                "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
-                .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. " (tunnels_third), route=7 set (cart not yet taken), stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
-                .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
-            -- LEG 9 END
+            local _, txt = here(t)
+            t.check("leg.6.state", at(t, 1863, 4956, 1) and n(t, GREEN) == 0 and n(t, YELLOW) == 0, "at " .. txt .. ", " .. stones(t))
         end },
-        { name = "puzzle_seven_cart_and_eight", run = function(t)
-            -- LEG 10 BEGIN: takePuzzle7Cart
-            local function stones(sym) return select(2, t.var.server(sym)) end
-            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
-            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
-            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
-            local function box_search(row, check, group)
-                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
-                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-                t.ticks(2)
-                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, lvl = t.world.level()
-                local wy, wg, where
-                if lvl == 1 then
-                    wy = (group == 1) and 1 or 2
-                    wg = (group == 3) and 2 or 1
-                    where = "hub box"
-                else
-                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
-                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
-                    wg = (group == 1 and which == 2) and 0 or 1
-                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
-                end
-                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
-                    and y1 - y0 == wy and g1 - g0 == wg
-                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
-                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
-            end
-            local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijklmnopqrst"):sub(i + 1, i + 1) end
-            local function clear(iface, count)
-                for i = 0, count - 1 do
-                    for _ = 1, 3 do
-                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
-                        local _, w = t.ui.widget(com(iface, i))
-                        t.ui.invoke(w, 0)
-                        t.ticks(1)
-                    end
-                end
-            end
-            local function setj(iface, i, want, name)
-                for _ = 1, 3 do
-                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
-                    local _, w = t.ui.widget(com(iface, i))
-                    t.ui.invoke(w, 0)
-                    t.ticks(1)
-                end
-                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
-                ;(name == "puzzle8P4-811" and t.expect or t.check)(name, v == want and "ok" or "mismatch", "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
-            end
-            -- route 7 was set by leg 9; the cart goes to the small platform (forget_puzzle.rs2:440)
-            t.exec("takePuzzle7Cart", t.player.click_loc, "forget_train_cart", 1)
-            t.ticks(6)
-            t.check("platform7-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            box_search("searchPuzzle7Box", "stones-after-box7", 3)
-            t.exec("returnFromPuzzle7", t.player.click_loc, "forget_train_return_cart", 1)
-            t.ticks(6)
-            -- route 8 (forget_puzzle.rs2:93): 800 yellow, 802 yellow, 804 yellow, 806 green, 808 green, 811 green
-            t.exec("startPuzzle8", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle8-open", t.ui.await_open, "forget_puzzle3", 30)
-            clear("forget_puzzle3", 19)
-            setj("forget_puzzle3", 0, 2, "puzzle8P1")
-            setj("forget_puzzle3", 2, 2, "puzzle8P2")
-            setj("forget_puzzle3", 4, 2, "puzzle8P3")
-            setj("forget_puzzle3", 6, 1, "puzzle8P4")
-            setj("forget_puzzle3", 8, 1, "puzzle8P4-808")
-            setj("forget_puzzle3", 11, 1, "puzzle8P4-811")
-            t.key("escape") -- leave the machinery open-free so the boundary is quiet; the junctions stay set
-            t.ticks(2)
-            local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("varb822_forget_quest")
-            t.check("leg.10.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
-                "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
-                .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. " (tunnels_third), route 8 junctions set, Ok not pressed, stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
-                .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
-            -- LEG 10 END
-        end },
-        { name = "puzzle_eight_cart_and_nine", run = function(t)
-            -- LEG 11 BEGIN: puzzle8P5
-            local function stones(sym) return select(2, t.var.server(sym)) end
-            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
-            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
-            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
-            local function box_search(row, check, group)
-                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
-                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-                t.ticks(2)
-                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
-                local _, lvl = t.world.level()
-                local wy, wg, where
-                if lvl == 1 then
-                    wy = (group == 1) and 1 or 2
-                    wg = (group == 3) and 2 or 1
-                    where = "hub box"
-                else
-                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
-                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
-                    wg = (group == 1 and which == 2) and 0 or 1
-                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
-                end
-                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
-                    and y1 - y0 == wy and g1 - g0 == wg
-                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
-                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
-            end
-            local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijklmnopqrst"):sub(i + 1, i + 1) end
-            local function clear(iface, count)
-                for i = 0, count - 1 do
-                    for _ = 1, 3 do
-                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
-                        local _, w = t.ui.widget(com(iface, i))
-                        t.ui.invoke(w, 0)
-                        t.ticks(1)
-                    end
-                end
-            end
-            local function setj(iface, i, want, name)
-                for _ = 1, 3 do
-                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
-                    local _, w = t.ui.widget(com(iface, i))
-                    t.ui.invoke(w, 0)
-                    t.ticks(1)
-                end
-                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
-                t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
-            end
-            -- route 8 (forget_puzzle.rs2:93) was set by leg 10 and its interface closed: reopen, verify, press Ok
-            t.exec("startPuzzle8-reopen", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle8-reopen-open", t.ui.await_open, "forget_puzzle3", 30)
-            setj("forget_puzzle3", 6, 1, "puzzle8P5")
-            setj("forget_puzzle3", 8, 1, "puzzle8P6")
-            local _, ok8 = t.ui.widget("forget_puzzle3:ok_button")
-            t.ui.invoke(ok8, 0)
-            local closed8 = t.ui.await_close("forget_puzzle3", 30)
-            t.check("puzzle8Ok", closed8 == "ok" and select(2, t.var.server("varp7868_forget_route")) == 8,
-                "interface closed: " .. tostring(closed8) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 8")
-            t.exec("takePuzzle8Cart", t.player.click_loc, "forget_train_cart", 1)
-            t.ticks(6)
-            t.check("platform8-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            box_search("searchPuzzle8Box", "stones-after-box8", 3)
-            t.exec("returnFromPuzzle8", t.player.click_loc, "forget_train_return_cart", 1)
-            t.ticks(6)
-            -- route 9 (forget_puzzle.rs2:114): 900 green, 901 green, 903 yellow, 905 green, 907 yellow; the guide steps in this leg are the first three
-            t.exec("startPuzzle9", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle9-open", t.ui.await_open, "forget_puzzle3", 30)
-            clear("forget_puzzle3", 19)
-            setj("forget_puzzle3", 0, 1, "puzzle9P1")
-            setj("forget_puzzle3", 1, 1, "puzzle9P2")
-            setj("forget_puzzle3", 3, 2, "puzzle9P3")
-            t.key("escape")
-            t.ticks(2)
-            local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("varb822_forget_quest")
-            t.check("leg.11.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
-                "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
-                .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. " (tunnels_third), route 9 junctions 0,1,3 set (5 green, 7 yellow left), stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
-                .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
-            -- LEG 11 END
-        end },
-        { name = "puzzle_nine_and_finale", run = function(t)
-            -- LEG 12 BEGIN: puzzle9P4
-            local function stones(sym) return select(2, t.var.server(sym)) end
-            local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijklmnopqrst"):sub(i + 1, i + 1) end
-            local function setj(iface, i, want, name)
-                for _ = 1, 3 do
-                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
-                    local _, w = t.ui.widget(com(iface, i))
-                    t.ui.invoke(w, 0)
-                    t.ticks(1)
-                end
-                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
-                t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
-            end
-            -- route 9 (forget_puzzle.rs2:114-125): 900 g, 901 g, 903 y, 905 g, 907 y, 910 g, 913 y, 916 y.
-            -- Leg 11 set junctions 0,1,3 and closed the interface; the junctions persist.
-            t.exec("startPuzzle9-reopen", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
-            t.exec("startPuzzle9-reopen-open", t.ui.await_open, "forget_puzzle3", 30)
-            setj("forget_puzzle3", 5, 1, "puzzle9P4")
-            setj("forget_puzzle3", 7, 2, "puzzle9P5")
-            setj("forget_puzzle3", 10, 1, "puzzle9P6")
-            setj("forget_puzzle3", 13, 2, "puzzle9P7")
-            setj("forget_puzzle3", 16, 2, "puzzle9P8")
-            local _, ok9 = t.ui.widget("forget_puzzle3:ok_button")
-            t.ui.invoke(ok9, 0)
-            local closed9 = t.ui.await_close("forget_puzzle3", 30)
-            t.check("puzzle9Ok", closed9 == "ok" and select(2, t.var.server("varp7868_forget_route")) == 9,
-                "interface closed: " .. tostring(closed9) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 9")
+        { name = "puzzle_group_three", run = function(t)
+            -- LEG 7: the third group's routes 7..9 and the last scene
+            search_box(t, "searchBox3", "You find two green stones and two yellow stones in the storage box.", 2, 2)
+            set_route(t, "startPuzzle7", "forget_puzzle3",
+                { { 0, 1, "puzzle7P1" }, { 1, 1, "puzzle7P2" }, { 3, 2, "puzzle7P3" }, { 5, 2, "puzzle7P4" } }, "puzzle7Ok", 7)
+            ride_to_platform(t, "takePuzzle7Cart", true)
+            search_box(t, "searchPuzzle7Box", "You search the box and find another two stones with markings on them: one green, one yellow.", 1, 1, { 1890, 4963 })
+            ride_back(t, "returnFromPuzzle7", { 1890, 4960 })
+            set_route(t, "startPuzzle8", "forget_puzzle3",
+                { { 0, 2, "puzzle8P1" }, { 2, 2, "puzzle8P2" }, { 4, 2, "puzzle8P3" }, { 6, 1, "puzzle8P4" },
+                  { 8, 1, "puzzle8P5" }, { 11, 1, "puzzle8P6" } }, "puzzle8Ok", 8)
+            ride_to_platform(t, "takePuzzle8Cart", false)
+            search_box(t, "searchPuzzle8Box", "You search the box and find yet another two stones with markings on them.", 1, 1, { 1906, 4962 })
+            ride_back(t, "returnFromPuzzle8", { 1905, 4960 })
+            set_route(t, "startPuzzle9", "forget_puzzle3",
+                { { 0, 1, "puzzle9P1" }, { 1, 1, "puzzle9P2" }, { 3, 2, "puzzle9P3" }, { 5, 1, "puzzle9P4" },
+                  { 7, 2, "puzzle9P5" }, { 10, 1, "puzzle9P6" }, { 13, 2, "puzzle9P7" }, { 16, 2, "puzzle9P8" } }, "puzzle9Ok", 9)
+            -- route 9: the last scene (forget_story.rs2 forget_room_six_scene, 4646 [4696..4875]): 120
+            -- three ticks in, ~180 ticks of camera and timed pages, then the player awake by the
+            -- southern cart station
+            local last = t.cutscene.mark()
             t.exec("takePuzzle9Cart", t.player.click_loc, "forget_train_cart", 1)
-            t.ticks(8)
-            t.exec("watchCutscene", t.chat.play, {
-                "npc:The gnomes of the west",
-                "npc:Splendid.",
-                "npc:The chaos dwarves will hold",
-                "npc:For the price",
-                "npc:Wait. Who is that?",
-                "npc:Human spy!",
-                "mesbox:The ogre shaman raises",
-                "npc:Forget the army!",
-                "mesbox:You wake up beside the cart station",
+            play(t, "watchCutscene-dialog", { "player:Er, what? Where am I? Errrrr... I must tell Veldaban... something." }, 260)
+            -- In the copy the camera tiles are the copy's: op and height only.
+            scene(t, "watchCutscene.cutscene", last, {
+                { op = "moveto", height = 1000 },
+                { op = "lookat", height = 500 },
+                { op = "moveto", height = 450 },
+                { op = "lookat", height = 300 },
+                { op = "moveto", height = 800 },
+                { op = "lookat", height = 675 },
+                { op = "lookat", height = 675 },
+                { op = "moveto", height = 1000 },
+                { op = "lookat", height = 500 },
+                { op = "reset" },
             })
-            t.ticks(2)
             t.expect("quest.stage.report_veldaban", t.quest.expect_stage("report_veldaban"))
-            -- forget_story.rs2:141 woke the player at the cart station (2922,10166); the street to the
-            -- Black Guard HQ, then its door in (dwarf_keldagrim_door 2827,10218: inside z <= 10217)
+            -- the region mark goes with the last line's close, twelve ticks after it (4646 [4887])
+            t.await({ level = function() return sv(t, "varb837_forget_region_status") == 0 end,
+                note = "the last line's close" }, 20)
+            local _, txt = here(t)
+            t.check("leg.7.state", at(t, 2917, 10163, 0) and n(t, GREEN) == 0 and n(t, YELLOW) == 0
+                and sv(t, "varb837_forget_region_status") == 0,
+                "at " .. txt .. " (want 2917,10163,0), " .. stones(t) .. ", region_status " .. tostring(sv(t, "varb837_forget_region_status")))
+        end },
+        { name = "finale", run = function(t)
+            -- LEG 8: Veldaban at 120 (4646 [5012..5022]), then the beer drunk in the Laughing Miner
+            -- with the kebab in the pack (forget_pub.rs2 [opheld1,beer], 4646 [5135..5301])
             t.exec("goto-goReturnToVeldaban", t.player.goto_tile, 2827, 10219, 0)
             t.exec("goReturnToVeldaban.hqDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door",
-                open = "dwarf_keldagrim_door_open", at = { 2827, 10218, 0 }, near = { 2827, 10218 }, far = { 2827, 10217 } })
+                open = "dwarf_keldagrim_door_open", at = { 2827, 10218, 0 }, near = { 2827, 10219 }, far = { 2827, 10217 } })
             t.exec("goReturnToVeldaban", t.player.talk_to, "dwarf_city_black_guard_leader", 1)
-            t.exec("goReturnToVeldaban-dialog", t.chat.play, {
-                "npc:Ah, you are back!",
-                "player:Yes, I found the Red Axe",
-                "npc:Going to what?",
-                "player:I... I do not remember",
-                "npc:Human, that is no way",
-                "npc:Whatever the Red Axe did",
+            play(t, "goReturnToVeldaban-dialog", {
+                "player:Veldaban, I must tell you something incredibly important!",
+                "npc:What is it,",
+                "player:I must tell you about... about...",
+                "player:...about my incredible craving for a kebab.",
+                "npc:Errr, are you alright?",
+                "player:Mmm, yes, I'll be perfectly alright...",
+                "player:Watch out kebabs, I come for you!",
+                "npc:I think you've been bewitched.",
             })
-            t.check("goReturnToVeldaban-close", t.chat.continue_() == "ok", "continued the last page")
-            t.ticks(2)
             t.expect("quest.stage.eat_kebab", t.quest.expect_stage("eat_kebab"))
-            -- the kebab needs a beer (forget_pub.rs2:forget_kebab_finale); a beer is 2 coins from the barmaid
-            -- out of the HQ by its door, the street to the Laughing Miner, in by its doorway (the leaf
-            -- stands open in the map), then to the bar
-            t.exec("buyBeer.hqDoorOut", t.player.pass_door, { closed = "dwarf_keldagrim_door",
+            -- out of the HQ, the street to the Laughing Miner, in by its doorway, to a tile inside
+            -- the pub zone (^forget_pub_zone_south_west..north_east, 2907..2919 x 10187..10197)
+            t.exec("eatKebab.hqDoorOut", t.player.pass_door, { closed = "dwarf_keldagrim_door",
                 open = "dwarf_keldagrim_door_open", at = { 2827, 10218, 0 }, near = { 2827, 10217 }, far = { 2827, 10219 } })
-            t.exec("goto-bar", t.player.goto_tile, 2914, 10198, 0)
-            t.exec("buyBeer.pubDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
+            t.exec("goto-eatKebab", t.player.goto_tile, 2914, 10198, 0)
+            t.exec("eatKebab.pubDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
                 open = "dwarf_keldagrim_door_poor_open", at = { 2914, 10196, 0 }, near = { 2914, 10198 }, far = { 2914, 10195 } })
-            t.exec("walk-bar", t.player.walk_route, { { 2912, 10192 } }, { level = 0 })
-            t.exec("buyBeer", t.player.talk_to, "dwarf_city_barmaid_poor", 1)
-            t.exec("buyBeer-dialog", t.chat.play, {
-                "npc:Welcome to the Laughing Miner pub",
-                "choose:I'd like a beer please.",
-                "player:I'd like a beer please.",
-                "npc:That'll be 2 gold coins.",
-                "choose:Pay.",
-                "npc:Thanks for your custom.",
-            })
-            t.ticks(2)
-            local snap_result, snap = t.skill.snapshot()
-            t.check("rewards.snapshot", snap_result == "ok", "skill.snapshot before the kebab -> " .. tostring(snap_result))
-            t.exec("eatKebab", t.player.inv_op, "kebab", 1)
+            t.exec("walk-eatKebab", t.player.walk_route, { { 2912, 10192 } }, { level = 0 })
+            t.check("eatKebab-held", n(t, "beer") >= 1 and n(t, "kebab") == 1,
+                "beer " .. n(t, "beer") .. ", kebab " .. n(t, "kebab") .. " (forget_pub.rs2: the drink needs both)")
+            local _, snap = t.skill.snapshot()
+            -- eatKebab (the guide's last step): the recorded ending is the BEER, drunk with the kebab
+            -- in the pack; the crowd scene plays in a copy and the kebab goes at D+160
+            t.exec("eatKebab", t.player.inv_op, "beer", 1)
+            t.check("eatKebab-drunk", n(t, "kebab") == 1 and n(t, "beer_glass") == 1,
+                "kebab " .. n(t, "kebab") .. " (want 1: kept until D+160), beer glass " .. n(t, "beer_glass")
+                .. " (want 1: the beer's slot)")
+            -- The first camera (D+6, 4646 [5141]) lands under the black: its frame is solid black,
+            -- which the gate reads as a pre-login shot. The sequence is read from after the fade-in
+            -- (D+9), before the next camera at D+11 (the drink row returns about D+3); the D+6 camera
+            -- is in the wire audit (docs/rsprox-analysis/quests/forgettable_tale.md).
             t.ticks(6)
-            t.exec("eatKebab-dialog", t.chat.play, {
-                "player:Commander Veldaban sent me",
-                "npc:Ha ha! Beer and a kebab",
-                "player:I had something terribly important",
-                "npc:Forget it!",
-                "player:You know, I think",
-                "mesbox:You have forgotten everything",
-            })
-            t.ticks(4)
-            t.check("reward.cooking", t.skill.expect_gain("cooking", 5000, snap) == "ok", "literal 5000 Cooking XP (forget_shared.rs2:58, 50000 in tenths)")
-            t.check("reward.farming", t.skill.expect_gain("farming", 5000, snap) == "ok", "literal 5000 Farming XP (forget_shared.rs2:59, 50000 in tenths)")
-            local _, stout = t.inv.count("mature_dwarven_stout")
-            t.check("reward.stout", stout == 2, "mature dwarven stout in the backpack: " .. tostring(stout) .. " want 2")
+            local pub = t.cutscene.mark()
+            -- The scene's camera resets at D+160 under the black, so the sequence is read here
+            -- (its keyframe shots are taken live) and its row is written after the scroll, when
+            -- the frame is the pub again rather than the fade. 140 and the scroll go out five ticks
+            -- after the copy is left (D+166).
+            local pub_r, pub_d = "unsupported", "no camera reader"
+            if pub ~= nil then
+                pub_r, pub_d = t.cutscene.await("pubEnding.cutscene", { since = pub, quiet = 200, timeout = 200, expect = {
+                    { op = "moveto", height = 330 }, { op = "moveto", height = 300 },
+                    { op = "lookat", height = 175 }, { op = "moveto", height = 450 }, { op = "reset" } } })
+            end
+            t.await({ level = function() return sv(t, "varb822_forget_quest") == 140 end, note = "the scene's end" }, 40)
+            -- D+160 [5295]: the glass and the kebab both taken as the player gets up
+            t.check("eatKebab-spent", n(t, "kebab") == 0 and n(t, "beer_glass") == 0,
+                "kebab " .. n(t, "kebab") .. ", beer glass " .. n(t, "beer_glass") .. " (want 0 and 0)")
             t.quest.expect_complete()
-            -- LEG 12 END
+            if pub ~= nil then
+                t.check("pubEnding.cutscene", pub_r == "ok", tostring(pub_d))
+            end
+            t.check("reward.cooking", t.skill.expect_gain("cooking", 5000, snap) == "ok", "5000 Cooking XP (forget_shared.rs2, 50000 in tenths)")
+            t.check("reward.farming", t.skill.expect_gain("farming", 5000, snap) == "ok", "5000 Farming XP (forget_shared.rs2, 50000 in tenths)")
+            t.check("reward.stout", n(t, "mature_dwarven_stout") == 2, "mature dwarven stout " .. n(t, "mature_dwarven_stout") .. " want 2")
         end },
     },
 }

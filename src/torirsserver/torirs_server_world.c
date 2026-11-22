@@ -14234,6 +14234,19 @@ ToriRSServer_NoteModalMount(
  * unmounting `chatbox:chatmodal` is what the client's own on_sub_change hook
  * watches, and script908 is what re-shows the chat scrollback behind it.
  */
+void
+ToriRSServer_MessageboxUnbind(struct ToriRSServerPlayer* player)
+{
+    static const char* const k_zero[1] = { "0" };
+
+    assert(player);
+    if( player->chatmodal_group <= 0 ||
+        player->chatmodal_group != ToriRSServer_Ids()->iface_messagebox )
+        return;
+    ToriRSServer_SendRunClientscriptMixed(
+        player, TORIRSSERVER_CLIENTSCRIPT_MESSAGEBOX_BIND_ACTIONS, "s", NULL, k_zero, 1);
+}
+
 static void
 close_chat_modal(struct ToriRSServer* srv)
 {
@@ -14241,6 +14254,9 @@ close_chat_modal(struct ToriRSServer* srv)
 
     if( player->chatmodal_group <= 0 )
         return;
+    /* A continue click on a messagebox: the unbind, then the close (RSProx
+     * index 4646 [798], [806], [4093]). */
+    ToriRSServer_MessageboxUnbind(player);
     ToriRSServer_SendIfClosesub(srv->active_player, ToriRSServer_Ids()->com_chatbox_modal);
     player->resume_button_count = 0;
 }
@@ -17291,6 +17307,7 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->music_replay_row = -1;
     player->music_jingle_start_tick = -1;
     player->music_jingle_end_tick = -1;
+    player->music_jingle_prev_end_tick = -1;
     player->music_region_song = -1;
     player->ambient_scape = -1;
     player->ambient_script_map_x = -1;
@@ -21237,6 +21254,19 @@ ToriRSServer_MusicClockTick(struct ToriRSServerPlayer* player)
                                    TORIRSSERVER_TICKLOG_MUSIC_CLOCK);
         }
     }
+    if( player->music_jingle_prev_end_tick >= 0 && srv->tick >= player->music_jingle_prev_end_tick )
+    {
+        /* The earlier jingle's end: the tab's track back, cut, as at any
+         * jingle's end, the later jingle's comeback still to come. */
+        int const tab = ToriRSServer_Varp(player, varp);
+        const struct ToriRSServerDbRow* row = tab >= 0 ? ToriRSServer_DbRow(tab) : NULL;
+        static const int k_cut[4] = { 0, 0, 0, 0 };
+
+        player->music_jingle_prev_end_tick = -1;
+        if( row )
+            ToriRSServer_MusicPlay(player, music_cell(row, MUSIC_COL_MIDI), k_cut,
+                                   TORIRSSERVER_TICKLOG_MUSIC_CLOCK);
+    }
     if( player->music_jingle_end_tick >= 0 && srv->tick >= player->music_jingle_end_tick )
     {
         int const tab = ToriRSServer_Varp(player, varp);
@@ -21262,9 +21292,9 @@ ToriRSServer_MusicClockTick(struct ToriRSServerPlayer* player)
  * (5,908 ms), song 54 cut at [230] and [235]; the fortress's 35,050 ms jingle
  * at [723], Knightmare cut at [781]; the completion's 6,325 ms at [861], song
  * 15 cut at [871]. The delay is the length in whole ticks, rounded down (3 of
- * 4; [225] came a tick later). One jingle is tracked: a second one before the
- * first ends moves the comeback to its own end (Doric's [230] is the one this
- * does not send).
+ * 4; [225] came a tick later). A second jingle before the first ends leaves
+ * the first's comeback in place and adds its own (Doric's [230] and [235];
+ * 4646 [5303] and [5311]); two are tracked.
  *
  * The tab is read at the END, not at the start. A track that starts under the
  * jingle is the one that comes back: over the 816 transcripts cached on
@@ -21287,6 +21317,11 @@ ToriRSServer_MusicJingleStarted(
 
     assert(srv);
     assert(length_ms >= 0);
+    /* A jingle still running keeps its own comeback (Doric's [230] under the
+     * jingle of [225], 4368; the ending's at [5303] under the completion's of
+     * [5301], 4646). */
+    if( player->music_jingle_end_tick > srv->tick )
+        player->music_jingle_prev_end_tick = player->music_jingle_end_tick;
     player->music_jingle_start_tick = -1;
     player->music_jingle_end_tick = -1;
     if( music_current_track_varp() < 0 )

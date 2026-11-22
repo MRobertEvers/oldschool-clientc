@@ -2402,7 +2402,18 @@ world_builder_apply_loc_change(
              * scenery_decor_ shims answer for their absence, so those calls are
              * safe no-ops here. */
             painter_set_suppress_slot_registration(builder->world->painter, 1);
+            int contour_from = contour_ground_q_count(&builder->contour_ground_queue);
             scenery_add(builder, &ml, cfg, scene_x, scene_z);
+            /* Contoured now, as the reference does on a loc add (deob
+             * Statics.method8559 -> class393.method8974: light, then contour
+             * to the tile heights). The queue is drained only by a build's
+             * End, so a runtime rail or support on a slope drew flat at its
+             * centre height (Forgettable Tale's platform mouths), and its
+             * entry outlived the element it named. Only this add's entries:
+             * a stepped build's own are still waiting for its End. */
+            world_contour_ground_range(
+                builder, contour_from, contour_ground_q_count(&builder->contour_ground_queue));
+            contour_ground_q_truncate(&builder->contour_ground_queue, contour_from);
             painter_set_suppress_slot_registration(builder->world->painter, 0);
             builder->scenery_runtime_spawn = 0;
             /* Collision only when the spawn registered a pool entry: the entry

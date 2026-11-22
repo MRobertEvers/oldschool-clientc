@@ -1219,6 +1219,15 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # nexus_plan.md §6). Rev 241's writer only.
     "P_FACEANGLE": (11280, 2, 0, 0, 0),
 
+    # p_facereset
+    #
+    # The active player's FACING block, reset kind (RSProx `[facing]
+    # type=reset`): whatever the player faced -- an angle, a square, an
+    # entity -- is let go. Recorded where the engine's own rules give none:
+    # Forgettable Tale's first hop into the tunnels after the secret cart's
+    # ride, whose last step held an angle (4646 [2798], [2967]).
+    "P_FACERESET": (11372, 0, 0, 0, 0),
+
     # p_transparency(int $start_cycle, int $end_cycle, int $from, int $to,
     #                boolean $usestart)
     #
@@ -2092,6 +2101,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "P_TINT": (1 << POINTER_BITS["active_player"], 0),
     "P_ORIENTATION": (1 << POINTER_BITS["active_player"], 0),
     "P_FACEANGLE": (1 << POINTER_BITS["active_player"], 0),
+    "P_FACERESET": (1 << POINTER_BITS["active_player"], 0),
     "P_HEADBAR_CLEAR": (1 << POINTER_BITS["active_player"], 0),
     "P_TRANSPARENCY": (1 << POINTER_BITS["active_player"], 0),
     "NPC_TINT": (1 << POINTER_BITS["active_npc"], 0),

@@ -3657,9 +3657,14 @@ function QD.player._click_loc_edge(loc, target, before_result, before_row,
     if after_result ~= "ok" then
         return loc .. " left " .. where .. " (no event; the loc changed)", "loc"
     end
+    -- A multiloc flipped by its varbit is the loc changing too: the client
+    -- rebuilds its element, the headless host keeps the row and re-resolves
+    -- the child (Forgettable Tale's hops patch, 2026-11-22).
     if after_row.tile_x ~= before_row.tile_x
         or after_row.tile_z ~= before_row.tile_z
-        or after_row.element_id ~= before_row.element_id then
+        or after_row.element_id ~= before_row.element_id
+        or (before_row.resolved_loc_id ~= nil
+            and after_row.resolved_loc_id ~= before_row.resolved_loc_id) then
         return loc .. " changed at " .. where .. " (no event; the loc changed)", "loc"
     end
     return nil
@@ -4578,7 +4583,9 @@ function QD.player.click_loc(loc, op, opts)
     end
     if after_row.tile_x ~= before_row.tile_x
         or after_row.tile_z ~= before_row.tile_z
-        or after_row.element_id ~= before_row.element_id then
+        or after_row.element_id ~= before_row.element_id
+        or (before_row.resolved_loc_id ~= nil
+            and after_row.resolved_loc_id ~= before_row.resolved_loc_id) then
         return "ok", loc .. " changed at " .. where .. " (no event; the loc changed)"
     end
     return result, detail

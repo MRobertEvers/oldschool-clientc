@@ -10925,6 +10925,27 @@ script_command(
      * angle=..[, instant=true]` in RSProx. A raider lands in each Fractured
      * Archive room turned into it (nexus_plan.md §6).
      */
+    /*
+     * `p_facereset` -- the active player lets go of whatever it faced: the
+     * FACING block's reset kind (RSProx `[facing] type=reset`), the encoder's
+     * FACE_ENTITY with no entity. Any square or angle sent this tick loses to
+     * it, and a pending reorient to a clicked loc is dropped.
+     */
+    case SS_OP_P_FACERESET:
+    {
+        if( !player )
+        {
+            SSVM_Abort(state, "p_facereset with no active player");
+            return 1;
+        }
+        player->face_entity = -1;
+        player->face_target_x = -1;
+        player->face_target_z = -1;
+        player->masks &= ~(uint32_t)(TORIRSSERVER_PMASK_FACE_ANGLE | TORIRSSERVER_PMASK_FACE_COORD);
+        player->masks |= TORIRSSERVER_PMASK_FACE_ENTITY;
+        return 1;
+    }
+
     case SS_OP_P_FACEANGLE:
     {
         int32_t angle;
@@ -11730,6 +11751,12 @@ script_command(
         player->face_size_z = 1;
         player->masks |= TORIRSSERVER_PMASK_FACE_COORD;
         player->face_square_tick = srv->tick;
+        /* The square the script faced is the face, not the loc the op was
+         * on: the pending reorient to the clicked loc is dropped. RSProx index
+         * 4646 --raw [3330], [4039]: the train cart's op turns the player one
+         * tile east, and no face toward the cart follows. */
+        player->face_target_x = -1;
+        player->face_target_z = -1;
         return 1;
     }
 
@@ -12075,6 +12102,9 @@ script_command(
         if( !SSVM_PopInt(state, &group) )
             return 1;
         chatmodal_set_unclamp(srv, group);
+        /* A messagebox replaced: its unbind before the new mount (RSProx
+         * index 4646 [4710], [4722]). */
+        ToriRSServer_MessageboxUnbind(srv->active_player);
         /*
          * One packet (after the unclamp bit, in Jagex's order: index 4291
          * [627]). `chatbox:chatmodal` ships hidden=1, but unhiding it is
@@ -12155,7 +12185,23 @@ script_command(
 
         if( !SSVM_PopInt(state, &com) )
             return 1;
-        ToriRSServer_SendIfClosesub(srv->active_player, (int)com);
+        {
+            /* A messagebox shut by a script: the close, then its unbind
+             * (RSProx index 4646 [5297]). */
+            int const box = (int)com == ToriRSServer_Ids()->com_chatbox_modal &&
+                            srv->active_player->chatmodal_group > 0 &&
+                            srv->active_player->chatmodal_group == ToriRSServer_Ids()->iface_messagebox;
+
+            ToriRSServer_SendIfClosesub(srv->active_player, (int)com);
+            if( box )
+            {
+                static const char* const k_zero[1] = { "0" };
+
+                ToriRSServer_SendRunClientscriptMixed(
+                    srv->active_player, TORIRSSERVER_CLIENTSCRIPT_MESSAGEBOX_BIND_ACTIONS, "s",
+                    NULL, k_zero, 1);
+            }
+        }
         return 1;
     }
 
