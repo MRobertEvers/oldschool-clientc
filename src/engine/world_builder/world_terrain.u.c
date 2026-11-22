@@ -532,11 +532,11 @@ world_instance_tile_height(
  * `src_zone_z` are absolute zone units, so the map square and the local tile both
  * fall out of them.
  *
- * Heights are written for the zone's own 8x8 only, so the column east and the row
- * north of the scene stay at 0 rather than being borrowed from a neighbour that,
- * in an instance, is a different piece of map entirely. That is the reference
- * behaviour, not a shortcut: the client's own instanced loader is an 8x8 loop per
- * zone for the same reason.
+ * Heights are written for the zone's own 8x8 only, as the client's own instanced
+ * loader (rl4.method11044) writes them. A zone the descriptor leaves empty is
+ * not left at 0 beside it: world_builder.c's instance_void_zone and
+ * instance_void_edges continue the copied ground to its edge, as the deob's
+ * rl4.method11033 and method11046 do.
  */
 void
 WorldBuilder_RebuildInstanceZoneTerrain(

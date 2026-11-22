@@ -1025,6 +1025,145 @@ WorldBuilder_RebuildInstanceZoneScenery(
  * (scenery). Returns 0 for a void zone, which places nothing. The blocking
  * RebuildInstance and the stepped build both walk the grid through this.
  */
+/* A vertex west or south of the scene reads 0: the deob's heights carry a
+ * 40-tile border there that an instance never fills. */
+static int
+world_instance_height_or_0(
+    struct Heightmap* heightmap,
+    int x,
+    int z,
+    int level)
+{
+    if( x < 0 || z < 0 )
+        return 0;
+    return heightmap_get(heightmap, x, z, level);
+}
+
+/*
+ * A zone the REBUILD_REGION leaves empty (deob rl4.method11033, in the same
+ * level / x / z walk as the copied zones, so its west and south neighbours are
+ * already final): its corners go to 0, except its first column and row, which
+ * continue the zone to the west and to the south, and its south-west corner,
+ * which takes the first of those three neighbours that is not 0.
+ */
+static void
+world_builder_instance_void_zone(
+    struct WorldBuilder* builder,
+    int level,
+    int zx,
+    int zz)
+{
+    struct Heightmap* heightmap = builder->world->heightmap;
+    int const x0 = zx * 8;
+    int const z0 = zz * 8;
+    int west, south, south_west;
+
+    for( int dx = 0; dx < 8; dx++ )
+    {
+        for( int dz = 0; dz < 8; dz++ )
+            heightmap_set(heightmap, x0 + dx, z0 + dz, level, 0);
+    }
+    for( int i = 1; i < 8; i++ )
+        heightmap_set(heightmap, x0, z0 + i, level, world_instance_height_or_0(heightmap, x0 - 1, z0 + i, level));
+    for( int i = 1; i < 8; i++ )
+        heightmap_set(heightmap, x0 + i, z0, level, world_instance_height_or_0(heightmap, x0 + i, z0 - 1, level));
+    west = world_instance_height_or_0(heightmap, x0 - 1, z0, level);
+    south = world_instance_height_or_0(heightmap, x0, z0 - 1, level);
+    south_west = world_instance_height_or_0(heightmap, x0 - 1, z0 - 1, level);
+    if( west != 0 )
+        heightmap_set(heightmap, x0, z0, level, west);
+    else if( south != 0 )
+        heightmap_set(heightmap, x0, z0, level, south);
+    else if( south_west != 0 )
+        heightmap_set(heightmap, x0, z0, level, south_west);
+}
+
+/*
+ * After all the terrain, a stretch with none of its own -- an instance zone the
+ * descriptor leaves empty (8x8), or a map square with no terrain file (64x64)
+ * -- gets deob rl4.method11046 (x0, z0, size, size) on level 0: its border
+ * corners, both sides of it inclusive, take the height of the corner just
+ * outside, and every corner it covers is fully shaded (127). So the ground
+ * beside it runs level to its edge instead of sloping down to 0 -- a camera or
+ * an actor on the last tile of a copy stands at the copy's height (Enlightened
+ * Journey's pan, RSProx 4637 [3004], eyed the copy's last column and sat 180
+ * units low). `x0`, `z0` are scene tiles and may lie outside the scene.
+ */
+static void
+world_builder_void_edges(
+    struct WorldBuilder* builder,
+    int x0,
+    int z0,
+    int size)
+{
+    struct Heightmap* heightmap = builder->world->heightmap;
+    int const scene_size = builder->world->_scene_size;
+
+    for( int z = z0; z <= z0 + size; z++ )
+    {
+        for( int x = x0; x <= x0 + size; x++ )
+        {
+            if( x < 0 || x >= scene_size || z < 0 || z >= scene_size )
+                continue;
+            shademap2_set(builder->shademap, x, z, 0, 127);
+            if( x == x0 && x > 0 )
+                heightmap_set(heightmap, x, z, 0, heightmap_get(heightmap, x - 1, z, 0));
+            if( x == x0 + size )
+                heightmap_set(heightmap, x, z, 0, heightmap_get(heightmap, x + 1, z, 0));
+            if( z == z0 && z > 0 )
+                heightmap_set(heightmap, x, z, 0, heightmap_get(heightmap, x, z - 1, 0));
+            if( z == z0 + size )
+                heightmap_set(heightmap, x, z, 0, heightmap_get(heightmap, x, z + 1, 0));
+        }
+    }
+}
+
+/*
+ * The ordinary rebuild's half (rl4.java's `field5926[i] == null &&
+ * field5930 < 800`): every map square of the window with no terrain file gets
+ * world_builder_void_edges over its 64x64, unless the scene's centre zone is at
+ * z 800 or above (the instance range, which has no squares beside it to
+ * continue). Between the terrain and the locs, like the instance edges.
+ */
+static void
+world_builder_centerzone_void_squares(
+    struct WorldBuilder* builder,
+    int zone_center_z)
+{
+    struct World* world = builder->world;
+
+    if( zone_center_z >= 800 )
+        return;
+    for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
+    {
+        for( int mapz = world->_chunk_sw_z; mapz <= world->_chunk_ne_z; mapz++ )
+        {
+            if( CacheProvider_MapTerrainGet(builder->cache, CacheProvider_MapId(mapx, mapz)) )
+                continue;
+            world_builder_void_edges(
+                builder, World_ToSceneX(world, mapx, 0), World_ToSceneZ(world, mapz, 0), WORLD_MAP_TERRAIN_X);
+        }
+    }
+}
+
+/* Every zone of the 13x13 grid that is empty on level 0, through
+ * world_builder_void_edges: once, between the terrain and the locs,
+ * as the deob's loader runs it. */
+static void
+world_builder_instance_void_edges_all(
+    struct WorldBuilder* builder,
+    const int32_t* zones)
+{
+    for( int zx = 0; zx < WORLD_INSTANCE_ZONES; zx++ )
+    {
+        for( int zz = 0; zz < WORLD_INSTANCE_ZONES; zz++ )
+        {
+            if( zones[zx * WORLD_INSTANCE_ZONES + zz] == 0 )
+                world_builder_void_edges(builder, zx * 8, zz * 8, 8);
+        }
+    }
+}
+
 static int
 world_builder_instance_zone(
     struct WorldBuilder* builder,
@@ -1042,7 +1181,11 @@ world_builder_instance_zone(
     int src_level;
 
     if( v == 0 )
+    {
+        if( pass == 0 )
+            world_builder_instance_void_zone(builder, level, zx, zz);
         return 0;
+    }
     rotation = (v >> 1) & 0x3;
     src_zone_z = (v >> 3) & 0x7ff;
     src_zone_x = (v >> 14) & 0x3ff;
@@ -1097,6 +1240,8 @@ WorldBuilder_RebuildInstance(
                     world_builder_instance_zone(builder, zones, pass, level, zx, zz);
             }
         }
+        if( pass == 0 )
+            world_builder_instance_void_edges_all(builder, zones);
     }
 
     WorldBuilder_RebuildCenterzoneEnd(builder);
@@ -1525,6 +1670,7 @@ WorldBuilder_RebuildCenterzone(
         for( int mapz = world->_chunk_sw_z; mapz <= world->_chunk_ne_z; mapz++ )
             WorldBuilder_RebuildCenterzoneChunkTerrain(builder, mapx, mapz);
     }
+    world_builder_centerzone_void_squares(builder, zone_center_z);
 
     double t_terrain = wb_timing_on() ? wb_now_ms() : 0.0;
 
@@ -1701,10 +1847,13 @@ world_builder_build_window_count(struct WorldBuilder const* builder)
            (world->_chunk_ne_z - world->_chunk_sw_z + 1);
 }
 
-/* Instance: move the cursor past void zones, so a unit always places one. */
+/* Instance: move the cursor past void zones, so a unit always places one. In
+ * the terrain stage each void zone passed is filled on the way
+ * (world_builder_instance_void_zone), in the blocking path's order. */
 static void
-world_builder_build_skip_void(struct WorldBuilderBuild* b)
+world_builder_build_skip_void(struct WorldBuilder* builder)
 {
+    struct WorldBuilderBuild* b = &builder->build;
     int zone_count = b->scene_size / 8;
     int per_level = zone_count * zone_count;
 
@@ -1717,6 +1866,8 @@ world_builder_build_skip_void(struct WorldBuilderBuild* b)
         if( b->zones[level * WORLD_INSTANCE_ZONES * WORLD_INSTANCE_ZONES +
                      zx * WORLD_INSTANCE_ZONES + zz] != 0 )
             return;
+        if( b->stage == WORLD_BUILD_STAGE_TERRAIN )
+            world_builder_instance_void_zone(builder, level, zx, zz);
         b->index++;
     }
 }
@@ -1740,8 +1891,13 @@ world_builder_build_enter(
     case WORLD_BUILD_STAGE_TERRAIN:
     case WORLD_BUILD_STAGE_SCENERY:
         b->count = world_builder_build_window_count(builder);
+        /* The blocking paths' edge passes, between the terrain and the locs. */
+        if( b->kind == WORLD_BUILD_INSTANCE && stage == WORLD_BUILD_STAGE_SCENERY )
+            world_builder_instance_void_edges_all(builder, b->zones);
+        if( b->kind == WORLD_BUILD_CENTERZONE && stage == WORLD_BUILD_STAGE_SCENERY )
+            world_builder_centerzone_void_squares(builder, b->zone_center_z);
         if( b->kind == WORLD_BUILD_INSTANCE )
-            world_builder_build_skip_void(b);
+            world_builder_build_skip_void(builder);
         if( b->index >= b->count )
             world_builder_build_enter(builder, (enum WorldBuildStage)(stage + 1));
         break;
@@ -1785,7 +1941,7 @@ world_builder_build_window_unit(
         assert(placed);
         (void)placed;
         b->index++;
-        world_builder_build_skip_void(b);
+        world_builder_build_skip_void(builder);
         return;
     }
 

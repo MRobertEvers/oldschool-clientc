@@ -45,6 +45,18 @@ shademap2_free(struct Shademap2* shademap)
     ToriMem_Free(ToriMem_Scene(), shademap);
 }
 
+void
+shademap2_set(
+    struct Shademap2* shademap,
+    int sx,
+    int sz,
+    int level,
+    int shade)
+{
+    assert(shademap);
+    shademap->map[shademap2_coord(shademap, sx, sz, level)] = shade;
+}
+
 bool
 shademap2_in_bounds(
     struct Shademap2* shademap,

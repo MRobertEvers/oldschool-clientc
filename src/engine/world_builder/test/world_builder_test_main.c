@@ -23,6 +23,8 @@ main(void)
     test_minimap_wall_corner_pixel();
     test_minimap_vis_below_keeps_walls();
     test_builder_lifecycle();
+    test_missing_square_edges_continue_the_ground();
+    test_instance_void_zone_edges_continue_the_ground();
     test_rebuild_keeps_tagged_entity_elements();
     test_prerotate_placement();
     test_instance_rotation_is_clockwise();

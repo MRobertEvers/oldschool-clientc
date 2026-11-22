@@ -22,6 +22,15 @@ shademap2_new(
 void
 shademap2_free(struct Shademap2* shademap);
 
+/** One corner's shade, outright (deob rl4.method11046's `= 127`). */
+void
+shademap2_set(
+    struct Shademap2* shademap,
+    int sx,
+    int sz,
+    int level,
+    int shade);
+
 bool
 shademap2_in_bounds(
     struct Shademap2* shademap,

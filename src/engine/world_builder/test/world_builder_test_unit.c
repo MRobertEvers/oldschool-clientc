@@ -2,7 +2,9 @@
 
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/world_builder/heightmap.h"
 #include "engine/world_builder/minimap.h"
+#include "mem/torirs_mem.h"
 #include "engine/world_builder/world_builder.h"
 #include "painters/painters.h"
 #include "varp/varp_manager.h"
@@ -316,6 +318,130 @@ test_builder_lifecycle(void)
      * toridraw build; the scene is reclaimed at process exit. */
     VarPManager_Free(&varp);
     dat2_buildcache_free(bc);
+}
+
+/*
+ * A map square with no terrain file (deob rl4.java, `field5926[i] == null &&
+ * field5930 < 800` -> method11046(x, z, 64, 64)): the ground beside it runs
+ * level to its border instead of sloping down to 0. Squares 5 and 7 here are
+ * flat at -400 and square 6 between them has nothing; the scene (zone 50,50)
+ * puts square 6 at scene x 32..96.
+ */
+void
+test_missing_square_edges_continue_the_ground(void)
+{
+    ToriDraw_Init();
+
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    struct World* world = World_New();
+    struct VarPManager varp;
+    struct Dat2BuildCache* bc = dat2_buildcache_new();
+    struct CacheProvider* provider;
+    struct WorldBuilder* builder;
+    int const n = TORIRS_MAP_TERRAIN_X * TORIRS_MAP_TERRAIN_Z * TORIRS_MAP_TERRAIN_LEVELS;
+
+    VarPManager_Init(&varp);
+    provider = unit_test_provider(bc);
+    for( int mapx = 5; mapx <= 7; mapx += 2 )
+    {
+        for( int mapz = 5; mapz <= 7; mapz++ )
+        {
+            struct ToriRS_MapTerrain* terrain = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*terrain));
+            assert(terrain);
+            terrain->map_x = mapx;
+            terrain->map_z = mapz;
+            for( int i = 0; i < n; i++ )
+                terrain->tiles_xyz[i].height = i < TORIRS_MAP_TERRAIN_X * TORIRS_MAP_TERRAIN_Z ? -400 : -640;
+            CacheProvider_MapTerrainAdd(provider, CacheProvider_MapId(mapx, mapz), terrain);
+        }
+    }
+    builder = WorldBuilder_New(world, provider, scene, &varp);
+    WorldBuilder_RebuildCenterzone(builder, 50, 50, 104);
+
+    TEST_ASSERT(heightmap_get(world->heightmap, 31, 40, 0) == -400, "square 5's last corner is its own");
+    TEST_ASSERT(heightmap_get(world->heightmap, 32, 40, 0) == -400,
+        "the missing square's west border continues square 5 (was 0)");
+    TEST_ASSERT(heightmap_get(world->heightmap, 96, 40, 0) == -400, "its east border continues square 7");
+    TEST_ASSERT(heightmap_get(world->heightmap, 60, 40, 0) == 0, "its inside stays 0");
+
+    WorldBuilder_Free(builder);
+    World_Free(world);
+    VarPManager_Free(&varp);
+    dat2_buildcache_free(bc);
+}
+
+/*
+ * An instance zone the REBUILD_REGION leaves empty (deob rl4.method11033 per
+ * zone, then method11046 over the level-0 ones): the copied ground beside it
+ * runs level to its border, in the blocking build (replays) and the stepped one
+ * (the live client's background job) alike. Zones x 0..6 copy a square flat at
+ * authored height 50 (-400); zones x 7..12 are empty.
+ */
+static int
+instance_void_border_height(
+    int stepped,
+    int vertex_x)
+{
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    struct World* world = World_New();
+    struct VarPManager varp;
+    struct Dat2BuildCache* bc = dat2_buildcache_new();
+    struct CacheProvider* provider;
+    struct WorldBuilder* builder;
+    struct ToriRS_MapTerrain* terrain;
+    int32_t zones[WORLD_MAP_TERRAIN_LEVELS * WORLD_INSTANCE_ZONES * WORLD_INSTANCE_ZONES] = { 0 };
+    int const n = TORIRS_MAP_TERRAIN_X * TORIRS_MAP_TERRAIN_Z * TORIRS_MAP_TERRAIN_LEVELS;
+    int height;
+
+    VarPManager_Init(&varp);
+    provider = unit_test_provider(bc);
+    terrain = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*terrain));
+    assert(terrain);
+    terrain->map_x = 5;
+    terrain->map_z = 5;
+    for( int i = 0; i < n; i++ )
+    {
+        terrain->tiles_xyz[i].height = -400;
+        terrain->tiles_xyz[i].has_authored_height = 1;
+        terrain->tiles_xyz[i].authored_height = 50;
+    }
+    CacheProvider_MapTerrainAdd(provider, CacheProvider_MapId(5, 5), terrain);
+    for( int zx = 0; zx < 7; zx++ )
+    {
+        for( int zz = 0; zz < WORLD_INSTANCE_ZONES; zz++ )
+            zones[zx * WORLD_INSTANCE_ZONES + zz] = ((40 + zx) << 14) | ((40 + zz % 8) << 3);
+    }
+    builder = WorldBuilder_New(world, provider, scene, &varp);
+    if( stepped )
+    {
+        WorldBuilder_BuildBeginInstance(builder, 50, 50, 104, zones);
+        TEST_ASSERT(WorldBuilder_BuildStep(builder, NULL, NULL) == 1, "the stepped build runs to completion");
+    }
+    else
+    {
+        WorldBuilder_RebuildInstance(builder, 50, 50, 104, zones);
+    }
+    height = heightmap_get(world->heightmap, vertex_x, 40, 0);
+
+    WorldBuilder_Free(builder);
+    World_Free(world);
+    VarPManager_Free(&varp);
+    dat2_buildcache_free(bc);
+    return height;
+}
+
+void
+test_instance_void_zone_edges_continue_the_ground(void)
+{
+    ToriDraw_Init();
+    for( int stepped = 0; stepped < 2; stepped++ )
+    {
+        TEST_ASSERT(instance_void_border_height(stepped, 55) == -400, "the copy's last corner is its own");
+        TEST_ASSERT(instance_void_border_height(stepped, 56) == -400,
+            stepped ? "stepped: the empty zone's west border continues the copy (was 0)"
+                    : "blocking: the empty zone's west border continues the copy (was 0)");
+        TEST_ASSERT(instance_void_border_height(stepped, 60) == 0, "the empty zone's inside stays 0");
+    }
 }
 
 /*

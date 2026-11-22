@@ -23,6 +23,8 @@ void test_minimap_push_down_colourless_deck(void);
 void test_minimap_wall_corner_pixel(void);
 void test_minimap_vis_below_keeps_walls(void);
 void test_builder_lifecycle(void);
+void test_missing_square_edges_continue_the_ground(void);
+void test_instance_void_zone_edges_continue_the_ground(void);
 void test_rebuild_keeps_tagged_entity_elements(void);
 void test_prerotate_placement(void);
 void test_instance_rotation_is_clockwise(void);
