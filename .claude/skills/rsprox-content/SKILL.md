@@ -295,6 +295,40 @@ recording. A quest is done when every row of steps 1-3 and every recorded npc-in
    ticks -- ran on the generated `wander` default and came out as one-tick diagonal steps
    off the square; the five gib types had the same default. The audit had looked at the
    npcs that attack.
+
+   **Then work out each moving npc's ROUTE, not only that it moves.** A gap histogram
+   cannot tell a guard walking one fixed loop from a wanderer five tiles round its spawn;
+   the tiles can. `python3 tools/rsprox/npc_routes.py <txt>... --match '<regex>'` reads
+   every view of each npc slot, pooled on absolute ticks (an npc that leaves view and comes
+   back kept walking), and per type prints:
+   - the class: `STILL`, `WANDER`, `PATROL` (a period found: the slot's tile at t equals
+     its tile at t + P on >= 90% of the ticks seen), or `SCRIPTED` (a few bursts of steps);
+   - for a route: `ROUTE ... period P` with the `patrolN=<coord>,<pause>` lines for the
+     content's `.npc`, fitted as the fewest waypoints our patrol retraces exactly
+     (`npc_take_step`: diagonal first, then x, then z), each stand's pause in OUR units (an
+     npc that arrives on t and steps on t+g has pause g-2; a stand of 2 cannot be said and
+     is flagged), "our engine retraces N/P", and the share of every recorded tick on the
+     route at its best phase per view, with the runs off it (a catch, a fight, a player in
+     the way) listed by tick;
+   - for a wanderer: the box it keeps to, the tiles per walk and the ticks between walks;
+     the `wanderrange` is the farthest recorded tile from the SPAWN ROW, not the box's size
+     (compute it against the `.spawn` row; a first-seen tile is not the spawn).
+   Then state it in the content's `.npc` (`defaultmode=patrol` + `patrolN=`, or
+   `wanderrange=`) and DELETE the same fields from `_explicit/configs/server_fields.generated.npc`
+   and `npc/configs/npc_movement.generated.npc` (both carry `defaultmode=wander`,
+   `wanderrange=5`, `patrol=empty` for nearly every npc; a field stated twice fails the
+   servpack). Check the result on OUR tick log (`npc_tile` rows of the type) and say what
+   the route fit could not express: a recorded TELEJUMP inside a loop (Jagex's patrol gives
+   up on a blocked leg and jumps; ours walks round), a guard seen too briefly to fit (fit
+   its mirror twin and score the mirrored route against its few views). Interrupts are
+   behaviour too: a guard that stops to catch the player, then resumes on a new phase.
+
+   Ratcatchers (2026-11-22, index 4650) had ten mansion guards on the generated 5-tile
+   wander; the recording shows ten fixed loops (40 to 240 ticks, mirror images about
+   x = 2847.5), 99%+ of every view on the fitted route, and 41 catches whose geometry fits
+   "within 6 tiles with a line of sight" -- a stealth section whose whole puzzle is the
+   routes' timing. Its quest npcs wandered 2 or 3 where ours wandered 5, and Jimmy Dazzler,
+   who walks, was generated standing still.
 4. **Write the timeline down** in the analysis doc as `L+1 face; L+2 seq 827, busy=1; L+3
    teleport`, citing session and tick (`index 4286 [38]`).
 5. **Find our side.** Grep `OSRS-Content/osrs-content/server/scripts` for the trigger (by name,
@@ -1075,6 +1109,11 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
    (`python3 tools/quest_gate/cutscene_sweep.py | grep " NONE "` lists the rest).
 
 ## Traps that have each cost a wrong fix
+
+- **"It walks" is not its route.** Fit every moving npc's route or radius with
+  `tools/rsprox/npc_routes.py` (loop step 3) and state it in the content's `.npc`: the
+  Ratcatchers mansion guards walked fixed loops the stealth puzzle depends on, while ours
+  wandered 5 tiles on the generated default (2026-11-22).
 
 - **Every branch, not the recorded path** (step 15): fit the mechanism's rule from the
   recorded instances, prove it reproduces all of them, generate the rest and test every leaf.

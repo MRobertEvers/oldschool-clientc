@@ -2358,6 +2358,7 @@ enum
 {
     TARGET_SHIFT = 11,
     TARGET_BITS = 0x3F,
+    TARGET_OBJ = 0x01,
     TARGET_NPC = 0x02,
     IF1_BUTTON_OK = 1,
     IF1_BUTTON_TARGET = 2,
@@ -2695,6 +2696,47 @@ d_cast_npc(lua_State* L)
     return push_result(L, "ok", NULL);
 }
 
+/* The nearest ground copy of obj type_id (another floor's only when this one
+ * has none), copied out: the row list is freed before return. */
+static int
+pick_ground_obj(
+    struct ScriptrunCore* c,
+    int type_id,
+    int px,
+    int pz,
+    int plevel,
+    struct ScriptrunObjRow* out)
+{
+    int const count = ScriptrunCore_ObjCount(c);
+    struct ScriptrunObjRow* rows =
+        ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*rows));
+    int listed;
+    struct ScriptrunObjRow const* best = NULL;
+    int best_d = 1 << 30;
+
+    assert(rows);
+    listed = ScriptrunCore_Objs(c, rows, count + 1);
+    for( int i = 0; i < listed; i++ )
+    {
+        struct ScriptrunObjRow const* o = &rows[i];
+        int d;
+        if( o->obj_id != type_id )
+            continue;
+        /* Another floor's copy only when this floor has none (a loc's
+         * level is its cache level: a bridge's differs). */
+        d = DrivePick_Distance(o->x, o->z, o->level, px, pz, plevel);
+        if( DrivePick_Better(best != NULL, d, o->x, o->z, 0, best_d, best ? best->x : 0, best ? best->z : 0, 0) )
+        {
+            best_d = d;
+            best = o;
+        }
+    }
+    if( best )
+        *out = *best;
+    ToriMem_Free(ToriMem_ServerPlayers(), rows);
+    return best != NULL;
+}
+
 static int
 d_world_op(lua_State* L)
 {
@@ -2756,36 +2798,11 @@ d_world_op(lua_State* L)
     }
     if( strcmp(kind, "obj") == 0 )
     {
-        int const count = ScriptrunCore_ObjCount(c);
-        struct ScriptrunObjRow* rows =
-            ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*rows));
-        int const listed = ScriptrunCore_Objs(c, rows, count + 1);
         struct ScriptrunObjRow pick;
-        struct ScriptrunObjRow const* best = NULL;
-        int best_d = 1 << 30;
+        struct ScriptrunObjRow const* best = &pick;
 
-        assert(rows);
-        for( int i = 0; i < listed; i++ )
-        {
-            struct ScriptrunObjRow const* o = &rows[i];
-            int d;
-            if( o->obj_id != type_id )
-                continue;
-            /* Another floor's copy only when this floor has none (a loc's
-             * level is its cache level: a bridge's differs). */
-            d = DrivePick_Distance(o->x, o->z, o->level, px, pz, plevel);
-            if( DrivePick_Better(best != NULL, d, o->x, o->z, 0, best_d, best ? best->x : 0, best ? best->z : 0, 0) )
-            {
-                best_d = d;
-                best = o;
-            }
-        }
-        if( best )
-            pick = *best;
-        ToriMem_Free(ToriMem_ServerPlayers(), rows);
-        if( !best )
+        if( !pick_ground_obj(c, type_id, px, pz, plevel, &pick) )
             return push_result(L, "not_found", "no such object on the ground in view");
-        best = &pick;
         if( push_beyond_draw(L, best->x, best->z, px, pz) )
             return 2;
         put2(payload, best->x);
@@ -2921,8 +2938,10 @@ d_loc_row(lua_State* L)
  * spent by the press, as the client's is.
  *
  * With a SPELL armed (d_spell_arm) the one row is "Cast <spell> -> <npc>"
- * and it leaves as OPNPCT, the body d_cast_npc sends. A spell on a loc or a
- * ground obj is not modelled here and answers unsupported. */
+ * and it leaves as OPNPCT, the body d_cast_npc sends; on a ground obj
+ * (Telekinetic Grab) "Cast <spell> -> <obj>" leaves as OPOBJT: p2 x, p2 z,
+ * p2 obj, p4 spell (handle_opobjt). A spell on a loc is not modelled here
+ * and answers unsupported. */
 static int
 d_world_use(lua_State* L)
 {
@@ -2942,8 +2961,29 @@ d_world_use(lua_State* L)
     {
         struct WorldEntity_NPC const* best;
         int spell = bot->armed_spell;
+        if( strcmp(kind, "obj") == 0 )
+        {
+            struct ScriptrunObjRow pick;
+            if( (bot->armed_spell_mask & TARGET_OBJ) == 0 )
+                return push_result(L, "refused", "the armed spell's target mask has no obj bit: a "
+                                                 "ground obj offers no Cast row for it");
+            if( !pick_ground_obj(c, type_id, px, pz, plevel, &pick) )
+                return push_result(L, "not_found", "no such object on the ground in view");
+            if( push_beyond_draw(L, pick.x, pick.z, px, pz) )
+                return 2;
+            put2(payload, pick.x);
+            put2(payload + 2, pick.z);
+            put2(payload + 4, pick.obj_id);
+            put4(payload + 6, spell);
+            disarm(bot);
+            handle(bot, PKTOUT_NAME_OPOBJT, payload, 10);
+            push_press(L, "Cast", -1);
+            lua_pushstring(L, "cast");
+            lua_setfield(L, -2, "row_action");
+            return 2;
+        }
         if( strcmp(kind, "npc") != 0 )
-            return push_result(L, "unsupported", "scriptrun: a spell on a loc or obj is not modelled");
+            return push_result(L, "unsupported", "scriptrun: a spell on a loc is not modelled");
         if( (bot->armed_spell_mask & TARGET_NPC) == 0 )
             return push_result(L, "refused", "the armed spell's target mask has no npc bit: an "
                                              "npc offers no Cast row for it");

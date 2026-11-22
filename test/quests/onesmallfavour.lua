@@ -710,9 +710,16 @@ return {
         -- quests/quest_deathtothedorgeshuun/scripts/dttd_haminfiltrate.rs2:74-83.
         -- The trapdoor is picked (op 5) and climbed (losttribe_ham.rs2: lands
         -- ^lt_ham_trapdoor_in, 3149,9652).
+        -- Each try is a 1-in-3 roll, retried every 7 ticks until the lock
+        -- gives (losttribe_ham.rs2 p_oploc(5)), so wait for the open trapdoor.
+        local function pick_ham_trapdoor(name)
+            t.exec(name, t.player.click_loc, "osf_trapdoor_closed", 5)
+            t.exec(name .. ".open", t.await, { level = function()
+                return t.world.loc_near("osf_trapdoor_open", 6) == "ok"
+            end, note = "the H.A.M. trapdoor picked open" }, 120)
+        end
         t.exec("goto-hamTrapdoor", t.player.goto_tile, 3166, 3256, 0)
-        t.exec("hamPickLock", t.player.click_loc, "osf_trapdoor_closed", 5)
-        t.ticks(4)
+        pick_ham_trapdoor("hamPickLock")
         transit("goDownToJohanhus", "osf_trapdoor_open", 1, { 3166, 3252, 0 },
             function(tt) return in_ham_lair(tt) and tt.x == 3149 and tt.z == 9652 end,
             "in the hideout on ^lt_ham_trapdoor_in, 3149,9652,0")
@@ -851,8 +858,22 @@ return {
         -- first talk only sets osf_brewing_tea (relay.rs2:172-178); the tea
         -- is handed over on a SECOND talk (relay.rs2:180-191). Taverley to the
         -- glider is open mountain path (reach.py: REACH, 159 tiles).
+        -- The Big Wolf (wolfpack_leader_whiter, level 73) roams the glider's
+        -- ledge and is aggressive to this player; its first swing shuts
+        -- Bleemadge's page (the run's retaliation takes over). Kill it first
+        -- whenever it is about.
+        local function clear_big_wolf(name)
+            if t.npc.nearest("wolfpack_leader_whiter", 12) ~= "ok" then
+                return
+            end
+            t.exec(name, t.player.attack, "wolfpack_leader_whiter", 2, 15)
+            t.exec(name .. ".dead", t.npc.await_dead_engaged, 150, 8, EAT)
+            t.chat.close()
+            t.ticks(2)
+        end
         t.exec("goto-talkToBleemadge", t.player.goto_tile, 2846, 3497, 0)
         t.ticks(3)
+        clear_big_wolf("meetBleemadge.bigWolf")
         t.exec("meetBleemadge", t.player.talk_to, "pilot_white_wolf", 1)
         t.exec("meetBleemadge-dialog", t.chat.play, {
             "player:Right-o, Captain Bleemadge?",
@@ -872,6 +893,7 @@ return {
         pack_after("makeGuthixRest", "cup_guthix_rest_3", 1, { { "cup_guthix_rest_3", 1 }, { "cup_hot_water", 0 },
             { "guam_leaf", 0 }, { "marentill", 0 }, { "harralander", 0 } })
 
+        clear_big_wolf("talkToBleemadge.bigWolf")
         t.exec("talkToBleemadge", t.player.talk_to, "pilot_white_wolf", 1)
         t.exec("talkToBleemadge-dialog", t.chat.play, {
             "player:I have a special tea here for you from Sanfew!",
@@ -1205,6 +1227,7 @@ return {
 
         t.exec("goto-returnToBleemadge", t.player.goto_tile, 2846, 3497, 0)
         t.ticks(3)
+        clear_big_wolf("returnToBleemadge.bigWolf")
         t.exec("returnToBleemadge", t.player.talk_to, "pilot_white_wolf", 1)
         t.exec("returnToBleemadge-dialog", t.chat.play, {
             "player:Hey there, did you get your T.R.A.S.H?",
@@ -1264,7 +1287,10 @@ return {
         t.expect("quest.stage.tassie_done", t.quest.expect_stage("tassie_done"))
         t.exec("returnToTassie.clay", t.inv.await, "softclay", 1, 10)
 
-        t.exec("spinPotLid", t.player.use_on, "softclay", t.player.by_symbol("loc", "potterywheel"))
+        -- The use verb waits for a page, a line or a changed pack; the make
+        -- menu is none of them (as _skill_menus.lua), so the use is fired and
+        -- the menu and the lid are what is checked.
+        t.player.use_on("softclay", t.player.by_symbol("loc", "potterywheel"))
         t.exec("spinPotLid.menu", t.ui.await_open, "skillmulti", 10)
         local cell_r, cell = t.ui.widget("skillmulti:f")
         -- The pot-lid cell's press answers no detail of its own; the row
@@ -1325,8 +1351,9 @@ return {
         t.expect("quest.stage.seth_done", t.quest.expect_stage("seth_done"))
         seth_out("returnToSeth")
 
-        -- The trapdoor stays unlocked after the first pick (no op 5 again).
+        -- Climbing down locks it again (losttribe_ham.rs2 [oploc1,osf_trapdoor_open]).
         t.exec("goto-returnHamTrapdoor", t.player.goto_tile, 3166, 3256, 0)
+        pick_ham_trapdoor("returnHamPickLock")
         transit("returnDownToJohnahus", "osf_trapdoor_open", 1, { 3166, 3252, 0 },
             function(tt) return in_ham_lair(tt) and tt.x == 3149 and tt.z == 9652 end,
             "in the hideout on ^lt_ham_trapdoor_in, 3149,9652,0")

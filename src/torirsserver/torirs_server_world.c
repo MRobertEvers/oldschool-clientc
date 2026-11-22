@@ -6665,6 +6665,9 @@ world_obj_add(
 
         if( obj->active )
             continue;
+        /* A taken map spawn waiting to come back still owns its slot. */
+        if( obj->respawn_tick >= 0 )
+            continue;
         /* Before the memset, while the slot is still inactive and still carries
          * the zone it was last filed under: a slot freed and reused inside one
          * tick would otherwise stay in the old zone's list forever. */
@@ -17835,6 +17838,17 @@ ToriRSServer_WorldBuildEntities(struct ToriRSServer* srv)
     /* Ground objs, from the same map squares. Duration -1 marks them spawns,
      * which come back after they are taken. */
     memset(srv->ground, 0, sizeof(srv->ground));
+    /* As the npc pool above: memset leaves the timers at 0, and ground_tick
+     * reads `respawn_tick >= 0` on an inactive slot as a taken spawn due
+     * back -- so every unused slot came back on tick 0 as an obj 0 at 0,0,
+     * the pool was full, and the next drop anywhere took the slot of a
+     * spawn waiting to return (One Small Favour's pigeon cages never did). */
+    for( int i = 0; i < TORIRSSERVER_GROUND_MAX; i++ )
+    {
+        srv->ground[i].respawn_tick = -1;
+        srv->ground[i].despawn_tick = -1;
+        srv->ground[i].public_tick = -1;
+    }
     {
         int count = 0;
         const struct ToriRSServerMapObjSpawn* spawns = ToriRSServer_ContentObjSpawns(&count);

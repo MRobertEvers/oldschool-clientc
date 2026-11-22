@@ -10,6 +10,12 @@ return {
     setup = {
         "::clearinv",
         "::give ics_little_amulet_of_catspeak",
+        -- The sewer rats beside Trotters are aggressive to a combat-3 player, and their
+        -- first hit shuts his page; the recorder was well above their range.
+        "::setlevel attack 40",
+        "::setlevel strength 40",
+        "::setlevel defence 40",
+        "::setlevel hitpoints 40",
     },
 
     run = function(t)

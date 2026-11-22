@@ -47,6 +47,12 @@ return {
         "::give coins 10", -- two Shantay passes, 5 gp each (shantay.rs2)
         "::give water_skin4 1", -- desert heat (desert_heat.rs2: a drink per 150 ticks in desert_zones)
         "::setlevel crafting 50",
+        -- The Shantay Guards are aggressive to combat 44 and below (wiki: level 22,
+        -- aggressive), and a hit shuts Shantay's page.
+        "::setlevel attack 50",
+        "::setlevel strength 50",
+        "::setlevel defence 50",
+        "::setlevel hitpoints 50",
         "::setlevel firemaking 45",
         "::setlevel prayer 43",
         "::setlevel magic 39",
@@ -118,26 +124,30 @@ return {
 
         -- ------------------------------------------------ into the desert
         -- Buy a Shantay pass and go south through the doorway (shantay.rs2: 5 gp;
-        -- shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway]); the first trip reads the poster.
+        -- shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway]).
         t.exec("goto-shantay", t.player.goto_tile, 3304, 3123, 0)
         local coins0, pass0 = count("coins"), count("shantay_pass")
         t.exec("shantay.buyPass", t.player.talk_to, "shantay", 1)
         t.exec("shantay.buyPass-dialog", t.chat.play, {
             "npc:Hello effendi, I am Shantay.", "npc:I see you're new.",
-            "choose:I want to buy a shantay pass for 5 gold coins.",
-            "player:I want to buy a shantay pass for",
-            "mesbox:You purchase a Shantay Pass.",
+            "npc:There is a heartbroken mother", -- Before Tourist Trap, Irena (shantay.rs2, RSProx index 4448).
+            "choose:I want to buy a Shantay pass for 5 gold coins.",
+            "player:I want to buy a Shantay pass for",
+            "objbox:You purchase a Shantay Pass.",
         })
         local pass_await = t.inv.await("shantay_pass", 1, 5)
         t.check("shantay.buyPass-paid", pass_await == "ok" and count("shantay_pass") == pass0 + 1 and count("coins") == coins0 - 5,
             "shantay_pass " .. pass0 .. " -> " .. count("shantay_pass") .. ", coins " .. coins0 .. " -> " .. count("coins") .. " (want -5, shantay.rs2)")
-        t.exec("shantay.doorway", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
-            near = { 3304, 3118 }, far_ok = function(at) return at.z <= 3115 end,
-            far_desc = "south of the Shantay Pass doorway, z <= 3115",
-            chat = { "mesbox:There is a large poster on the wall", "mesbox:The Desert is a VERY Dangerous place",
-                "mesbox:That seems pretty scary!", "choose:Yeah, that poster doesn't scare me!",
-                "npc:Can I see your Shantay Desert Pass", "mesbox:You hand over a Shantay Pass.",
-                "player:Sure, here you go!", "npc:Here, have a disclaimer" } })
+        -- shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway] from the north: the warning
+        -- (cws_warning_10), and its warn1 takes the pass ([queue,shantay_pass_enter] lands 3304,3115).
+        t.exec("shantay.shantayDoorway", t.player.click_loc, "shantay_pass_henge_doorway", 1)
+        t.check("shantay.warning", t.ui.await_open("cws_warning_10", 12) == "ok", "cws_warning_10 open")
+        local _, warn_yes = t.ui.widget("cws_warning_10:warn1")
+        t.exec("shantay.warn1", t.ui.invoke, warn_yes, 1)
+        t.await({ match = function()
+            local r, tile = t.world.tile()
+            return r == "ok" and tile.z <= 3115
+        end, note = "south of the Shantay doorway" }, 10)
         t.check("shantay.doorway.passHandedOver", count("shantay_pass") == pass0,
             "shantay_pass " .. count("shantay_pass") .. " after the doorway (handed over)")
 

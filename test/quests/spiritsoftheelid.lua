@@ -204,9 +204,10 @@ return {
         t.exec("buyShantayPass-dialog", t.chat.play, {
             "npc:Hello effendi, I am Shantay.",
             "npc:I see you're new. Please read",
-            "choose:I want to buy a shantay pass for 5 gold coins.",
-            "player:I want to buy a shantay pass for",
-            "mesbox:You purchase a Shantay Pass.",
+            "npc:There is a heartbroken mother", -- Before Tourist Trap, Irena (shantay.rs2, RSProx index 4448).
+            "choose:I want to buy a Shantay pass for 5 gold coins.",
+            "player:I want to buy a Shantay pass for",
+            "objbox:You purchase a Shantay Pass.",
         })
         local pass_r, pass_n = t.inv.count("shantay_pass")
         local coin_r, coin_n = t.inv.count("coins")
@@ -216,17 +217,11 @@ return {
         -- Stand north of the doorway (z 3116) so the pass-check branch runs
         -- (a player at or south of it is only pushed north).
         hop("walk-shantayGate", 3304, 3118, 10)
+        -- shantay_pass.rs2: the warning (cws_warning_10); warn1 takes the pass.
         t.exec("shantayGate", t.player.click_loc, "shantay_pass_henge_doorway", 1)
-        t.exec("shantayGate-dialog", t.chat.play, {
-            "mesbox:There is a large poster on the wall",
-            "mesbox:The Desert is a VERY Dangerous place",
-            "mesbox:That seems pretty scary!",
-            "choose:Yeah, that poster doesn't scare me!",
-            "npc:Can I see your Shantay Desert Pass",
-            "mesbox:You hand over a Shantay Pass.",
-            "player:Sure, here you go!",
-            "npc:Here, have a disclaimer",
-        })
+        t.check("shantayGate.warning", t.ui.await_open("cws_warning_10", 12) == "ok", "cws_warning_10 open")
+        local _, warn_yes = t.ui.widget("cws_warning_10:warn1")
+        t.exec("shantayGate.warn1", t.ui.invoke, warn_yes, 1)
         local gate_landed = t.await({
             level = function()
                 local r, tl = t.world.tile()
@@ -285,12 +280,11 @@ return {
         through_arch("enterShrine", 3426, 2925, true)
         t.exec("openCupboard", t.player.click_loc, "elid_cupboard_closed_withrobes", 1)
         -- elid_house.rs2's [oploc1,elid_cupboard_closed_withrobes] suspends on
-        -- p_arrivedelay + anim(human_openchest) + p_delay(0) before loc_change
-        -- -- the click's own settle can resolve before that chain lands (and
-        -- before the "You open the cupboard." mes()), so AWAIT the message
-        -- rather than a bare t.msg.expect, then search the (now different)
-        -- loc symbol.
-        t.exec("openCupboard.msg", t.msg.await, "You open the cupboard.", 5)
+        -- p_arrivedelay + anim(human_openchest) + p_delay(0) before loc_change;
+        -- the click waits for its "You open the cupboard." (the row above), so
+        -- the line is read from the ring, not awaited a second time, then the
+        -- (now different) loc symbol is searched.
+        t.exec("openCupboard.msg", t.msg.expect, "You open the cupboard.")
         t.exec("searchCupboard", t.player.click_loc, "elid_cupboard_open_withrobes", 2)
         t.exec("gotTornRobes", t.inv.await_all, { elid_robetop_torn = 1, elid_robebottoms_torn = 1 }, 10)
 

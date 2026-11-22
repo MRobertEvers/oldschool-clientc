@@ -91,15 +91,30 @@ function QD.ui.read_book(max_spreads)
             break
         end
         local _, arrow = QD.ui.widget("book:page_right_button")
-        local turn_result = QD.ui.invoke(arrow, 1)
+        -- The arrows are resume buttons (book.rs2 if_addresumebutton): the
+        -- live client answers the click with RESUME_PAUSEBUTTON itself;
+        -- scriptrun has no client to translate it, so the resume is sent.
+        local turn_result
+        if api_drive.scriptrun == true then
+            turn_result = api_drive.resume(arrow)
+        else
+            turn_result = QD.ui.invoke(arrow, 1)
+        end
         if turn_result ~= "ok" then
             return turn_result, "ui.read_book: page turn " .. turn .. " -> " .. tostring(turn_result)
         end
         QD.ticks(1)
         spreads = spreads + 1
     end
-    local _, close = QD.ui.widget("book:close_button")
-    local close_result = QD.ui.invoke(close, 1)
+    -- close_button's op is bound client-side (book_init -> closebutton_click,
+    -- a CLOSE_MODAL); scriptrun runs no clientscripts, so it sends the close.
+    local close_result
+    if api_drive.scriptrun == true then
+        close_result = QD.ui.close_modal()
+    else
+        local _, close = QD.ui.widget("book:close_button")
+        close_result = QD.ui.invoke(close, 1)
+    end
     if close_result ~= "ok" then
         return close_result, "ui.read_book: close_button -> " .. tostring(close_result)
     end
@@ -1910,6 +1925,17 @@ function QD.shop.attach(shop_inv)
 
     -- The grid on screen against the container the caller named.  Walked
     -- only as far as it takes to answer "is it exactly capacity + 1".
+    -- The headless host (scriptrun) answers every sub of a grid as mounted:
+    -- it models no dynamic children, so there are no cells to count and the
+    -- stock wait above is the whole binding there.
+    if api_drive.scriptrun == true then
+        QD.shop._inv_symbol = shop_inv
+        QD.shop._inv_id = inv_id
+        return "ok", string.format(
+            "shop.attach: bound the open shopmain to %s -- %s holds %d stocked "
+                .. "slot(s) of %d (scriptrun: no grid cells to count)",
+            shop_inv, shop_inv, stocked, capacity)
+    end
     local cells, capped = QD.shop._grid_cells(capacity + 2)
     if capped or cells ~= capacity + 1 then
         return "refused", string.format(

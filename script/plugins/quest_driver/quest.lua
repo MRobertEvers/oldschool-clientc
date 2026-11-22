@@ -270,6 +270,9 @@ function QD.quest.bind(spec)
         constants = {}
     end
     local qp_result, qp_before = QD.quest._read_client("varp101_qp")
+    if type(QD.scroll) == "table" then
+        QD.scroll._last_title = nil
+    end
     QD.quest._bound = {
         varp = spec.varp,
         varp_kind = QD.quest._kind_of(spec.varp),
@@ -515,6 +518,12 @@ function QD.quest.expect_complete()
     if scroll_shot_result == "ok" and type(scroll_shot_detail) == "string"
         and string.find(scroll_shot_detail, "unchanged", 1, true) then
         scroll_shot_note = " [scroll already photographed: " .. scroll_shot_detail .. "]"
+    end
+    if title_result ~= "ok" and type(QD.scroll._last_title) == "table" then
+        -- The test read the scroll with t.scroll.title() and closed it to
+        -- let the talk after it run (see QD.scroll.title).
+        title_result, title_detail = "ok", QD.scroll._last_title
+        scroll_shot_note = scroll_shot_note .. " [read by scroll.title before the scroll closed]"
     end
     local title_name = type(title_detail) == "table" and title_detail.name or nil
     local title_pass = title_result == "ok"

@@ -362,10 +362,16 @@ function QD.scroll.title()
 
     local name_id = QD.read._component_of("questscroll:quest_title")
     local points_id = QD.read._component_of("questscroll:quest_points")
-    return "ok", {
+    local title = {
         name = (name_id and QD.read._text_of(name_id)) or "",
         points = (points_id and QD.read._text_of(points_id)) or "",
     }
+    -- Remembered for quest.expect_complete: a quest whose talk runs on past
+    -- the scroll (Icthlarin's High Priest into Contact!) reads the title
+    -- here, closes the scroll, plays the talk, and checks completion after,
+    -- since the journal expect_complete opens would shut the talk.
+    QD.scroll._last_title = title
+    return "ok", title
 end
 
 function QD.scroll.rewards()

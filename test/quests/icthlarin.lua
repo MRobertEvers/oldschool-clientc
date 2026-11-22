@@ -406,13 +406,21 @@ return {
         t.ticks(4)
         t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
         t.inv.expect_has("ics_little_amulet_of_catspeak", 1)
-        t.quest.expect_complete()
         t.ticks(3)
+        -- The scroll's close button resumes the talk (icthlarin_town.rs2 p_pausebutton).
+        -- Its title is read first: expect_complete comes after the talk, because the
+        -- journal it opens would shut the talk.
+        t.scroll.title()
+        local scroll_r, scroll_d = t.scroll.close()
+        t.check("finish-scrollClose", scroll_r == "ok", "scroll.close() -> " .. tostring(scroll_r) .. " " .. tostring(scroll_d))
+        t.ticks(2)
         -- Past the scroll ([4526..4544]): the talk runs on into Contact!'s start, declined here.
         t.exec("finish-rest", t.chat.drain, { stop_at = "options", max_pages = 40 })
         t.exec("finish-contact-no", t.chat.choose, "No.")
         t.exec("finish-end", t.chat.drain, { max_pages = 6 })
         t.ticks(4)
+        -- After the talk: expect_complete opens the journal, which would shut the page above.
+        t.quest.expect_complete()
         -- Paths no other row reaches, and the recorded generic interactions once each.
         t.chat.close()
         t.exec("wear-catspeak", t.player.inv_op, "ics_little_amulet_of_catspeak", 2)

@@ -192,6 +192,12 @@ return {
         "::give rake 1",
         "::give dibber 1",
         "::give potato_seed 4",
+        -- The Shantay Guards are aggressive to combat 44 and below (wiki: level 22,
+        -- aggressive), and a hit shuts Shantay's page.
+        "::setlevel attack 50",
+        "::setlevel strength 50",
+        "::setlevel defence 50",
+        "::setlevel hitpoints 50",
         "::give logs 1",
         "::give tinderbox 1",
         "::give chocolate_cake 1",
@@ -919,9 +925,10 @@ return {
         t.exec("buyShantayPass-dialog", t.chat.play, {
             "npc:Hello effendi, I am Shantay.",
             "npc:I see you're new.",
-            "choose:I want to buy a shantay pass for 5 gold coins.",
-            "player:I want to buy a shantay pass for",
-            "mesbox:You purchase a Shantay Pass.",
+            "npc:There is a heartbroken mother", -- Before Tourist Trap, Irena (shantay.rs2, RSProx index 4448).
+            "choose:I want to buy a Shantay pass for 5 gold coins.",
+            "player:I want to buy a Shantay pass for",
+            "objbox:You purchase a Shantay Pass.",
         })
         local pass_await_r, pass_await_d = t.inv.await("shantay_pass", 1, 5)
         local _, coins_after_pass = t.inv.count("coins")
@@ -929,23 +936,16 @@ return {
                 and type(coins_after_pass) == "number" and coins_before_pass - coins_after_pass == 5,
             "shantay_pass " .. tostring(pass_await_r) .. " " .. tostring(pass_await_d) .. "; coins "
                 .. tostring(coins_before_pass) .. " -> " .. tostring(coins_after_pass) .. " (want -5, shantay.rs2)")
-        -- shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway] from the north:
-        -- the poster pages (no disclaimer carried yet), the pass handed over,
-        -- the disclaimer, then [queue,shantay_pass_enter] p_teleport to
-        -- 3304,3118 and p_telejump 3 south.
-        t.exec("shantayDoorway", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
-            near = { 3304, 3118 }, far_ok = function(tile) return tile.z <= 3115 end,
-            far_desc = "south of the Shantay Pass doorway, z <= 3115",
-            chat = {
-                "mesbox:There is a large poster on the wall",
-                "mesbox:The Desert is a VERY Dangerous place",
-                "mesbox:That seems pretty scary!",
-                "choose:Yeah, that poster doesn't scare me!",
-                "npc:Can I see your Shantay Desert Pass",
-                "mesbox:You hand over a Shantay Pass.",
-                "player:Sure, here you go!",
-                "npc:Here, have a disclaimer",
-            } })
+        -- shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway] from the north: the warning
+        -- (cws_warning_10), and its warn1 takes the pass ([queue,shantay_pass_enter] lands 3304,3115).
+        t.exec("shantayDoorway", t.player.click_loc, "shantay_pass_henge_doorway", 1)
+        t.check("warning", t.ui.await_open("cws_warning_10", 12) == "ok", "cws_warning_10 open")
+        local _, warn_yes = t.ui.widget("cws_warning_10:warn1")
+        t.exec("warn1", t.ui.invoke, warn_yes, 1)
+        t.await({ match = function()
+            local r, tile = t.world.tile()
+            return r == "ok" and tile.z <= 3115
+        end, note = "south of the Shantay doorway" }, 10)
         t.expect("shantayDoorway.passHandedOver", t.inv.expect_absent("shantay_pass"))
         t.exec("goto-sphinx", t.player.goto_tile, 3284, 2812, 0)
         pass_door("sophanemGate", "sophanem_gate_right", "sophanem_gate_right", 3284, 2809, 3284, 2810, 3284, 2808, "inside Sophanem's north gate")

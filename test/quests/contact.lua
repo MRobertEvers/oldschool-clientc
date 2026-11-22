@@ -87,34 +87,30 @@ return {
             return tostring(r)
         end
 
-        -- The Shantay Pass from the north (shantay.rs2 buy, shantay_pass.rs2 [oploc1,
-        -- shantay_pass_henge_doorway]: poster pages and a disclaimer only the first time, the
-        -- pass handed over, [queue,shantay_pass_enter] lands 3304,3115).
+        -- The Shantay Pass from the north (shantay.rs2 buy, then shantay_pass.rs2's warning).
         local function shantay_in(pfx, first)
             t.exec("goto-" .. pfx .. ".shantay", t.player.goto_tile, 3304, 3123, 0)
             local coins0, pass0 = count("coins"), count("shantay_pass")
             t.exec(pfx .. ".buyPass", t.player.talk_to, "shantay", 1)
             local lines = first and { "npc:Hello effendi, I am Shantay.", "npc:I see you're new." } or { "npc:Hello again friend." }
-            for _, l in ipairs({ "choose:I want to buy a shantay pass for 5 gold coins.", "player:I want to buy a shantay pass for",
-                "mesbox:You purchase a Shantay Pass." }) do lines[#lines + 1] = l end
+            -- Before Tourist Trap, Irena (shantay.rs2, RSProx index 4448).
+            for _, l in ipairs({ "npc:There is a heartbroken mother",
+                "choose:I want to buy a Shantay pass for 5 gold coins.", "player:I want to buy a Shantay pass for",
+                "objbox:You purchase a Shantay Pass." }) do lines[#lines + 1] = l end
             t.exec(pfx .. ".buyPass-dialog", t.chat.play, lines)
             t.inv.await("shantay_pass", 1, 5)
             t.check(pfx .. ".buyPass-paid", count("shantay_pass") == pass0 + 1 and count("coins") == coins0 - 5,
                 "shantay_pass " .. pass0 .. " -> " .. count("shantay_pass") .. ", coins " .. coins0 .. " -> " .. count("coins") .. " (5 coins, shantay.rs2)")
-            local chat = {}
-            -- shantay_pass.rs2: the poster pages, like the disclaimer, come whenever none is held.
-            if count("thshantaydisc") == 0 then
-                chat = { "mesbox:There is a large poster on the wall", "mesbox:The Desert is a VERY Dangerous place",
-                    "mesbox:That seems pretty scary!", "choose:Yeah, that poster doesn't scare me!" }
-            end
-            for _, l in ipairs({ "npc:Can I see your Shantay Desert Pass", "mesbox:You hand over a Shantay Pass.", "player:Sure, here you go!" }) do
-                chat[#chat + 1] = l
-            end
-            -- shantay_pass.rs2:111-114: a disclaimer whenever none is held.
-            if count("thshantaydisc") == 0 then chat[#chat + 1] = "npc:Here, have a disclaimer" end
-            t.exec(pfx .. ".shantayDoorway", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
-                near = { 3304, 3118 }, far_ok = function(tile) return tile.z <= 3115 end,
-                far_desc = "south of the Shantay Pass doorway, z <= 3115", chat = chat })
+            -- shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway] from the north: the warning
+            -- (cws_warning_10), and its warn1 takes the pass ([queue,shantay_pass_enter] lands 3304,3115).
+            t.exec(pfx .. ".shantayDoorway", t.player.click_loc, "shantay_pass_henge_doorway", 1)
+            t.check(pfx .. ".warning", t.ui.await_open("cws_warning_10", 12) == "ok", "cws_warning_10 open")
+            local _, warn_yes = t.ui.widget("cws_warning_10:warn1")
+            t.exec(pfx .. ".warn1", t.ui.invoke, warn_yes, 1)
+            t.await({ match = function()
+                local r, tile = t.world.tile()
+                return r == "ok" and tile.z <= 3115
+            end, note = "south of the Shantay doorway" }, 10)
             t.check(pfx .. ".passHandedOver", count("shantay_pass") == pass0, "shantay_pass " .. count("shantay_pass") .. " (want " .. pass0 .. ": handed over)")
         end
         -- Out of the desert from the south: free (shantay_pass.rs2 p_telejump 3 north).
@@ -192,10 +188,6 @@ return {
         end
 
         shantay_in("talkToHighPriest", true)
-        -- The first entry hands over a disclaimer (shantay_pass.rs2:112 inv_add thshantaydisc);
-        -- it is only paper, and the slot is the one Kaleef's parchment needs
-        -- (contact_dungeon.rs2 inv_freespace check before the parchment).
-        t.exec("dropDisclaimer", t.player.drop, "thshantaydisc")
         sophanem_in("talkToHighPriest")
         t.exec("goto-highpriest", t.player.goto_tile, 3283, 2772, 0)
         t.exec("talkToHighPriest", t.player.talk_to, "ics_little_hipriest_vis", 1)
