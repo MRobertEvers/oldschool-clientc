@@ -5123,14 +5123,28 @@ core_screen(lua_State* L)
  * wait and every cheat waited on until its effect reaches this bot -- then
  * run(t), then finish. It used to run the list with a fixed t.ticks(2) on
  * either side and no waits, and so entered every test a tick from the live
- * client: every absolute stamp in the two tick logs differed (2026-10-12). */
+ * client: every absolute stamp in the two tick logs differed (2026-10-12).
+ *
+ * A legs file (`legs = { { name =, run = } ... }`, docs/quest_authoring/
+ * relay.md) becomes the one run that drives every leg in one sitting
+ * (t.core_legs_drive, no checkpoint to start from), as a watched Play's
+ * QD.core_run_test makes it and run.py's full run does. Without this a legs
+ * file failed at t0 here: the account site's Tests page played Forgettable
+ * Tale as a recording of nothing but the login (2026-11-22). */
 static char const* const BOOTSTRAP =
     "local src, t, path, load, pcall = ...\n"
     "local chunk, err = load(src, '=' .. path, 't')\n"
     "if not chunk then error('test does not compile: ' .. tostring(err)) end\n"
     "local QUEST = chunk()\n"
+    "if type(QUEST) == 'table' and QUEST.legs ~= nil then\n"
+    "  local legs_quest = QUEST\n"
+    "  QUEST = { setup = legs_quest.setup, run = function(t)\n"
+    "    return t.core_legs_drive(legs_quest, { from = nil, only = false, tile = nil })\n"
+    "  end }\n"
+    "end\n"
     "if type(QUEST) ~= 'table' or type(QUEST.run) ~= 'function' then\n"
-    "  error('test did not return { run = function(t) ... end }')\n"
+    "  error('test did not return { run = function(t) ... end }'\n"
+    "    .. ' or { legs = { { name =, run = function(t) ... end }, ... } }')\n"
     "end\n"
     "if QUEST.setup ~= nil and type(QUEST.setup) ~= 'table' then\n"
     "  error('test setup is a ' .. type(QUEST.setup) .. ', not a table of cheat lines')\n"

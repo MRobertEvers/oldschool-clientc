@@ -517,12 +517,53 @@ test_result(void)
 }
 
 /* Whether the run's recording has a byte past its header. */
+/* What the finished run's out.log says: the world ticks it ran (the
+ * runner's `SCRIPTRUN PASS|FAIL: N ticks` line; -1 when it has none, a run
+ * killed before it could say), and the first FAIL row's text in `why`. */
+static int
+test_run_outcome(
+    char* why,
+    size_t cap)
+{
+    char path[1100];
+    char line[1024];
+    FILE* f;
+    int ticks = -1;
+
+    why[0] = '\0';
+    snprintf(path, sizeof(path), "%s/out.log", g_test_run.session);
+    f = fopen(path, "r");
+    if( !f )
+        return -1;
+    while( fgets(line, sizeof(line), f) )
+    {
+        char const* fail = strstr(line, "] FAIL ");
+        int n;
+
+        line[strcspn(line, "\r\n")] = '\0';
+        if( (sscanf(line, "SCRIPTRUN PASS: %d ticks", &n) == 1 ||
+             sscanf(line, "SCRIPTRUN FAIL: %d ticks", &n) == 1) )
+            ticks = n;
+        if( fail && !why[0] )
+            snprintf(why, cap, "%s", fail + 2);
+    }
+    fclose(f);
+    return ticks;
+}
+
+/* Whether the run left something to watch: a recording past its header, of
+ * a run that ticked the world. A test that failed before its first tick (a
+ * file the runner could not start) recorded the login and nothing else, and
+ * the replay would stand at the title screen. */
 static int
 test_recording_exists(void)
 {
     char path[1400];
+    char why[300];
     struct stat st;
 
+    if( g_test_run.state == SITE_TEST_DONE && test_run_outcome(why, sizeof(why)) == 0 )
+        return 0;
     snprintf(path, sizeof(path), "%s/recordings/%s", ToriRSServer_SaveDir(), g_test_run.recording);
     return stat(path, &st) == 0 && st.st_size > 256;
 }
@@ -691,7 +732,24 @@ page_tests(
     buf_puts(&b, "</select></label><label style=\"margin:0\"><input type=\"checkbox\" id=\"auto\" "
                  "style=\"display:inline;width:auto\" checked> Watch when it finishes</label></div>");
     if( g_test_run.state == SITE_TEST_DONE )
+    {
+        char why[300];
+        int const ticks = test_run_outcome(why, sizeof(why));
+
+        if( ticks == 0 )
+        {
+            buf_puts(&b, "<p class=\"flash bad\">The test stopped before its first tick, so there "
+                         "is nothing to watch");
+            if( why[0] )
+            {
+                buf_puts(&b, ": <code>");
+                buf_esc(&b, why);
+                buf_puts(&b, "</code>");
+            }
+            buf_puts(&b, ".</p>");
+        }
         tests_steps(&b);
+    }
     buf_puts(&b, "</div></section>");
 
     /* The tests. */

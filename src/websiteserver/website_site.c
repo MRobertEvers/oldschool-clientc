@@ -1927,7 +1927,9 @@ page_replay(
         "if(!dragging)pos.value=st.tick;\n"
         "play.textContent=st.held?'Play':'Pause';\n"
         "if(!dragging)tick.textContent='tick '+st.tick+' / '+st.ticks+' ('+secs(st.tick)+' / '"
-        "+secs(st.ticks)+')'+(st.seeking?' seeking\\u2026':'');},250);\n"
+        "+secs(st.ticks)+')'+(st.seeking?' seeking\\u2026':'');\n"
+        "if(st.sessions>0&&st.ticks===0)tick.textContent='this recording has nothing past "
+        "the login';},250);\n"
         "})();</script>");
     page_send(&b, res, 200);
 }
