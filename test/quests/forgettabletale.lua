@@ -693,6 +693,27 @@ return {
                 and sv(t, "varb869_forget_room1_once") == 1,
                 "level " .. tostring(select(2, t.world.level())) .. ", " .. stones(t) .. ", room1_once="
                 .. tostring(sv(t, "varb869_forget_room1_once")))
+            -- No running in the listening room (4646 [3412..3422]: the recorder's clicks walked a
+            -- tile a tick with run on and full energy, no message): every step of a six-tile walk
+            -- east is one tile (a run steps two).
+            do
+                t.ticklog.start()
+                t.ticklog.mark("listen.norun")
+                local _, marks = t.ticklog.rows({ kind = "mark" })
+                local since = marks[#marks].serial
+                local _, a = t.world.tile()
+                t.player.walk_to(a.x + 6, a.z)
+                local _, rows = t.ticklog.rows({ kind = "player_tile", since = since })
+                local px, pz, widest, moved = a.x, a.z, 0, 0
+                for _, r in ipairs(rows) do
+                    local d = math.max(math.abs(r.x - px), math.abs(r.z - pz))
+                    if d > widest then widest = d end
+                    if d > 0 then moved = moved + 1 end
+                    px, pz = r.x, r.z
+                end
+                t.check("listenToConversation-norun", widest == 1 and moved >= 6,
+                    "widest step " .. widest .. " tile(s) over " .. moved .. " moving ticks (want 1, a walk)")
+            end
             -- leaveListeningRoom1: 110, the fade, the hub, the second group's pan (4646 [3571..3593])
             local pan = t.cutscene.mark()
             t.exec("leaveListeningRoom1", t.player.click_loc, "forget_story_exit_next", 1)

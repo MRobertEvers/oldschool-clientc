@@ -302,9 +302,6 @@ sent neither; now it does, with what the player held there kept in `minecart_tem
 - Journal stages 20, 65, 105..119 and 140 were never opened in a recording.
 - Leaving a story room the way you came, or with "No." to moving on, rebuilds the tunnels
   under a fade (`~forget_room_back_to_tunnels`): unrecorded, every recorded exit went on.
-- The listening room's player walk at [3412..3422] goes out at walk pace with run on and full
-  energy: the recorder's own four clicks (`move_gameclick`), either ctrl-clicked or a no-run
-  rule in the room. The transcript does not say which; ours runs there.
 - The last scene's npcs send no `[facing] type=reset` on their first step (Jagex's do); our
   facing blocks are cancel-on-walk, so the client drops the face the same way. The player's
   forced walk goes out as walk steps under a permanent run (`p_runblock`), where Jagex sends
@@ -339,6 +336,7 @@ The other scenes, the same way (`::forgetlisteningroom`, `::forgetpubscene`):
 | scene | recorded | ours before -> now |
 |---|---|---|
 | listening room [3365] | four figures added facing a tile on (director north, cat east, henchman east, shaman west); none moves | no spawn angle, no facing -> matched |
+| listening room [3412..3422] | the recorder's four clicks walk a tile a tick with run on and full energy, each step a temp walk, no message: a no-run rule in the room (owner, 2026-11-23) | ran -> walks (`p_runblock`, renewed each tick by the talk's timer; the test's `listenToConversation-norun`) |
 | library [4077..4266] | no npcs | -- |
 | pub D+8 [5143] | seven patrons added facing the chair (patron4 south, three south and one east of it) | facing only, default spawn angles -> matched |
 | pub D+112..129 [5247..5264] | Rowdy added facing south (no facing), walks west 2918 -> 2901,10198 | added, turned to the chair and reset, stood -> walks |
