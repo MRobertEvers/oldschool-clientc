@@ -521,13 +521,13 @@ cs2vm2_jit_strings_hash(struct CS2VM2_Script const* script)
     return 0;
 #else
     uint64_t h = CS2VM2_JIT_H_LEN;
-    if( !script->string_operands )
+    if( !script->string_constants )
         return h;
     for( int pc = 0; pc < script->op_count; pc++ )
     {
-        char const* s = script->string_operands[pc];
+        struct CS2VM2_Str const* s = script->string_constants[pc];
         if( s )
-            h = (h ^ CS2VM2_JitHash64(s, strlen(s), (uint64_t)pc)) * CS2VM2_JIT_H_ROT;
+            h = (h ^ CS2VM2_JitHash64(s->text, s->len, (uint64_t)pc)) * CS2VM2_JIT_H_ROT;
     }
     return h;
 #endif
@@ -576,6 +576,7 @@ CS2VM2_JitBuild(struct CS2VM2_Script* script)
     jit->local_int_count = script->local_int_count;
     for( int pc = 0; pc < script->op_count; pc++ )
         jit->code[pc] = cs2vm2_jit_choose(script, pc);
+    CS2VM2_ScriptEnsureConstants(script); /* the canary hashes what a run reads */
     jit->strings_hash = cs2vm2_jit_strings_hash(script);
     script->jit = jit;
     return CS2VM2_JIT_BUILT;
@@ -735,6 +736,7 @@ CS2VM2_JitAttachBlob(
     jit->op_count = script->op_count;
     jit->local_int_count = script->local_int_count;
     memcpy(jit->code, code, (size_t)script->op_count);
+    CS2VM2_ScriptEnsureConstants(script); /* the canary hashes what a run reads */
     jit->strings_hash = cs2vm2_jit_strings_hash(script);
     script->jit = jit;
     return CS2VM2_JIT_ATTACHED;
@@ -755,6 +757,7 @@ CS2VM2_JitCopy(
     struct CS2VM2_Jit* jit = cs2vm2_jit_alloc(src->op_count);
     memcpy(jit, src->jit, sizeof(struct CS2VM2_Jit) + (size_t)src->op_count);
     /* The copy's strings are its own buffers with the same bytes. */
+    CS2VM2_ScriptEnsureConstants(dst); /* the canary hashes what a run reads */
     jit->strings_hash = cs2vm2_jit_strings_hash(dst);
     dst->jit = jit;
 }

@@ -113,6 +113,7 @@ cs2vm2_script_copy_heap_fields(
             dst->string_operands[i] = ToriMem_Strdup(ToriMem_Script(), src->string_operands[i]);
             assert(dst->string_operands[i]);
         }
+        CS2VM2_ScriptEnsureConstants(dst);
     }
 
     return true;
@@ -160,6 +161,7 @@ CS2VM2_ScriptFromRSCache(
     }
     dst->string_operands = ToriMem_TakeFromRSCache(
         ToriMem_Script(), src->string_operands, (size_t)src->op_count * sizeof(*dst->string_operands));
+    CS2VM2_ScriptEnsureConstants(dst);
     if( !cs2vm2_script_copy_switch_tables(src, dst) )
         return false;
 

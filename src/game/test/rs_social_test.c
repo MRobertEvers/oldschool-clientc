@@ -200,9 +200,7 @@ recording_host_exec(
             host->seen_name,
             sizeof(host->seen_name),
             "%s",
-            request->u.FRIEND_GETNAME.name
-                ? request->u.FRIEND_GETNAME.name
-                : "");
+            CS2VM2_StrText(request->u.FRIEND_GETNAME.name));
     }
     else if( request->kind == CS2VM_HOST_REQUEST_FRIEND_ADD )
     {
@@ -211,7 +209,7 @@ recording_host_exec(
             host->seen_name,
             sizeof(host->seen_name),
             "%s",
-            request->u.FRIEND_ADD.name ? request->u.FRIEND_ADD.name : "");
+            CS2VM2_StrText(request->u.FRIEND_ADD.name));
     }
     switch( request->kind )
     {
@@ -225,14 +223,12 @@ recording_host_exec(
             host->seen_name,                                                \
             sizeof(host->seen_name),                                        \
             "%s",                                                          \
-            request->u.req_name.name                                \
-                ? request->u.req_name.name                          \
-                : "");                                                      \
+            CS2VM2_StrText(request->u.req_name.name));                     \
         snprintf(                                                           \
             host->seen_text,                                                \
             sizeof(host->seen_text),                                        \
             "%s",                                                          \
-            request->u.req_name.text ? request->u.req_name.text : ""); \
+            CS2VM2_StrText(request->u.req_name.text));                     \
         break
         RECORD_CHAT(CHAT_SETFILTER);
         RECORD_CHAT(CHAT_SENDPUBLIC);
@@ -592,7 +588,7 @@ call_social(
     struct CS2VM2_Thread* t,
     int opcode,
     int index,
-    char* name)
+    char const* name)
 {
     struct CS2VM_HostRequest req;
     memset(&req, 0, sizeof(req));
@@ -603,7 +599,7 @@ call_social(
     case CS2VM_HOST_REQUEST_##name_:                                        \
         req.u.name_.opcode = opcode;                                \
         req.u.name_.index = index;                                  \
-        req.u.name_.name = name;                                    \
+        req.u.name_.name = name ? CS2VM2_StrDup(t, name) : NULL;   \
         break
         SET_SOCIAL_REQUEST(FRIEND_COUNT);
         SET_SOCIAL_REQUEST(FRIEND_GETNAME);
@@ -638,8 +634,8 @@ test_host_ops(void)
     struct CS2VM2 vm;
     int filter_modes[3] = { 0, 0, 0 };
     int iv = 0;
-    char* sv = NULL;
-    char* sv2 = NULL;
+    struct CS2VM2_Str* sv = NULL;
+    struct CS2VM2_Str* sv2 = NULL;
 
     printf("social: the host ops answer from the store, and the mutators do both halves\n");
 
@@ -679,9 +675,9 @@ test_host_ops(void)
      */
     call_social(t, CS2_OP_FRIEND_GETNAME, 0, NULL);
     CHECK(CS2VM2_PopStr(t, &sv) == CS2VM_EXECNO_OK, "friend_getname pushes a second string");
-    CHECK(sv && sv[0] == '\0', "which is empty for a friend who never renamed");
+    CHECK(sv && sv->len == 0, "which is empty for a friend who never renamed");
     CHECK(CS2VM2_PopStr(t, &sv2) == CS2VM_EXECNO_OK, "and a first");
-    CHECK(sv2 && strcmp(sv2, "bob") == 0, "which is the name as stored, got \"%s\"", sv2 ? sv2 : "(null)");
+    CHECK(sv2 && strcmp(sv2->text, "bob") == 0, "which is the name as stored, got \"%s\"", sv2 ? sv2->text : "(null)");
 
     /* A renamed friend's previous name and rank, as UPDATE_FRIENDLIST gave them. */
     snprintf(social.friend_previous_name[0], RS_SOCIAL_NAME_LEN, "%s", "Old\xa0" "Bob");
@@ -689,7 +685,7 @@ test_host_ops(void)
     call_social(t, CS2_OP_FRIEND_GETNAME, 0, NULL);
     CS2VM2_PopStr(t, &sv);
     CS2VM2_PopStr(t, &sv2);
-    CHECK(sv && strcmp(sv, "Old\xa0" "Bob") == 0, "the second string is the previous name as the wire spelled it, got \"%s\"", sv ? sv : "(null)");
+    CHECK(sv && strcmp(sv->text, "Old\xa0" "Bob") == 0, "the second string is the previous name as the wire spelled it, got \"%s\"", sv ? sv->text : "(null)");
     call_social(t, CS2_OP_FRIEND_GETRANK, 0, NULL);
     CS2VM2_PopInt(t, &iv);
     CHECK(iv == 3, "friend_getrank answers the stored rank, got %d", iv);
@@ -907,8 +903,8 @@ test_host_ops(void)
         memset(&req, 0, sizeof(req));
         req.kind = CS2VM_HOST_REQUEST_CHAT_SENDPRIVATE;
         req.u.CHAT_SENDPRIVATE.opcode = CS2_OP_CHAT_SENDPRIVATE;
-        req.u.CHAT_SENDPRIVATE.name = to;
-        req.u.CHAT_SENDPRIVATE.text = body;
+        req.u.CHAT_SENDPRIVATE.name = CS2VM2_StrDup(t, to);
+        req.u.CHAT_SENDPRIVATE.text = CS2VM2_StrDup(t, body);
         RS_CS2Host_Exec(t, &req);
 
         CHECK(RS_CS2Host_TakeSocialSend(&host, &send), "chat_sendprivate queues a message");
@@ -931,7 +927,7 @@ test_host_ops(void)
         memset(&req, 0, sizeof(req));
         req.kind = CS2VM_HOST_REQUEST_DOCHEAT;
         req.u.DOCHEAT.opcode = CS2_OP_DOCHEAT;
-        req.u.DOCHEAT.text = cheat;
+        req.u.DOCHEAT.text = CS2VM2_StrDup(t, cheat);
         RS_CS2Host_Exec(t, &req);
 
         CHECK(RS_CS2Host_TakeSocialSend(&host, &send), "docheat queues a cheat send");

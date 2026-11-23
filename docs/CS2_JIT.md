@@ -71,7 +71,7 @@ joined the branch-range refusal; 1 checked only the hot branches and `SWITCH`):
 | 1 .. 31 | the plain hot instruction: exactly `g_cs2vm2_hot_op[opcode]`, today's `CS2VM2_HOT_*` numbering, moved unchanged from `cs2vm2.c` into `cs2vm2_jit_internal.h`. Same checks as today's loop. |
 | 32 `LD` | `PUSH_INT_LOCAL a` with `0 <= a < local_int_count <= CS2VM_MAX_LOCALS`: `stack[top++] = locals[a]` with the stack check only. |
 | 33 `PD` | `POP_INT_LOCAL b` with the same bound: `locals[b] = stack[--top]`, no grow path. |
-| 34 `CSTR` | `PUSH_CONSTANT_STRING` whose `string_operands[pc]` is not NULL: push that pointer (2.5). |
+| 34 `CSTR` | `PUSH_CONSTANT_STRING` whose `string_constants[pc]` is not NULL: push that `struct CS2VM2_Str*` (2.5). |
 | 64 .. 87 | the 24 fused groups below. |
 
 Codes 32 and 33 are the one-instruction form of the proof the fused groups
@@ -182,7 +182,9 @@ that declares many locals and writes few (watched in section 7).
 
 ### 2.5 Constant strings by pointer
 
-`CSTR` pushes `(char*)script->string_operands[pc]` with no pool copy, and
+`CSTR` pushes `script->string_constants[pc]` (a `struct CS2VM2_Str*`, see
+`cs2vm2_str.h`, made from `string_operands[pc]` by
+`CS2VM2_ScriptEnsureConstants`) with no pool copy, and
 `CS2VM2_Op_PushConstantString` on the general path does the same (a NULL
 operand still pushes a fresh `CS2VM2_StrEmpty`), so there is one semantics.
 
@@ -196,13 +198,13 @@ comments on `CS2VM2_StrEmpty` ("in-place opcodes such as UPPERCASE mean no two
 stack slots may alias") and `CS2VM2_PushStrFrameLocal` are updated; the copy in
 `PushStrFrameLocal` itself stays in v1 (later work).
 
-Host side, the request structs carry `char*` (not `const`) strings, so a host
+Host side, the request structs carry `struct CS2VM2_Str*` (not `const`) strings, so a host
 handler could write through one. The VM implementer audits every reader of a
 request string field (`git grep` the `.def` string fields across `src/game`,
 `src/app`, `src/plugin`, `src/ui`) for writes through it and for pointer
 identity comparisons (`text == previous`), and records the result in the shared
 notes directory; any writer found is fixed on the host side. As a net, a debug
-build records a hash of the script's constant strings when an overlay is built
+build records a hash of the script's `string_constants` (text and length) when an overlay is built
 or attached and `CS2VM2_JitFree` asserts it unchanged.
 
 Lifetime: a constant now lives as long as its script, not until the next

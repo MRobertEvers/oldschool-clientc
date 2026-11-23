@@ -150,7 +150,7 @@ run(
     for( int k = 0; k < 4 && k < t->ints_stack_top; k++ )
         r.int_top[k] = t->ints_stack[t->ints_stack_top - 1 - k];
     if( t->strs_stack_top > 0 && t->strs_stack[t->strs_stack_top - 1] )
-        snprintf(r.str_top, sizeof(r.str_top), "%s", t->strs_stack[t->strs_stack_top - 1]);
+        snprintf(r.str_top, sizeof(r.str_top), "%s", t->strs_stack[t->strs_stack_top - 1]->text);
 
     CS2VM2_Free(&vm);
     disassemble(&script);

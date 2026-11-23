@@ -85,7 +85,7 @@ recording_host_exec(
             host->text,
             sizeof(host->text),
             "%s",
-            request->u.RESUME_COUNTDIALOG.text);
+            request->u.RESUME_COUNTDIALOG.text->text);
     }
     return CS2VM_EXECNO_OK;
 }
@@ -136,9 +136,9 @@ run_resume(
     /* Whatever is on top of the string stack, copied out before the pool dies. */
     *out_str_top = NULL;
     {
-        char* top = NULL;
+        struct CS2VM2_Str* top = NULL;
         if( CS2VM2_PopStr(thread, &top) == CS2VM_EXECNO_OK && top )
-            *out_str_top = strdup(top);
+            *out_str_top = strdup(top->text);
     }
 
     /* The int stack must be untouched: a successful pop means something was

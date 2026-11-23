@@ -2262,8 +2262,8 @@ rs_cs2_triggeroplocal_push(struct RS_CS2Host* host,
         return CS2VM_EXECNO_ERROR;
     if( request->count < 0 || request->count > 16 ) return CS2VM_EXECNO_ERROR;
     for( int i=0; i<request->count; ++i )
-        if( request->signature[i] != 'i' &&
-            (!request->strings[i] || strlen(request->strings[i]) >= 256) )
+        if( request->signature->text[i] != 'i' &&
+            (!request->strings[i] || request->strings[i]->len >= 256) )
             return CS2VM_EXECNO_ERROR;
     int slot=(host->triggeroplocal_head+host->triggeroplocal_count) % RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
     struct RS_CS2TriggerOpLocal* out=&host->triggeroplocal[slot];
@@ -2274,10 +2274,10 @@ rs_cs2_triggeroplocal_push(struct RS_CS2Host* host,
     out->crc=request->crc;
     for( int i=0; i<request->count; ++i )
     {
-        out->signature[i]=request->signature[i];
+        out->signature[i]=request->signature->text[i];
         out->values[i]=request->values[i];
-        if( request->signature[i] != 'i' )
-            snprintf(out->strings[i],sizeof(out->strings[i]),"%s",request->strings[i]);
+        if( request->signature->text[i] != 'i' )
+            snprintf(out->strings[i],sizeof(out->strings[i]),"%s",request->strings[i]->text);
     }
     {
         int32_t target = UITree_FindByComponentId(rs_cs2_tree(host), request->component_id);
@@ -4403,13 +4403,13 @@ exec_enum_get_inputs(
         TORIRS_LOG("cs2: ENUM_GETINPUTS: enum %d has no entries\n", enum_id);
         return CS2VM_EXECNO_ERROR;
     }
-    char* const handle = CS2VM2_ArrayNewInts(thread, e->keys, e->count);
-    if( !handle )
+    struct CS2VM2_Array* const array = CS2VM2_ArrayNewInts(thread, e->keys, e->count);
+    if( !array )
     {
         TORIRS_LOG("cs2: ENUM_GETINPUTS: array pool exhausted\n");
         return CS2VM_EXECNO_ERROR;
     }
-    return CS2VM2_PushStr(thread, handle);
+    return CS2VM2_PushArray(thread, array);
 }
 
 static int
@@ -6185,7 +6185,7 @@ exec_if_query_refine(
     int const param_id = exact_request->u.IF_QUERY_REFINE.param_id;
     int const value_type = exact_request->u.IF_QUERY_REFINE.value_type;
     int const value = exact_request->u.IF_QUERY_REFINE.value;
-    char const* const str_value = exact_request->u.IF_QUERY_REFINE.str_value;
+    char const* const str_value = CS2VM2_StrCStr(exact_request->u.IF_QUERY_REFINE.str_value);
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_ParamType* param =
         CacheProvider_ParamGet(provider, param_id);
@@ -6330,14 +6330,14 @@ exec_cc_find_param(
                 tree, type1, c->component_id, param1,
                 exact_request->u.CC_FIND_PARAM.type1,
                 exact_request->u.CC_FIND_PARAM.value1,
-                exact_request->u.CC_FIND_PARAM.str_value1) )
+                CS2VM2_StrCStr(exact_request->u.CC_FIND_PARAM.str_value1)) )
             continue;
         if( param2 >= 0 &&
             !rs_cs2_component_param_equals(
                 tree, type2, c->component_id, param2,
                 exact_request->u.CC_FIND_PARAM.type2,
                 exact_request->u.CC_FIND_PARAM.value2,
-                exact_request->u.CC_FIND_PARAM.str_value2) )
+                CS2VM2_StrCStr(exact_request->u.CC_FIND_PARAM.str_value2)) )
             continue;
         best_sub = c->dynamic_child_index;
         found_id = c->component_id;
@@ -6859,7 +6859,7 @@ rs_cs2_copy_hook_str_args(
     char out_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN],
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
+    struct CS2VM2_Str* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     *out_mask = str_arg_mask;
     *out_count = str_arg_count;
@@ -6876,7 +6876,7 @@ rs_cs2_copy_hook_str_args(
     {
         if( i < *out_count )
         {
-            strncpy(out_args[i], str_args[i] ? str_args[i] : "", CS2VM_SETON_STR_ARG_LEN - 1);
+            strncpy(out_args[i], CS2VM2_StrText(str_args[i]), CS2VM_SETON_STR_ARG_LEN - 1);
             out_args[i][CS2VM_SETON_STR_ARG_LEN - 1] = '\0';
         }
         else
@@ -7126,7 +7126,7 @@ exec_set_on_inv_transmit(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
+    struct CS2VM2_Str* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     struct RS_CS2InvTransmitHook* hook;
     assert(host);
@@ -7598,7 +7598,7 @@ exec_set_on_stat_transmit(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
+    struct CS2VM2_Str* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     struct RS_CS2StatTransmitHook* hook;
 
@@ -7635,7 +7635,7 @@ exec_set_on_var_transmit(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
+    struct CS2VM2_Str* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     struct RS_CS2VarTransmitHook* hook;
     assert(host);
@@ -7691,7 +7691,7 @@ exec_set_on_cc_transmit(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
+    struct CS2VM2_Str* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     (void)vm;
     assert(host);
@@ -8023,7 +8023,7 @@ exec_set_on_if_event(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
+    struct CS2VM2_Str* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     struct UITree* tree;
     struct UITreeComponent* node;
@@ -8057,7 +8057,7 @@ exec_set_on_if_event(
     {
         char const* strp[CS2VM_SETON_STR_ARG_MAX];
         for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
-            strp[i] = i < str_arg_count ? str_args[i] : NULL;
+            strp[i] = i < str_arg_count ? CS2VM2_StrCStr(str_args[i]) : NULL;
         (void)UITree_ApplyRuntimeHook(
             tree,
             component_id,
@@ -8083,7 +8083,7 @@ exec_set_on_cc_event(
     int int_arg_count,
     uint64_t str_arg_mask,
     int str_arg_count,
-    char const* const str_args[CS2VM_SETON_STR_ARG_MAX])
+    struct CS2VM2_Str* const str_args[CS2VM_SETON_STR_ARG_MAX])
 {
     (void)vm;
     struct UITree* tree;
@@ -8122,7 +8122,7 @@ exec_set_on_cc_event(
     {
         char const* strp[CS2VM_SETON_STR_ARG_MAX];
         for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
-            strp[i] = i < str_arg_count ? str_args[i] : NULL;
+            strp[i] = i < str_arg_count ? CS2VM2_StrCStr(str_args[i]) : NULL;
         (void)UITree_ApplyRuntimeHook(
             tree,
             component_id,
@@ -8682,7 +8682,7 @@ exec_db(
             (opcode == CS2_OP_DB_FIND_REFINE_PRE228 || opcode == CS2_OP_DB_FIND_REFINE);
         bool value_is_string;
         int value_int = 0;
-        char* value_str = NULL;
+        struct CS2VM2_Str* value_str = NULL;
         int* prior_rows = NULL;
         int prior_count = 0;
 
@@ -8718,7 +8718,7 @@ exec_db(
             memcpy(prior_rows, host->db_find_rows, (size_t)prior_count * sizeof(int));
         }
 
-        db_find_value(host, idx, col_id, tuple, value_is_string, value_int, value_str);
+        db_find_value(host, idx, col_id, tuple, value_is_string, value_int, CS2VM2_StrCStr(value_str));
 
         if( is_filter )
         {
@@ -10510,7 +10510,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_##name:                                            \
         if( host->varcs )                                                       \
             VarCManager_SetString(                                             \
-                host->varcs, request->u.name.varc_id, request->u.name.value);  \
+                host->varcs, request->u.name.varc_id, CS2VM2_StrCStr(request->u.name.value));  \
         return CS2VM_EXECNO_OK
 #define RS_CS2_ENUM_CASE(name)                                                  \
     case CS2VM_HOST_REQUEST_##name:                                             \
@@ -10528,7 +10528,7 @@ rs_cs2_host_exec_dispatch(
             host, vm, request, request->u.name.item_id, request->u.name.field)
 #define RS_CS2_OC_FIND_CASE(name)                                               \
     case CS2VM_HOST_REQUEST_##name:                                             \
-        return exec_oc_find(host, vm, request, request->u.name.opcode, request->u.name.query)
+        return exec_oc_find(host, vm, request, request->u.name.opcode, CS2VM2_StrCStr(request->u.name.query))
 #define RS_CS2_STAT_CASE(name, member)                                         \
     case CS2VM_HOST_REQUEST_##name:                                            \
     {                                                                           \
@@ -10546,14 +10546,14 @@ rs_cs2_host_exec_dispatch(
             vm,                                                                \
             request->u.opname.opcode,                                          \
             request->u.opname.index,                                           \
-            request->u.opname.name)
+            CS2VM2_StrCStr(request->u.opname.name))
 #define RS_CS2_LOOT_CASE(opname)                                               \
     case CS2VM_HOST_REQUEST_##opname:                                          \
         return exec_loot(                                                      \
             host,                                                              \
             vm,                                                                \
             request->u.opname.opcode,                                          \
-            request->u.opname.name,                                            \
+            CS2VM2_StrCStr(request->u.opname.name),                                            \
             request->u.opname.int_args)
 #define RS_CS2_HISCORES_CASE(name)                                             \
     case CS2VM_HOST_REQUEST_##name:                                            \
@@ -10572,14 +10572,14 @@ rs_cs2_host_exec_dispatch(
             request->u.opname.uid,                                             \
             request->u.opname.timestamps,                                      \
             request->u.opname.colour_effect,                                   \
-            request->u.opname.name,                                            \
-            request->u.opname.text)
+            CS2VM2_StrCStr(request->u.opname.name),                                            \
+            CS2VM2_StrCStr(request->u.opname.text))
 #define RS_CS2_HIGHLIGHT_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_highlight_request(host, vm, request->u.opname.opcode, request->u.opname.args, request->u.opname.arg_count, request->u.opname.name, request->u.opname.query)
+        return exec_highlight_request(host, vm, request->u.opname.opcode, request->u.opname.args, request->u.opname.arg_count, CS2VM2_StrCStr(request->u.opname.name), request->u.opname.query)
 #define RS_CS2_CLIENTOP_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_clientop_request(host, request->u.opname.opcode, request->u.opname.is_set, request->u.opname.slot, request->u.opname.script_id, request->u.opname.label)
+        return exec_clientop_request(host, request->u.opname.opcode, request->u.opname.is_set, request->u.opname.slot, request->u.opname.script_id, CS2VM2_StrCStr(request->u.opname.label))
 #define RS_CS2_CLIENTOP_CONTEXT_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         return exec_clientop_context_request(host, vm, request->u.opname.opcode)
@@ -10669,7 +10669,7 @@ rs_cs2_host_exec_dispatch(
         return exec_widget_set_graphic2(host, request->u.opname.component_id, request->u.opname.graphic_id)
 #define RS_CS2_SET_TEXT_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_text(host, vm, request->u.opname.component_id, request->u.opname.text)
+        return exec_widget_set_text(host, vm, request->u.opname.component_id, CS2VM2_StrCStr(request->u.opname.text))
 #define RS_CS2_SET_TILING_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         return exec_widget_set_tiling(host, request->u.opname.component_id, request->u.opname.tiling)
@@ -10723,19 +10723,19 @@ rs_cs2_host_exec_dispatch(
         return exec_children_find(host, vm, request, request->u.opname.uid, request->u.opname.start_index)
 #define RS_CS2_SET_COMPONENT_PARAM_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_component_param(host, request->u.opname.component_id, request->u.opname.param_id, request->u.opname.value, request->u.opname.str_value)
+        return exec_widget_set_component_param(host, request->u.opname.component_id, request->u.opname.param_id, request->u.opname.value, CS2VM2_StrCStr(request->u.opname.str_value))
 #define RS_CS2_SET_OP_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_op(host, request->u.opname.component_id, request->u.opname.index, request->u.opname.text)
+        return exec_widget_set_op(host, request->u.opname.component_id, request->u.opname.index, CS2VM2_StrCStr(request->u.opname.text))
 #define RS_CS2_SET_OP_BASE_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_op_base(host, request->u.opname.component_id, request->u.opname.text)
+        return exec_widget_set_op_base(host, request->u.opname.component_id, CS2VM2_StrCStr(request->u.opname.text))
 #define RS_CS2_SET_TARGET_VERB_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_target_verb(host, request->u.opname.component_id, request->u.opname.text)
+        return exec_widget_set_target_verb(host, request->u.opname.component_id, CS2VM2_StrCStr(request->u.opname.text))
 #define RS_CS2_SET_OP_SUBMENU_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_op_submenu(host, request->u.opname.component_id, request->u.opname.op_index, request->u.opname.sub_index, request->u.opname.text)
+        return exec_widget_set_op_submenu(host, request->u.opname.component_id, request->u.opname.op_index, request->u.opname.sub_index, CS2VM2_StrCStr(request->u.opname.text))
 #define RS_CS2_SET_TARGET_PRIORITY_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         return exec_widget_set_target_priority(host, request->u.opname.component_id, request->u.opname.priority)
@@ -12134,12 +12134,12 @@ rs_cs2_host_exec_dispatch(
 
         /* An empty answer is not a zero: the opcode's callers always push a
          * rendered number, so nothing to send means nothing happened. */
-        if( !request->u.RESUME_COUNTDIALOG.text || !request->u.RESUME_COUNTDIALOG.text[0] )
+        if( CS2VM2_StrLen(request->u.RESUME_COUNTDIALOG.text) == 0 )
             return CS2VM_EXECNO_OK;
         memset(&send, 0, sizeof(send));
         send.kind = RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG;
         snprintf(
-            send.text, sizeof(send.text), "%s", request->u.RESUME_COUNTDIALOG.text);
+            send.text, sizeof(send.text), "%s", request->u.RESUME_COUNTDIALOG.text->text);
         rs_cs2_social_send_push(host, &send);
         return CS2VM_EXECNO_OK;
     }
@@ -12376,7 +12376,7 @@ rs_cs2_host_exec_dispatch(
             request,
             request->u.PARAHEIGHT.font_id,
             request->u.PARAHEIGHT.max_width,
-            request->u.PARAHEIGHT.text,
+            CS2VM2_StrCStr(request->u.PARAHEIGHT.text),
             0);
 
     case CS2VM_HOST_REQUEST_PARAWIDTH:
@@ -12386,7 +12386,7 @@ rs_cs2_host_exec_dispatch(
             request,
             request->u.PARAWIDTH.font_id,
             request->u.PARAWIDTH.max_width,
-            request->u.PARAWIDTH.text,
+            CS2VM2_StrCStr(request->u.PARAWIDTH.text),
             1);
 
     case CS2VM_HOST_REQUEST_OC_NAME:
@@ -12621,7 +12621,7 @@ rs_cs2_host_exec_dispatch(
         if( host->script_callback_running ) return CS2VM_EXECNO_ERROR;
         if( host->script_callback )
         {
-            char const* source=request->u.RUNELITE_CALLBACK.name;
+            char const* source=CS2VM2_StrCStr(request->u.RUNELITE_CALLBACK.name);
             char name[256];
             if( !source || strlen(source)>=sizeof(name) ) return CS2VM_EXECNO_ERROR;
             snprintf(name,sizeof(name),"%s",source);

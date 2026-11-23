@@ -218,7 +218,7 @@ main(void)
     test_await_isolation(&host);
 
     int iv = 0;
-    char* sv = NULL;
+    struct CS2VM2_Str* sv = NULL;
 
     /* DB_GETROWTABLE(row 3997) -> 80 */
     CS2VM2_PushInt(t, 3997);
@@ -246,7 +246,7 @@ main(void)
     CS2VM2_PushInt(t, 0);
     call_db(t, CS2_OP_DB_GETFIELD);
     CS2VM2_PopStr(t, &sv);
-    CHECK(sv && strcmp(sv, "Animal Magnetism") == 0, "DB_GETFIELD(row0,col1,0) == \"Animal Magnetism\"");
+    CHECK(sv && strcmp(sv->text, "Animal Magnetism") == 0, "DB_GETFIELD(row0,col1,0) == \"Animal Magnetism\"");
     sv = NULL; /* pool-owned; released by CS2VM2_Free below */
 
     /* DB_GETFIELDCOUNT(row 0, col 23) -> 4 tuples (push row, col). */
@@ -363,7 +363,7 @@ main(void)
              * from the same stack. */
             while( t->strs_stack_top > str_before )
             {
-                char* discard = NULL;
+                struct CS2VM2_Str* discard = NULL;
                 CS2VM2_PopStr(t, &discard);
             }
             while( t->ints_stack_top > int_before )

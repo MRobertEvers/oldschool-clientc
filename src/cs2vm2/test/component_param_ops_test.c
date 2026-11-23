@@ -66,7 +66,7 @@ recording_host_exec(
         host->component_id = request->u.CC_SETPARAM.component_id;
         host->param_id = request->u.CC_SETPARAM.param_id;
         host->value = request->u.CC_SETPARAM.value;
-        host->str_value = request->u.CC_SETPARAM.str_value;
+        host->str_value = CS2VM2_StrCStr(request->u.CC_SETPARAM.str_value);
         host->param_kind = request->u.CC_SETPARAM.kind;
     }
     else if( request->kind == CS2VM_HOST_REQUEST_CC_PARAM )
@@ -74,7 +74,7 @@ recording_host_exec(
         host->component_id = request->u.CC_PARAM.component_id;
         host->param_id = request->u.CC_PARAM.param_id;
         host->value = request->u.CC_PARAM.value;
-        host->str_value = request->u.CC_PARAM.str_value;
+        host->str_value = CS2VM2_StrCStr(request->u.CC_PARAM.str_value);
         host->param_kind = request->u.CC_PARAM.kind;
     }
     if( request->kind == CS2VM_HOST_REQUEST_CC_PARAM )

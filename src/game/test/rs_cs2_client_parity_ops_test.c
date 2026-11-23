@@ -545,9 +545,9 @@ test_enum_get_inputs(void)
 
     struct Step const inputs_again[] = { INT('i'), INT(77), OP(CS2_OP_ENUM_GETINPUTS) };
     run(&fx, inputs_again, 3);
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     CHECK(CS2VM2_PopStr(fx.thread, &handle) == CS2VM_EXECNO_OK, "an array handle was pushed");
-    struct CS2VM2_Array const* array = (struct CS2VM2_Array const*)handle;
+    struct CS2VM2_Array const* array = (struct CS2VM2_Array const*)(void const*)handle;
     CHECK(array->size == 3 && array->cells.ints[0] == 3 && array->cells.ints[1] == 1 &&
               array->cells.ints[2] == 4,
         "in the enum's own order");
@@ -644,13 +644,13 @@ test_trading_post(void)
     };
     CHECK(run(&fx, read, 9) == CS2VM_EXECNO_DONE, "the getters run");
     CHECK(pop_int(&fx) == 995, "every offer answers the list's item");
-    char* text = NULL;
+    struct CS2VM2_Str* text = NULL;
     CHECK(CS2VM2_PopStr(fx.thread, &text) == CS2VM_EXECNO_OK && text &&
-              strcmp(text, "1:03:04") == 0,
-        "age is h:mm:ss on the server clock, got %s", text ? text : "(null)");
-    CHECK(CS2VM2_PopStr(fx.thread, &text) == CS2VM_EXECNO_OK && text && strcmp(text, "old") == 0,
+              strcmp(text->text, "1:03:04") == 0,
+        "age is h:mm:ss on the server clock, got %s", text ? text->text : "(null)");
+    CHECK(CS2VM2_PopStr(fx.thread, &text) == CS2VM_EXECNO_OK && text && strcmp(text->text, "old") == 0,
         "previous name");
-    CHECK(CS2VM2_PopStr(fx.thread, &text) == CS2VM_EXECNO_OK && text && strcmp(text, "anna") == 0,
+    CHECK(CS2VM2_PopStr(fx.thread, &text) == CS2VM_EXECNO_OK && text && strcmp(text->text, "anna") == 0,
         "name");
     CHECK(pop_int(&fx) == 3, "three offers");
 

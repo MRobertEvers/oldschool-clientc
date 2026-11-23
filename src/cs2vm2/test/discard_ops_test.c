@@ -143,7 +143,7 @@ run_str_discard(
     struct CS2VM2_Script script;
     struct CS2VM2_Thread* thread;
     int const op_count = 4;
-    char* value = NULL;
+    struct CS2VM2_Str* value = NULL;
 
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, NULL, no_host_exec);
@@ -172,7 +172,7 @@ run_str_discard(
     while( CS2VM2_PopStr(thread, &value) == CS2VM_EXECNO_OK )
     {
         if( *out_depth == 0 )
-            *out_top = value ? strdup(value) : NULL;
+            *out_top = value ? strdup(value->text) : NULL;
         (*out_depth)++;
     }
 

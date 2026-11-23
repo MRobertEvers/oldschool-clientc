@@ -83,7 +83,7 @@ stub_varc_write(
     struct CS2VM_HostRequest* request)
 {
     int id;
-    char* value;
+    struct CS2VM2_Str* value;
 
     if( request->kind == CS2VM_HOST_REQUEST_POP_VARC_STRING_OLD )
     {
@@ -101,7 +101,7 @@ stub_varc_write(
     if( id >= 0 && id < 8 )
     {
         free(host->slots[id]);
-        host->slots[id] = strdup(value ? value : "");
+        host->slots[id] = strdup(CS2VM2_StrText(value));
     }
     return CS2VM_EXECNO_OK;
 }
@@ -374,9 +374,9 @@ test_varc_string_pair(
     CS2VM2_RunScript(t);
 
     /* Pool-owned: read it, don't free it — CS2VM2_Free releases the pool. */
-    char* result = NULL;
+    struct CS2VM2_Str* result = NULL;
     CS2VM2_PopStr(t, &result);
-    CHECK(result && strcmp(result, "hello") == 0, "varc string roundtrip");
+    CHECK(result && strcmp(result->text, "hello") == 0, "varc string roundtrip");
     CHECK_EQ(host.calls, 2, "one host request per varc opcode");
     CHECK_EQ((int)host.kinds[0], (int)expected_pop_kind, "pop request keeps its opcode kind");
     CHECK_EQ((int)host.kinds[1], (int)expected_push_kind, "push request keeps its opcode kind");
@@ -441,7 +441,7 @@ test_rs2_overlay_entry(
     for( int i = 0; i < int_in; i++ )
         thread->ints_stack[thread->ints_stack_top++] = 100 + i;
     for( int i = 0; i < str_in; i++ )
-        thread->strs_stack[thread->strs_stack_top++] = value;
+        thread->strs_stack[thread->strs_stack_top++] = CS2VM2_StrDup(thread, value);
 
     CHECK_EQ(
         (int)CS2VM2_ThreadRun(thread, &error),

@@ -3447,7 +3447,7 @@ test-cs2-host-request-producers: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_producers_test $(TORIMEM_SRCS) \
 		cs2vm2/test/host_request_producers_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
-		perf/torirs_perf.c $(LDFLAGS)
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c perf/torirs_perf.c $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_host_request_producers_test
 
 .PHONY: test-cs2-array-fill
@@ -3455,7 +3455,7 @@ test-cs2-array-fill: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_fill_test $(TORIMEM_SRCS) \
 		cs2vm2/test/array_fill_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
-		perf/torirs_perf.c $(LDFLAGS)
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_array_fill_test
 
 .PHONY: test-cs2-worldentity-limit
@@ -3475,7 +3475,7 @@ test-cs2-array-bounds: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_bounds_test $(TORIMEM_SRCS) \
 		cs2vm2/test/array_bounds_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
-		perf/torirs_perf.c $(LDFLAGS)
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_array_bounds_test
 
 .PHONY: test-cs2-vm-pool
@@ -3483,7 +3483,7 @@ test-cs2-vm-pool: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_vm_pool_test $(TORIMEM_SRCS) \
 		cs2vm2/test/vm_pool_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
-		perf/torirs_perf.c $(LDFLAGS)
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_vm_pool_test
 
 # The CS2 load-time jit, VM side (docs/CS2_JIT.md section 6): the VM alone,

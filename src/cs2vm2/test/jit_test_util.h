@@ -206,7 +206,7 @@ struct jt_obs
     int last_error_script_id;
     uint64_t cycles;
     /* The pointer at the top of the string stack, for identity checks. */
-    char const* str_top_ptr;
+    struct CS2VM2_Str const* str_top_ptr;
 };
 
 static struct CS2VM2 g_jt_vm;
@@ -252,7 +252,7 @@ jt_run(
     for( int i = 0; i < t->strs_stack_top && i < JT_OBS_STRS; i++ )
     {
         out->str_null[i] = t->strs_stack[i] == NULL;
-        jt_copy_str(out->strs[i], t->strs_stack[i]);
+        jt_copy_str(out->strs[i], CS2VM2_StrCStr(t->strs_stack[i]));
     }
     out->str_top_ptr = t->strs_stack_top > 0 ? t->strs_stack[t->strs_stack_top - 1] : NULL;
     struct CS2VM2_Frame const* f = t->frames[0];
@@ -265,7 +265,7 @@ jt_run(
     for( int i = 0; i < nl; i++ )
         out->locals[i] = i < f->int_locals_dirty ? f->int_locals[i] : 0;
     for( int i = 0; i < 4; i++ )
-        jt_copy_str(out->str_locals[i], i < f->str_locals_dirty ? f->str_locals[i] : NULL);
+        jt_copy_str(out->str_locals[i], i < f->str_locals_dirty ? CS2VM2_StrCStr(f->str_locals[i]) : NULL);
     out->last_error_opcode = t->last_error_opcode;
     out->last_error_pc = t->last_error_pc;
     out->last_error_script_id = t->last_error_script_id;

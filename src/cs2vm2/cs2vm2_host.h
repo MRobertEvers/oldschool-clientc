@@ -1,6 +1,8 @@
 #ifndef CS2VM2_HOST_H
 #define CS2VM2_HOST_H
 
+#include "cs2vm2_str.h"
+
 #include "cs2_opcode.h"
 
 #include <stdbool.h>
@@ -350,7 +352,7 @@ struct CS2VM_HostSignatureArgs
     int opcode;
     int ints[CS2VM_SIGNATURE_INT_MAX];
     int int_count;
-    char* strs[CS2VM_SIGNATURE_STR_MAX];
+    struct CS2VM2_Str* strs[CS2VM_SIGNATURE_STR_MAX];
     int str_count;
 };
 

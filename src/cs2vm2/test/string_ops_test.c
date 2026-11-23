@@ -64,11 +64,11 @@ run_str_op(
     CS2VM2_PushCallScript(thread, &script);
     CS2VM2_RunScript(thread);
 
-    char* result = NULL;
+    struct CS2VM2_Str* result = NULL;
     CS2VM2_PopStr(thread, &result);
     /* The result lives in the thread's string pool, which CS2VM2_Free releases —
      * so hand back a copy the caller owns. */
-    char* owned = result ? strdup(result) : NULL;
+    char* owned = result ? strdup(result->text) : NULL;
 
     CS2VM2_Free(&vm);
     free(script.string_operands[0]);

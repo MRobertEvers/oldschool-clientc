@@ -156,11 +156,11 @@ test_string_bounds(void)
     CHECK(CS2VM2_ThreadRun(thread, &error) == CS2VM2_THREAD_DONE, "string array completes");
     CHECK(thread->array_alloc == 1, "string array allocated once");
     CHECK(thread->arrays[0].cells.strings[0] &&
-              strcmp(thread->arrays[0].cells.strings[0], "keep") == 0,
+              strcmp(thread->arrays[0].cells.strings[0]->text, "keep") == 0,
           "string in-range write is retained");
     CHECK(thread->arrays[0].cells.strings[1] == NULL, "string neighbor stays initialized");
     CHECK(thread->strs_stack_top == 1 && thread->strs_stack[0] &&
-              strcmp(thread->strs_stack[0], "keep") == 0,
+              strcmp(thread->strs_stack[0]->text, "keep") == 0,
           "negative and index == size string writes are dropped");
     CHECK(thread->undo_log_len == 0, "VM-only string write creates no undo entry");
     CS2VM2_Free(&vm);

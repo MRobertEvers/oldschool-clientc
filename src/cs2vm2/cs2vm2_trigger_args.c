@@ -13,14 +13,14 @@ CS2VM2_TriggerArgsParse(
     assert(thread && out);
     memset(out, 0, sizeof(*out));
 
-    char* raw_signature = NULL;
+    struct CS2VM2_Str* raw_signature = NULL;
     if( CS2VM2_PopStr(thread, &raw_signature) != CS2VM_EXECNO_OK || !raw_signature )
         return false;
 
     /* Copied because the parse below rewrites the trailing 'Y'; the pool owns
      * the popped string either way. */
     char signature_buf[CS2_TRIGGER_ARGV_MAX + 2]; /* args + 'Y' + NUL */
-    strncpy(signature_buf, raw_signature, sizeof(signature_buf) - 1);
+    strncpy(signature_buf, raw_signature->text, sizeof(signature_buf) - 1);
     signature_buf[sizeof(signature_buf) - 1] = '\0';
     char* signature = signature_buf;
 
@@ -55,7 +55,7 @@ CS2VM2_TriggerArgsParse(
         else
         {
             /* String args are not used here, only consumed off the stack. */
-            char* ignored = NULL;
+            struct CS2VM2_Str* ignored = NULL;
             if( CS2VM2_PopStr(thread, &ignored) != CS2VM_EXECNO_OK )
                 return false;
         }

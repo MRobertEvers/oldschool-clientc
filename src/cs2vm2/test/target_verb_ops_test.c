@@ -29,7 +29,7 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
     case CS2VM_HOST_REQUEST_##name:                                         \
         host->component_id = request->u.name.component_id;          \
         snprintf(                                                           \
-            host->text, sizeof(host->text), "%s", request->u.name.text); \
+            host->text, sizeof(host->text), "%s", CS2VM2_StrText(request->u.name.text)); \
         break
 #define RECORD_SET_ON(name)                                                 \
     case CS2VM_HOST_REQUEST_##name:                                         \

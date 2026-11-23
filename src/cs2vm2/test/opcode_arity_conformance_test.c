@@ -126,10 +126,11 @@ check_opcode(int opcode)
 
     thread = CS2VM2_ThreadMain(&vm);
     CS2VM2_PushCallScript(thread, &script);
+    struct CS2VM2_Str* const sentinel_str = CS2VM2_StrDup(thread, sentinel);
     for( int i = 0; i < SENTINELS; i++ )
     {
         thread->ints_stack[i] = 1;
-        thread->strs_stack[i] = sentinel;
+        thread->strs_stack[i] = sentinel_str;
         thread->longs_stack[i] = 1;
     }
     thread->ints_stack_top = SENTINELS;
@@ -140,7 +141,7 @@ check_opcode(int opcode)
     if( strncmp(CS2_OpCode_String(opcode), "ARRAY_", 6) == 0 )
     {
         struct CS2VM2_Array* const array = &thread->arrays[thread->array_alloc++];
-        array->cells.strings = ToriMem_Calloc(ToriMem_Script(), 4, sizeof(char*));
+        array->cells.strings = ToriMem_Calloc(ToriMem_Script(), 4, sizeof(*array->cells.strings));
         array->capacity = 4;
         array->size = 2;
         array->defined = 1;
@@ -148,7 +149,7 @@ check_opcode(int opcode)
         array->cells.ints[0] = 5;
         array->cells.ints[1] = 7;
         for( int i = 0; i < SENTINELS; i++ )
-            thread->strs_stack[i] = (char*)array;
+            thread->strs_stack[i] = CS2VM2_ArrayHandle(array);
     }
     thread->active_component_id = 1;
     thread->dot_component_id = 1;

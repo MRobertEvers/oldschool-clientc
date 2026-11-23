@@ -206,8 +206,8 @@ cs2vm2_frame_reserve_str_locals(
         return;
 
     int next = cs2vm2_frame_locals_capacity_for(frame->str_locals_cap, need);
-    char** buf =
-        (char**)ToriMem_Realloc(ToriMem_Script(), frame->str_locals, (size_t)next * sizeof(*buf));
+    struct CS2VM2_Str** buf = (struct CS2VM2_Str**)ToriMem_Realloc(
+        ToriMem_Script(), frame->str_locals, (size_t)next * sizeof(*buf));
     memset(buf + frame->str_locals_cap, 0, (size_t)(next - frame->str_locals_cap) * sizeof(*buf));
     TORIRS_PERF_COUNT(
         TORIRS_PERF_CTR_CS2_FRAME_LOCALS_BYTES,
@@ -264,7 +264,7 @@ cs2vm2_frame_int_local_ref(
     return &frame->int_locals[idx];
 }
 
-static inline char**
+static inline struct CS2VM2_Str**
 cs2vm2_frame_str_local_ref(
     struct CS2VM2_Frame* frame,
     int idx)
@@ -317,7 +317,7 @@ cs2vm2_frame_int_local(
     return idx < frame->int_locals_dirty ? frame->int_locals[idx] : 0;
 }
 
-static inline char*
+static inline struct CS2VM2_Str*
 cs2vm2_frame_str_local(
     const struct CS2VM2_Frame* frame,
     int idx)
@@ -594,9 +594,9 @@ cs2vm2_array_reserve(
     if( cap > CS2VM2_ARRAY_CAPACITY )
         cap = CS2VM2_ARRAY_CAPACITY;
 
-    void* cells =
-        ToriMem_Realloc(ToriMem_Script(), array->cells.strings, (size_t)cap * sizeof(char*));
-    array->cells.strings = (char**)cells;
+    void* cells = ToriMem_Realloc(
+        ToriMem_Script(), array->cells.strings, (size_t)cap * sizeof(struct CS2VM2_Str*));
+    array->cells.strings = (struct CS2VM2_Str**)cells;
     array->capacity = cap;
     return 1;
 }
@@ -664,24 +664,25 @@ cs2vm2_frame_dialect(struct CS2VM2_Frame const* frame)
     return &CS2VM2_DIALECT_OSRS;
 }
 
-/* An array HANDLE is a raw pointer into vm->arrays carried in a string local
- * (and across the string stack / gosub args, which copy the char* verbatim).
+/* An array HANDLE is an array's address carried in a string slot
+ * (CS2VM2_ArrayHandle; the string stack and gosub args copy it verbatim).
  * Resolution validates rather than trusts: anything that is not a live,
  * aligned pool pointer — a real string, NULL, a stale local — resolves to no
  * array, and the op degrades to the same read-0/drop-write the old
- * out-of-range path had. */
+ * out-of-range path had. This and CS2VM2_ArrayHandle are the only places a
+ * string slot and an array are converted into each other. */
 static struct CS2VM2_Array*
 cs2vm2_array_from_handle(
     struct CS2VM2_Thread* vm,
-    char* handle)
+    struct CS2VM2_Str const* handle)
 {
-    ptrdiff_t off = handle - (char*)vm->arrays;
+    ptrdiff_t off = (char const*)(void const*)handle - (char const*)vm->arrays;
     if( off < 0 || off >= (ptrdiff_t)sizeof(vm->arrays) )
         return NULL;
     assert(handle);
     if( off % (ptrdiff_t)sizeof(struct CS2VM2_Array) != 0 )
         return NULL;
-    struct CS2VM2_Array* array = (struct CS2VM2_Array*)handle;
+    struct CS2VM2_Array* array = &vm->arrays[off / (ptrdiff_t)sizeof(struct CS2VM2_Array)];
     return array->defined ? array : NULL;
 }
 
@@ -748,7 +749,7 @@ CS2VM2_ArrayStoreStr(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Array* array,
     int index,
-    char* value)
+    struct CS2VM2_Str* value)
 {
     assert(vm);
     if( !cs2vm2_array_track(vm, array, index) )
@@ -756,7 +757,7 @@ CS2VM2_ArrayStoreStr(
     array->cells.strings[index] = value;
 }
 
-char*
+struct CS2VM2_Array*
 CS2VM2_ArrayNewInts(
     struct CS2VM2_Thread* vm,
     int const* values,
@@ -773,7 +774,17 @@ CS2VM2_ArrayNewInts(
         return NULL;
     for( int i = 0; i < count; i++ )
         array->cells.ints[i] = values[i];
-    return (char*)array;
+    return array;
+}
+
+int
+CS2VM2_PushArray(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Array* array)
+{
+    assert(vm);
+    assert(array);
+    return CS2VM2_PushStr(vm, CS2VM2_ArrayHandle(array));
 }
 
 void
@@ -972,7 +983,7 @@ CS2VM2_TraceOpcode(
         if( vm->strs_stack_top > 0 )
             TORIRS_ERR(
                 " stop=\"%s\"",
-                vm->strs_stack[vm->strs_stack_top - 1] ? vm->strs_stack[vm->strs_stack_top - 1]
+                vm->strs_stack[vm->strs_stack_top - 1] ? vm->strs_stack[vm->strs_stack_top - 1]->text
                                                        : "(null)");
     }
     if( result == CS2VM_EXECNO_YIELD )
@@ -1179,18 +1190,16 @@ CS2VM2_GetIntCurrentFrameLocal(
     return cs2vm2_frame_int_local(CS2VM_FRAME(vm), idx);
 }
 
-char const*
+struct CS2VM2_Str const*
 CS2VM2_GetStringCurrentFrameLocal(
     struct CS2VM2_Thread* vm,
     int idx)
 {
-    char const* value;
     assert(vm);
     assert(vm->frame_sp > 0);
     assert(idx >= 0);
     assert(idx < CS2VM_MAX_LOCALS);
-    value = cs2vm2_frame_str_local(CS2VM_FRAME(vm), idx);
-    return value ? value : "";
+    return cs2vm2_frame_str_local(CS2VM_FRAME(vm), idx);
 }
 
 int
@@ -1229,7 +1238,7 @@ CS2VM2_PushIntCurrentFrameLocal(
     return CS2VM2_PushIntFrameLocal(vm, frame, idx);
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrAlloc(
     struct CS2VM2_Thread* vm,
     size_t len)
@@ -1238,7 +1247,7 @@ CS2VM2_StrAlloc(
     return CS2VM2_StrPool_Alloc(&vm->str_pool, len);
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrDup(
     struct CS2VM2_Thread* vm,
     char const* text)
@@ -1247,7 +1256,7 @@ CS2VM2_StrDup(
     return CS2VM2_StrPool_Dup(&vm->str_pool, text);
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrDupLen(
     struct CS2VM2_Thread* vm,
     char const* text,
@@ -1257,7 +1266,7 @@ CS2VM2_StrDupLen(
     return CS2VM2_StrPool_DupLen(&vm->str_pool, text, len);
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrFmt(
     struct CS2VM2_Thread* vm,
     char const* fmt,
@@ -1267,12 +1276,12 @@ CS2VM2_StrFmt(
 
     va_list args;
     va_start(args, fmt);
-    char* out = CS2VM2_StrPool_VFmt(&vm->str_pool, fmt, args);
+    struct CS2VM2_Str* out = CS2VM2_StrPool_VFmt(&vm->str_pool, fmt, args);
     va_end(args);
     return out;
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrEmpty(struct CS2VM2_Thread* vm)
 {
     assert(vm);
@@ -1282,7 +1291,7 @@ CS2VM2_StrEmpty(struct CS2VM2_Thread* vm)
 int
 CS2VM2_PopStr(
     struct CS2VM2_Thread* vm,
-    char** value)
+    struct CS2VM2_Str** value)
 {
     assert(vm);
     if( vm->strs_stack_top <= 0 )
@@ -1310,7 +1319,7 @@ CS2VM2_PopStrFrameLocal(
 int
 CS2VM2_PushStr(
     struct CS2VM2_Thread* vm,
-    char* value)
+    struct CS2VM2_Str* value)
 {
     assert(vm);
 
@@ -1331,7 +1340,7 @@ CS2VM2_PushStrFrameLocal(
     assert(vm);
     assert(frame);
 
-    char* value = cs2vm2_frame_str_local(frame, idx);
+    struct CS2VM2_Str* value = cs2vm2_frame_str_local(frame, idx);
 
     /* A string local that was never assigned. The reference's frame is a
      * `String[]` of nulls and pushing one is legal there — a script that
@@ -1353,7 +1362,7 @@ CS2VM2_PushStrFrameLocal(
      * a constant can be pushed by pointer), which would let this push the
      * pointer too; that is unmeasured and kept for later (docs/CS2_JIT.md
      * 2.7 item 3). */
-    return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, value));
+    return CS2VM2_PushStr(vm, CS2VM2_StrDupLen(vm, value->text, value->len));
 }
 
 int
@@ -1549,7 +1558,7 @@ CS2VM2_Op_PopVarcString(
     assert(vm);
     assert(frame);
 
-    char* value;
+    struct CS2VM2_Str* value;
     if( CS2VM2_PopStr(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
@@ -1582,15 +1591,16 @@ int
 CS2VM2_Op_PushConstantString(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
-    char const* value)
+    struct CS2VM2_Str* value)
 {
     assert(vm);
     (void)frame;
-    /* The script's own constant, by pointer: no string opcode writes through
-     * a string it popped (UPPERCASE and LOWERCASE allocate their result), and
-     * the script outlives every run of it. The jit's CSTR pushes the same
-     * pointer. A NULL operand still pushes a fresh "". */
-    return CS2VM2_PushStr(vm, value ? (char*)value : CS2VM2_StrEmpty(vm));
+    /* The script's own constant (string_constants), by pointer: no string
+     * opcode writes through a string it popped (UPPERCASE and LOWERCASE
+     * allocate their result), and the script outlives every run of it. The
+     * jit's CSTR pushes the same pointer. A NULL operand still pushes a fresh
+     * "". */
+    return CS2VM2_PushStr(vm, value ? value : CS2VM2_StrEmpty(vm));
 }
 
 int
@@ -1664,7 +1674,7 @@ CS2VM2_Op_JoinString(
 
     if( count == 1 )
     {
-        char* s;
+        struct CS2VM2_Str* s;
         if( CS2VM2_PopStr(vm, &s) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         return CS2VM2_PushStr(vm, s);
@@ -1672,11 +1682,11 @@ CS2VM2_Op_JoinString(
 
     /* The parts, for as long as the join takes. A join of a few strings
      * (nearly all of them) keeps them here; only a long one allocates. */
-    char* parts_here[16];
-    char** parts = parts_here;
+    struct CS2VM2_Str* parts_here[16];
+    struct CS2VM2_Str** parts = parts_here;
     if( count > (int)(sizeof(parts_here) / sizeof(parts_here[0])) )
     {
-        parts = ToriMem_Calloc(ToriMem_Script(), (size_t)count, sizeof(char*));
+        parts = ToriMem_Calloc(ToriMem_Script(), (size_t)count, sizeof(*parts));
         assert(parts);
     }
 
@@ -1692,21 +1702,19 @@ CS2VM2_Op_JoinString(
 
     size_t total = 0;
     for( int i = 0; i < count; i++ )
-        total += parts[i] ? strlen(parts[i]) : 0;
+        total += CS2VM2_StrLen(parts[i]);
 
-    char* joined = CS2VM2_StrAlloc(vm, total);
+    struct CS2VM2_Str* joined = CS2VM2_StrAlloc(vm, total);
 
-    char* out = joined;
+    char* out = joined->text;
     for( int i = 0; i < count; i++ )
     {
         if( parts[i] )
         {
-            size_t len = strlen(parts[i]);
-            memcpy(out, parts[i], len);
-            out += len;
+            memcpy(out, parts[i]->text, parts[i]->len);
+            out += parts[i]->len;
         }
     }
-    *out = '\0';
     if( parts != parts_here )
         ToriMem_Free(ToriMem_Script(), parts);
 
@@ -1749,34 +1757,34 @@ CS2VM2_Op_Escape(struct CS2VM2_Thread* vm)
 {
     assert(vm);
 
-    char* text;
+    struct CS2VM2_Str* text;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     assert(text);
 
     /* Worst case every character is '<' or '>', each growing to four bytes. */
-    size_t len = strlen(text);
-    char* out = CS2VM2_StrAlloc(vm, len * 4u);
+    uint32_t const len = text->len;
+    struct CS2VM2_Str* out = CS2VM2_StrAlloc(vm, (size_t)len * 4u);
 
-    size_t out_len = 0;
-    for( size_t i = 0; i < len; i++ )
+    uint32_t out_len = 0;
+    for( uint32_t i = 0; i < len; i++ )
     {
-        if( text[i] == '<' )
+        if( text->text[i] == '<' )
         {
-            memcpy(out + out_len, "<lt>", 4);
+            memcpy(out->text + out_len, "<lt>", 4);
             out_len += 4;
         }
-        else if( text[i] == '>' )
+        else if( text->text[i] == '>' )
         {
-            memcpy(out + out_len, "<gt>", 4);
+            memcpy(out->text + out_len, "<gt>", 4);
             out_len += 4;
         }
         else
         {
-            out[out_len++] = text[i];
+            out->text[out_len++] = text->text[i];
         }
     }
-    out[out_len] = '\0';
+    CS2VM2_StrSetLen(out, out_len);
 
     return CS2VM2_PushStr(vm, out);
 }
@@ -1842,7 +1850,7 @@ CS2VM2_Op_Uppercase(struct CS2VM2_Thread* vm)
 {
     assert(vm);
 
-    char* text;
+    struct CS2VM2_Str* text;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     assert(text);
@@ -1850,14 +1858,13 @@ CS2VM2_Op_Uppercase(struct CS2VM2_Thread* vm)
     /* Into a fresh buffer, never in place: the popped string may be a
      * script's constant (PUSH_CONSTANT_STRING pushes it by pointer), which
      * every later run of that script reads. */
-    size_t const len = strlen(text);
-    char* out = CS2VM2_StrAlloc(vm, len);
-    for( size_t i = 0; i < len; i++ )
+    uint32_t const len = text->len;
+    struct CS2VM2_Str* out = CS2VM2_StrAlloc(vm, len);
+    for( uint32_t i = 0; i < len; i++ )
     {
-        char const ch = text[i];
-        out[i] = (ch >= 'a' && ch <= 'z') ? (char)(ch - 'a' + 'A') : ch;
+        char const ch = text->text[i];
+        out->text[i] = (ch >= 'a' && ch <= 'z') ? (char)(ch - 'a' + 'A') : ch;
     }
-    out[len] = '\0';
     return CS2VM2_PushStr(vm, out);
 }
 
@@ -1867,20 +1874,19 @@ CS2VM2_Op_Lowercase(struct CS2VM2_Thread* vm)
 {
     assert(vm);
 
-    char* text;
+    struct CS2VM2_Str* text;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     assert(text);
 
     /* A fresh buffer, as UPPERCASE above. */
-    size_t const len = strlen(text);
-    char* out = CS2VM2_StrAlloc(vm, len);
-    for( size_t i = 0; i < len; i++ )
+    uint32_t const len = text->len;
+    struct CS2VM2_Str* out = CS2VM2_StrAlloc(vm, len);
+    for( uint32_t i = 0; i < len; i++ )
     {
-        char const ch = text[i];
-        out[i] = (ch >= 'A' && ch <= 'Z') ? (char)(ch - 'A' + 'a') : ch;
+        char const ch = text->text[i];
+        out->text[i] = (ch >= 'A' && ch <= 'Z') ? (char)(ch - 'A' + 'a') : ch;
     }
-    out[len] = '\0';
     return CS2VM2_PushStr(vm, out);
 }
 
@@ -1890,26 +1896,27 @@ CS2VM2_Op_RemoveTags(struct CS2VM2_Thread* vm)
 {
     assert(vm);
 
-    char* text;
+    struct CS2VM2_Str* text;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     assert(text);
 
-    size_t len = strlen(text);
-    char* out = CS2VM2_StrAlloc(vm, len);
+    uint32_t const len = text->len;
+    struct CS2VM2_Str* out = CS2VM2_StrAlloc(vm, len);
 
-    size_t out_len = 0;
+    uint32_t out_len = 0;
     bool in_tag = false;
-    for( size_t i = 0; i < len; i++ )
+    for( uint32_t i = 0; i < len; i++ )
     {
-        if( text[i] == '<' )
+        char const ch = text->text[i];
+        if( ch == '<' )
             in_tag = true;
-        else if( in_tag && text[i] == '>' )
+        else if( in_tag && ch == '>' )
             in_tag = false;
         else if( !in_tag )
-            out[out_len++] = text[i];
+            out->text[out_len++] = ch;
     }
-    out[out_len] = '\0';
+    CS2VM2_StrSetLen(out, out_len);
 
     return CS2VM2_PushStr(vm, out);
 }
@@ -1925,16 +1932,22 @@ CS2VM2_Op_Append(
     assert(frame);
     (void)operand;
 
-    char *src, *dest;
+    struct CS2VM2_Str *src, *dest;
     if( CS2VM2_PopStr(vm, &src) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &dest) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    /* Sized to fit. These used to format into a char[512] and truncate, which
-     * quietly clipped long concatenations (the reference's StringBuilder has no
-     * such limit). */
-    return CS2VM2_PushStr(vm, CS2VM2_StrFmt(vm, "%s%s", dest ? dest : "", src ? src : ""));
+    /* Sized to fit from the two lengths (the reference's StringBuilder has no
+     * limit either). */
+    uint32_t const dest_len = CS2VM2_StrLen(dest);
+    uint32_t const src_len = CS2VM2_StrLen(src);
+    struct CS2VM2_Str* out = CS2VM2_StrAlloc(vm, (size_t)dest_len + src_len);
+    if( dest_len )
+        memcpy(out->text, dest->text, dest_len);
+    if( src_len )
+        memcpy(out->text + dest_len, src->text, src_len);
+    return CS2VM2_PushStr(vm, out);
 }
 
 int
@@ -1949,13 +1962,13 @@ CS2VM2_Op_AppendNum(
     (void)operand;
 
     int num;
-    char* str;
+    struct CS2VM2_Str* str;
     if( CS2VM2_PopInt(vm, &num) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &str) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    return CS2VM2_PushStr(vm, CS2VM2_StrFmt(vm, "%s%d", str ? str : "", num));
+    return CS2VM2_PushStr(vm, CS2VM2_StrFmt(vm, "%s%d", CS2VM2_StrText(str), num));
 }
 
 int
@@ -1970,14 +1983,14 @@ CS2VM2_Op_AppendSignNum(
     (void)operand;
 
     int num;
-    char* str;
+    struct CS2VM2_Str* str;
     if( CS2VM2_PopInt(vm, &num) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &str) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     return CS2VM2_PushStr(
-        vm, CS2VM2_StrFmt(vm, "%s%s%d", str ? str : "", num >= 0 ? "+" : "", num));
+        vm, CS2VM2_StrFmt(vm, "%s%s%d", CS2VM2_StrText(str), num >= 0 ? "+" : "", num));
 }
 
 int
@@ -1992,17 +2005,17 @@ CS2VM2_Op_AppendChar(
     (void)operand;
 
     int chr;
-    char* str;
+    struct CS2VM2_Str* str;
     if( CS2VM2_PopInt(vm, &chr) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &str) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    size_t len = str ? strlen(str) : 0;
-    char* result = CS2VM2_StrAlloc(vm, len + 1u);
+    uint32_t const len = CS2VM2_StrLen(str);
+    struct CS2VM2_Str* result = CS2VM2_StrAlloc(vm, (size_t)len + 1u);
     if( len > 0 )
-        memcpy(result, str, len);
-    result[len] = (char)chr;
+        memcpy(result->text, str->text, len);
+    result->text[len] = (char)chr;
 
     return CS2VM2_PushStr(vm, result);
 }
@@ -2018,11 +2031,11 @@ CS2VM2_Op_StringLength(
     assert(frame);
     (void)operand;
 
-    char* str;
+    struct CS2VM2_Str* str;
     if( CS2VM2_PopStr(vm, &str) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    return CS2VM2_PushInt(vm, str ? (int)strlen(str) : 0);
+    return CS2VM2_PushInt(vm, (int)CS2VM2_StrLen(str));
 }
 
 int
@@ -2039,7 +2052,7 @@ CS2VM2_Op_ParaHeight(
 
     int font_id;
     int max_width;
-    char* text;
+    struct CS2VM2_Str* text;
 
     if( CS2VM2_PopInt(vm, &font_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -2099,7 +2112,7 @@ CS2VM2_Op_ParaWidth(
 
     int font_id;
     int max_width;
-    char* text;
+    struct CS2VM2_Str* text;
 
     if( CS2VM2_PopInt(vm, &font_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -2182,7 +2195,7 @@ CS2VM2_Op_GosubWithParams(
     }
     for( int i = str_args - 1; i >= 0; i-- )
     {
-        char* value = NULL;
+        struct CS2VM2_Str* value = NULL;
         if( CS2VM2_PopStr(vm, &value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         *cs2vm2_frame_str_local_ref(callee, i) = value;
@@ -3015,21 +3028,21 @@ CS2VM2_Op_IF_TriggerOpLocal(
     assert(frame);
     (void)operand;
 
-    char* signature = NULL;
+    struct CS2VM2_Str* signature = NULL;
     if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK || !signature )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request = { 0 };
     request.kind = CS2VM_HOST_REQUEST_IF_SCRIPT_TRIGGER;
     int typed0 = -1;
-    int argc = (int)strlen(signature);
+    int argc = (int)signature->len;
     if( argc > 16 )
         return CS2VM_EXECNO_ERROR;
     request.u.IF_SCRIPT_TRIGGER.signature = signature;
     request.u.IF_SCRIPT_TRIGGER.count = argc;
     for( int i = argc - 1; i >= 0; --i )
     {
-        if( signature[i] == 'i' )
+        if( signature->text[i] == 'i' )
         {
             if( CS2VM2_PopInt(vm, &request.u.IF_SCRIPT_TRIGGER.values[i]) != CS2VM_EXECNO_OK )
                 return CS2VM_EXECNO_ERROR;
@@ -3119,7 +3132,7 @@ CS2VM2_Op_CC_SetText(
     assert(vm);
     assert(frame);
 
-    char* text;
+    struct CS2VM2_Str* text;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
@@ -3620,7 +3633,7 @@ CS2VM2_Op_IF_SetText(
     (void)operand;
 
     int component_id;
-    char* text;
+    struct CS2VM2_Str* text;
 
     if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -3652,7 +3665,7 @@ CS2VM2_Op_CC_SetOp(
     assert(frame);
 
     int index;
-    char* text;
+    struct CS2VM2_Str* text;
 
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -3684,7 +3697,7 @@ CS2VM2_Op_CC_SetOpBase(
     assert(vm);
     assert(frame);
 
-    char* text;
+    struct CS2VM2_Str* text;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
@@ -3709,7 +3722,7 @@ CS2VM2_Op_CC_SetTargetVerb(
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     (void)frame;
-    char* text;
+    struct CS2VM2_Str* text;
 
     assert(vm);
     assert(frame);
@@ -3999,7 +4012,7 @@ CS2VM2_Op_CC_SetOpSubmenu(
     (void)frame;
 
     int sub_index, op_index;
-    char* text;
+    struct CS2VM2_Str* text;
     if( CS2VM2_PopInt(vm, &sub_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
@@ -4525,7 +4538,7 @@ CS2VM2_Op_IF_SetParam(
     int component_id;
     int param_id;
     int value = 0;
-    char* str_value = NULL;
+    struct CS2VM2_Str* str_value = NULL;
 
     if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -5047,10 +5060,10 @@ CS2VM2_Op_IF_SetOnEventHandler(
     int widget_uid, script_id, trigger_count = 0;
     int trigger_ids_here[CS2VM2_TRIGGER_IDS_HERE];
     int* trigger_ids = NULL;
-    char* signature = NULL;
+    struct CS2VM2_Str* signature = NULL;
     int int_args[CS2VM_SETON_INT_ARG_MAX];
     int int_arg_count = 0;
-    char* str_by_pos[CS2VM_SETON_INT_ARG_MAX];
+    struct CS2VM2_Str* str_by_pos[CS2VM_SETON_INT_ARG_MAX];
     uint64_t str_arg_mask = 0;
 
     if( CS2VM2_PopInt(vm, &widget_uid) != CS2VM_EXECNO_OK )
@@ -5059,9 +5072,9 @@ CS2VM2_Op_IF_SetOnEventHandler(
     if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int signature_len = signature ? (int)strlen(signature) : 0;
+    int signature_len = (int)CS2VM2_StrLen(signature);
     int signature_parse_len = signature_len;
-    if( signature_len > 0 && signature[signature_len - 1] == 'Y' )
+    if( signature_len > 0 && signature->text[signature_len - 1] == 'Y' )
     {
         if( CS2VM2_PopInt(vm, &trigger_count) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -5090,7 +5103,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
     {
         for( int i = signature_parse_len - 1; i >= 0; i-- )
         {
-            char c = signature[i];
+            char c = signature->text[i];
             if( (unsigned char)c == CS2VM2_SIGNATURE_LONG )
             {
                 /* The reference takes a long hook argument off the long stack
@@ -5099,13 +5112,13 @@ CS2VM2_Op_IF_SetOnEventHandler(
                  * no 241 script sets one. Fail rather than pop the wrong stack. */
                 TORIRS_LOG(
                     "CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
-                    signature);
+                    signature->text);
                 cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                 return CS2VM_EXECNO_ERROR;
             }
             if( c == 's' || c == 'W' || c == 'X' )
             {
-                char* v = NULL;
+                struct CS2VM2_Str* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
@@ -5167,7 +5180,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
                 continue;                                                                          \
             if( request.u.name.str_arg_count < CS2VM_SETON_STR_ARG_MAX )                           \
                 request.u.name.str_args[request.u.name.str_arg_count] =                            \
-                    str_by_pos[i] ? str_by_pos[i] : "";                                            \
+                    str_by_pos[i] ? str_by_pos[i] : CS2VM2_StrEmpty(vm);                                            \
             request.u.name.str_arg_count++;                                                        \
         }                                                                                          \
         if( request.u.name.str_arg_count > CS2VM_SETON_STR_ARG_MAX )                               \
@@ -5247,18 +5260,18 @@ CS2VM2_Op_CC_SetOnEventHandler(
     int script_id, trigger_count = 0;
     int trigger_ids_here[CS2VM2_TRIGGER_IDS_HERE];
     int* trigger_ids = NULL;
-    char* signature = NULL;
+    struct CS2VM2_Str* signature = NULL;
     int int_args[CS2VM_SETON_INT_ARG_MAX];
     int int_arg_count = 0;
-    char* str_by_pos[CS2VM_SETON_INT_ARG_MAX];
+    struct CS2VM2_Str* str_by_pos[CS2VM_SETON_INT_ARG_MAX];
     uint64_t str_arg_mask = 0;
 
     if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int signature_len = signature ? (int)strlen(signature) : 0;
+    int signature_len = (int)CS2VM2_StrLen(signature);
     int signature_parse_len = signature_len;
-    if( signature_len > 0 && signature[signature_len - 1] == 'Y' )
+    if( signature_len > 0 && signature->text[signature_len - 1] == 'Y' )
     {
         if( CS2VM2_PopInt(vm, &trigger_count) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -5287,7 +5300,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
     {
         for( int i = signature_parse_len - 1; i >= 0; i-- )
         {
-            char c = signature[i];
+            char c = signature->text[i];
             if( (unsigned char)c == CS2VM2_SIGNATURE_LONG )
             {
                 /* The reference takes a long hook argument off the long stack
@@ -5296,13 +5309,13 @@ CS2VM2_Op_CC_SetOnEventHandler(
                  * no 241 script sets one. Fail rather than pop the wrong stack. */
                 TORIRS_LOG(
                     "CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
-                    signature);
+                    signature->text);
                 cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                 return CS2VM_EXECNO_ERROR;
             }
             if( c == 's' || c == 'W' || c == 'X' )
             {
-                char* v = NULL;
+                struct CS2VM2_Str* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
@@ -5364,7 +5377,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
                 continue;                                                                          \
             if( request.u.name.str_arg_count < CS2VM_SETON_STR_ARG_MAX )                           \
                 request.u.name.str_args[request.u.name.str_arg_count] =                            \
-                    str_by_pos[i] ? str_by_pos[i] : "";                                            \
+                    str_by_pos[i] ? str_by_pos[i] : CS2VM2_StrEmpty(vm);                                            \
             request.u.name.str_arg_count++;                                                        \
         }                                                                                          \
         if( request.u.name.str_arg_count > CS2VM_SETON_STR_ARG_MAX )                               \
@@ -5865,16 +5878,16 @@ CS2VM2_Op_IF_SetOnInvTransmit(
     int widget_uid, script_id, trigger_count = 0;
     int trigger_ids_here[CS2VM2_TRIGGER_IDS_HERE];
     int* trigger_ids = NULL;
-    char* signature = NULL;
+    struct CS2VM2_Str* signature = NULL;
 
     if( CS2VM2_PopInt(vm, &widget_uid) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int signature_len = signature ? (int)strlen(signature) : 0;
+    int signature_len = (int)CS2VM2_StrLen(signature);
     int signature_parse_len = signature_len;
-    if( signature_len > 0 && signature[signature_len - 1] == 'Y' )
+    if( signature_len > 0 && signature->text[signature_len - 1] == 'Y' )
     {
         if( CS2VM2_PopInt(vm, &trigger_count) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -5896,14 +5909,14 @@ CS2VM2_Op_IF_SetOnInvTransmit(
 
     int int_args[CS2VM_SETON_INT_ARG_MAX] = { 0 };
     int int_arg_count = 0;
-    char* str_by_pos[CS2VM_SETON_INT_ARG_MAX] = { 0 };
+    struct CS2VM2_Str* str_by_pos[CS2VM_SETON_INT_ARG_MAX] = { 0 };
     uint64_t str_arg_mask = 0;
 
     if( signature && signature_parse_len > 0 )
     {
         for( int i = signature_parse_len - 1; i >= 0; i-- )
         {
-            char c = signature[i];
+            char c = signature->text[i];
             if( (unsigned char)c == CS2VM2_SIGNATURE_LONG )
             {
                 /* The reference takes a long hook argument off the long stack
@@ -5912,13 +5925,13 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                  * no 241 script sets one. Fail rather than pop the wrong stack. */
                 TORIRS_LOG(
                     "CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
-                    signature);
+                    signature->text);
                 cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                 return CS2VM_EXECNO_ERROR;
             }
             if( c == 's' || c == 'W' || c == 'X' )
             {
-                char* v = NULL;
+                struct CS2VM2_Str* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
@@ -5978,7 +5991,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
             continue;
         if( request.u.IF_SETONINVTRANSMIT.str_arg_count < CS2VM_SETON_STR_ARG_MAX )
             request.u.IF_SETONINVTRANSMIT.str_args[request.u.IF_SETONINVTRANSMIT.str_arg_count] =
-                str_by_pos[i] ? str_by_pos[i] : "";
+                str_by_pos[i] ? str_by_pos[i] : CS2VM2_StrEmpty(vm);
         request.u.IF_SETONINVTRANSMIT.str_arg_count++;
     }
     if( request.u.IF_SETONINVTRANSMIT.str_arg_count > CS2VM_SETON_STR_ARG_MAX )
@@ -6319,7 +6332,7 @@ CS2VM2_Op_IF_SetOp(
     assert(frame);
 
     int widget, index;
-    char* text;
+    struct CS2VM2_Str* text;
 
     if( CS2VM2_PopInt(vm, &widget) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -6357,7 +6370,7 @@ CS2VM2_Op_IF_SetOpBase(
     (void)operand;
 
     int component_id;
-    char* text;
+    struct CS2VM2_Str* text;
     if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
@@ -6385,7 +6398,7 @@ CS2VM2_Op_IF_SetTargetVerb(
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     (void)frame;
     int component_id;
-    char* text;
+    struct CS2VM2_Str* text;
 
     assert(vm);
     assert(frame);
@@ -6414,7 +6427,7 @@ CS2VM2_Op_IF_SetOpSubmenu(
     (void)operand;
 
     int component_id, sub_index, op_index;
-    char* text;
+    struct CS2VM2_Str* text;
     if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &sub_index) != CS2VM_EXECNO_OK )
@@ -6924,19 +6937,19 @@ CS2VM2_Op_LongToString(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    char* sep = NULL;
+    struct CS2VM2_Str* sep = NULL;
     int64_t v;
     if( opcode == CS2_OP_TOSTRING_SPACER_LONG && CS2VM2_PopStr(vm, &sep) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopLong(vm, &v) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( opcode == CS2_OP_TOSTRING_LONG || v == 0 || !sep || sep[0] == '\0' )
+    if( opcode == CS2_OP_TOSTRING_LONG || v == 0 || !sep || sep->len == 0 )
         return CS2VM2_PushStr(vm, CS2VM2_StrFmt(vm, "%lld", (long long)v));
 
     bool negative = v < 0;
     int64_t rest = negative ? (int64_t)(0 - (uint64_t)v) : v;
-    size_t sep_len = strlen(sep);
+    size_t const sep_len = sep->len;
     char digits[32];
     int ndigits = 0;
     while( rest > 0 )
@@ -6947,9 +6960,8 @@ CS2VM2_Op_LongToString(
 
     size_t len = (negative ? 1 : 0) + (size_t)ndigits +
                  (ndigits > 0 ? (size_t)((ndigits - 1) / 3) * sep_len : 0);
-    char* out = CS2VM2_StrAlloc(vm, len);
-    assert(out);
-    char* w = out;
+    struct CS2VM2_Str* out = CS2VM2_StrAlloc(vm, len);
+    char* w = out->text;
     if( negative )
         *w++ = '-';
     for( int i = ndigits - 1; i >= 0; i-- )
@@ -6957,11 +6969,10 @@ CS2VM2_Op_LongToString(
         *w++ = digits[i];
         if( i > 0 && i % 3 == 0 )
         {
-            memcpy(w, sep, sep_len);
+            memcpy(w, sep->text, sep_len);
             w += sep_len;
         }
     }
-    *w = '\0';
     return CS2VM2_PushStr(vm, out);
 }
 
@@ -7688,7 +7699,7 @@ CS2VM2_Op_PopStrDiscard(
      * count. */
     (void)operand;
 
-    char* strpop;
+    struct CS2VM2_Str* strpop;
     return CS2VM2_PopStr(vm, &strpop);
 }
 
@@ -8465,15 +8476,15 @@ CS2VM2_Op_DefineArray(
         int const fill = (element == 'i' || element == '1') ? 0 : -1;
 
         if( array->is_string )
-            memset(array->cells.strings, 0, (size_t)array->size * sizeof(char*));
+            memset(array->cells.strings, 0, (size_t)array->size * sizeof(*array->cells.strings));
         else
             for( int i = 0; i < array->size; i++ )
                 array->cells.ints[i] = fill;
     }
     if( shared )
-        vm->shared_arrays[str_slot] = (char*)array;
+        vm->shared_arrays[str_slot] = CS2VM2_ArrayHandle(array);
     else
-        *cs2vm2_frame_str_local_ref(frame, str_slot) = (char*)array;
+        *cs2vm2_frame_str_local_ref(frame, str_slot) = CS2VM2_ArrayHandle(array);
     return CS2VM_EXECNO_OK;
 }
 
@@ -8497,7 +8508,7 @@ CS2VM2_Op_PushArrayInt(
     /* A string array reads onto the string stack — same opcode, other stack. */
     if( array && array->is_string )
     {
-        char* value = in_range ? array->cells.strings[index] : NULL;
+        struct CS2VM2_Str* value = in_range ? array->cells.strings[index] : NULL;
         return CS2VM2_PushStr(vm, value ? value : CS2VM2_StrEmpty(vm));
     }
 
@@ -8528,7 +8539,7 @@ CS2VM2_Op_PopArrayInt(
      * underflows the int stack and desyncs everything after. */
     if( array && array->is_string )
     {
-        char* text = NULL;
+        struct CS2VM2_Str* text = NULL;
         if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
@@ -8577,8 +8588,8 @@ CS2VM2_Op_ArraySortAll(
     (void)frame;
     (void)operand;
 
-    char* secondary_handle = NULL;
-    char* primary_handle = NULL;
+    struct CS2VM2_Str* secondary_handle = NULL;
+    struct CS2VM2_Str* primary_handle = NULL;
     if( CS2VM2_PopStr(vm, &secondary_handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &primary_handle) != CS2VM_EXECNO_OK )
@@ -8597,9 +8608,9 @@ CS2VM2_Op_ArraySortAll(
             int before;
             if( primary->is_string )
             {
-                char const* a = primary->cells.strings[j - 1];
-                char const* b = primary->cells.strings[j];
-                before = strcmp(a ? a : "", b ? b : "") <= 0;
+                struct CS2VM2_Str* a = primary->cells.strings[j - 1];
+                struct CS2VM2_Str* b = primary->cells.strings[j];
+                before = strcmp(CS2VM2_StrText(a), CS2VM2_StrText(b)) <= 0;
             }
             else
                 before = primary->cells.ints[j - 1] <= primary->cells.ints[j];
@@ -8609,7 +8620,7 @@ CS2VM2_Op_ArraySortAll(
              * char*-wide swap on an int array would clobber two int cells. */
             if( primary->is_string )
             {
-                char* tmp = primary->cells.strings[j - 1];
+                struct CS2VM2_Str* tmp = primary->cells.strings[j - 1];
                 primary->cells.strings[j - 1] = primary->cells.strings[j];
                 primary->cells.strings[j] = tmp;
             }
@@ -8623,7 +8634,7 @@ CS2VM2_Op_ArraySortAll(
             {
                 if( secondary->is_string )
                 {
-                    char* tmp = secondary->cells.strings[j - 1];
+                    struct CS2VM2_Str* tmp = secondary->cells.strings[j - 1];
                     secondary->cells.strings[j - 1] = secondary->cells.strings[j];
                     secondary->cells.strings[j] = tmp;
                 }
@@ -8689,13 +8700,13 @@ cs2vm2_array_search(
     /* value_type -1 is "no value": nothing is popped and nothing can match. */
 
     int search_int = 0;
-    char* search_str = NULL;
+    struct CS2VM2_Str* search_str = NULL;
     if( want_int && CS2VM2_PopInt(vm, &search_int) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( want_str && CS2VM2_PopStr(vm, &search_str) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
@@ -8711,8 +8722,8 @@ cs2vm2_array_search(
     {
         if( array->is_string )
         {
-            char const* cell = array->cells.strings[i];
-            if( want_str && strcmp(cell ? cell : "", search_str ? search_str : "") == 0 )
+            struct CS2VM2_Str* cell = array->cells.strings[i];
+            if( want_str && strcmp(CS2VM2_StrText(cell), CS2VM2_StrText(search_str)) == 0 )
             {
                 if( first_only )
                     return CS2VM2_PushInt(vm, i);
@@ -8766,7 +8777,7 @@ CS2VM2_Op_ArrayLength(
     (void)frame;
     (void)operand;
 
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
@@ -8789,8 +8800,8 @@ CS2VM2_Op_ArrayJoin(
     (void)frame;
     (void)operand;
 
-    char* separator = NULL;
-    char* handle = NULL;
+    struct CS2VM2_Str* separator = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopStr(vm, &separator) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
@@ -8800,8 +8811,8 @@ CS2VM2_Op_ArrayJoin(
     if( !array )
         return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
 
-    char const* sep = separator ? separator : "";
-    size_t sep_len = strlen(sep);
+    char const* sep = CS2VM2_StrText(separator);
+    size_t const sep_len = CS2VM2_StrLen(separator);
     size_t total = 1; /* NUL */
     for( int i = 0; i < array->size; i++ )
     {
@@ -8809,8 +8820,7 @@ CS2VM2_Op_ArrayJoin(
             total += sep_len;
         if( array->is_string )
         {
-            char const* cell = array->cells.strings[i];
-            total += strlen(cell ? cell : "");
+            total += CS2VM2_StrLen(array->cells.strings[i]);
         }
         else
         {
@@ -8819,35 +8829,33 @@ CS2VM2_Op_ArrayJoin(
         }
     }
 
-    char* out = CS2VM2_StrAlloc(vm, total);
-    if( !out )
-        return CS2VM_EXECNO_ERROR;
+    struct CS2VM2_Str* out = CS2VM2_StrAlloc(vm, total);
     size_t off = 0;
     for( int i = 0; i < array->size; i++ )
     {
         if( i > 0 && sep_len > 0 )
         {
-            memcpy(out + off, sep, sep_len);
+            memcpy(out->text + off, sep, sep_len);
             off += sep_len;
         }
         if( array->is_string )
         {
-            char const* cell = array->cells.strings[i];
-            size_t n = strlen(cell ? cell : "");
+            struct CS2VM2_Str* cell = array->cells.strings[i];
+            uint32_t const n = CS2VM2_StrLen(cell);
             if( n )
             {
-                memcpy(out + off, cell ? cell : "", n);
+                memcpy(out->text + off, cell->text, n);
                 off += n;
             }
         }
         else
         {
-            int n = snprintf(out + off, total - off, "%d", array->cells.ints[i]);
+            int n = snprintf(out->text + off, total - off, "%d", array->cells.ints[i]);
             if( n > 0 )
                 off += (size_t)n;
         }
     }
-    out[off] = '\0';
+    CS2VM2_StrSetLen(out, (uint32_t)off);
     return CS2VM2_PushStr(vm, out);
 }
 
@@ -8865,8 +8873,8 @@ CS2VM2_Op_ArraySplit(
     assert(frame);
     (void)operand;
 
-    char* separator = NULL;
-    char* text = NULL;
+    struct CS2VM2_Str* separator = NULL;
+    struct CS2VM2_Str* text = NULL;
     if( CS2VM2_PopStr(vm, &separator) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
@@ -8886,9 +8894,9 @@ CS2VM2_Op_ArraySplit(
     array->is_string = 1;
     array->size = 0;
 
-    char const* sep = separator ? separator : "";
-    size_t sep_len = strlen(sep);
-    char const* cursor = text ? text : "";
+    char const* sep = CS2VM2_StrText(separator);
+    size_t const sep_len = CS2VM2_StrLen(separator);
+    char const* cursor = CS2VM2_StrText(text);
 
     if( sep_len == 0 )
     {
@@ -8915,7 +8923,7 @@ CS2VM2_Op_ArraySplit(
         }
     }
 
-    return CS2VM2_PushStr(vm, (char*)array);
+    return CS2VM2_PushStr(vm, CS2VM2_ArrayHandle(array));
 }
 
 /*
@@ -8974,7 +8982,7 @@ CS2VM2_Op_ArrayNew(
                 array->cells.ints[i] = -1;
     }
     (void)capacity; /* capacity is reserved length; we store `size` as length. */
-    return CS2VM2_PushStr(vm, (char*)array);
+    return CS2VM2_PushStr(vm, CS2VM2_ArrayHandle(array));
 }
 
 /*
@@ -8993,7 +9001,7 @@ CS2VM2_Op_ArraySetLength(
     (void)operand;
 
     int length;
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopInt(vm, &length) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
@@ -9049,13 +9057,13 @@ CS2VM2_Op_ArrayAppend(
     int want_int = (value_type == 0 || value_type == 49 || value_type == 105);
 
     int value_int = 0;
-    char* value_str = NULL;
+    struct CS2VM2_Str* value_str = NULL;
     if( want_int && CS2VM2_PopInt(vm, &value_int) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( want_str && CS2VM2_PopStr(vm, &value_str) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
@@ -9068,7 +9076,7 @@ CS2VM2_Op_ArrayAppend(
     {
         array->is_string = 1;
         array->cells.strings[index] =
-            value_str ? CS2VM2_StrDup(vm, value_str) : CS2VM2_StrEmpty(vm);
+            value_str ? CS2VM2_StrDupLen(vm, value_str->text, value_str->len) : CS2VM2_StrEmpty(vm);
     }
     else
     {
@@ -9087,7 +9095,7 @@ CS2VM2_Op_ArrayAppend(
 static struct CS2VM2_Array*
 cs2vm2_array_arg(
     struct CS2VM2_Thread* vm,
-    char* handle,
+    struct CS2VM2_Str* handle,
     char const* what)
 {
     struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
@@ -9107,7 +9115,7 @@ cs2vm2_array_swap_cells(
 {
     if( array->is_string )
     {
-        char* const tmp = array->cells.strings[i];
+        struct CS2VM2_Str* const tmp = array->cells.strings[i];
         array->cells.strings[i] = array->cells.strings[j];
         array->cells.strings[j] = tmp;
     }
@@ -9207,7 +9215,7 @@ static int
 CS2VM2_Op_ArrayRandomise(struct CS2VM2_Thread* vm)
 {
     int seed1, seed2;
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopInt(vm, &seed2) != CS2VM_EXECNO_OK ||
         CS2VM2_PopInt(vm, &seed1) != CS2VM_EXECNO_OK ||
         CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
@@ -9241,7 +9249,7 @@ CS2VM2_Op_ArrayRandomise(struct CS2VM2_Thread* vm)
 static int
 CS2VM2_Op_ArrayIsNull(struct CS2VM2_Thread* vm)
 {
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     return CS2VM2_PushInt(vm, cs2vm2_array_from_handle(vm, handle) ? 0 : 1);
@@ -9257,7 +9265,7 @@ CS2VM2_Op_ArrayIsNull(struct CS2VM2_Thread* vm)
 static int
 CS2VM2_Op_ArrayMax(struct CS2VM2_Thread* vm)
 {
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     struct CS2VM2_Array* array = cs2vm2_array_arg(vm, handle, "ARRAY_MAX");
@@ -9273,9 +9281,9 @@ CS2VM2_Op_ArrayMax(struct CS2VM2_Thread* vm)
         }
         if( array->is_string )
         {
-            char const* a = array->cells.strings[i];
-            char const* b = array->cells.strings[best];
-            if( a && strcmp(a, b ? b : "") > 0 )
+            struct CS2VM2_Str* a = array->cells.strings[i];
+            struct CS2VM2_Str* b = array->cells.strings[best];
+            if( a && strcmp(a->text, CS2VM2_StrText(b)) > 0 )
                 best = i;
         }
         else if( array->cells.ints[i] > array->cells.ints[best] )
@@ -9283,7 +9291,7 @@ CS2VM2_Op_ArrayMax(struct CS2VM2_Thread* vm)
     }
     if( array->is_string )
     {
-        char* const s = best >= 0 ? array->cells.strings[best] : NULL;
+        struct CS2VM2_Str* const s = best >= 0 ? array->cells.strings[best] : NULL;
         return CS2VM2_PushStr(vm, s ? s : CS2VM2_StrEmpty(vm));
     }
     return CS2VM2_PushInt(vm, best >= 0 ? array->cells.ints[best] : -1);
@@ -9293,7 +9301,7 @@ CS2VM2_Op_ArrayMax(struct CS2VM2_Thread* vm)
 static int
 CS2VM2_Op_ArrayReverse(struct CS2VM2_Thread* vm)
 {
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     struct CS2VM2_Array* array = cs2vm2_array_arg(vm, handle, "ARRAY_REVERSE");
@@ -9310,7 +9318,7 @@ static int
 CS2VM2_Op_ArraySwap(struct CS2VM2_Thread* vm)
 {
     int i, j;
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopInt(vm, &j) != CS2VM_EXECNO_OK || CS2VM2_PopInt(vm, &i) != CS2VM_EXECNO_OK ||
         CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -9334,8 +9342,8 @@ static int
 CS2VM2_Op_ArrayCopy(struct CS2VM2_Thread* vm)
 {
     int src_pos, dst_pos, length;
-    char* src_handle = NULL;
-    char* dst_handle = NULL;
+    struct CS2VM2_Str* src_handle = NULL;
+    struct CS2VM2_Str* dst_handle = NULL;
     if( CS2VM2_PopInt(vm, &length) != CS2VM_EXECNO_OK ||
         CS2VM2_PopInt(vm, &dst_pos) != CS2VM_EXECNO_OK ||
         CS2VM2_PopInt(vm, &src_pos) != CS2VM_EXECNO_OK ||
@@ -9370,8 +9378,8 @@ CS2VM2_Op_ArrayInsert(struct CS2VM2_Thread* vm)
     int base_type, index;
     bool is_string;
     int value_int = 0;
-    char* value_str = NULL;
-    char* handle = NULL;
+    struct CS2VM2_Str* value_str = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopInt(vm, &base_type) != CS2VM_EXECNO_OK ||
         CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -9394,7 +9402,7 @@ CS2VM2_Op_ArrayInsert(struct CS2VM2_Thread* vm)
     cs2vm2_array_move_cells(array, index + 1, array, index, array->size - index);
     if( is_string )
         array->cells.strings[index] =
-            value_str ? CS2VM2_StrDup(vm, value_str) : CS2VM2_StrEmpty(vm);
+            value_str ? CS2VM2_StrDupLen(vm, value_str->text, value_str->len) : CS2VM2_StrEmpty(vm);
     else
         array->cells.ints[index] = value_int;
     array->size++;
@@ -9410,7 +9418,7 @@ static int
 CS2VM2_Op_ArrayDelete(struct CS2VM2_Thread* vm)
 {
     int index;
-    char* handle = NULL;
+    struct CS2VM2_Str* handle = NULL;
     if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK ||
         CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -9419,7 +9427,7 @@ CS2VM2_Op_ArrayDelete(struct CS2VM2_Thread* vm)
         return CS2VM_EXECNO_ERROR;
     if( index < 0 || index >= array->size )
         return cs2vm2_array_fail("ARRAY_DELETE", "index out of range");
-    char* const removed_str = array->is_string ? array->cells.strings[index] : NULL;
+    struct CS2VM2_Str* const removed_str = array->is_string ? array->cells.strings[index] : NULL;
     int const removed_int = array->is_string ? 0 : array->cells.ints[index];
     cs2vm2_array_move_cells(array, index, array, index + 1, array->size - index - 1);
     array->size--;
@@ -9436,8 +9444,8 @@ CS2VM2_Op_ArrayDelete(struct CS2VM2_Thread* vm)
 static int
 CS2VM2_Op_ArrayPushAll(struct CS2VM2_Thread* vm)
 {
-    char* dst_handle = NULL;
-    char* src_handle = NULL;
+    struct CS2VM2_Str* dst_handle = NULL;
+    struct CS2VM2_Str* src_handle = NULL;
     if( CS2VM2_PopStr(vm, &src_handle) != CS2VM_EXECNO_OK ||
         CS2VM2_PopStr(vm, &dst_handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -9472,14 +9480,14 @@ CS2VM2_Op_StringToInt(
     (void)frame;
     (void)operand;
 
-    char* text = NULL;
+    struct CS2VM2_Str* text = NULL;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( !text || !*text )
+    if( !text || text->len == 0 )
         return CS2VM2_PushInt(vm, -1);
     char* end = NULL;
-    long value = strtol(text, &end, 10);
-    if( end == text || *end != '\0' )
+    long value = strtol(text->text, &end, 10);
+    if( end == text->text || *end != '\0' )
         return CS2VM2_PushInt(vm, -1);
     return CS2VM2_PushInt(vm, (int)value);
 }
@@ -9502,7 +9510,7 @@ CS2VM2_Op_SafeParseInt(
     (void)frame;
     (void)operand;
 
-    char* text = NULL;
+    struct CS2VM2_Str* text = NULL;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
@@ -9510,7 +9518,7 @@ CS2VM2_Op_SafeParseInt(
     int64_t value = 0;
     if( text )
     {
-        char const* cursor = text;
+        char const* cursor = text->text;
         bool const negative = *cursor == '-';
         if( *cursor == '-' || *cursor == '+' )
             cursor++;
@@ -9657,7 +9665,7 @@ CS2VM2_Op_ChildrenArray(
         return CS2VM_EXECNO_ERROR;
     for( int i = 0; i < array->size; i++ )
         array->cells.ints[i] = vm->children_iter_indices[i];
-    return CS2VM2_PushStr(vm, (char*)array);
+    return CS2VM2_PushStr(vm, CS2VM2_ArrayHandle(array));
 }
 
 int
@@ -9874,8 +9882,8 @@ CS2VM2_Op_Compare(
     assert(frame);
     (void)operand;
 
-    char* b;
-    char* a;
+    struct CS2VM2_Str* b;
+    struct CS2VM2_Str* a;
     if( CS2VM2_PopStr(vm, &b) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &a) != CS2VM_EXECNO_OK )
@@ -9883,7 +9891,7 @@ CS2VM2_Op_Compare(
 
     int cmp = 0;
     if( a && b )
-        cmp = strcmp(a, b);
+        cmp = strcmp(a->text, b->text);
     else if( a && !b )
         cmp = 1;
     else if( !a && b )
@@ -9909,7 +9917,7 @@ CS2VM2_Op_Substring(
 
     int end;
     int start;
-    char* text;
+    struct CS2VM2_Str* text;
     if( CS2VM2_PopInt(vm, &end) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &start) != CS2VM_EXECNO_OK )
@@ -9919,7 +9927,7 @@ CS2VM2_Op_Substring(
 
     assert(text);
 
-    int len = (int)strlen(text);
+    int len = (int)text->len;
     if( start < 0 )
         start = 0;
     if( end > len )
@@ -9928,7 +9936,7 @@ CS2VM2_Op_Substring(
         start = end;
 
     int out_len = end - start;
-    return CS2VM2_PushStr(vm, CS2VM2_StrDupLen(vm, text + start, (size_t)out_len));
+    return CS2VM2_PushStr(vm, CS2VM2_StrDupLen(vm, text->text + start, (size_t)out_len));
 }
 
 int
@@ -9943,8 +9951,8 @@ CS2VM2_Op_StringIndexOfString(
     (void)operand;
 
     int start;
-    char* needle;
-    char* haystack;
+    struct CS2VM2_Str* needle;
+    struct CS2VM2_Str* haystack;
     if( CS2VM2_PopInt(vm, &start) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &needle) != CS2VM_EXECNO_OK )
@@ -9953,16 +9961,16 @@ CS2VM2_Op_StringIndexOfString(
         return CS2VM_EXECNO_ERROR;
 
     int result = -1;
-    if( haystack && needle && needle[0] != '\0' )
+    if( haystack && needle && needle->len != 0 )
     {
-        int len = (int)strlen(haystack);
+        int len = (int)haystack->len;
         if( start < 0 )
             start = 0;
         if( start <= len )
         {
-            char const* found = strstr(haystack + start, needle);
+            char const* found = strstr(haystack->text + start, needle->text);
             if( found )
-                result = (int)(found - haystack);
+                result = (int)(found - haystack->text);
         }
     }
 
@@ -9983,7 +9991,7 @@ CS2VM2_Op_StringIndexOfChar(
     /* Bytecode / LostCity / SSVM: (string, char) -> index. No start index —
      * STRING_INDEXOF_STRING is the one that takes a start. */
     int ch;
-    char* haystack;
+    struct CS2VM2_Str* haystack;
     if( CS2VM2_PopInt(vm, &ch) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &haystack) != CS2VM_EXECNO_OK )
@@ -9992,10 +10000,10 @@ CS2VM2_Op_StringIndexOfChar(
     int result = -1;
     if( haystack )
     {
-        int len = (int)strlen(haystack);
+        int len = (int)haystack->len;
         for( int i = 0; i < len; i++ )
         {
-            if( (unsigned char)haystack[i] == (unsigned char)ch )
+            if( (unsigned char)haystack->text[i] == (unsigned char)ch )
             {
                 result = i;
                 break;
@@ -10282,7 +10290,7 @@ CS2VM2_Op_Highlight(
 
     struct CS2VM_HostRequest request;
     int args[CS2VM_HIGHLIGHT_ARG_MAX] = { 0 };
-    char* name = NULL;
+    struct CS2VM2_Str* name = NULL;
     int arg_count = meta.int_in;
     bool query = meta.int_out != 0;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
@@ -10692,7 +10700,7 @@ CS2VM2_Op_DiscardSignature(
     assert(meta.int_out == 0);
     assert(meta.str_out == 0);
     int discard_int;
-    char* discard_str;
+    struct CS2VM2_Str* discard_str;
     for( int i = 0; i < meta.int_in; i++ )
         if( CS2VM2_PopInt(vm, &discard_int) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -10799,7 +10807,7 @@ CS2VM2_Op_ClientOp(
     struct CS2VM_HostRequest request;
     int slot;
     int script_id = 0;
-    char* label = NULL;
+    struct CS2VM2_Str* label = NULL;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
 
     if( is_set )
@@ -10956,8 +10964,8 @@ CS2VM2_Op_LocalNotification(
     int delay_ms = 0;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
 
-    char* title = NULL;
-    char* body = NULL;
+    struct CS2VM2_Str* title = NULL;
+    struct CS2VM2_Str* body = NULL;
     int result;
 
     switch( opcode )
@@ -10977,7 +10985,7 @@ CS2VM2_Op_LocalNotification(
         /* (string, string, string, int, int, int) -> int, as the client
          * declares it. This used to pop one int -- the arity of the cancel
          * command beside it -- and leave five arguments on the stacks. */
-        char* group = NULL;
+        struct CS2VM2_Str* group = NULL;
         int grouped_delay_ms;
         if( CS2VM2_PopInt(vm, &grouped_delay_ms) != CS2VM_EXECNO_OK ||
             CS2VM2_PopInt(vm, &delay_ms) != CS2VM_EXECNO_OK ||
@@ -11451,7 +11459,7 @@ CS2VM2_Op_StackMetaStub(
     }
     for( int i = 0; i < meta.str_in; i++ )
     {
-        char* discard;
+        struct CS2VM2_Str* discard;
         if( CS2VM2_PopStr(vm, &discard) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
@@ -11848,7 +11856,7 @@ CS2VM2_Op_OC_Find(
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
 
-    char* query = NULL;
+    struct CS2VM2_Str* query = NULL;
     int ge_tradeable_only = 0;
     if( opcode == CS2_OP_OC_FIND )
     {
@@ -11895,7 +11903,7 @@ CS2VM2_Op_Loot(
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     struct CS2VM_HostRequest request;
-    char* name = NULL;
+    struct CS2VM2_Str* name = NULL;
     int int_args[4] = { 0 };
     int int_arg_count = 0;
 
@@ -12139,7 +12147,7 @@ CS2VM2_Op_Hiscores(
 
     request.kind = (enum CS2VM_HostRequestKind)opcode;
     int key = 0;
-    char* name = NULL;
+    struct CS2VM2_Str* name = NULL;
     switch( opcode )
     {
     /* HISCORE_LOOKUP(name, type): one of each stack. */
@@ -12227,7 +12235,7 @@ CS2VM2_Op_Social(
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     struct CS2VM_HostRequest request;
     int index = 0;
-    char* name = NULL;
+    struct CS2VM2_Str* name = NULL;
 
     assert(vm);
 
@@ -12350,8 +12358,8 @@ CS2VM2_Op_Chat(
     int uid = 0;
     int timestamps = 0;
     int colour_effect = 0;
-    char* name = NULL;
-    char* text = NULL;
+    struct CS2VM2_Str* name = NULL;
+    struct CS2VM2_Str* text = NULL;
 
     assert(vm);
 
@@ -13224,7 +13232,7 @@ CS2VM2_Op_InputPlaceholderText(
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     int component_id;
-    char* text = NULL;
+    struct CS2VM2_Str* text = NULL;
     struct CS2VM_HostRequest request;
 
     assert(vm);
@@ -13465,7 +13473,7 @@ CS2VM2_RunOp(
     struct CS2VM2_Frame* frame,
     int opcode,
     int operand,
-    char const* str_operand);
+    struct CS2VM2_Str* str_operand);
 #endif
 
 int
@@ -13474,7 +13482,7 @@ CS2VM2_RunOp(
     struct CS2VM2_Frame* frame,
     int opcode,
     int operand,
-    char const* str_operand)
+    struct CS2VM2_Str* str_operand)
 {
     assert(vm);
     assert(frame);
@@ -13728,7 +13736,7 @@ CS2VM2_RunOp(
     case CS2_OP_CC_CRMVIEW_SETSERVERTARGETS:
     {
         int value;
-        char* name = NULL;
+        struct CS2VM2_Str* name = NULL;
         if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK ||
             CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -13738,9 +13746,9 @@ CS2VM2_RunOp(
      * Statics.java:39692. */
     case CS2_OP_CC_CRMVIEW_INIT_V2:
     {
-        char* url = NULL;
-        char* session_base = NULL;
-        char* view_name = NULL;
+        struct CS2VM2_Str* url = NULL;
+        struct CS2VM2_Str* session_base = NULL;
+        struct CS2VM2_Str* view_name = NULL;
         if( CS2VM2_PopStr(vm, &view_name) != CS2VM_EXECNO_OK ||
             CS2VM2_PopStr(vm, &session_base) != CS2VM_EXECNO_OK ||
             CS2VM2_PopStr(vm, &url) != CS2VM_EXECNO_OK )
@@ -14329,7 +14337,7 @@ CS2VM2_RunOp(
         return CS2VM2_PushInt(vm, 0);
     case CS2_OP_CC_CRMVIEW_GETINT:
     {
-        char* key = NULL;
+        struct CS2VM2_Str* key = NULL;
         if( CS2VM2_PopStr(vm, &key) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         return CS2VM2_PushInt(vm, -1);
@@ -15384,11 +15392,11 @@ CS2VM2_RunOp(
     case CS2_OP_RUNELITE_CALLBACK:
     {
         struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
-        char* name = NULL;
+        struct CS2VM2_Str* name = NULL;
         if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         struct CS2VM_HostRequest request = { .kind = CS2VM_HOST_REQUEST_RUNELITE_CALLBACK };
-        request.u.RUNELITE_CALLBACK.name = name ? name : "";
+        request.u.RUNELITE_CALLBACK.name = name ? name : CS2VM2_StrEmpty(vm);
         /* Callback decisions belong to this opcode. Yielding would replay
          * the callback, so only synchronous completion is accepted. */
         int result = CS2VM2_Ask(vm, &request, mark);
@@ -15439,7 +15447,7 @@ CS2VM2_RunOp(
          * stone passes the message being typed. The host says what a
          * keyboard is on this platform. */
         struct CS2VM_HostRequest request;
-        char* text = NULL;
+        struct CS2VM2_Str* text = NULL;
         int limit;
         if( CS2VM2_PopInt(vm, &limit) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -15885,7 +15893,7 @@ CS2VM2_RunOp(
         /* Statics.method12336 -> method3374: typed value, offset and count.
          * Native Sailing initializes its thirteen facility slots with -1. */
         int type, count, offset, value = 0;
-        char *text = NULL, *handle = NULL;
+        struct CS2VM2_Str *text = NULL, *handle = NULL;
         if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK ||
             CS2VM2_PopInt(vm, &count) != CS2VM_EXECNO_OK ||
             CS2VM2_PopInt(vm, &offset) != CS2VM_EXECNO_OK )
@@ -15926,7 +15934,7 @@ CS2VM2_RunOp(
          * starting at value, over offset/count (negative count=the rest).
          * Cargo uses (0,-1,-1) to preserve original slots while sorting. */
         int value, offset, count;
-        char* handle;
+        struct CS2VM2_Str* handle;
         if( CS2VM2_PopInt(vm, &count) != CS2VM_EXECNO_OK ||
             CS2VM2_PopInt(vm, &offset) != CS2VM_EXECNO_OK ||
             CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK ||
@@ -16087,7 +16095,7 @@ cs2vm2_run_op_outlined(
     struct CS2VM2_Frame* frame,
     int opcode,
     int operand,
-    char const* str_operand);
+    struct CS2VM2_Str* str_operand);
 
 CS2VM2_RUNOP_KEEP_OUT_OF_LINE int
 cs2vm2_run_op_outlined(
@@ -16095,7 +16103,7 @@ cs2vm2_run_op_outlined(
     struct CS2VM2_Frame* frame,
     int opcode,
     int operand,
-    char const* str_operand)
+    struct CS2VM2_Str* str_operand)
 {
     /* Only cs2vm2_run_op_split calls this. The assume is what removes the
      * inline half's cases from this copy. */
@@ -16111,7 +16119,7 @@ cs2vm2_run_op_split(
     struct CS2VM2_Frame* frame,
     int opcode,
     int operand,
-    char const* str_operand)
+    struct CS2VM2_Str* str_operand)
 {
     if( CS2VM2_RUNOP_OUTLINED(opcode) )
         return cs2vm2_run_op_outlined(vm, frame, opcode, operand, str_operand);
@@ -16223,7 +16231,7 @@ CS2VM2_DebugPrintOpCode(
     struct CS2VM2_Frame* frame,
     int opcode,
     int operand,
-    char const* str_operand)
+    struct CS2VM2_Str* str_operand)
 {
     (void)frame;
     (void)opcode;
@@ -16236,7 +16244,7 @@ CS2VM2_DebugPrintOpCode(
     switch( cs2_opcode_operand_kind(opcode) )
     {
     case CS2_OPERAND_STRING:
-        TORIRS_ERR(" operand.str=\"%s\"", str_operand ? str_operand : "(null)");
+        TORIRS_ERR(" operand.str=\"%s\"", str_operand ? str_operand->text : "(null)");
         break;
     case CS2_OPERAND_INT8:
     case CS2_OPERAND_INT32:
@@ -16298,6 +16306,9 @@ CS2VM2_PushCallScript(
     assert(vm);
     assert(vm->frame_sp < CS2VM_MAX_FRAMES);
     assert(script);
+    /* Its string constants exist before PUSH_CONSTANT_STRING (or the jit's
+     * CSTR) pushes one: a flag test for every script the cache made. */
+    CS2VM2_ScriptEnsureConstants(script);
 
     struct CS2VM2_Frame* frame = vm->frame_sp < vm->frames_live
                                      ? vm->frames[vm->frame_sp]
@@ -16760,7 +16771,7 @@ cs2vm2_run_hot_jit(
 {
     struct CS2VM2_Script const* const script = frame->script;
     uint8_t const* const code = script->jit->code;
-    char* const* const cstrs = script->string_operands;
+    struct CS2VM2_Str* const* const cstrs = script->string_constants;
     int const* const args = script->int_operands;
     int const op_count = script->op_count;
     int* const stack = vm->ints_stack;
@@ -16996,9 +17007,9 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
         int opcode = frame->script->opcodes[frame->pc];
         int operand = frame->script->int_operands[frame->pc];
 
-        char const* str_operand_str = NULL;
-        if( frame->script->string_operands )
-            str_operand_str = frame->script->string_operands[frame->pc];
+        struct CS2VM2_Str* str_operand_str = NULL;
+        if( frame->script->string_constants )
+            str_operand_str = frame->script->string_constants[frame->pc];
 
         CS2VM2_DebugPrintOpCode(vm, frame, opcode, operand, str_operand_str);
 
@@ -17393,7 +17404,7 @@ cs2vm2_pop_find_param_value(
     struct CS2VM2_Thread* vm,
     int type,
     int* out_value,
-    char** out_str)
+    struct CS2VM2_Str** out_str)
 {
     assert(vm);
     assert(out_value);
@@ -17778,7 +17789,7 @@ CS2VM2_Op_CC_SetComponentParam(
     int param_id;
     int value = 0;
     int kind;
-    char* str_value = NULL;
+    struct CS2VM2_Str* str_value = NULL;
 
     /* `kind` says which stack the value came in on, so it has to be popped
      * first: 2 is a string param and the value is on the string stack, anything

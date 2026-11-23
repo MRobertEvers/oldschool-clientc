@@ -54,7 +54,15 @@ struct CS2VM2_Script
     /* PUSH_CONSTANT_LONG's operand, a full int64 (rscache long_operands); NULL
      * for a script that has none. */
     int64_t* long_operands;
+    /* PUSH_CONSTANT_STRING's operand as decoded text, NULL where an op has
+     * none: the script's own copy, what the jit fingerprints and serializes,
+     * what a debug dump prints, and what a script built in memory (a test) is
+     * given. */
     char** string_operands;
+    /* The same constants as the strings the VM pushes (cs2vm2_str.h), made
+     * from string_operands by CS2VM2_ScriptEnsureConstants and owned by the
+     * script. NULL until then. */
+    struct CS2VM2_Str** string_constants;
     int switch_table_count;
     struct CS2VM2_ScriptSwitch* switch_tables;
     /* The load-time jit's overlay (cs2vm2_jit.h): NULL runs the plain hot
@@ -86,5 +94,14 @@ bool
 CS2VM2_ScriptCopy(
     const struct CS2VM2_Script* src,
     struct CS2VM2_Script* dst);
+
+/*
+ * Make `script`'s string_constants from its string_operands, once; a no-op
+ * when they exist or the script has no string operands. The decoder and
+ * CS2VM2_ScriptCopy call it; a script built in memory gets it the first time
+ * it is called or jit-built.
+ */
+void
+CS2VM2_ScriptEnsureConstants(struct CS2VM2_Script* script);
 
 #endif

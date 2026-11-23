@@ -1441,12 +1441,12 @@ static void app_script_set_int(void* user,size_t index,int32_t value)
 static char const* app_script_get_string(void* user,size_t index)
 {
     struct CS2VM2_Thread* thread=user;
-    return thread->strs_stack[thread->strs_stack_top-1-(int)index];
+    return CS2VM2_StrCStr(thread->strs_stack[thread->strs_stack_top-1-(int)index]);
 }
 static bool app_script_set_string(void* user,size_t index,char const* value)
 {
     struct CS2VM2_Thread* thread=user;
-    char* copy=CS2VM2_StrDup(thread,value);
+    struct CS2VM2_Str* copy=CS2VM2_StrDup(thread,value);
     if( !copy ) return false;
     thread->strs_stack[thread->strs_stack_top-1-(int)index]=copy;
     return true;
@@ -1560,12 +1560,12 @@ static void app_script_hook_stack_set_int(void* user, size_t index, int32_t valu
 static char const* app_script_hook_stack_get_string(void* user, size_t index)
 {
     struct AppScriptHookView* view = user;
-    return view->thread->strs_stack[view->thread->strs_stack_top - 1 - (int)index];
+    return CS2VM2_StrCStr(view->thread->strs_stack[view->thread->strs_stack_top - 1 - (int)index]);
 }
 static bool app_script_hook_stack_set_string(void* user, size_t index, char const* value)
 {
     struct AppScriptHookView* view = user;
-    char* copy = CS2VM2_StrDup(view->thread, value);
+    struct CS2VM2_Str* copy = CS2VM2_StrDup(view->thread, value);
     assert(copy);
     view->thread->strs_stack[view->thread->strs_stack_top - 1 - (int)index] = copy;
     return true;
@@ -1583,7 +1583,8 @@ static void app_script_hook_local_set_int(void* user, size_t index, int32_t valu
 static char const* app_script_hook_local_get_string(void* user, size_t index)
 {
     struct AppScriptHookView* view = user;
-    return CS2VM2_GetStringCurrentFrameLocal(view->thread, view->string_count - 1 - (int)index);
+    return CS2VM2_StrText(
+        CS2VM2_GetStringCurrentFrameLocal(view->thread, view->string_count - 1 - (int)index));
 }
 static bool app_script_hook_local_set_string(void* user, size_t index, char const* value)
 {
@@ -2704,7 +2705,7 @@ app_plugin_script_results(struct CS2VM2_Thread* thread, struct ToriRS_ScriptResu
         return TORIRS_CONTRACT_BUDGET_EXCEEDED;
     for( int i = 0; i < thread->strs_stack_top; i++ )
     {
-        char const* s = thread->strs_stack[i] ? thread->strs_stack[i] : "";
+        char const* s = CS2VM2_StrText(thread->strs_stack[i]);
         if( strlen(s) >= TORIRS_SCRIPT_RUN_STRING_LEN )
             return TORIRS_CONTRACT_BUDGET_EXCEEDED;
     }
@@ -2714,7 +2715,7 @@ app_plugin_script_results(struct CS2VM2_Thread* thread, struct ToriRS_ScriptResu
     out->string_count = (size_t)thread->strs_stack_top;
     for( int i = 0; i < thread->strs_stack_top; i++ )
         (void)snprintf(out->strings[i], sizeof(out->strings[i]), "%s",
-            thread->strs_stack[i] ? thread->strs_stack[i] : "");
+            CS2VM2_StrText(thread->strs_stack[i]));
     return TORIRS_CONTRACT_OK;
 }
 

@@ -143,10 +143,11 @@ exercise_producer(struct HostRequestProducerEntry const* entry)
     /* Every producer gets valid, deterministic operands without coupling this
      * contract test to 632 separate stack signatures. Hosted ops pop at most a
      * small fraction of these values; `i` is also a valid SETON descriptor. */
+    struct CS2VM2_Str* const stack_str = CS2VM2_StrDup(thread, stack_string);
     for( int i = 0; i < CS2VM_STACK_MAX / 2; i++ )
     {
         thread->ints_stack[i] = 1;
-        thread->strs_stack[i] = stack_string;
+        thread->strs_stack[i] = stack_str;
         thread->longs_stack[i] = 1;
     }
     thread->ints_stack_top = CS2VM_STACK_MAX / 2;
@@ -313,7 +314,7 @@ static int callback_calls,callback_yield;
 static int callback_exec(struct CS2VM2_Thread* thread,struct CS2VM_HostRequest* request)
 {
     if( request->kind!=CS2VM_HOST_REQUEST_RUNELITE_CALLBACK ||
-        strcmp(request->u.RUNELITE_CALLBACK.name,"caption")!=0 ||
+        strcmp(CS2VM2_StrText(request->u.RUNELITE_CALLBACK.name),"caption")!=0 ||
         thread->ints_stack_top!=1 || thread->strs_stack_top!=1 ) return CS2VM_EXECNO_ERROR;
     ++callback_calls;
     if( callback_yield ) return CS2VM_EXECNO_YIELD;
@@ -345,7 +346,7 @@ static int exercise_script_callback(void)
             { fprintf(stderr,"FAIL: native script callback must not yield or replay\n");++failures; }
         }
         else if( status!=CS2VM2_THREAD_DONE || callback_calls!=1 || thread->ints_stack_top!=1 ||
-            thread->ints_stack[0]!=42 || thread->strs_stack_top!=1 || strcmp(thread->strs_stack[0],"plugin!")!=0 )
+            thread->ints_stack[0]!=42 || thread->strs_stack_top!=1 || strcmp(CS2VM2_StrText(thread->strs_stack[0]),"plugin!")!=0 )
         { fprintf(stderr,"FAIL: native instructions observe callback results synchronously\n");++failures; }
         CS2VM2_Free(&vm);
     }

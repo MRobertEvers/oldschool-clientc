@@ -94,16 +94,16 @@ test_pointer(void)
 
     struct jt_obs o;
     jt_run(&s, NULL, &o);
-    jt_check(o.str_top_ptr == s.string_operands[0], "general path pushes the script's own pointer");
+    jt_check(o.str_top_ptr == s.string_constants[0], "general path pushes the script's own pointer");
     jt_check(CS2VM2_JitBuild(&s) == CS2VM2_JIT_BUILT && s.jit->code[0] == CS2VM2_JIT_CSTR, "CSTR built");
     jt_run(&s, NULL, &o);
-    jt_check(o.str_top_ptr == s.string_operands[0], "CSTR pushes the script's own pointer");
+    jt_check(o.str_top_ptr == s.string_constants[0], "CSTR pushes the script's own pointer");
 
     struct CS2VM2_TraceRecord records[8];
     CS2VM2_TraceCaptureBegin(records, 8);
     jt_run(&s, NULL, &o);
     (void)CS2VM2_TraceCaptureEnd();
-    jt_check(o.str_top_ptr == s.string_operands[0] && !strcmp(o.strs[0], "by pointer"),
+    jt_check(o.str_top_ptr == s.string_constants[0] && !strcmp(o.strs[0], "by pointer"),
         "an observed (traced) run, which never enters the hot loop, pushes it too");
     CS2VM2_ScriptFree(&s);
 
@@ -119,7 +119,7 @@ test_pointer(void)
     CS2VM2_PushCallScript(t, &s);
     int const rc = CS2VM2_RunScript(t);
     jt_check(rc == CS2VM_EXECNO_DONE && t->strs_stack_top == 2 && t->strs_stack[0] && t->strs_stack[1] &&
-                 t->strs_stack[0][0] == '\0' && t->strs_stack[1][0] == '\0' &&
+                 t->strs_stack[0]->len == 0 && t->strs_stack[1]->len == 0 &&
                  t->strs_stack[0] != t->strs_stack[1],
         "two NULL operands push two distinct \"\"");
     CS2VM2_Free(&g_jt_vm);
@@ -147,7 +147,7 @@ test_canary(void)
         jt_build(&a, &s, 804, 0);
         if( CS2VM2_JitBuild(&s) != CS2VM2_JIT_BUILT )
             _exit(3);
-        s.string_operands[0][0] = 'C'; /* what no host or opcode may do */
+        s.string_constants[0]->text[0] = 'C'; /* what no host or opcode may do */
         CS2VM2_JitFree(&s);
         _exit(0); /* reached only if the canary did not fire */
     }

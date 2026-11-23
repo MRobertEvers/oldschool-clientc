@@ -1,6 +1,8 @@
 #ifndef CS2VM2_STRPOOL_H
 #define CS2VM2_STRPOOL_H
 
+#include "cs2vm2_str.h"
+
 #include <stdarg.h>
 #include <stddef.h>
 
@@ -71,38 +73,38 @@ void
 CS2VM2_StrPool_Free(struct CS2VM2_StrPool* pool);
 
 /*
- * A writable buffer for a string of `len` characters: len + 1 bytes with
- * result[len] already NUL. The `len` characters themselves are uninitialised —
- * the caller fills them. Never returns NULL (asserts if the block malloc fails,
- * matching how the VM already treats allocation failure).
+ * A writable CS2 string of `len` characters: length and capacity `len`, and
+ * text[len] already NUL. The `len` characters themselves are uninitialised --
+ * the caller fills them; one that fills fewer says so with CS2VM2_StrSetLen.
+ * Never returns NULL (asserts if the block malloc fails, matching how the VM
+ * already treats allocation failure).
  */
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_Alloc(
     struct CS2VM2_StrPool* pool,
     size_t len);
 
-/* strdup into the pool. NULL in, NULL out — callers rely on this to propagate a
- * NULL string local without a ternary. */
-char*
+/* A C string into the pool. */
+struct CS2VM2_Str*
 CS2VM2_StrPool_Dup(
     struct CS2VM2_StrPool* pool,
     char const* text);
 
 /* Dup exactly `len` bytes (no embedded-NUL scan) and terminate. */
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_DupLen(
     struct CS2VM2_StrPool* pool,
     char const* text,
     size_t len);
 
 /* printf into the pool, sized to fit — no truncation. */
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_Fmt(
     struct CS2VM2_StrPool* pool,
     char const* fmt,
     ...);
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_VFmt(
     struct CS2VM2_StrPool* pool,
     char const* fmt,
@@ -110,7 +112,7 @@ CS2VM2_StrPool_VFmt(
 
 /* A fresh, writable "". Distinct storage per call on purpose: opcodes such as
  * UPPERCASE mutate their string in place, so no two stack slots may alias. */
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_Empty(struct CS2VM2_StrPool* pool);
 
 #endif /* CS2VM2_STRPOOL_H */

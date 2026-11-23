@@ -4,6 +4,7 @@
 #include "cs2_opcode.h"
 #include "cs2vm2_host.h"
 #include "cs2vm2_script.h"
+#include "cs2vm2_str.h"
 #include "cs2vm2_strpool.h"
 
 #include <stddef.h>
@@ -88,7 +89,7 @@ struct CS2VM2_Frame
      * has occupied it before.
      */
     int* int_locals;
-    char** str_locals;
+    struct CS2VM2_Str** str_locals;
     int int_locals_cap;
     int str_locals_cap;
     int int_locals_dirty;
@@ -182,7 +183,7 @@ struct CS2VM2_Array
     union
     {
         int* ints;
-        char** strings;
+        struct CS2VM2_Str** strings;
     } cells;
     int capacity;
     int size;
@@ -271,7 +272,7 @@ struct CS2VM2_Thread
 
     int ints_stack[CS2VM_STACK_MAX];
     int ints_stack_top;
-    char* strs_stack[CS2VM_STACK_MAX];
+    struct CS2VM2_Str* strs_stack[CS2VM_STACK_MAX];
     int strs_stack_top;
     /* The long stack (rev-239 deob class42.field258). Like the other two it is
      * global to the thread, so a long return value is simply left on it. */
@@ -329,7 +330,7 @@ struct CS2VM2_Thread
         short slot;
         int index;
         int old_value;
-        char* old_string;
+        struct CS2VM2_Str* old_string;
     } undo_log[CS2VM2_ARRAY_UNDO_MAX];
     int undo_log_len;
     /* Set by CS2VM2_Ask when the host's answer was "not ready" and the stacks
@@ -365,7 +366,7 @@ struct CS2VM2_Thread
     int array_alloc;
     /* A dialect without array handles (OldSchool through 230) numbers its
      * arrays and every frame of the run shares them: the handle of array N. */
-    char* shared_arrays[CS2VM2_SHARED_ARRAYS];
+    struct CS2VM2_Str* shared_arrays[CS2VM2_SHARED_ARRAYS];
 
     /* Backing storage for every string this thread makes — stack strings, frame
      * string locals, and the strings handed to host requests. Released as a unit
@@ -593,7 +594,7 @@ CS2VM2_PushLong(
 int
 CS2VM2_PopStr(
     struct CS2VM2_Thread* thread,
-    char** operand);
+    struct CS2VM2_Str** operand);
 
 /*
  * Push a string the thread's pool allocated (CS2VM2_StrDup / _StrFmt / _StrAlloc
@@ -605,7 +606,7 @@ CS2VM2_PopStr(
 int
 CS2VM2_PushStr(
     struct CS2VM2_Thread* thread,
-    char* operand);
+    struct CS2VM2_Str* operand);
 
 /*
  * Thread string allocation. Use these instead of strdup/malloc for any string
@@ -613,28 +614,29 @@ CS2VM2_PushStr(
  * cs2vm2_strpool.h for the lifetime rules.
  */
 
-/* Writable buffer for `len` characters, NUL-terminated at [len]; contents
- * uninitialised (the caller fills them). */
-char*
+/* A writable string of `len` characters, NUL-terminated at text[len];
+ * contents uninitialised (the caller fills them; CS2VM2_StrSetLen when it
+ * fills fewer). */
+struct CS2VM2_Str*
 CS2VM2_StrAlloc(
     struct CS2VM2_Thread* thread,
     size_t len);
 
-/* Pool copy of `text`; NULL in, NULL out. */
-char*
+/* Pool copy of C string `text`. */
+struct CS2VM2_Str*
 CS2VM2_StrDup(
     struct CS2VM2_Thread* thread,
     char const* text);
 
 /* Pool copy of exactly `len` bytes of `text`, then NUL. */
-char*
+struct CS2VM2_Str*
 CS2VM2_StrDupLen(
     struct CS2VM2_Thread* thread,
     char const* text,
     size_t len);
 
 /* printf into the pool, sized to fit. */
-char*
+struct CS2VM2_Str*
 CS2VM2_StrFmt(
     struct CS2VM2_Thread* thread,
     char const* fmt,
@@ -644,7 +646,7 @@ CS2VM2_StrFmt(
  * a popped string -- UPPERCASE and LOWERCASE allocate their result, and a
  * script's constant strings are pushed by pointer (docs/CS2_JIT.md 2.5) --
  * so a host must not either: a request's strings are read-only to it. */
-char*
+struct CS2VM2_Str*
 CS2VM2_StrEmpty(struct CS2VM2_Thread* thread);
 
 int
@@ -675,13 +677,14 @@ CS2VM2_SetLongCurrentFrameLocal(
     int local,
     int64_t value);
 
-/* Reads of the current (top) frame's locals: 0 / "" where unwritten. */
+/* Reads of the current (top) frame's locals: 0 / NULL where unwritten
+ * (CS2VM2_StrText reads NULL as ""). */
 int
 CS2VM2_GetIntCurrentFrameLocal(
     struct CS2VM2_Thread* thread,
     int local);
 
-char const*
+struct CS2VM2_Str const*
 CS2VM2_GetStringCurrentFrameLocal(
     struct CS2VM2_Thread* thread,
     int local);
@@ -701,21 +704,43 @@ void
 CS2VM2_ArrayStore(
     struct CS2VM2_Thread* thread, struct CS2VM2_Array* array, int index, int value);
 
-/** The same, for an array declared with string elements. `value` is a pool
- *  pointer (CS2VM2_StrDup); the cell borrows it and never frees. */
+/** The same, for an array declared with string elements. `value` is the
+ *  thread's (CS2VM2_StrDup); the cell borrows it and never frees. */
 void
 CS2VM2_ArrayStoreStr(
-    struct CS2VM2_Thread* thread, struct CS2VM2_Array* array, int index, char* value);
+    struct CS2VM2_Thread* thread, struct CS2VM2_Array* array, int index, struct CS2VM2_Str* value);
 
 /**
  * A new int array holding a copy of `values[0..count)`, for a host op that
- * answers with an array (ENUM_GETINPUTS). Returns its handle -- push it with
- * CS2VM2_PushStr -- or NULL when the thread's array pool is full, which the
- * caller reports as a script error.
+ * answers with an array (ENUM_GETINPUTS). Push it with CS2VM2_PushArray. NULL
+ * when the thread's array pool is full, which the caller reports as a script
+ * error.
  */
-char*
+struct CS2VM2_Array*
 CS2VM2_ArrayNewInts(
     struct CS2VM2_Thread* thread, int const* values, int count);
+
+/*
+ * AN ARRAY RIDES A STRING SLOT. At this revision an array is an object whose
+ * handle lives where a string does -- a string local, the string stack, a
+ * gosub's string argument (see `arrays` above) -- so a script passes an array
+ * the way it passes a string. The slot's type is struct CS2VM2_Str*, and the
+ * handle is the array's address stored in it: these two are the only places
+ * that conversion is written, and a slot is told apart from a string by
+ * whether it points into this thread's array pool (cs2vm2.c,
+ * cs2vm2_array_from_handle).
+ */
+static inline struct CS2VM2_Str*
+CS2VM2_ArrayHandle(struct CS2VM2_Array* array)
+{
+    return (struct CS2VM2_Str*)(void*)array;
+}
+
+/* Push `array`'s handle onto the string stack. */
+int
+CS2VM2_PushArray(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2_Array* array);
 
 struct CS2VM2_Thread*
 CS2VM2_ThreadMain(struct CS2VM2* vm);

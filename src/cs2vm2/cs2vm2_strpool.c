@@ -107,14 +107,17 @@ CS2VM2_StrPool_Free(struct CS2VM2_StrPool* pool)
     pool->bytes_peak = peak;
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_Alloc(
     struct CS2VM2_StrPool* pool,
     size_t len)
 {
     assert(pool);
+    assert(len <= UINT32_MAX);
 
-    size_t need = len + 1u; /* + the NUL */
+    /* The struct, the text and its NUL, rounded up so the next is aligned. */
+    size_t const align = _Alignof(struct CS2VM2_Str);
+    size_t const need = (sizeof(struct CS2VM2_Str) + len + 1u + (align - 1u)) & ~(align - 1u);
     struct CS2VM2_StrPoolBlock* block = pool->blocks;
 
     if( need > CS2VM2_STRPOOL_BLOCK_BYTES )
@@ -140,9 +143,11 @@ CS2VM2_StrPool_Alloc(
         pool->blocks = block;
     }
 
-    char* out = block->data + block->used;
+    struct CS2VM2_Str* out = (struct CS2VM2_Str*)(void*)(block->data + block->used);
     block->used += need;
-    out[len] = '\0';
+    out->len = (uint32_t)len;
+    out->cap = (uint32_t)len;
+    out->text[len] = '\0';
 
     pool->bytes_used += need;
     if( pool->bytes_used > pool->bytes_peak )
@@ -151,7 +156,7 @@ CS2VM2_StrPool_Alloc(
     return out;
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_Dup(
     struct CS2VM2_StrPool* pool,
     char const* text)
@@ -161,7 +166,7 @@ CS2VM2_StrPool_Dup(
     return CS2VM2_StrPool_DupLen(pool, text, strlen(text));
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_DupLen(
     struct CS2VM2_StrPool* pool,
     char const* text,
@@ -170,13 +175,13 @@ CS2VM2_StrPool_DupLen(
     assert(pool);
     assert(text);
 
-    char* out = CS2VM2_StrPool_Alloc(pool, len);
+    struct CS2VM2_Str* out = CS2VM2_StrPool_Alloc(pool, len);
     if( len > 0 )
-        memcpy(out, text, len);
+        memcpy(out->text, text, len);
     return out;
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_VFmt(
     struct CS2VM2_StrPool* pool,
     char const* fmt,
@@ -197,16 +202,16 @@ CS2VM2_StrPool_VFmt(
         return CS2VM2_StrPool_Empty(pool);
     }
 
-    char* out = CS2VM2_StrPool_Alloc(pool, (size_t)len);
+    struct CS2VM2_Str* out = CS2VM2_StrPool_Alloc(pool, (size_t)len);
     if( (size_t)len < sizeof(scratch) )
-        memcpy(out, scratch, (size_t)len);
+        memcpy(out->text, scratch, (size_t)len);
     else
-        (void)vsnprintf(out, (size_t)len + 1u, fmt, retry);
+        (void)vsnprintf(out->text, (size_t)len + 1u, fmt, retry);
     va_end(retry);
     return out;
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_Fmt(
     struct CS2VM2_StrPool* pool,
     char const* fmt,
@@ -214,12 +219,12 @@ CS2VM2_StrPool_Fmt(
 {
     va_list args;
     va_start(args, fmt);
-    char* out = CS2VM2_StrPool_VFmt(pool, fmt, args);
+    struct CS2VM2_Str* out = CS2VM2_StrPool_VFmt(pool, fmt, args);
     va_end(args);
     return out;
 }
 
-char*
+struct CS2VM2_Str*
 CS2VM2_StrPool_Empty(struct CS2VM2_StrPool* pool)
 {
     return CS2VM2_StrPool_Alloc(pool, 0);

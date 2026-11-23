@@ -1,6 +1,7 @@
 #include "mem/torirs_mem.h"
 #include "cs2vm2_script.h"
 #include "cs2vm2_jit.h"
+#include "cs2vm2_str.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -78,6 +79,12 @@ CS2VM2_ScriptFree(struct CS2VM2_Script* script)
             ToriMem_Free(ToriMem_Script(), script->string_operands[i]);
         ToriMem_Free(ToriMem_Script(), script->string_operands);
     }
+    if( script->string_constants )
+    {
+        for( int i = 0; i < script->op_count; i++ )
+            ToriMem_Free(ToriMem_Script(), script->string_constants[i]);
+        ToriMem_Free(ToriMem_Script(), script->string_constants);
+    }
     memset(script, 0, sizeof(*script));
 }
 
@@ -139,18 +146,64 @@ CS2VM2_ScriptCopy(
         memcpy(dst->long_operands, src->long_operands, (size_t)src->op_count * sizeof(*dst->long_operands));
     }
 
-    dst->string_operands = ToriMem_Calloc(ToriMem_Script(), (size_t)src->op_count, sizeof(*dst->string_operands));
-    assert(dst->string_operands);
-    for( i = 0; i < src->op_count; i++ )
+    if( src->string_operands )
     {
-        if( !src->string_operands[i] )
-            continue;
-        dst->string_operands[i] = ToriMem_Strdup(ToriMem_Script(), src->string_operands[i]);
-        assert(dst->string_operands[i]);
+        dst->string_operands =
+            ToriMem_Calloc(ToriMem_Script(), (size_t)src->op_count, sizeof(*dst->string_operands));
+        assert(dst->string_operands);
+        for( i = 0; i < src->op_count; i++ )
+        {
+            if( !src->string_operands[i] )
+                continue;
+            dst->string_operands[i] = ToriMem_Strdup(ToriMem_Script(), src->string_operands[i]);
+            assert(dst->string_operands[i]);
+        }
     }
+    CS2VM2_ScriptEnsureConstants(dst);
 
     if( src->jit )
         CS2VM2_JitCopy(src, dst);
 
     return true;
+}
+
+/* A string constant: one allocation, freed with the script. */
+static struct CS2VM2_Str*
+script_constant_new(char const* text)
+{
+    size_t const len = strlen(text);
+    struct CS2VM2_Str* s;
+
+    assert(len <= UINT32_MAX);
+    s = ToriMem_Alloc(ToriMem_Script(), sizeof(*s) + len + 1u);
+    assert(s);
+    s->len = (uint32_t)len;
+    s->cap = (uint32_t)len;
+    memcpy(s->text, text, len + 1u);
+    return s;
+}
+
+static struct CS2VM2_Str**
+script_constants_from(
+    int op_count,
+    char* const* text)
+{
+    struct CS2VM2_Str** constants =
+        ToriMem_Calloc(ToriMem_Script(), (size_t)op_count, sizeof(*constants));
+
+    assert(constants);
+    for( int i = 0; i < op_count; i++ )
+        if( text[i] )
+            constants[i] = script_constant_new(text[i]);
+    return constants;
+}
+
+void
+CS2VM2_ScriptEnsureConstants(struct CS2VM2_Script* script)
+{
+    assert(script);
+    if( script->string_constants || !script->string_operands )
+        return;
+    assert(script->op_count > 0);
+    script->string_constants = script_constants_from(script->op_count, script->string_operands);
 }

@@ -25,7 +25,7 @@ test_regular_block_reuse(void)
 
     struct CS2VM2* first = CS2VM2_Acquire();
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(first);
-    char* first_cell = CS2VM2_StrDup(thread, "first invocation");
+    struct CS2VM2_Str* first_cell = CS2VM2_StrDup(thread, "first invocation");
     CHECK(thread->str_pool.block_count == 1, "first string allocates one regular block");
     CHECK(thread->str_pool.bytes_reserved == CS2VM2_STRPOOL_BLOCK_BYTES,
           "regular block has bounded capacity");

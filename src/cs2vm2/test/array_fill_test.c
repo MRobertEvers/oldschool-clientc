@@ -31,7 +31,7 @@ static void check(int type,int value,int offset,int count,const char* text,
        t->strs_stack_top!=(type==0 ? 0:4))exit(1);
     for(int i=0;i<4;++i)
         if(type==0 ? t->ints_stack[i]!=expected[i] :
-           strcmp(t->strs_stack[i] ? t->strs_stack[i]:"", expected[i] ? text:""))
+           strcmp(CS2VM2_StrText(t->strs_stack[i]), expected[i] ? text:""))
         {fprintf(stderr,"fill type%d offset%d count%d slot%d mismatch\n",type,offset,count,i);exit(1);}
     CS2VM2_Free(&vm);
 }

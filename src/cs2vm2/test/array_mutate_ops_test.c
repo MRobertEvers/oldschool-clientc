@@ -86,38 +86,38 @@ fixture_begin(struct Fixture* fixture, int opcode)
     CS2VM2_PushCallScript(fixture->thread, &fixture->script);
 }
 
-static char*
+static struct CS2VM2_Array*
 fixture_int_array(struct Fixture* fixture, int const* values, int count)
 {
     struct CS2VM2_Thread* const thread = fixture->thread;
     struct CS2VM2_Array* const array = &thread->arrays[thread->array_alloc++];
     int const capacity = count + 8;
     /* The VM frees its arrays from its own group. */
-    array->cells.strings = ToriMem_Calloc(ToriMem_Script(), (size_t)capacity, sizeof(char*));
+    array->cells.strings = ToriMem_Calloc(ToriMem_Script(), (size_t)capacity, sizeof(*array->cells.strings));
     array->capacity = capacity;
     array->size = count;
     array->defined = 1;
     array->is_string = 0;
     for( int i = 0; i < count; i++ )
         array->cells.ints[i] = values[i];
-    return (char*)array;
+    return array;
 }
 
-static char*
+static struct CS2VM2_Array*
 fixture_string_array(struct Fixture* fixture, char** values, int count)
 {
     struct CS2VM2_Thread* const thread = fixture->thread;
     struct CS2VM2_Array* const array = &thread->arrays[thread->array_alloc++];
     int const capacity = count + 8;
     /* The VM frees its arrays from its own group. */
-    array->cells.strings = ToriMem_Calloc(ToriMem_Script(), (size_t)capacity, sizeof(char*));
+    array->cells.strings = ToriMem_Calloc(ToriMem_Script(), (size_t)capacity, sizeof(*array->cells.strings));
     array->capacity = capacity;
     array->size = count;
     array->defined = 1;
     array->is_string = 1;
     for( int i = 0; i < count; i++ )
-        array->cells.strings[i] = values[i];
-    return (char*)array;
+        array->cells.strings[i] = CS2VM2_StrDup(thread, values[i]);
+    return array;
 }
 
 static void
@@ -127,9 +127,16 @@ push_int(struct Fixture* fixture, int value)
 }
 
 static void
-push_str(struct Fixture* fixture, char* value)
+push_handle(struct Fixture* fixture, struct CS2VM2_Array* array)
 {
-    fixture->thread->strs_stack[fixture->thread->strs_stack_top++] = value;
+    fixture->thread->strs_stack[fixture->thread->strs_stack_top++] = CS2VM2_ArrayHandle(array);
+}
+
+static void
+push_text(struct Fixture* fixture, char const* text)
+{
+    fixture->thread->strs_stack[fixture->thread->strs_stack_top++] =
+        CS2VM2_StrDup(fixture->thread, text);
 }
 
 static int
@@ -175,12 +182,12 @@ test_randomise_matches_java(void)
         for( int i = 0; i < cases[c].count; i++ )
             values[i] = i * 10;
         fixture_begin(&fixture, CS2_OP_ARRAY_RANDOMISE);
-        char* const handle = fixture_int_array(&fixture, values, cases[c].count);
-        push_str(&fixture, handle);
+        struct CS2VM2_Array* const handle = fixture_int_array(&fixture, values, cases[c].count);
+        push_handle(&fixture, handle);
         push_int(&fixture, cases[c].seed1);
         push_int(&fixture, cases[c].seed2);
         check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "randomise runs");
-        check_ints((struct CS2VM2_Array*)handle, cases[c].want, cases[c].count, "randomised order");
+        check_ints(handle, cases[c].want, cases[c].count, "randomised order");
         CS2VM2_Free(&fixture.vm);
     }
 }
@@ -194,13 +201,13 @@ test_isnull(void)
     printf("ARRAY_ISNULL:\n");
 
     fixture_begin(&fixture, CS2_OP_ARRAY_ISNULL);
-    push_str(&fixture, fixture_int_array(&fixture, values, 1));
+    push_handle(&fixture, fixture_int_array(&fixture, values, 1));
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "isnull runs");
     check_int(fixture.thread->ints_stack[0], 0, "a live array is not null");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_ISNULL);
-    push_str(&fixture, not_a_handle);
+    push_text(&fixture, not_a_handle);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "isnull runs on a non-array");
     check_int(fixture.thread->ints_stack[0], 1, "a non-array is null");
     CS2VM2_Free(&fixture.vm);
@@ -216,24 +223,24 @@ test_max(void)
     printf("ARRAY_MAX:\n");
 
     fixture_begin(&fixture, CS2_OP_ARRAY_MAX);
-    push_str(&fixture, fixture_int_array(&fixture, values, 4));
+    push_handle(&fixture, fixture_int_array(&fixture, values, 4));
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "max runs");
     check_int(fixture.thread->ints_stack_top, 1, "an int array answers on the int stack");
     check_int(fixture.thread->ints_stack[0], 9, "int max");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_MAX);
-    push_str(&fixture, fixture_int_array(&fixture, values, 0));
+    push_handle(&fixture, fixture_int_array(&fixture, values, 0));
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "max of empty runs");
     check_int(fixture.thread->ints_stack[0], -1, "empty int array answers -1");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_MAX);
-    push_str(&fixture, fixture_string_array(&fixture, strings, 3));
+    push_handle(&fixture, fixture_string_array(&fixture, strings, 3));
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "string max runs");
     check_int(fixture.thread->ints_stack_top, 0, "a string array pushes no int");
     check_int(fixture.thread->strs_stack_top, 1, "a string array answers on the string stack");
-    check_str(fixture.thread->strs_stack[0], "c", "string max");
+    check_str(CS2VM2_StrText(fixture.thread->strs_stack[0]), "c", "string max");
     CS2VM2_Free(&fixture.vm);
 }
 
@@ -245,23 +252,23 @@ test_reverse_and_swap(void)
     printf("ARRAY_REVERSE and ARRAY_SWAP:\n");
 
     fixture_begin(&fixture, CS2_OP_ARRAY_REVERSE);
-    char* handle = fixture_int_array(&fixture, values, 5);
-    push_str(&fixture, handle);
+    struct CS2VM2_Array* handle = fixture_int_array(&fixture, values, 5);
+    push_handle(&fixture, handle);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "reverse runs");
-    check_ints((struct CS2VM2_Array*)handle, (int const[]){ 5, 4, 3, 2, 1 }, 5, "reversed");
+    check_ints(handle, (int const[]){ 5, 4, 3, 2, 1 }, 5, "reversed");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_SWAP);
     handle = fixture_int_array(&fixture, values, 5);
-    push_str(&fixture, handle);
+    push_handle(&fixture, handle);
     push_int(&fixture, 0);
     push_int(&fixture, 4);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "swap runs");
-    check_ints((struct CS2VM2_Array*)handle, (int const[]){ 5, 2, 3, 4, 1 }, 5, "swapped ends");
+    check_ints(handle, (int const[]){ 5, 2, 3, 4, 1 }, 5, "swapped ends");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_SWAP);
-    push_str(&fixture, fixture_int_array(&fixture, values, 5));
+    push_handle(&fixture, fixture_int_array(&fixture, values, 5));
     push_int(&fixture, 0);
     push_int(&fixture, 5);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_ERROR, "swap past the end aborts the script");
@@ -278,21 +285,21 @@ test_copy(void)
     printf("ARRAY_COPY:\n");
 
     fixture_begin(&fixture, CS2_OP_ARRAY_COPY);
-    char* handle = fixture_int_array(&fixture, values, 5);
-    push_str(&fixture, handle);
-    push_str(&fixture, handle);
+    struct CS2VM2_Array* handle = fixture_int_array(&fixture, values, 5);
+    push_handle(&fixture, handle);
+    push_handle(&fixture, handle);
     push_int(&fixture, 0);
     push_int(&fixture, 1);
     push_int(&fixture, 3);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "overlapping copy runs");
-    check_ints((struct CS2VM2_Array*)handle, (int const[]){ 0, 0, 1, 2, 4 }, 5, "overlap copied as arraycopy");
+    check_ints(handle, (int const[]){ 0, 0, 1, 2, 4 }, 5, "overlap copied as arraycopy");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_COPY);
-    char* src = fixture_int_array(&fixture, values, 5);
-    char* dst = fixture_int_array(&fixture, (int const[]){ 9, 9, 9, 9 }, 4);
-    push_str(&fixture, src);
-    push_str(&fixture, dst);
+    struct CS2VM2_Array* src = fixture_int_array(&fixture, values, 5);
+    struct CS2VM2_Array* dst = fixture_int_array(&fixture, (int const[]){ 9, 9, 9, 9 }, 4);
+    push_handle(&fixture, src);
+    push_handle(&fixture, dst);
     push_int(&fixture, 2);
     push_int(&fixture, 1);
     push_int(&fixture, -1);
@@ -301,8 +308,8 @@ test_copy(void)
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_COPY);
-    push_str(&fixture, fixture_int_array(&fixture, values, 5));
-    push_str(&fixture, fixture_int_array(&fixture, values, 2));
+    push_handle(&fixture, fixture_int_array(&fixture, values, 5));
+    push_handle(&fixture, fixture_int_array(&fixture, values, 2));
     push_int(&fixture, 0);
     push_int(&fixture, 0);
     push_int(&fixture, 3);
@@ -310,8 +317,8 @@ test_copy(void)
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_COPY);
-    push_str(&fixture, fixture_int_array(&fixture, values, 5));
-    push_str(&fixture, fixture_string_array(&fixture, strings, 1));
+    push_handle(&fixture, fixture_int_array(&fixture, values, 5));
+    push_handle(&fixture, fixture_string_array(&fixture, strings, 1));
     push_int(&fixture, 0);
     push_int(&fixture, 0);
     push_int(&fixture, 1);
@@ -330,30 +337,30 @@ test_insert_delete_pushall(void)
     printf("ARRAY_INSERT, ARRAY_DELETE and ARRAY_PUSHALL:\n");
 
     fixture_begin(&fixture, CS2_OP_ARRAY_INSERT);
-    char* handle = fixture_int_array(&fixture, values, 3);
-    push_str(&fixture, handle);
+    struct CS2VM2_Array* handle = fixture_int_array(&fixture, values, 3);
+    push_handle(&fixture, handle);
     push_int(&fixture, 7);
     push_int(&fixture, 0);
     push_int(&fixture, 0);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "int insert runs");
-    check_ints((struct CS2VM2_Array*)handle, (int const[]){ 7, 1, 2, 3 }, 4, "inserted at the front");
+    check_ints(handle, (int const[]){ 7, 1, 2, 3 }, 4, "inserted at the front");
     check_int(fixture.thread->ints_stack_top, 0, "insert pushes nothing");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_INSERT);
     handle = fixture_string_array(&fixture, strings, 2);
-    push_str(&fixture, handle);
-    push_str(&fixture, inserted);
+    push_handle(&fixture, handle);
+    push_text(&fixture, inserted);
     push_int(&fixture, 2);
     push_int(&fixture, 2);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "string insert at size runs");
-    check_int(((struct CS2VM2_Array*)handle)->size, 3, "string insert grew the array");
-    check_str(((struct CS2VM2_Array*)handle)->cells.strings[2], "z", "string inserted at the end");
+    check_int((handle)->size, 3, "string insert grew the array");
+    check_str(CS2VM2_StrText((handle)->cells.strings[2]), "z", "string inserted at the end");
     check_int(fixture.thread->strs_stack_top, 0, "string insert consumed its value");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_INSERT);
-    push_str(&fixture, fixture_int_array(&fixture, values, 3));
+    push_handle(&fixture, fixture_int_array(&fixture, values, 3));
     push_int(&fixture, 7);
     push_int(&fixture, 4);
     push_int(&fixture, 0);
@@ -362,34 +369,34 @@ test_insert_delete_pushall(void)
 
     fixture_begin(&fixture, CS2_OP_ARRAY_DELETE);
     handle = fixture_int_array(&fixture, values, 3);
-    push_str(&fixture, handle);
+    push_handle(&fixture, handle);
     push_int(&fixture, 1);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "delete runs");
     check_int(fixture.thread->ints_stack_top, 1, "delete pushes the removed int");
     check_int(fixture.thread->ints_stack[0], 2, "removed value");
-    check_ints((struct CS2VM2_Array*)handle, (int const[]){ 1, 3 }, 2, "tail shifted down");
+    check_ints(handle, (int const[]){ 1, 3 }, 2, "tail shifted down");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_DELETE);
-    push_str(&fixture, fixture_string_array(&fixture, strings, 2));
+    push_handle(&fixture, fixture_string_array(&fixture, strings, 2));
     push_int(&fixture, 0);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "string delete runs");
     check_int(fixture.thread->ints_stack_top, 0, "string delete pushes no int");
-    check_str(fixture.thread->strs_stack[0], "a", "removed string");
+    check_str(CS2VM2_StrText(fixture.thread->strs_stack[0]), "a", "removed string");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_DELETE);
-    push_str(&fixture, fixture_int_array(&fixture, values, 3));
+    push_handle(&fixture, fixture_int_array(&fixture, values, 3));
     push_int(&fixture, 3);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_ERROR, "delete past the end aborts");
     CS2VM2_Free(&fixture.vm);
 
     fixture_begin(&fixture, CS2_OP_ARRAY_PUSHALL);
     handle = fixture_int_array(&fixture, values, 3);
-    push_str(&fixture, handle);
-    push_str(&fixture, handle);
+    push_handle(&fixture, handle);
+    push_handle(&fixture, handle);
     check_int(fixture_run(&fixture), CS2VM_EXECNO_DONE, "pushall onto itself runs");
-    check_ints((struct CS2VM2_Array*)handle, (int const[]){ 1, 2, 3, 1, 2, 3 }, 6, "appended its own elements");
+    check_ints(handle, (int const[]){ 1, 2, 3, 1, 2, 3 }, 6, "appended its own elements");
     CS2VM2_Free(&fixture.vm);
 }
 

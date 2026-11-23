@@ -236,7 +236,10 @@ RS_CS2Host_ExecClientOp(
     assert(args);
     struct RS_CS2ClientState* const state = &host->client;
     int const* const ints = args->ints;
-    char* const* const strs = args->strs;
+    /* The request's strings as C strings (NULL stays NULL). */
+    char const* strs[CS2VM_SIGNATURE_STR_MAX];
+    for( int k = 0; k < CS2VM_SIGNATURE_STR_MAX; k++ )
+        strs[k] = k < args->str_count ? CS2VM2_StrCStr(args->strs[k]) : NULL;
 
     switch( args->opcode )
     {

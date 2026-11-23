@@ -147,7 +147,10 @@ RS_CS2Host_ExecSocialOp(
     assert(args);
     int const opcode = args->opcode;
     int const* const ints = args->ints;
-    char* const* const strs = args->strs;
+    /* The request's strings as C strings (NULL stays NULL). */
+    char const* strs[CS2VM_SIGNATURE_STR_MAX];
+    for( int k = 0; k < CS2VM_SIGNATURE_STR_MAX; k++ )
+        strs[k] = k < args->str_count ? CS2VM2_StrCStr(args->strs[k]) : NULL;
     struct RS_FriendsChat* const chat = &host->friends_chat;
     struct RS_ClanStore* const clan = &host->clan;
     int rc;
