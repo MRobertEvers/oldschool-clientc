@@ -175,6 +175,13 @@ p_oploc_bound(
      * same reason the op dispatch clears before running a script: whatever
      * the player was doing is over, and the thing being set must survive it.
      */
+    /* What the reorient was going to face before this re-issue: put back
+     * below when the re-issue needs no walk. */
+    int const face_target_x = player->face_target_x;
+    int const face_target_z = player->face_target_z;
+    int const face_target_size_x = player->face_target_size_x;
+    int const face_target_size_z = player->face_target_size_z;
+
     ToriRSServer_WorldClearPendingAction(srv);
     ToriRSServer_WorldInteractionClear(srv);
     ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_LOC, op_num, -1, loc->loc_id,
@@ -195,6 +202,25 @@ p_oploc_bound(
         int loc_slot = ToriRSServer_SceneFindLoc(loc->x, loc->z, loc->level, loc->loc_id);
         ToriRSServer_SceneLocApproach(loc_slot, &approach);
         ToriRSServer_WorldWalkToApproach(srv, loc->x, loc->z, &approach);
+    }
+
+    /*
+     * A re-issue to a loc the player already stands at does not face it again.
+     * Jagex sends the loc face once, on the tick the op fires, and a skilling
+     * loop re-issuing its op every sweep sends nothing more: RSProx 4419/4422/
+     * 4438, 24 rakes. Each rake's first sweep turns the player to the patch
+     * tile nearest them (a `facesquare`), and no face follows on any later
+     * sweep (4422 [277]..[345], 18 sweeps). Re-arming the reorient here sent
+     * the loc's footprint again every tick, over the script's `facesquare`.
+     * What was pending before the re-issue still goes out: the op that fires
+     * on the arrival step faces the loc on the next still tick.
+     */
+    if( player->waypoint_index < 0 )
+    {
+        player->face_target_x = face_target_x;
+        player->face_target_z = face_target_z;
+        player->face_target_size_x = face_target_size_x;
+        player->face_target_size_z = face_target_size_z;
     }
 
     /*
