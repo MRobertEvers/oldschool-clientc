@@ -447,6 +447,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # (it is the reference's `~pvm_freeze_allowed`); this is only how it asks.
     "NPC_FROZEN": (11019, 0, 0, 1, 0),
 
+    # npc_freeze_immune()(int) — ticks left of the active npc's immunity after a
+    # freeze ended (the engine's `freeze_immune_ticks`, 5 for every freeze), 0 if
+    # none. `npc_freeze` already refuses inside that window, silently; this is how
+    # `~pvm_freeze_allowed` asks first, so the cast itself is refused with Jagex's
+    # line ("Your target is currently immune to that spell.", RSProx 4626 [770]:
+    # a Snare recast on Damis as his bind from [751] ran out). Not folded into
+    # npc_frozen, which content reads as the freeze's own ticks (the frostmoon
+    # spear, gear_selftest).
+    "NPC_FREEZE_IMMUNE": (11374, 0, 0, 1, 0),
+
     # npc_bind(int $ticks)
     #
     # npc_freeze for a bind that renews: the active npc stops moving for at
@@ -2063,6 +2073,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     # with no active npc is a null deref rather than a refusal.
     "NPC_FREEZE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FROZEN": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FREEZE_IMMUNE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETOWNER": (
         (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]),
         0,

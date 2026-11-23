@@ -657,10 +657,11 @@
 #define SS_OP_FRIENDCHAT_CURRENT 11371
 #define SS_OP_P_FACERESET 11372
 #define SS_OP_IF_RESUMEBUTTON 11373
+#define SS_OP_NPC_FREEZE_IMMUNE 11374
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11374
+#define SS_OPCODE_MAX 11375
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 635
+#define SS_OPCODE_COUNT 636
 
 #endif

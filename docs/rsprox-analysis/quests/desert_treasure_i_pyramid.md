@@ -133,3 +133,37 @@ again." / "Greetings!") and its menu.
 - The magic carpet's `opnpc3` menu ("Carpet rides cost 100 coins." Uzer / Bedabin camp /
   Pollnivneach / Cancel, [3914], [5781]) does not match `areas/area_desert/scripts/magic_carpet.rs2`.
 - The journal after the scroll: no recording opens it at stage 15.
+
+## The mummies' fight (2026-11-23)
+
+Script: `dt_mummies.rs2`; blocks in `deserttreasure.npc`; test: `test/quests/_dt_mummy_fight.lua`
+(17 rows; three of four rolls fully green, the fourth failing only where the driver found no
+reachable mummy). Sources: RSProx 3003 (rev 231, a Fire Wave hunt of the bottom floor), 3000,
+236, 3256, 3004, 1842, 2992, 4623 and 4629 (2,700+ lives, 17 deaths, 222 swings), plus the wiki's
+Mummy (Ancient Pyramid) and Mummy (Ancient Pyramid sarcophagus) pages.
+
+| | recorded | ours before | ours now |
+|---|---|---|---|
+| swing | `mummy_update_civillian_attack` (39/39 in DT1's sessions, 166 more) | `mummy_update_sword_attack` | recorded |
+| block | `mummy_update_civillian_defend` | `mummy_update_defend` | recorded |
+| swing synth | `mummy_attack` 641 (205/205); burning `mummy_on_fire_attack` 640 (17/17) | none (null) | recorded |
+| hit synth | `mummy_hit` 643 | none | recorded |
+| catching fire | a fire spell's CAST tick turns 720..723 into 725..728 (3003 [235]) | nothing | the cast hook in `player_magic.rs2`; fire arrows on the hit (wiki, UNVERIFIED) |
+| put out | a water spell (wiki, UNVERIFIED: not recorded) | nothing | the same hook |
+| death | on the death animation's tick: `mummy_turn_to_ash` (718) + `mummy_update_turn_to_ash`; synth 638 + 644, or 644 x2 when burning; gone two ticks on (17/17) | `mummy_update_death`, no ash, no sound | recorded (`death_delay=0`, the death script) |
+| drop | ashes always (16/16) + one roll: gold ore, gold ring, coins, sapphire ring and necklace, silk, swamp tar, casket, gold necklace | bones (types 2..5) | ashes + the wiki's 513 table (Jagex's rates), herb and gem rows folded in |
+| sarcophagus mummy | 1 hitpoint; melee does nothing (8/8 zero in 4629); a spell kills it and it rises burning (724) with 10 hitpoints on the next tick, no death seq (3003 [5817]/[5818]); that one turns to ash with the ashes on the SAME tick, gone two ticks on ([5833]/[5835]) | killed outright, no rise | recorded |
+| sarcophagus lifespan | gone in a smokepuff at T+30 only when left alone; a fought one stays (3003: added [5801], killed [5833]) | 33 ticks regardless | T+30 smoke unless it holds a target, re-asked each tick |
+| the glide | T+1 out of the lid with a face reset (5/5) | on the add tick (an `npc_queue(.., 1)` armed in the player phase runs that tick), no reset | T+1 with the reset (the engine change below) |
+| fire weakness | 50% (wiki, 25 June 2025) | none | stated, UNVERIFIED on the wire |
+
+Not fitted, left at the generated/cache values: the damage (almost every recorded swing was
+prayed), the wander range and hunt range (the lives pooled four levels and both floors). The burn
+damage the wiki does not mention: 7 hits on burning mummies off the spell ticks (1..34) are too
+few and too mixed to call a rule.
+
+The engine half: `npc_face_settle` folded a script's `npc_facereset` away when the entity latch
+ended where it began, which a reset over a standing coord face does. A reset content asks for over
+a standing coord face (`face_coord_standing`) is now sent; a reset with nothing standing is still
+folded (`torirs_server_world.c`, `torirs_server.h`).
+

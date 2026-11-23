@@ -12,7 +12,7 @@
 -- second npc refuses with "I'm already under attack") so the burst and barrage
 -- 3x3 reaches the npcs beside the target. Ice goes last, on npc types nothing
 -- has struck yet: Ice Burst's splash freezes its neighbours, and a frozen npc
--- refuses the next ice cast ("That target is already frozen").
+-- refuses the next ice cast ("Your target is currently immune to that spell.").
 local TARGETS = { "black_demon", "hellhound", "greater_demon", "lesser_demon" }
 local ICE_TARGETS = { "goblin", "imp", "woman", "man" }
 local TIERS = { "rush", "burst", "blitz", "barrage" }

@@ -19071,6 +19071,14 @@ npc_face_settle(struct ToriRSServer* srv)
 
         if( !npc->active || npc->face_turn_start_masked )
             continue;
+        /* A script's own `npc_facereset` over a standing coord face is not a
+         * latch that ended where it began: it is the reset Jagex sends (4629,
+         * the sarcophagus mummy's glide, 5/5), and without it the client keeps
+         * facing the coord. `face_coord_standing` still holds last tick's fold
+         * here (phase_cleanup folds after this). A reset with nothing standing
+         * changes nothing, and stays folded away like a mode's set-and-clear. */
+        if( npc->face_reset_forced && npc->face_coord_standing )
+            continue;
         if( npc->face_entity == npc->face_turn_start )
             npc->masks &= ~TORIRSSERVER_NMASK_FACE_ENTITY;
     }
@@ -22065,6 +22073,14 @@ phase_cleanup(struct ToriRSServer* srv)
         /* Before the masks go: what this tick's facing blocks leave an add
          * to restate later. */
         ToriRSServer_NpcFaceAddLatch(&srv->npcs[i]);
+        if( srv->npcs[i].masks & TORIRSSERVER_NMASK_FACE_COORD )
+            srv->npcs[i].face_coord_standing = 1;
+        else if( srv->npcs[i].masks & TORIRSSERVER_NMASK_FACE_ENTITY )
+            srv->npcs[i].face_coord_standing = 0;
+        /* A scripted reset is the tick's, wherever in it the script ran (an
+         * `[ai_queue]` runs before the npc turn's bracket): `npc_face_settle`
+         * has read it by now. */
+        srv->npcs[i].face_reset_forced = 0;
         srv->npcs[i].masks = 0;
         srv->npcs[i].face_entity_instant = 0;
         /* With the masks — see the player's copy of this line. */

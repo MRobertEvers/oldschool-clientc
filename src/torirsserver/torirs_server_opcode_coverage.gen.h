@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     64  VM core
- *    445  host commands
+ *    447  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      8  host commands (player)
  *     18  host commands (poh)
- *    586  total, of 634 declared opcodes
+ *    588  total, of 636 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 586
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 634
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 588
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 636
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11373
+#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11375
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {
@@ -627,6 +627,8 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11370, /* SS_OP_FRIENDCHAT_REJOINNAME (host commands) */
     11371, /* SS_OP_FRIENDCHAT_CURRENT (host commands) */
     11372, /* SS_OP_P_FACERESET (host commands) */
+    11373, /* SS_OP_IF_RESUMEBUTTON (host commands) */
+    11374, /* SS_OP_NPC_FREEZE_IMMUNE (host commands) */
 };
 
 #endif

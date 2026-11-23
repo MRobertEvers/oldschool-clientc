@@ -142,6 +142,44 @@ Per section in each document. Across the quest:
   diffed. The world-spawned `deserttreasure_mummy_2..5` (211 adds in 4623 and 4629) run on no
   script of ours.
 - **The Stranger's** chance per attempt, boss-area radii and poison: `desert_treasure_i_stranger.md`.
+
+### Missed-content audit (2026-11-23, after the Stranger)
+
+Run over 4621..4629 with the rsprox-content skill's step 1b plus two sweeps: every quest var the
+sessions write (37 names: all written by ours) and every game message whose text is in none of
+our files (42; most are generic or built at run time).
+
+- **Fixed:**
+  - The pyramid's back door before completion: "This passage doesn't seem to lead anywhere..."
+    (4621 [2399]; the old comment said nothing was recorded).
+  - The Ancient altar's two lines, which ours had invented: "You feel a strange wisdom fill your
+    mind..." (3000 [2168], 3256 [1070]) and "You feel a strange drain upon your memory..."
+    (4629 [5677] and three more).
+  - The freeze refusal (generic magic): "Your target is currently immune to that spell." (4626
+    [770], Snare on Damis; 235 [3379]) replaced the unrecorded "That target is already frozen.".
+    The 5-tick immunity after a bind ends: tracked since 2026-11-23 (the Engine row below).
+
+  Test: `_dt_lines.lua` (5 rows, two rolls).
+- **The Frozen Door is invented end to end.** DT1's completion starts it, and ours drops the
+  letter in at login with a made-up line, a made-up letter and a private varp
+  (`varp7278_gwd_frozen_door_state`).
+  - Jagex: a `nex_messenger` walks up 465 ticks after completion, once the player is idle (4629
+    [5929]..[5941]; 3256), says "I have a letter for you. I'm told it's quite important. Please
+    read it when you get a chance.", gives `nex_message`, then objbox "The messenger has given you
+    a letter.", and walks off.
+  - `frozen_door` (varbit 13175) goes 0 -> 1 with the delivery and 1 -> 2 on the read, which
+    opens `longscroll` (625) with the real text (3256 [146]).
+  - The rest of the miniquest is recorded too: 3262 (2 -> 4) and 800 (4 -> 10).
+- **The mummies' fight: built 2026-11-23** (`dt_mummies.rs2`, `_dt_mummy_fight.lua`;
+  `desert_treasure_i_pyramid.md` "The mummies' fight"): swing and block anims, the four sounds,
+  fire and water, the turn to ash, the drop table, the sarcophagus mummy's rise. Damage, wander
+  and hunt ranges are still the generated ones (nothing to fit them from).
+- **Leftovers: deleted 2026-11-23**, the 56 constants nothing read (the old port's stages and
+  stand tiles, a duplicate cave tile, the torch roll) and the comments that described them.
+- **Engine: fixed 2026-11-23.** `npc_facereset` over a standing coord face now reaches the wire (the
+  mummy glide's reset, 5/5); binding spells refuse a cast in the 5-tick immunity after a freeze
+  (new opcode `npc_freeze_immune`; `test/magic/bind_immunity.lua`).
+
 - Two other quest tests press the Shantay carpet's Travel and were updated to the new menu.
   `icthlarin.lua`: its carpet rows pass (its one failing row, `finish-contact-no`, is elsewhere).
   `ratcatchers.lua` fails 29 rows from its second on (a scroll's box kind, the cat, Shantay's

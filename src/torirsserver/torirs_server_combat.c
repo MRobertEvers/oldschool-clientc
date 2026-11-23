@@ -4761,6 +4761,8 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
          * fresh npc does rather than wherever it was walking when it died. */
         npc->face_dir = TORIRSSERVER_FACE_SOUTH;
         npc->face_add_latch = TORIRSSERVER_NPCFACEADD_NONE;
+        npc->face_coord_standing = 0;
+        npc->face_reset_forced = 0;
         npc->masks = 0;
         npc->last_step_x = npc->x - 1;
         npc->last_step_z = npc->z;

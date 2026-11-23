@@ -54,6 +54,11 @@ return {
         t.check("rot0.face", face ~= nil and add ~= nil and face.x == 2902 and face.z == 4961 and face.tick == add.tick,
             "faces " .. at(face) .. " on the add (recorded the player's tile, 2902,4961)")
         t.check("rot0.no_emerge", first("npc_anim", s0, { seq = 1930 }) == nil, "no emerge seq (0 of 5 recorded at rotations 0, 2, 3)")
+        local reset = false
+        for _, r in ipairs(select(2, t.ticklog.rows({ kind = "npc_face", since = s0, type = MUMMY })) or {}) do
+            if add ~= nil and r.tick == add.tick + 1 and r.x == -1 and r.z == -1 then reset = true end
+        end
+        t.check("rot0.reset", reset, "a face reset with the T+1 glide (5/5 recorded: [4527], [4535], [5127], [5179], [5278])")
         local _, row = t.npc.nearest("deserttreasure_mummy_1", 4)
         t.check("rot0.glide", row ~= nil and row.x == 2902 and row.z == 4961, "then in front, " .. at(row) .. " (recorded 2902,4961 at T+1)")
         t.cheat("::tele 0_50_50_0_0")

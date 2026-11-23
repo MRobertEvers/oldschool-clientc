@@ -3151,6 +3151,15 @@ struct ToriRSServerNpc
      *  changed it. */
     int face_turn_start;
     int face_turn_start_masked;
+    /** Content asked for a reset this turn (`npc_facereset`), so `npc_face_settle`
+     *  sends it even when the entity latch ends where it began: a reset over a
+     *  standing coord face is a change on the wire (RSProx 4629, the sarcophagus
+     *  mummies' glide: `[facing] type=reset` 5/5). Cleared in phase_cleanup. */
+    int face_reset_forced;
+    /** A coord face went out and no entity face or reset has since: the state
+     *  an `npc_facereset` changes on the client. Folded in phase_cleanup. Not
+     *  `face_add_latch`, which an add tick's spawn angle sets to NONE. */
+    int face_coord_standing;
     /**
      * The facing an `[add]` restates, beside the entity latch above (an entity
      * held wins): one of TORIRSSERVER_NPCFACEADD_*. Updated once a tick by

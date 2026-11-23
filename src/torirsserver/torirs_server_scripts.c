@@ -11207,6 +11207,7 @@ script_command(
         npc->face_hold_npc_plus1 = 0;
         npc->face_entity = -1;
         npc->masks |= TORIRSSERVER_NMASK_FACE_ENTITY;
+        npc->face_reset_forced = 1;
         return 1;
     }
 
@@ -13942,6 +13943,23 @@ script_command(
             return 1;
         }
         SSVM_PushInt(state, npc->frozen_ticks);
+        return 1;
+    }
+
+    /* `npc_freeze_immune()(int)` -- the immunity after a freeze ended, in ticks
+     * (0 if none): the window `npc_freeze` above already refuses in, asked by
+     * content first so the cast is refused with Jagex's line instead of going
+     * ahead and binding nothing (RSProx 4626 [770]). gen_opcode_meta.py. */
+    case SS_OP_NPC_FREEZE_IMMUNE:
+    {
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_freeze_immune with no active npc");
+            return 1;
+        }
+        SSVM_PushInt(state, npc->freeze_immune_ticks);
         return 1;
     }
 
