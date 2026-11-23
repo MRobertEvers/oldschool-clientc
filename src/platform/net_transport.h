@@ -101,6 +101,15 @@ int NetTransport_ReplayUnlocked(struct NetTransport* t);
 void NetTransport_ReplaySetSpeed(struct NetTransport* t, int speed_milli);
 int NetTransport_ReplaySpeed(struct NetTransport* t);
 
+/** The client pays a fixed count of cycles a frame whatever the wall clock
+ *  says (App_FrameLocked: a bounded run, TORIRS_MAX_FRAMES, as the browser's
+ *  fast-forward recipe sets it), every frame. Its cycles are then its clock
+ *  even while the replay is locked, so the replay plays off them too: off the
+ *  wall clock, a client running k cycles a frame outran the packets k times
+ *  over and closed the session on its 15 s silence rule (net_link_watch.h)
+ *  half a second after a lock, and every login after that the same way. */
+void NetTransport_ReplayClientFrameLocked(struct NetTransport* t, int frame_locked);
+
 /** SERVER_TICK_ENDs the client has executed, ever (RS_ServerTick_Serial of App.server_tick),
  *  every frame before the poll: a seek lands, and a hold reports, on the
  *  client's own count. */

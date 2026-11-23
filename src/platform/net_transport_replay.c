@@ -231,6 +231,9 @@ struct NetTransportReplay
     /** NetTransport_ReplaySetSpeed: the client's pace in thousandths of real
      *  time while locked; 1000 is the recording's own. */
     int speed_milli;
+    /** NetTransport_ReplayClientFrameLocked: the client's cycles do not follow
+     *  the wall clock, so neither may the replay's. */
+    int client_frame_locked;
     unsigned long long cycles_now;
     unsigned long long cycles_last;
     uint64_t wall_last;
@@ -694,12 +697,12 @@ replay_unlocked(struct NetTransportReplay* self)
     return self->unlocked || ReplayScrub_Seeking(self->scrub);
 }
 
-/* Unlocked, or locked at a speed other than real time: the client's cycles are
- * the clock either way. */
+/* Unlocked, locked at a speed other than real time, or a client whose frames
+ * pay a fixed count of cycles: the client's cycles are the clock in each. */
 static int
 replay_follows_cycles(struct NetTransportReplay* self)
 {
-    return replay_unlocked(self) || self->speed_milli != 1000;
+    return replay_unlocked(self) || self->speed_milli != 1000 || self->client_frame_locked;
 }
 
 /*
@@ -1106,6 +1109,14 @@ NetTransport_ReplaySetUnlocked(
     TORIRS_REPORT("replay: %s\n", self->unlocked
                                       ? "unlocked (as fast as the client runs, 30 cycles a tick)"
                                       : "locked to the recording's own pace");
+}
+
+void
+NetTransport_ReplayClientFrameLocked(
+    struct NetTransport* t,
+    int frame_locked)
+{
+    as_replay(t)->client_frame_locked = frame_locked != 0;
 }
 
 int

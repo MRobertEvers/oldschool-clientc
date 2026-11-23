@@ -2848,6 +2848,19 @@ main_rsprox_replay_frame(void)
             App_SpeedRelock();
         main_pacing.uncapped = unlocked ? 1 : rsprox_replay.uncapped;
     }
+    /*
+     * A client frame-locked from boot (TORIRS_MAX_FRAMES, which the browser's
+     * fast-forward recipe sets beside TORIRS_LOGIC_CYCLES_PER_FRAME=k) never
+     * goes back to the wall clock: App_SpeedRelock leaves its frame lock on,
+     * and it keeps paying k cycles a frame. Locked, the replay plays off those
+     * cycles too (NetTransport_ReplayClientFrameLocked), so a lock does not
+     * slow such a run: hold and step it instead. It is not slowed to one cycle
+     * a frame on purpose: the frame clock keeps the env's k stretch
+     * (app_frame.c app_frame_clock), and at one cycle a frame the link watch's
+     * 15 s silence rule read that clock and dropped the session between two
+     * ticks.
+     */
+    NetTransport_ReplayClientFrameLocked(sock, !unlocked && App_FrameLocked());
     NetTransport_ReplayClock(sock, App_LogicCyclesRun());
 }
 
