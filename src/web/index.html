@@ -223,6 +223,9 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
     -webkit-user-select: none;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
+    /* Focusable (tabindex) so it takes the keys; the browser's focus ring
+       around the game is not wanted. */
+    outline: none;
     display: block;
     background: #000;
     border: 1px solid #3a2f22;
