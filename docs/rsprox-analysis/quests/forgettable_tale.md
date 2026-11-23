@@ -295,5 +295,45 @@ sent neither; now it does, with what the player held there kept in `minecart_tem
 - Journal stages 20, 65, 105..119 and 140 were never opened in a recording.
 - Leaving a story room the way you came, or with "No." to moving on, rebuilds the tunnels
   under a fade (`~forget_room_back_to_tunnels`): unrecorded, every recorded exit went on.
-- npc_block_inventory of the scenes' npcs on our tick log: not yet run (the wire audit below
-  covers interfaces, vars, camera, sounds, the player's moves and facing, not npc info).
+- The listening room's player walk at [3412..3422] goes out at walk pace with run on and full
+  energy: the recorder's own four clicks (`move_gameclick`), either ctrl-clicked or a no-run
+  rule in the room. The transcript does not say which; ours runs there.
+- The last scene's npcs send no `[facing] type=reset` on their first step (Jagex's do); our
+  facing blocks are cancel-on-walk, so the client drops the face the same way. The player's
+  forced walk goes out as walk steps under a permanent run (`p_runblock`), where Jagex sends
+  the permanent speed as walk for the walk and run again on its last step.
+
+## The last scene's cast moves (2026-11-23)
+
+The 2026-11-22 audit diffed the player's moves but not npc info, and the scene shipped with
+every npc added on its tick and none of them moving: the chaos dwarves stood in the doorway.
+Diffed now with `tools/rsprox/ticklog_npc_timeline.py` on a scriptrun of `::forgetlastscene`
+(forget_debug.rs2) against 4646 [4696..4887] (T = 4696):
+
+| T | recorded | ours before |
+|---|---|---|
+| +9 | gnomes added facing east, each turned a tile east | added, no facing |
+| +12..21 | the player walks (a diagonal, then east) 1862,4936 -> 1872,4935, a tile a tick, run orb on | stood |
+| +12 | director added south-west facing 1867,4936; Grimsson north facing 1878,4948 | no facing |
+| +18 | the director turns to Grimsson | -- |
+| +58..62 | the emissary walks five east to 1877,4949; +72 turns to the director | stood |
+| +95 | Grimsson turns east | -- |
+| +103..105 | ten chaos dwarves, six then a pair a tick, at the doorway (spawnangle south) | added |
+| +104..108 | the column marches south a tile a tick (rows 4943..4947 filled front to back) | stood |
+| +104..106 | the emissary (3), the director (3) and Grimsson (2) step east, out of the way | stood |
+| +111..116 | the column turns west, six tiles, to x 1883/1884 | stood |
+| +141..148 | Grunsh added at 1896,4935 facing south, walks to 1889,4934; +151 turns to the player | stood |
+
+After the fix every row above lands on its recorded tick and tile; `forgettabletale.lua`
+315/315 under scriptrun.
+
+The other scenes, the same way (`::forgetlisteningroom`, `::forgetpubscene`):
+
+| scene | recorded | ours before -> now |
+|---|---|---|
+| listening room [3365] | four figures added facing a tile on (director north, cat east, henchman east, shaman west); none moves | no spawn angle, no facing -> matched |
+| library [4077..4266] | no npcs | -- |
+| pub D+8 [5143] | seven patrons added facing the chair (patron4 south, three south and one east of it) | facing only, default spawn angles -> matched |
+| pub D+112..129 [5247..5264] | Rowdy added facing south (no facing), walks west 2918 -> 2901,10198 | added, turned to the chair and reset, stood -> walks |
+| pub D+119..125 [5254..5260] | Grimsson added facing south; the door opened (closed leaf 2914,10197 -> open 2914,10196); a step west, three north through the door | sound only, door shut, stood -> matched |
+| pub D+140..146 [5275..5281] | Grimsson, helmet on, walks north to 2914,10205; D+155 the door shut | stood -> walks; door back at D+155 |

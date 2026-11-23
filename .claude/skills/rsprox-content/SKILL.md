@@ -67,7 +67,9 @@ recording. A quest is done when every row of steps 1-3 and every recorded npc-in
      gate with all five, from a LostCity port in which 862 of the recording's 1,092 distinct
      strings were already verbatim.
    - Done when each scene has a `t.cutscene.await` row in the test (op and height in a copy),
-     a row in `docs/quests/CUTSCENES.tsv`, and its table in the doc.
+     a row in `docs/quests/CUTSCENES.tsv`, its table in the doc, AND its cast-movement diff
+     (§12b "The cast moves"): every recorded npc walk, facing and spawn angle, and the
+     player's own walks, matched tick for tick on our tick log.
 3. **The zone's ambience is content.** Count what happens near the player that the player did
    not cause: `sound_area`, `map_projanim`, npc seqs/says/hits between npcs, `loc_anim`,
    `map_anim`. `rsprox_npcinfo.py --match '<area prefix>'` per npc type; a type with attack
@@ -206,6 +208,13 @@ recording. A quest is done when every row of steps 1-3 and every recorded npc-in
       hops through the copy before every tunnel landing, three pans with one timing, a room's
       song, Jagex's fuller panel lock, overhead lines said in 184-px pieces with the head
       animating for the pieces, five missing sounds and the kebab taken 160 ticks early.
+    - **`wirelog_tells.py` reads only the PLAYER's own packets. It is blind to the cast.**
+      The same Forgettable Tale audit diffed "to nothing" while the last scene's ten chaos
+      dwarves, the emissary, the director, Grimsson and Grunsh were all added on their ticks
+      and never moved, and the player stood where Jagex walks them ten tiles (owner, 2026-11-23:
+      "the spying scene failed to show the chaos dwarves marching"). The doc's Open list even
+      said "npc info not yet run" while the scenes were reported done. Run §12b's cast diff
+      for every scene as part of this audit; a scene is not audited until it has run.
     - **A copy is built from zones: read its rebuild_region before believing a "jump".** The
       default transcript translates every copied tile back to its template tile, so a copy
       composed from zones of different planes reads as plane changes and far teleports that
@@ -869,8 +878,29 @@ copy's, so match op and height, not a template `coord`. An area-triggered scene 
 walking, and the walk is cut short by the teleport: call `t.player.walk_to` without `t.exec`,
 then await the first page.
 
+**The cast moves. REQUIRED per scene, and the check that is easiest to skip.** A scene can match
+on camera, pages, sounds, interfaces and the player's packets while every npc in it stands
+still: adds land on their ticks, so nothing looks missing unless the moves are diffed.
+1. Recording: `python3 tools/rsprox/npc_timeline.py <txt> --match '<cast regex>' --from T --to E`
+   per cast type (moves, facings, seqs, says), plus the player's `[walk]`/`[run]`/`[teleport]`
+   lines and their `[move_speed]`/`[temp_move_speed]` (`grep -E "player=|speed"` over the window).
+   List every walk run (first-step tick, tiles, end tile), every `[facing]` (coord, entity,
+   reset) and every add's `spawnangle`.
+2. Ours: play the scene by itself under scriptrun (a `[debugproc,<name>]` that sets the stage and
+   calls the scene proc, e.g. `::forgetlastscene`; a test of `t.ticklog.start()`, the cheat,
+   `t.ticks(n)`), then `python3 tools/rsprox/ticklog_npc_timeline.py <ticklog.tsv> --ids <cast ids>`
+   and the `player_tile` rows of the tick log.
+3. Align on the scene's first add and walk the recording's rows: every step on its tick and tile,
+   every facing and spawn angle (`npc_facedir` for the angle an add carries, `npc_facesquare`
+   only where the recording has a `[facing]` line). The player walks a recorded walk even with
+   run on (`p_runblock(n, "")`), and the first step's direction matters (a diagonal first: walk
+   to that tile, then on). An npc with no recorded move stands; one with a recorded move walks
+   with `npc_walk` issued the tick before its first step.
+Forgettable Tale's last scene (2026-11-23, docs/rsprox-analysis/quests/forgettable_tale.md "The
+last scene's cast moves") shipped with none of this, behind a wire audit that "diffed to nothing".
+
 **Audit it** with the tick log against `rsprox_tells.py --from T --to E+4 --timeline` like any
-section, plus the camera lines (the tick log has no camera rows: diff
+section, plus the cast diff above, plus the camera lines (the tick log has no camera rows: diff
 `TORIRSSERVER_TRACE_OUT=1` output for `CAM_*`) and the lock/unlock varbits. The unlock's
 `cam_unlock false` is `cam_unlock(false)` (in `~mist_cutscene_hud_unlock` and
 `~canoe_cutscene_hud_unlock`).
@@ -1109,6 +1139,9 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
    (`python3 tools/quest_gate/cutscene_sweep.py | grep " NONE "` lists the rest).
 
 ## Traps that have each cost a wrong fix
+
+- **A scene whose cast is added but never walks passes every check except the cast diff**
+  (§12b "The cast moves"). `wirelog_tells.py` and the camera/page rows cannot see it.
 
 - **"It walks" is not its route.** Fit every moving npc's route or radius with
   `tools/rsprox/npc_routes.py` (loop step 3) and state it in the content's `.npc`: the
