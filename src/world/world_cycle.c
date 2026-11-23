@@ -2001,38 +2001,13 @@ World_CycleUpdateSpotanims(
 
         if( !s->active )
         {
-            int post_activation_cycles = 0;
-
             if( cycles_elapsed > 0 )
             {
-                int idle_before = s->idle_cycles;
-
                 s->idle_cycles -= cycles_elapsed;
                 if( s->idle_cycles <= 0 )
                 {
                     s->active = true;
                     s->idle_cycles = 0;
-                    /*
-                     * How many of this step's cycles landed ON OR AFTER the
-                     * delay boundary — the boundary-crossing cycle itself
-                     * counts as the first (reference/pre-existing rule: a
-                     * single-cycle step that brings idle_cycles to exactly 0
-                     * scores active_cycle 1, not 0, so a same-tick delay=0
-                     * spotanim is unaffected — see World_SpotanimSpawn's own
-                     * immediate activation for that case).
-                     *
-                     * A multi-cycle catch-up step (several world cycles
-                     * settled in one call, e.g. after a stalled frame) can
-                     * cross the boundary mid-step. Crediting the WHOLE step
-                     * to active_cycle, as this used to, backdates the count
-                     * to before the graphic was ever visible and despawns it
-                     * up to `idle_before - 1` cycles early; this instead
-                     * counts only the cycles from the boundary onward, which
-                     * collapses to the single-step rule above whenever
-                     * cycles_elapsed == idle_before. */
-                    post_activation_cycles = cycles_elapsed - idle_before + 1;
-                    if( post_activation_cycles < 1 )
-                        post_activation_cycles = 1;
                 }
             }
             if( !s->active )
@@ -2044,9 +2019,25 @@ World_CycleUpdateSpotanims(
              * frame 0 until here, because a delayed spotanim that stepped
              * through its own delay would surface part-played and then freeze
              * on a dead final frame — the delay is almost always a projectile's
-             * flight, so it is routinely longer than the sequence itself. */
+             * flight, so it is routinely longer than the sequence itself.
+             *
+             * The WHOLE step is credited, cycles before the delay boundary
+             * included, because that is what the client advances it by: a
+             * started graphic steps its sequence by every cycle the frame
+             * covered (deob Statics ~44000: `cycle >= startCycle` ->
+             * class444.method10283(obj, client.field1179)), and is removed
+             * the moment that step finishes it, before it is drawn. The
+             * element's own sequence is stepped the same way here
+             * (SpotanimStarted rewinds it to frame 0, then
+             * app_world_tick_animations runs every cycle of the frame), so
+             * this lifetime clock has to count the same cycles. Counting only
+             * the ones past the boundary let a frame that ran several cycles
+             * leave the element finished -- reset to its bind pose by
+             * ToriDraw_SceneElementSetAnimation(NULL) -- for a frame before
+             * this despawned it: the Ocellus floor cracks drew their unposed
+             * wisps, opaque, as green bars across the floor. */
             World_EmitEvent(world, WorldEventKind_SpotanimStarted, s->element_id);
-            s->active_cycle += post_activation_cycles;
+            s->active_cycle += cycles_elapsed;
         }
         else if( cycles_elapsed > 0 )
             s->active_cycle += cycles_elapsed;

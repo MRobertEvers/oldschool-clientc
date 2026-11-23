@@ -817,49 +817,47 @@ test_spotanim_immediate_activation(void)
 }
 
 /*
- * Companion regression: a multi-cycle catch-up step (several world cycles
- * settled in one App_RunOnce after a stalled frame) used to credit the WHOLE
- * step to a just-activated spotanim's active_cycle, even the cycles that were
- * still inside its delay window and never drew a frame — backdating its
- * lifetime clock and despawning it early. This checks the catch-up path
- * lands on exactly the same active_cycle a run of single-cycle steps over the
- * same total would have produced.
+ * Companion: a multi-cycle step (several world cycles settled in one
+ * App_RunOnce after a slow frame) that crosses the delay boundary credits the
+ * WHOLE step to the graphic's lifetime clock, as the client advances a
+ * started graphic by every cycle the frame covered (deob Statics ~44000,
+ * class444.method10283(obj, client.field1179)). The element's sequence is
+ * stepped by the whole frame too (app_world_tick_animations), so this clock
+ * must count the same cycles: counting only those past the boundary left the
+ * element finished -- in its bind pose -- for a frame before the graphic was
+ * despawned (the Ocellus floor cracks' green bars).
  */
 void
 test_spotanim_catchup_activation(void)
 {
     printf("TEST: spotanim catch-up activation (multi-cycle step across the delay boundary)\n");
 
-    /* Single-cycle reference: idle_delay=3, seven 1-cycle steps. */
-    struct World* stepped = World_TestMakeReady(104);
-    int stepped_idx = World_SpotanimSpawn(stepped, 91, 0, 20 * 128, 20 * 128, 0, 0, 3, 100);
-    for( int t = 0; t < 7; t++ )
-        World_TestCycle(stepped, 1);
-    struct WorldEntity_Spotanim* stepped_s =
-        World_EntityPoolGet(&stepped->entities.spotanim, stepped_idx);
-    TEST_ASSERT(stepped_s && stepped_s->active, "stepped reference activated");
-
-    /* Same idle_delay, same total elapsed cycles, but caught up in one lump
-     * (the multi-cycle App_RunOnce catch-up path). */
+    /* idle_delay=3, caught up in ONE 7-cycle step (app_world_frame's
+     * World_Cycle(world, cycles) after a slow frame; World_TestCycle would
+     * step them one at a time): active, aged all 7. */
     struct World* lumped = World_TestMakeReady(104);
     int lumped_idx = World_SpotanimSpawn(lumped, 91, 0, 20 * 128, 20 * 128, 0, 0, 3, 100);
-    World_TestCycle(lumped, 7);
+    World_MoversAdvance(lumped, 7.0f);
+    World_Cycle(lumped, 7);
     struct WorldEntity_Spotanim* lumped_s = World_EntityPoolGet(&lumped->entities.spotanim, lumped_idx);
     TEST_ASSERT(lumped_s && lumped_s->active, "lumped catch-up activated");
-
-    if( stepped_s && lumped_s && stepped_s->active_cycle != lumped_s->active_cycle )
-        fprintf(
-            stderr,
-            "spotanim catch-up: lumped active_cycle=%d, single-stepped active_cycle=%d\n",
-            lumped_s->active_cycle,
-            stepped_s->active_cycle);
     TEST_ASSERT(
-        stepped_s && lumped_s && stepped_s->active_cycle == lumped_s->active_cycle,
-        "catch-up active_cycle must match single-stepping — crediting the whole lumped step "
-        "backdates the lifetime clock into the still-delayed window");
+        lumped_s && lumped_s->active_cycle == 7,
+        "the activating step is credited whole, as the client's advance(field1179) is");
 
-    World_Free(stepped);
+    /* Lifetime 5 (a sequence the element finishes on its 5th step): a step
+     * that activates it and runs 5 cycles ends it in that same step, the
+     * frame the element's sequence finishes -- never a frame later. */
+    struct World* ends = World_TestMakeReady(104);
+    World_SpotanimSpawn(ends, 92, 0, 20 * 128, 20 * 128, 0, 0, 2, 5);
+    World_MoversAdvance(ends, 5.0f);
+    World_Cycle(ends, 5);
+    TEST_ASSERT(
+        ends->entities.spotanim.active_count == 0,
+        "a step that runs the graphic past its lifetime despawns it in that step");
+
     World_Free(lumped);
+    World_Free(ends);
 }
 
 void
