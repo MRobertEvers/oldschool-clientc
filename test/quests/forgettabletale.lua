@@ -693,9 +693,9 @@ return {
                 and sv(t, "varb869_forget_room1_once") == 1,
                 "level " .. tostring(select(2, t.world.level())) .. ", " .. stones(t) .. ", room1_once="
                 .. tostring(sv(t, "varb869_forget_room1_once")))
-            -- No running in the listening room (4646 [3412..3422]: the recorder's clicks walked a
-            -- tile a tick with run on and full energy, no message): every step of a six-tile walk
-            -- east is one tile (a run steps two).
+            -- The player crawls in the listening room (4646 [3365]: the BAS human_crawl_ready_for_forget
+            -- / human_crawling with no run, so [3412..3422] went a tile a tick with run on): every
+            -- step of a six-tile walk east is one tile (a run steps two).
             do
                 t.ticklog.start()
                 t.ticklog.mark("listen.norun")
@@ -711,7 +711,7 @@ return {
                     if d > 0 then moved = moved + 1 end
                     px, pz = r.x, r.z
                 end
-                t.check("listenToConversation-norun", widest == 1 and moved >= 6,
+                t.check("listenToConversation-crawl", widest == 1 and moved >= 6,
                     "widest step " .. widest .. " tile(s) over " .. moved .. " moving ticks (want 1, a walk)")
             end
             -- leaveListeningRoom1: 110, the fade, the hub, the second group's pan (4646 [3571..3593])

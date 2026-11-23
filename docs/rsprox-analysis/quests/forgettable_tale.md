@@ -318,6 +318,7 @@ Diffed now with `tools/rsprox/ticklog_npc_timeline.py` on a scriptrun of `::forg
 |---|---|---|
 | +9 | gnomes added facing east, each turned a tile east | added, no facing |
 | +12..21 | the player walks (a diagonal, then east) 1862,4936 -> 1872,4935, a tile a tick, run orb on | stood |
+| +16..161 | the player crawls ([4712] the crawl BAS, as the listening room's; [4857] back up with Grunsh's spell) | upright (fixed after the owner's "Did you miss the BAS?") |
 | +12 | director added south-west facing 1867,4936; Grimsson north facing 1878,4948 | no facing |
 | +18 | the director turns to Grimsson | -- |
 | +58..62 | the emissary walks five east to 1877,4949; +72 turns to the director | stood |
@@ -336,8 +337,9 @@ The other scenes, the same way (`::forgetlisteningroom`, `::forgetpubscene`):
 | scene | recorded | ours before -> now |
 |---|---|---|
 | listening room [3365] | four figures added facing a tile on (director north, cat east, henchman east, shaman west); none moves | no spawn angle, no facing -> matched |
-| listening room [3412..3422] | the recorder's four clicks walk a tile a tick with run on and full energy, each step a temp walk, no message: a no-run rule in the room (owner, 2026-11-23) | ran -> walks (`p_runblock`, renewed each tick by the talk's timer; the test's `listenToConversation-norun`) |
+| listening room [3365..3580] | the player CRAWLS: the BAS `human_crawl_ready_for_forget` / `human_crawling`, no side steps, `run=-1`, set with the move into the room and back to normal with the first hop out ([3580]); so the recorder's clicks at [3412..3422] went a tile a tick with run on | stood and ran upright; then (05676d47d..549d73021) a `p_runblock` "no-run room" that walked upright -> the crawl (`~forget_crawl`, `~update_bas` on both exits; the test's `listenToConversation-crawl`) |
 | library [4077..4266] | no npcs | -- |
+| pub D+8..160 [5143..5295] | the player sits: BAS `human_sitting_drunk_ready` for ready, turn, walk and walkback, `-1` for the side steps and run | all seven slots the sitting seq -> the recorded four and three nulls |
 | pub D+8 [5143] | seven patrons added facing the chair (patron4 south, three south and one east of it) | facing only, default spawn angles -> matched |
 | pub D+112..129 [5247..5264] | Rowdy added facing south (no facing), walks west 2918 -> 2901,10198 | added, turned to the chair and reset, stood -> walks |
 | pub D+119..125 [5254..5260] | Grimsson added facing south; the door opened (closed leaf 2914,10197 -> open 2914,10196); a step west, three north through the door | sound only, door shut, stood -> matched |

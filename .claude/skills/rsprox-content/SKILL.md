@@ -917,7 +917,10 @@ on camera, pages, sounds, interfaces and the player's packets while every npc in
 still: adds land on their ticks, so nothing looks missing unless the moves are diffed.
 1. Recording: `python3 tools/rsprox/npc_timeline.py <txt> --match '<cast regex>' --from T --to E`
    per cast type (moves, facings, seqs, says), plus the player's `[walk]`/`[run]`/`[teleport]`
-   lines and their `[move_speed]`/`[temp_move_speed]` (`grep -E "player=|speed"` over the window).
+   lines and their `[move_speed]`/`[temp_move_speed]` (`grep -E "player=|speed"` over the window),
+   AND every player `[bas]` line in the window and the next normal one after it (home-wire or
+   `--bas` transcript: `awk '/^\[[0-9]+\]/{t=$1} /^ *\[bas\]/{print t, $0}'`). A scene that sneaks,
+   crawls, sits, wades or rides changes the stance; the default transcript never shows it.
    List every walk run (first-step tick, tiles, end tile), every `[facing]` (coord, entity,
    reset) and every add's `spawnangle`.
 2. Ours: play the scene by itself under scriptrun (a `[debugproc,<name>]` that sets the stage and
@@ -929,7 +932,8 @@ still: adds land on their ticks, so nothing looks missing unless the moves are d
    only where the recording has a `[facing]` line). The player walks a recorded walk even with
    run on (`p_runblock(n, "")`), and the first step's direction matters (a diagonal first: walk
    to that tile, then on). An npc with no recorded move stands; one with a recorded move walks
-   with `npc_walk` issued the tick before its first step.
+   with `npc_walk` issued the tick before its first step. The player's stance goes on and off on
+   its recorded ticks (`~bas_set` with `null` for every `-1` slot, `~update_bas` to restore).
 Forgettable Tale's last scene (2026-11-23, docs/rsprox-analysis/quests/forgettable_tale.md "The
 last scene's cast moves") shipped with none of this, behind a wire audit that "diffed to nothing".
 
@@ -1176,6 +1180,12 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
 
 - **A scene whose cast is added but never walks passes every check except the cast diff**
   (§12b "The cast moves"). `wirelog_tells.py` and the camera/page rows cannot see it.
+- **The player walking with run on is a stance before it is a rule.** Forgettable Tale's
+  listening room (4646 [3412..3422]) walked a tile a tick with run on and full energy; I built
+  a "no-run room" with `p_runblock` and shipped it. The room's `[bas]` at [3365] was a crawl
+  (`human_crawling`, `run=-1`): the player never crawled in ours (owner, 2026-11-23: "Did you
+  miss the BAS?"). Read the window's `[bas]` before explaining any pace, and never invent a
+  movement rule a stance explains.
 
 - **"It walks" is not its route.** Fit every moving npc's route or radius with
   `tools/rsprox/npc_routes.py` (loop step 3) and state it in the content's `.npc`: the
