@@ -709,6 +709,18 @@ function QD.cheat(text, wait_for_reply)
                 if list[i].serial > (since or 0) and string.find(list[i].text, "Unknown command: ", 1, true) == 1 then
                     return "no_row", list[i].text
                 end
+                -- A cheat the server understood and said no to: the ladder's
+                -- own "<cheat> [n] refused: <why>" (::checkpoint, ::clockskip)
+                -- or a debugproc that aborted ("Command ::~x failed -- see the
+                -- server log.").  The legs checkpoint loop and
+                -- seam.checkpoint_refuses_dialogue read this answer; it
+                -- arrived as `ok` (2026-11-22).
+                local text = list[i].text
+                if list[i].serial > (since or 0) and (string.match(text, "^%S+ refused: ")
+                        or string.match(text, "^%S+ %d+ refused: ")
+                        or (string.find(text, "Command ::~", 1, true) == 1 and string.find(text, " failed", 1, true))) then
+                    return "refused", text
+                end
             end
         end
     end

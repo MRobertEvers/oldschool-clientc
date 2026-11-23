@@ -3487,6 +3487,21 @@ UITree_NodeOrAncestorDisplayHiddenEx(
     int ignore_plugin_hidden);
 
 /**
+ * UITree_NodeOrAncestorDisplayHiddenEx, and the node that hid it with the
+ * flag that did (`hide`, `mount_hidden`, `widget_hidden`, `screen_hidden`,
+ * `projection_hidden`, `an undisplayed root`); -1 and NULL when nothing did.
+ * For a refusal's sentence: "display-hidden" alone does not say which
+ * ancestor to look at.
+ */
+int
+UITree_NodeOrAncestorDisplayHiddenWhy(
+    struct UITree const* tree,
+    int32_t node_index,
+    int ignore_plugin_hidden,
+    int32_t* out_node,
+    char const** out_flag);
+
+/**
  * FNV-1a 64 of a text node's current string, as a CHANGE token.
  *
  * Zero for a node that is not RS_TEXT, so "this node carries no text" and

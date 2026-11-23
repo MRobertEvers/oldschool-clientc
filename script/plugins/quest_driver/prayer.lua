@@ -167,6 +167,10 @@ QD.prayer.REFUSALS = {
     "You need a Prayer level of",
     "You have run out of Prayer points",
     "You can't use protection prayers",
+    -- The protection block's own line (prayer.rs2 [proc,prayer_can_use],
+    -- RSProx 1833/3285/820), the one QD.prayer.blocked reads: a press under
+    -- the block answered a bare timeout without it (2026-11-22).
+    "been injured and can't use that prayer",
 }
 
 -- Server ticks a press may take to come back as a varbit.  The IF_BUTTONX
@@ -429,7 +433,7 @@ end
 -- authors fell back to t.skill.read). Same numbers, same read, now the order
 -- every other reader has. Record it with t.check(name, r, reading.text).
 function QD.prayer.points()
-    local result, reading = QD.skill.read("prayer")
+    local result, reading = QD.skill._read("prayer")
     if result ~= "ok" or type(reading) ~= "table" then
         local why = "prayer.points: skill.read(prayer) answered " .. tostring(result) .. " " .. tostring(reading)
         return result ~= "ok" and result or "refused", why, why
@@ -457,14 +461,13 @@ end
 -- while t.tick() reads T, i.e. after tick T ran and before T+1 runs.
 --
 -- WHY THAT PRESS IS IN FORCE FOR T+1 AND NOT FOR T.  ToriRSServer_WorldTick
--- does `srv->tick++` first and then phase_clients_in (empty), phase_npc_events,
--- phase_npcs, phase_players (src/torirsserver/torirs_server_world.c, the
--- WorldTick body); a client's packets are handled BEFORE that, in
--- ToriRSServer_EmbedPump -> pump_client -> SessionPump -> step_online, and the
--- pump runs the tick only after every client's input (torirs_server_embed.c,
--- "Every client's input first, then *one* tick").  So the `[if_button]` ->
--- `~prayer_toggle` of a press issued on T has run, and the varbit is set,
--- before tick T+1's npc phase: an npc that rolls on T+1 reads the prayer
+-- does `srv->tick++` first and then phase_clients_in, phase_npc_events,
+-- phase_npcs, phase_players (src/torirsserver/torirs_server_world.c,
+-- world_tick_body).  A client's packets are handled INSIDE the tick since
+-- e65bee234 (2026-10-19, "client input handled in the tick"), in
+-- phase_clients_in, after the counter has moved to T+1.  So the `[if_button]`
+-- -> `~prayer_toggle` of a press issued while the server read T runs on T+1,
+-- and the varbit is set, before tick T+1's npc phase: an npc that rolls on T+1 reads the prayer
 -- (`~check_protect_prayer`, skill_combat/combat_stats.rs2:163, read at the
 -- roll: playerhit_n_melee_apply :924, inferno_hit_player inferno_ai.rs2:35),
 -- and one that rolled on T did not see it.  That is the T-1 rule of
@@ -478,9 +481,12 @@ end
 -- not the client's copy), and the tick it is IN FORCE from (issued + 1).
 -- `info` (third return) carries the same numbers for a technique row:
 -- {issued, seen, in_force, before, after, ...}.  `ok` is answered only when
--- the varbit was seen changed while the server tick still read the issue
--- tick; a change first seen on a later tick is `timeout` ("taken in late"),
--- because then the driver cannot say which npc phase saw it.
+-- the varbit was first seen changed on the tick that takes the press in,
+-- issued + 1 (QD.prayer._taken_in); a change first seen on a later tick is
+-- `timeout` ("taken in late"), because then the driver cannot say which npc
+-- phase saw it.  (The issue tick itself was the rule while input was handled
+-- between ticks: every set_on_tick, switch and flick answered `timeout` after
+-- e65bee234 -- conformance prayer.set_on_tick, 2026-11-22.)
 --
 -- NEVER A LATE PRESS.  The tab is opened and the button waited for BEFORE the
 -- wait for the tick; when the driver wakes on any tick but the asked one, or
@@ -505,6 +511,12 @@ end
 -- flick reports the points and the counter before and after.
 
 -- The server's tick, or nil on a binary / run without one.
+-- The server tick a press issued on `issued` is taken in on: the next one,
+-- whose phase_clients_in runs before its npc phase (banner above).
+function QD.prayer._taken_in(issued)
+    return issued + 1
+end
+
 function QD.prayer._server_tick()
     if api_drive.server_tick == nil then
         return nil
@@ -705,12 +717,13 @@ function QD.prayer.set_on_tick(name, on, tick)
             entry[1], word, where, entry[3], tostring(info.after),
             (QD.prayer._server_tick() or issued) - issued, QD.prayer._lines_since(since)), info
     end
-    if seen ~= issued then
+    if seen ~= QD.prayer._taken_in(issued) then
         info.in_force = seen + 1
         return "timeout", string.format(
-            "%s %s: %s; server %s %d -> %d first seen on server tick %d -- taken in LATE (not before tick %d's "
-                .. "npc phase for certain; in force from %d at the latest)",
-            entry[1], word, where, entry[3], before, want, seen, issued + 1, seen + 1), info
+            "%s %s: %s; server %s %d -> %d first seen on server tick %d, not %d -- taken in LATE (not before "
+                .. "tick %d's npc phase for certain; in force from %d at the latest)",
+            entry[1], word, where, entry[3], before, want, seen, QD.prayer._taken_in(issued), issued + 1,
+            seen + 1), info
     end
     info.in_force = issued + 1
     return "ok", string.format(
@@ -875,11 +888,11 @@ function QD.prayer.switch(list, opts)
             table.concat(parts, ", "), (#wrong > 0) and table.concat(wrong, ", ") or "none",
             QD.prayer._lines_since(since)), info
     end
-    if seen ~= issued then
+    if seen ~= QD.prayer._taken_in(issued) then
         info.in_force = seen + 1
         return "timeout", string.format(
-            "%s: %s; server: %s; first seen on server tick %d -- taken in LATE (in force from %d at the latest)",
-            who, where, table.concat(parts, ", "), seen, seen + 1), info
+            "%s: %s; server: %s; first seen on server tick %d, not %d -- taken in LATE (in force from %d at the latest)",
+            who, where, table.concat(parts, ", "), seen, QD.prayer._taken_in(issued), seen + 1), info
     end
     info.in_force = issued + 1
     return "ok", string.format("%s: %s; server: %s, seen on server tick %d; in force from tick %d's npc phase",
@@ -892,7 +905,7 @@ end
 -- unreadable.
 function QD.prayer._drain_reading()
     local points = nil
-    local skill_result, reading = QD.skill.read("prayer")
+    local skill_result, reading = QD.skill._read("prayer")
     if skill_result == "ok" then
         points = reading.level
     end

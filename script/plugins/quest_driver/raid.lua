@@ -185,7 +185,13 @@ QD.raid._COX_DEFAULT_SEED = 1
 -- Budgets, in server ticks.
 QD.raid._ARRIVE_TICKS = 15
 QD.raid._STATE_TICKS = 5
-QD.raid._BOSS_TICKS = 5
+-- The boss wait outlasts the server's npc view growth: the radius starts at
+-- 15 on arrival and grows a tile a tick to 24 (TORIRSSERVER_NPC_VIEW_TILES /
+-- _MAX), and Maiden stands ~21 tiles from her room's entry (^tob_maiden_entry_lx
+-- 52 vs ^tob_maiden_boss_lx 26), so she reaches the client's list some nine
+-- ticks after the landing. At 5, raid.enter answered "boss unspawned" for
+-- every Maiden entry (conformance raid.enter / raid.state, 2026-11-22).
+QD.raid._BOSS_TICKS = 12
 
 -- (result, room_name) for a content room id of `raid`, or nil.
 function QD.raid._room_name(raid, id)

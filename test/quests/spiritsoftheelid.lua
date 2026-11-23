@@ -280,11 +280,12 @@ return {
         through_arch("enterShrine", 3426, 2925, true)
         t.exec("openCupboard", t.player.click_loc, "elid_cupboard_closed_withrobes", 1)
         -- elid_house.rs2's [oploc1,elid_cupboard_closed_withrobes] suspends on
-        -- p_arrivedelay + anim(human_openchest) + p_delay(0) before loc_change;
-        -- the click waits for its "You open the cupboard." (the row above), so
-        -- the line is read from the ring, not awaited a second time, then the
-        -- (now different) loc symbol is searched.
-        t.exec("openCupboard.msg", t.msg.expect, "You open the cupboard.")
+        -- p_arrivedelay + anim(human_openchest) + p_delay(0) before loc_change
+        -- -- the click's own settle resolves when the route's map flag clears,
+        -- a tick before that chain lands (and before the "You open the
+        -- cupboard." mes()), so AWAIT the message, then search the (now
+        -- different) loc symbol.
+        t.exec("openCupboard.msg", t.msg.await, "You open the cupboard.", 5)
         t.exec("searchCupboard", t.player.click_loc, "elid_cupboard_open_withrobes", 2)
         t.exec("gotTornRobes", t.inv.await_all, { elid_robetop_torn = 1, elid_robebottoms_torn = 1 }, 10)
 

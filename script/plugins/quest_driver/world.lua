@@ -906,9 +906,9 @@ function QD.player._run_vitals(vitals)
     end
     local parts = {}
     if vitals.eat ~= nil then
-        local hp_result, hp = QD.skill.read("hitpoints")
+        local hp_result, hp = QD.skill._read("hitpoints")
         if hp_result == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < vitals.below then
-            local have_result, have = QD.inv.count(vitals.eat)
+            local have_result, have = QD.inv._count(vitals.eat)
             if have_result == "ok" and (have or 0) > 0 then
                 local eat_result = QD.player.inv_op(vitals.eat, 1)
                 QD.ticks(2)
@@ -927,7 +927,7 @@ function QD.player._run_vitals(vitals)
                 or QD.player._antipoison_doses
             local drank = nil
             for _, dose in ipairs(doses) do
-                local dose_result, n = QD.inv.count(dose)
+                local dose_result, n = QD.inv._count(dose)
                 if dose_result == "ok" and (n or 0) > 0 then
                     local drink_result = QD.player.inv_op(dose, 1)
                     QD.ticks(2)
@@ -1817,7 +1817,7 @@ function QD.player.teleport_cast(spell, landing, opts)
     local before = {}
     for i = 1, #opts.runes do
         local rune = opts.runes[i][1]
-        local count_result, count = QD.inv.count(rune)
+        local count_result, count = QD.inv._count(rune)
         before[i] = count_result == "ok" and count or nil
     end
     local from_result, from = QD.world.tile()
@@ -1848,7 +1848,7 @@ function QD.player.teleport_cast(spell, landing, opts)
     local paid_text = {}
     for i = 1, #opts.runes do
         local rune, cost = opts.runes[i][1], opts.runes[i][2]
-        local count_result, count = QD.inv.count(rune)
+        local count_result, count = QD.inv._count(rune)
         local now = count_result == "ok" and count or nil
         if before[i] == nil or now == nil or before[i] - now ~= cost then
             paid = false
@@ -1974,6 +1974,11 @@ function QD.clock.skip(minutes)
     }, 5)
     if result ~= "ok" then
         return result, text .. " -> " .. tostring(result) .. ": " .. tostring(reply or detail)
+    end
+    -- The server's own refusal ("::clockskip refused: ...", past the week
+    -- bound or too far ahead) is an answer, not a missing reply.
+    if reply and string.find(reply, "clockskip refused", 1, true) then
+        return "refused", text .. ": " .. reply
     end
     local want = reply and tonumber(string.match(reply, "date_minutes (%d+)"))
     local ahead = reply and string.match(reply, "(%d+) minute%(s%) ahead")

@@ -2466,6 +2466,13 @@ struct ToriRSServerQueued
     /** The client cycle the projectile this entry's hit rides lands on, or 0;
      *  see `ToriRSServer_ProjectileLandCycleFor`. */
     int splat_land_cycle;
+    /** 1 when an npc's own turn armed this entry (`[ai_*]`: an npc's swing
+     *  delivered through the player's `[queue,combat_damage_player]`), else
+     *  0. Its `damage` on the player is then that npc's hit -- the tick log
+     *  names the npc and the hit closes the chat box -- although the script
+     *  runs as the player's own. A player's own script hurting itself (a
+     *  ruby bolt's Blood Forfeit, an overload) leaves it 0. */
+    int armed_on_npc_turn;
 };
 
 /** Whether a timer runs while the player is busy. */
@@ -5596,6 +5603,8 @@ struct ToriRSServer
     /** While a queued hit runs: the landing cycle its entry carried, else 0.
      *  Hitmarks added then wait for it (`ToriRSServer_HitClientDelay`). */
     int hit_land_cycle;
+    /** While a player's queue entry runs: its `armed_on_npc_turn`, else 0. */
+    int queue_armed_on_npc_turn;
 
     /** Whether `map_members` reports this as a members world to content.
      *  Defaults to 1 (members) at construction — content ported from the

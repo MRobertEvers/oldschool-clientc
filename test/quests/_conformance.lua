@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 227
+-- @verb-count 335
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -161,7 +161,7 @@
 -- @seam-count 209
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 227
+local VERB_COUNT = 335
 local SEAM_COUNT = 209
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
@@ -184,9 +184,8 @@ local NPC_DISPLAY_NAME = "Man"      -- npc.by_name matches the DISPLAY name
 local COOK_SYMBOL = "cook"          -- the head the cook's dialogue shows
 local LOC_SYMBOL = "tree"           -- Lumbridge has these in every direction
 local OBJ_SYMBOL = "airrune"        -- ::runes puts 25 in the backpack
--- A fresh tutorial-graduate's own starting body slot (fresh_lumbridge.ini
--- carries no [inv] section, so this is the fresh-character default, the
--- same one inv.slot's own row already reads at slot 1) -- NOT OBJ_SYMBOL:
+-- A wearable the opening setup gives (there is no start kit since
+-- 2026-11-18, so the fresh character carries nothing) -- NOT OBJ_SYMBOL:
 -- `[opheld2,_] ~equip(last_slot)` (player/scripts/equip.rs2) is a real
 -- wildcard, but it still refuses an item with no worn slot, and air runes
 -- have none. player.equip answering "refused" every run on a rune is not a
@@ -650,6 +649,10 @@ return {
         setup_cheat("::tele lumbridge")
         settle(4)
         setup_cheat("::runes 25")
+        -- player.equip's subject: no start kit since 2026-11-18 (owner), so
+        -- the fresh character's platebody this row was written against is
+        -- the harness's to give.
+        setup_cheat("::give " .. WEARABLE_OBJ_SYMBOL .. " 1")
         setup_cheat("::dropobj " .. OBJ_SYMBOL .. " 1")
         setup_cheat("::xp " .. STAT_SYMBOL .. " 500")
         -- The bank rows' stock (BANK_* above).  HERE and nowhere later:
@@ -2478,14 +2481,357 @@ return {
             settle(3)
         end)
 
+        -- A SCRIPTRUN verb (chat.lua): there it sends RESUME_P_NAMEDIALOG
+        -- itself, having no clientscripts; a client reaches the same packet
+        -- by typing, which chat.name_entry above is graded on.  So on this
+        -- harness's client the verb's own answer is `unsupported`, naming the
+        -- missing primitive -- and an `ok` would mean a client somehow sent
+        -- the packet without a prompt typed into.
         step("chat.resume_name", function()
             local fn = verb("chat", "resume_name")
             if not fn then return missing("chat", "resume_name") end
             local result, detail = fn("conformance")
-            if result ~= "ok" then
-                return result, "-> " .. describe(detail)
+            if result == "unsupported" and string.find(tostring(detail), "resume_namedialog", 1, true) then
+                return "ok", "a client answers unsupported, as it must (it types the name: chat.name_entry) -> "
+                    .. describe(detail)
             end
-            return prompt_echoed(result, detail, "conform_test_nameprompt: conformance")
+            if result == "ok" then
+                return prompt_echoed(result, detail, "conform_test_nameprompt: conformance")
+            end
+            return result, "-> " .. describe(detail)
+        end)
+
+        -- ------------------------------ phase 6c: verbs that had no row (2026-11-22)
+        --
+        -- verb_list.py --check named 102 driver verbs with no row here on
+        -- 2026-11-22.  These are the ones the Lumbridge world above can grade:
+        -- chat lines, the client-only refusals, pure readers, the pointer
+        -- primitives and the sidebar reads.  Each is graded on what it
+        -- answered AND on the world agreeing with it.
+
+        -- The serial of the newest chat line: what a `since` reads after.
+        local function chat_serial_now()
+            local _, rows = t.msg.last(1)
+            if type(rows) == "table" and type(rows[1]) == "table" and math.type(rows[1].serial) == "integer" then
+                return rows[1].serial
+            end
+            return 0
+        end
+        local SAY_TEXT = "conformance says hello"
+        local say_since = nil
+
+        step("chat.say", function()
+            local fn = verb("chat", "say")
+            if not fn then return missing("chat", "say") end
+            say_since = chat_serial_now()
+            local result, detail = fn(SAY_TEXT)
+            if result ~= "ok" then return result, "say -> " .. describe(detail) end
+            -- The speaker reads his own public line back on the next tick.
+            local seen = nil
+            local waited = t.await({
+                level = function()
+                    local _, rows = t.msg.last(10)
+                    for _, row in ipairs(rows or {}) do
+                        if (row.serial or 0) > say_since and string.find(string.lower(tostring(row.text)), SAY_TEXT, 1, true) then
+                            seen = row
+                            return true
+                        end
+                    end
+                    return false
+                end,
+                note = "chat.say line back",
+            }, 4)
+            if waited ~= "ok" then
+                return "hollow", "say answered ok but no chat line carried '" .. SAY_TEXT .. "' within 4 ticks -- " .. describe(detail)
+            end
+            return "ok", "said '" .. SAY_TEXT .. "' -> " .. describe(detail) .. "; read back as type " .. describe(seen.type)
+                .. " '" .. describe(seen.text) .. "'"
+        end)
+
+        step("chat.public", function()
+            local fn = verb("chat", "public")
+            if not fn then return missing("chat", "public") end
+            if say_since == nil then return "no_subject", "chat.say never ran" end
+            local result, rows, newest = fn(say_since)
+            if result ~= "ok" or not is_table(rows) then return result, "public -> " .. describe(rows) end
+            for _, row in ipairs(rows) do
+                if string.find(string.lower(tostring(row.text)), SAY_TEXT, 1, true) and is_text(row.sender) then
+                    if math.type(newest) ~= "integer" or newest < row.serial then
+                        return "hollow", "newest " .. describe(newest) .. " is older than the line it returned " .. describe(row.serial)
+                    end
+                    return "ok", string.format("%d public line(s) since %d; '%s' from %s at serial %d, newest %d",
+                        #rows, say_since, tostring(row.text), tostring(row.sender), row.serial, newest)
+                end
+            end
+            return "hollow", "the said line is not among the public lines since " .. say_since .. ": " .. describe(rows)
+        end)
+
+        step("chat.lines", function()
+            local fn = verb("chat", "lines")
+            if not fn then return missing("chat", "lines") end
+            if say_since == nil then return "no_subject", "chat.say never ran" end
+            local result, rows = fn(say_since)
+            if result ~= "ok" or not is_table(rows) then return result, "lines -> " .. describe(rows) end
+            local last = -1
+            local found = nil
+            for _, row in ipairs(rows) do
+                if (row.serial or -1) <= last then
+                    return "hollow", "lines are not oldest first: serial " .. describe(row.serial) .. " after " .. last
+                end
+                last = row.serial
+                if (row.type == 2 or row.type == 1) and string.find(string.lower(tostring(row.text)), SAY_TEXT, 1, true) then
+                    found = row
+                end
+            end
+            if not found then
+                return "hollow", "no public line (type 2, or 1 from a crown) carries the said text among " .. #rows .. " line(s): " .. describe(rows)
+            end
+            local _, none = fn(last)
+            if type(none) ~= "table" or #none ~= 0 then
+                return "hollow", "lines since the newest serial " .. last .. " are not empty: " .. describe(none)
+            end
+            return "ok", string.format("%d line(s) since %d, oldest first; the said line is type %d at %d; none after %d",
+                #rows, say_since, found.type, found.serial, last)
+        end)
+
+        -- Scriptrun's stand-ins for a typed answer (chat.lua): a client types
+        -- into the prompt instead, so its own answer is `unsupported`, naming
+        -- the primitive it lacks (as chat.resume_name above).
+        step("chat.resume_obj", function()
+            local fn = verb("chat", "resume_obj")
+            if not fn then return missing("chat", "resume_obj") end
+            local result, detail = fn(1)
+            if result == "unsupported" and string.find(tostring(detail), "resume_objdialog", 1, true) then
+                return "ok", "a client answers unsupported, as it must (it searches by typing) -> " .. describe(detail)
+            end
+            return (result == "ok") and "hollow" or result, "-> " .. describe(detail)
+        end)
+
+        step("chat.resume_string", function()
+            local fn = verb("chat", "resume_string")
+            if not fn then return missing("chat", "resume_string") end
+            local result, detail = fn("conformance")
+            if result == "unsupported" and string.find(tostring(detail), "resume_stringdialog", 1, true) then
+                return "ok", "a client answers unsupported, as it must (it types the line) -> " .. describe(detail)
+            end
+            return (result == "ok") and "hollow" or result, "-> " .. describe(detail)
+        end)
+
+        -- FRIENDLIST_ADD through the client's own social send: a real name is
+        -- queued; a name the packet cannot carry is refused before anything
+        -- is sent.
+        step("player.add_friend", function()
+            local fn = verb("player", "add_friend")
+            if not fn then return missing("player", "add_friend") end
+            local result, detail = fn("Conformbot")
+            if result ~= "ok" or not string.find(tostring(detail), "friendlist_add", 1, true) then
+                return (result == "ok") and "hollow" or result, "add Conformbot -> " .. describe(detail)
+            end
+            local long_result, long_detail = fn("thirteenchars")
+            if long_result ~= "refused" then
+                return "hollow", "a 13-character name answered " .. describe(long_result) .. " " .. describe(long_detail)
+            end
+            return "ok", "Conformbot -> " .. describe(detail) .. "; 13 characters -> refused " .. describe(long_detail)
+        end)
+
+        step("prayer.blocked", function()
+            local fn = verb("prayer", "blocked")
+            if not fn then return missing("prayer", "blocked") end
+            local line = "You have been injured and can't use that prayer!"
+            local hit, miss = fn(line), fn("You can't use that prayer right now.")
+            if hit ~= true or miss ~= false then
+                return "hollow", "blocked(the injury line) = " .. describe(hit) .. ", blocked(another line) = " .. describe(miss)
+            end
+            return "ok", "the injury line reads blocked; another line does not"
+        end)
+
+        step("inv.count_in", function()
+            local fn = verb("inv", "count_in")
+            if not fn then return missing("inv", "count_in") end
+            local count = verb("inv", "count")
+            if not count then return missing("inv", "count") end
+            -- The subject is whatever the backpack's first slot holds now
+            -- (the opening runes are spent by this row).
+            local _, first = t.inv.slot(0)
+            local subject = is_table(first) and first.name or ""
+            if not is_text(subject) then return "no_subject", "the backpack's slot 0 is empty" end
+            local result, total = fn("inv", subject)
+            local _, backpack = count(subject)
+            if result ~= "ok" or total ~= backpack or (tonumber(total) or 0) < 1 then
+                return (result == "ok") and "hollow" or result, "count_in(inv, " .. subject .. ") -> "
+                    .. describe(total) .. ", inv.count -> " .. describe(backpack)
+            end
+            local none_result, none = fn("no_such_inv_conformance", subject)
+            if none_result == "ok" then
+                return "hollow", "an unknown inv answered ok " .. describe(none)
+            end
+            return "ok", "count_in(inv, " .. subject .. ") = " .. describe(total) .. " = inv.count; an unknown inv -> "
+                .. describe(none_result)
+        end)
+
+        step("until_tick", function()
+            local fn = verb("until_tick")
+            if not fn then return missing("until_tick") end
+            -- A tick long past answers late, naming the clock it read (the
+            -- api_drive.tick clock every deadline is written against).
+            local late, late_detail = fn(-1)
+            local now = tonumber(string.match(tostring(late_detail), "now (%d+)"))
+            if late ~= "late" or now == nil then
+                return "hollow", "a tick long past answered " .. describe(late) .. " " .. describe(late_detail)
+            end
+            local result, detail = fn(now + 3)
+            local _, after_detail = fn(-1)
+            local after = tonumber(string.match(tostring(after_detail), "now (%d+)"))
+            if result ~= "ok" or after == nil or after < now + 3 then
+                return (result == "ok") and "hollow" or result, "until_tick(" .. (now + 3) .. ") -> "
+                    .. describe(result) .. " " .. describe(detail) .. "; the clock then " .. describe(after)
+            end
+            return "ok", "tick -1 -> late (" .. describe(late_detail) .. "); until_tick(" .. (now + 3)
+                .. ") -> ok, the clock at " .. after
+        end)
+
+        step("party.publish_target", function()
+            local fn = verb("party", "publish_target")
+            if not fn then return missing("party", "publish_target") end
+            local result, detail = fn(0)
+            if result ~= "ok" then return result, describe(detail) end
+            return "ok", "a party of one publishes nothing and answers ok (no barrier mark: the link has no reader)"
+        end)
+
+        step("party.others_on", function()
+            local fn = verb("party", "others_on")
+            if not fn then return missing("party", "others_on") end
+            local roles = fn(0, 5)
+            if type(roles) ~= "table" or #roles ~= 0 then
+                return "hollow", "a party of one read other seats on slot 0: " .. describe(roles)
+            end
+            return "ok", "a party of one: no other seat on slot 0 in the last 5 ticks ({})"
+        end)
+
+        -- The raw pointer primitives (pointer.lua): a move, and a left click
+        -- on the chatbox's own background, where a click does nothing.
+        step("drive.pointer_to", function()
+            local fn = verb("drive", "pointer_to")
+            if not fn then return missing("drive", "pointer_to") end
+            local result, detail = fn(300, 200)
+            if result ~= "ok" then return result, "mouse_move 300,200 -> " .. describe(detail) end
+            return "ok", "the pointer moved to 300,200 (api_drive.mouse_move -> ok)"
+        end)
+
+        step("drive.left_click", function()
+            local fn = verb("drive", "left_click")
+            if not fn then return missing("drive", "left_click") end
+            -- An empty backpack cell (the last one: the opening runes fill
+            -- fewer than 28), where a left click does nothing.  NOT the chat
+            -- panel's corner: that is the All tab, and a click there folded
+            -- the chatbox away under seam.hunt_closes_menu (2026-11-22).
+            t.ui.tab("inventory")
+            local br, bounds = t.ui._bounds_of("inventory:items")
+            if br ~= "ok" or not is_table(bounds) then return "no_subject", "no backpack bounds: " .. describe(br) end
+            local x, y = bounds.x + bounds.width - 12, bounds.y + bounds.height - 12
+            local _, last = t.inv.slot(27)
+            if is_table(last) and is_text(last.name) then return "no_subject", "backpack slot 27 is not empty: " .. last.name end
+            local _, before = t.world.tile()
+            local result, detail = fn(x, y)
+            settle(2)
+            local _, after = t.world.tile()
+            if result ~= "ok" then return result, "left_click " .. x .. "," .. y .. " -> " .. describe(detail) end
+            if not is_table(before) or not is_table(after) or before.x ~= after.x or before.z ~= after.z then
+                return "hollow", "a click on an empty backpack cell moved the player: " .. describe(before) .. " -> " .. describe(after)
+            end
+            return "ok", "left_click " .. x .. "," .. y .. " (backpack slot 27, empty) -> ok; the player stayed on " .. before.x .. "," .. before.z
+        end)
+
+        step("drive.op_available", function()
+            local fn = verb("drive", "op_available")
+            if not fn then return missing("drive", "op_available") end
+            local by_symbol = verb("player", "by_symbol")
+            if not by_symbol then return missing("player", "by_symbol") end
+            local target = by_symbol("npc", NPC_SYMBOL)
+            if not is_table(target) then return "no_subject", "no " .. NPC_SYMBOL .. " to read ops on" end
+            -- The op is the cache's op NUMBER (sleepinggiants.lua's use): a
+            -- Man's op 1 is Talk-to; op 5 is empty on him.
+            local r1, talk = fn(target, 1)
+            local r2, fifth = fn(target, 5)
+            local r3, bad = fn({}, 1)
+            if r1 ~= "ok" or talk ~= true or r2 ~= "ok" or fifth ~= false or r3 ~= "bad_argument" then
+                return "hollow", string.format("op 1 %s/%s, op 5 %s/%s, no target %s/%s",
+                    describe(r1), describe(talk), describe(r2), describe(fifth), describe(r3), describe(bad))
+            end
+            return "ok", NPC_SYMBOL .. " offers op 1 (Talk-to), not op 5; a target with no kind/id -> bad_argument"
+        end)
+
+        step("ui.shown", function()
+            local fn = verb("ui", "shown")
+            if not fn then return missing("ui", "shown") end
+            local tab = verb("ui", "tab")
+            if not tab then return missing("ui", "tab") end
+            tab("inventory")
+            local r1, inv = fn("toplevel_osrs_stretch:side3")
+            local r2, magic = fn("toplevel_osrs_stretch:side6")
+            local r3 = fn("no_such_interface_conformance:nothing")
+            if r1 ~= "ok" or inv ~= true or r2 ~= "ok" or magic ~= false or r3 == "ok" then
+                return "hollow", string.format("inventory panel %s/%s, magic panel %s/%s, unknown symbol %s",
+                    describe(r1), describe(inv), describe(r2), describe(magic), describe(r3))
+            end
+            return "ok", "with the inventory tab up: side3 shown, side6 not; an unknown symbol -> " .. describe(r3)
+        end)
+
+        step("ui.await_presented", function()
+            local fn = verb("ui", "await_presented")
+            if not fn then return missing("ui", "await_presented") end
+            local widget = verb("ui", "widget")
+            local tab = verb("ui", "tab")
+            if not (widget and tab) then return missing("ui", "widget") end
+            local _, side3 = widget("toplevel_osrs_stretch:side3")
+            local _, side6 = widget("toplevel_osrs_stretch:side6")
+            tab("magic")
+            local r1, d1 = fn(side6, "the magic panel", 3)
+            local r2, d2 = fn(side3, "the inventory panel", 1)
+            tab("inventory")
+            if r1 ~= "ok" or r2 ~= "not_visible" then
+                return "hollow", "magic panel after its tab -> " .. describe(r1) .. " " .. describe(d1)
+                    .. "; the inventory panel behind it -> " .. describe(r2) .. " " .. describe(d2)
+            end
+            return "ok", "the magic panel presented after its tab; the inventory panel behind it -> not_visible ("
+                .. describe(d2) .. ")"
+        end)
+
+        -- The local player's own reads that sail.lua carries (they are not
+        -- sailing-only): the walk set ashore, an emote's seq, an npc's pose.
+        step("sail.walk_set", function()
+            local fn = verb("sail", "walk_set")
+            if not fn then return missing("sail", "walk_set") end
+            local result, detail = fn({ ready = "human_ready" })
+            if result ~= "ok" then return result, describe(detail) end
+            local wrong, wrong_detail = fn({ ready = "emote_wave" })
+            if wrong ~= "refused" then
+                return "hollow", "a walk set named wrong answered " .. describe(wrong) .. " " .. describe(wrong_detail)
+            end
+            return "ok", describe(detail) .. "; named wrong -> refused " .. describe(wrong_detail)
+        end)
+
+        step("sail.own_anim", function()
+            local fn = verb("sail", "own_anim")
+            if not fn then return missing("sail", "own_anim") end
+            t.ui.tab("emotes")
+            local cr, cell = t.ui.widget("emote:contents", 5)       -- Wave (emote.constant ^emote_wave)
+            if cr ~= "ok" then t.ui.tab("inventory") return "no_subject", "no Wave cell: " .. describe(cell) end
+            t.ui.invoke(cell, 1)
+            local result, detail = fn({ "emote_wave" }, 4)
+            t.ui.tab("inventory")
+            if result ~= "ok" then return result, describe(detail) end
+            return "ok", "Wave pressed -> " .. describe(detail)
+        end)
+
+        step("sail.pose_trace", function()
+            local fn = verb("sail", "pose_trace")
+            if not fn then return missing("sail", "pose_trace") end
+            local result, detail = fn("Man", 3)
+            if result ~= "ok" or not is_text(detail) or string.find(detail, "absent", 1, true) == 1 then
+                return (result == "ok") and "hollow" or result, "3 frames of the Man's pose -> " .. describe(detail)
+            end
+            return "ok", "3 frames of the Man's pose: " .. detail
         end)
 
         -- ------------------------ phase 7: the scroll and the levelup box
@@ -3629,7 +3975,8 @@ return {
             if result ~= "ok" then
                 return result, text
             end
-            if type(info) ~= "table" or info.issued ~= at or info.seen ~= at or info.in_force ~= at + 1 then
+            -- seen = the tick that takes the press in, at + 1 (QD.prayer._taken_in).
+            if type(info) ~= "table" or info.issued ~= at or info.seen ~= at + 1 or info.in_force ~= at + 1 then
                 return "hollow", "asked tick " .. at .. " but info issued/seen/in_force = "
                     .. describe(info and info.issued) .. "/" .. describe(info and info.seen) .. "/"
                     .. describe(info and info.in_force) .. " -- " .. text
@@ -3668,7 +4015,7 @@ return {
             if result ~= "ok" then
                 return result, text
             end
-            if type(info) ~= "table" or info.issued ~= now + 2 or info.seen ~= now + 2
+            if type(info) ~= "table" or info.issued ~= now + 2 or info.seen ~= now + 3
                 or #info.presses ~= 2 or info.final.protectfrommagic ~= 0
                 or info.final.protectfrommissiles ~= 1
                 or info.displaced.protectfrommagic ~= "protectfrommissiles" then
@@ -3832,8 +4179,14 @@ return {
             local blocked_result, blocked_detail = tog(function() set("protectfrommelee", true) end)
             local _, blocked_value = server(VARBIT.protectfrommelee)
             cheat("::setvar varp7566_prayer_protect_blocked 0", true)
-            if blocked_result ~= "refused" or blocked_value == 1
-                or not string.find(tostring(blocked_detail), "protection prayers", 1, true) then
+            -- The reason is content's line (prayer.rs2 [proc,prayer_can_use],
+            -- RSProx: "You've been injured and can't use that prayer!"), read
+            -- off the chat: t.together's summary cuts each detail short.
+            local named = string.find(tostring(blocked_detail), "can't use that prayer", 1, true) ~= nil
+            for _, row in ipairs(select(2, t.msg.last(6)) or {}) do
+                if string.find(tostring(row.text), "can't use that prayer", 1, true) then named = true end
+            end
+            if blocked_result ~= "refused" or blocked_value == 1 or not named then
                 return "hollow", string.format("under the protection block a press answered %s (varbit %s)"
                     .. " without naming the reason: %s", describe(blocked_result), describe(blocked_value),
                     describe(blocked_detail))
@@ -4433,9 +4786,25 @@ return {
             local tab = verb("ui", "tab")
             if not fn then return missing("player", "inv_op") end
             if not tab then return missing("ui", "tab") end
+            local show = t.player._show_backpack
+            if type(show) ~= "function" then return missing("player", "_show_backpack") end
             local tab_result = tab(TAB_AWAY_FROM_BACKPACK)
             settle(3)
+            -- _show_backpack now waits for the sidebar to paint the cells, so
+            -- the race no longer happens by itself (2026-11-23: the first press
+            -- always landed).  It is staged: the press's FIRST show is skipped,
+            -- so the first press meets the tab switched away and the retry's
+            -- show is the real one.
+            local shows = 0
+            t.player._show_backpack = function(...)
+                shows = shows + 1
+                if shows == 1 then
+                    return "ok", "conformance: the staged unpainted backpack"
+                end
+                return show(...)
+            end
             local result, detail = fn(SEAM_OBJ_SYMBOL, INV_OP_UNCLAIMED)
+            t.player._show_backpack = show
             local text = "tab " .. describe(tab_result) .. " -> " .. describe(detail)
             local graded, answer = no_script_probe(result, detail, "")
             if graded ~= "ok" then
@@ -6205,65 +6574,50 @@ return {
                 .. describe(bogus_detail)
         end)
 
-        -- SEAM npc_reaim_names_the_move (pointer.lua QD.drive._npc_reaim in
-        -- click_minimenu; seam15).  Under the npc wander parity an npc steps
-        -- between the frame its pixel is taken and the press: eadgar's
-        -- talk_to(troll_eadgar) answered `covered ... none of 99 pixels
-        -- hittested around the projected 349,264`, the menu offering only the
-        -- Cave Exit and Walk here (build/seam_state/seam14/fixrun/eadgar row
-        -- 18).  Now a covered press on an npc whose pool tile changed since
-        -- the aim is re-aimed ONCE on the new tile, and the note names the
-        -- move.  A real step cannot be timed from here, so the row STAGES one
-        -- through the private helpers the press calls: the aim reads the
-        -- sheep one tile east of where it stands, and the first press answers
-        -- covered without pressing.  Graded on the press answering ok and the
-        -- note carrying 'moved a,b -> c,d between aim and press; re-aimed'.
+        -- SEAM npc_reaim_names_the_move (pointer.lua click_minimenu; seam15,
+        -- rewritten 2026-11-23).  It used to stage an npc stepping between the
+        -- frame its pixel was taken and the press, and grade the re-aim note.
+        -- Since 2026-10-16 (owner: "the clicks should not be done by scanning
+        -- the scene") an npc press is api_drive.world_op on the copy's element
+        -- -- no projection, no pixel, no menu read -- so there is no gap
+        -- between aim and press for a step to fall into, and the staged
+        -- helpers were never called.  What is graded now is that rule: the
+        -- press lands ok while the pixel press answers `covered` and the aim
+        -- reads the sheep a tile off, and neither helper is called at all.
         -- The quest is not started, so the prod answers only "The sheep looks
         -- extremely ill".
         seam("seam.npc_reaim_names_the_move", function()
             local press = verb("player", "press")
             local aim_tile = verb("drive", "_npc_aim_tile")
             local press_row = verb("drive", "_press_row")
-            local note = verb("note")
             if not press then return missing("player", "press") end
             if not aim_tile then return missing("drive", "_npc_aim_tile") end
             if not press_row then return missing("drive", "_press_row") end
-            if not note then return missing("note") end
-            local asks = 0
-            local notes = {}
+            local asks, presses = 0, 0
             t.drive._npc_aim_tile = function(target, element_id)
                 asks = asks + 1
                 local tile = aim_tile(target, element_id)
-                if asks == 1 and tile ~= nil then
+                if tile ~= nil then
                     return { x = tile.x + 1, z = tile.z, element = tile.element }
                 end
                 return tile
             end
             t.drive._press_row = function(target, pos, action, deadline)
-                if asks < 2 then
-                    return "covered", "conformance: the staged covered press"
-                end
-                return press_row(target, pos, action, deadline)
-            end
-            t.note = function(text)
-                notes[#notes + 1] = tostring(text)
-                note(text)
+                presses = presses + 1
+                return "covered", "conformance: the staged covered pixel press"
             end
             local result, detail = press("plaguesheep_1", 1, 4)
             t.drive._npc_aim_tile = aim_tile
             t.drive._press_row = press_row
-            t.note = note
-            local said = table.concat(notes, " | ")
             if result ~= "ok" then
-                return result, "press(plaguesheep_1) after a staged step: " .. describe(detail)
-                    .. " [notes: " .. said .. "]"
+                return result, "press(plaguesheep_1) with the pixel path staged covered: "
+                    .. describe(detail)
             end
-            if string.find(said, " between aim and press; re-aimed at ", 1, true) == nil
-                or string.find(said, "moved ", 1, true) == nil then
-                return "hollow", "the press landed but no note named the move: " .. said
-                    .. " / " .. describe(detail)
+            if asks ~= 0 or presses ~= 0 then
+                return "refused", "an npc press went through the pixel path (aims "
+                    .. asks .. ", pixel presses " .. presses .. "): " .. describe(detail)
             end
-            return "ok", said .. " / " .. describe(detail)
+            return "ok", "pressed by element, no aim and no pixel press: " .. describe(detail)
         end)
 
         -- SEAM settle_modal_mount (pointer.lua QD.player._settle_after_click's
@@ -6351,10 +6705,13 @@ return {
         -- SEAM varbit_server_reads_untransmitted_base (state.lua
         -- QD._var_server_varbit over api_drive.varbit_content; seam35).  A
         -- varbit is bits of a base varp, and the client holds only what the
-        -- server SENT: mm_daero / mm_caranock sit on mm_gnomes (varp 372),
-        -- which no content .varp declares transmit=yes, so var.server and
-        -- var.await_server read a confident ok/0 for Monkey Madness's whole
-        -- leg 1 (sonnet-b44; build/quest_gate/s35vb_before: 6 of 14 rows).
+        -- server SENT: chickenquest / chickenquest_things_done sit on
+        -- varp684_100_ogre, transmit=no (server_fields.generated.varp), so
+        -- the client's record of them is a confident ok/0.  Found on Monkey
+        -- Madness's mm_daero / mm_caranock (varp 372, leg 1, sonnet-b44;
+        -- build/quest_gate/s35vb_before: 6 of 14 rows); the MM I port made
+        -- 372 transmitted (2026-11-14), so this row moved to a base that is
+        -- still unsent.
         -- Graded on reading back what ::setvar wrote into BOTH varbits (the
         -- second write must keep the first's bits), and on a varbit whose
         -- base IS transmitted (horrorquest on deephorror) staying on the
@@ -6364,19 +6721,19 @@ return {
             local await_server = verb("var", "await_server")
             if not server then return missing("var", "server") end
             if not await_server then return missing("var", "await_server") end
-            setup_cheat("::setvar varb123_mm_daero 3")
-            setup_cheat("::setvar varb122_mm_caranock 2")
+            setup_cheat("::setvar varb1910_chickenquest 3")
+            setup_cheat("::setvar varb1911_chickenquest_things_done 2")
             setup_cheat("::setvar varb34_horrorquest 2")
             settle(2)
-            local awaited, await_detail = await_server("varb123_mm_daero", 3, 5)
+            local awaited, await_detail = await_server("varb1910_chickenquest", 3, 5)
             if awaited ~= "ok" then
-                return awaited, "var.await_server(mm_daero, 3) after ::setvar: " .. describe(await_detail)
+                return awaited, "var.await_server(chickenquest, 3) after ::setvar: " .. describe(await_detail)
             end
-            local result, value, source = server("varb122_mm_caranock")
+            local result, value, source = server("varb1911_chickenquest_things_done")
             if result ~= "ok" or value ~= 2
                 or not string.find(tostring(source), "server content copy", 1, true) then
                 return (result == "ok") and "refused" or result,
-                    "var.server(mm_caranock) after ::setvar 2 -> " .. describe(result) .. "/"
+                    "var.server(chickenquest_things_done) after ::setvar 2 -> " .. describe(result) .. "/"
                     .. describe(value) .. " " .. describe(source)
             end
             local control, control_value, control_source = server("varb34_horrorquest")
@@ -6385,10 +6742,10 @@ return {
                     "a transmitted varbit left the client-record channel: var.server(horrorquest) -> "
                     .. describe(control) .. "/" .. describe(control_value) .. " " .. describe(control_source)
             end
-            setup_cheat("::setvar varb123_mm_daero 0")
-            setup_cheat("::setvar varb122_mm_caranock 0")
+            setup_cheat("::setvar varb1910_chickenquest 0")
+            setup_cheat("::setvar varb1911_chickenquest_things_done 0")
             setup_cheat("::setvar varb34_horrorquest 0")
-            return "ok", describe(await_detail) .. "; mm_caranock=2 (" .. describe(source)
+            return "ok", describe(await_detail) .. "; chickenquest_things_done=2 (" .. describe(source)
                 .. "); horrorquest=2 (" .. describe(control_source) .. ")"
         end)
 
@@ -6528,12 +6885,25 @@ return {
             return "ok", describe(detail)
         end)
 
-        stage(function()
-            local key = verb("key")
-            if key then
-                key("escape")                                  -- setup: the jigsaw
-            end
+        -- The jigsaw is a main modal: ui.close_modal closes it the way the
+        -- client's own close does (CLOSE_MODAL), and the modal is gone after.
+        step("ui.close_modal", function()
+            local fn = verb("ui", "close_modal")
+            if not fn then return missing("ui", "close_modal") end
+            local open_before = t.ui.await_open("jigsaw", 1)
+            local result, detail = fn()
             settle(2)
+            local still = t.ui.await_open("jigsaw", 1)
+            if open_before ~= "ok" then
+                local key = verb("key")
+                if key then key("escape") end
+                return "no_subject", "the jigsaw was not open to close (" .. describe(open_before) .. ")"
+            end
+            if result ~= "ok" or still == "ok" then
+                return (result == "ok") and "hollow" or result, "close_modal -> " .. describe(result) .. " "
+                    .. describe(detail) .. "; the jigsaw still open: " .. describe(still == "ok")
+            end
+            return "ok", "close_modal -> ok " .. describe(detail) .. "; the jigsaw is shut"
         end)
 
         -- ------------------------------- phase 7d: a sea leg (sail.*)
@@ -6548,6 +6918,19 @@ return {
         -- hook (torirs_server_vessel.c vessel_update_zones) exists to report.
         -- Proven first as build/quest_gate/s16b_sea_leg and s16b_port_task.
         stage(function()
+            -- Empty hands: the ledger refuses a crate to a player holding
+            -- anything ("You cannot pick up any cargo as your hands are
+            -- full.", port_tasks.rs2, RSProx 4407), and the combat block
+            -- left its rune scimitar wielded (sail.cargo_take, 2026-11-22).
+            -- The backpack is full of the opening setup's runes, so the
+            -- scimitar needs room to come off into; every row after this
+            -- block gives what it uses.
+            setup_cheat("::clearinv")                          -- setup
+            settle(1)
+            local unequip = verb("player", "unequip")
+            if unequip then
+                unequip(COMBAT_WEAPON)                         -- setup
+            end
             setup_cheat("::setlevel sailing 20")               -- setup
             setup_cheat("::setvar varb19258_sailing_boat_1_owned 1")     -- setup
             setup_cheat("::setvar varb19259_sailing_boat_1_type 1")      -- setup: a skiff
@@ -6679,6 +7062,90 @@ return {
                 "content's own load line")
         end)
 
+        -- The hold, three ways (2026-11-22 rows): its own Open row read as a
+        -- deck op, the crate taken back into the hands, loaded again, then
+        -- withdrawn into the backpack -- where sail.cargo_deliver below still
+        -- finds it, at a port that is not its destination.
+        local CATHERBY_CRATE = "cargo_crate_flax_port_sarim"
+        step("sail.deck_op", function()
+            local fn = verb("sail", "deck_op")
+            if not fn then return missing("sail", "deck_op") end
+            -- The hold is a multiloc; the client's row names whichever form
+            -- is drawn, so each is asked in turn.
+            local result, detail = "not_found", ""
+            for _, sym in ipairs({ "sailing_boat_cargo_hold_regular_2x5", "sailing_boat_cargo_hold_regular_2x5_cargo",
+                "sailing_boat_cargo_hold_regular_2x5_no_cargo" }) do
+                local r, d = fn(sym, "Open")
+                detail = detail .. (detail ~= "" and " | " or "") .. describe(d)
+                if r == "ok" then result = "ok" break end
+                result = r
+            end
+            if result ~= "ok" then return result, describe(detail) end
+            local opened = t.ui.await_open("sailing_boat_cargohold", 6)
+            t.key("escape")
+            t.ui.await_close("sailing_boat_cargohold", 3)
+            if opened ~= "ok" then
+                return "hollow", describe(detail) .. " but the hold never opened (" .. describe(opened) .. ")"
+            end
+            return "ok", describe(detail) .. "; the hold opened, then closed"
+        end)
+
+        step("sail.cargo_withdraw", function()
+            local fn = verb("sail", "cargo_withdraw")
+            if not fn then return missing("sail", "cargo_withdraw") end
+            local result, detail = fn("cargo hold", 0)
+            return names_reading(result, detail, "", { "carrying" }, "the crate back in the hands")
+        end)
+
+        stage(function()
+            local load = verb("sail", "cargo_load")
+            if load then
+                load("cargo hold")                             -- setup: back into the hold
+            end
+        end)
+
+        -- Withdraw-All is the hold's way for a plain item (a crate goes to the
+        -- hands, sail.cargo_withdraw above): salvage -- an item the hold's
+        -- whitelist takes, sailing_tour.lua's own subject -- is put in through
+        -- the hold's Deposit-All first.
+        local HOLD_ITEM = "sailing_small_shipwreck_salvage"
+        step("sail.hold_withdraw", function()
+            local fn = verb("sail", "hold_withdraw")
+            if not fn then return missing("sail", "hold_withdraw") end
+            setup_cheat("::give " .. HOLD_ITEM .. " 3")
+            settle(1)
+            local dr, dd = t.sail._press_deck_row("Open", "cargo hold")
+            local opened = t.ui.await_open("sailing_boat_cargohold", 6)
+            local deposited = "not tried"
+            if opened == "ok" then
+                local _, inv_id = t.ui.widget("sailing_boat_cargohold_side:items")
+                local slot = nil
+                for i = 0, 27 do
+                    local _, cell = t.inv.slot(i)
+                    if is_table(cell) and cell.name == HOLD_ITEM then slot = i break end
+                end
+                if inv_id and slot then
+                    local _, cell_widget = t.ui.widget("sailing_boat_cargohold_side:items", slot)
+                    deposited = describe((t.ui.invoke(cell_widget, 6)))   -- Deposit-All (~sailing_cargo_quantity: max)
+                end
+                t.key("escape")
+                t.ui.await_close("sailing_boat_cargohold", 3)
+            end
+            settle(1)
+            local _, before = t.inv.count(HOLD_ITEM)
+            if (tonumber(before) or 0) > 0 then
+                return "no_subject", "the salvage never went into the hold: open " .. describe(dr) .. " " .. describe(dd)
+                    .. ", hold " .. describe(opened) .. ", deposit " .. deposited
+            end
+            local result, detail = fn(HOLD_ITEM, "cargo hold")
+            if result ~= "ok" then return result, describe(detail) end
+            local _, held = t.inv.count(HOLD_ITEM)
+            if (tonumber(held) or 0) < 3 then
+                return "hollow", "answered ok but the backpack holds " .. describe(held) .. " " .. HOLD_ITEM .. " -- " .. describe(detail)
+            end
+            return "ok", describe(detail) .. "; backpack " .. HOLD_ITEM .. " x" .. tostring(held)
+        end)
+
         step("sail.helm", function()
             local fn = verb("sail", "helm")
             if not fn then return missing("sail", "helm") end
@@ -6805,6 +7272,291 @@ return {
                 return "refused", "reported a delivery at the cargo port -- " .. describe(detail)
             end
             return result, describe(detail)
+        end)
+
+        -- ------------------- phase 7b1: the shipyard and a charting leg
+        --
+        -- (2026-11-22 rows.)  test/raids/sailing_tour.lua's own route, cut to
+        -- what the verbs need: Junior Jim's "Customise a boat" (the selector,
+        -- the catalogue, one part built, one hotspot's catalogue), the berth's
+        -- plank home, then the Pandemonium -> Port Sarim leg with its chart
+        -- of the Wreck of the Salty Grouper and a gust trimmed on the way.
+        local PANDEMONIUM_PLANK = "sailing_gangplank_the_pandemonium"
+        stage(function()
+            setup_cheat("::clearinv")                          -- setup
+            setup_cheat("::setlevel construction 99")          -- setup
+            setup_cheat("::setlevel sailing 99")               -- setup
+            setup_cheat("::complete quest_pandemonium")        -- setup: Junior Jim's shipwright menu (sailing_tour.lua's own)
+            setup_cheat("::setvar varb19260_sailing_boat_1_port 1") -- setup: the Pandemonium's dock_id
+            setup_cheat("::tele 0_47_46_52_37")                -- setup: beside Junior Jim's counter
+            settle(3)
+        end)
+
+        step("sail.select_boat", function()
+            local fn = verb("sail", "select_boat")
+            if not fn then return missing("sail", "select_boat") end
+            local talk = t.player.talk_to("junior_jim", 1)
+            local played, play_detail = t.chat.play({ "choose:Customise a boat" })
+            if talk ~= "ok" or played ~= "ok" then
+                return "no_subject", "Junior Jim's Customise a boat: talk " .. describe(talk) .. ", menu "
+                    .. describe(played) .. " " .. describe(play_detail)
+            end
+            local result, detail = fn(1)
+            if result ~= "ok" then return result, describe(detail) end
+            local catalogue = t.ui.await_open("sailing_customisation", 5)
+            if catalogue ~= "ok" then
+                return "hollow", describe(detail) .. " but no shipyard catalogue opened (" .. describe(catalogue) .. ")"
+            end
+            return "ok", describe(detail) .. "; the shipyard catalogue is open"
+        end)
+
+        step("sail.build", function()
+            local fn = verb("sail", "build")
+            if not fn then return missing("sail", "build") end
+            setup_cheat("::give sailing_boat_keel_part_iron 10")
+            setup_cheat("::give hammer 1")                     -- "You need a hammer and saw to build boat parts."
+            setup_cheat("::give poh_saw 1")
+            settle(1)
+            local _, before = t.skill.snapshot()
+            local result, detail = fn("sailing_boat_iron_keel_2x5", "Iron keel", "Keel")
+            if result ~= "ok" then return result, describe(detail) end
+            local gained, gain_detail = t.skill.expect_gain("construction", 200, before)
+            local _, keel = t.var.server("varb19266_sailing_boat_1_keel")
+            if gained ~= "ok" or keel ~= 1 then
+                return "hollow", describe(detail) .. "; construction " .. describe(gain_detail) .. ", keel varbit "
+                    .. describe(keel) .. " (want 1)"
+            end
+            return "ok", describe(detail) .. "; +200 construction, varb19266 keel = 1"
+        end)
+
+        step("sail.open_hotspot", function()
+            local fn = verb("sail", "open_hotspot")
+            if not fn then return missing("sail", "open_hotspot") end
+            t.key("escape")
+            t.ticks(1)
+            local result, detail = fn(0, "sailing_boat_facility_placeholder_2x5_0")
+            if result ~= "ok" then return result, describe(detail) end
+            local _, hotspot = t.var.server("varb19524_sailing_boat_customisation_hotspot_id")
+            if hotspot ~= 0 or t.ui.await_open("sailing_customisation", 3) ~= "ok" then
+                return "hollow", describe(detail) .. " but the catalogue reads hotspot " .. describe(hotspot)
+            end
+            return "ok", describe(detail) .. "; the catalogue is hotspot 0's"
+        end)
+
+        stage(function()
+            t.key("escape")                                    -- setup: the catalogue
+            t.ticks(1)
+            t.sail.disembark("sailing_gangplank_shipyard_disembark")  -- setup: home to the Pandemonium
+            t.sail.board(PANDEMONIUM_PLANK, 2)                 -- setup: aboard at the dock
+            t.sail.helm("Helm")
+            t.sail.sails(true)
+            t.sail.sail_to(3082, 2984, 2)
+            t.sail.sail_to(3082, 3012, 2)
+        end)
+
+        step("sail.chart", function()
+            local fn = verb("sail", "chart")
+            if not fn then return missing("sail", "chart") end
+            t.sail.sail_to(3053, 3045, 1)
+            t.sail.sails(false)
+            local _, before = t.skill.snapshot()
+            local result, detail = fn("Wreck of the Salty Grouper", "sailing_charting_generic_rowboat_mudskipper_sound")
+            if result ~= "ok" then return result, describe(detail) end
+            local gained = t.skill.expect_gain("sailing", 35, before)
+            local _, logged = t.var.server("varb18582_sailing_charting_generic_rowboat_mudskipper_sound_complete")
+            if gained ~= "ok" or logged ~= 1 then
+                return "hollow", describe(detail) .. "; sailing xp " .. describe(gained) .. ", the log's varbit " .. describe(logged)
+            end
+            return "ok", describe(detail) .. "; +35 sailing, the wreck in the Captain's log"
+        end)
+
+        -- A gust (boat_wind.rs2: ~49 sailing ticks, then a 15-tick window),
+        -- trimmed on the mast's Work row -- on
+        -- the 54-tile open leg south of the wreck, where a burst has water
+        -- ahead of it (one trimmed at the end of a short leg ran aground,
+        -- 2026-11-22; sailing_tour.lua trims only on such legs).
+        step("sail.trim", function()
+            local fn = verb("sail", "trim")
+            if not fn then return missing("sail", "trim") end
+            -- Whatever the chart row left up goes first: in the full run nothing
+            -- after its log page was pressed at all -- no sails, no heading --
+            -- and the gust timer stood paused for the whole wait (conf_base13).
+            for _ = 1, 4 do
+                if t.chat.kind() == "none" then break end
+                t.chat.play({ "*" })
+            end
+            t.ui.close_modal()
+            settle(1)
+            -- Charting walked the player off the helm to the chart spot; the
+            -- sails and the leg are the helm's.
+            local helm_result = t.sail.helm("Helm")
+            local set_result, set_detail = t.sail.sails(true)
+            -- After charting, the sidepanel's sail button sends nothing (conf_base15:
+            -- "pressed ... clicklayer[0]", no packet on the server, the sails left
+            -- furled -- an open driver/UI defect, reported).  The mast's Work row
+            -- sets furled sails when no gust is open (boat_facilities.rs2
+            -- ~sailing_op_sails), so the subject -- the trim -- still gets its gust.
+            if set_result ~= "ok" and type(t.sail._press_deck_row) == "function" then
+                local work_result = t.sail._press_deck_row("Work", "")
+                settle(2)
+                set_detail = tostring(set_detail) .. "; Work on the mast -> " .. describe(work_result)
+                    .. ", toggle " .. describe(t.sail._sails_toggle and t.sail._sails_toggle())
+                if t.sail._sails_toggle and t.sail._sails_toggle() == true then set_result = "ok" end
+            end
+            local leg_result = t.sail.sail_to(3043, 3051, 3)
+            local _, hull = t.sail.state()
+            if is_table(hull) and hull.hull_x then
+                t.sail._set_heading(t.sail._heading_toward(3037 - hull.hull_x, 3105 - hull.hull_z))
+            end
+            -- A real gust: the server keeps the window in the boat's instance
+            -- vars (boat_wind.rs2), one every ~49 sailing ticks then open for
+            -- 15, so the verb's own wait is the subject.
+            -- sail_to stopped the hull at its target: sails set again, or a
+            -- window left over from an earlier gust has Work set the sails
+            -- instead of trimming them ("You set the sails.", 2026-11-22).
+            t.sail.sails(true)
+            t.ticks(3)   -- its "You set the sails." lands before the trim reads its own line
+            local result, detail = fn(70)
+            if result ~= "ok" then
+                return result, describe(detail) .. " (helm " .. describe(helm_result) .. "; sails " .. describe(set_result) .. " "
+                    .. describe(set_detail) .. "; leg " .. describe(leg_result) .. ")"
+            end
+            return "ok", describe(detail)
+        end)
+
+        stage(function()
+            t.sail.sails(true)                                 -- setup: on to Port Sarim's berth
+            for _, leg in ipairs({ { 3043, 3051, 3 }, { 3037, 3105, 3 }, { 3043, 3158, 3 }, { 3044, 3181, 3 },
+                { 3052, 3181, 2 }, { 3057, 3189, 2 } }) do
+                t.sail.sail_to(leg[1], leg[2], leg[3])
+            end
+            t.sail.sails(false)
+            t.sail.disembark("sailing_gangplank_port_sarim")
+            settle(2)
+        end)
+
+        -- ------------------- phase 7b2: the backpack verbs that had no row
+        --
+        -- (2026-11-22, verb_list.py --check.)  Here because the sailing block
+        -- above left the backpack empty: a make-menu, an xp lamp, a book, the
+        -- list menu and a backpack drag each need room the opening runes took.
+        stage(function()
+            setup_cheat("::clearinv")                          -- setup
+            setup_cheat("::give knife 1")                      -- setup: ui.make
+            setup_cheat("::give logs 1")
+            setup_cheat("::give witches_diary 1")              -- setup: ui.read_book
+            settle(3)
+        end)
+
+        -- Knife on logs opens the make-menu (skillmulti); "a" is its first
+        -- cell, arrow shafts, and a make of one takes the log.
+        step("ui.make", function()
+            local fn = verb("ui", "make")
+            if not fn then return missing("ui", "make") end
+            local use = verb("player", "use_item_on_item")
+            local count = verb("inv", "count")
+            if not (use and count) then return missing("player", "use_item_on_item") end
+            local _, logs0 = count("logs")
+            local ur, ud = use("knife", "logs")
+            local result, detail = fn("a")
+            if result ~= "ok" then
+                return result, "knife on logs -> " .. describe(ur) .. " " .. describe(ud) .. "; make -> " .. describe(detail)
+            end
+            local logs1 = logs0
+            t.await({ level = function() local _, c = count("logs") logs1 = c return (tonumber(c) or 0) < (tonumber(logs0) or 0) end,
+                note = "ui.make takes the log" }, 8)
+            if (tonumber(logs1) or 0) >= (tonumber(logs0) or 0) then
+                return "hollow", describe(detail) .. " but the log was not taken (" .. describe(logs0) .. " -> " .. describe(logs1) .. ")"
+            end
+            return "ok", describe(detail) .. "; logs " .. describe(logs0) .. " -> " .. describe(logs1)
+        end)
+
+        -- The witch's diary's right arrow: a pause button the live client
+        -- answers with RESUME_PAUSEBUTTON itself (book.rs2
+        -- if_addresumebutton; Ides of Milk's test turns its book the same
+        -- way).  Graded on the left page's number moving on.
+        step("ui.press_pause", function()
+            local fn = verb("ui", "press_pause")
+            if not fn then return missing("ui", "press_pause") end
+            local inv_op = verb("player", "inv_op")
+            if not inv_op then return missing("player", "inv_op") end
+            inv_op("witches_diary", 1)
+            local opened = t.ui.await_open("book", 6)
+            if opened ~= "ok" then return "no_subject", "the diary never opened (" .. describe(opened) .. ")" end
+            local _, before = t.ui.text("book:page_left_number")
+            local result, detail = fn("book:page_right_button", -1, "book:page_right_button")
+            local after = before
+            t.await({ level = function() local _, now = t.ui.text("book:page_left_number") after = now return now ~= before end,
+                note = "the page turned" }, 5)
+            t.ui.close_modal()
+            t.ui.await_close("book", 3)
+            if result ~= "ok" then return result, describe(detail) end
+            if after == before then
+                return "hollow", describe(detail) .. " but the left page stayed " .. describe(before)
+            end
+            return "ok", describe(detail) .. "; the left page " .. describe(before) .. " -> " .. describe(after)
+        end)
+
+        step("ui.read_book", function()
+            local fn = verb("ui", "read_book")
+            if not fn then return missing("ui", "read_book") end
+            local inv_op = verb("player", "inv_op")
+            if not inv_op then return missing("player", "inv_op") end
+            inv_op("witches_diary", 1)
+            local result, detail = fn(30)
+            if result ~= "ok" then return result, "read the witch's diary -> " .. describe(detail) end
+            if not string.find(tostring(detail), "spread(s) read", 1, true) or t.ui.await_open("book", 1) == "ok" then
+                return "hollow", "answered ok but no spread count, or the book is still open: " .. describe(detail)
+            end
+            return "ok", "the witch's diary: " .. describe(detail) .. ", then closed"
+        end)
+
+        -- The list menu (~menu_pick) on ::conform_test_menu (chat_test_prompts.rs2):
+        -- row 1 pressed, the content's own line reads the row it was given.
+        step("ui.press_row", function()
+            local fn = verb("ui", "press_row")
+            if not fn then return missing("ui", "press_row") end
+            setup_cheat("::conform_test_menu", false)
+            local opened = t.ui.await_open("menu", 6)
+            if opened ~= "ok" then return "no_subject", "::conform_test_menu opened no menu (" .. describe(opened) .. ")" end
+            local result, detail = fn({ sym = "menu:lj_layer1", sub = 1 })
+            if result ~= "ok" then return result, describe(detail) end
+            local got = t.msg.await("conform_test_menu: ", 5)
+            local _, rows = t.msg.last(4)
+            local line = nil
+            for _, row in ipairs(rows or {}) do
+                if string.find(tostring(row.text), "conform_test_menu: ", 1, true) then line = row.text break end
+            end
+            if got ~= "ok" or line ~= "conform_test_menu: 1" then
+                return "hollow", describe(detail) .. "; the menu answered " .. describe(line) .. " (want row 1)"
+            end
+            return "ok", describe(detail) .. "; content read row 1 back ('" .. line .. "')"
+        end)
+
+        -- A backpack drag (the client's own drag machine -> INV_BUTTOND, which
+        -- the server answers by swapping the two slots).
+        step("ui.drag_rows", function()
+            local fn = verb("ui", "drag_rows")
+            if not fn then return missing("ui", "drag_rows") end
+            local slot = verb("inv", "slot")
+            if not slot then return missing("inv", "slot") end
+            t.ui.tab("inventory")
+            local _, a0 = slot(0)
+            local _, b0 = slot(1)
+            if not (is_table(a0) and is_table(b0) and is_text(a0.name) and is_text(b0.name) and a0.name ~= b0.name) then
+                return "no_subject", "slots 0 and 1 do not hold two different items: " .. describe(a0) .. " / " .. describe(b0)
+            end
+            local result, detail = fn("inventory:items", 0, "inventory:items", 1)
+            if result ~= "ok" then return result, describe(detail) end
+            local a1, b1 = nil, nil
+            t.await({ level = function() local _, x = slot(0) local _, y = slot(1) a1, b1 = x, y
+                return is_table(x) and is_table(y) and x.name == b0.name and y.name == a0.name end,
+                note = "ui.drag_rows swap" }, 5)
+            if not (is_table(a1) and is_table(b1) and a1.name == b0.name and b1.name == a0.name) then
+                return "hollow", describe(detail) .. " but slots 0/1 read " .. describe(a1 and a1.name) .. "/"
+                    .. describe(b1 and b1.name) .. " (were " .. a0.name .. "/" .. b0.name .. ")"
+            end
+            return "ok", describe(detail) .. "; slots 0/1 " .. a0.name .. "/" .. b0.name .. " -> " .. a1.name .. "/" .. b1.name
         end)
 
         -- ----------------------- phase 7c: a spell cast on an npc (seam19)
@@ -7713,6 +8465,47 @@ return {
             -- ticks, three runs in a row), so the player punches him too --
             -- Attack/Strength 1 from the stage above, which barely scratches
             -- him -- and his swings are the retaliation to that.
+            -- A FRESH man.  The Wind Strike rows above land now (they were
+            -- refused until 2026-11-22), so the man they hit stands on a
+            -- couple of hitpoints and the punches below killed him before his
+            -- fifth swing ("no live copy of slot 935" in npc.record after).
+            -- ::spawn puts one beside the player; the nearest copy is it, and
+            -- it is the subject of npc.record and npc.pose too.
+            -- The NEW copy, not the nearest: the wounded man stands beside the
+            -- player too, and the nearest-copy pick kept him (2026-11-23: a
+            -- 6-damage Wind Strike landed on him the tick after the spawn).
+            -- Lumbridge is single-way: while the wounded man still swings at the
+            -- player, an attack on a second one is refused (conf_base12: "player.
+            -- attack refused").  So he goes first, and the under-attack lock is
+            -- let run out before the fresh one is spawned.
+            setup_cheat("::kill " .. STATE_NPC .. " 3")
+            settle(12)
+            local _, _, before = t.npc.tiles(STATE_NPC, 15)
+            local old = {}
+            for _, row in ipairs(before or {}) do old[row.slot] = true end
+            setup_cheat("::spawn " .. STATE_NPC)
+            settle(2)
+            local _, _, copies = t.npc.tiles(STATE_NPC, 3)
+            local _, here = t.world.tile()
+            local best = nil
+            for _, row in ipairs(copies or {}) do
+                local d = math.max(math.abs(row.x - here.x), math.abs(row.z - here.z))
+                if not old[row.slot] and (best == nil or d < best.d) then best = { slot = row.slot, d = d } end
+            end
+            if best == nil then
+                return "no_subject", "::spawn " .. STATE_NPC .. " put no new copy within 3 tiles"
+            end
+            state_slot = best.slot
+            -- The punches only have to start his retaliation: at Attack and
+            -- Strength 1 they cannot kill a fresh man before his fifth swing.
+            local _, att0 = t.skill._read("attack")
+            local _, str0 = t.skill._read("strength")
+            setup_cheat("::setlevel attack 1")
+            setup_cheat("::setlevel strength 1")
+            local function restore()
+                if is_table(att0) then setup_cheat("::setlevel attack " .. att0.base_level) end
+                if is_table(str0) then setup_cheat("::setlevel strength " .. str0.base_level) end
+            end
             local attack = verb("player", "attack")
             local engaged = "not pressed"
             if attack then
@@ -7723,11 +8516,17 @@ return {
             for i = 1, 5 do
                 local r, d, tick = await_anim({ slot = state_slot }, STATE_SEQ_ATTACK, STATE_ATTACKRATE * 3)
                 if r ~= "ok" then
+                    restore()
                     return r, "swing " .. i .. ": " .. describe(d) .. " (seen " .. table.concat(ticks, ",")
                         .. "; player.attack " .. engaged .. ")"
                 end
                 ticks[#ticks + 1] = tick
             end
+            -- Read on the edge's own tick: the restore below spends ticks, and
+            -- the player's punches put his block (424) on top of the swing by
+            -- then (conf o3: last seq 424 on 514 against the edge on 512).
+            local r, row = t.npc.state({ slot = state_slot })
+            restore()
             local gaps = {}
             for i = 2, #ticks do
                 gaps[#gaps + 1] = ticks[i] - ticks[i - 1]
@@ -7739,7 +8538,6 @@ return {
                     return "hollow", "a gap after the first is not the attackrate -- " .. text
                 end
             end
-            local r, row = t.npc.state({ slot = state_slot })
             if r ~= "ok" or row.seq_id ~= STATE_SEQ_ATTACK or row.seq_tick ~= ticks[#ticks] then
                 return "hollow", "npc.state disagrees with the last edge: "
                     .. (r == "ok" and t.npc.state_text(row) or describe(row)) .. " -- " .. text
@@ -7836,8 +8634,9 @@ return {
 
         -- RAID SEAM3 npc_facing_read: which square an npc was turned to, read two
         -- ways -- the client's t.npc.state face_x/face_z/face_tick and the server's
-        -- npc_face tick-log row -- on Hans (every ~chatnpc page runs
-        -- npc_facesquare(coord), interface_chat/scripts/chat.rs2:192); never a boss.
+        -- npc_face tick-log row -- on Hans, turned by ::conform_test_npcface
+        -- (npc_facesquare(coord), areas/lumbridge/scripts/hans_test_constants.rs2);
+        -- never a boss.
         -- Proved first by build/quest_gate/face_after4 (21/21) and face_conf1.
         stage(function()
             setup_cheat("::tele lumbridge")                        -- setup
@@ -7854,12 +8653,11 @@ return {
         -- the player's tile, the square npc_facesquare(coord) was given.
         seam("seam.npc_facing_read", function()
             local state = verb("npc", "state")
-            local talk_to = verb("player", "talk_to")
             local walk_near = verb("player", "walk_near")
             local by_symbol = verb("player", "by_symbol")
             if not state then return missing("npc", "state") end
-            if not (talk_to and walk_near and by_symbol) then
-                return "no_subject", "player.talk_to/walk_near/by_symbol missing"
+            if not (walk_near and by_symbol) then
+                return "no_subject", "player.walk_near/by_symbol missing"
             end
             local target = by_symbol("npc", "hans")
             if target == nil then return "no_subject", "no hans to talk to" end
@@ -7872,9 +8670,12 @@ return {
             face_hans_slot = hans.slot
             local wr, wslot = t.ticklog.slot(hans)
             if wr ~= "ok" then return "no_subject", "ticklog.slot hans -> " .. describe(wslot) end
-            local tr, td = talk_to("hans")
-            if tr ~= "ok" then return "no_subject", "talk_to hans -> " .. describe(td) end
+            -- The turn comes from ::conform_test_npcface (npc_facesquare(coord),
+            -- hans_test_constants.rs2): a chat page has turned the npc by a
+            -- face on the PLAYER, never a square, since chat.rs2 matched
+            -- Jagex's pages (2026-10-24), so talk_to sent no FACE_COORD.
             local _, tile = t.world.tile()
+            setup_cheat("::conform_test_npcface", false)
             face_hans_tile = tile
             local text, seen = "none", nil
             local waited = t.await({
@@ -7910,35 +8711,30 @@ return {
                 tile.x, tile.z, text, logged.tick, logged.slot, logged.type, logged.x, logged.z)
         end)
 
-        -- THE NEXT TURN, AS AN EDGE: Hans's own next page turns him again
-        -- (a second facesquare to the same square), and npc.await_face
-        -- answers its tick and tile.  The press that causes it is a verb that
+        -- THE NEXT TURN, AS AN EDGE: a second ::conform_test_npcface turns
+        -- him again (a second facesquare to the same square), and
+        -- npc.await_face answers its tick and tile.  The cheat that causes it
         -- has already returned, so the state row read before it is passed as
         -- `since` (a turn newer than that reading also counts).
         step("npc.await_face", function()
             local await_face = verb("npc", "await_face")
             if not await_face then return missing("npc", "await_face") end
             if face_hans_slot == nil or face_hans_tile == nil then
-                return "no_subject", "seam.npc_facing_read opened no dialogue with hans"
+                return "no_subject", "seam.npc_facing_read never turned hans"
             end
-            local drain = verb("chat", "drain")
-            local choose = verb("chat", "choose")
-            local continue_ = verb("chat", "continue_")
-            if not (drain and choose and continue_) then
-                return "no_subject", "chat.drain/choose/continue_ missing"
-            end
-            drain({ stop_at = "options" })
-            local cr, cd = choose(1)
-            if cr ~= "ok" then return "no_subject", "chat.choose 1 -> " .. describe(cd) end
             local br, before = t.npc.state({ slot = face_hans_slot })
             if br ~= "ok" then return "no_subject", "npc.state -> " .. describe(before) end
-            continue_(true)
+            t.ticks(1)
+            -- The player's tile NOW: the debugproc faces it, and a row between
+            -- may have stepped him (3207,3231 read one row up, 3206,3232 at
+            -- the turn, 2026-11-22).
+            local _, here = t.world.tile()
+            setup_cheat("::conform_test_npcface", false)
             local r, d, tick, x, z = await_face({ slot = face_hans_slot }, before, 5)
-            drain({ stop_at = "none" })
             if r ~= "ok" then return r, describe(d) end
-            if x ~= face_hans_tile.x or z ~= face_hans_tile.z or tick < before.face_tick then
+            if x ~= here.x or z ~= here.z or tick < before.face_tick then
                 return "hollow", string.format("turned to %d,%d on tick %d, not the player's %d,%d after tick %d: %s",
-                    x, z, tick, face_hans_tile.x, face_hans_tile.z, before.face_tick, describe(d))
+                    x, z, tick, here.x, here.z, before.face_tick, describe(d))
             end
             return "ok", tostring(d)
         end)
@@ -8105,14 +8901,14 @@ return {
                 return "no_subject", "talk_to professor_oddenstein -> " .. describe(talk_result)
                     .. " " .. describe(talk_detail)
             end
+            -- The wildcard ends this script: "Let's get this fixed then." is
+            -- followed by the machine scene (~haunted_machine_scene, RSProx
+            -- index 4363), which closes the dialogue until Ernest's pages.
             local result, detail = play({
                 "npc:Have you found anything yet?",
                 "player:I have everything!",
                 "npc:Give 'em here then.",
                 "*",
-                "npc:It was dreadfully irritating being a chicken. How can I ever thank you?",
-                "player:Well a cash reward is always nice...",
-                "npc:Of course, of course.",
             })
             local text = "chat.play over the hand-in -> " .. describe(result) .. " " .. describe(detail)
             if result ~= "ok" then
@@ -8122,7 +8918,16 @@ return {
                 return "hollow", "the wildcard's summary does not name the page it continued past -- "
                     .. text
             end
-            return "ok", text
+            t.await({ level = function() return t.chat.kind() ~= "none" end, note = "Ernest after the scene" }, 60)
+            local thanks, thanks_detail = play({
+                "npc:It was dreadfully irritating being a chicken. How can I ever thank you?",
+                "player:Well a cash reward is always nice...",
+                "npc:Of course, of course.",
+            })
+            if thanks ~= "ok" then
+                return thanks, text .. " | after the scene: " .. describe(thanks_detail)
+            end
+            return "ok", text .. " | after the scene: " .. describe(thanks_detail)
         end)
 
         -- A CAST ON A LOC.  The same world target, the loc half: Charge Air
@@ -8174,13 +8979,16 @@ return {
             return "ok", text
         end)
 
-        -- ONE GAME OF RUNE-DRAW, played for real (seam24 rune_draw_strategy).
-        -- Ghosts Ahoy's bow branch is stated by cheats -- the quest at
-        -- gathering_items, Ak-Haranu's bow handed over -- and Robin is asked
-        -- for a game.  game.runedraw plays it from his options page to the
-        -- settlement, every Draw/Hold from the pages it read.  Graded against
-        -- the server: a win must move ahoy_robin_debt 0 -> 25, a loss must
-        -- cost the 25-coin stake (he owes nothing yet), a level game neither.
+        -- ONE GAME OF RUNEDRAW, played for real (seam24 rune_draw_strategy;
+        -- the board since 2026-11-23).  Ghosts Ahoy's bow branch is stated by
+        -- cheats -- the quest at gathering_items, Robin's game agreed
+        -- (varb212 = ^ahoy_bow_agreed) with the oak longbow held -- and Robin
+        -- is asked for a game.  game.runedraw plays it on interface 9 from his
+        -- menu to the menu after the settlement, every Draw/Hold from the
+        -- board's own totals.  Graded against the server: the 25-coin stake
+        -- goes with the "Yes" page whatever happens, the bow var goes to
+        -- ^ahoy_bow_playing (2), and a win moves it one further (he owes 25).
+        -- The menu he leaves up is closed on its third row.
         stage(function()
             setup_cheat("::ghostsahoy")
             setup_cheat("::give oak_longbow 1")
@@ -8194,12 +9002,12 @@ return {
             local goto_tile = verb("player", "goto_tile")
             local talk_to = verb("player", "talk_to")
             local count = verb("inv", "count")
-            local read_content = t.quest and t.quest._read_content
+            local read_server = verb("var", "server")
             if not fn then return missing("game", "runedraw") end
             if not goto_tile then return missing("player", "goto_tile") end
             if not talk_to then return missing("player", "talk_to") end
             if not count then return missing("inv", "count") end
-            if type(read_content) ~= "function" then return missing("quest", "_read_content") end
+            if not read_server then return missing("var", "server") end
             local goto_result, goto_detail = goto_tile(3672, 3491, 0)
             if goto_result ~= "ok" then
                 return "no_subject", "goto Robin's pub -> " .. describe(goto_result) .. " " .. describe(goto_detail)
@@ -8213,19 +9021,24 @@ return {
             if result ~= "ok" then
                 return result, describe(game)
             end
+            local closed = "no menu"
+            if game.menu then
+                local options_result, rows = t.chat.options()
+                if options_result == "ok" and type(rows) == "table" and rows[3] ~= nil then
+                    local close_result = t.chat.play({ "choose:" .. rows[3] })
+                    closed = "closed on '" .. rows[3] .. "' -> " .. describe(close_result)
+                end
+            end
             settle(1)
             local _, coins_after = count("coins")
-            local debt_result, debt = read_content("varp7847_ahoy_robin_debt")
-            local text = describe(game.text) .. "; ahoy_robin_debt " .. describe(debt_result) .. " "
-                .. describe(debt) .. ", coins " .. describe(coins_before) .. " -> " .. describe(coins_after)
-            local want_debt, want_coins = 0, coins_before
-            if game.outcome == "won" then
-                want_debt = 25
-            elseif game.outcome == "lost" then
-                want_coins = (coins_before or 0) - 25
-            end
-            if debt_result ~= "ok" or debt ~= want_debt or coins_after ~= want_coins or game.draws < 1 then
-                return "hollow", "the settlement the verb read is not the server's -- " .. text
+            local bow_result, bow = read_server("varb212_ahoy_subquest_bow")
+            local text = describe(game.text) .. "; varb212 " .. describe(bow_result) .. " "
+                .. describe(bow) .. ", coins " .. describe(coins_before) .. " -> " .. describe(coins_after)
+                .. "; " .. closed
+            local want_bow = (game.outcome == "won") and 3 or 2
+            if bow_result ~= "ok" or bow ~= want_bow or coins_after ~= (coins_before or 0) - 25
+                or (game.draws + game.holds) < 1 then
+                return "hollow", "the result the verb read is not the server's -- " .. text
             end
             return "ok", text
         end)
@@ -8257,8 +9070,10 @@ return {
                     .. describe(goto_detail)
             end
             settle(2)
+            -- The climb up is eleven ticks from the op to the move (RSProx
+            -- [3516..3529]; quest_desertrescue.rs2), so the wait is sixteen.
             local function wait_x(test)
-                for _ = 1, 8 do
+                for _ = 1, 16 do
                     local read, tile = tile_of()
                     if read == "ok" and is_table(tile) and test(tile.x) then
                         return tile
@@ -8273,6 +9088,7 @@ return {
                 return up_result, text
             end
             local top = wait_x(function(x) return x >= 3273 and x <= 3278 end)
+            settle(2) -- the hit of 0..1 the tick after the move
             if not top then
                 return "hollow", "climbup answered ok but the player never reached the second cliff -- " .. text
             end
@@ -8625,6 +9441,7 @@ return {
         stage(function()
             setup_cheat("::give lawrune 5")                     -- setup
             setup_cheat("::give firerune 5")
+            setup_cheat("::give airrune 5")                     -- setup: Varrock is 3 air, 1 fire, 1 law
             setup_cheat("::goto 3222 3219 0")
             settle(3)
         end)
@@ -9227,12 +10044,14 @@ return {
                 end
                 parts[#parts + 1] = reading
             end
+            -- ::complete's Ikov arm is the Armadyl ending (80), which
+            -- ~ikov_lucien_sync maps to 3 (ikov_lucien_vis.rs2:38).
             local _, visible = read("varb10753_ikov_lucien_vis")
-            if visible ~= 0 then
+            if visible ~= 3 then
                 return "refused", "ikov_lucien_vis=" .. describe(visible)
-                    .. " after ::complete quest_templeofikov (the ending's ~ikov_lucien_sync gives 0)"
+                    .. " after ::complete quest_templeofikov (the Armadyl ending's ~ikov_lucien_sync gives 3)"
             end
-            return "ok", table.concat(parts, "; ") .. "; ikov_lucien_vis=0"
+            return "ok", table.concat(parts, "; ") .. "; ikov_lucien_vis=3"
         end)
 
         -- EVERY QUEST ROW WITH A COMPLETION SITE HAS A ::complete ARM (seam35
@@ -9493,6 +10312,26 @@ return {
             return "ok", describe(detail) .. "; " .. why .. "; the server answers ::dropobj"
         end)
 
+        -- The welcome screen a login puts up (torirs_server_world.c
+        -- login_shows_welcome) and its Play: pressed when it is up after the
+        -- relog above, "no welcome screen" when it is not -- and either way
+        -- the screen is down after.
+        step("session.welcome_play", function()
+            local fn = verb("session", "welcome_play")
+            if not fn then return missing("session", "welcome_play") end
+            local _, up_before = t.ui.shown("welcome_screen:play")
+            local result, detail = fn(5)
+            local _, up_after = t.ui.shown("welcome_screen:play")
+            if result ~= "ok" then return result, describe(detail) end
+            if up_after == true then
+                return "hollow", "answered ok (" .. describe(detail) .. ") with the welcome screen still up"
+            end
+            if string.find(tostring(detail), "pressed", 1, true) == nil and up_before == true then
+                return "hollow", "the screen was up but the answer names no press: " .. describe(detail)
+            end
+            return "ok", describe(detail) .. " (up before: " .. describe(up_before == true) .. ", after: false)"
+        end)
+
         -- RENDER SKIP (seam34, owner request 2026-09-30).  run.py and
         -- conformance.py start every client with TORIRS_RENDER_SKIP=1, so a
         -- frame draws only when a screenshot, a pickset read or a pushed click
@@ -9530,10 +10369,14 @@ return {
                 .. "off: %s; 3 idle ticks drew %d, skipped %d; skip('yes') -> %s",
                 describe(on_detail), skipped_on, on_end.drawn - on_start.drawn, on_start.hulls,
                 describe(off_detail), drawn_off, off_end.skipped - off_start.skipped, describe(refused_result))
-            -- t.ticks(3) spans 61..90 frames (it starts mid-tick).  Idle with
-            -- skip on, nothing owes a draw; with it off, an in-world frame
-            -- always redraws.
-            if off_result ~= "ok" or refused_result ~= "refused" or skipped_on < 55 or drawn_off < 55 then
+            -- t.ticks(3) spans 61..90 frames with skip off (it starts
+            -- mid-tick), and an in-world frame always redraws.  With skip on
+            -- the client runs fewer, fatter frames (28 for the same three
+            -- ticks, 2026-11-22), so what is graded there is that idle, it drew
+            -- NONE of them and skipped at least one a tick.
+            local drawn_on = on_end.drawn - on_start.drawn
+            if off_result ~= "ok" or refused_result ~= "refused" or skipped_on < 3 or drawn_on ~= 0
+                or drawn_off < 55 then
                 return "hollow", reading
             end
             return "ok", reading
@@ -9684,28 +10527,55 @@ return {
                 local _, right = read("varb862_forget_num_right")
                 return yellow, green, left, right
             end
+            -- Out the way a player leaves: the hub cart's "Return to
+            -- Keldagrim?" takes the stones, ends the region and frees the copy
+            -- (forget_tunnels.rs2 [oploc2,forget_train_cart]).
             local function restore()
                 key("escape")
                 settle(1)
+                local back = click_loc("forget_train_cart", 2)
+                if back == "ok" then
+                    t.chat.play({ "choose:Yes." })
+                    settle(4)
+                end
                 setup_cheat("::setvar varb842_forget_if1 0")
                 setup_cheat("::setvar varb861_forget_num_left 0")
                 setup_cheat("::setvar varb862_forget_num_right 0")
+                setup_cheat("::setvar varb825_forget_boarding_removed 0")
+                setup_cheat("::setvar varb837_forget_region_status 0")
                 setup_cheat("::setvar varb822_forget_quest 0")
                 if type(home) == "table" then
                     goto_tile(home.x, home.z, home.level or 0)
                 end
             end
-            -- forget_group() is 1 at forget_quest 100 (forget_puzzle.rs2), so the
-            -- hub machinery opens forget_puzzle1; one stone of each colour.
-            setup_cheat("::setvar varb822_forget_quest 100")
+            -- Since the RSProx 4637/4646 rebuild the hub is in the player's own
+            -- copy of the tunnels, built when Keldagrim's secret cart is ridden
+            -- (forget_tunnels.rs2 forget_enter_tunnels), and the machinery loads
+            -- its counters from the stones carried: so the boarding is off, the
+            -- quest at ^forget_tunnels_first (forget_group() 1, forget_puzzle1),
+            -- one stone of each colour held, and the cart ridden in.
+            setup_cheat("::setvar varb822_forget_quest ^forget_tunnels_first")
+            setup_cheat("::setvar varb825_forget_boarding_removed 1")
             setup_cheat("::setvar varb842_forget_if1 0")
-            setup_cheat("::setvar varb861_forget_num_left 1")
-            setup_cheat("::setvar varb862_forget_num_right 1")
-            local goto_result = goto_tile(1861, 4954, 1)
+            setup_cheat("::give turnleft_trackjunction_control_card 1")
+            setup_cheat("::give turnright_trackjunction_control_card 1")
+            local goto_result = goto_tile(2919, 10166, 0)
             if goto_result ~= "ok" then
                 restore()
-                return "refused", "goto hub 1861,4954,1 -> " .. describe(goto_result)
+                return "refused", "goto the secret cart 2919,10166,0 -> " .. describe(goto_result)
             end
+            local ride_result, ride_detail = click_loc("keldagrim_train_cart", 1, { at = { 2919, 10164, 0 } })
+            local arrived = t.await({ level = function()
+                local _, status = read("varb837_forget_region_status")
+                return status == 1 and t.chat.kind() == "player"
+            end, note = "the ride into the hub" }, 60)
+            if arrived ~= "ok" then
+                restore()
+                return "refused", "secret cart -> " .. describe(ride_result) .. " " .. describe(ride_detail)
+                    .. "; no hub (region_status 1 and the player's line) in 60 ticks"
+            end
+            t.chat.play({ "*" })
+            settle(2)
             local click_result, click_detail = click_loc("keldagrim_track_junction_control_box", 1)
             local open_result, open_detail = await_open("forget_puzzle1", 30)
             if open_result ~= "ok" then
@@ -9716,7 +10586,7 @@ return {
             settle(2)
             local y0, g0, l0, r0 = counters()
             local _, switch = widget("forget_puzzle1:switch_a")
-            invoke(switch, 0)
+            invoke(switch, 1)
             settle(2)
             local y1, g1, l1, r1 = counters()
             local reading = "before yellow_counter=" .. describe(y0) .. " green_counter=" .. describe(g0)
@@ -9725,7 +10595,7 @@ return {
                 .. " (server left=" .. describe(l1) .. " right=" .. describe(r1) .. ")"
             -- Undo: empty -> green -> yellow -> empty is three presses in all.
             for _ = 1, 2 do
-                invoke(switch, 0)
+                invoke(switch, 1)
                 settle(1)
             end
             local _, junction_after = read("varb842_forget_if1")
@@ -9823,6 +10693,8 @@ return {
             setup_cheat("::setlevel ranged 99")
             setup_cheat("::setlevel hitpoints 99")
             setup_cheat("::setlevel defence 99")
+            -- The magic shortbow stays worn after these rows: seam.attack_fast_path
+            -- and the eat rows after it are written against it.
             setup_cheat("::give magic_shortbow 1")
             setup_cheat("::give rune_arrow 400")
             -- The key raises him only at stage 7 or 8 (hauntedmine_dayth.rs2, RSProx index 4647 [5534]).
@@ -9876,12 +10748,25 @@ return {
             if result ~= "ok" and result ~= "timeout" then
                 return result, text
             end
-            if string.find(tostring(detail), "[Attack", 1, true) == nil
+            -- The client presses by world_op since 2026-10-16 (no menu row, so
+            -- "[op2 (world op)]" where the pixel path wrote "[Attack"): the
+            -- press must still land first time, on the risen Dayth.
+            if (string.find(tostring(detail), "[Attack", 1, true) == nil
+                    and string.find(tostring(detail), "[op2 (world op)]", 1, true) == nil)
                 or string.find(tostring(detail), "in 1 press(es)", 1, true) == nil then
                 return "hollow", text
             end
             return "ok", text
         end)
+        -- The rebuilt fight (hauntedmine_dayth_fight.rs2, RSProx 4647) no
+        -- longer re-adds Dayth under a new slot: a hit fades him out two times
+        -- in three, he changes type to the faded ghost (no Attack op) and
+        -- glides to another spot, and comes back as Treus Dayth on the SAME
+        -- slot.  What is graded is still the defect this row was written for:
+        -- await_dead_engaged answers ok only on the real kill (stage 9,
+        -- ^hmq_dayth_killed), never on a form it cannot press or a glide out
+        -- of view.  The fades make the fight slow, so after 120 ticks of the
+        -- real fight he is left on 1 hitpoint and the player's arrow kills him.
         seam("seam.npc_tele_reslot_followed", function()
             local engaged = verb("npc", "await_dead_engaged")
             local server = verb("var", "server")
@@ -9891,22 +10776,42 @@ return {
                 dayth_teardown()
                 return "no_subject", "seam.npc_cover_settled_recovery engaged no Dayth slot to watch"
             end
-            local result, detail = engaged(60, 10)
+            -- Two halves.  (1) A real fight for 120 ticks: Treus Dayth has 100
+            -- hitpoints and a hit fades him out two times in three, so he is
+            -- alive at the end of it, and the wait must not call his faded
+            -- form, his glides or his absence a kill.  (2) Then the killing blow,
+            -- a real arrow on 1 hitpoint (his death seq, stage 9): now the wait
+            -- must answer ok.
+            local result, detail = engaged(120, 10)
             local _, stage_value = server("varp382_hauntedmine")
-            local last = tonumber(string.match(tostring(detail), "slot (%d+) still alive")
-                or string.match(tostring(detail), "slot (%d+) dead"))
-            dayth_teardown()
-            local text = "attack watched slot " .. describe(dayth_watch_slot) .. ", the wait ended on slot "
-                .. describe(last) .. "; await_dead_engaged -> " .. describe(result) .. " (hauntedmine="
-                .. describe(stage_value) .. ") " .. describe(detail)
-            -- A teleport graded as a kill is the defect: `ok` while the quest
-            -- stage is short of ^hmq_dayth_killed (9).
+            local text = "attack watched slot " .. describe(dayth_watch_slot) .. "; 120 ticks of the fight -> "
+                .. describe(result) .. " (hauntedmine=" .. describe(stage_value) .. ") " .. describe(detail)
+            -- A fade or a glide graded as a kill is the defect: `ok` while the
+            -- quest stage is short of ^hmq_dayth_killed (9).
             if result == "ok" and (type(stage_value) ~= "number" or stage_value < 9) then
+                dayth_teardown()
                 return "refused", text
             end
-            if last == nil or last == dayth_watch_slot then
-                return "no_subject", text .. " -- Dayth never changed slot in the window"
+            if result ~= "ok" then
+                -- The killing strike is his own hit hook's ([ai_queue2], stage 9 on
+                -- the blow), which ::kill skips. So he is left on 1 hitpoint
+                -- (::hmq_dayth_hp, hauntedmine_dayth_fight.rs2) and the player's
+                -- next arrow is the kill.
+                setup_cheat("::hmq_dayth_hp 1")
+                local final, final_detail = engaged(90, 10)
+                _, stage_value = server("varp382_hauntedmine")
+                text = text .. " | left on 1 hitpoint -> await_dead_engaged " .. describe(final) .. " "
+                    .. describe(final_detail) .. " (hauntedmine=" .. describe(stage_value) .. ")"
+                dayth_teardown()
+                if stage_value ~= 9 then
+                    return "no_subject", text .. " -- the killing blow never landed on Treus Dayth"
+                end
+                if final ~= "ok" then
+                    return "refused", text .. " -- the real kill was not graded a kill"
+                end
+                return "ok", text
             end
+            dayth_teardown()
             return "ok", text
         end)
 
@@ -10204,49 +11109,44 @@ return {
             return "ok", reading
         end)
 
--- Row B: THE ELEMENT'S SEQ.  A wind strike's projectile (windstrike_travel 91)
--- is drawn with its record's seq strike_travel (659) bound on its scene
--- element (`seq` >= 0 only once the element plays it); a Lumbridge tree (no
--- record anim, no soundid) reads seq -1 and no ambient: the static control.
+-- Row B: THE ELEMENT'S SEQ.  A loc whose record plays an animation has that
+-- seq bound on its scene element (`seq` >= 0 once the element plays it); a
+-- Lumbridge tree (no record anim, no soundid) reads seq -1 and no ambient: the
+-- static control.  The bound subject was a wind strike's projectile until the
+-- projectile rows came from the packets (DriveUi_Projectiles: "No seq, no
+-- element: the model is the drawing's business"); it is now a FIRE, lit from
+-- logs (firemaking.rs2 loc_add(..., fire, ...); the loc record's anim=fire).
 -- PLACE: directly after Row A.
         seam("seam.element_seq_projectile_and_static_loc", function()
-            local projectiles = verb("world", "projectiles")
             local loc_near = verb("world", "loc_near")
             local hazard_at = verb("world", "hazard_at")
             local goto_tile = verb("player", "goto_tile")
-            local cast = verb("player", "cast")
-            if not projectiles then return missing("world", "projectiles") end
+            local use_item_on_item = verb("player", "use_item_on_item")
             if not loc_near then return missing("world", "loc_near") end
             if not hazard_at then return missing("world", "hazard_at") end
             if not goto_tile then return missing("player", "goto_tile") end
-            if not cast then return missing("player", "cast") end
-            local GOBLIN = "goblin_unarmed_melee_1"
+            if not use_item_on_item then return missing("player", "use_item_on_item") end
             local function teardown()
-                setup_cheat("::kill " .. GOBLIN .. " 10")
-                settle(2)
                 goto_tile(3225, 3233, 0)
             end
-            setup_cheat("::give airrune 10")
-            setup_cheat("::give mindrune 10")
-            local goto_result = goto_tile(3237, 3233, 0)
+            local goto_result = goto_tile(3233, 3233, 0)
             if goto_result ~= "ok" then
                 teardown()
-                return "no_subject", "goto 3237,3233 -> " .. describe(goto_result)
+                return "no_subject", "goto 3233,3233 -> " .. describe(goto_result)
             end
-            setup_cheat("::spawn " .. GOBLIN)
-            settle(2)
-            -- four tiles off, so the bolt flies long enough to be read in the air
-            goto_tile(3233, 3233, 0)
             local tree_result, tree = loc_near("tree", 30)
             if tree_result ~= "ok" then
                 teardown()
                 return "no_subject", "tree: loc_near -> " .. describe(tree_result) .. " " .. describe(tree)
             end
-            local hz_result, hz = hazard_at(tree.tile_x, tree.tile_z, tree.level)
-            local tree_row
-            for i = 1, (hz_result == "ok" and #hz.locs or 0) do
-                if hz.locs[i].loc_id == tree.id then tree_row = hz.locs[i] end
+            local function loc_row(x, z, level, id)
+                local hz_result, hz = hazard_at(x, z, level)
+                for i = 1, (hz_result == "ok" and #hz.locs or 0) do
+                    if hz.locs[i].loc_id == id then return hz.locs[i] end
+                end
+                return nil
             end
+            local tree_row = loc_row(tree.tile_x, tree.tile_z, tree.level, tree.id)
             if tree_row == nil then
                 teardown()
                 return "no_subject", "hazard_at " .. tree.tile_x .. "," .. tree.tile_z .. " has no loc " .. tostring(tree.id)
@@ -10258,36 +11158,31 @@ return {
                 return (tree_row.seq == nil) and "hollow" or "refused",
                     reading .. " -- a static, silent loc must read seq -1 and ambient -1"
             end
-            -- ticks 2: the quick press, back while the bolt is in the air
-            local cast_result, cast_detail = cast("wind_strike", GOBLIN, 2)
-            local bolt
-            local first = "never"
+            setup_cheat("::give logs 1")
+            setup_cheat("::give tinderbox 1")
+            local light_result, light_detail = use_item_on_item("tinderbox", "logs")
+            local fire_row, fire = nil, nil
             t.await({
                 level = function()
-                    local r, rows = projectiles(0)
-                    if r ~= "ok" then return false end
-                    for i = 1, #rows do
-                        if rows[i].spotanim_id == 91 then
-                            if first == "never" then first = tostring(rows[i].seq) .. "@" .. rows[i].cycles_left end
-                            if rows[i].seq ~= nil and rows[i].seq >= 0 then
-                                bolt = rows[i]
-                                return true
-                            end
-                        end
-                    end
-                    return false
+                    local r, row = loc_near("fire", 3)
+                    if r ~= "ok" or not is_table(row) then return false end
+                    fire = row
+                    fire_row = loc_row(row.tile_x, row.tile_z, row.level, row.id)
+                    return fire_row ~= nil and fire_row.seq ~= nil and fire_row.seq >= 0
                 end,
-                note = "windstrike_travel 91 with its seq bound",
-            }, 8)
+                note = "the fire's element playing its seq",
+            }, 20)
             teardown()
-            if bolt == nil then
-                return "timeout", reading .. "; no projectile 91 with a bound seq in 8 ticks (first read seq@cycles_left "
-                    .. first .. "); cast " .. tostring(cast_result) .. " " .. describe(cast_detail)
+            local fire_target, seq_result = t.player.by_symbol("seq", "fire")
+            local fire_seq = is_table(fire_target) and fire_target.id or nil
+            if fire_row == nil then
+                return "timeout", reading .. "; no fire loc within 3 tiles in 20 ticks (light "
+                    .. describe(light_result) .. " " .. describe(light_detail) .. ")"
             end
-            reading = reading .. "; projectile 91 seq " .. bolt.seq .. " frame " .. tostring(bolt.seq_frame)
-                .. " cycles_left " .. bolt.cycles_left .. " (first read " .. first .. ")"
-            if bolt.seq ~= 659 then
-                return "refused", reading .. " -- windstrike_travel's element plays strike_travel 659"
+            reading = reading .. "; fire " .. fire.id .. " at " .. fire.tile_x .. "," .. fire.tile_z .. ": seq "
+                .. tostring(fire_row.seq) .. " (the record's anim=fire is seq " .. describe(fire_seq) .. ")"
+            if seq_result ~= "ok" or fire_row.seq ~= fire_seq then
+                return "refused", reading .. " -- the fire's element plays its record's anim"
             end
             return "ok", reading
         end)
@@ -10815,6 +11710,25 @@ return {
                 end
                 settle(1)
                 guard = guard + 1
+                -- A str-1 goblin lasts four or five swings: when this one
+                -- dies, the next is spawned beside the player (another copy
+                -- wandering in the square would otherwise be "the goblin"
+                -- and the dead slot watched for the rest of the window).
+                if gs ~= nil then
+                    local _, died = t.ticklog.rows({ kind = "npc_death", since = since, slot = gs })
+                    if is_table(died) and #died > 0 then
+                        setup_cheat("::spawn " .. GOB .. " 1")
+                        settle(2)
+                        gs, engaged, last_hit, ate = nil, false, nil, false
+                        local _, _, rows = t.npc.tiles(GOB, 2)
+                        if is_table(rows) and rows[1] then
+                            gs = select(2, t.ticklog.slot(rows[1]))
+                            if gs ~= nil then
+                                engaged = (attack(GOB, 2, 10, { slot = rows[1].slot }) == "ok")
+                            end
+                        end
+                    end
+                end
                 if gs ~= nil then
                     local _, hn = t.ticklog.rows({ kind = "hit_npc", since = hcur, slot = gs })
                     for i, h in ipairs(hn) do
@@ -10826,6 +11740,12 @@ return {
                         if i == #hn and (#plain + #eaten) % 2 == 1 then
                             inv_op("shark", 1)
                             ate = true
+                            -- Every backpack op ends the interaction (OSRS;
+                            -- torirs_server_world.c handle_opheld, 01a035c0c),
+                            -- so the target is clicked again, as a player
+                            -- does: the eat's +3 is on the action delay, not
+                            -- on the click, and still shows in the next swing.
+                            attack(GOB, 2, 10)
                         end
                     end
                 end
@@ -10901,7 +11821,7 @@ return {
         -- [oploc1,osf_trapdoor_open] now lands on ^lt_ham_trapdoor_in
         -- (3149,9652,0: RuneLite shortest-path transports.tsv:1064-1065,
         -- 2009scape HamHideoutPlugin) from any side.  Graded on the tile after
-        -- Pick-Lock (op 5) and Climb-down, approached from the NORTH -- the side
+        -- the unlocked state and Climb-down, approached from the NORTH -- the side
         -- the harvest never listed -- and on the ladder back to 3165,3251,0.
         seam("seam.ham_trapdoor_climb_down_lands_in_lair", function()
             local goto_tile = verb("player", "goto_tile")
@@ -10916,7 +11836,11 @@ return {
             if goto_result ~= "ok" then
                 return "no_subject", "goto 3166,3253,0 -> " .. describe(goto_result) .. " " .. describe(goto_detail)
             end
-            local pick_result, pick_detail = click_loc("osf_trapdoor_closed", 5)
+            -- The Pick-Lock is a 1-in-3 roll every 7 ticks since the RSProx
+            -- 4454 rebuild (losttribe_ham.rs2), which is not this row's
+            -- subject: the unlocked trapdoor is stated, then Climb-down.
+            local pick_result, pick_detail = "stated", "::setvar varb235_ham_thief 1"
+            setup_cheat("::setvar varb235_ham_thief 1")
             local unlocked = await("varb235_ham_thief", 1, 6)
             local down_result, down_detail = click_loc("osf_trapdoor_open", 1)
             settle(4)
@@ -11261,7 +12185,7 @@ return {
             if not key then return missing("key") end
             setup_cheat("::clearinv")
             setup_cheat("::give mcannontoolkit 1")
-            setup_cheat("::setvar varp0_mcannon 6")
+            setup_cheat("::setvar varp0_mcannon ^mcannon_tasked_with_fixing_cannon")
             setup_cheat("::setvar varb3694_grim_dwarfquest 20")
             settle(2)
             local function teardown()
@@ -11703,13 +12627,25 @@ return {
             if start == nil then
                 return "no_subject", "skill.read attack gave no reading"
             end
-            setup_cheat("::setlevel attack 60")
-            setup_cheat("::drain attack 0 90")
-            settle(2)
-            local drained = reading()
-            setup_cheat("::xp attack 100")
-            settle(2)
-            local after = reading()
+            -- A drained stat regains one level every 100 ticks, and a window
+            -- that crosses that tick reads 7/60 with no defect behind it
+            -- (2026-11-22, conf_base11).  So the drain and the grant are done
+            -- twice if the first reads 7: two windows a few ticks long cannot
+            -- both cross restore ticks 100 apart, and a real undo fails both.
+            local drained, after, attempts
+            for attempt = 1, 2 do
+                attempts = attempt
+                setup_cheat("::setlevel attack 60")
+                setup_cheat("::drain attack 0 90")
+                settle(2)
+                drained = reading()
+                setup_cheat("::xp attack 100")
+                settle(2)
+                after = reading()
+                if after == nil or drained == nil or after.level == drained.level then
+                    break
+                end
+            end
             setup_cheat("::setlevel attack " .. tostring(start.base_level))
             settle(2)
             local restored = reading()
@@ -11721,6 +12657,7 @@ return {
             end
             local text = "attack " .. show(start) .. "; ::setlevel 60 + ::drain 90% -> " .. show(drained)
                 .. "; ::xp attack 100 -> " .. show(after) .. "; put back -> " .. show(restored)
+                .. " (attempt " .. tostring(attempts) .. " of 2)"
             if drained == nil or drained.level ~= 6 or drained.base_level ~= 60 then
                 return "no_subject", text .. " -- the drain did not stage 6/60"
             end
@@ -12107,7 +13044,10 @@ return {
             if string.find(text, "drive.op", 1, true) ~= nil then
                 return "hollow", text .. " -- a press went through the logged bypass"
             end
-            if string.find(tostring(g_detail), "Chancy", 1, true) == nil
+            -- Chancy's [opnpc1] opens with the player's "Good morning." page
+            -- (errand_boys.rs2, wiki Transcript:Chancy); Da Vinci's with his.
+            if (string.find(tostring(g_detail), "Chancy", 1, true) == nil
+                    and string.find(tostring(g_detail), "Good morning.", 1, true) == nil)
                 or string.find(tostring(a_detail), "Da Vinci", 1, true) == nil then
                 return "hollow", text .. " -- ok, but the npc's own [opnpc1] line never came back"
             end
@@ -12297,9 +13237,9 @@ return {
         -- answered `covered` (seam-facts b65 (c); HEAD binary,
         -- build/quest_gate/us_rows_base row 2).  The press must be made from
         -- the arch tile 3491,3090 (maplink_0_54_48_35_18_down is keyed on the
-        -- player's tile).  Graded: Climb-down lands 2721,4886,0 and the detail
-        -- names the model aim that found the pixel (QD.drive._model_aim, which
-        -- runs only after the whole hunt said covered); then the CONTROL, a
+        -- player's tile).  Graded: Climb-down lands 2721,4886,0 on press 1 (the
+        -- model aim this was written for, QD.drive._model_aim, is the pixel
+        -- path's, which a client loc press no longer takes); then the CONTROL, a
         -- plain centrepiece stair (Lumbridge's spiralstairsbottom_3, shape 10,
         -- 3204,3229,0) pressed from the side tile 3205,3228, must land on
         -- press 1 with NO model aim -- an aim the renderer already held is
@@ -12358,9 +13298,13 @@ return {
             if uzer_result ~= "ok" then
                 return leave(uzer_result, text)
             end
-            if not is_table(uzer_aim)
-                or string.find(tostring(uzer_detail), "landed 2721,4886,0", 1, true) == nil then
-                return leave("hollow", text .. " -- ok, but no model aim found the pixel or no landing on 2721,4886,0")
+            -- Since 2026-10-16 a loc press is api_drive.world_op on the copy's
+            -- element, with no projection: the pit under the centroid cannot
+            -- cover it, so the press lands on the FIRST try and no model aim
+            -- is needed (or taken).  That is what is graded now.
+            if string.find(tostring(uzer_detail), "landed 2721,4886,0", 1, true) == nil
+                or string.find(tostring(uzer_detail), "on press 1", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but no first-press landing on 2721,4886,0")
             end
             t.drive._model_aim_last = nil
             setup_cheat("::goto 3205 3228 0")
@@ -12543,46 +13487,33 @@ return {
 
         -- A GUARDED WALK-THROUGH SPEAKS BEFORE IT MOVES THE PLAYER
         -- (matthew-mbp-m4-b61-seam1
-        -- cross_gate_needs_a_chat_option_for_a_guarded_walk_through).  Fight
-        -- Arena's north fightarena_door1 2617,3171,0 (arena_locs.rs2
-        -- [oploc1,fightarena_door1]): in the Khazard disguise at
-        -- ^arena_obtained_armour, an arena_guard1 within 5 tiles (m40_49.spawn
-        -- puts one on 2617,3172) says "Nice observation guard..." and the
-        -- p_telejump into the prison corridor lands only after that page is
-        -- continued; cross_gate without `chat` waited 12 ticks under the page
-        -- and failed the crossing (b61 arena run 1; scratch b61gc_reproA).
-        -- First the subject: the guard by the near tile, and a walk from
-        -- 2617,3172 to 2617,3170 that does NOT get in.  Then in with
-        -- chat = { "npc:Nice observation guard" }: graded on ok, on the detail
-        -- carrying the guard's whole line and chat.play's ok, and on world.tile
-        -- reading z <= 3171.  Then the two other answers on Taverley's members'
-        -- gate, which never speaks: `chat` with no page is `refused` although
-        -- the press landed, and `chat_optional` turns that into an ok that
-        -- says "no page opened".
+        -- cross_gate_needs_a_chat_option_for_a_guarded_walk_through).  The
+        -- subject was Fight Arena's north door until its RSProx 4395 rebuild
+        -- made the disguised crossing silent; it is now Death Plateau's
+        -- death_harold_door 2906,3543,1 (death_doors_mechanism.rs2, RSProx
+        -- [649..654]): from the Burthorpe inn's upstairs corridor, once the
+        -- head servant has been spoken to, the knock is a mesbox, Harold's
+        -- "Come in!" follows, and the walk into his room comes only after that
+        -- page is continued.  cross_gate without `chat` waits its ticks under
+        -- the page and fails the crossing.  First the subject: a walk from the
+        -- corridor to 2906,3542 that does NOT get in.  Then in with chat =
+        -- { "mesbox:You knock on the door.", "npc:Come in!" }: graded on ok, on
+        -- the detail carrying the knock page and chat.play's ok, and on
+        -- world.tile in his room (x 2905-2907, z <= 3542, level 1).  Then the
+        -- two other answers on Taverley's members' gate, which never speaks:
+        -- `chat` with no page is `refused` although the press landed, and
+        -- `chat_optional` turns that into an ok that says "no page opened".
         seam("seam.cross_gate_plays_a_guards_page", function()
             local goto_tile = verb("player", "goto_tile")
             local walk_to = verb("player", "walk_to")
-            local equip = verb("player", "equip")
-            local unequip = verb("player", "unequip")
-            local drop = verb("player", "drop")
-            local nearest = verb("npc", "nearest")
             local tile = verb("world", "tile")
             local fn = verb("player", "cross_gate")
             if not goto_tile then return missing("player", "goto_tile") end
             if not walk_to then return missing("player", "walk_to") end
-            if not equip then return missing("player", "equip") end
-            if not unequip then return missing("player", "unequip") end
-            if not drop then return missing("player", "drop") end
-            if not nearest then return missing("npc", "nearest") end
             if not tile then return missing("world", "tile") end
             if not fn then return missing("player", "cross_gate") end
-            local armour = { "khazard_helmet", "khazard_platemail" }
             local function leave(result, text)
-                for _, item in ipairs(armour) do
-                    unequip(item)
-                    drop(item)
-                end
-                setup_cheat("::setvar varp17_arenaquest 0")
+                setup_cheat("::setvar varp314_death_equiproom 0")
                 setup_cheat("::tele lumbridge")
                 settle(2)
                 return result, text
@@ -12594,62 +13525,40 @@ return {
                 end
                 return at, at.x .. "," .. at.z .. "," .. at.level
             end
-            setup_cheat("::setvar varp17_arenaquest ^arena_obtained_armour")
-            for _, item in ipairs(armour) do
-                setup_cheat("::give " .. item .. " 1")
+            setup_cheat("::setvar varp314_death_equiproom ^death_spoken_headservant")
+            setup_cheat("::goto 2906 3544 1")
+            settle(3)
+            local start, start_text = tile_text()
+            if start == nil or start.level ~= 1 or start.z < 3543 then
+                return leave("no_subject", "::goto 2906 3544 1 (the inn's upstairs corridor) left the player at "
+                    .. tostring(start_text))
             end
-            local goto_result, goto_detail = goto_tile(2617, 3174, 0)
-            if goto_result ~= "ok" then
-                return leave("no_subject", "goto outside the north door 2617,3174,0 -> " .. describe(goto_result)
-                    .. " " .. describe(goto_detail))
-            end
-            for _, item in ipairs(armour) do
-                local worn_result, worn_detail = equip(item)
-                if worn_result ~= "ok" then
-                    return leave("no_subject", "equip " .. item .. " -> " .. describe(worn_result) .. " "
-                        .. describe(worn_detail) .. " -- no disguise, so the guard refuses")
-                end
-            end
-            local probe_result = walk_to(2617, 3170, 8)
+            local probe_result = walk_to(2906, 3542, 8)
             local probe, probe_text = tile_text()
-            local text = "disguised at ^arena_obtained_armour; walk_to 2617,3170 from 2617,3174 (no press) -> "
-                .. describe(probe_result) .. " at " .. tostring(probe_text)
-            if probe == nil or probe.z <= 3171 then
+            local text = "at ^death_spoken_headservant; walk_to 2906,3542 from " .. tostring(start_text)
+                .. " (no press) -> " .. describe(probe_result) .. " at " .. tostring(probe_text)
+            if probe == nil or probe.z <= 3542 then
                 return leave("no_subject", text .. " -- the walk got in without a press: not an only-way door")
             end
-            walk_to(2617, 3172, 8)
-            local guard_result, guard = "not_found", nil
-            for _ = 1, 10 do
-                guard_result, guard = nearest("arena_guard1", 5)
-                if guard_result == "ok" and is_table(guard) then
-                    break
-                end
-                settle(1)
-            end
-            if guard_result ~= "ok" or not is_table(guard) then
-                return leave("no_subject", text .. "; no arena_guard1 within 5 of 2617,3172 in 10 ticks ("
-                    .. describe(guard_result) .. ") -- the door would not speak")
-            end
-            text = text .. "; arena_guard1 at " .. tostring(guard.x) .. "," .. tostring(guard.z)
-            local in_result, in_detail = fn({ loc = "fightarena_door1", at = { 2617, 3171, 0 }, near = { 2617, 3172 },
-                far_ok = function(at) return at.z <= 3171 and at.x >= 2613 and at.x <= 2619 end,
-                far_desc = "in the prison corridor, z <= 3171",
-                chat = { "npc:Nice observation guard" } })
+            local in_result, in_detail = fn({ loc = "death_harold_door", at = { 2906, 3543, 1 }, near = { 2906, 3543 },
+                far_ok = function(at) return at.x >= 2905 and at.x <= 2907 and at.z <= 3542 and at.level == 1 end,
+                far_desc = "in Harold's room, x 2905-2907 z <= 3542",
+                chat = { "mesbox:You knock on the door.", "npc:Come in!" } })
             text = text .. " | in -> " .. describe(in_result) .. " " .. tostring(in_detail)
             if in_result ~= "ok" then
                 return leave(in_result, text)
             end
-            local line = "the press opened npc 'Nice observation guard. You could have just asked to be let in"
-                .. " like a normal person.'"
-            if string.find(tostring(in_detail), line, 1, true) == nil
+            if string.find(tostring(in_detail), "the press opened mesbox 'You knock on the door.'", 1, true) == nil
                 or string.find(tostring(in_detail), "chat.play -> ok", 1, true) == nil then
-                return leave("hollow", text .. " -- ok, but the detail carries no guard's line or no chat.play ok")
+                return leave("hollow", text .. " -- ok, but the detail carries no knock page or no chat.play ok")
             end
             local inside, inside_text = tile_text()
             text = text .. "; world.tile " .. tostring(inside_text)
-            if inside == nil or inside.z > 3171 or inside.level ~= 0 then
-                return leave("hollow", text .. " -- ok, but world.tile is not in the corridor")
+            if inside == nil or inside.z > 3542 or inside.level ~= 1 then
+                return leave("hollow", text .. " -- ok, but world.tile is not in Harold's room")
             end
+            setup_cheat("::goto 2936 3450 0")
+            settle(2)
             goto_result, goto_detail = goto_tile(2936, 3450, 0)
             if goto_result ~= "ok" then
                 return leave("no_subject", text .. " | goto the members' gate's east side 2936,3450,0 -> "
@@ -12873,7 +13782,8 @@ return {
                     1, true) == nil or string.find(text, "landed 2527,3413,0", 1, true) == nil then
                 return leave("hollow", text .. " -- ok, but the detail names no raw-level-1 press or no landing")
             end
-            if string.find(text, "You climb in the barrel and start rocking.", 1, true) == nil then
+            -- The line since the Waterfall rebuild (quest_waterfall_locs.rs2).
+            if string.find(text, "You climb into the barrel and push off the edge.", 1, true) == nil then
                 return leave("hollow", text .. " -- ok, but the server's barrel line is not in the detail")
             end
             local end_result, finish = tile()
@@ -13208,6 +14118,7 @@ return {
         -- chat_optional is `refused` although the press landed.
         stage(function()
             setup_cheat("::setvar varp212_itwatchtower ^itwatchtower_started")   -- setup
+            setup_cheat("::setvar varb3117_watchtower_guard 0")
             setup_cheat("::goto 2544 3112 0")
             settle(3)
         end)
@@ -13220,6 +14131,7 @@ return {
             if not fn then return missing("player", "climb") end
             local function leave(result, text)
                 setup_cheat("::setvar varp212_itwatchtower 0")
+                setup_cheat("::setvar varb3117_watchtower_guard 0")
                 setup_cheat("::tele lumbridge")
                 settle(2)
                 return result, text
@@ -13272,6 +14184,11 @@ return {
                 return leave(quiet_result == "ok" and "hollow" or quiet_result,
                     text .. " -- want ok with 'no page opened', the chat_optional reason and the landing")
             end
+            -- The guard speaks on the FIRST climb after the start only
+            -- (varb3117_watchtower_guard, RSProx 4527 [3403] / [4053..4057]),
+            -- so his page is stated again for the second.
+            setup_cheat("::setvar varb3117_watchtower_guard 0")
+            settle(1)
             local guarded = { chat = { "npc:It is the wizards' helping hand" } }
             for key, value in pairs(up) do
                 guarded[key] = value
@@ -13659,6 +14576,8 @@ return {
             local function leave(result, text)
                 if unequip then unequip("excalibur") end
                 if drop then drop("excalibur") end
+                setup_cheat("::setlevel hitpoints 10")
+                setup_cheat("::setlevel attack 1")
                 setup_cheat("::setvar varp5_grail 0")
                 setup_cheat("::tele lumbridge")
                 settle(2)
@@ -13668,6 +14587,11 @@ return {
                 local r, d = present("black_knight_titan", 15, 1)
                 return tonumber(string.match(tostring(d), "slot (%d+)") or ""), tostring(r) .. " " .. tostring(d)
             end
+            -- The titan fights back while the kill is decided: at the fresh
+            -- character's 10 hitpoints its second swing killed the run
+            -- (conformance attempt 12, 2026-11-22: hit 10 at tick 3269, the
+            -- death read 130 ticks later on party.see).
+            setup_cheat("::setlevel hitpoints 99")
             setup_cheat("::setlevel attack 99")
             setup_cheat("::give excalibur 1")
             setup_cheat("::setvar varp5_grail 4")
@@ -13677,7 +14601,10 @@ return {
             if slot0 == nil then
                 return leave("hollow", "no black_knight_titan within 15 of 2789,4722: " .. before)
             end
-            setup_cheat("::kill black_knight_titan")
+            -- No reply wait: the cheat's own wait reads the first line back,
+            -- and the queue's line goes out on the kill's tick, so an await
+            -- begun after it starts above the line it is waiting for.
+            setup_cheat("::kill black_knight_titan", false)
             local ar, ad = await_msg("Maybe you need something more to beat the titan?", 20)
             settle(3)
             local vr, vd = read_var("varp5_grail")
@@ -13694,7 +14621,7 @@ return {
             end
             setup_cheat("::wield excalibur")
             settle(2)
-            setup_cheat("::kill black_knight_titan")
+            setup_cheat("::kill black_knight_titan", false)
             local br, bd = await_msg("Well done! You have defeated the Black Knight Titan!", 20)
             text = text .. " | Excalibur: msg " .. tostring(br) .. " " .. tostring(bd)
             if br ~= "ok" then
@@ -13917,14 +14844,13 @@ return {
         --     never offered Jump-in;
         --   * the entrance's Jump-in starts a REAL run (practice false) at local 30,36 (Blert 2270,5348);
         --   * exactly one "Wave: 1" line.
-        -- Travel between Ket-Keh and the entrance is a labelled ::goto: the entrance's pocket is not walkable from
-        -- Ket-Keh's (ENG-7, an engine/map finding).
+        -- Since the recorded run-and-jump (RSProx 3299) the click is made from Ket-Keh's own side: the jump walks
+        -- the player to the take-off tile south of the pit and the Jump-in has no confirmation menu.
         seam("seam.inferno_entry_by_click", function()
             local go = verb("player", "goto_tile")
             local talk = verb("player", "talk_to")
             local play = verb("chat", "play")
             local click = verb("player", "click_loc")
-            local choose = verb("chat", "choose")
             local state = verb("wave", "state")
             local pause = verb("wave", "pause")
             local enter = verb("wave", "enter")
@@ -13932,10 +14858,12 @@ return {
             if not talk then return missing("player", "talk_to") end
             if not play then return missing("chat", "play") end
             if not click then return missing("player", "click_loc") end
-            if not choose then return missing("chat", "choose") end
             if not state then return missing("wave", "state") end
             if not pause then return missing("wave", "pause") end
             if not enter then return missing("wave", "enter") end
+            -- A REAL wave 1 starts now (the jump lands since 2026-11-23): the
+            -- fixture's 10 hitpoints died to it on the way out (conf_base12).
+            t.cheat("::setlevel hitpoints 99")
             t.cheat("::give tzhaar_cape_fire 1")
             t.cheat("::setvar varb5646_inferno_sacrificed_firecape 0")
             t.ticks(2)
@@ -13950,7 +14878,9 @@ return {
             if v ~= 2 or capes ~= 0 then
                 return "hollow", "after the sacrifice varb5646 " .. describe(v) .. " fire capes " .. describe(capes) .. ", not 2 and 0"
             end
-            go(2495, 5131, 0)
+            -- Pressed from Ket-Keh's side: the jump takes off SOUTH of the pit
+            -- (^inferno_jump_takeoff 2496,5115, RSProx 3299), and the walk to it
+            -- from the north rim (2495,5131) ends at 2500,5115, short of it.
             -- Count only the lines that arrive after this press: the wave.* rows before this one
             -- entered wave 1 themselves and their own "Wave: 1" lines are still in the chat ring.
             local floor = 0
@@ -13958,12 +14888,12 @@ return {
             for _, l in ipairs(is_table(before) and before or {}) do
                 if is_table(l) and type(l.serial) == "number" and l.serial > floor then floor = l.serial end
             end
+            -- No confirmation menu: the recorded Jump-in goes straight from the
+            -- click to the run and the jump (RSProx 3299 tick 10690; inferno.rs2
+            -- [label,inferno_entrance_jump]).
             local cr, cd = click("inferno_entrance", 1)
             if cr ~= "ok" then return cr, "Jump-in press -> " .. describe(cd) end
-            t.await({ level = function() return t.chat.kind() == "options" end, note = "jump-in options" }, 8)
-            local jr, jd = choose("/^Jump into the Inferno/")
-            if jr ~= "ok" then return jr, "the Jump-in row -> " .. describe(jd) end
-            local wr = t.await({ level = function() local _, _, s = state() return s and s.active and s.wave == 1 and s.alive > 0 end, note = "wave 1" }, 40)
+            local wr = t.await({ level = function() local _, _, s = state() return s and s.active and s.wave == 1 and s.alive > 0 end, note = "wave 1" }, 70)
             local _, detail, s = state()
             local text = "-> " .. describe(detail)
             if wr ~= "ok" or not is_table(s) or s.practice ~= false then
@@ -14387,11 +15317,19 @@ return {
             local text = "goto " .. describe(back1) .. "/" .. describe(there) .. "/" .. describe(back2)
                 .. "; to Varrock (50,53): " .. list(to_varrock) .. "; back to Lumbridge (50,50): "
                 .. list(to_lumbridge)
-            if #to_varrock ~= 1 or to_varrock[1].track ~= 125 then
-                return "refused", text .. " -- want one region row, track 125 Garden"
+            -- One region row per crossing.  The track is a pick of the
+            -- square's music AREA now (torirs_server_world.c
+            -- music_song_for_track -> music_area_pick: Varrock read 177 and
+            -- 157 on two runs, Lumbridge 163 and 76), so the two squares are
+            -- held to naming different tracks, not to one fixed song each.
+            if #to_varrock ~= 1 then
+                return "refused", text .. " -- want one region row going to Varrock"
             end
-            if #to_lumbridge ~= 1 or to_lumbridge[1].track ~= 76 then
-                return "refused", text .. " -- want one region row, track 76 Harmony"
+            if #to_lumbridge ~= 1 then
+                return "refused", text .. " -- want one region row coming back to Lumbridge"
+            end
+            if to_varrock[1].track == to_lumbridge[1].track then
+                return "refused", text .. " -- Varrock and Lumbridge named the same track"
             end
             return "ok", text
         end)
@@ -14700,6 +15638,8 @@ return {
             if not attack then return missing("player", "attack") end
             if not nearest then return missing("npc", "nearest") end
             if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            -- The source is the call chain since the tick log named it
+            -- ("[ai_queue2,_]>[proc,slayer_after_player_hit]"); the proc ends it.
             local BANSHEE, SOURCE = "slayer_banshee_1", "[proc,slayer_after_player_hit]"
             setup_cheat("::clearinv")
             setup_cheat("::setlevel slayer 99")
@@ -14745,7 +15685,7 @@ return {
             for _, r in ipairs(heals) do
                 parts[#parts + 1] = string.format("t%d +%d -> %d/%d %s", r.tick, r.amount, r.hitpoints,
                     r.base, describe(r.source))
-                if r.amount ~= 1 or r.type ~= row.npc_id or r.hitpoints > r.base or r.source ~= SOURCE
+                if r.amount ~= 1 or r.type ~= row.npc_id or r.hitpoints > r.base or (r.source ~= SOURCE and string.sub(tostring(r.source), -(#SOURCE + 1)) ~= ">" .. SOURCE)
                     or not landed[r.tick] then
                     bad = bad + 1
                 end
@@ -14978,6 +15918,549 @@ return {
         -- the boss in the client's pool, and the player on the corridor side
         -- of the fight tile.  Never on a started room: nothing here crosses
         -- the barrier, so Maiden never swings at the conformance character.
+        -- ------------------------- the CoX room helpers (2026-11-22 rows)
+        --
+        -- The t.raid.cox_* verbs the CoX room tests are written in, each in a
+        -- real raid: ::coxtest's resource room (QD.raid.cox_test_enter, the
+        -- n-th raid holding it, started, the room before cleared, the player
+        -- past its Passage).  The reads first, then the walks, then the ways
+        -- out (each re-enters, so it starts in the same room).  Left through
+        -- t.raid.leave at the end.
+        local COX_ROOM = "resource"
+        local cox_at, cox_room = nil, nil
+        -- ::coxtest leaves the player at the room's threshold, which reads as
+        -- the room before it; the room tests walk in (cox_walk_into).
+        local function cox_reenter()
+            local r, at = t.raid.cox_test_enter(COX_ROOM, 0)
+            if r == "ok" then
+                cox_at = at
+                t.raid.cox_walk_into(COX_ROOM, at.cx, at.cz, 60)
+            end
+            t.ticks(2)
+            local hr, room = t.raid.cox_here()
+            if hr == "ok" then cox_room = room end
+            return r, at
+        end
+        local function cox_need()
+            if not is_table(cox_room) then return "no_subject", "not in the " .. COX_ROOM .. " room (cox_test_enter failed)" end
+            return nil
+        end
+
+        stage(function()
+            setup_cheat("::clearinv")                          -- setup
+            setup_cheat("::setlevel prayer 99")                -- setup: cox_prayers_off has a prayer to put out
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give shark 2")                      -- setup: cox_top_up / cox_make_free
+            settle(2)
+        end)
+
+        step("raid.cox_test_enter", function()
+            local fn = verb("raid", "cox_test_enter")
+            if not fn then return missing("raid", "cox_test_enter") end
+            local result, at = fn(COX_ROOM, 0)
+            if result ~= "ok" or not is_table(at) or not at.seed or not at.cx then return result, describe(at) end
+            cox_at = at
+            t.raid.cox_walk_into(COX_ROOM, at.cx, at.cz, 60)
+            t.ticks(2)
+            return "ok", string.format("::coxtest %s 0 -> seed %d, the room's centre %d,%d", COX_ROOM, at.seed, at.cx, at.cz)
+        end)
+
+        step("raid.cox_here", function()
+            local fn = verb("raid", "cox_here")
+            if not fn then return missing("raid", "cox_here") end
+            local result, room, passage = fn()
+            if result ~= "ok" or not is_table(room) or room.name ~= COX_ROOM then
+                return (result == "ok") and "hollow" or result, "here -> " .. describe(room) .. " (want " .. COX_ROOM .. ")"
+            end
+            cox_room = room
+            return "ok", string.format("in %s v%d turn %d at %d,%d,%d; passage %s", room.name, room.variant, room.turn,
+                room.ox, room.oz, room.level, passage and (passage.x .. "," .. passage.z) or "none")
+        end)
+
+        step("raid.cox_room_at_probe", function()
+            local fn = verb("raid", "cox_room_at_probe")
+            if not fn then return missing("raid", "cox_room_at_probe") end
+            local no = cox_need() if no then return no, select(2, cox_need()) end
+            local result, room = fn(cox_room.ox + 16, cox_room.oz + 16, cox_room.level)
+            local miss = fn(cox_room.ox + 16, cox_room.oz + 16, cox_room.level + 3)
+            if result ~= "ok" or not is_table(room) or room.name ~= COX_ROOM or miss ~= "none" then
+                return "hollow", "the room's middle -> " .. describe(result) .. " " .. describe(room) .. "; three planes up -> " .. describe(miss)
+            end
+            return "ok", "the middle of " .. COX_ROOM .. " reads " .. room.name .. "; three planes up reads none"
+        end)
+
+        step("raid.cox_room_world", function()
+            local fn = verb("raid", "cox_room_world")
+            if not fn then return missing("raid", "cox_room_world") end
+            local no = cox_need() if no then return no, select(2, cox_need()) end
+            local x, z = fn(cox_room, 5, 9)
+            if math.type(x) ~= "integer" or math.type(z) ~= "integer" then return "hollow", "world(5,9) -> " .. describe(x) .. "," .. describe(z) end
+            local lx, lz = t.raid.cox_room_template(cox_room, x, z)
+            if lx ~= 5 or lz ~= 9 then
+                return "hollow", "template-local 5,9 -> world " .. x .. "," .. z .. " -> back " .. describe(lx) .. "," .. describe(lz)
+            end
+            return "ok", "template-local 5,9 is world " .. x .. "," .. z .. " in this turn of the room, and back"
+        end)
+
+        step("raid.cox_room_template", function()
+            local fn = verb("raid", "cox_room_template")
+            if not fn then return missing("raid", "cox_room_template") end
+            local no = cox_need() if no then return no, select(2, cox_need()) end
+            local _, me = t.world.tile()
+            local lx, lz = fn(cox_room, me.x, me.z)
+            if math.type(lx) ~= "integer" or lx < 0 or lx > 31 or lz < 0 or lz > 31 then
+                return "hollow", "the player's tile " .. me.x .. "," .. me.z .. " -> template " .. describe(lx) .. "," .. describe(lz)
+            end
+            local wx, wz = t.raid.cox_room_world(cox_room, lx, lz)
+            if wx ~= me.x or wz ~= me.z then
+                return "hollow", "template " .. lx .. "," .. lz .. " maps back to " .. describe(wx) .. "," .. describe(wz)
+            end
+            return "ok", "the player's tile " .. me.x .. "," .. me.z .. " is template-local " .. lx .. "," .. lz
+        end)
+
+        step("raid.cox_room_ahead", function()
+            local fn = verb("raid", "cox_room_ahead")
+            if not fn then return missing("raid", "cox_room_ahead") end
+            local no = cox_need() if no then return no, select(2, cox_need()) end
+            local ahead = fn(cox_room)
+            if ahead ~= nil and (not is_table(ahead) or not is_text(ahead.name)) then
+                return "hollow", "the room ahead read " .. describe(ahead)
+            end
+            return "ok", "ahead of " .. COX_ROOM .. ": " .. (ahead and (ahead.name .. " at " .. ahead.ox .. "," .. ahead.oz) or "none (the floor ends)")
+        end)
+
+        step("raid.cox_scout_here", function()
+            local fn = verb("raid", "cox_scout_here")
+            if not fn then return missing("raid", "cox_scout_here") end
+            local result, path = fn()
+            if result ~= "ok" or not is_text(path) or not string.find(path, COX_ROOM, 1, true) then
+                return (result == "ok") and "hollow" or result, "scout path -> " .. describe(path)
+            end
+            return "ok", "the floor from here: " .. path
+        end)
+
+        step("raid.cox_locs", function()
+            local fn = verb("raid", "cox_locs")
+            if not fn then return missing("raid", "cox_locs") end
+            local result, rows = fn(40)
+            if result ~= "ok" or not is_table(rows) or #rows == 0 then return (result == "ok") and "hollow" or result, describe(rows) end
+            return "ok", #rows .. " loc(s) within 40"
+        end)
+
+        step("raid.cox_locs_text", function()
+            local fn = verb("raid", "cox_locs_text")
+            if not fn then return missing("raid", "cox_locs_text") end
+            local lines = fn(20)
+            if not is_table(lines) or #lines == 0 or not is_text(lines[1]) then return "hollow", describe(lines) end
+            return "ok", #lines .. " line(s); the first: " .. lines[1]
+        end)
+
+        step("raid.cox_locs_in", function()
+            local fn = verb("raid", "cox_locs_in")
+            if not fn then return missing("raid", "cox_locs_in") end
+            local no = cox_need() if no then return no, select(2, cox_need()) end
+            local box = { cox_room.ox, cox_room.oz, cox_room.ox + 31, cox_room.oz + 31, cox_room.level }
+            local rows = fn({ box }, 40)
+            if not is_table(rows) or #rows == 0 then return "hollow", "nothing inside the room's own square: " .. describe(rows) end
+            -- Each answer is a line "name(id)@x,z sS aA" (cox2_raid.lua).
+            for _, line in ipairs(rows) do
+                local x, z = string.match(tostring(line), "@(%d+),(%d+)")
+                x, z = tonumber(x), tonumber(z)
+                if x == nil or x < box[1] or x > box[3] or z < box[2] or z > box[4] then
+                    return "hollow", "a loc outside the box came back: " .. describe(line)
+                end
+            end
+            return "ok", #rows .. " loc(s) inside " .. COX_ROOM .. "'s 32x32, the first " .. tostring(rows[1])
+        end)
+
+        step("raid.cox_doorways_text", function()
+            local fn = verb("raid", "cox_doorways_text")
+            if not fn then return missing("raid", "cox_doorways_text") end
+            local out = fn(40)
+            if not is_table(out) or not string.find(tostring(out[1]), "^n=") then return "hollow", describe(out) end
+            return "ok", table.concat(out, "; ")
+        end)
+
+        step("raid.cox_messages", function()
+            local fn = verb("raid", "cox_messages")
+            if not fn then return missing("raid", "cox_messages") end
+            local lines = fn(20)
+            local seen = false
+            for _, line in ipairs(lines or {}) do
+                if string.find(tostring(line), "coxtest seed", 1, true) then seen = true end
+            end
+            if not seen then return "hollow", "the ::coxtest answer is not among the last 20 lines: " .. describe(lines) end
+            return "ok", #lines .. " line(s), the ::coxtest answer among them"
+        end)
+
+        step("raid.cox_poison", function()
+            local fn = verb("raid", "cox_poison")
+            if not fn then return missing("raid", "cox_poison") end
+            local v = fn()
+            if v ~= nil and math.type(v) ~= "integer" then return "hollow", describe(v) end
+            if v ~= nil and v > 0 then return "hollow", "a fresh raider reads poisoned: " .. v end
+            return "ok", "varp102_poison reads " .. describe(v or 0)
+        end)
+
+        step("raid.cox_cure", function()
+            local fn = verb("raid", "cox_cure")
+            if not fn then return missing("raid", "cox_cure") end
+            local result = fn()
+            if result ~= "ok" then return result, "an unpoisoned raider's cure -> " .. describe(result) end
+            return "ok", "unpoisoned: nothing to cure, ok"
+        end)
+
+        step("raid.cox_prayers_off", function()
+            local fn = verb("raid", "cox_prayers_off")
+            if not fn then return missing("raid", "cox_prayers_off") end
+            t.prayer.set("protectfrommelee", true)
+            local result, detail = fn()
+            settle(2)
+            local _, _, set = t.prayer.read()
+            -- A switch the server took a tick late still put it out; the
+            -- outcome is what this helper is for.
+            local landed = result == "ok" or (result == "timeout" and string.find(tostring(detail), "LATE", 1, true))
+            if not landed or (is_table(set) and set.protectfrommelee) then
+                return (result == "ok") and "hollow" or result, describe(detail) .. "; protectfrommelee still "
+                    .. describe(is_table(set) and set.protectfrommelee)
+            end
+            return "ok", "Protect from Melee up, then every prayer out: " .. describe(detail)
+        end)
+
+        step("raid.cox_run_n", function()
+            local fn = verb("raid", "cox_run_n")
+            if not fn then return missing("raid", "cox_run_n") end
+            local n = fn()
+            if math.type(n) ~= "integer" then return "hollow", describe(n) end
+            return "ok", "the run name's number: " .. n .. " (qdconform carries none: 0)"
+        end)
+
+        step("raid.cox_tightrope_drained_run", function()
+            local fn = verb("raid", "cox_tightrope_drained_run")
+            if not fn then return missing("raid", "cox_tightrope_drained_run") end
+            local v = fn()
+            if v ~= false then return "hollow", "qdconform read as a trd* run: " .. describe(v) end
+            return "ok", "not a trd* run name: false"
+        end)
+
+        step("raid.cox_route", function()
+            local fn = verb("raid", "cox_route")
+            if not fn then return missing("raid", "cox_route") end
+            local _, me = t.world.tile()
+            local result, route = fn(me.x + 2, me.z)
+            if result ~= "ok" or not is_table(route) then return result, describe(route) end
+            return "ok", "a route two tiles east: " .. describe(route)
+        end)
+
+        step("raid.cox_route_text", function()
+            local fn = verb("raid", "cox_route_text")
+            if not fn then return missing("raid", "cox_route_text") end
+            local _, me = t.world.tile()
+            local text = fn(me.x + 2, me.z)
+            if not is_text(text) or not string.find(text, "arrive", 1, true) then return "hollow", describe(text) end
+            return "ok", text
+        end)
+
+        step("raid.cox_reaches", function()
+            local fn = verb("raid", "cox_reaches")
+            if not fn then return missing("raid", "cox_reaches") end
+            local _, me = t.world.tile()
+            local v = fn(me.x, me.z, 1, 1)
+            if type(v) ~= "boolean" then return "hollow", describe(v) end
+            return "ok", "the player's own tile reaches: " .. tostring(v)
+        end)
+
+        step("raid.cox_reach_map", function()
+            local fn = verb("raid", "cox_reach_map")
+            if not fn then return missing("raid", "cox_reach_map") end
+            local _, me = t.world.tile()
+            local rows = fn(me.x - 4, me.z - 4, 9, 9, 3)
+            if not is_table(rows) or #rows ~= 3 then return "hollow", "a 9x9 map at step 3 -> " .. describe(rows) end
+            return "ok", "9x9 around the player at step 3: " .. table.concat(rows, " / ")
+        end)
+
+        step("raid.cox_mutta_where", function()
+            local fn = verb("raid", "cox_mutta_where")
+            if not fn then return missing("raid", "cox_mutta_where") end
+            local text = fn()
+            if not is_text(text) or not string.find(text, "^me ") or not string.find(text, "room " .. COX_ROOM, 1, true) then
+                return "hollow", describe(text)
+            end
+            return "ok", text
+        end)
+
+        step("raid.cox_trace", function()
+            local fn = verb("raid", "cox_trace")
+            if not fn then return missing("raid", "cox_trace") end
+            fn(true)
+            local on = t.COX and t.COX.TRACE
+            fn(false)
+            local off = t.COX and t.COX.TRACE
+            if on ~= true or off ~= false then return "hollow", "TRACE on " .. describe(on) .. ", off " .. describe(off) end
+            return "ok", "QD.COX.TRACE on, then off"
+        end)
+
+        step("raid.cox_top_up", function()
+            local fn = verb("raid", "cox_top_up")
+            if not fn then return missing("raid", "cox_top_up") end
+            local v = fn(99, 1, nil)
+            if not is_text(v) then return "hollow", describe(v) end
+            return "ok", "full hitpoints, no raid potions held: " .. v
+        end)
+
+        step("raid.cox_make_free", function()
+            local fn = verb("raid", "cox_make_free")
+            if not fn then return missing("raid", "cox_make_free") end
+            local n = fn(1)
+            if math.type(n) ~= "integer" or n < 1 then return "hollow", "free slots after -> " .. describe(n) end
+            return "ok", n .. " free slot(s) (one asked)"
+        end)
+
+        step("raid.cox_prepot", function()
+            local fn = verb("raid", "cox_prepot")
+            if not fn then return missing("raid", "cox_prepot") end
+            local v = fn(COX_ROOM)
+            if v ~= "none" then return "hollow", "the resource room's prepot -> " .. describe(v) end
+            return "ok", COX_ROOM .. " has no prepot styles: none"
+        end)
+
+        step("raid.cox_farm_due", function()
+            local fn = verb("raid", "cox_farm_due")
+            if not fn then return missing("raid", "cox_farm_due") end
+            local no = cox_need() if no then return no, select(2, cox_need()) end
+            local due, n = fn({}, cox_room)
+            local none_due = fn({ aid = 1 }, nil)
+            if type(due) ~= "boolean" or none_due ~= false then
+                return "hollow", "an empty make -> " .. describe(due) .. " " .. describe(n) .. "; no room -> " .. describe(none_due)
+            end
+            return "ok", "nothing to make -> " .. tostring(due) .. " (" .. describe(n) .. "); no room -> false"
+        end)
+
+        step("raid.cox_energy", function()
+            local fn = verb("raid", "cox_energy")
+            if not fn then return missing("raid", "cox_energy") end
+            local v = fn()
+            local known = { ok = true, ["no room"] = true, ["no pool loc"] = true, ["no locs"] = true, ["none here"] = true }
+            if not known[tostring(v)] then return "hollow", describe(v) end
+            return "ok", "the energy pool: " .. tostring(v)
+        end)
+
+        step("raid.cox_walk_near", function()
+            local fn = verb("raid", "cox_walk_near")
+            if not fn then return missing("raid", "cox_walk_near") end
+            local _, me = t.world.tile()
+            local result, detail, at = fn(me.x + 3, me.z, 15)
+            local _, after = t.world.tile()
+            if result ~= "ok" or not is_table(at) then return result, describe(detail) end
+            if math.max(math.abs(after.x - at.x), math.abs(after.z - at.z)) > 1 then
+                return "hollow", "aimed at " .. at.x .. "," .. at.z .. " but stands on " .. after.x .. "," .. after.z
+            end
+            return "ok", "near " .. at.x .. "," .. at.z .. " -> on " .. after.x .. "," .. after.z
+        end)
+
+        step("raid.cox_walk_toward", function()
+            local fn = verb("raid", "cox_walk_toward")
+            if not fn then return missing("raid", "cox_walk_toward") end
+            local _, me = t.world.tile()
+            local result, detail = fn(me.x - 3, me.z, 15, 2)
+            local _, after = t.world.tile()
+            if result ~= "ok" or after.x >= me.x then
+                return (result == "ok") and "hollow" or result, describe(detail) .. "; " .. me.x .. " -> " .. after.x
+            end
+            return "ok", "toward " .. (me.x - 3) .. "," .. me.z .. ": on " .. after.x .. "," .. after.z
+        end)
+
+        step("raid.cox_walk_into", function()
+            local fn = verb("raid", "cox_walk_into")
+            if not fn then return missing("raid", "cox_walk_into") end
+            if not is_table(cox_at) then return "no_subject", "no room centre" end
+            local result, here = fn(COX_ROOM, cox_at.cx, cox_at.cz, 20)
+            if result ~= "ok" or not is_table(here) or here.name ~= COX_ROOM then return result, describe(here) end
+            return "ok", "already in " .. COX_ROOM .. ": ok without a step"
+        end)
+
+        step("raid.cox_walk_path", function()
+            local fn = verb("raid", "cox_walk_path")
+            if not fn then return missing("raid", "cox_walk_path") end
+            local no = cox_need() if no then return no, select(2, cox_need()) end
+            local result, steps = fn({ cox_room }, false)
+            if result ~= "ok" or steps ~= 0 then return "hollow", describe(result) .. " " .. describe(steps) end
+            return "ok", "a path of one room: ok, 0 step(s)"
+        end)
+
+        step("raid.cox_scout", function()
+            local fn = verb("raid", "cox_scout")
+            if not fn then return missing("raid", "cox_scout") end
+            local result, detail = fn()
+            if not is_text(detail) or not string.find(detail, COX_ROOM, 1, true) then
+                return "hollow", describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "the floor's verdict " .. describe(result) .. ": " .. detail
+        end)
+
+        -- The ways out, each from a fresh entry of the same room.
+        step("raid.cox_take_exit", function()
+            local fn = verb("raid", "cox_take_exit")
+            if not fn then return missing("raid", "cox_take_exit") end
+            cox_reenter()
+            local no = cox_need() if no then return no, select(2, cox_need()) end
+            local result, detail = fn(cox_room, 30)
+            if result ~= "ok" and result ~= "not_found" then return result, describe(detail) end
+            return "ok", describe(result) .. " " .. describe(detail)
+        end)
+
+        step("raid.cox_leave_room", function()
+            local fn = verb("raid", "cox_leave_room")
+            if not fn then return missing("raid", "cox_leave_room") end
+            cox_reenter()
+            local result, room = fn(40)
+            if result ~= "ok" or not is_table(room) or room.name ~= COX_ROOM then return result, describe(room) end
+            return "ok", "left " .. room.name
+        end)
+
+        step("raid.cox_walk_on", function()
+            local fn = verb("raid", "cox_walk_on")
+            if not fn then return missing("raid", "cox_walk_on") end
+            cox_reenter()
+            local result, detail = fn(60)
+            local _, here = t.raid.cox_here()
+            if result ~= "ok" then return result, describe(detail) end
+            return "ok", "walked on from " .. COX_ROOM .. ": now in " .. describe(is_table(here) and here.name)
+        end)
+
+        step("raid.cox_enter_next", function()
+            local fn = verb("raid", "cox_enter_next")
+            if not fn then return missing("raid", "cox_enter_next") end
+            cox_reenter()
+            local no = cox_need() if no then return no, select(2, cox_need()) end
+            t.raid.cox_leave_room(40)
+            local result, detail = fn(cox_room, 60)
+            if result ~= "ok" then return result, describe(detail) end
+            return "ok", describe(detail)
+        end)
+
+        step("raid.cox_into_floor_end", function()
+            local fn = verb("raid", "cox_into_floor_end")
+            if not fn then return missing("raid", "cox_into_floor_end") end
+            cox_reenter()
+            local no = cox_need() if no then return no, select(2, cox_need()) end
+            local result = fn(cox_room)
+            if result ~= "ok" then return result, "into the floor's end -> " .. describe(result) end
+            return "ok", "ok"
+        end)
+
+        step("raid.cox_test_enter_long", function()
+            local fn = verb("raid", "cox_test_enter_long")
+            if not fn then return missing("raid", "cox_test_enter_long") end
+            local result, at = fn(COX_ROOM, 0, 80)
+            if result ~= "ok" or not is_table(at) or not at.seed then return result, describe(at) end
+            return "ok", "::coxtest " .. COX_ROOM .. " 0 again -> seed " .. at.seed
+        end)
+
+        step("raid.cox_test_join", function()
+            local fn = verb("raid", "cox_test_join")
+            if not fn then return missing("raid", "cox_test_join") end
+            local result, detail = fn()
+            if result == "refused" and string.find(tostring(detail), "already", 1, true) then
+                return "ok", "the raid's own leader is refused, as he must be: " .. describe(detail)
+            end
+            return (result == "ok") and "hollow" or result, "the leader's join -> " .. describe(detail)
+        end)
+
+        stage(function()
+            t.raid.leave()                                     -- setup: out of the raid
+            setup_cheat("::tele lumbridge")
+            settle(3)
+        end)
+
+        -- Maiden is not in view from her room's landing.  The content lands the
+        -- party on the recorded (79,31) (tob.constant: "EXCEPT MAIDEN, which
+        -- stays on the measured (79,31)"), 53 tiles from her body at lx 26 and
+        -- past the npc view's 24-tile ceiling (TORIRSSERVER_NPC_VIEW_TILES_MAX),
+        -- so the client is sent no npc until the raider walks toward her: the
+        -- corridor at lx 52 (^tob_maiden_entry_lx, four east of the fight tile
+        -- t.raid.start_tile names) puts her footprint 21 tiles off.  The rows
+        -- that look for her before the barrier walk there first; the ones that
+        -- click the barrier get there by the click.  -> (found, detail).
+        -- The same holds for Sotetseg from his room's two-step arrival
+        -- (tob.constant: (30,27) then (15,5)): boss_in_view walks toward the
+        -- room's fight tile -- the barrier stops the walk on the near side --
+        -- and waits for any of `forms` in the client's pool.
+        local function boss_in_view(forms, dx, dz)
+            local sr, fight = t.raid.start_tile()
+            if sr ~= "ok" or not is_table(fight) then
+                return false, "raid.start_tile -> " .. describe(sr) .. " " .. describe(fight)
+            end
+            local tx, tz = fight.x + (dx or 0), fight.z + (dz or 0)
+            local wr, wd = t.player.walk_to(tx, tz, 40)
+            local seen = nil
+            t.await({
+                level = function()
+                    for _, form in ipairs(forms) do
+                        local r = t.npc.nearest(form, 0)
+                        if r == "ok" then seen = form return true end
+                    end
+                    return false
+                end,
+                note = "the room's boss in view",
+            }, 14)
+            local text = "walk_to " .. tx .. "," .. tz .. " -> " .. describe(wr) .. " " .. describe(wd)
+            if seen == nil then
+                return false, text .. "; none of " .. table.concat(forms, "/") .. " in the client's pool within 14 ticks"
+            end
+            return true, text .. "; " .. seen .. " in view"
+        end
+        local MAIDEN_FORMS = { "tob_maiden_100_story", "tob_maiden_100" }
+        -- A Verzik form arrived: a retype to it, or (since her forms come by
+        -- ~tob_verzik_respawn_as, npc_del + npc_add) a spawn of it.  Read a page
+        -- at a time from a cursor: a room's entry adds hundreds of npcs, and the
+        -- type filter is Lua's, so re-reading them every poll ran a resume out of
+        -- instructions (conf_base13).
+        local function vz_watch(since)
+            return { cursor = since, forms = {} }
+        end
+        local function vz_scan(watch)
+            local newest = watch.cursor
+            for _, kind in ipairs({ "npc_retype", "npc_spawn" }) do
+                local _, rows = t.ticklog.rows({ since = watch.cursor, kind = kind })
+                for _, row in ipairs(is_table(rows) and rows or {}) do
+                    local form = row.to_type or row.type
+                    if form ~= nil and watch.forms[form] == nil then watch.forms[form] = row end
+                    if row.serial > newest then newest = row.serial end
+                end
+            end
+            watch.cursor = newest
+            return watch
+        end
+        local function vz_formed(watch, form)
+            vz_scan(watch)
+            local row = watch.forms[form]
+            return row and row.tick or nil
+        end
+        -- Push her P2 pool past its floor with ::tobvzleft -60 until `form`
+        -- comes, but never once her fall (verzik_phase2_death 8118) has begun:
+        -- from the fall her register reads P3's fresh pool, and one more -60 is
+        -- her death (tob_verzik.rs2 ~tob_verzik_leave_p2).
+        local function vz_await_form(since, form, presses, gap)
+            local watch = vz_watch(since)
+            local falling = false
+            for _ = 1, presses do
+                if vz_formed(watch, form) then return true end
+                if not falling then
+                    local _, falls = t.ticklog.rows({ since = since, kind = "npc_anim" })
+                    for _, row in ipairs(is_table(falls) and falls or {}) do
+                        if row.seq == 8118 then falling = true end
+                    end
+                end
+                if not falling then setup_cheat("::tobvzleft -60") end
+                settle(gap)
+            end
+            return vz_formed(watch, form) ~= nil
+        end
+        local function maiden_in_view()
+            return boss_in_view(MAIDEN_FORMS, 4, 0)
+        end
+
         step("raid.enter", function()
             local fn = verb("raid", "enter")
             if not fn then return missing("raid", "enter") end
@@ -14986,12 +16469,22 @@ return {
                 return result, "tob maiden entry -> " .. describe(detail)
             end
             if not string.find(tostring(detail), "in tob maiden (entry)", 1, true)
-                or not string.find(tostring(detail), "boss present (tob_maiden_100", 1, true)
+                or not string.find(tostring(detail), "(tob_maiden_100", 1, true)
                 or not string.find(tostring(detail), "started 0", 1, true) then
                 return "hollow", "answered ok but the detail does not name the room, the mode,"
-                    .. " a present boss and started 0 -- " .. describe(detail)
+                    .. " her body and started 0 -- " .. describe(detail)
             end
-            return "ok", describe(detail)
+            if string.find(tostring(detail), "boss present (tob_maiden_100", 1, true) then
+                return "ok", describe(detail)
+            end
+            -- Not in view from the landing (maiden_in_view above): the build
+            -- is proved by walking to where she is.
+            local seen, seen_detail = maiden_in_view()
+            if not seen then
+                return "hollow", "the room was built but no Maiden came into view from the corridor -- "
+                    .. seen_detail .. " -- " .. describe(detail)
+            end
+            return "ok", describe(detail) .. " | " .. seen_detail
         end)
 
         -- t.raid.state: the active raid's registers as a table.  Graded against
@@ -15399,7 +16892,8 @@ return {
             local fn = verb("launch", "host")
             if not fn then return missing("launch", "host") end
             local result, detail = fn(1, 1)
-            if result ~= "refused" or not string.find(tostring(detail), "size 2..4", 1, true) then
+            -- The upper bound is the party cap (5 since Hard Mode's five-man).
+            if result ~= "refused" or not string.find(tostring(detail), "size 2%.%.%d") then
                 return "hollow", "a party of one is not hosted; read " .. describe(result) .. " " .. describe(detail)
             end
             return "ok", "refused, as it must be: " .. describe(detail)
@@ -15638,8 +17132,8 @@ return {
         -- tob_nylocas.rs2 ~tob_nylo_pillar_tick reads npc_frozen in Entry Mode (Entry Mode page
         -- :166 "Frozen nylocas cannot attack the pillars until unfrozen, even if they are in melee
         -- range"). Graded: Ice Burst on a chewing grey or green nylocas (wrong style: nulled, so it
-        -- lives on frozen), at least one bite animation in the 9 ticks up to the hit, none in the
-        -- 15 after it (Ice Burst freezes 16). Before the seam it bit on through the freeze every
+        -- lives on frozen), at least one bite animation in the 9 ticks up to the freeze, none while
+        -- the server holds it frozen (Ice Burst freezes 16). Before the seam it bit on through the freeze every
         -- 3 ticks (the Normal control s14ny_freeze_probe_normal still does: +2,+5,+8,+11,+14).
         seam("seam.nylocas_frozen_no_bite_entry", function()
             local enter = verb("raid", "enter")
@@ -15674,9 +17168,14 @@ return {
             if entered ~= "ok" then setup_cheat("::setvar varb4070_spellbook 0") return entered, "tob nylocas entry -> " .. describe(entered_detail) end
             log_start()
             local function teardown()
+                setup_cheat("::god 0")
                 setup_cheat("::tobout")
                 setup_cheat("::setvar varb4070_spellbook 0")
             end
+            -- The raider is not this row's subject, and a cast that does not
+            -- freeze sends it on to another chewer among the room's swings
+            -- (conf_base13: dead at 99 hitpoints).
+            setup_cheat("::god 1")
             local tile_result, fight = start_tile()
             if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
             walk_to(fight.x + 1, fight.z, 20)
@@ -15687,6 +17186,7 @@ return {
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
             end
             local tried = {}
+            local first_pick = nil
             for _ = 1, 200 do
                 local _, now = now_tick()
                 local pick = nil
@@ -15709,18 +17209,46 @@ return {
                 end
                 if pick ~= nil then
                     tried[pick.ws] = true
+                    -- Its npc_state rows are read from here: a whole-session read of
+                    -- them ran a resume out of instructions (conf_base13).
+                    t.ticklog.mark("seam.nylocas_frozen cast")
+                    local _, cast_marks = log_rows({ kind = "mark" })
+                    local cast_since = cast_marks[#cast_marks].serial
                     local cast_result = cast("ice_burst", pick.sym, 2, 2, { slot = pick.row.slot })
                     settle(16)
                     local _, hits = log_rows({ kind = "hit_npc", slot = pick.ws })
                     local hit_at = nil
                     for _, h in ipairs(hits or {}) do if hit_at == nil and h.tick >= now then hit_at = h.tick end end
-                    if hit_at ~= nil then
+                    -- The FROZEN window is the server's own (npc_state field 9, the
+                    -- npc's frozen countdown): player_magic.rs2 ~pvm_freeze_effect
+                    -- lands the freeze on the cast's roll, a few ticks before the
+                    -- hit (conf_base11: frozen 4793..4808, hit 4796), so a window
+                    -- counted from the hit ran past the thaw and caught the first
+                    -- bite after it.  What is graded is the room's rule: no bite
+                    -- while frozen.
+                    local freeze_from, freeze_to = nil, nil
+                    -- No slot filter on this kind: it read 0 rows with one (conf_base15)
+                    -- while the log held the freeze; the cast mark bounds the read.
+                    local _, states = log_rows({ kind = "npc_state", since = cast_since })
+                    for _, st in ipairs(states or {}) do
+                        if st.slot == pick.ws and st.field == 9 then
+                            if st.value > 0 and freeze_from == nil then freeze_from = st.tick end
+                            if st.value == 0 and freeze_from ~= nil and freeze_to == nil then freeze_to = st.tick end
+                        end
+                    end
+                    if first_pick == nil then
+                        first_pick = pick.sym .. " slot " .. tostring(pick.ws) .. " (client " .. tostring(pick.row.slot)
+                            .. "): cast " .. describe(cast_result) .. ", hit " .. describe(hit_at) .. ", frozen from "
+                            .. describe(freeze_from) .. " (" .. #(states or {}) .. " state row(s))"
+                    end
+                    if hit_at ~= nil and freeze_from ~= nil then
+                        freeze_to = freeze_to or (freeze_from + 16)
                         local before, after, died = 0, 0, nil
                         local _, anims = log_rows({ kind = "npc_anim", slot = pick.ws })
                         for _, a in ipairs(anims or {}) do
                             if a.seq == 7999 or a.seq == 8004 then
-                                if a.tick >= hit_at - 9 and a.tick <= hit_at then before = before + 1 end
-                                if a.tick > hit_at and a.tick <= hit_at + 15 then after = after + 1 end
+                                if a.tick >= freeze_from - 9 and a.tick <= freeze_from then before = before + 1 end
+                                if a.tick > freeze_from and a.tick < freeze_to then after = after + 1 end
                             elseif a.tick > hit_at and a.tick <= hit_at + 15 and died == nil then
                                 died = a.tick - hit_at
                             end
@@ -15729,7 +17257,8 @@ return {
                         if died == nil or died >= 6 then
                             teardown()
                             local detail = pick.sym .. " slot " .. pick.ws .. " Ice Burst (" .. tostring(cast_result) .. ") hit at t" .. hit_at
-                                .. ": bites in the 9 ticks up to it " .. before .. ", in the 15 after " .. after
+                                .. ", frozen t" .. freeze_from .. "..t" .. (freeze_to - 1)
+                                .. ": bites in the 9 ticks up to the freeze " .. before .. ", while frozen " .. after
                                 .. (died ~= nil and (" (detonated +" .. died .. ")") or "")
                             if before >= 1 and after == 0 then return "ok", detail end
                             return "refused", detail .. " (want >= 1 before and 0 after)"
@@ -15740,7 +17269,8 @@ return {
                 end
             end
             teardown()
-            return "timeout", "no chewing grey or green nylocas was frozen in 200 polls"
+            return "timeout", "no chewing grey or green nylocas was frozen in 200 polls; first pick "
+                .. tostring(first_pick)
         end)
 
 -- seam8 tob_rewards_and_completion: CONTENT seam, no driver verb added or changed.
@@ -15852,17 +17382,25 @@ return {
             setup_cheat("::god 0")
             setup_cheat("::tobout")
             if sr ~= "ok" then return sr, "ticklog sound rows -> " .. describe(sounds) end
-            local storm_sound, throw_sound = 0, 0
+            -- The blood throw sends no synth either since the RSProx-checked tree
+            -- (tob_maiden.rs2 ~tob_maiden_blood_throw: "Jagex sends none (the seq
+            -- carries its sound in band); it is the impacts that go out as area
+            -- sounds"), so the CONTROL -- that the log records this room's sounds
+            -- at all -- is the impacts' tob_maiden_blood_impact (3547).
+            local storm_sound, throw_sound, impact_sound = 0, 0, 0
             for _, row in ipairs(sounds) do
                 if row.sound == 3293 then storm_sound = storm_sound + 1 end
                 if row.sound == 3981 then throw_sound = throw_sound + 1 end
+                if row.sound == 3547 then impact_sound = impact_sound + 1 end
             end
             local reading = "blackstorms " .. storms .. ", synth 3293 sent " .. storm_sound
                 .. " (its frame-3 copy is the client's, configs/all.seq:181900); blood throws "
-                .. throws .. ", synth 3981 sent " .. throw_sound .. " (the control)"
+                .. throws .. ", synth 3981 sent " .. throw_sound .. ", impact 3547 sent "
+                .. impact_sound .. " (the control)"
             if storms < 3 then return "timeout", reading end
             if storm_sound > 0 then return "refused", reading .. " -- the blackstorm's sound is sent on top of its seq (tob_maiden.rs2 ~tob_maiden_blackstorm)" end
-            if throw_sound ~= throws then return "refused", reading .. " -- the blood throw's synth no longer matches its throws" end
+            if throw_sound > 0 then return "refused", reading .. " -- the blood throw's sound is sent on top of its seq" end
+            if throws > 0 and impact_sound == 0 then return "refused", reading .. " -- no impact sound: the log read no sounds" end
             return "ok", reading
         end)
 
@@ -15922,6 +17460,7 @@ return {
             end
             local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
             if entered ~= "ok" then setup_cheat("::god 0") return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            maiden_in_view()  -- not in view from the landing (above)
             log_start()
             local br, brow = nearest("tob_maiden_100_story", 30)
             local sr, slot = log_slot(brow)
@@ -15943,9 +17482,12 @@ return {
             local tick_verb = verb("tick")
             local from_tick = 0
             if tick_verb then local _, t0 = tick_verb() from_tick = tonumber(t0) or 0 end
+            -- Twelve ticks a landing: from the fight-tile side maiden_in_view walks
+            -- to, the storm flies 299 cycles (~10 ticks, conf_base11 L4957/H4966);
+            -- the next storm is 20 ticks on, so no window takes its hit.
             local launches, landed, nines, parts = 0, 0, 0, {}
             local values = {}
-            for _ = 1, 24 do
+            for _ = 1, 30 do
                 settle(5)
                 setup_cheat("::setlevel prayer 99")
                 pray("protectfrommagic", true)
@@ -15956,11 +17498,11 @@ return {
                 local last = 0
                 for _, h in ipairs(hits or {}) do if h.tick > last then last = h.tick end end
                 for _, a in ipairs(anims or {}) do
-                    if a.seq == 8092 and a.tick >= from_tick and a.tick + 7 <= last then
+                    if a.seq == 8092 and a.tick >= from_tick and a.tick + 12 <= last then
                         launches = launches + 1
                         local got = nil
                         for _, h in ipairs(hits or {}) do
-                            if got == nil and h.npc_slot == slot and h.tick >= a.tick + 1 and h.tick <= a.tick + 7 then got = h end
+                            if got == nil and h.npc_slot == slot and h.tick >= a.tick + 1 and h.tick <= a.tick + 12 then got = h end
                         end
                         if got ~= nil then
                             landed = landed + 1
@@ -16024,6 +17566,12 @@ return {
             local entered, entered_detail = enter("tob", "bloat", { mode = "hard" })
             if entered ~= "ok" then teardown() return entered, "tob bloat hard -> " .. describe(entered_detail) end
             log_start()
+            -- Every read from here: the log is session-long, and a whole-session
+            -- read of npc_anim each poll ran a resume out of instructions
+            -- (conf_base14) and took an earlier Bloat row's down as this one's.
+            t.ticklog.mark("seam.bloat_down_sounds_in_band")
+            local _, own_marks = log_rows({ kind = "mark" })
+            local base = own_marks[#own_marks].serial
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
             local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
@@ -16038,7 +17586,7 @@ return {
                 settle(1)
                 _, now = verb("tick")()
                 if down == nil then
-                    local _, anims = log_rows({ kind = "npc_anim", seq = 8082 })
+                    local _, anims = log_rows({ kind = "npc_anim", seq = 8082, since = base })
                     if anims ~= nil and #anims > 0 then down = anims[1].tick end
                 end
                 if down ~= nil and now >= down + 34 then break end
@@ -16048,7 +17596,7 @@ return {
                 return "timeout", "no whole Bloat down seen (down " .. tostring(down) .. ", tick " .. tostring(now) .. ")"
             end
             local snore, shout, flies = 0, 0, 0
-            local sounds_result, sounds = log_rows({ kind = "sound" })
+            local sounds_result, sounds = log_rows({ kind = "sound", since = base })
             if sounds_result ~= "ok" then
                 teardown()
                 return "refused", "t.ticklog.rows{kind=sound} -> " .. tostring(sounds_result) .. " " .. describe(sounds)
@@ -16136,18 +17684,59 @@ return {
             end
             if landed == nil then teardown() return "timeout", "no hand landed (map_spotanim 1576) in 40 ticks" end
             settle(1)
+            -- ONE barbassault_splat PER SPLAT, an area sound on the splat's own
+            -- tile heard within its radius (tob_bloat.rs2 ~tob_bloat_splat, RSProx
+            -- 4,264 of 4,264): so on the landing tick every 3308 row sits on a
+            -- splat's tile, no tile twice, and every splat within the radius of
+            -- this raider sent one.  (It was one sound a volley before the
+            -- RSProx-checked tree.)
+            local function cx(c) return (c >> 14) & 0x3fff end
+            local function cz(c) return c & 0x3fff end
+            local _, here = t.world.tile()
+            local _, landed_splats = log_rows({ since = base, kind = "map_spotanim", spotanim = 1576 })
+            local splat_at = {}
+            for _, sp in ipairs(landed_splats or {}) do
+                if sp.tick == landed then splat_at[sp.coord] = true end
+            end
             local _, sounds = log_rows({ since = base, kind = "sound" })
-            local splat_rows, hit_synth = 0, 0
+            local splat_rows, hit_synth, off_tile, twice, radius = 0, 0, 0, 0, nil
+            local heard = {}
             for _, s in ipairs(sounds or {}) do
-                if s.tick == landed and s.sound == 3308 then splat_rows = splat_rows + 1 end
+                if s.tick == landed and s.sound == 3308 then
+                    splat_rows = splat_rows + 1
+                    radius = s.radius
+                    if not splat_at[s.coord] then off_tile = off_tile + 1 end
+                    if heard[s.coord] then twice = twice + 1 end
+                    heard[s.coord] = true
+                end
                 if s.sound == 3971 and s.source ~= "npc" then hit_synth = hit_synth + 1 end
             end
-            if splat_rows ~= 1 or hit_synth ~= 0 then
+            local in_reach = 0
+            if is_table(here) and radius ~= nil then
+                for c in pairs(splat_at) do
+                    if math.max(math.abs(cx(c) - here.x), math.abs(cz(c) - here.z)) <= radius then
+                        in_reach = in_reach + 1
+                    end
+                end
+            end
+            if splat_rows == 0 or off_tile > 0 or twice > 0 or splat_rows ~= in_reach or hit_synth ~= 0 then
                 teardown()
-                return "refused", "volley landed at tick " .. landed .. ": 3308 rows on it " .. splat_rows .. " (want 1), synth 3971 rows " .. hit_synth .. " (want 0; tob_bloat.rs2 ~tob_bloat_splat / ~tob_bloat_hand_sound)"
+                return "refused", "volley landed at tick " .. landed .. ": 3308 rows on it " .. splat_rows
+                    .. " (" .. off_tile .. " off a splat's tile, " .. twice .. " a tile twice; want one per splat within "
+                    .. describe(radius) .. ": " .. in_reach .. "), synth 3971 rows " .. hit_synth
+                    .. " (want 0; tob_bloat.rs2 ~tob_bloat_splat)"
             end
             -- 2. the cage: the flies reached this tile (control), then nothing does.
-            local _, before = log_rows({ since = base, kind = "hit_player" })
+            -- The control first: the flies' hit has to have reached this tile, or
+            -- "nothing hit him in the cage" reads nothing (conf_base14: 0 before
+            -- the jail; conf_base13 had them).  Up to 40 ticks for it.
+            local before = nil
+            for _wait = 1, 40 do
+                local _, rows = log_rows({ since = base, kind = "hit_player" })
+                before = rows
+                if is_table(before) and #before > 0 then break end
+                settle(1)
+            end
             local control = #(before or {})
             setup_cheat("::setvar varp7515_tob_died_in 1")
             settle(1)
@@ -16158,20 +17747,24 @@ return {
             for _, h in ipairs(after or {}) do
                 if h.tick >= jailed_at + 4 then late[#late + 1] = h.tick .. ":" .. tostring(h.damage) end
             end
-            local _, sounds2 = log_rows({ since = base, kind = "sound" })
-            local caged_splats = 0
-            for _, s in ipairs(sounds2 or {}) do
-                if s.tick > jailed_at and s.sound == 3308 then caged_splats = caged_splats + 1 end
-            end
+            -- A caged raider is no hand's target: no hit, and no splat on his
+            -- own tile.  (The splat SOUND is an area sound now, so a caged
+            -- raider left standing in the arena hears the ones near him.)
+            local _, cage_tile = t.world.tile()
             local _, splats2 = log_rows({ since = base, kind = "map_spotanim", spotanim = 1576 })
-            local volleys, seen = 0, {}
+            local volleys, seen, caged_splats = 0, {}, 0
             for _, s in ipairs(splats2 or {}) do
                 if s.tick > jailed_at and not seen[s.tick] then seen[s.tick] = true volleys = volleys + 1 end
+                if s.tick > jailed_at and is_table(cage_tile) and cx(s.coord) == cage_tile.x
+                    and cz(s.coord) == cage_tile.z then
+                    caged_splats = caged_splats + 1
+                end
             end
             teardown()
-            local reading = "volley at " .. landed .. ": one 3308, no 3971; " .. control .. " hit_player before the jail (control); jailed at "
+            local reading = "volley at " .. landed .. ": " .. splat_rows .. " 3308 (one per splat within "
+                .. describe(radius) .. "), no 3971; " .. control .. " hit_player before the jail (control); jailed at "
                 .. jailed_at .. ": " .. #late .. " hit_player from +4 to +16 (" .. table.concat(late, " ") .. "), "
-                .. volleys .. " volley(s) landed, " .. caged_splats .. " volley sound(s) to the caged raider"
+                .. volleys .. " volley(s) landed, " .. caged_splats .. " splat(s) on the caged raider's tile"
             if control == 0 then return "refused", reading .. " -- the flies never reached this tile, so the cage check read nothing" end
             if volleys == 0 then return "refused", reading .. " -- no volley landed while jailed" end
             if #late > 0 or caged_splats > 0 then return "refused", reading .. " -- a jailed raider is still a target (tob_bloat.rs2 ~tob_bloat_target)" end
@@ -16323,6 +17916,19 @@ return {
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
             end
+            -- THE ROOM'S OWN FRAME. ::tobwarp and ::tobbloatlos speak room-local tiles
+            -- (~tob_instance_coord), and a copy's origin need not be 64-aligned
+            -- (conf_base12: 6410,68): Bloat's tile read in the 64-square frame then
+            -- put the chosen tiles out of the stomp's hunt or on his far side. One
+            -- warp measures the origin; the room-local tile of anything is its
+            -- absolute tile less it.
+            ask("::tobwarp 24 24", "tobwarp ")
+            local origin_x, origin_z = nil, nil
+            do
+                local _, at = t.world.tile()
+                if is_table(at) then origin_x, origin_z = at.x - 24, at.z - 24 end
+            end
+            if origin_x == nil then teardown() return "no_subject", "::tobwarp 24 24 left no tile to measure the room from" end
             local function next_down(after)
                 for _wait = 1, 140 do
                     ticks(1)
@@ -16381,14 +17987,18 @@ return {
                 return nil, asked
             end
             local parts = {}
-            local after = 0
+            -- From this row's own tick: Bloat's world slot is reused room to room,
+            -- and an earlier Bloat row's 8082 on it read as this fight's first
+            -- down (conf_base14/15: "seen, not stomped" against an old down).
+            local _, after = tick()
+            after = tonumber(after) or 0
             local hidden_done, seen_done = nil, nil
             for round = 1, 6 do
                 if hidden_done ~= nil and seen_done ~= nil then break end
                 local down, bx, bz = next_down(after)
                 if down == nil or bx == nil then teardown() return "timeout", "no down in round " .. round .. " " .. table.concat(parts, "; ") end
                 after = down
-                local ox, oz = math.floor(bx / 64) * 64, math.floor(bz / 64) * 64
+                local ox, oz = origin_x, origin_z
                 local lbx, lbz = bx - ox, bz - oz
                 local c, asked = nil, 0
                 local want_seen = false
@@ -16400,15 +18010,18 @@ return {
                 if c ~= nil then
                     ask("::tobwarp " .. c.lx .. " " .. c.lz, "tobwarp ")
                     local _, now = tick()
-                    while now < down + 31 do ticks(1) _, now = tick() end
+                    -- The stomp is 30 ticks after the down seq and its hit the tick after
+                    -- (RSProx 37 of 37 / 60 of 60, tob.constant ^tob_bloat_stomp_offset and
+                    -- _hit_delay): down+31.  Blert's BLOAT_STOMP_TICK read 29.
+                    while now < down + 33 do ticks(1) _, now = tick() end
                     local _, hits = log_rows({ kind = "hit_player" })
                     local stomp = nil
                     for _, h in ipairs(hits or {}) do
-                        if h.tick == down + 29 and h.npc_slot == slot then stomp = (h.raw or h.damage) end
+                        if h.tick == down + 31 and h.npc_slot == slot then stomp = (h.raw or h.damage) end
                     end
                     if want_seen then seen_done = stomp or false else hidden_done = stomp or false end
                     parts[#parts + 1] = "down " .. down .. " SW local " .. lbx .. "," .. lbz .. ", me " .. (want_seen and "SEEN" or "HIDDEN")
-                        .. " at local " .. c.lx .. "," .. c.lz .. " (" .. c.d .. " from his SW): stomp on down+29 " .. (stomp and ("raw " .. stomp) or "none")
+                        .. " at local " .. c.lx .. "," .. c.lz .. " (" .. c.d .. " from his SW): stomp hit on down+31 " .. (stomp and ("raw " .. stomp) or "none")
                 end
             end
             teardown()
@@ -16435,7 +18048,7 @@ return {
 -- What it reads (server tick log): a small killed on the engine's death path (::kill, the
 -- same npc_death_step -> [ai_queue3] a player kill takes) leaves its colour's
 -- tob_nylocas_death_<style>_standard graphic (1562-1564) on the tick and tile it despawns,
--- and Vasilias' spawning form (10786, Entry) plays top_spider_melee_spawn_noloop (9030) on
+-- and Vasilias' spawning form (10786, Entry) plays top_spider_melee_spawn (8075; RSProx) on
 -- its spawn tick. ::kill and ::tobnyloskip are measurement cheats: fine in a seam row,
 -- never in a room test.
 --
@@ -16550,7 +18163,10 @@ return {
             if small_seen < 3 or boss == nil then return "timeout", reading end
             if small_ok ~= small_seen then return "refused", reading .. " -- tob_nylocas.rs2 [ai_queue3] -> ~tob_nylo_small_killed" end
             local dropped = false
-            for _, s in ipairs(boss_seq) do if s == 9030 then dropped = true end end
+            -- top_spider_melee_spawn 8075 on the add tick: Jagex plays it, 28 of 28
+            -- recorded landings, not the `_noloop` copy 9030 this row first pinned
+            -- (tob_nylocas.rs2 ~tob_nylo_drop_in).
+            for _, s in ipairs(boss_seq) do if s == 8075 then dropped = true end end
             if not dropped then return "refused", reading .. " -- tob_nylocas.rs2 ~tob_nylo_drop_in" end
             return "ok", reading
         end)
@@ -16636,11 +18252,18 @@ return {
             setup_cheat("::tobnyloskip")
             setup_cheat("::god 1")
             equip("abyssal_whip")
+            -- The FIGHTING Vasilias: her spawning form (10786) is one npc and the
+            -- form that fights is another, added two ticks on in her melee form
+            -- (conf_base11: 10786 on slot 1136 at 5419, 10787 on slot 1137 at 5421),
+            -- and only that one retypes.  Her first window runs from that spawn.
             local boss = nil
             for _ = 1, 120 do
                 settle(1)
-                local _, spawns = log_rows({ kind = "npc_spawn", type = 10786, since = base })
-                if is_table(spawns) and spawns[1] ~= nil then boss = spawns[1] break end
+                local _, spawns = log_rows({ kind = "npc_spawn", since = base })
+                for _, sp in ipairs(spawns or {}) do
+                    if boss == nil and FORM[sp.type] ~= nil then boss = sp end
+                end
+                if boss ~= nil then break end
             end
             if boss == nil then teardown() return "timeout", "Vasilias never landed after ::tobnyloskip" end
             -- the whip is right only in her melee form: hit her there, probe once in the first other form, then wait for
@@ -16649,7 +18272,7 @@ return {
             for _ = 1, 110 do
                 -- her form from the server's own retype rows (the three records share one name, so a lookup by
                 -- symbol cannot tell them apart)
-                local now_form = nil
+                local now_form = FORM[boss.type]
                 local _, forms = log_rows({ kind = "npc_retype", slot = boss.slot, since = base })
                 for _, r in ipairs(forms or {}) do if FORM[r.to_type] ~= nil then now_form = FORM[r.to_type] end end
                 local changed = now_form ~= nil and now_form ~= form
@@ -16683,7 +18306,7 @@ return {
                 settle(1)
             end
             local _, retypes = log_rows({ kind = "npc_retype", slot = boss.slot, since = base })
-            local gaps, last = {}, nil
+            local gaps, last = {}, boss.tick
             for _, r in ipairs(retypes or {}) do
                 if FORM[r.to_type] ~= nil then
                     if last ~= nil then gaps[#gaps + 1] = r.tick - last end
@@ -17063,6 +18686,7 @@ return {
             settle(2)
             local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
             if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            maiden_in_view()  -- not in view from the landing (above)
             equip("twisted_bow")
             equip("dragon_arrow")
             local br, brow = nearest("tob_maiden_100_story", 30)
@@ -17132,17 +18756,24 @@ return {
             setup_cheat("::tobout")
             settle(2)
             local detail = "her death K=" .. describe(K) .. ": dying_a K+" .. describe(a) .. ", fade K+"
-                .. describe(b) .. ", npc_free K+" .. describe(f) .. " (blert K+1 / K+5 / K+9); "
+                .. describe(b) .. ", npc_free K+" .. describe(f) .. " (RSProx: dying_a on the killing tick, 31 of 31;"
+                .. " blert's K+1 / K+5 / K+9 count from the tick before); "
                 .. with_loc .. " of " .. #sp .. " pool landings (graphic 1579) put loc 32984 on their tile"
             if K == nil then return "refused", detail .. " -- she did not die" end
-            if a ~= 1 or b ~= 5 or f ~= 9 then return "refused", detail end
+            -- K is the npc_death row's tick, the tick her hitpoints reached 0, and
+            -- Jagex retypes her to dying_a ON it (tob_maiden.rs2 ~tob_maiden_tick,
+            -- docs/rsprox-analysis/tob/maiden.md); the fade and the free keep
+            -- blert's four-tick gaps.
+            if a ~= 0 or b ~= 4 or f ~= 8 then return "refused", detail end
             if #sp == 0 then return "no_subject", detail .. " -- she threw no pool in the window" end
             if with_loc ~= 0 then return "refused", detail end
             return "ok", detail
         end)
 
--- seam11 tob_rig_ledger_faults (2 of 2): a Matomenos plays elemental_spawn 8098 on
--- the tick it spawns. Leaves the raid on every exit. SEAM_COUNT +1.
+-- seam11 tob_rig_ledger_faults (2 of 2), corrected from RSProx: a Maiden Matomenos
+-- is sent NO seq on the tick it spawns -- 430 recorded spawns, not one `elemental_spawn`
+-- 8098, which is Verzik's crab's (tob_maiden.rs2, docs/rsprox-analysis/tob/maiden.md).
+-- This row first pinned 8098 on the spawn tick. Leaves the raid on every exit.
         seam("seam.matomenos_spawn_seq_on_spawn_tick", function()
             local enter = verb("raid", "enter")
             local click_loc = verb("player", "click_loc")
@@ -17183,16 +18814,16 @@ return {
             teardown()
             local at = {}
             for _, a in ipairs(anims) do at[a.slot .. ":" .. a.tick] = a.seq end
-            local same, parts = 0, {}
+            local animated, parts = 0, {}
             for _, s in ipairs(spawns) do
                 local seq = at[s.slot .. ":" .. s.tick]
-                if seq == SPAWN_SEQ then same = same + 1 end
+                if seq ~= nil then animated = animated + 1 end
                 parts[#parts + 1] = "slot " .. s.slot .. " tick " .. s.tick .. " seq " .. describe(seq)
             end
-            local detail = #spawns .. " Matomenos spawn(s), " .. same .. " with npc_anim 8098 on the spawn tick ("
-                .. table.concat(parts, "; ") .. ")"
+            local detail = #spawns .. " Matomenos spawn(s), " .. animated .. " with an npc_anim on the spawn tick ("
+                .. table.concat(parts, "; ") .. "; RSProx: none of 430, and never " .. SPAWN_SEQ .. ")"
             if #spawns == 0 then return "no_subject", detail .. " -- she called no crabs at 69 %" end
-            if same ~= #spawns then return "refused", detail end
+            if animated ~= 0 then return "refused", detail end
             return "ok", detail
         end)
 
@@ -17422,7 +19053,10 @@ return {
                     end
                     n = n + 1
                     if moved then walking = walking + 1 end
-                    if anim == nil or anim - D ~= 1 or free == nil or free - D ~= 2 then
+                    -- RSProx (docs/rsprox-analysis/tob/nylocas.md, 3,888 smalls killed):
+                    -- NO seq on the small's body, deleted at +2, about 40% a tick
+                    -- sooner -- and a walking small no later than a standing one.
+                    if anim ~= nil or free == nil or (free - D ~= 1 and free - D ~= 2) then
                         bad = bad + 1
                         bad_text[#bad_text + 1] = string.format("slot %d%s anim+%s free+%s", d.slot,
                             moved and " walking" or "", anim and tostring(anim - D) or "?",
@@ -17432,7 +19066,7 @@ return {
             end
             setup_cheat("::tobout")
             settle(2)
-            local detail = (n - bad) .. " of " .. n .. " small deaths animate t+1 and despawn t+2 ("
+            local detail = (n - bad) .. " of " .. n .. " small deaths play no seq and despawn t+1 or t+2 ("
                 .. walking .. " walking on t or t-1)"
             if n == 0 then return "no_subject", detail .. " -- no small died" end
             if bad > 0 then return "refused", detail .. ": " .. table.concat(bad_text, "; ", 1, math.min(#bad_text, 6)) end
@@ -17509,6 +19143,7 @@ return {
             end
             local entered, entered_detail = enter("tob", "sotetseg", { mode = "entry" })
             if entered ~= "ok" then return entered, "tob sotetseg entry -> " .. describe(entered_detail) end
+            boss_in_view({ "tob_sotetseg_combat_story", "tob_sotetseg_noncombat_story" })  -- not in view from the arrival
             -- a party member who is not a player keeps the party from being all down,
             -- so the cage holds instead of wiping three ticks later
             setup_cheat("::tobmate")
@@ -17557,9 +19192,14 @@ return {
             local _, hits = log_rows({ kind = "hit_player", since = since })
             local _, retypes = log_rows({ kind = "npc_retype", slot = world_slot, since = since })
             setup_cheat("::tobout")
+            -- Not the maze's own cast: on the proc's tick he plays his ranged cast
+            -- with no projectile (RSProx 56 of 56, tob_sotetseg.rs2), beside his
+            -- retype to the non-combat form.  That is the maze, not an attack.
+            local proc_tick = {}
+            for _, r in ipairs(retypes) do proc_tick[r.tick] = true end
             local swings = 0
             for _, r in ipairs(anims) do
-                if r.seq == 8138 or r.seq == 8139 then swings = swings + 1 end
+                if (r.seq == 8138 or r.seq == 8139) and not proc_tick[r.tick] then swings = swings + 1 end
             end
             local detail = "death '" .. tostring(died) .. "'; cage '" .. tostring(caged) .. "'; in 28 caged ticks: "
                 .. swings .. " attack anim(s) (8138/8139), " .. #hits .. " hit_player row(s), "
@@ -17604,6 +19244,7 @@ return {
             end
             local entered, entered_detail = enter("tob", "sotetseg", { mode = "entry" })
             if entered ~= "ok" then return entered, "tob sotetseg entry -> " .. describe(entered_detail) end
+            boss_in_view({ "tob_sotetseg_combat_story", "tob_sotetseg_noncombat_story" })  -- not in view from the arrival
             log_start()
             t.ticklog.mark("seam.tob_sotetseg_tornado_mode_record")
             local _, base_marks = log_rows({ kind = "mark" })
@@ -17639,7 +19280,11 @@ return {
             local cx, cz = start.x, start.z
             local seen = { [cx .. "," .. cz] = true }
             local steps = 0
-            while cz - start.z < 3 and steps < 12 do
+            -- Past the third row: the check runs in the runner's own player hook
+            -- (~tob_sote_runner_tick, row >= ^tob_sote_maze_tornado_row - 1), so the
+            -- walk goes one row beyond it and gives the hook ticks to see the tile
+            -- (conf_base12: three rows and two ticks raised nothing).
+            while cz - start.z < 4 and steps < 14 do
                 local nx, nz = nil, nil
                 if path[cx .. "," .. (cz + 1)] and not seen[cx .. "," .. (cz + 1)] then
                     nx, nz = cx, cz + 1
@@ -17653,7 +19298,7 @@ return {
                 cx, cz = nx, nz
                 steps = steps + 1
             end
-            ticks(2)
+            ticks(4)
             local _, spawns = log_rows({ kind = "npc_spawn", since = base })
             teardown()
             local types = ""
@@ -17705,6 +19350,7 @@ return {
             setup_cheat("::setlevel prayer 99")
             local entered, entered_detail = enter("tob", "sotetseg", { mode = "entry" })
             if entered ~= "ok" then return entered, "tob sotetseg entry -> " .. describe(entered_detail) end
+            boss_in_view({ "tob_sotetseg_combat_story", "tob_sotetseg_noncombat_story" })  -- not in view from the arrival
             log_start()
             local found, boss = nearest("tob_sotetseg_combat_story", 40)
             if found ~= "ok" or not is_table(boss) then setup_cheat("::tobout") return "not_found", "tob_sotetseg_combat_story -> " .. describe(boss) end
@@ -18165,8 +19811,8 @@ return {
             return "ok", "no party: tob_partylist:myparty[9] = '" .. label .. "' (varp1740 -1 reached the client)"
         end)
 
-        -- The Mysterious Stranger's Trade (escape crystal, 75,000 coins; wiki
-        -- Mysterious Stranger stock) and the crystal's Teleport out of the Theatre
+        -- The Mysterious Stranger's Trade (escape crystal, 7,500 coins at rev 242:
+        -- cost 10,000 x 750 per mille) and the crystal's Teleport out of the Theatre
         -- (~tob_leave to ^tob_outside, the crystal consumed). varb15607 bit 0 is
         -- the Trade form A Night at the Theatre's first talk unlocks (staged).
         seam("seam.tob_stranger_sells_escape_crystal_and_it_leaves", function()
@@ -18209,7 +19855,10 @@ return {
             settle(1)
             local _, c1 = count("coins")
             local _, n1 = count("tob_teleport")
-            if br ~= "ok" or n1 ~= 1 or (c0 or 0) - (c1 or 0) ~= 75000 then
+            -- 7,500: the rev-242 cache's cost is 10,000 (rev 241's was 100,000,
+            -- the wiki's 75,000) and the Stranger sells at 750 per mille
+            -- (tob_lobby.constant ^tob_stranger_shop_sell).
+            if br ~= "ok" or n1 ~= 1 or (c0 or 0) - (c1 or 0) ~= 7500 then
                 return "refused", "buy " .. tostring(br) .. " " .. describe(bd) .. "; crystals " .. tostring(n1) .. ", coins " .. tostring(c0) .. " -> " .. tostring(c1)
             end
             setup_cheat("::tobmode 1 1")
@@ -18226,7 +19875,8 @@ return {
             local where = is_table(at) and (tostring(at.x) .. "," .. tostring(at.z)) or describe(at)
             local detail = "bought 1 for " .. tostring((c0 or 0) - (c1 or 0)) .. " coins; Teleport " .. tostring(ir)
                 .. " -> crystals " .. tostring(n2) .. ", at " .. where .. ", " .. tostring(st)
-            if n2 ~= 0 or not is_table(at) or at.x ~= 3677 or at.z ~= 3219
+            -- ^tob_outside, 0_57_50_29_17 (tob.constant): 3677,3217.
+            if n2 ~= 0 or not is_table(at) or at.x ~= 3677 or at.z ~= 3217
                 or st == nil or string.find(st, "active=0", 1, true) == nil then
                 return "refused", detail
             end
@@ -18470,13 +20120,13 @@ return {
                     .. describe(talk_detail) .. ", begin " .. tostring(played) .. " " .. describe(play_detail)
             end
             setup_cheat("::god 1")
+            -- A retype to the form, or its SPAWN: her forms after P1 come by
+            -- ~tob_verzik_respawn_as (npc_del + npc_add on a new slot).  Read
+            -- incrementally (vz_watch): the room's entry spawns hundreds.
+            local watch = vz_watch(base)
             local function retyped_to(id)
-                local _, rows = log_rows({ since = base, kind = "npc_retype" })
-                if not is_table(rows) then return nil end
-                for i = 1, #rows do
-                    if rows[i].to_type == id then return rows[i] end
-                end
-                return nil
+                vz_scan(watch)
+                return watch.forms[id]
             end
             local function wait_retype(id, n)
                 local guard = 0
@@ -18888,18 +20538,26 @@ return {
             if not touched or touch == nil then
                 return "refused", "a raider standing on 6430,84 was never touched in 40 ticks (tornado spawned " .. spawn.tick .. " at " .. spawn.x .. "," .. spawn.z .. ")"
             end
+            -- RSProx, 83 tornado lives (docs/rsprox-analysis/tob/verzik.md): no
+            -- animation on the creeper at its spawn or its touch (9004 / 9005 are
+            -- sent by nobody), 1602 on the raider and a heal splat on her ON the
+            -- touch tick T, and the tornado DELETED on T.  The heal row's source
+            -- is a call chain ending in the heal proc.
             for _, row in ipairs(rows) do
                 if row.kind == "player_spotanim" and row.spotanim == 1602 and row.tick == touch.tick then gfx = row.tick end
                 if row.kind == "npc_anim" and row.slot == spawn.slot and row.seq == 9005 and row.tick == touch.tick then desp = row.tick end
-                if row.kind == "npc_heal" and row.source == "[proc,tob_verzik_tornado_heal]" and row.tick == touch.tick then heal = row.amount end
-                if row.kind == "npc_free" and row.slot == spawn.slot and row.tick > touch.tick and freed == nil then freed = row.tick end
+                if row.kind == "npc_heal" and type(row.source) == "string"
+                    and row.source:sub(-#"[proc,tob_verzik_tornado_heal]") == "[proc,tob_verzik_tornado_heal]"
+                    and row.tick == touch.tick then heal = row.amount end
+                if row.kind == "npc_free" and row.slot == spawn.slot and row.tick >= touch.tick and freed == nil then freed = row.tick end
             end
             local detail = string.format("tornado spawn %d at %d,%d (9004 %s), touch %d for %d (1602 %s, 9005 %s), heal %s, npc_free %s",
                 spawn.tick, spawn.x, spawn.z, tostring(spawn_seq), touch.tick, touch.damage, tostring(gfx), tostring(desp), tostring(heal), tostring(freed))
-            if spawn_seq == nil or gfx == nil or desp == nil then return "refused", detail .. " -- a seq or graphic is missing" end
+            if gfx == nil then return "refused", detail .. " -- the touch's 1602 is missing" end
+            if spawn_seq ~= nil or desp ~= nil then return "refused", detail .. " -- the creeper plays a seq Jagex never sends" end
             if heal ~= 3 * touch.damage then return "refused", detail .. " -- the heal is not three times the touch" end
             if touch.damage < 40 or touch.damage > 50 then return "refused", detail .. " -- the touch is not half of 80..99 hitpoints" end
-            if freed ~= touch.tick + 1 then return "refused", detail .. " -- not removed one tick after its despawn seq" end
+            if freed ~= touch.tick then return "refused", detail .. " -- not deleted on the touch tick" end
             return "ok", detail
         end)
 
@@ -19028,7 +20686,12 @@ return {
             if death == nil or bat == nil then return "refused", detail .. " -- she did not die into her bat" end
             if #touches > 0 then return "refused", detail .. " -- her tornado touched a raider after she fell" end
             if late_spawn > 0 then return "refused", detail .. " -- a tornado spawned after she fell" end
-            if fade ~= bat or freed ~= bat + 1 then return "refused", detail .. " -- not faded on the bat's tick and removed one tick later" end
+            -- No despawn seq: the real server sends no animation on the creeper
+            -- (RSProx, docs/rsprox-analysis/tob/verzik.md); her death sweep ends it
+            -- on the bat's tick and it is removed the tick after (tob_verzik.rs2
+            -- ~tob_verzik_tornado_fade).
+            if fade ~= nil then return "refused", detail .. " -- the creeper plays a despawn seq Jagex never sends" end
+            if freed ~= bat + 1 then return "refused", detail .. " -- not removed the tick after the bat" end
             return "ok", detail
         end)
 
@@ -19106,9 +20769,17 @@ return {
             local tr, td = talk("verzik_initial_story", 1)
             local cr, cd = play(t.raid.tob_verzik_pages())
             if tr ~= "ok" or cr ~= "ok" then teardown() return "refused", "talk " .. tostring(tr) .. " " .. describe(td) .. ", begin " .. tostring(cr) .. " " .. describe(cd) end
+            -- A retype to the form, or its SPAWN: her later forms come by
+            -- ~tob_verzik_respawn_as (npc_del + npc_add, a new slot).  Read
+            -- incrementally from this row's own mark (vz_watch).
+            t.ticklog.mark("seam.verzik_p3_attacks_roll_accuracy")
+            local _, own_marks = log_rows({ kind = "mark" })
+            local watch = vz_watch(own_marks[#own_marks].serial)
             local function retyped_to(types)
-                local _, rt = log_rows({ kind = "npc_retype" })
-                for _, x in ipairs(rt or {}) do if types[x.to_type] and x.tick >= from_tick then return x end end
+                vz_scan(watch)
+                for form, row in pairs(watch.forms) do
+                    if types[form] and row.tick >= from_tick then return row end
+                end
                 return nil
             end
             local P2 = { [8372] = true, [10833] = true, [10850] = true }
@@ -19127,7 +20798,9 @@ return {
             for _ = 1, 40 do
                 ticks(10)
                 local _, anims = log_rows({ kind = "npc_anim", slot = slot })
-                local _, hits = log_rows({ kind = "hit_player" })
+                local row_since = own_marks[#own_marks].serial
+                local _, hits = log_rows({ kind = "hit_player", since = row_since })
+                local _, projs = log_rows({ kind = "projectile", since = row_since })
                 local _, now = tick()
                 autos, melees, zeros_a, zeros_m, maxa, parts = 0, 0, 0, 0, 0, {}
                 for _, a in ipairs(anims or {}) do
@@ -19135,7 +20808,20 @@ return {
                     if (a.seq == 8124 or a.seq == 8125 or melee) and a.tick >= p3.tick and a.tick + 6 <= now then
                         local got = nil
                         local lo, hi = a.tick + 1, a.tick + 5
-                        if melee then lo, hi = a.tick, a.tick + 1 end
+                        if melee then
+                            lo, hi = a.tick, a.tick + 1
+                        else
+                            -- Its own bolt decides the landing: ceil(end / 30) after the
+                            -- cast (RSProx, tob_verzik.rs2), up to 6 ticks from range, and the
+                            -- hit the tick of the landing or the next. A fixed +5 window lost
+                            -- every far auto, the ranged misses among them (conf_base14).
+                            for _, pj in ipairs(projs or {}) do
+                                if pj.tick == a.tick and (pj.spotanim == 1593 or pj.spotanim == 1594) then
+                                    local land = a.tick + math.floor((pj.end_cycle + 29) / 30)
+                                    lo, hi = land, land + 1
+                                end
+                            end
+                        end
                         for _, h in ipairs(hits or {}) do
                             if got == nil and h.npc_slot == slot and h.tick >= lo and h.tick <= hi then got = h end
                         end
@@ -19222,16 +20908,11 @@ return {
             -- live Athanatos's heal (+9-10, [proc,tob_verzik_athanatos_tick]) runs before her
             -- [proc,tob_verzik_p2_tick] reads phase_hp <= 0, so she reads 10, crosses 35% and
             -- summons the reds instead (shim run 1: 400 at t158, heal + reds 10845 at t159).
-            local p3 = false
-            for _ = 1, 10 do
-                setup_cheat("::tobvzleft -60")
-                ticks(15)
-                local _, retypes = log_rows({ since = since, kind = "npc_retype" })
-                for _, row in ipairs(is_table(retypes) and retypes or {}) do
-                    if row.to_type == 10835 then p3 = true end
-                end
-                if p3 then break end
-            end
+            -- Her forms come by RESPAWN now (tob_verzik.rs2 ~tob_verzik_respawn_as:
+            -- npc_del + npc_add), so P3 is an npc_spawn row; and once her fall
+            -- (8118) has begun her register reads P3's fresh pool, where one more
+            -- -60 is a death -- so the presses stop at the fall.
+            local p3 = vz_await_form(since, 10835, 10, 15)
             if not p3 then teardown() return "refused", "her P3 form 10835 never came: ten ::tobvzleft -60 in P2" end
             local CX, CZ = 6418, 98
             local _, t0 = tick()
@@ -19538,8 +21219,11 @@ return {
             local spits, spits_on, orbs, orbs_on, in_death, text = 0, 0, 0, 0, 0, ""
             for j = 1, #projs do
                 local p = projs[j]
-                if p.tick <= end_tick - 9 then
-                    local due = p.tick + math.floor(p.end_cycle / 30)
+                local due = p.tick + math.floor(p.end_cycle / 30)
+                -- Only a landing the read covers: an orb from a far tile flies
+                -- longer than nine ticks (conf_base12: thrown 8194, due 8207, after
+                -- the last read), and one that had not landed yet is no miss.
+                if due <= end_tick - 1 then
                     local hit = false
                     for k = 1, #splats do
                         if splats[k].tick == due and splats[k].x == p.dst_x and splats[k].z == p.dst_z then hit = true end
@@ -19875,20 +21559,28 @@ return {
                 if killed[smalls[1]] and killed[smalls[2]] and killed[smalls[3]] then break end
             end
             setup_cheat("::tobnyloskip")
+            -- The FIGHTING Vasilias, the npc that retypes: her spawning form
+            -- (10786) is a separate npc now, and the fighting one is added two
+            -- ticks after it in her melee form (conf_base11: slots 1136 / 1137).
+            local FIGHTING = { [10787] = "nylocas_boss_melee_story", [10788] = "nylocas_boss_magic_story",
+                [10789] = "nylocas_boss_ranged_story" }
             local boss
             for _ = 1, 120 do
                 settle(1)
-                local _, spawns = log_rows({ kind = "npc_spawn", type = 10786, since = base })
-                if is_table(spawns) and spawns[1] ~= nil then boss = spawns[1] break end
+                local _, spawns = log_rows({ kind = "npc_spawn", since = base })
+                for _, sp in ipairs(spawns or {}) do
+                    if boss == nil and FIGHTING[sp.type] ~= nil then boss = sp end
+                end
+                if boss ~= nil then break end
             end
             if boss == nil then
                 teardown()
-                return "no_subject", "Vasilias (10786) never spawned after ::tobnyloskip"
+                return "no_subject", "the fighting Vasilias (10787-10789) never spawned after ::tobnyloskip"
             end
-            -- her CLIENT pool slot: the spawning form by symbol (the log's slot is
-            -- the server's), held across the retypes
+            -- her CLIENT pool slot: the form she landed in, by symbol (the log's
+            -- slot is the server's), held across the retypes
             local client_slot
-            local VASILIAS = "nylocas_boss_spawning_story"
+            local VASILIAS = FIGHTING[boss.type]
             for _ = 1, 10 do
                 local nr, near = nearest(VASILIAS, 40)
                 if nr == "ok" and is_table(near) then client_slot = near.slot break end
@@ -20231,7 +21923,10 @@ return {
                 return -1, -1
             end
             local brew = { "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" }
-            for _ = 1, 3 do
+            -- Four sips, not three: three left Attack 66, one stat-restore tick
+            -- put it back to 67 -- exactly one super restore dose, and the row
+            -- wants more than one (conf_base16).
+            for _ = 1, 4 do
                 local r, d = drink(brew)
                 if r ~= "ok" then return "refused", "staging brew: " .. describe(r) .. " " .. describe(d) end
                 ticks(3)  -- the potion delay: a second drink two ticks after the first is refused
@@ -20258,7 +21953,12 @@ return {
             local text = string.format(
                 "super restore %s; hitpoints %d -> %d of %d (wiki: unchanged; +1 allowed for a natural regen tick; the old proc healed +%d), attack %d -> %d (want %d = 8 + 25%% of %d) -- %s",
                 describe(result), h1, h2, hb, 8 + math.floor(hb * 25 / 100), a1, a2, want_a, ab, describe(detail))
-            if result == "ok" and h2 - h1 >= 0 and h2 - h1 <= 1 and a2 == want_a then return "ok", text end
+            -- The natural restore tick that may lift hitpoints by 1 lifts a
+            -- drained Attack by 1 in the same tick (55 -> 56 with the attack
+            -- one over, 2026-11-22), so the two are allowed together.
+            local regen = (h2 - h1 == 1) and 1 or 0
+            local attack_ok = a2 == want_a or (regen == 1 and a2 == math.min(ab, want_a + 1))
+            if result == "ok" and h2 - h1 >= 0 and h2 - h1 <= 1 and attack_ok then return "ok", text end
             return "refused", text
         end)
 
@@ -20345,8 +22045,13 @@ return {
             ticks(3)  -- the potion delay: a second drink two ticks after the first is refused
             local d1, db = lvl("defence")
             local want = db + math.floor(db / 5) + 2
-            if d1 ~= want then
-                return "refused", string.format("first dose left defence %d/%d (want %d)", d1, db, want)
+            -- One stat-restore decay can land inside the 3-tick wait (a boost
+            -- falls by 1 a minute: 119 read, conformance 2026-11-22); the
+            -- second dose restores to the same cap either way, which is what
+            -- this row grades.
+            if d1 ~= want and d1 ~= want - 1 then
+                return "refused", string.format("first dose left defence %d/%d (want %d, or %d after a decay tick)",
+                    d1, db, want, want - 1)
             end
             local r2, x2 = drink(brew)
             ticks(1)  -- read back the next tick
@@ -20671,10 +22376,17 @@ return {
             -- The orb at the entrance, before any fight can hit it.
             local _, slot = varbit("varb6441_tob_client_partyslot")
             local _, p0 = varbit("varb6442_tob_client_p0")
+            -- ::tobgo starts Bloat on a raider standing in his room: seven
+            -- unowned hits of 3..20 in seven ticks killed the run on the
+            -- tick of the ::tobout below (conformance attempt 4, 2026-11-22,
+            -- ticks 7513..7519, 99 in all). This row reads the state, not
+            -- the fight, so the raider is invulnerable while it is read.
+            setup_cheat("::god 1")
             setup_cheat("::tobgo")
             ticks(3)
             local after = state_line()
             setup_cheat("::tobout")
+            setup_cheat("::god 0")
             setup_cheat("::clearinv")
             settle(2)
             local function has(s, k) return s ~= nil and string.find(s, k, 1, true) ~= nil end
@@ -20792,12 +22504,22 @@ return {
                 return r == "ok"
             end
             local function behind_then_aim(forced)
-                local tile_result, tile_x, tile_z = tile_of(npc_target)
-                local player_result, player = t.world.tile()
-                local px, pz = nil, nil
-                if type(player) == "table" then px, pz = player.x, player.z end
+                -- The stage before this teleports out of the raid row's
+                -- instance into Lumbridge: give the scene up to ten ticks to
+                -- hold the man and the player before calling it "no tiles"
+                -- (conf_base11: the first read after the raid row found none).
+                local tile_result, tile_x, tile_z, px, pz
+                for _ = 1, 10 do
+                    tile_result, tile_x, tile_z = tile_of(npc_target)
+                    local _, player = t.world.tile()
+                    px, pz = nil, nil
+                    if type(player) == "table" then px, pz = player.x, player.z end
+                    if tile_result == "ok" and px ~= nil then break end
+                    settle(1)
+                end
                 if tile_result ~= "ok" or px == nil then
-                    return "FAIL", "no tiles"
+                    return "FAIL", "no tiles (man " .. describe(tile_result) .. ", player "
+                        .. describe(px) .. "," .. describe(pz) .. ")"
                 end
                 local yaw = t.drive._yaw_towards(tile_x - px, tile_z - pz)
                 if yaw == nil then return "FAIL", "subject on the player's tile" end
@@ -20853,12 +22575,21 @@ return {
             if not inv_op then return missing("player", "inv_op") end
             local r0, before = read("hitpoints")
             if r0 ~= "ok" then return "hollow", "skill.read hitpoints " .. tostring(r0) end
-            cheat("::setlevel hitpoints 99")
-            cheat("::give br_4dosepotionofsaradomin 1")
-            t.ticks(2)
-            local pr = inv_op("br_4dosepotionofsaradomin", 1, { quick = true })
-            t.ticks(1)
-            local r1, drunk = read("hitpoints")
+            -- The decay rides [timer,health_regen], a 100-tick clock that does
+            -- not restart on the drink, so its next fire can be the tick after
+            -- it and the first read is then already 114 (conf_base11,
+            -- 2026-11-22).  A second drink a few ticks on cannot meet the same
+            -- clock again, so the brew is drunk once more when that happens.
+            local pr, r1, drunk
+            for _ = 1, 2 do
+                cheat("::setlevel hitpoints 99")
+                cheat("::give br_4dosepotionofsaradomin 1")
+                t.ticks(2)
+                pr = inv_op("br_4dosepotionofsaradomin", 1, { quick = true })
+                t.ticks(1)
+                r1, drunk = read("hitpoints")
+                if r1 ~= "ok" or drunk.level ~= 114 then break end
+            end
             local first_decay = nil
             for i = 1, 101 do
                 t.ticks(1)
@@ -20915,8 +22646,13 @@ return {
             settle(6)
             local _, hits = t.ticklog.rows({ kind = "hit_npc" })
             local first, slots = nil, {}
+            -- Goblins only: Barbarian Village's own npcs fight each other, and
+            -- their hits were read as the first swing (conf_base11: two
+            -- barbarian hits on 8622, the arc's three goblins on 8623).
+            local gob_target = t.player.by_symbol("npc", GOB)
+            local gob_type = is_table(gob_target) and gob_target.id or nil
             for _, r in ipairs(hits or {}) do
-                if r.tick > since and (first == nil or r.tick == first) then
+                if r.tick > since and r.type == gob_type and (first == nil or r.tick == first) then
                     first = r.tick
                     slots[r.slot] = true
                 end
@@ -21116,6 +22852,317 @@ return {
             end
             return "ok", string.format("%d worn + %d held -> 0 + 0; %s", #before.worn, #before.backpack,
                 describe(detail))
+        end)
+
+        -- ---------------- the raid solvers and their helpers (2026-11-22 rows)
+        --
+        -- LAST, after session.reset, because they spend the most ticks and
+        -- leave the character wherever a raid ends.  First the ToB helpers a
+        -- Lumbridge client can grade, then one Entry Mode raid start to
+        -- finish through t.raid.tob_entry_solo -- the relay's own path, which
+        -- calls every room's solver -- under ::god (this harness grades that
+        -- each solver drives its room to the end, not the damage it took:
+        -- the raid gate grades that), then Yama solo the same way.
+        stage(function()
+            setup_cheat("::tele lumbridge")                    -- setup
+            setup_cheat("::setlevel hitpoints 99")
+            settle(3)
+        end)
+
+        step("raid.tob_headless", function()
+            local fn = verb("raid", "tob_headless")
+            if not fn then return missing("raid", "tob_headless") end
+            local v = fn()
+            if v ~= false then return "hollow", "a client read as scriptrun: " .. describe(v) end
+            return "ok", "a client with clientscripts: false (scriptrun answers true)"
+        end)
+
+        step("raid.tob_square", function()
+            local fn = verb("raid", "tob_square")
+            if not fn then return missing("raid", "tob_square") end
+            local text, me = fn()
+            if not is_table(me) or text ~= ((me.x - me.x % 64) .. "," .. (me.z - me.z % 64)) then
+                return "hollow", describe(text) .. " for the tile " .. describe(me)
+            end
+            return "ok", "map square origin " .. text .. " for " .. me.x .. "," .. me.z
+        end)
+
+        step("raid.tob_move", function()
+            local fn = verb("raid", "tob_move")
+            if not fn then return missing("raid", "tob_move") end
+            local _, me = t.world.tile()
+            local result, detail = fn(me.x + 2, me.z)
+            local arrived = t.await({ level = function() local _, now = t.world.tile() return now.x == me.x + 2 and now.z == me.z end,
+                note = "tob_move arrival" }, 6)
+            if result ~= "ok" or arrived ~= "ok" then
+                return (result == "ok") and "hollow" or result, describe(detail) .. "; arrived " .. describe(arrived)
+            end
+            return "ok", "moved " .. me.x .. "," .. me.z .. " -> " .. (me.x + 2) .. "," .. me.z
+        end)
+
+        step("raid.tob_probe_stand", function()
+            local fn = verb("raid", "tob_probe_stand")
+            if not fn then return missing("raid", "tob_probe_stand") end
+            local _, me = t.world.tile()
+            local lx, lz = me.x % 64 - 2, me.z % 64
+            local result, detail = fn(lx, lz)
+            local arrived = t.await({ level = function() local _, now = t.world.tile() return now.x % 64 == lx and now.z % 64 == lz end,
+                note = "tob_probe_stand arrival" }, 6)
+            if result ~= "ok" or arrived ~= "ok" then
+                return (result == "ok") and "hollow" or result, describe(detail) .. "; arrived " .. describe(arrived)
+            end
+            return "ok", "stood on square-local " .. lx .. "," .. lz
+        end)
+
+        step("raid.tob_npc_name", function()
+            local fn = verb("raid", "tob_npc_name")
+            if not fn then return missing("raid", "tob_npc_name") end
+            local saved = t.raid.tob_mode
+            t.raid.tob_mode = nil
+            local plain = fn("tob_bloat")
+            t.raid.tob_mode = "entry"
+            local story = fn("tob_bloat")
+            t.raid.tob_mode = "hard"
+            local hard = fn("tob_bloat")
+            t.raid.tob_mode = saved
+            if plain ~= "tob_bloat" or story ~= "tob_bloat_story" or hard ~= "tob_bloat_hard" then
+                return "hollow", "tob_bloat -> " .. describe(plain) .. " / entry " .. describe(story) .. " / hard " .. describe(hard)
+            end
+            return "ok", "tob_bloat: Normal tob_bloat, Entry tob_bloat_story, Hard tob_bloat_hard"
+        end)
+
+        step("raid.tob_reserve_combats", function()
+            local fn = verb("raid", "tob_reserve_combats")
+            if not fn then return missing("raid", "tob_reserve_combats") end
+            local saved = t.raid.tob_combat_reserve
+            fn(3)
+            local set = t.raid.tob_combat_reserve
+            fn(saved)
+            if set ~= 3 then return "hollow", "the reserve read " .. describe(set) .. " after reserving 3" end
+            return "ok", "the combat-dose reserve is 3, then put back"
+        end)
+
+        stage(function()
+            setup_cheat("::clearinv")                          -- setup
+            setup_cheat("::give 4dose2combat 1")               -- setup: tob_combat_doses
+            setup_cheat("::give 3dose2restore 1")              -- setup: vz_prayer_doses
+            setup_cheat("::give shark 1")                      -- setup: tob_top_up's food
+            settle(2)
+        end)
+
+        step("raid.tob_combat_doses", function()
+            local fn = verb("raid", "tob_combat_doses")
+            if not fn then return missing("raid", "tob_combat_doses") end
+            local n = fn({ ids = { inv = 93 } })
+            if n ~= 4 then return "hollow", "one four-dose super combat read as " .. describe(n) .. " dose(s)" end
+            return "ok", "one 4dose2combat: 4 doses"
+        end)
+
+        step("raid.vz_prayer_doses", function()
+            local fn = verb("raid", "vz_prayer_doses")
+            if not fn then return missing("raid", "vz_prayer_doses") end
+            local n = fn(93)
+            if n ~= 3 then return "hollow", "one three-dose super restore read as " .. describe(n) .. " dose(s)" end
+            return "ok", "one 3dose2restore: 3 doses"
+        end)
+
+        step("raid.vz_prayer_spare", function()
+            local fn = verb("raid", "vz_prayer_spare")
+            if not fn then return missing("raid", "vz_prayer_spare") end
+            local P = t.VZ_PRAYER
+            local spare, piety = fn(93, 50, 120)
+            local want = 50 + 3 * P.PER_DOSE - 120 / P.PROTECT_TICKS
+            if spare ~= want or piety ~= (want >= 120 / P.PIETY_TICKS) then
+                return "hollow", "spare " .. describe(spare) .. " piety " .. describe(piety) .. " (want " .. want .. ")"
+            end
+            return "ok", string.format("50 points + 3 doses, 120 ticks to go: spare %s, piety %s", tostring(spare), tostring(piety))
+        end)
+
+        step("raid.tob_loc_op", function()
+            local fn = verb("raid", "tob_loc_op")
+            if not fn then return missing("raid", "tob_loc_op") end
+            local result, at = fn("tree", 1, nil, 60)
+            if result ~= "ok" or not is_table(at) then return (result == "ok") and "hollow" or result, describe(at) end
+            settle(3)
+            return "ok", "the nearest tree's op 1 pressed, at " .. at.x .. "," .. at.z
+        end)
+
+        step("raid.tob_npc_op", function()
+            local fn = verb("raid", "tob_npc_op")
+            if not fn then return missing("raid", "tob_npc_op") end
+            -- Twice: a wandering man can step off between the press and its walk
+            -- (passed conf_base12/13, one miss in conf_base14).
+            for attempt = 1, 2 do
+                local result = fn("man", 1, 40)
+                if result ~= "ok" then return result, "Talk-to the nearest man -> " .. describe(result) end
+                local page = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "tob_npc_op page" }, 10)
+                if page == "ok" then
+                    return "ok", "Talk-to the nearest man: a page opened (press " .. attempt .. ")"
+                end
+            end
+            return "hollow", "Talk-to pressed twice but no page opened"
+        end)
+
+        step("raid.tob_verzik_pages", function()
+            local fn = verb("raid", "tob_verzik_pages")
+            if not fn then return missing("raid", "tob_verzik_pages") end
+            local list = fn()
+            t.chat.close()
+            local joined = is_table(list) and table.concat(list, "|") or ""
+            if not string.find(joined, "choose:Yes, let's begin.", 1, true) then return "hollow", describe(list) end
+            return "ok", "a page up that is not Verzik's 'Back again': the first-talk script " .. joined
+        end)
+
+        step("raid.tob_top_up", function()
+            local fn = verb("raid", "tob_top_up")
+            if not fn then return missing("raid", "tob_top_up") end
+            local hp, pr = fn(5)
+            if math.type(hp) ~= "integer" then return "hollow", "hp " .. describe(hp) .. " prayer " .. describe(pr) end
+            return "ok", "topped up: hitpoints " .. hp .. ", prayer " .. describe(pr)
+        end)
+
+        local entry_kit = nil
+        step("raid.tob_entry_kit", function()
+            local fn = verb("raid", "tob_entry_kit")
+            if not fn then return missing("raid", "tob_entry_kit") end
+            local kit = fn()
+            if not is_table(kit) or #kit < 10 then return "hollow", describe(kit) end
+            for _, line in ipairs(kit) do
+                if not string.find(tostring(line), "^::") then return "hollow", "a kit line that is not a cheat: " .. describe(line) end
+            end
+            entry_kit = kit
+            return "ok", #kit .. " setup cheat(s), the first " .. kit[1]
+        end)
+
+        step("raid.tob_relay_test", function()
+            local fn = verb("raid", "tob_relay_test")
+            if not fn then return missing("raid", "tob_relay_test") end
+            local spec = fn("entry", {})
+            if not is_table(spec) or spec.party ~= 1 or not is_table(spec.setup) or type(spec.run) ~= "function"
+                or type(spec.play) ~= "function" then
+                return "hollow", describe(spec)
+            end
+            return "ok", "Entry: party " .. spec.party .. ", " .. #spec.setup .. " setup line(s), run and play"
+        end)
+
+        -- The solvers, recorded as the relay calls them.
+        local SOLVERS = { "maiden_solve", "bloat_solve", "nylocas_solve", "sotetseg_solve", "xarpus_solve",
+            "verzik_p1_prepare", "verzik_p1_solve", "verzik_p2_solve", "verzik_p3_solve" }
+        local solver_real, solver_out = {}, {}
+        stage(function()
+            for _, line in ipairs(entry_kit or {}) do
+                setup_cheat(line)                              -- setup: the relay's Learner/Void kit
+            end
+            setup_cheat("::god 1")                             -- setup: see the banner
+            settle(2)
+            for _, name in ipairs(SOLVERS) do
+                local real = t.raid[name]
+                solver_real[name] = real
+                t.raid[name] = function(...)
+                    local out = table.pack(real(...))
+                    solver_out[name] = out
+                    return table.unpack(out, 1, out.n)
+                end
+            end
+        end)
+
+        step("raid.tob_entry_solo", function()
+            local fn = verb("raid", "tob_entry_solo")
+            if not fn then return missing("raid", "tob_entry_solo") end
+            local er, ed = t.raid.enter("tob", "maiden", { mode = "entry" })
+            if er ~= "ok" then return "no_subject", "raid.enter Entry Maiden -> " .. describe(ed) end
+            local ok, detail = fn(t, {})
+            if ok ~= true then return "refused", describe(detail) end
+            return "ok", describe(detail)
+        end)
+
+        stage(function()
+            for _, name in ipairs(SOLVERS) do
+                if solver_real[name] then t.raid[name] = solver_real[name] end
+            end
+            setup_cheat("::tobout")
+            setup_cheat("::god 0")
+            settle(3)
+        end)
+
+        local function solver_check(name)
+            return function()
+                if not verb("raid", name) then return missing("raid", name) end
+                local out = solver_out[name]
+                if out == nil then return "no_subject", "the Entry relay never reached " .. name end
+                if name == "verzik_p1_prepare" then
+                    local prep = out[1]
+                    if not is_table(prep) then return "hollow", "prepare answered " .. describe(prep) end
+                    return "ok", "the relay's call: " .. describe(prep.pillars) .. " pillar(s) searched, base "
+                        .. describe(prep.base)
+                end
+                if out[1] ~= "ok" then return describe(out[1]), "the relay's call -> " .. describe(out[2]) end
+                return "ok", "the relay's call, Entry Mode: " .. string.sub(describe(out[2]), 1, 300)
+            end
+        end
+        step("raid.maiden_solve", solver_check("maiden_solve"))
+        step("raid.bloat_solve", solver_check("bloat_solve"))
+        step("raid.nylocas_solve", solver_check("nylocas_solve"))
+        step("raid.sotetseg_solve", solver_check("sotetseg_solve"))
+        step("raid.xarpus_solve", solver_check("xarpus_solve"))
+        step("raid.verzik_p1_prepare", solver_check("verzik_p1_prepare"))
+        step("raid.verzik_p1_solve", solver_check("verzik_p1_solve"))
+        step("raid.verzik_p2_solve", solver_check("verzik_p2_solve"))
+        step("raid.verzik_p3_solve", solver_check("verzik_p3_solve"))
+
+        local yama_spec = nil
+        step("raid.yama_test", function()
+            local fn = verb("raid", "yama_test")
+            if not fn then return missing("raid", "yama_test") end
+            local spec = fn({})
+            if not is_table(spec) or spec.party ~= 1 or spec.id ~= "yama_solver" or not is_table(spec.setup)
+                or spec.run ~= t.raid.yama_solve then
+                return "hollow", describe(spec)
+            end
+            yama_spec = spec
+            return "ok", "solo: id yama_solver, " .. #spec.setup .. " setup line(s), run = t.raid.yama_solve"
+        end)
+
+        stage(function()
+            for _, line in ipairs((yama_spec and yama_spec.setup) or {}) do
+                setup_cheat(line)                              -- setup: Yama's kit (it resets the character)
+            end
+            -- yama_kit.ini's own state: the spellbook's alternates, the chasm, the tile by the Voice.
+            setup_cheat("::setvar varp439_alternate_spells 3")
+            setup_cheat("::setvar varp4716_chasm_perm_transmit_1 2")
+            setup_cheat("::goto 1442 10080 0")
+            setup_cheat("::god 1")
+            settle(4)
+        end)
+
+        -- yama_solve is a whole test's run function: it ends with t.finish(code),
+        -- which here is caught, so the harness goes on to its own finish.
+        step("raid.yama_solve", function()
+            local fn = verb("raid", "yama_solve")
+            if not fn then return missing("raid", "yama_solve") end
+            local real_finish = t.finish
+            local code = nil
+            t.finish = function(c) code = c end
+            fn(t)
+            t.finish = real_finish
+            setup_cheat("::god 0")
+            if code ~= 0 then return "refused", "the solo fight finished " .. describe(code) .. " (0 = Yama killed, nobody dead)" end
+            return "ok", "Yama killed solo: the solver's own finish(0)"
+        end)
+
+        -- A bot agent the world starts on its next tick (ToriRSServer_EmbedBotDriveRequest):
+        -- `true` exits at once, so it drives nobody; a second ask is "already driving".
+        step("launch.botdrive", function()
+            local fn = verb("launch", "botdrive")
+            if not fn then return missing("launch", "botdrive") end
+            local result, detail = fn("true")
+            if result ~= "ok" then return result, describe(detail) end
+            settle(2)
+            local again, again_detail = fn("true")
+            if again ~= "ok" or not string.find(tostring(again_detail), "already driving", 1, true) then
+                return "hollow", "first " .. describe(detail) .. ", second " .. describe(again) .. " " .. describe(again_detail)
+            end
+            return "ok", "first " .. describe(detail) .. ", then " .. describe(again_detail)
         end)
 
         step("finish", function()

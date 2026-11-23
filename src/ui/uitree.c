@@ -8374,6 +8374,17 @@ UITree_ComponentIsDropTarget(struct UITreeComponent const* c)
     return 0;
 }
 
+/* The walk below, and which node and flag stopped it: `*out_node` -1 and
+ * `*out_flag` NULL when nothing hid the node. */
+static int
+uitree_node_or_ancestor_hidden_why(
+    struct UITree const* tree,
+    int32_t idx,
+    int include_plugin_hidden,
+    int ignore_plugin_hidden,
+    int32_t* out_node,
+    char const** out_flag);
+
 static int
 uitree_node_or_ancestor_hidden(
     struct UITree const* tree,
@@ -8381,10 +8392,30 @@ uitree_node_or_ancestor_hidden(
     int include_plugin_hidden,
     int ignore_plugin_hidden)
 {
+    int32_t node;
+    char const* flag;
+
+    return uitree_node_or_ancestor_hidden_why(
+        tree, idx, include_plugin_hidden, ignore_plugin_hidden, &node, &flag);
+}
+
+static int
+uitree_node_or_ancestor_hidden_why(
+    struct UITree const* tree,
+    int32_t idx,
+    int include_plugin_hidden,
+    int ignore_plugin_hidden,
+    int32_t* out_node,
+    char const** out_flag)
+{
     int group;
     int mount_hops = 0;
     int32_t group_root = -1;
     assert(tree);
+    assert(out_node);
+    assert(out_flag);
+    *out_node = -1;
+    *out_flag = NULL;
     while( idx >= 0 && (uint32_t)idx < tree->component_count )
     {
         group = (tree->components[idx].component_id >> 16) & 0xffff;
@@ -8405,12 +8436,20 @@ uitree_node_or_ancestor_hidden(
              * place -- a synthesised press -- so a plugin that covers a native
              * control can still ask about the control underneath.
              * @see UITree_NodeOrAncestorDisplayHiddenEx. */
-            if( tree->components[idx].behavior.hide || tree->components[idx].mount_hidden ||
-                (include_plugin_hidden &&
-                 ((tree->components[idx].widget_hidden && !ignore_plugin_hidden) ||
-                  tree->components[idx].screen_hidden ||
-                  tree->components[idx].projection_hidden)) )
+            struct UITreeComponent const* c = &tree->components[idx];
+            char const* flag = c->behavior.hide    ? "hide"
+                               : c->mount_hidden ? "mount_hidden"
+                               : !include_plugin_hidden ? NULL
+                               : (c->widget_hidden && !ignore_plugin_hidden) ? "widget_hidden"
+                               : c->screen_hidden ? "screen_hidden"
+                               : c->projection_hidden ? "projection_hidden"
+                                                      : NULL;
+            if( flag )
+            {
+                *out_node = idx;
+                *out_flag = flag;
                 return 1;
+            }
             idx = tree->components[idx].parent;
         } while( idx >= 0 && (uint32_t)idx < tree->component_count );
 
@@ -8428,7 +8467,15 @@ uitree_node_or_ancestor_hidden(
             }
         }
         if( idx < 0 )
-            return group_root >= 0 && !UITree_RootIsDisplayable(tree, group_root);
+        {
+            if( group_root >= 0 && !UITree_RootIsDisplayable(tree, group_root) )
+            {
+                *out_node = group_root;
+                *out_flag = "an undisplayed root";
+                return 1;
+            }
+            return 0;
+        }
         if( ++mount_hops > UITREE_INTERFACE_PARENT_MAX )
             break;
     }
@@ -8591,6 +8638,21 @@ UITree_NodeOrAncestorDisplayHidden(
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
     return uitree_node_or_ancestor_hidden(tree, node_index, 1, 0);
+}
+
+int
+UITree_NodeOrAncestorDisplayHiddenWhy(
+    struct UITree const* tree,
+    int32_t node_index,
+    int ignore_plugin_hidden,
+    int32_t* out_node,
+    char const** out_flag)
+{
+    assert(tree);
+    assert(node_index >= 0);
+    assert((uint32_t)node_index < tree->component_count);
+    return uitree_node_or_ancestor_hidden_why(
+        tree, node_index, 1, ignore_plugin_hidden, out_node, out_flag);
 }
 
 int

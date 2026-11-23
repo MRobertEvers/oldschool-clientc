@@ -232,7 +232,17 @@ return {
         -- kingrat: the warehouse loft copy at stage 80 ([7563..7759]).
         t.ticklog.mark("leg.kingrat")
         t.exec("kingrat.stage", t.cheat, "::setvar varb1404_ratcatch_var 80")
-        t.exec("kingrat.tele", t.cheat, "::tele 0_51_52_3_51")
+        -- A guard upstairs can still catch the player in the tick after the
+        -- trellis (spotanim 188, run rcq_one 2026-11-22): the catch's move to
+        -- the trellis checkpoint 2846,5111 lands after the tele and wins. So
+        -- the tele is read back and repeated once the catch has played out.
+        for _ = 1, 3 do
+            t.exec("kingrat.tele", t.cheat, "::tele 0_51_52_3_51")
+            t.ticks(3)
+            local here = tile(t)
+            if here ~= nil and here.x == 3267 and here.z == 3379 then break end
+            t.ticks(4)
+        end
         -- The cat back in the pack (Pick-up, op 1): it follows the tele a tick or two late.
         t.ticks(4)
         if count(t, "growncatobject") == 0 then

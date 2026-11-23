@@ -528,6 +528,11 @@ function QD.sail._press_sidepanel(slot)
             .. " is not on screen (" .. tostring(component_result) .. ") -- take the helm first,"
             .. " it opens the sailing sidepanel"
     end
+    -- Taking the helm holds the player in a p_delay, and an interface press
+    -- inside one is dropped by the server (if_button_refused_while_delayed):
+    -- sail.sails one row after sail.helm never set the sails (conformance,
+    -- 2026-11-22, "IF_BUTTONN 937:25 refused: player is delayed").
+    QD.player._fence_free("sail sidepanel")
     local click_result = api_drive.if_click(component_id, 1)
     if click_result ~= "ok" then
         return click_result, "if_click " .. QD.sail._sidepanel_layer .. "[" .. tostring(slot) .. "] op 1"
@@ -546,7 +551,14 @@ function QD.sail.sails(want, ticks)
     if not before.aboard then
         return "refused", "sail.sails: not aboard -- " .. QD.sail._describe(before)
     end
-    if before.sails_set == (want and true or false) then
+    -- The server's own word first (varb19174): the vessel reading can lag a
+    -- park at the end of sail_to, and an "already set" on a furled boat
+    -- left every later press short of its gust.
+    local set_now = QD.sail._sails_toggle()
+    if set_now == nil then
+        set_now = before.sails_set
+    end
+    if set_now == (want and true or false) then
         return "ok", "sail.sails: already " .. (want and "set" or "furled") .. " -- "
             .. QD.sail._describe(before)
     end
@@ -555,6 +567,10 @@ function QD.sail.sails(want, ticks)
         return press_result, "sail.sails: " .. tostring(press_detail)
     end
     local result, reading = QD.sail._await(function(r)
+        local toggled = QD.sail._sails_toggle()
+        if toggled ~= nil then
+            return toggled == (want and true or false)
+        end
         return r.sails_set == (want and true or false)
     end, ticks or 10, "sail.sails")
     if result ~= "ok" then
@@ -989,7 +1005,25 @@ end
 QD.sail.auto_trim = false
 QD.sail.trims = {}
 
+-- The sails as the server holds them: varb19174 mirrors vessel->sails_set
+-- every tick (torirs_server_world.c's sidepanel sync).  nil when it cannot be
+-- read, and the caller falls back to the vessel reading.
+function QD.sail._sails_toggle()
+    local r, toggled = QD.var.varbit("varb19174_sailing_sidepanel_sail_button_toggled")
+    if r ~= "ok" or type(toggled) ~= "number" then
+        return nil
+    end
+    return toggled == 1
+end
+
+-- Open only while the sails are set: with them furled boat_wind.rs2's timer
+-- PAUSES and leaves varb19111 at whatever it last wrote, so a window left
+-- over from an earlier gust reads open on a furled boat, and Work then SETS
+-- the sails instead of trimming them ("You set the sails.", 2026-11-22).
 function QD.sail._gust_open()
+    if QD.sail._sails_toggle() == false then
+        return false
+    end
     local r, window = QD.var.varbit("varb19111_sailing_boat_time_trim_window")
     return r == "ok" and type(window) == "number" and window > 0
 end
@@ -1927,7 +1961,7 @@ function QD.sail.hold_withdraw(item, name, ticks)
     if obj_result ~= "ok" then
         return obj_result, "sail.hold_withdraw: no obj " .. tostring(item)
     end
-    local _, before = QD.inv.count(item)
+    local _, before = QD.inv._count(item)
     local press_result, press_detail = QD.sail._press_deck_row("Open", name or "cargo hold")
     if press_result ~= "ok" then
         return press_result, "sail.hold_withdraw: " .. tostring(press_detail)
@@ -1981,7 +2015,7 @@ function QD.sail.hold_withdraw(item, name, ticks)
     local result = QD.await({
         event = "server_tick",
         match = function()
-            local _, n = QD.inv.count(item)
+            local _, n = QD.inv._count(item)
             now = n
             return (n or 0) > (before or 0)
         end,

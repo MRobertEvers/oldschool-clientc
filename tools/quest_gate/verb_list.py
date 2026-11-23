@@ -29,7 +29,16 @@ Excluded, because they are not a test's verbs:
     the whole QD.read namespace, which is only helpers),
   - QD.core_* (the plugin/scheduler seam: core_bind is called from on_start
     with an `api` a test never has, core_next_shot is t.shot's own bookkeeping),
-  - a namespace table constructor (`QD.read = {}`),
+  - a namespace table constructor (`QD.read = {}`, and the defensive
+    `QD.raid = QD.raid or {}` a part opens with when it may load first),
+  - an UPPER_CASE namespace (`QD.COX.room_at`, `QD.SUP.first`, `QD.T2.*`,
+    `QD.VZ2P2F.*`): a raid solver's own module, the library its `t.raid.*`
+    solver is written in.  A solver part keeps its tables, tuning and steps
+    there so they stay out of the verb set; the solver's public face is the
+    lowercase verb (`raid.cox_scout`, `raid.verzik_p2_solve`) and THAT gets a
+    row.  212 names came in this way between 2026-10-09 and 2026-11-22 and
+    left the gate red for six weeks with nobody able to read the 106 real
+    verbs among them.
   - an UPPER_CASE top-level assignment (`QD.COMBAT_CORPSE_GRACE = 12`): a
     tuning constant a part reads, never something a test calls (seam pass 19
     added three to combat.lua and they read as verbs with no row).
@@ -96,7 +105,7 @@ def verbs_from_sources(driver_dir=DRIVER_DIR):
                 match = FUNC_NS.match(line)
                 if match:
                     namespace, verb = match.group(1), match.group(2)
-                    if not private(verb):
+                    if not private(verb) and not constant(namespace):
                         found["%s.%s" % (namespace, verb)] = where
                     continue
                 match = FUNC_TOP.match(line)
@@ -108,7 +117,8 @@ def verbs_from_sources(driver_dir=DRIVER_DIR):
                 match = ASSIGN_TOP.match(line)
                 if match:
                     verb, rhs = match.group(1), match.group(2).strip()
-                    if private(verb) or rhs.startswith("{") or constant(verb):
+                    if private(verb) or rhs.startswith("{") or constant(verb) \
+                            or rhs == "QD.%s or {}" % verb:
                         continue
                     found[verb] = where
     return found

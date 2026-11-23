@@ -4314,7 +4314,8 @@ QD.player._talk_walk_ticks = 15
 -- pool is one of those, this answers (not_visible, "other_floor: ...")
 -- naming the floor the copies are on and the locs on the player's floor at
 -- the nearest copy's square; otherwise nil, and click_loc goes on as before.
--- Asked only after the first press failed, so a press that works pays nothing.
+-- Asked before the walk and the press (one loc_find): the client's world_op
+-- press would otherwise answer ok for a copy no pick can reach.
 --
 -- NOT A DRIVER SEAM, and the detail says so (vm-b1-seam1
 -- driver_other_floor_loc).  The game's own client cannot press such a copy
@@ -4415,6 +4416,16 @@ function QD.player.click_loc(loc, op, opts)
     -- ([aploc], e.g. Ocellus's censers behind the chasms).
     -- Not into the last action's p_delay (QD.player._fence_free) -- above the
     -- walk, which is part of this press.
+    -- SEAM towerladder_press (seam26): a loc whose every copy is off the
+    -- player's floor is never pickable -- say so, and name what IS on this
+    -- floor, before any walk or press.  Asked BEFORE the press since the
+    -- client presses by world_op (2026-10-16): that names the copy by its
+    -- element on any floor and answers ok, where the game's own pick drops it
+    -- and the server resolves the oploc on the player's plane to nothing.
+    local floor_result, floor_detail = QD.player._loc_other_floor(target, loc)
+    if floor_result ~= nil then
+        return floor_result, floor_detail
+    end
     QD.player._fence_free("click_loc " .. tostring(loc))
     if not (type(opts) == "table" and opts.from_here) then
         QD.player.walk_near(target, nil, QD.player._loc_standoff)
@@ -4461,15 +4472,6 @@ function QD.player.click_loc(loc, op, opts)
     -- nothing older (QD.player._reach_verify).
     local before_serial_result, before_serial = api_drive.message_serial()
     local click_result, click = QD.drive.click_minimenu(target, op)
-    -- SEAM towerladder_press (seam26): a loc whose every copy is BELOW the
-    -- player's floor is never pickable -- say so, and name what IS on this
-    -- floor, before the far-side walks spend another sixty ticks on it.
-    if click_result ~= "ok" then
-        local floor_result, floor_detail = QD.player._loc_other_floor(target, loc)
-        if floor_result ~= nil then
-            return floor_result, floor_detail .. " -- first press: " .. tostring(click)
-        end
-    end
     local side = 1
     while click_result == "covered" and side <= QD.player._far_side_attempts do
         -- Five camera poses found no row for it and the player is within a
@@ -4787,7 +4789,7 @@ function QD.player.inv_op(item, op, opts)
     -- is how a following equip came to report a drop as its own success.
     QD.settle()
     QD.player._inv_quiet(item)
-    local count_result, after = QD.inv.count(item)
+    local count_result, after = QD.inv._count(item)
     -- The settle's own word only reaches the caller as a RESULT; on anything
     -- but ok its reason has to travel too, or the row says `refused` and not
     -- what refused it.  Since the settle fence (the banner at the top of this
@@ -4931,7 +4933,7 @@ function QD.player._inv_quiet(item, ticks)
     return QD.await({
         event = "server_tick",
         match = function()
-            local count_result, total = QD.inv.count(item)
+            local count_result, total = QD.inv._count(item)
             if count_result ~= "ok" then
                 return true
             end
@@ -5012,7 +5014,7 @@ function QD.player.equip(item, opts)
         if worn == "ok" then
             break
         end
-        local held_result, held = QD.inv.count(item)
+        local held_result, held = QD.inv._count(item)
         if held_result ~= "ok" or (held or 0) <= 0 then
             break
         end
@@ -5765,8 +5767,8 @@ function QD.player.use_item_on_item(item_a, item_b)
     -- missed would read as 0, the level predicate below would see "the count
     -- changed" at REGISTRATION, and the verb would answer `ok` for a click
     -- that had not happened yet.  Same read, same resolver, both sides.
-    local before_a_result, before_a = QD.inv.count(item_a)
-    local before_b_result, before_b = QD.inv.count(item_b)
+    local before_a_result, before_a = QD.inv._count(item_a)
+    local before_b_result, before_b = QD.inv._count(item_b)
     if before_a_result ~= "ok" then
         return before_a_result, where .. ": " .. tostring(before_a)
     end
@@ -5799,13 +5801,13 @@ function QD.player.use_item_on_item(item_a, item_b)
             return false
         end,
         level = function()
-            local a_result, a_now = QD.inv.count(item_a)
+            local a_result, a_now = QD.inv._count(item_a)
             if a_result == "ok" and a_now ~= (before_a or 0) then
                 resolved_by = "inv " .. item_a .. " " .. tostring(before_a or 0)
                     .. "->" .. tostring(a_now)
                 return true
             end
-            local b_result, b_now = QD.inv.count(item_b)
+            local b_result, b_now = QD.inv._count(item_b)
             if b_result == "ok" and b_now ~= (before_b or 0) then
                 resolved_by = "inv " .. item_b .. " " .. tostring(before_b or 0)
                     .. "->" .. tostring(b_now)
@@ -8146,7 +8148,10 @@ function QD.player._click_npc_copy(target, op, copy_text)
     -- `ok` for any other copy is this file's bug, not the world's.
     assert(type(click) ~= "table" or click.element_id == named,
         "named npc press landed on another element")
-    return click_result, click
+    -- The third answer is the element the press was aimed by: world_op (the
+    -- client's npc press) answers no element of its own, so without it a
+    -- press by selector could not say which copy it pressed.
+    return click_result, click, named
 end
 
 -- ==========================================================================
@@ -8471,7 +8476,7 @@ function QD.player.press(npc, op, ticks, opts)
     end
     local before_kind, before_text = QD.player._chat_page()
     local serial_result, since = api_drive.message_serial()
-    local click_result, click = QD.player._click_npc_copy(target, op, copy_text)
+    local click_result, click, named = QD.player._click_npc_copy(target, op, copy_text)
     if click_result ~= "ok" then
         return click_result, click
     end
@@ -8481,6 +8486,11 @@ function QD.player.press(npc, op, ticks, opts)
     local element = nil
     if type(click) == "table" then
         element = click.element_id
+    end
+    -- A press by selector was aimed at one element and _click_npc_copy
+    -- holds the landing to it, so that element is the one pressed.
+    if element == nil then
+        element = named
     end
     -- world_op (the client's and scriptrun's npc press) answers a result and
     -- no element. With one copy of the type in the pool before the press,
@@ -9523,7 +9533,7 @@ function QD.player._quick_obj_text(obj_id, count)
 end
 
 function QD.player._quick_hp()
-    local result, stat = QD.skill.read("hitpoints")
+    local result, stat = QD.skill._read("hitpoints")
     if result == "ok" and type(stat) == "table" then
         return stat.level
     end
@@ -9612,7 +9622,7 @@ function QD.player._quick_first_held(item, verb)
     end
     assert(type(item) == "table" and #item > 0, verb .. ": item is neither a symbol nor a list of symbols")
     for i = 1, #item do
-        local count_result, count = QD.inv.count(item[i])
+        local count_result, count = QD.inv._count(item[i])
         if count_result == "ok" and (count or 0) > 0 then
             return item[i]
         end

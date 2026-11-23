@@ -190,7 +190,7 @@ end
 
 -- Magic experience now, or nil when the stat read did not answer.
 function QD.player._magic_xp()
-    local result, reading = QD.skill.read("magic")
+    local result, reading = QD.skill._read("magic")
     if result ~= "ok" or type(reading) ~= "table" then
         return nil
     end

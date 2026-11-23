@@ -2386,9 +2386,17 @@ app_run_once_body(
                 if( !drag_queue )
                 {
                     drag_queue = ToriRS_TaskQueue_New();
-                    drag_runner.queue = drag_queue;
-                    drag_runner.io = app->frame_runner.io;
-                    drag_runner.px = app->frame_runner.px;
+                    /* Every other field zero, as the two other drag runners'
+                     * designated initializers make them: left as the stack
+                     * had it, the telemetry's row count walked the row
+                     * table off the top of the main thread's stack in the
+                     * first drain (SIGBUS in TaskRunner_Step's strcmp,
+                     * conformance ui.drag on the jigsaw, 2026-11-22). */
+                    drag_runner = (struct TaskRunner){
+                        .queue = drag_queue,
+                        .io = app->frame_runner.io,
+                        .px = app->frame_runner.px,
+                    };
                 }
                 dest = &drag_runner;
             }

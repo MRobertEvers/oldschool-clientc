@@ -1139,7 +1139,7 @@ end
 -- `below`, the food is eaten through t.player.inv_op (a real held-op press,
 -- the Eat row -- op 1 on this pack's food), at most once per three ticks (the
 -- food delay).  Hitpoints are read exactly as the death fence reads them
--- (QD.player._death_seen: QD.skill.read("hitpoints"), `stated` guarding the
+-- (QD.player._death_seen: QD.skill._read("hitpoints"), `stated` guarding the
 -- pre-login table), so the two can never disagree about the same reading.
 -- Running out is not a failure of the wait -- the fight goes on and the death
 -- fence still rules -- but the row says so (`out of <food>`), and every eat
@@ -1221,7 +1221,7 @@ function QD._combat_eat_tick(eater)
     if eater == nil then
         return
     end
-    local hp_result, hp = QD.skill.read("hitpoints")
+    local hp_result, hp = QD.skill._read("hitpoints")
     if hp_result ~= "ok" or type(hp) ~= "table" or not hp.stated then
         return
     end
@@ -1236,7 +1236,7 @@ function QD._combat_eat_tick(eater)
     if hp.level <= 0 or hp.level >= eater.below then
         return
     end
-    local count_result, count = QD.inv.count(eater.item)
+    local count_result, count = QD.inv._count(eater.item)
     if count_result ~= "ok" or type(count) ~= "number" then
         -- A read that did not answer learned nothing; try next tick.
         return
@@ -1250,7 +1250,7 @@ function QD._combat_eat_tick(eater)
         local pressed_tick = api_drive.tick()
         local combo_held = false
         if eater.combo ~= nil then
-            local combo_result, combo_count = QD.inv.count(eater.combo)
+            local combo_result, combo_count = QD.inv._count(eater.combo)
             combo_held = combo_result == "ok" and type(combo_count) == "number" and combo_count > 0
         end
         if combo_held then
@@ -1266,7 +1266,7 @@ function QD._combat_eat_tick(eater)
         eat_result, eat_detail = QD.player.inv_op(eater.item, eater.op)
         eater.next_tick = api_drive.tick() + QD.COMBAT_EAT_DELAY_TICKS
     end
-    local after_result, after = QD.skill.read("hitpoints")
+    local after_result, after = QD.skill._read("hitpoints")
     local after_text = (after_result == "ok" and type(after) == "table") and tostring(after.level)
         or tostring(after_result)
     if eat_result == "ok" then
@@ -1340,7 +1340,7 @@ function QD._combat_eat_due(eater)
     if eater == nil or eater.out or api_drive.tick() < eater.next_tick then
         return false
     end
-    local hp_result, hp = QD.skill.read("hitpoints")
+    local hp_result, hp = QD.skill._read("hitpoints")
     if hp_result ~= "ok" or type(hp) ~= "table" or not hp.stated then
         return false
     end
@@ -1359,7 +1359,7 @@ function QD._combat_press_eat(eater, where)
             eater.press_where[#eater.press_where + 1] = where .. " " .. eater.eats[#eater.eats]
         end
     end
-    local hp_result, hp = QD.skill.read("hitpoints")
+    local hp_result, hp = QD.skill._read("hitpoints")
     if hp_result ~= "ok" or type(hp) ~= "table" or not hp.stated then
         return false
     end
@@ -1822,7 +1822,7 @@ function QD.player._death_seen()
     if record then
         return record
     end
-    local hp_result, hp = QD.skill.read("hitpoints")
+    local hp_result, hp = QD.skill._read("hitpoints")
     if hp_result ~= "ok" or type(hp) ~= "table" then
         -- A reading that did not answer says nothing about whether the
         -- character is alive, and ending a run on a transient is worse than
@@ -2307,7 +2307,7 @@ function QD._supply_count(items)
     local total = 0
     local parts = {}
     for _, item in ipairs(items) do
-        local result, count = QD.inv.count(item.symbol)
+        local result, count = QD.inv._count(item.symbol)
         if result ~= "ok" then
             return result, item.symbol .. ": " .. tostring(count)
         end
@@ -2595,7 +2595,7 @@ function QD.player._drink_family(family, opts)
         pressed_tick = press_tick
         local await_result = QD.await({
             level = function()
-                local result, count = QD.inv.count(chosen.symbol)
+                local result, count = QD.inv._count(chosen.symbol)
                 if result == "ok" and count < chosen.count then
                     landed_tick = QD._supply_server_tick()
                     return true

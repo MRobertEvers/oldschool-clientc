@@ -32901,7 +32901,12 @@ ToriRSServer_WorldSelftest(void)
          * Drain: protect from melee is 12 a tick against a resistance of 60, so
          * a point goes every fifth tick -- counted from the tick after the one
          * it was switched on: the activation tick charges nothing
-         * (prayer.rs2 `~prayer_fresh_drain`, Prayer:528).
+         * (Prayer:528). The toggle here stands for a press read in tick X's
+         * input phase; the drain timer it arms first fires on X+1, the tick
+         * after activation, which is charged (prayer.rs2 ~prayer_switched
+         * clears the fresh mask when the first prayer arms the timer; a live
+         * run charged 4 of 5 ticks in force, conformance
+         * seam.prayer_drain_activation_tick, 2026-11-23).
          *
          * `srv->tick` is advanced between the calls rather than left alone. A
          * timer's clock is the **absolute** tick it last fired at, not a
@@ -32923,7 +32928,7 @@ ToriRSServer_WorldSelftest(void)
         player->stat_level[TORIRSSERVER_STAT_PRAYER] = 99;
         selftest_prayer_toggle(srv, "prayer_protectfrommelee");
         player->stat_boosted[TORIRSSERVER_STAT_PRAYER] = 99;
-        srv->tick++;
+        /* The activation tick X itself: the timer armed on X has not fired. */
         ToriRSServer_ScriptsProcessTimers(srv);
         SELFTEST_CHECK(ToriRSServer_Varp(player,
                                          ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
@@ -32931,6 +32936,13 @@ ToriRSServer_WorldSelftest(void)
                        "the activation tick charges nothing");
         srv->tick++;
         ToriRSServer_ScriptsProcessTimers(srv);
+        SELFTEST_CHECK(ToriRSServer_Varp(player,
+                                         ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
+                                                                    "varp6971_prayer_drain_counter")) == 12,
+                       "the tick after activation charges 12, got %d",
+                       ToriRSServer_Varp(player,
+                                         ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
+                                                                    "varp6971_prayer_drain_counter")));
         SELFTEST_CHECK(player->stat_boosted[TORIRSSERVER_STAT_PRAYER] == 99,
                        "12 units is not yet a point");
         srv->tick++;

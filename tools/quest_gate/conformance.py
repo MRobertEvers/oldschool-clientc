@@ -74,8 +74,11 @@ USER = "qdconform"
 # ERRORed on the frame cap.  The v3 merge (2026-10-06) carries both
 # branches' rows (218 seam rows and 229 verbs against the raid branch's 182
 # and 202; v3 alone drew ~51,000 for 101 seam rows and set 120000), hence
-# 280000.
-MAX_FRAMES = "280000"
+# 280000.  2026-11-22: the 102 verb rows that had none (the shipyard and a
+# charting voyage, the CoX room helpers, an Entry Mode raid through every
+# ToB solver, Yama solo) outgrew it a sixth time, at row 510 of 610 inside
+# seam.drink_item_list_fast_press; hence 700000.
+MAX_FRAMES = "700000"
 # Render skip, as run.py: on unless --render-every-frame (run.py's RENDER_SKIP
 # banner). The harness proves the quest runs' own mode, and its render.* rows
 # switch it themselves either way.

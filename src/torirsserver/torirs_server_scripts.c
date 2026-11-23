@@ -2206,6 +2206,8 @@ drain_queue(
         int argc;
         int splat_land_cycle;
         int saved_land_cycle;
+        int armed_on_npc_turn;
+        int saved_armed_on_npc_turn;
 
         if( !entry->active )
             continue;
@@ -2241,6 +2243,7 @@ drain_queue(
         memcpy(args, entry->args, sizeof(args));
         argc = entry->argc;
         splat_land_cycle = entry->splat_land_cycle;
+        armed_on_npc_turn = entry->armed_on_npc_turn;
         entry->active = 0;
         if( getenv("TORIRS_ANIM_DEBUG") )
         {
@@ -2249,9 +2252,12 @@ drain_queue(
                     qs && qs->name ? qs->name : "?", srv->tick);
         }
         saved_land_cycle = srv->hit_land_cycle;
+        saved_armed_on_npc_turn = srv->queue_armed_on_npc_turn;
         srv->hit_land_cycle = splat_land_cycle;
+        srv->queue_armed_on_npc_turn = armed_on_npc_turn;
         run_script_id(srv, script_id, args, argc, -1, 1, "queue");
         srv->hit_land_cycle = saved_land_cycle;
+        srv->queue_armed_on_npc_turn = saved_armed_on_npc_turn;
     }
 }
 
@@ -2814,6 +2820,7 @@ ToriRSServer_ScriptsQueueHook(
         player->queue[i].kind = TORIRSSERVER_QUEUE_NORMAL;
         player->queue[i].logout_action = 0;
         player->queue[i].splat_land_cycle = 0;
+        player->queue[i].armed_on_npc_turn = 0;
         return 1;
     }
     /*
@@ -3000,6 +3007,25 @@ rung_is_refused_retaliation(
     assert(npc->active);
     def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
     return !def->retaliate;
+}
+
+/*
+ * A hit a player's own script deals that same player: a rock cake, an
+ * overload, a ruby bolt's Blood Forfeit. Not one an npc dealt, whichever
+ * script delivers it -- an `[ai_*]` script, or a player queue entry an npc's
+ * turn armed (`armed_on_npc_turn`, e.g. `[queue,combat_damage_player]`).
+ */
+static int
+damage_from_own_script(
+    struct ToriRSServer const* srv,
+    struct SSVM_State const* state,
+    struct ToriRSServerPlayer const* target,
+    struct ToriRSServerPlayer const* dealer)
+{
+    assert(srv);
+    assert(state);
+    assert(target);
+    return target == dealer && !trigger_is_ai_npc(state->trigger) && !srv->queue_armed_on_npc_turn;
 }
 
 /** Engine-driven npc triggers run in their owned player's context when one is
@@ -13118,7 +13144,7 @@ script_command(
          * rock cake, a poison karambwan. The Nightmare Zone's absorption pool
          * must not soak those, and the damage funnel cannot tell them from a
          * swing on its own. See `hit_self_inflicted`. */
-        if( target_player == saved_player )
+        if( damage_from_own_script(srv, state, target_player, saved_player) )
             target_player->hit_self_inflicted = 1;
         ToriRSServer_WorldSetActive(srv, target_player);
         /*
@@ -13137,12 +13163,18 @@ script_command(
          * Forfeit, a CoX tendril) has no npc dealer even with an npc bound
          * -- the shot's target was. (Only a PLAYER's script: an npc's queue armed
          * by its target binds that same player and is the npc's own hit.) */
+        /* ...unless an npc's own turn armed the queue entry this runs from:
+         * `[queue,combat_damage_player]` is the player's script, but the swing
+         * was the npc's (`armed_on_npc_turn`). Counted as the player's own,
+         * every npc spell and Nylocas swing logged no dealer and left a chat
+         * box up (conformance seam.nylocas_swing_rolls_accuracy, 2026-11-22:
+         * 106 hits, all npc -1). */
         ToriRSServer_TicklogSetDealerNpc(
-            (target_player == saved_player && !trigger_is_ai_npc(state->trigger)) ? -1 : active_npc_slot(state));
+            damage_from_own_script(srv, state, target_player, saved_player) ? -1 : active_npc_slot(state));
         /* A hit somebody else dealt closes the victim's chat box on its turn
          * (torirs_server.h `hit_closes_chat`); one the player's own script
          * deals itself -- a rock cake, a scripted fall mid-dialogue -- does not. */
-        if( !(target_player == saved_player && !trigger_is_ai_npc(state->trigger)) )
+        if( !damage_from_own_script(srv, state, target_player, saved_player) )
             target_player->hit_closes_chat = 1;
         ToriRSServer_CombatHitPlayerFrom(
             srv, values[1], values[2],
@@ -13188,7 +13220,7 @@ script_command(
         }
         saved_player = srv->command_turn_player; /* the dealer -- see `damage` */
         /* As `damage`: a hit somebody else dealt closes the chat box. */
-        if( !(target_player == saved_player && !trigger_is_ai_npc(state->trigger)) )
+        if( !damage_from_own_script(srv, state, target_player, saved_player) )
             target_player->hit_closes_chat = 1;
         ToriRSServer_WorldSetActive(srv, target_player);
         /* The swinging npc for the tick log -- see `damage` above. */
@@ -14030,6 +14062,12 @@ script_command(
             player->queue[i].logout_action = values[3];
             player->queue[i].splat_land_cycle =
                 ToriRSServer_ProjectileLandCycleFor(srv, -player->pid - 1);
+            /* An npc's turn, or a queue entry an npc's turn armed: the urnbomb's
+             * landing (armed on Verzik's turn) arms combat_damage_player from
+             * the player's queue, and that hit is still hers (conformance
+             * seam.verzik_p2_urnbomb_prayer_read_at_landing: npc -1). */
+            player->queue[i].armed_on_npc_turn =
+                trigger_is_ai_npc(state->trigger) != 0 || srv->queue_armed_on_npc_turn != 0;
             return 1;
         }
         SSVM_Abort(state, "the player's queue is full");
@@ -14110,6 +14148,12 @@ script_command(
             player->queue[i].logout_action = logout_action;
             player->queue[i].splat_land_cycle =
                 ToriRSServer_ProjectileLandCycleFor(srv, -player->pid - 1);
+            /* An npc's turn, or a queue entry an npc's turn armed: the urnbomb's
+             * landing (armed on Verzik's turn) arms combat_damage_player from
+             * the player's queue, and that hit is still hers (conformance
+             * seam.verzik_p2_urnbomb_prayer_read_at_landing: npc -1). */
+            player->queue[i].armed_on_npc_turn =
+                trigger_is_ai_npc(state->trigger) != 0 || srv->queue_armed_on_npc_turn != 0;
             return 1;
         }
         SSVM_Abort(state, "the player's queue is full");

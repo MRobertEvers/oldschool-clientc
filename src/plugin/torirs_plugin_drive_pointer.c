@@ -1938,7 +1938,32 @@ drive_pointer_spell_arm(
     pick.node_incarnation = c->incarnation;
     *out_reason = app_minimenu_pick_refusal(app, &pick);
     if( *out_reason )
+    {
+        /* Name the node that hid it: "display-hidden" alone sent the
+         * conformance cast rows' reader through every ancestor by hand. */
+        static char why[256];
+        int32_t hid = -1;
+        char const* flag = NULL;
+
+        if( UITree_NodeOrAncestorDisplayHiddenWhy(app->tree, node, 0, &hid, &flag) && hid >= 0 )
+        {
+            int const com = app->tree->components[hid].component_id;
+            int mounted = -1;
+
+            /* A side panel the tab switch leaves hidden is one with nothing
+             * mounted in it (toplevel_sidebutton_switch_916 unhides only
+             * `if_hassub`), so say what the container holds. */
+            for( int i = 0; i < app->tree->interface_parent_count; i++ )
+                if( app->tree->interface_parents[i].container_uid == com )
+                    mounted = app->tree->interface_parents[i].group_id;
+            snprintf(why, sizeof(why), "%s (%s on %d:%d%s; %s %d)", *out_reason, flag, com >> 16,
+                     com & 0xffff, hid == node ? ", the cell itself" : "",
+                     mounted >= 0 ? "it holds interface" : "nothing mounted in it, cell's interface",
+                     mounted >= 0 ? mounted : component_id >> 16);
+            *out_reason = why;
+        }
         return DRIVE_REFUSED;
+    }
 
     if( UITargetSelect_Armed(&app->target_select) )
         app_selection_clear(app);

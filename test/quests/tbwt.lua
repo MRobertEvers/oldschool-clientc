@@ -174,12 +174,30 @@ local function net_karambwanji(t, name, want)
         .. " (bycatch shrimp dropped between rounds; " .. table.concat(rounds, "; ") .. ")")
 end
 
+-- Eat sharks while hitpoints are under `below`, standing still. The jogres
+-- around the leg-2 spawn are aggressive and keep swinging while the player
+-- waits out a fire; the cross_trap `vitals` eat cannot be the answer, because
+-- it presses during the log's own delay and the press is dropped (tbwt_a,
+-- 2026-11-22: "hp 11 < 40: ate shark -> timeout", then dead on the way back).
+local function top_up(t, below)
+    for _ = 1, 4 do
+        local hr, hp = t.skill.read("hitpoints")
+        local cr, sharks = t.inv.count("shark")
+        if hr ~= "ok" or type(hp) ~= "table" or hp.level >= below or cr ~= "ok" or (sharks or 0) < 1 then
+            return
+        end
+        t.player.eat("shark")
+        t.ticks(3)
+    end
+end
+
 local LOG_W, LOG_E = { 2906, 3049 }, { 2910, 3049 }
 local function cross_log(t, name, eastbound)
     local src = eastbound and LOG_W or LOG_E
     local dest = eastbound and LOG_E or LOG_W
     local at = eastbound and { 2907, 3049, 0 } or { 2909, 3049, 0 }
     t.exec("goto-" .. name, t.player.goto_tile, src[1], src[2], 0)
+    top_up(t, 45)
     local r, d = t.player.cross_trap({ loc = "zq_logbalance", op_name = "Cross", at = at, loc_level = 1,
         src = src, dest = dest, vitals = { eat = "shark", below = 40 } })
     if r ~= "ok" and string.find(tostring(d), "fall into the water", 1, true) then
@@ -212,7 +230,13 @@ return {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
         "::setlevel firemaking 30",
         "::setlevel agility 15",
-        "::setlevel cooking 30",
+        -- Cooking 30 is the quest's requirement, but the fire burns karambwan
+        -- on stat_random(cooking, 70, 256) (cooking.rs2): half at 30, a quarter
+        -- at 60 (probes, 2026-11-22: 36 of 60 and 19 of 60 burnt). The rolls are
+        -- consecutive draws of the player's own stream, so a run name decides
+        -- them: dr_tbwt burnt all five at 30 AND at 60. At 99 the roll cannot
+        -- fail, and this test is the quest, not the burn rate.
+        "::setlevel cooking 99",
         "::setlevel fishing 65", -- guide: Karambwan fishing needs Fishing 65 (getPoisonKarambwan); also >= 5 for fishing_spots/tbwt.rs2:fish_karambwanji
         "::complete quest_junglepotion", -- guide requirement: Jungle Potion complete (tbwt_timfraku.rs2 gate)
         "::complete quest_druidicritual", -- prerequisite of Jungle Potion: Herblore unlocked for the pestle and mortar (makeKarambwanjiPaste)
@@ -596,8 +620,29 @@ return {
             t.exec("goto-getJogreBones", t.player.goto_tile, 2924, 3062, 0)
             t.exec("getJogreBones-wield", t.player.equip, "rune_scimitar")
             local _, sharks_before = t.inv.count("shark")
-            t.exec("getJogreBones", t.player.attack, "jogre", 2)
-            local jr, jd = t.npc.await_dead_engaged(300, 30, { eat = { item = "shark", below = 40 } })
+            local ar, ad = t.player.attack("jogre", 2)
+            local jr, jd
+            if ar == "refused" and string.find(tostring(ad), "already under attack", 1, true) then
+                -- Another jogre claimed the player on the way in (single-way
+                -- combat refuses the press): auto-retaliate is already fighting
+                -- it, and any jogre drops the bones. Wait for its drop, eating.
+                t.check("getJogreBones", true, "claimed first by another jogre; retaliating -- " .. tostring(ad))
+                jr, jd = "timeout", "no jogre bones on the ground after 300 ticks"
+                local lowest = 999
+                for _ = 1, 60 do
+                    t.ticks(5)
+                    local _, hp = t.skill.read("hitpoints")
+                    if type(hp) == "table" and hp.level < lowest then lowest = hp.level end
+                    top_up(t, 40)
+                    if t.world.obj_near("tbwt_jogre_bones", 8) == "ok" then
+                        jr, jd = "ok", "the claiming jogre died to auto-retaliate; lowest hp " .. lowest .. "/70"
+                        break
+                    end
+                end
+            else
+                t.check("getJogreBones", ar == "ok", tostring(ar) .. " " .. tostring(ad))
+                jr, jd = t.npc.await_dead_engaged(300, 30, { eat = { item = "shark", below = 40 } })
+            end
             t.check("getJogreBones.dead", jr == "ok", tostring(jr) .. " " .. tostring(jd))
             do
                 local lowest = tonumber(tostring(jd):match("lowest hp (%d+)/"))
@@ -618,11 +663,25 @@ return {
             t.exec("burnBones", t.player.use_item_on_item, "tbwt_jogre_bones", "tinderbox")
             t.exec("burnBones.msg", t.msg.await, "The fire catches", 60)
             -- pickupBurntBones: obj_addall at the fire's tile when the fire burns out
-            t.exec("pickupBurntBones.wait", t.await, { level = function() local r = t.world.obj_near("tbwt_burnt_jogre_bones", 8) return r == "ok" end, note = "burnt jogre bones on the ground" }, 80)
+            -- The fire burns ~30 ticks beside the aggressive jogres: wait in
+            -- slices and eat between them.
+            do
+                local waited, found = 0, false
+                while waited < 80 do
+                    local wr = t.await({ level = function() return t.world.obj_near("tbwt_burnt_jogre_bones", 8) == "ok" end,
+                        note = "burnt jogre bones on the ground" }, 5)
+                    waited = waited + 5
+                    if wr == "ok" then found = true break end
+                    top_up(t, 40)
+                end
+                t.check("pickupBurntBones.wait", found, "burnt jogre bones on the ground"
+                    .. (found and (" within " .. waited .. " tick(s)") or " -- not after 80 ticks"))
+            end
             t.exec("pickupBurntBones", t.player.click_obj, "tbwt_burnt_jogre_bones", 3)
             t.exec("pickupBurntBones.has", t.inv.await, "tbwt_burnt_jogre_bones", 1, 20)
             -- LEG 2 END
             -- leave the aggressive jogres (plain travel) so the checkpoint finds the player out of combat
+            top_up(t, 45)
             t.exec("goto-leg2-quiet", t.player.goto_tile, 2912, 3112, 0)
             t.ticks(12)
             local _, l2stage = t.quest.stage()
@@ -673,7 +732,8 @@ return {
                 t.ticks(10)
                 local _, rk = t.inv.count("tbwt_raw_karambwan")
                 t.check("getPoisonKarambwan-try" .. i, true, "raw karambwan after try " .. i .. ": " .. tostring(rk) .. " (the vessel is spent either way; the gift from Tiadeche is one of them)")
-                if rk >= 3 then break end
+                -- Five, against a burn (setup's cooking line).
+                if rk >= 5 then break end
             end
             local _, rk2 = t.inv.count("tbwt_raw_karambwan")
             t.check("getPoisonKarambwan", rk2 > rk_before, "raw karambwan in the pack: " .. tostring(rk2) .. ", before the fishing loop: " .. tostring(rk_before) .. " (one must be fished, not Tiadeche's gift)")
@@ -683,7 +743,7 @@ return {
             t.exec("goto-cookBones", t.player.goto_tile, 2790, 3051, 0)
             t.exec("cookBones", t.player.use_on, "tbwt_burnt_jogre_bones_in_raw_karambwanji_paste", t.player.by_symbol("loc", "fire"))
             t.exec("cookBones.has", t.inv.await, "tbwt_burnt_jogre_bones_marinated_in_karambwanji", 1, 20)
-            for i = 1, 5 do
+            for i = 1, 8 do
                 local _, raw = t.inv.count("tbwt_raw_karambwan")
                 if raw < 1 then break end
                 -- More than one held opens the make-menu (RSProx index 4095 [7666]).

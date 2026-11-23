@@ -306,7 +306,15 @@ end
 
 -- inv ---------------------------------------------------------------------
 
-function QD.inv.count(name)
+-- QD.inv._count / QD.skill._read: the reads with no side effect, for the
+-- driver's own use inside a verb.  After quest.expect_complete the public
+-- t.inv.count / t.skill.read select the tab they assert first (quest.lua's
+-- REWARD ROWS wrap), and a verb that read through them flipped the sidebar
+-- in the middle of its own press: t.player.cast reads Magic xp between
+-- opening the spellbook and arming the spell, the wrap opened the skills
+-- tab, and every cast after the harness's reward rows was refused "the node
+-- or an ancestor of it is display-hidden" (conformance, 2026-11-22: 14 rows).
+function QD.inv._count(name)
     local obj_result, obj_id = api_drive.symbol("obj", name)
     if obj_result ~= "ok" then
         return obj_result, name
@@ -316,6 +324,10 @@ function QD.inv.count(name)
         return inv_result, "inv"
     end
     return api_drive.inv_count(container_id, obj_id)
+end
+
+function QD.inv.count(name)
+    return QD.inv._count(name)
 end
 
 -- inv.count_in(inv_name, name) -> result, total
@@ -603,12 +615,16 @@ end
 --
 -- `stated` is last_seen_level ~= 0: the pre-login table is a fresh account's,
 -- not an empty one, so "is there a reading yet" cannot be asked of the level.
-function QD.skill.read(name)
+function QD.skill._read(name)
     local result, stat_index = api_drive.symbol("stat", name)
     if result ~= "ok" then
         return result, name
     end
     return api_drive.skill(stat_index)
+end
+
+function QD.skill.read(name)
+    return QD.skill._read(name)
 end
 
 -- The stat pack's own fixed protocol table (OSRS-Content/osrs-content/
@@ -799,7 +815,7 @@ function QD.player._death_record()
         return nil
     end
     local tile_result, tile = api_drive.player_tile()
-    local hp_result, hp = QD.skill.read("hitpoints")
+    local hp_result, hp = QD.skill._read("hitpoints")
     QD._death = {
         deaths = deaths,
         serial = newest,
@@ -876,7 +892,7 @@ function QD.player.alive()
     if record then
         return "refused", QD.player._death_text(record)
     end
-    local hp_result, hp = QD.skill.read("hitpoints")
+    local hp_result, hp = QD.skill._read("hitpoints")
     if hp_result ~= "ok" or type(hp) ~= "table" then
         return hp_result, "player.alive: the hitpoints reading answered " .. tostring(hp_result)
     end

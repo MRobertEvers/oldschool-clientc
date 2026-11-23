@@ -2413,6 +2413,21 @@ core_packet(
     case PKT_NAME_REBUILD_WORLDENTITY:
         core_rebuild_worldentity(core, &packet._rebuild_wev);
         break;
+    case PKT_NAME_UNSET_MAP_FLAG:
+        /* The client's DRIVE_STAMP for it (app_gameproto_exec.c
+         * exec_unset_map_flag): a=-1 when cleared, else the flag's tile. The
+         * driver's click settle resolves a routed press with no line and no
+         * page on the route's clear (pointer.lua _settle_after_click, the
+         * map_flag arm); without this a silent walk-through door settled
+         * only by timing out (Waterfall's second Baxtorian door, 2026-11-22).
+         * The tile is the packet's own terms (absolute in the V2 form): no
+         * driver arm reads more than "set or clear". */
+        if( packet._set_map_flag.clear )
+            ScriptrunCore_Event(core, SCRIPTRUN_EV_MAP_FLAG, -1, -1, 0, 0);
+        else
+            ScriptrunCore_Event(core, SCRIPTRUN_EV_MAP_FLAG, packet._set_map_flag.x,
+                                packet._set_map_flag.z, 0, 0);
+        break;
     case PKT_NAME_SERVER_TICK_END:
         /* SET_ACTIVE_WORLD lasts until the fence (rs_gameproto_exec.c); the
          * model stamped server_tick. */

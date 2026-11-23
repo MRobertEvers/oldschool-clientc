@@ -666,7 +666,11 @@ return {
         t.expect("demon.present", t.npc.await_present("grandtree_blackdemon", 20, 20))
         t.exec("demon.glough", t.player.talk_to, "grandtree_glough_battle", 1)
         t.exec("demon.glough.page", t.chat.play, { "npc:Just die, human!", "end" })
-        t.exec("demon.fight", t.npc.await_dead, "grandtree_blackdemon", 400, 20, 10, { eat = { item = "shark", below = 60 } })
+        -- The demon is not aggressive (huntmode none): in 4429 it first swings
+        -- at [1634], the tick after the recorder's Fire Strike [1633]. So the
+        -- player opens the fight, in melee here.
+        t.exec("demon.attack", t.player.attack, "grandtree_blackdemon", 2, 20)
+        t.exec("demon.fight", t.npc.await_dead_engaged, 400, 10, { eat = { item = "shark", below = 60 } })
         t.expect("demon.stage", t.quest.expect_stage("defeated_black_demon"))
         t.expect("demon.glough_gone", t.npc.await_gone("grandtree_glough_battle", 12))
 

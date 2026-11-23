@@ -9,8 +9,8 @@
 --     back, 20 xp, "You pour the cocktail and add the finishing touches." [1269];
 --   * Hudo's Talk-to pages then his shop [824..833]; the gnome waiter's pages
 --     then Gianne's Restaurant [804..815];
---   * the necklace of passage's Rub -> The Outpost lands on 2429,3348 and
---     leaves the (3) [582..585];
+--   * the necklace of passage's Rub -> The Outpost lands within 2 of
+--     2430,3349 (4400 [582..585] landed 2429,3348) and leaves the (3);
 --   * Pelters' Veg Stall: the crate's Buy opens the shop, a rotten tomato is
 --     100 coins [119..129].
 --
@@ -151,8 +151,14 @@ return {
         t.player.inv_op("necklace_of_passage_4", 4, { subop = 2 })
         t.ticks(8)
         local tr, tile = t.world.tile()
-        t.check("passage.landed", (tr == "ok" and tile.x == 2429 and tile.z == 3348) and "ok" or "hollow",
-            "tile " .. tostring(tile and tile.x) .. "," .. tostring(tile and tile.z))
+        -- The landing is a roll: nine recorded Outpost landings spread over
+        -- 2428..2431,3348..3350 (4400, 4420, 4426, 4429 x3, ...), and the
+        -- content rolls map_findsquare radius 2 around the wiki's 2430,3349.
+        local landed = tr == "ok" and tile.x >= 2428 and tile.x <= 2432
+            and tile.z >= 3347 and tile.z <= 3351 and tile.level == 0
+        t.check("passage.landed", landed and "ok" or "hollow",
+            "tile " .. tostring(tile and tile.x) .. "," .. tostring(tile and tile.z)
+            .. " (want within 2 of 2430,3349)")
         t.check("passage.charge", (count("necklace_of_passage_3") == 1 and count("necklace_of_passage_4") == 0) and "ok" or "hollow",
             "(3) " .. count("necklace_of_passage_3") .. ", (4) " .. count("necklace_of_passage_4"))
 

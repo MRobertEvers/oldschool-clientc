@@ -1973,7 +1973,7 @@ function QD.shop._press(item, sub, op, want)
     return await({
         event = "server_tick",
         match = function()
-            local count_result, total = QD.inv.count(item)
+            local count_result, total = QD.inv._count(item)
             return count_result == "ok" and total >= want
         end,
         note = "shop.buy " .. tostring(item),
@@ -2014,11 +2014,11 @@ function QD.shop.buy(item, count)
             tostring(QD.shop._inv_symbol), row.stock, tostring(item), count)
     end
 
-    local before_result, before = QD.inv.count(item)
+    local before_result, before = QD.inv._count(item)
     if before_result ~= "ok" then
         return before_result, "shop.buy: cannot read the backpack's " .. tostring(item)
     end
-    local coins_before_result, coins_before = QD.inv.count("coins")
+    local coins_before_result, coins_before = QD.inv._count("coins")
     local since = 0
     local serial_result, serial = api_drive.message_serial()
     if serial_result == "ok" then
@@ -2044,8 +2044,8 @@ function QD.shop.buy(item, count)
         end
     end
 
-    local after_result, after = QD.inv.count(item)
-    local coins_after_result, coins_after = QD.inv.count("coins")
+    local after_result, after = QD.inv._count(item)
+    local coins_after_result, coins_after = QD.inv._count("coins")
     local gained = (after_result == "ok" and before_result == "ok")
         and (after - before) or -1
     local paid = (coins_after_result == "ok" and coins_before_result == "ok")
@@ -2902,6 +2902,14 @@ function QD.npc.await_anim(selector, seq_id, ticks, opts)
     if waited ~= "ok" then
         return waited, string.format("%s slot %d: no %s within %d tick(s) (last seq %d on tick %d): %s",
             tostring(row.name), slot, want, ticks or 10, row.seq_id, row.seq_tick, tostring(detail))
+    end
+    -- On api_drive.tick()'s clock, the one npc.state's seq_tick uses: the
+    -- event is stamped world cycle / 30, which reads a tick earlier than
+    -- PluginDrive_ServerTickOfCycle of the same cycle (conformance
+    -- npc.await_anim, 2026-11-23: edge 1154, state 1155 for the one seq).
+    local after_result, after = QD.npc.state(selector, opts)
+    if after_result == "ok" and after.seq_id == got_seq and after.seq_tick ~= nil and after.seq_tick >= 0 then
+        got_tick = after.seq_tick
     end
     return "ok", string.format("%s slot %d: seq %d on tick %d", tostring(row.name), slot, got_seq,
         got_tick), got_tick, got_seq
