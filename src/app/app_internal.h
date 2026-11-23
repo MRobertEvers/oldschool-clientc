@@ -84,6 +84,40 @@ app_from_side_app_host(struct SideAppHost* host)
 #define APP_OUTLINE_COLOR_EDITOR_SELECT 0xFF00FF00u
 /* 0 opaque .. 255 invisible. High enough that the model reads through it. */
 #define APP_OUTLINE_FILL_TRANS 205
+
+/*
+ * A function the web link must keep as a function of its own.
+ *
+ * JavaScriptCore (Safari, every iPhone and iPad browser) never optimizes a
+ * wasm function over 100,000 bytes, and binaryen's -O3 inlines every function
+ * that has one caller, whatever its size: left alone it folds some 390
+ * functions into App_RunOnce (114,322 bytes), which then runs in Safari's
+ * baseline tier on every frame (docs/web_wasm_function_size.md). binaryen
+ * ignores clang's noinline; an export is a second use it cannot see past, so
+ * export_name is what keeps the function out of its caller (one extra wasm
+ * export each, called by nothing in JavaScript). Native builds get nothing:
+ * they have no size limit and their inlining is left as it was.
+ *
+ * It goes on the prototype below, and the function is then named in
+ * tools/wasm_hot_functions.txt as `required`, so a web link fails if the
+ * function is folded into its caller again.
+ *
+ * -DAPP_WASM_OWN_FUNCTIONS=0 builds the web client without it, for measuring
+ * (that link then fails the size check, which is the point of the check).
+ */
+#ifndef APP_WASM_OWN_FUNCTIONS
+#ifdef __wasm__
+#define APP_WASM_OWN_FUNCTIONS 1
+#else
+#define APP_WASM_OWN_FUNCTIONS 0
+#endif
+#endif
+
+#if APP_WASM_OWN_FUNCTIONS
+#define APP_WASM_OWN_FUNCTION(name) __attribute__((export_name(#name), noinline))
+#else
+#define APP_WASM_OWN_FUNCTION(name)
+#endif
 #if defined(TORIRS_PLATFORM_ANDROID)
 /* For the boot refusal below: on a phone there is no terminal to print to and
  * no shell to have typed the command, so a refusal has to reach the screen. */
@@ -95,6 +129,8 @@ app_from_side_app_host(struct SideAppHost* host)
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
+#include "engine/cs2_jit_cache.h"
+#include "engine/task_cs2_jit_pack.h"
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
 #include "engine/png_decode.h"
@@ -532,6 +568,20 @@ app_provider_set_cache_profile(
 
 void
 app_boot_refuse(char const* message);
+
+/* ---- the CS2 jit's platform cache (app.c; docs/CS2_JIT.md 4.1) ---- */
+
+/** A loaded clientscript by id, for the jit pack's store (`user` is the
+ *  CacheProvider). CS2JitScriptLookup's shape. */
+struct CS2VM2_Script*
+App_CS2JitLookup(
+    void* user,
+    int script_id);
+
+/** Once per frame (App_RunOnce): queue the pack's write-behind store on the
+ *  background queue when one is due. */
+void
+app_cs2jit_frame(struct App* app);
 
 void
 app_async_polls(struct App* app);
@@ -2539,7 +2589,9 @@ app_plugin_panel_overlay_visible(
     int index,
     struct UITreeEntityOverlay* out);
 
-void
+/* Its own wasm function: the plugin window and the developer chrome's sync,
+ * 36 KB of what binaryen would fold into App_RunOnce. */
+APP_WASM_OWN_FUNCTION(app_plugin_panel_tick) void
 app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input);
 
 /** Register the plugin window's toggle key with the side-app registry.
@@ -3183,7 +3235,10 @@ app_world_spawn_obj(
 
 
 /* ---- app_world_frame.c ---- */
-void
+/* Its own wasm function: the frame's world step (the movers, the camera,
+ * every npc and player body), 28 KB of what binaryen would fold into
+ * App_RunOnce, and the part of it that loops over the scene. */
+APP_WASM_OWN_FUNCTION(app_world_frame) void
 app_world_frame(
     struct App* app,
     int cycles,

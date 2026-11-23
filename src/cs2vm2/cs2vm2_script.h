@@ -3,6 +3,8 @@
 
 #include "cs2vm2_dialect.h"
 
+struct CS2VM2_Jit;
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -55,6 +57,10 @@ struct CS2VM2_Script
     char** string_operands;
     int switch_table_count;
     struct CS2VM2_ScriptSwitch* switch_tables;
+    /* The load-time jit's overlay (cs2vm2_jit.h): NULL runs the plain hot
+     * loop exactly as before it existed. Built or attached only while no
+     * frame references the script; freed by CS2VM2_ScriptFree. */
+    struct CS2VM2_Jit* jit;
 };
 
 void

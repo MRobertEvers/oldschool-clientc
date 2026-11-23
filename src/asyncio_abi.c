@@ -78,6 +78,9 @@ enum
     TORIRS_IO_ABI_REFTABLE_TABLE_OFF,
     TORIRS_IO_ABI_FILE_PATH_OFF,
     TORIRS_IO_ABI_MAX_PATH,
+    /* IOA4: the derived-record kinds (TORIRS_IOK_DERIVED_READ / _WRITE). */
+    TORIRS_IO_ABI_DERIVED_NAME_OFF,
+    TORIRS_IO_ABI_DERIVED_NAME_MAX,
 
     TORIRS_IO_ABI_COUNT
 };
@@ -90,8 +93,11 @@ enum
  * the task that queued it, and an item carries its own `pending` count. IOA2
  * had a slot table hanging off the queue and `active` indexed into it; a
  * reader that still does that would read task memory as a table.
+ *
+ * IOA4: two slots appended for the derived-record name (IOItem_Derived). An
+ * IOA3 reader would not know the kinds that use them, so it refuses.
  */
-#define TORIRS_IO_ABI_MAGIC 0x494f4133 /* "IOA3" */
+#define TORIRS_IO_ABI_MAGIC 0x494f4134 /* "IOA4" */
 
 /**
  * Fill `out` with TORIRS_IO_ABI_COUNT int32 values, in the order above.
@@ -135,6 +141,8 @@ ToriRS_IO_DescribeAbi(int32_t* out)
         (int32_t)offsetof(struct IOItem_ReferenceTable, table_id);
     out[TORIRS_IO_ABI_FILE_PATH_OFF] = (int32_t)offsetof(struct IOItem_File, path);
     out[TORIRS_IO_ABI_MAX_PATH] = TORIRS_IOITEM_MAX_PATH;
+    out[TORIRS_IO_ABI_DERIVED_NAME_OFF] = (int32_t)offsetof(struct IOItem_Derived, name);
+    out[TORIRS_IO_ABI_DERIVED_NAME_MAX] = TORIRS_IOITEM_DERIVED_NAME_MAX;
 }
 
 /** A buffer for the executor to answer an item's bytes into. NET, because

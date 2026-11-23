@@ -2,6 +2,7 @@
 #include "mem/torirs_mem.h"
 #include "cache/rscache_io.h"
 #include "engine/cache_provider.h"
+#include "engine/cs2_jit_cache.h"
 #include "engine/cs2vm2_script_from_rscache.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
@@ -68,6 +69,11 @@ Task_Dat2ClientScriptLoad_Run(
     RSCache_ClientScriptFree(rscache_script);
     rscache_script = NULL;
 
+    /* The load-time jit (docs/CS2_JIT.md 4.1): the overlay, from the
+     * platform cache's pack or built in memory, attached while no frame can
+     * reference this script yet. Never waits and does no IO. If the add below
+     * keeps an earlier decode instead, this one's overlay is freed with it. */
+    CacheProvider_ClientScriptJit(&task->bc->base, vm_script);
     CacheProvider_ClientScriptAdd(&task->bc->base, task->script_id, vm_script);
 
     PT_END(&task->pt);

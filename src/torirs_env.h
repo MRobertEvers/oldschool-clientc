@@ -125,6 +125,24 @@ TORIRS_ENV_KNOB(torirs_env_key_debug, "TORIRS_KEY_DEBUG")
 TORIRS_ENV_KNOB(torirs_env_overlay_debug, "TORIRS_OVERLAY_DEBUG")
 TORIRS_ENV_KNOB(torirs_env_overlay_script_debug, "TORIRS_OVERLAY_SCRIPT_DEBUG")
 
+/* The CS2 load-time jit (docs/CS2_JIT.md 4.11). TORIRS_CS2_JIT=0 builds no
+ * overlay at all, so one binary is both arms of an A/B. Read by the HOST,
+ * once, where it decides whether a loaded script gets an overlay
+ * (CacheProvider_SetCS2Jit); the VM reads no environment. */
+TORIRS_ENV_KNOB(torirs_env_cs2_jit, "TORIRS_CS2_JIT")
+/* Its platform cache (docs/CS2_JIT.md 4.11), read once at boot by the App
+ * (app_cs2jit_init): TORIRS_CS2_JIT_CACHE=0 builds every overlay in memory
+ * and neither reads nor writes the pack; TORIRS_CS2_JIT_STATS=1 turns the
+ * cache's timers on and prints its `cs2jit:` line after each store and at
+ * shutdown; TORIRS_CS2_JIT_STORE_MS=<ms> is the write-behind delay after the
+ * first new overlay (default 10000). TORIRS_DERIVED_DIR=<root> moves the
+ * desktop's derived records (the pack) from beside the cache directory to
+ * <root>/<cache dir's basename>/; platform_x_io.c reads it with getenv at
+ * PlatformX_IO_InitCacheId, once per call, so it is not a knob here. */
+TORIRS_ENV_KNOB(torirs_env_cs2_jit_cache, "TORIRS_CS2_JIT_CACHE")
+TORIRS_ENV_KNOB(torirs_env_cs2_jit_stats, "TORIRS_CS2_JIT_STATS")
+TORIRS_ENV_KNOB(torirs_env_cs2_jit_store_ms, "TORIRS_CS2_JIT_STORE_MS")
+
 /* Host-level knobs main.c asks about every frame. */
 TORIRS_ENV_KNOB(torirs_env_frame_debug, "TORIRS_FRAME_DEBUG")
 TORIRS_ENV_KNOB(torirs_env_screenshot, "TORIRS_SCREENSHOT")

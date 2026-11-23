@@ -29,6 +29,7 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_rscache.h"
 #include "platform/platform_web_io.h"
+#include "engine/cs2_jit_cache.h"
 #include <rscache.h>
 
 #include <assert.h>
@@ -381,6 +382,18 @@ ToriRS_WebApi_ArchiveDataSize(struct RSCache_Dat2DiskArchive const* archive)
  * after App_Init: a C function, so the provider holds a plain table entry and
  * not the address of a JS import. `user` is the IO handle.
  */
+/**
+ * Print the CS2 jit cache's `cs2jit:` line now (docs/CS2_JIT.md section 5):
+ * the page or tools/web/browser_probe.py --log asks for it, since a tab has
+ * no shutdown to print one at. Returns 0 when there is no cache (the jit or
+ * its cache is off).
+ */
+EMSCRIPTEN_KEEPALIVE int
+torirs_cs2jit_report(void)
+{
+    return CS2JitCache_ReportActive("request") ? 1 : 0;
+}
+
 void
 PlatformWeb_IO_ArchiveInvalidateHook(
     void* user,

@@ -135,6 +135,24 @@ URL cannot mix an osrs239 archive into an osrs230 boot, and `by_cache` is what
 lets `?cache_reset=1` drop one generation instead of every cache the browser
 has ever held.
 
+Records DERIVED from a cache (asyncio.h `TORIRS_IOK_DERIVED_READ` / `_WRITE`;
+today only the CS2 jit pack, [CS2_JIT.md](CS2_JIT.md) 4.6) live in a database
+of their own, `<database name>-derived` (default `torirs-cache-derived`),
+version 1:
+
+| store | key | value |
+| --- | --- | --- |
+| `derived` | `"<cache>\|<name>"` | `{k, c: cache, n: name, d: ArrayBuffer, t: Date.now()}`, index `by_cache` on `c` |
+
+A separate database rather than a fourth store here, because a new store is a
+version upgrade and an upgrade waits for every other tab that holds version 1
+open (`openDb` sets no `onversionchange`); a new database has no open
+connection to wait for, and its writes never queue in front of a `groups` or
+`files` read. It is keyed by the same cache key as `groups`, read in one
+request at boot and written in one request per store, and `?cache_reset=1`
+(`ToriRS_IDB.clearCache`) deletes that cache's `derived` rows too. The web
+executor's cost of it is in `__torirs_io_telemetry.derived`.
+
 ## Boot order
 
 The reference tables must be readable before anything opens the cache:

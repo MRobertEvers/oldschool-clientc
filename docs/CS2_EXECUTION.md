@@ -67,6 +67,13 @@ therefore receive their own `SERVER_TICK_END` boundary as well.
 - do not swap a discarded GPU backbuffer; retain the previous frontbuffer; and
 - preserve unconsumed input so it is handled after settlement.
 
+The CS2 jit's platform-cache tasks (`Task_CS2JitPackLoad` on the parallel
+queue, `Task_CS2JitPackStore` on the background queue; [CS2_JIT.md](CS2_JIT.md)
+4.7) are ordinary tasks: never added with `TaskRunner_AddRenderBlockingSerialTask`,
+never part of the settle, and no script waits for either (a script that loads
+first gets an overlay built in memory). `make -C src test-cs2-jit-pack-tasks`
+checks that `frame_settle_pending` stays 0 while they are queued.
+
 Every path that enqueues CS2 must set `runner.frame_settle_pending`. The permanent
 regressions are `make -C src test-cs2-frame-settle` and
 `make -C src test-cs2-world-click-responsiveness`.

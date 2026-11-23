@@ -38,6 +38,27 @@
  *                        mark each such item pending.
  *
  * An item's `pending` count is the whole of what the runner reads back.
+ *
+ * DERIVED RECORDS (TORIRS_IOK_DERIVED_READ / _WRITE, asyncio.h). No new entry
+ * point: LoadItem and Process carry them like every other kind. What each
+ * executor promises:
+ *
+ *   PlatformX_*    <cache dir>.derived/<name>, beside the directory given to
+ *                  InitCacheId, never inside it (TORIRS_DERIVED_DIR=<root>
+ *                  moves it to <root>/<basename of that dir>/). Read inside
+ *                  Process; write-then-rename with the pid in the temporary
+ *                  name, so two clients on one cache never see a torn file.
+ *                  An empty dir or "." stores nothing (reads absent, writes
+ *                  fail). PlatformX_IO_DerivedStats counts what it did.
+ *   PlatformWeb_*  IndexedDB database "<idb name>-derived", store "derived",
+ *                  key "<cacheKey>|<name>", index by_cache; cleared with the
+ *                  cache by ToriRS_IDB.clearCache (?cache_reset=1). Always
+ *                  answered after an await; telemetry in
+ *                  __torirs_io_telemetry.derived.
+ *
+ * Either may answer any read "absent" and any write "failed". A derived
+ * record is an optimisation: its consumer must run correctly without it
+ * (docs/CS2_JIT.md 4.8).
  */
 
 #if defined(TORIRS_PLATFORM_WEB)

@@ -296,3 +296,7 @@ deprecated/pokesprite/assets/*.db-shm
 # The ToriRS RuneLite plugin: its Java package directory is net/runelite, which
 # the bare `runelite` rule above would otherwise hide.
 !tools/torirs_runelite/torirs-plugin/src/net/runelite/
+
+# Records derived from a cache (the CS2 jit pack, docs/CS2_JIT.md 4.5) live in
+# its sibling directory <cache dir>.derived/ -- never tracked.
+*.derived/

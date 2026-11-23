@@ -406,6 +406,11 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
 
     provider->derived_clock = 0;
     provider->ui_asset_revision = 0;
+    /* The load-time jit: on, with no platform cache, until the owner says
+     * otherwise (CacheProvider_SetCS2Jit). Every provider a test builds thus
+     * runs scripts with overlays built in memory. */
+    provider->cs2jit_enabled = 1;
+    provider->cs2jit = NULL;
 
     /* Unset until the boot path calls CacheProvider_SetProfile. Decoding through
      * CacheProvider_Profile before that asserts. */
@@ -2361,6 +2366,17 @@ CacheProvider_ComponentPackHasForComponent(
 {
     assert(provider);
     return CacheProvider_ComponentPackHas(provider, packed_id >> 16);
+}
+
+void
+CacheProvider_SetCS2Jit(
+    struct CacheProvider* provider,
+    int enabled,
+    struct CS2JitCache* cache)
+{
+    assert(provider);
+    provider->cs2jit_enabled = enabled ? 1 : 0;
+    provider->cs2jit = cache;
 }
 
 void

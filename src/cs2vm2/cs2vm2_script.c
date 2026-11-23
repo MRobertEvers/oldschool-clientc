@@ -1,5 +1,6 @@
 #include "mem/torirs_mem.h"
 #include "cs2vm2_script.h"
+#include "cs2vm2_jit.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -59,6 +60,8 @@ CS2VM2_ScriptFree(struct CS2VM2_Script* script)
     if( !script )
         return;
 
+    /* First, while the constant strings its debug canary re-hashes exist. */
+    CS2VM2_JitFree(script);
     if( script->switch_tables )
     {
         for( int i = 0; i < script->switch_table_count; i++ )
@@ -145,6 +148,9 @@ CS2VM2_ScriptCopy(
         dst->string_operands[i] = ToriMem_Strdup(ToriMem_Script(), src->string_operands[i]);
         assert(dst->string_operands[i]);
     }
+
+    if( src->jit )
+        CS2VM2_JitCopy(src, dst);
 
     return true;
 }

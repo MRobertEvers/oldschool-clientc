@@ -690,7 +690,13 @@ io_server_load(
      * path" from ever becoming reachable: this process would run it with its
      * own privileges, against a path a client chose.
      */
-    if( item->kind == TORIRS_IOK_FILE_READ || item->kind == TORIRS_IOK_FILE_WRITE )
+    /* A derived record (asyncio.h TORIRS_IOK_DERIVED_*) is the CLIENT's,
+     * computed from its own cache and kept beside it, for the same reason:
+     * a remote write would land beside this server's cache. The wire does not
+     * carry these kinds (IOWire_RequestToItem makes them NONE); refused by
+     * kind as well so that stays true if it ever does. */
+    if( item->kind == TORIRS_IOK_FILE_READ || item->kind == TORIRS_IOK_FILE_WRITE ||
+        item->kind == TORIRS_IOK_DERIVED_READ || item->kind == TORIRS_IOK_DERIVED_WRITE )
     {
         fprintf(stderr, "io: refusing a client-file request; those stay on the client\n");
         item->error_code = -1;

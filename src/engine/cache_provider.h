@@ -23,6 +23,7 @@ struct ToriRS_DbTableIndex;
 struct RSCache_Dat2ConfigDbRow;
 struct RSCache_Dat2ConfigDbTable;
 struct RSCache_WorldMapGeography;
+struct CS2JitCache;
 struct ToriRS_WorldMapRegionSource;
 
 /* The most sound renders in flight on the compute queue at once (one per
@@ -239,6 +240,18 @@ struct CacheProvider
      *  fails as it always did. */
     int (*absent_record_source)(void* user, int kind, int id);
     void* absent_record_user;
+
+    /**
+     * The CS2 load-time jit (docs/CS2_JIT.md 4.10), read by the load-site
+     * dispatch CacheProvider_ClientScriptJit (engine/cs2_jit_cache.h) as each
+     * clientscript is decoded. `cs2jit_enabled` 0 builds no overlay at all
+     * (TORIRS_CS2_JIT=0); 1 (CacheProvider_InitEngineCaches' default) builds
+     * one, from `cs2jit`'s pack when there is one, in memory otherwise.
+     * `cs2jit` is borrowed: the App owns the platform cache and frees it
+     * after the provider. Set with CacheProvider_SetCS2Jit.
+     */
+    int cs2jit_enabled;
+    struct CS2JitCache* cs2jit;
 };
 
 /** Name the queue loaders fan their siblings out on. See `asset_queue`. */
@@ -997,6 +1010,14 @@ bool
 CacheProvider_ComponentPackHasForComponent(
     struct CacheProvider* provider,
     int packed_id);
+
+/** The load-time jit's switch and platform cache (see `cs2jit_enabled`).
+ *  `cache` may be NULL: overlays are then built in memory every time. */
+void
+CacheProvider_SetCS2Jit(
+    struct CacheProvider* provider,
+    int enabled,
+    struct CS2JitCache* cache);
 
 void
 CacheProvider_ClientScriptAdd(

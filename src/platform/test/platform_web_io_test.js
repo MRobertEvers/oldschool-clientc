@@ -28,11 +28,12 @@ const ITEM = { kind: 0, u: 4, error: 260, data: 264, dataSize: 268, pending: 272
 const IO = { active: 0, activeCount: 4, size: 8 };
 const MAX_PATH = 256;
 const ABI = [
-  0x494f4133, IO.size, IO.active, IO.activeCount,
+  0x494f4134, IO.size, IO.active, IO.activeCount,
   ITEM.size, ITEM.kind, ITEM.error, ITEM.data, ITEM.dataSize, ITEM.pending, ITEM.u,
   0, 4, 8, 12,   // cache epoch/table/archive/flags
   0, 0, 0, 0,    // config, script, reftable, file
   MAX_PATH,
+  0, 64,         // derived name offset, size (IOA4)
 ];
 
 // --- stub heap + runtime --------------------------------------------------

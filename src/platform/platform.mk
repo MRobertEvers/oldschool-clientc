@@ -615,6 +615,14 @@ else ifeq ($(PLATFORM),web)
     # the binaryen optimizations — a release build that is both larger and
     # slower than asked for.
     PLATFORM_LDFLAGS += -O3 -g0
+    # --emit-symbol-map writes <target>.symbols (function index -> name), which
+    # the link's own check-wasm-func-size reads: -g0 strips the names from the
+    # module itself. It changes no code; it does change the module's function
+    # order and the minified import keys between torirs.js and torirs.wasm, so
+    # the check measures the module that ships only because the map comes from
+    # the same link. The makefile moves the map into $(OBJ_DIR), out of
+    # build-web/.
+    PLATFORM_LDFLAGS += --emit-symbol-map
     # PROFILE=1 keeps the wasm name section, and nothing else: a DevTools
     # performance profile of the -O3 module reads as wasm-function[4711]
     # without it. --profiling-funcs leaves the binaryen pass set untouched

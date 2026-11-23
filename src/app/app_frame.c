@@ -1343,6 +1343,10 @@ App_RunOnce(
     result = app_run_once_body(app, now_ms, input);
     app_world_job_contract_frame(app, result);
     app_rebuild_mark(app, "body_rest");
+    /* The CS2 jit pack's write-behind (docs/CS2_JIT.md 4.1): an ordinary
+     * background task when a store is due, so the floor below gives it its
+     * first slice. Outside the body for the same reason as the floor. */
+    app_cs2jit_frame(app);
     /* Outside the body, so that none of its early returns (a latched frame,
      * a boot) can starve the background queue: every platform loop gives it
      * this floor, whatever else it does with its slack (App_RunBackground). */

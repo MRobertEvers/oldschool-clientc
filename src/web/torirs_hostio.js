@@ -345,6 +345,22 @@
       },
 
       /*
+       * A record DERIVED from this cache (asyncio.h TORIRS_IOK_DERIVED_*):
+       * today the CS2 jit pack. Its own database (ToriRS_IDB derivedGet /
+       * derivedPut), keyed by cacheKey() -- the generation the groups are
+       * keyed by -- so the record is scoped exactly as the cache's archives
+       * are and cleared with them. Never asks a server: it is this browser's
+       * own work. Absent is null; a write answers whether it committed.
+       */
+      async readDerived(name) {
+        return await idb.derivedGet(cacheKey(), name);
+      },
+
+      async writeDerived(name, bytes) {
+        return await idb.derivedPut(cacheKey(), name, bytes);
+      },
+
+      /*
        * The files service (plugin/task_plugin_io.h CreateTask_PluginFiles):
        * the verbs a desktop answers over its folder, answered here over the
        * records writeClientFile made. The answer is the same text a desktop

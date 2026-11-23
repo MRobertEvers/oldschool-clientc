@@ -10,6 +10,7 @@
 #include "cs2_opcode.h"
 #include "cs2_opcode_meta.h"
 #include "cs2vm2_opcode_stack.gen.h"
+#include "cs2vm2_jit_internal.h"
 #include "perf/torirs_perf.h"
 
 #include <assert.h>
@@ -989,6 +990,12 @@ CS2VM2_JumpRelative(
     (void)vm;
     assert(vm);
     assert(frame);
+    /* The general path moved the pc past the jumping instruction before it
+     * dispatched. That instruction must be on the jit's list of jumps, or
+     * the overlay builder would not refuse a script whose jump leaves it. */
+    assert(frame->pc >= 1);
+    assert(cs2vm2_op_jumps_by_operand(frame->script->opcodes[frame->pc - 1]) ||
+           frame->script->opcodes[frame->pc - 1] == CS2_OP_SWITCH);
 
     frame->pc += operand;
 
@@ -1294,9 +1301,11 @@ CS2VM2_PushStrFrameLocal(
     if( cs2vm2_array_from_handle(vm, value) )
         return CS2VM2_PushStr(vm, value);
 
-    /* Push a copy, not the local's pointer: the in-place string opcodes
-     * (UPPERCASE / LOWERCASE) rewrite the buffer their operand points at, which
-     * would otherwise silently rewrite the local too. */
+    /* Push a copy, not the local's pointer. No opcode writes through a
+     * popped string any more (UPPERCASE / LOWERCASE allocate their result, so
+     * a constant can be pushed by pointer), which would let this push the
+     * pointer too; that is unmeasured and kept for later (docs/CS2_JIT.md
+     * 2.7 item 3). */
     return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, value));
 }
 
@@ -1530,9 +1539,11 @@ CS2VM2_Op_PushConstantString(
 {
     assert(vm);
     (void)frame;
-    /* A copy, not the script's operand: the operand outlives this run and the
-     * in-place string opcodes would rewrite it for every later execution. */
-    return CS2VM2_PushStr(vm, value ? CS2VM2_StrDup(vm, value) : CS2VM2_StrEmpty(vm));
+    /* The script's own constant, by pointer: no string opcode writes through
+     * a string it popped (UPPERCASE and LOWERCASE allocate their result), and
+     * the script outlives every run of it. The jit's CSTR pushes the same
+     * pointer. A NULL operand still pushes a fresh "". */
+    return CS2VM2_PushStr(vm, value ? (char*)value : CS2VM2_StrEmpty(vm));
 }
 
 int
@@ -1793,14 +1804,18 @@ CS2VM2_Op_Uppercase(
         return CS2VM_EXECNO_ERROR;
     assert(text);
 
-    for( char* ch = text; *ch; ch++ )
+    /* Into a fresh buffer, never in place: the popped string may be a
+     * script's constant (PUSH_CONSTANT_STRING pushes it by pointer), which
+     * every later run of that script reads. */
+    size_t const len = strlen(text);
+    char* out = CS2VM2_StrAlloc(vm, len);
+    for( size_t i = 0; i < len; i++ )
     {
-        if( *ch >= 'a' && *ch <= 'z' )
-            *ch = (char)(*ch - 'a' + 'A');
+        char const ch = text[i];
+        out[i] = (ch >= 'a' && ch <= 'z') ? (char)(ch - 'a' + 'A') : ch;
     }
-    /* Rewritten in place: the popped buffer is pool memory nothing else aliases
-     * (every producer hands out a fresh copy), so it can be pushed straight back. */
-    return CS2VM2_PushStr(vm, text);
+    out[len] = '\0';
+    return CS2VM2_PushStr(vm, out);
 }
 
 /* LOWERCASE — ASCII-lowercase a string (locale-independent, like the client). */
@@ -1815,13 +1830,16 @@ CS2VM2_Op_Lowercase(
         return CS2VM_EXECNO_ERROR;
     assert(text);
 
-    for( char* ch = text; *ch; ch++ )
+    /* A fresh buffer, as UPPERCASE above. */
+    size_t const len = strlen(text);
+    char* out = CS2VM2_StrAlloc(vm, len);
+    for( size_t i = 0; i < len; i++ )
     {
-        if( *ch >= 'A' && *ch <= 'Z' )
-            *ch = (char)(*ch - 'A' + 'a');
+        char const ch = text[i];
+        out[i] = (ch >= 'A' && ch <= 'Z') ? (char)(ch - 'A' + 'a') : ch;
     }
-    /* In place, as UPPERCASE above. */
-    return CS2VM2_PushStr(vm, text);
+    out[len] = '\0';
+    return CS2VM2_PushStr(vm, out);
 }
 
 /* REMOVETAGS — strip every <...> run, leaving the plain text. */
@@ -13247,6 +13265,54 @@ CS2VM2_OpArgCounts(
     int* str_args);
 #endif
 
+/*
+ * THE WASM BUILD RUNS THIS SWITCH AS TWO FUNCTIONS, for Safari.
+ *
+ * JavaScriptCore (Safari, and every browser on an iPhone or iPad) gives a wasm
+ * function its optimizing tier only while the body is at most 100,000 bytes
+ * (maximumOMGCandidateCost). binaryen -O3 inlines this function, and every
+ * handler it alone calls, into cs2vm2_run_script_body: 121-123 KB, so the whole
+ * VM ran in JavaScriptCore's baseline tier at 2.5-2.7x native.
+ *
+ * Under CS2VM2_RUNOP_SPLIT (wasm only) the body below is compiled twice, as an
+ * always-inline function, and nothing else changes:
+ *   - cs2vm2_run_op_split, which the loop calls (and binaryen inlines into
+ *     it): opcodes outside CS2VM2_RUNOP_OUTLINED -- vm-core, the component
+ *     setters, and the string group -- in its own copy of the body;
+ *   - cs2vm2_run_op_outlined, out of line: CS2VM2_RUNOP_OUTLINED, the client
+ *     state, inventory, enum, obj and later groups. Nearly every one of those
+ *     that runs often asks the host, which costs far more than the call.
+ * Each copy is told its range, so clang drops the other range's cases from it.
+ * The native build compiles this function exactly as before: a call per
+ * out-of-line opcode costs native 2.5-3%.
+ *
+ * tools/wasm_func_size_check.py, run by every web OPT=1 link, fails the build
+ * when either half outgrows its limit. docs/web_wasm_function_size.md says
+ * how this was found and what to do when the check fails.
+ */
+#ifndef CS2VM2_RUNOP_SPLIT
+#ifdef __wasm__
+#define CS2VM2_RUNOP_SPLIT 1
+#else
+#define CS2VM2_RUNOP_SPLIT 0
+#endif
+#endif
+
+#if CS2VM2_RUNOP_SPLIT
+/* The opcodes cs2vm2_run_op_outlined runs: 3000 and up, except the string
+ * group (4100..4199), which is common and never asks the host. */
+#define CS2VM2_RUNOP_OUTLINED(opcode) ((opcode) >= 3000 && ((opcode) < 4100 || (opcode) >= 4200))
+/* The definition below is the body both halves inline. */
+#define CS2VM2_RunOp cs2vm2_run_op_body
+static inline __attribute__((always_inline)) int
+CS2VM2_RunOp(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int opcode,
+    int operand,
+    char const* str_operand);
+#endif
+
 int
 CS2VM2_RunOp(
     struct CS2VM2_Thread* vm,
@@ -15861,6 +15927,60 @@ CS2VM2_RunOp(
     }
 }
 
+#if CS2VM2_RUNOP_SPLIT
+#undef CS2VM2_RunOp
+
+/* binaryen ignores clang's noinline: its -O3 inlines any function with one
+ * caller, whatever its size. An export is a second use it cannot see past,
+ * so export_name is what keeps this half a function of its own (one extra
+ * wasm export, called by nothing in JavaScript). */
+#ifdef __wasm__
+#define CS2VM2_RUNOP_KEEP_OUT_OF_LINE __attribute__((export_name("cs2vm2_run_op_outlined"), noinline))
+#else
+#define CS2VM2_RUNOP_KEEP_OUT_OF_LINE __attribute__((noinline))
+#endif
+
+CS2VM2_RUNOP_KEEP_OUT_OF_LINE int
+cs2vm2_run_op_outlined(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int opcode,
+    int operand,
+    char const* str_operand);
+
+CS2VM2_RUNOP_KEEP_OUT_OF_LINE int
+cs2vm2_run_op_outlined(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int opcode,
+    int operand,
+    char const* str_operand)
+{
+    /* Only cs2vm2_run_op_split calls this. The assume is what removes the
+     * inline half's cases from this copy. */
+    assert(CS2VM2_RUNOP_OUTLINED(opcode));
+    if( !CS2VM2_RUNOP_OUTLINED(opcode) )
+        __builtin_unreachable();
+    return cs2vm2_run_op_body(vm, frame, opcode, operand, str_operand);
+}
+
+static int
+cs2vm2_run_op_split(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int opcode,
+    int operand,
+    char const* str_operand)
+{
+    if( CS2VM2_RUNOP_OUTLINED(opcode) )
+        return cs2vm2_run_op_outlined(vm, frame, opcode, operand, str_operand);
+    return cs2vm2_run_op_body(vm, frame, opcode, operand, str_operand);
+}
+#define CS2VM2_RUN_GENERAL_OP cs2vm2_run_op_split
+#else
+#define CS2VM2_RUN_GENERAL_OP CS2VM2_RunOp
+#endif
+
 #if CS2VM2_DEBUG_OPS
 /* Fills *int_args / *str_args with the stack values this opcode pops.
  * Returns 0 for a fixed count, 1 when the count is variable (e.g. GOSUB). */
@@ -16052,6 +16172,18 @@ CS2VM2_PushCallScript(
             (long long)frame->str_locals_dirty * (long long)sizeof(frame->str_locals[0]));
     cs2vm2_frame_clear(frame);
     frame->script = script;
+    /* Size the int locals to the script's declared count and raise the mark
+     * over them, for every script: the jit overlay's declared-local forms
+     * (cs2vm2_run_hot_jit) index them with no range or mark test, whenever
+     * the overlay was attached. Both frame invariants hold: clear zeroed the
+     * previous occupant's [0, mark) and reserve zeroes what it adds, so
+     * [0, n) reads 0 until written, as it did before. */
+    int const declared_ints = script->local_int_count;
+    if( declared_ints > 0 && declared_ints <= CS2VM_MAX_LOCALS )
+    {
+        cs2vm2_frame_reserve_int_locals(frame, declared_ints);
+        frame->int_locals_dirty = declared_ints;
+    }
     vm->frame_sp += 1;
     return CS2VM_EXECNO_OK;
 }
@@ -16284,77 +16416,15 @@ cs2_profile_row_for(int script_id)
  *
  * The arithmetic itself is the cs2_math_* functions, the same ones the
  * general handlers call. To put another opcode here: give it a number, a row
- * in the table and a case.
+ * in the table (cs2vm2_jit_internal.h, which bumps CS2VM2_JIT_FORMAT_VERSION)
+ * and a case (cs2vm2_hot_cases.inc).
+ *
+ * A script with a jit overlay (script->jit, cs2vm2_jit.h) runs
+ * cs2vm2_run_hot_jit instead: the same loop dispatching on the overlay's byte
+ * per pc, which adds fused groups and proven-bounds forms beside these cases.
  */
-enum
-{
-    CS2VM2_HOT_NONE = 0,
-    CS2VM2_HOT_PUSH_CONSTANT_INT,
-    CS2VM2_HOT_PUSH_INT_LOCAL,
-    CS2VM2_HOT_POP_INT_LOCAL,
-    CS2VM2_HOT_BRANCH,
-    CS2VM2_HOT_BRANCH_EQUALS,
-    CS2VM2_HOT_BRANCH_NOT,
-    CS2VM2_HOT_BRANCH_LESS_THAN,
-    CS2VM2_HOT_BRANCH_GREATER_THAN,
-    CS2VM2_HOT_BRANCH_LESS_THAN_OR_EQUALS,
-    CS2VM2_HOT_BRANCH_GREATER_THAN_OR_EQUALS,
-    CS2VM2_HOT_ADD,
-    CS2VM2_HOT_SUB,
-    CS2VM2_HOT_MULTIPLY,
-    CS2VM2_HOT_DIVIDE,
-    CS2VM2_HOT_MODULO,
-    CS2VM2_HOT_AND,
-    CS2VM2_HOT_OR,
-    CS2VM2_HOT_MIN,
-    CS2VM2_HOT_MAX,
-    CS2VM2_HOT_ADDPERCENT,
-    CS2VM2_HOT_SCALE,
-    CS2VM2_HOT_ABS,
-    CS2VM2_HOT_BITCOUNT,
-    CS2VM2_HOT_SETBIT,
-    CS2VM2_HOT_CLEARBIT,
-    CS2VM2_HOT_TESTBIT,
-    CS2VM2_HOT_TOGGLEBIT,
-    CS2VM2_HOT_SETBIT_RANGE,
-    CS2VM2_HOT_CLEARBIT_RANGE,
-    CS2VM2_HOT_GETBIT_RANGE,
-    CS2VM2_HOT_SETBIT_RANGE_VALUE,
-};
-#define CS2VM2_HOT_TABLE_SIZE 4096u
-static const uint8_t g_cs2vm2_hot_op[CS2VM2_HOT_TABLE_SIZE] = {
-    [CS2_OP_PUSH_CONSTANT_INT] = CS2VM2_HOT_PUSH_CONSTANT_INT,
-    [CS2_OP_PUSH_INT_LOCAL] = CS2VM2_HOT_PUSH_INT_LOCAL,
-    [CS2_OP_POP_INT_LOCAL] = CS2VM2_HOT_POP_INT_LOCAL,
-    [CS2_OP_BRANCH] = CS2VM2_HOT_BRANCH,
-    [CS2_OP_BRANCH_EQUALS] = CS2VM2_HOT_BRANCH_EQUALS,
-    [CS2_OP_BRANCH_NOT] = CS2VM2_HOT_BRANCH_NOT,
-    [CS2_OP_BRANCH_LESS_THAN] = CS2VM2_HOT_BRANCH_LESS_THAN,
-    [CS2_OP_BRANCH_GREATER_THAN] = CS2VM2_HOT_BRANCH_GREATER_THAN,
-    [CS2_OP_BRANCH_LESS_THAN_OR_EQUALS] = CS2VM2_HOT_BRANCH_LESS_THAN_OR_EQUALS,
-    [CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS] = CS2VM2_HOT_BRANCH_GREATER_THAN_OR_EQUALS,
-    [CS2_OP_ADD] = CS2VM2_HOT_ADD,
-    [CS2_OP_SUB] = CS2VM2_HOT_SUB,
-    [CS2_OP_MULTIPLY] = CS2VM2_HOT_MULTIPLY,
-    [CS2_OP_DIVIDE] = CS2VM2_HOT_DIVIDE,
-    [CS2_OP_MODULO] = CS2VM2_HOT_MODULO,
-    [CS2_OP_AND] = CS2VM2_HOT_AND,
-    [CS2_OP_OR] = CS2VM2_HOT_OR,
-    [CS2_OP_MIN] = CS2VM2_HOT_MIN,
-    [CS2_OP_MAX] = CS2VM2_HOT_MAX,
-    [CS2_OP_ADDPERCENT] = CS2VM2_HOT_ADDPERCENT,
-    [CS2_OP_SCALE] = CS2VM2_HOT_SCALE,
-    [CS2_OP_ABS] = CS2VM2_HOT_ABS,
-    [CS2_OP_BITCOUNT] = CS2VM2_HOT_BITCOUNT,
-    [CS2_OP_SETBIT] = CS2VM2_HOT_SETBIT,
-    [CS2_OP_CLEARBIT] = CS2VM2_HOT_CLEARBIT,
-    [CS2_OP_TESTBIT] = CS2VM2_HOT_TESTBIT,
-    [CS2_OP_TOGGLEBIT] = CS2VM2_HOT_TOGGLEBIT,
-    [CS2_OP_SETBIT_RANGE] = CS2VM2_HOT_SETBIT_RANGE,
-    [CS2_OP_CLEARBIT_RANGE] = CS2VM2_HOT_CLEARBIT_RANGE,
-    [CS2_OP_GETBIT_RANGE] = CS2VM2_HOT_GETBIT_RANGE,
-    [CS2_OP_SETBIT_RANGE_VALUE] = CS2VM2_HOT_SETBIT_RANGE_VALUE,
-};
+/* The CS2VM2_HOT_* numbers and g_cs2vm2_hot_op live in cs2vm2_jit_internal.h:
+ * they are the jit overlay's plain codes too, frozen by its blob format. */
 
 /* The shapes the arithmetic cases share. `a` is under `b`, `b` is the top;
  * with three operands `c` is the top. Each leaves one result where its
@@ -16449,120 +16519,7 @@ cs2vm2_run_hot(
 
         switch( opcode < CS2VM2_HOT_TABLE_SIZE ? g_cs2vm2_hot_op[opcode] : CS2VM2_HOT_NONE )
         {
-        case CS2VM2_HOT_PUSH_CONSTANT_INT:
-            if( top >= CS2VM_STACK_MAX )
-                goto stop;
-            stack[top++] = operand;
-            pc += 1;
-            break;
-        case CS2VM2_HOT_PUSH_INT_LOCAL:
-            if( top >= CS2VM_STACK_MAX || operand < 0 || operand >= CS2VM_MAX_LOCALS )
-                goto stop;
-            stack[top++] = operand < locals_dirty ? locals[operand] : 0;
-            pc += 1;
-            break;
-        case CS2VM2_HOT_POP_INT_LOCAL:
-            if( top <= 0 || operand < 0 || operand >= CS2VM_MAX_LOCALS )
-                goto stop;
-            if( operand < locals_dirty )
-            {
-                locals[operand] = stack[--top];
-            }
-            else
-            {
-                /* First write to this slot: the frame grows its buffer and
-                 * raises its mark, and both are read again. */
-                *cs2vm2_frame_int_local_ref(frame, operand) = stack[--top];
-                locals = frame->int_locals;
-                locals_dirty = frame->int_locals_dirty;
-            }
-            pc += 1;
-            break;
-
-        case CS2VM2_HOT_BRANCH:
-            pc += 1 + operand;
-            break;
-        case CS2VM2_HOT_BRANCH_EQUALS:
-            CS2VM2_HOT_BRANCH_IF(==);
-        case CS2VM2_HOT_BRANCH_NOT:
-            CS2VM2_HOT_BRANCH_IF(!=);
-        case CS2VM2_HOT_BRANCH_LESS_THAN:
-            CS2VM2_HOT_BRANCH_IF(<);
-        case CS2VM2_HOT_BRANCH_GREATER_THAN:
-            CS2VM2_HOT_BRANCH_IF(>);
-        case CS2VM2_HOT_BRANCH_LESS_THAN_OR_EQUALS:
-            CS2VM2_HOT_BRANCH_IF(<=);
-        case CS2VM2_HOT_BRANCH_GREATER_THAN_OR_EQUALS:
-            CS2VM2_HOT_BRANCH_IF(>=);
-
-        case CS2VM2_HOT_ADD:
-            CS2VM2_HOT_BINARY(cs2_math_add(a, b));
-        case CS2VM2_HOT_SUB:
-            CS2VM2_HOT_BINARY(cs2_math_sub(a, b));
-        case CS2VM2_HOT_MULTIPLY:
-            CS2VM2_HOT_BINARY(cs2_math_mul(a, b));
-        case CS2VM2_HOT_DIVIDE:
-            CS2VM2_HOT_BINARY_CHECKED(cs2_math_div(a, b, &out));
-        case CS2VM2_HOT_MODULO:
-            CS2VM2_HOT_BINARY_CHECKED(cs2_math_mod(a, b, &out));
-        case CS2VM2_HOT_AND:
-            CS2VM2_HOT_BINARY(cs2_math_and(a, b));
-        case CS2VM2_HOT_OR:
-            CS2VM2_HOT_BINARY(cs2_math_or(a, b));
-        case CS2VM2_HOT_MIN:
-            CS2VM2_HOT_BINARY(cs2_math_min(a, b));
-        case CS2VM2_HOT_MAX:
-            CS2VM2_HOT_BINARY(cs2_math_max(a, b));
-        case CS2VM2_HOT_ADDPERCENT:
-            CS2VM2_HOT_BINARY(cs2_math_addpercent(a, b));
-        case CS2VM2_HOT_ABS:
-            CS2VM2_HOT_UNARY(cs2_math_abs(a));
-        case CS2VM2_HOT_BITCOUNT:
-            CS2VM2_HOT_UNARY(cs2_math_bitcount(a));
-        case CS2VM2_HOT_SETBIT:
-            CS2VM2_HOT_BINARY(cs2_math_setbit(a, b));
-        case CS2VM2_HOT_CLEARBIT:
-            CS2VM2_HOT_BINARY(cs2_math_clearbit(a, b));
-        case CS2VM2_HOT_TESTBIT:
-            CS2VM2_HOT_BINARY(cs2_math_testbit(a, b));
-        case CS2VM2_HOT_TOGGLEBIT:
-            CS2VM2_HOT_BINARY(cs2_math_togglebit(a, b));
-        case CS2VM2_HOT_SCALE:
-        {
-            if( top < 3 )
-                goto stop;
-            stack[top - 3] = cs2_math_scale(stack[top - 3], stack[top - 2], stack[top - 1]);
-            top -= 2;
-            pc += 1;
-            break;
-        }
-        case CS2VM2_HOT_SETBIT_RANGE:
-            CS2VM2_HOT_TERNARY_CHECKED(cs2_math_setbit_range(a, b, c, &out));
-        case CS2VM2_HOT_CLEARBIT_RANGE:
-            CS2VM2_HOT_TERNARY_CHECKED(cs2_math_clearbit_range(a, b, c, &out));
-        case CS2VM2_HOT_GETBIT_RANGE:
-        {
-            if( top < 3 )
-                goto stop;
-            stack[top - 3] = cs2_math_getbit_range(stack[top - 3], stack[top - 2], stack[top - 1]);
-            top -= 2;
-            pc += 1;
-            break;
-        }
-        case CS2VM2_HOT_SETBIT_RANGE_VALUE:
-        {
-            /* Stack (top first): high, low, new bits, value. */
-            int out;
-            if( top < 4 )
-                goto stop;
-            if( !cs2_math_setbit_range_value(
-                    stack[top - 4], stack[top - 3], stack[top - 2], stack[top - 1], &out) )
-                goto stop;
-            stack[top - 4] = out;
-            top -= 3;
-            pc += 1;
-            break;
-        }
+#include "cs2vm2_hot_cases.inc"
         default:
             goto stop;
         }
@@ -16580,11 +16537,249 @@ stop:
     frame->pc = pc;
     return for_general;
 }
+
+/*
+ * A fused group's guard and its common end (docs/CS2_JIT.md 2.3), from the
+ * shape table the builder and the validator use, so the numbers have one
+ * source. The guard changes nothing when it fails: `goto stop` leaves pc at
+ * the group's first instruction, which the general path then runs alone,
+ * exactly where an unfused run would have been. It requires
+ *   - `need` ints on the stack and room for `peak` more: no instruction in
+ *     the group can find the stack too shallow or too deep;
+ *   - `*cycles + (k - 1) <= CS2VM_MAX_CYCLES`: the caller has counted the
+ *     first instruction, and an unfused run would stop with the cycle error
+ *     after the j-th if `*cycles + j - 1 >= CS2VM_MAX_CYCLES`, so the limit
+ *     can never fall inside a group that runs.
+ * The end adds the k - 1 instructions the caller did not count, so the loop's
+ * tail runs exactly as it would after the group's last instruction unfused.
+ * No group contains an instruction that can fail, yield or ask the host.
+ */
+#define CS2VM2_JIT_SHAPE_OF(code_) (g_cs2vm2_jit_shapes[(code_) - CS2VM2_JIT_FUSED_FIRST])
+#define CS2VM2_JIT_GUARD(code_)                                                \
+    if( top < CS2VM2_JIT_SHAPE_OF(code_).need ||                               \
+        top > CS2VM_STACK_MAX - CS2VM2_JIT_SHAPE_OF(code_).peak ||             \
+        *cycles > CS2VM_MAX_CYCLES - (CS2VM2_JIT_SHAPE_OF(code_).k - 1) )      \
+    goto stop
+#define CS2VM2_JIT_DONE(code_)                                                 \
+    pc += CS2VM2_JIT_SHAPE_OF(code_).k;                                        \
+    *cycles += CS2VM2_JIT_SHAPE_OF(code_).k - 1;                               \
+    break
+/* C x; BRcc o -- BRcc pops b (top) and a (under it) and tests a cc b, so this
+ * tests the value that was on the stack against x. */
+#define CS2VM2_JIT_CBR(code_, cmp)                                             \
+    CS2VM2_JIT_GUARD(code_);                                                   \
+    {                                                                          \
+        int const off = args[pc + 1];                                          \
+        int const v = stack[--top];                                            \
+        if( v cmp operand )                                                    \
+            pc += off;                                                         \
+    }                                                                          \
+    CS2VM2_JIT_DONE(code_)
+/* L a; C x; BRcc o / L a; L b; BRcc o: taken if loc[a] cc rhs. */
+#define CS2VM2_JIT_LBR(code_, rhs, cmp)                                        \
+    CS2VM2_JIT_GUARD(code_);                                                   \
+    {                                                                          \
+        int const off = args[pc + 2];                                          \
+        if( locals[operand] cmp (rhs) )                                        \
+            pc += off;                                                         \
+    }                                                                          \
+    CS2VM2_JIT_DONE(code_)
+
+/*
+ * cs2vm2_run_hot for a script with an overlay: the same contract, the same
+ * plain cases, dispatched on code[pc] instead of the opcode table.
+ *
+ * LD, PD and the fused groups index `locals` without the plain cases' range
+ * and dirty-mark tests. That is sound for every frame: the overlay names
+ * only locals below the script's declared local_int_count (<=
+ * CS2VM_MAX_LOCALS), proven when it was built or attached, and
+ * CS2VM2_PushCallScript sizes every frame's int locals to that count and
+ * raises the mark over them. A plain POP_INT_LOCAL above the declared count
+ * still grows the buffer, and `locals` is re-read after it.
+ *
+ * Dead slots above `top` that an unfused run would have written in passing
+ * (the pushes a compare-and-branch pops again) are left as they were. Nothing
+ * reads above `top`.
+ */
+static inline bool
+cs2vm2_run_hot_jit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int* cycles)
+{
+    struct CS2VM2_Script const* const script = frame->script;
+    uint8_t const* const code = script->jit->code;
+    char* const* const cstrs = script->string_operands;
+    int const* const args = script->int_operands;
+    int const op_count = script->op_count;
+    int* const stack = vm->ints_stack;
+    int* locals = frame->int_locals;
+    int locals_dirty = frame->int_locals_dirty;
+    int top = vm->ints_stack_top;
+    int pc = frame->pc;
+    bool for_general = true;
+
+    assert(script->jit->op_count == op_count);
+    assert(script->local_int_count <= 0 || script->local_int_count > CS2VM_MAX_LOCALS ||
+           locals_dirty >= script->local_int_count);
+
+    for( ;; )
+    {
+        int const operand = args[pc];
+
+        switch( code[pc] )
+        {
+#include "cs2vm2_hot_cases.inc"
+
+        case CS2VM2_JIT_LD:
+            if( top >= CS2VM_STACK_MAX )
+                goto stop;
+            stack[top++] = locals[operand];
+            pc += 1;
+            break;
+        case CS2VM2_JIT_PD:
+            if( top <= 0 )
+                goto stop;
+            locals[operand] = stack[--top];
+            pc += 1;
+            break;
+        case CS2VM2_JIT_CSTR:
+            /* The script's own constant, not a pool copy: nothing writes
+             * through a string it popped (UPPERCASE and LOWERCASE allocate). */
+            if( vm->strs_stack_top >= CS2VM_STACK_MAX )
+                goto stop;
+            vm->strs_stack[vm->strs_stack_top++] = cstrs[pc];
+            pc += 1;
+            break;
+
+        case CS2VM2_JIT_LL:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_LL);
+            stack[top] = locals[operand];
+            stack[top + 1] = locals[args[pc + 1]];
+            top += 2;
+            CS2VM2_JIT_DONE(CS2VM2_JIT_LL);
+        case CS2VM2_JIT_LC:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_LC);
+            stack[top] = locals[operand];
+            stack[top + 1] = args[pc + 1];
+            top += 2;
+            CS2VM2_JIT_DONE(CS2VM2_JIT_LC);
+        case CS2VM2_JIT_CL:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_CL);
+            stack[top] = operand;
+            stack[top + 1] = locals[args[pc + 1]];
+            top += 2;
+            CS2VM2_JIT_DONE(CS2VM2_JIT_CL);
+        case CS2VM2_JIT_CC:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_CC);
+            stack[top] = operand;
+            stack[top + 1] = args[pc + 1];
+            top += 2;
+            CS2VM2_JIT_DONE(CS2VM2_JIT_CC);
+        case CS2VM2_JIT_LLL:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_LLL);
+            stack[top] = locals[operand];
+            stack[top + 1] = locals[args[pc + 1]];
+            stack[top + 2] = locals[args[pc + 2]];
+            top += 3;
+            CS2VM2_JIT_DONE(CS2VM2_JIT_LLL);
+        case CS2VM2_JIT_LCAP:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_LCAP);
+            locals[args[pc + 3]] = cs2_math_add(locals[operand], args[pc + 1]);
+            CS2VM2_JIT_DONE(CS2VM2_JIT_LCAP);
+        case CS2VM2_JIT_LCA:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_LCA);
+            stack[top++] = cs2_math_add(locals[operand], args[pc + 1]);
+            CS2VM2_JIT_DONE(CS2VM2_JIT_LCA);
+        case CS2VM2_JIT_CA:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_CA);
+            stack[top - 1] = cs2_math_add(stack[top - 1], operand);
+            CS2VM2_JIT_DONE(CS2VM2_JIT_CA);
+        case CS2VM2_JIT_AP:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_AP);
+            locals[args[pc + 1]] = cs2_math_add(stack[top - 2], stack[top - 1]);
+            top -= 2;
+            CS2VM2_JIT_DONE(CS2VM2_JIT_AP);
+        case CS2VM2_JIT_CP:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_CP);
+            locals[args[pc + 1]] = operand;
+            CS2VM2_JIT_DONE(CS2VM2_JIT_CP);
+        case CS2VM2_JIT_LP:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_LP);
+            locals[args[pc + 1]] = locals[operand];
+            CS2VM2_JIT_DONE(CS2VM2_JIT_LP);
+        case CS2VM2_JIT_PBR:
+            CS2VM2_JIT_GUARD(CS2VM2_JIT_PBR);
+            {
+                int const off = args[pc + 1];
+                locals[operand] = stack[--top];
+                pc += off;
+            }
+            CS2VM2_JIT_DONE(CS2VM2_JIT_PBR);
+
+        case CS2VM2_JIT_CBREQ:
+            CS2VM2_JIT_CBR(CS2VM2_JIT_CBREQ, ==);
+        case CS2VM2_JIT_CBRNE:
+            CS2VM2_JIT_CBR(CS2VM2_JIT_CBRNE, !=);
+        case CS2VM2_JIT_CBRLT:
+            CS2VM2_JIT_CBR(CS2VM2_JIT_CBRLT, <);
+        case CS2VM2_JIT_CBRGT:
+            CS2VM2_JIT_CBR(CS2VM2_JIT_CBRGT, >);
+        case CS2VM2_JIT_LCBREQ:
+            CS2VM2_JIT_LBR(CS2VM2_JIT_LCBREQ, args[pc + 1], ==);
+        case CS2VM2_JIT_LCBRNE:
+            CS2VM2_JIT_LBR(CS2VM2_JIT_LCBRNE, args[pc + 1], !=);
+        case CS2VM2_JIT_LCBRLT:
+            CS2VM2_JIT_LBR(CS2VM2_JIT_LCBRLT, args[pc + 1], <);
+        case CS2VM2_JIT_LCBRGT:
+            CS2VM2_JIT_LBR(CS2VM2_JIT_LCBRGT, args[pc + 1], >);
+        case CS2VM2_JIT_LLBREQ:
+            CS2VM2_JIT_LBR(CS2VM2_JIT_LLBREQ, locals[args[pc + 1]], ==);
+        case CS2VM2_JIT_LLBRNE:
+            CS2VM2_JIT_LBR(CS2VM2_JIT_LLBRNE, locals[args[pc + 1]], !=);
+        case CS2VM2_JIT_LLBRLT:
+            CS2VM2_JIT_LBR(CS2VM2_JIT_LLBRLT, locals[args[pc + 1]], <);
+        case CS2VM2_JIT_LLBRGT:
+            CS2VM2_JIT_LBR(CS2VM2_JIT_LLBRGT, locals[args[pc + 1]], >);
+
+        default:
+            goto stop;
+        }
+
+        if( pc >= op_count || *cycles >= CS2VM_MAX_CYCLES )
+        {
+            for_general = false;
+            goto stop;
+        }
+        (*cycles)++;
+    }
+
+stop:
+    vm->ints_stack_top = top;
+    frame->pc = pc;
+    return for_general;
+}
+#undef CS2VM2_JIT_SHAPE_OF
+#undef CS2VM2_JIT_GUARD
+#undef CS2VM2_JIT_DONE
+#undef CS2VM2_JIT_CBR
+#undef CS2VM2_JIT_LBR
 #undef CS2VM2_HOT_UNARY
 #undef CS2VM2_HOT_BINARY
 #undef CS2VM2_HOT_BINARY_CHECKED
 #undef CS2VM2_HOT_TERNARY_CHECKED
 #undef CS2VM2_HOT_BRANCH_IF
+
+/* Every return of a script body counts the instructions it ran: the perf
+ * counter, and thread->cycles_run (cs2vm2.h), which tests and the replay rig
+ * compare between a jitted and a plain run. One add per return, none per
+ * instruction. */
+#define CS2VM2_COUNT_OPCODES(vm_, n_)                                          \
+    do                                                                         \
+    {                                                                          \
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, (n_));                  \
+        (vm_)->cycles_run += (uint64_t)(n_);                                   \
+    } while( 0 )
 
 static int
 cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
@@ -16618,7 +16813,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
     {
         if( vm->frame_sp <= 0 )
         {
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles - 1);
+            CS2VM2_COUNT_OPCODES(vm, cycles - 1);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles - 1);
             return CS2VM_EXECNO_DONE;
         }
@@ -16626,7 +16821,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
         struct CS2VM2_Frame* frame = CS2VM_FRAME(vm);
         if( frame->pc >= frame->script->op_count )
         {
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles - 1);
+            CS2VM2_COUNT_OPCODES(vm, cycles - 1);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles - 1);
             return CS2VM_EXECNO_DONE;
         }
@@ -16638,7 +16833,11 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
          * another meaning. */
         if( !observed && !(frame->script->dialect && frame->script->dialect->rs2_commands) )
         {
-            if( !cs2vm2_run_hot(vm, frame, &cycles) )
+            /* A script with a jit overlay runs the overlay's loop; one
+             * without runs the plain loop exactly as before the jit. */
+            bool const for_general = frame->script->jit ? cs2vm2_run_hot_jit(vm, frame, &cycles)
+                                                        : cs2vm2_run_hot(vm, frame, &cycles);
+            if( !for_general )
                 continue;
         }
 
@@ -16688,7 +16887,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
         vm->instr_frame_sp = vm->frame_sp;
 #endif
 
-        result = CS2VM2_RunOp(vm, frame, opcode, operand, str_operand_str);
+        result = CS2VM2_RUN_GENERAL_OP(vm, frame, opcode, operand, str_operand_str);
         observed = g_cs2_profile_on > 0 || CS2VM2_TRACE_ARMED();
 
         /*
@@ -16740,14 +16939,14 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
             assert(vm->frame_sp == vm->instr_frame_sp);
             if( !CS2VM2_CheckYieldHalt(vm, frame, op_pc, opcode) )
             {
-                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
+                CS2VM2_COUNT_OPCODES(vm, cycles);
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_ABORTS, 1);
                 return CS2VM_EXECNO_ERROR;
             }
             /* The opcode runs again on resume. */
             vm->frames[vm->frame_sp - 1]->pc = op_pc;
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
+            CS2VM2_COUNT_OPCODES(vm, cycles);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
             return CS2VM_EXECNO_YIELD;
         default:
@@ -16757,7 +16956,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                 vm->last_error_pc = op_pc;
                 vm->last_error_script_id = frame->script->script_id;
             }
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
+            CS2VM2_COUNT_OPCODES(vm, cycles);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
             if( result == CS2VM_EXECNO_ERROR )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_ABORTS, 1);
@@ -16771,7 +16970,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
         vm->last_error_pc = frame->pc;
         vm->last_error_script_id = frame->script->script_id;
     }
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
+    CS2VM2_COUNT_OPCODES(vm, cycles);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_ABORTS, 1);
     return CS2VM_EXECNO_ERROR;
@@ -17668,6 +17867,7 @@ cs2vm2_thread_init_common(
     thread->last_error_opcode = 0;
     thread->last_error_pc = 0;
     thread->last_error_script_id = 0;
+    thread->cycles_run = 0;
 
     thread->yield_halt_frame_sp = 0;
     thread->yield_halt_script_id = 0;

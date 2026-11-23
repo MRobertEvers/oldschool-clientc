@@ -16,6 +16,8 @@
 #include "platform/launch_sessions.h"
 #include "torirsmaped/torirs_maped_build.h"
 #include "editor/editor_lanerecs.h"
+#include "engine/cs2_opcode_dialect.h"
+#include "platform/platform_window.h"
 
 #if defined(TORIRS_PLATFORM_WEB)
 #include "ui/torirs_chrome_exec_web.h"
@@ -202,6 +204,137 @@ app_load_map_keys(struct AppConfig const* cfg)
 }
 
 /*
+ * The CS2 load-time jit and its platform cache (docs/CS2_JIT.md 4.1, 4.11).
+ * After the cache profile, because the scripts' dialect is the profile's.
+ * Knobs, read once here: TORIRS_CS2_JIT=0 (no overlays: today's VM),
+ * TORIRS_CS2_JIT_CACHE=0 (overlays built in memory, no pack read or written),
+ * TORIRS_CS2_JIT_STATS=1 (timers and the `cs2jit:` line),
+ * TORIRS_CS2_JIT_STORE_MS (the write-behind delay).
+ */
+static int
+app_knob_is_zero(char const* value)
+{
+    return value && strcmp(value, "0") == 0;
+}
+
+static void
+app_cs2jit_init(struct App* app)
+{
+    struct CS2VM2_Dialect const* dialect = CS2_DialectForCache(CacheProvider_Profile(app->provider));
+    int const enabled = !app_knob_is_zero(torirs_env_cs2_jit());
+    char const* stats = torirs_env_cs2_jit_stats();
+    char const* store_ms = torirs_env_cs2_jit_store_ms();
+
+    app->cs2jit = NULL;
+    app->cs2jit_store = 0;
+    /* An rs2 cache's scripts never run the hot loop (CS2VM2_JitBuild refuses
+     * them all), so it gets no pack to read or write. */
+    if( enabled && !(dialect && dialect->rs2_commands) )
+    {
+        app->cs2jit = CS2JitCache_New(dialect);
+        CS2JitCache_SetTiming(app->cs2jit, stats && stats[0] && !app_knob_is_zero(stats));
+        if( store_ms && store_ms[0] )
+            CS2JitCache_SetStoreMs(app->cs2jit, (uint64_t)strtoull(store_ms, NULL, 10));
+        CS2JitCache_SetActive(app->cs2jit);
+        if( app_knob_is_zero(torirs_env_cs2_jit_cache()) )
+            CS2JitCache_SetMemoryOnly(app->cs2jit);
+        else
+        {
+            app->cs2jit_store = 1;
+            /* An ordinary task on the parallel queue: never render-blocking,
+             * so it holds no frame and no settle gate, and no script waits
+             * for it (a script that loads first is built in memory). */
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_CS2JitPackLoad(app->cs2jit));
+        }
+    }
+    CacheProvider_SetCS2Jit(app->provider, enabled, app->cs2jit);
+}
+
+struct CS2VM2_Script*
+App_CS2JitLookup(
+    void* user,
+    int script_id)
+{
+    assert(user);
+    return CacheProvider_ClientScriptGet((struct CacheProvider*)user, script_id);
+}
+
+void
+app_cs2jit_frame(struct App* app)
+{
+    assert(app);
+    if( !app->cs2jit || !app->cs2jit_store )
+        return;
+    (void)CS2JitCache_MaybeStore(
+        app->cs2jit, PlatformWindow_Ticks64(), app->background_runner.queue, App_CS2JitLookup, app->provider);
+}
+
+/*
+ * At exit, on the desktop: whatever was built since the last store is
+ * written now, rather than lost to the STORE_MS delay, so the next session
+ * starts from everything this one ran. Run by hand against a private IO, as
+ * app_prefs_flush is (the App's queues may hold tasks that will never
+ * finish); the desktop answers a derived write inside Process. Not on the
+ * web: its answers come after an await, and App_Shutdown is not where a tab
+ * ends (docs/CS2_JIT.md 2.7 item 7). A store already in flight is left be.
+ */
+static void
+app_cs2jit_flush(struct App* app)
+{
+#if !defined(TORIRS_PLATFORM_WEB)
+    struct ToriRS_Task* task;
+    struct ToriRS_IOBatch* io;
+    int guard = 0;
+
+    if( !app->cs2jit || !app->cs2jit_store || !app->provider )
+        return;
+    CS2JitCache_SetStoreMs(app->cs2jit, 0);
+    if( !CS2JitCache_StoreWanted(app->cs2jit, PlatformWindow_Ticks64()) )
+        return;
+    CS2JitCache_StoreBegin(app->cs2jit);
+    io = ToriRS_IOBatch_New();
+    task = CreateTask_CS2JitPackStore(app->cs2jit, App_CS2JitLookup, app->provider);
+    io->task = task;
+    while( task_run(task, io) == PT_YIELDED && guard++ < 8 )
+        Platform_IO_Process(app->frame_runner.px, io);
+    task_free(task);
+    ToriRS_IOBatch_Free(io);
+#else
+    (void)app;
+#endif
+}
+
+/* TORIRS_CS2_JIT_STATS=1: the cache's line, and on the desktop the
+ * executor's own count of what the derived IO cost. */
+static void
+app_cs2jit_report(struct App* app)
+{
+    if( !app->cs2jit || !CS2JitCache_Timing(app->cs2jit) )
+        return;
+    CS2JitCache_Report(app->cs2jit, "shutdown");
+#if !defined(TORIRS_PLATFORM_WEB)
+    {
+        struct PlatformX_IO_DerivedStats io;
+        char const* dir = PlatformX_IO_DerivedDir(app->frame_runner.px);
+
+        PlatformX_IO_DerivedStats(app->frame_runner.px, &io);
+        TORIRS_REPORT(
+            "cs2jit_io: dir=%s reads=%d misses=%d read_bytes=%lld read=%.3fms writes=%d failures=%d "
+            "write_bytes=%lld write=%.3fms\n",
+            dir ? dir : "(none)",
+            io.reads,
+            io.read_misses,
+            (long long)io.read_bytes,
+            (double)io.read_ns / 1e6,
+            io.writes,
+            io.write_failures,
+            (long long)io.write_bytes,
+            (double)io.write_ns / 1e6);
+    }
+#endif
+}
+
+/*
  * Construction and teardown.
  *
  * Included into app.c rather than compiled on its own. App_Init names nearly
@@ -210,6 +343,7 @@ app_load_map_keys(struct AppConfig const* cfg)
  * as each field family gains a struct with its own Init/Free, not by being
  * cut into pieces that hide the order.
  */
+
 
 void
 App_Init(
@@ -476,6 +610,7 @@ App_Init(
     App_AssetsInit(app);
     App_PendingInit(app);
     app_provider_set_cache_profile(app, cfg);
+    app_cs2jit_init(app);
     if( !TorirsModelInstCache_Init(&app->model_inst_cache) )
         assert(0 && "model_inst_cache init");
 
@@ -1441,6 +1576,10 @@ App_Shutdown(struct App* app)
     app->plugin_win = NULL;
     ToriPlatform_Renderer_Soft3D_Free(app->soft);
     ToriDraw_SceneFree(app->scene);
+    /* While the provider still holds the scripts the store serializes. */
+    app_cs2jit_flush(app);
+    app_cs2jit_report(app);
+    /* The provider borrows the cache; it is freed after the queues below. */
     CacheMounts_CloseBuildCaches(&app->cache_mounts);
     Platform_IO_Free(app->frame_runner.px);
     CacheMounts_CloseDisks(&app->cache_mounts);
@@ -1489,5 +1628,9 @@ App_Shutdown(struct App* app)
     RevConfigRefs_Free(&app->revconfig_refs);
     UITree_RoleTableFree(&app->ui_roles);
     app_debug_overlay_free(app);
+    /* After every queue: a pack task still queued at exit was freed with its
+     * queue, and nothing reads the cache any more. */
+    CS2JitCache_Free(app->cs2jit);
+    app->cs2jit = NULL;
 }
 

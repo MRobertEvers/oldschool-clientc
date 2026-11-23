@@ -33,10 +33,16 @@ COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
 PREPARE = "struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);"
 MARK_PARAM = "struct CS2VM2_YieldMark mark"
 # The loop and what drives it: they reach CS2VM2_Ask only by running opcodes.
+# cs2vm2_run_op_split and cs2vm2_run_op_outlined are the wasm build's two
+# entries into CS2VM2_RunOp's switch (CS2VM2_RUNOP_SPLIT).
 LOOP_CHAIN = {
     "CS2VM2_RunOp", "cs2vm2_run_script_body", "cs2vm2_run_script_body_timed", "CS2VM2_RunScript",
     "CS2VM2_Run", "CS2VM2_ThreadRun", "CS2VM2_ThreadResume",
+    "cs2vm2_run_op_split", "cs2vm2_run_op_outlined",
 }
+# Under CS2VM2_RUNOP_SPLIT the switch defined as CS2VM2_RunOp is compiled under
+# this name (a #define), and the two entries call it by it.
+ALIASES = {"cs2vm2_run_op_body": "CS2VM2_RunOp"}
 
 
 def first_statement(body):
@@ -59,7 +65,11 @@ def main():
         if "host_exec(" in body and name != "CS2VM2_Ask":
             problems.append("%s calls host_exec itself: the host is asked only through CS2VM2_Ask" % name)
 
-    calls = {name: set(CALL_RE.findall(body)) & set(functions) for name, (_, body) in functions.items()}
+    calls = {name: {ALIASES.get(callee, callee) for callee in CALL_RE.findall(body)} & set(functions)
+             for name, (_, body) in functions.items()}
+    for name in ("cs2vm2_run_op_split", "cs2vm2_run_op_outlined"):
+        if name in functions and "CS2VM2_RunOp" not in calls[name]:
+            problems.append("%s does not reach CS2VM2_RunOp's switch: the audit has lost the dispatch" % name)
     asks = {name for name, callees in calls.items() if "CS2VM2_Ask" in callees}
     changed = True
     while changed:

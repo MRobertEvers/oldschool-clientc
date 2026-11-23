@@ -288,6 +288,13 @@ struct CS2VM2_Thread
     int last_error_pc;
     int last_error_script_id;
 
+    /* Instructions run by every CS2VM2_RunScript on this thread since it was
+     * initialised: increased once per return by that run's cycle count, never
+     * per instruction. A jitted and a plain run of one script must agree on
+     * it (a fused group counts each instruction in it); tests and the replay
+     * rig compare it. */
+    uint64_t cycles_run;
+
     /* Tracks cooperative yields (halts) for the current opcode site; error if > 1. */
     int yield_halt_frame_sp;
     int yield_halt_script_id;
@@ -633,8 +640,10 @@ CS2VM2_StrFmt(
     char const* fmt,
     ...);
 
-/* A fresh, writable "" (distinct storage per call — in-place opcodes such as
- * UPPERCASE mean no two stack slots may alias). */
+/* A fresh, writable "" (distinct storage per call). No opcode writes through
+ * a popped string -- UPPERCASE and LOWERCASE allocate their result, and a
+ * script's constant strings are pushed by pointer (docs/CS2_JIT.md 2.5) --
+ * so a host must not either: a request's strings are read-only to it. */
 char*
 CS2VM2_StrEmpty(struct CS2VM2_Thread* thread);
 

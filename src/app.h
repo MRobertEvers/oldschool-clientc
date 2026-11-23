@@ -615,6 +615,14 @@ struct App
      * provider. @see engine/cache_mounts.h. */
     struct CacheMounts cache_mounts;
     struct CacheProvider* provider;
+    /** The CS2 jit's platform cache (engine/cs2_jit_cache.h): the pack of
+     *  jitted scripts read at boot and written behind the frame. NULL when
+     *  TORIRS_CS2_JIT=0, or on an rs2 cache (no script there is jitted).
+     *  Owned here; the provider borrows it (CacheProvider_SetCS2Jit). */
+    struct CS2JitCache* cs2jit;
+    /** Whether `cs2jit` reads and writes the pack (0: TORIRS_CS2_JIT_CACHE=0,
+     *  it only counts and times the in-memory builds). */
+    int cs2jit_store;
     /** Lit model-instance LRU (spot/npc/loc/obj/player). Cleared at map build. */
     struct TorirsModelInstCache model_inst_cache;
     /**

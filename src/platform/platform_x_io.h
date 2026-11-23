@@ -52,10 +52,14 @@ PlatformX_IO_InitIoServer(
  * Name the cache this client reads from: the identity a boot manifest states,
  * plus the directory it lives in.
  *
- * A synchronous backend does not need telling — it was handed the open disk.
- * A remote one does: its requests are only meaningful against a particular
- * cache, and the server has to know which to open. Calling this on a local
- * backend is harmless and records nothing.
+ * A synchronous backend does not need telling which disk to read — it was
+ * handed the open disk. What it records is the DIRECTORY, because that is
+ * where the cache's derived records live (TORIRS_IOK_DERIVED_READ / _WRITE,
+ * asyncio.h): `<dir>.derived/`, the directory's sibling with trailing
+ * separators stripped first, never a path inside it. TORIRS_DERIVED_DIR=<root>,
+ * read here (once per call, at boot), moves them to `<root>/<basename of
+ * dir>/`. An empty `dir`, ".", or ".." stores no derived records at all:
+ * reads answer absent and writes fail. Call it again to move the location.
  */
 void
 PlatformX_IO_InitCacheId(
@@ -68,6 +72,37 @@ PlatformX_IO_InitCacheId(
 
 void
 PlatformX_IO_Free(struct PlatformX_IO* px);
+
+/**
+ * What the executor did with derived records this session: the IO half of
+ * the CS2 jit cache's cost (docs/CS2_JIT.md section 5). Counted always; the
+ * nanoseconds are two clock reads per derived item, and there are a handful
+ * of those per session.
+ */
+struct PlatformX_IO_DerivedStats
+{
+    int reads;        /* DERIVED_READ items answered */
+    int read_misses;  /* of those, answered absent (no record, no location) */
+    int64_t read_bytes;
+    uint64_t read_ns; /* inside LoadItem */
+    int writes;       /* DERIVED_WRITE items answered */
+    int write_failures;
+    int64_t write_bytes;
+    uint64_t write_ns;
+};
+
+void
+PlatformX_IO_DerivedStats(
+    struct PlatformX_IO const* px,
+    struct PlatformX_IO_DerivedStats* out);
+
+/**
+ * The directory derived records go to, as InitCacheId resolved it, or NULL
+ * when there is none (no InitCacheId yet, or an empty / "." directory).
+ * Borrowed; valid until the next InitCacheId or Free.
+ */
+char const*
+PlatformX_IO_DerivedDir(struct PlatformX_IO const* px);
 
 /*
  * A live reload rewrote (index, archive) on the server (CACHE_INVALIDATE, by

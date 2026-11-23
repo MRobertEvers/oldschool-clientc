@@ -128,6 +128,51 @@
   let dbPromise = null;
   const db = () => (dbPromise || (dbPromise = openDb()));
 
+  /*
+   * DERIVED RECORDS: what the client computed from a cache and keeps so a
+   * later run can skip the work (asyncio.h TORIRS_IOK_DERIVED_*; today the
+   * CS2 jit pack, docs/CS2_JIT.md 4.6).
+   *
+   * In a database of their OWN, "<database name>-derived", not a fourth store
+   * in this one. A new store means a version upgrade, and an upgrade waits
+   * for as long as any other tab holds version 1 open (openDb sets no
+   * onversionchange) -- every IndexedDB read of the new page would wait
+   * behind it. A new database has no open connection to wait for. It also
+   * keeps a pack write in its own transactions, never in front of a `groups`
+   * or `files` read.
+   *
+   * One store, `derived`, keyed "<cacheKey>|<name>", index by_cache on the
+   * cacheKey: scoped exactly as a cache's archives are, and cleared with
+   * them (clearCache).
+   */
+  const DERIVED_DB_VERSION = 1;
+  const derivedDatabaseName = () => `${databaseName()}-derived`;
+
+  function openDerivedDb() {
+    return new Promise(resolve => {
+      let request;
+      try {
+        request = indexedDB.open(derivedDatabaseName(), DERIVED_DB_VERSION);
+      } catch (err) {
+        resolve(null);
+        return;
+      }
+      request.onupgradeneeded = event => {
+        const handle = event.target.result;
+        if (!handle.objectStoreNames.contains('derived')) {
+          handle.createObjectStore('derived', { keyPath: 'k' })
+            .createIndex('by_cache', 'c', { unique: false });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    });
+  }
+
+  let derivedDbPromise = null;
+  const derivedDb = () => (derivedDbPromise || (derivedDbPromise = openDerivedDb()));
+  let derivedWriteErrors = 0;
+
   let writeErrors = 0;
 
   async function get(storeName, key) {
@@ -523,9 +568,62 @@
       await put('boot', { k: path, d: asBuffer(bytes), e: etag || null });
     },
 
+    /** The derived-record database's name (see openDerivedDb). */
+    derivedDatabaseName,
+
+    derivedKey: (cacheKey, name) => `${cacheKey}|${name}`,
+
+    /** A derived record of `cacheKey`, or null: absent, unreadable, or no
+     *  database (private browsing). Never an error -- the record is an
+     *  optimisation and its consumer runs without it. */
+    async derivedGet(cacheKey, name) {
+      const handle = await derivedDb();
+      if (!handle) { return null; }
+      try {
+        const tx = handle.transaction(['derived'], 'readonly');
+        const row = await reqPromise(tx.objectStore('derived').get(this.derivedKey(cacheKey, name)));
+        return row ? asBytes(row.d) : null;
+      } catch (err) {
+        return null;
+      }
+    },
+
+    /** Replace a derived record, one transaction, awaited to its commit.
+     *  True when it committed; false otherwise (reported once a session). */
+    async derivedPut(cacheKey, name, bytes) {
+      const handle = await derivedDb();
+      if (!handle) { return false; }
+      try {
+        const tx = handle.transaction(['derived'], 'readwrite');
+        tx.objectStore('derived').put({
+          k: this.derivedKey(cacheKey, name), c: cacheKey, n: name,
+          d: asBuffer(bytes), t: Date.now(),
+        });
+        return await new Promise(resolve => {
+          tx.oncomplete = () => resolve(true);
+          tx.onabort = () => resolve(false);
+          tx.onerror = () => {
+            if (derivedWriteErrors++ === 0) {
+              const why = tx.error ? tx.error.name : 'unknown';
+              console.warn(`torirs cache: IndexedDB refused a derived write (${why})`);
+            }
+            resolve(false);
+          };
+        });
+      } catch (err) {
+        if (derivedWriteErrors++ === 0) {
+          console.warn(`torirs cache: could not write a derived record — ${err.message}`);
+        }
+        return false;
+      }
+    },
+
     /** Drop every group for one generation. `?cache_reset=1` — the only way to
-     *  make a cold boot reproducible once a warm one has been measured. */
+     *  make a cold boot reproducible once a warm one has been measured. The
+     *  cache's derived records go with it (clearDerived): they were computed
+     *  from the groups being dropped. */
     async clearCache(cacheKey) {
+      await this.clearDerived(cacheKey);
       const handle = await db();
       if (!handle) { return 0; }
       return await new Promise(resolve => {
@@ -533,6 +631,31 @@
         try {
           const tx = handle.transaction(['groups'], 'readwrite');
           const index = tx.objectStore('groups').index('by_cache');
+          index.openCursor(IDBKeyRange.only(cacheKey)).onsuccess = ev => {
+            const cursor = ev.target.result;
+            if (!cursor) { return; }
+            cursor.delete();
+            removed++;
+            cursor.continue();
+          };
+          tx.oncomplete = () => resolve(removed);
+          tx.onerror = () => resolve(removed);
+        } catch (err) {
+          resolve(0);
+        }
+      });
+    },
+
+    /** Drop every derived record of one cache; returns how many. Other
+     *  caches' records stay. */
+    async clearDerived(cacheKey) {
+      const handle = await derivedDb();
+      if (!handle) { return 0; }
+      return await new Promise(resolve => {
+        let removed = 0;
+        try {
+          const tx = handle.transaction(['derived'], 'readwrite');
+          const index = tx.objectStore('derived').index('by_cache');
           index.openCursor(IDBKeyRange.only(cacheKey)).onsuccess = ev => {
             const cursor = ev.target.result;
             if (!cursor) { return; }

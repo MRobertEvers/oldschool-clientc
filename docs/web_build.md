@@ -467,6 +467,17 @@ re-fits.
 These are page chrome, defined inline in `index.html` and independent of
 `Module`, so they still work on a page whose wasm never loaded.
 
+## Function size and Safari
+
+Safari's engine never optimizes a wasm function over 100,000 bytes. Every
+`PLATFORM=web OPT=1` link runs `tools/wasm_func_size_check.py` on the module it
+just made. The link fails when a function on `tools/wasm_hot_functions.txt`
+(the CS2 VM's run loop and its out-of-line half, and the frame: `App_RunOnce`
+and the two functions kept out of it) is over 90,000 bytes, and the
+check lists every other function over 100,000. The limit, how it was found,
+and the VM's split are in
+[Wasm function size and Safari](web_wasm_function_size.md).
+
 ## Memory
 
 The default web link is `-sMALLOC=dlmalloc`, `-sINITIAL_MEMORY=256MB`,

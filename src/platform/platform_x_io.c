@@ -45,9 +45,13 @@ void PlatformX_IO_SetLaunchAnswer(PlatformX_IO_LaunchAnswerFn answer, void* cont
 #include <sys/stat.h>
 #include "log/torirs_log.h"
 
+#include <errno.h>
+#include <time.h>
+
 #if !defined(_WIN32)
 #include <dirent.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #endif
 
 #ifdef _WIN32
@@ -58,6 +62,7 @@ void PlatformX_IO_SetLaunchAnswer(PlatformX_IO_LaunchAnswerFn answer, void* cont
 #include <windows.h>
 #include <shellapi.h>
 #include <shlobj.h>
+#include <process.h>
 #endif
 
 /*
@@ -189,6 +194,14 @@ struct PlatformX_IO
      * no io_server configured, which then answers "reachable" always -- true,
      * because it has nothing it could fail to reach. */
     int transport_down;
+
+    /* Where derived records live (PlatformX_IO_InitCacheId): `<cache
+     * dir>.derived` or `<TORIRS_DERIVED_DIR>/<basename>`, NET. NULL: none. */
+    char* derived_dir;
+    struct PlatformX_IO_DerivedStats derived_stats;
+    /* One log line per session for each kind of derived failure. */
+    int derived_read_logged;
+    int derived_write_logged;
 };
 
 
@@ -330,7 +343,10 @@ PlatformX_IO_InitScriptPath(
     px->script_dir = ToriMem_Strdup(ToriMem_Net(), script_path);
 }
 
-/* Nothing to record: this backend was given the open disk itself. */
+/*
+ * The identity is not recorded: this backend was given the open disk itself.
+ * The DIRECTORY is, because derived records are kept beside it (the header).
+ */
 void
 PlatformX_IO_InitCacheId(
     struct PlatformX_IO* px,
@@ -340,12 +356,61 @@ PlatformX_IO_InitCacheId(
     unsigned int quirks,
     const char* dir)
 {
-    (void)px;
+    char trimmed[TORIRS_IOITEM_MAX_PATH * 2];
+    char resolved[TORIRS_IOITEM_MAX_PATH * 4];
+    char const* root;
+    char const* base;
+    size_t len;
+
+    assert(px);
     (void)epoch;
     (void)game;
     (void)revision;
     (void)quirks;
-    (void)dir;
+
+    ToriMem_Free(ToriMem_Net(), px->derived_dir);
+    px->derived_dir = NULL;
+    /* "No directory" is a documented state of the manifest (a remote-only
+     * lane), not a caller's mistake: it simply means no derived records. */
+    if( !dir )
+        return;
+    snprintf(trimmed, sizeof(trimmed), "%s", dir);
+    len = strlen(trimmed);
+    while( len > 1 && (trimmed[len - 1] == '/' || trimmed[len - 1] == '\\') )
+        trimmed[--len] = '\0';
+    base = trimmed;
+    for( char const* scan = trimmed; *scan; scan++ )
+        if( *scan == '/' || *scan == '\\' )
+            base = scan + 1;
+    if( len == 0 || strcmp(base, ".") == 0 || strcmp(base, "..") == 0 || base[0] == '\0' )
+        return;
+
+    /* Read here, once per call at boot, rather than through a TORIRS_ENV_KNOB:
+     * a knob caches its first answer for the process, and the derived-IO
+     * test moves the location within one process. */
+    root = getenv("TORIRS_DERIVED_DIR");
+    if( root && root[0] )
+        snprintf(resolved, sizeof(resolved), "%s/%s", root, base);
+    else
+        snprintf(resolved, sizeof(resolved), "%s.derived", trimmed);
+    px->derived_dir = ToriMem_Strdup(ToriMem_Net(), resolved);
+}
+
+void
+PlatformX_IO_DerivedStats(
+    struct PlatformX_IO const* px,
+    struct PlatformX_IO_DerivedStats* out)
+{
+    assert(px);
+    assert(out);
+    *out = px->derived_stats;
+}
+
+char const*
+PlatformX_IO_DerivedDir(struct PlatformX_IO const* px)
+{
+    assert(px);
+    return px->derived_dir;
 }
 
 void
@@ -365,6 +430,7 @@ PlatformX_IO_Free(struct PlatformX_IO* px)
         RSCache_Dat2DiskArchiveFree(px->archive_cache[i].archive);
     ToriMem_Free(ToriMem_Net(), px->config_dir);
     ToriMem_Free(ToriMem_Net(), px->script_dir);
+    ToriMem_Free(ToriMem_Net(), px->derived_dir);
     ToriMem_Free(ToriMem_Net(), px);
 }
 
@@ -684,6 +750,199 @@ write_client_file_item(struct ToriRS_IOItem* item)
     }
     item->error_code = 0;
     return 0;
+}
+
+/*
+ * ---- Derived records (TORIRS_IOK_DERIVED_READ / _WRITE) --------------------
+ *
+ * Kept in px->derived_dir, the cache directory's SIBLING (InitCacheId): next
+ * to the cache, never inside it, so nothing that reads, copies or checks a
+ * cache directory ever sees one, and a pristine cache stays pristine. Every
+ * failure is an answer (-1), never an abort: the bytes came from storage and
+ * the consumer runs without them (docs/CS2_JIT.md 4.8).
+ */
+
+static uint64_t
+derived_now_ns(void)
+{
+#if defined(_WIN32)
+    LARGE_INTEGER freq;
+    LARGE_INTEGER now;
+
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&now);
+    return freq.QuadPart > 0 ? (uint64_t)((double)now.QuadPart * 1e9 / (double)freq.QuadPart) : 0;
+#else
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+#endif
+}
+
+static int
+derived_pid(void)
+{
+#if defined(_WIN32)
+    return (int)_getpid();
+#else
+    return (int)getpid();
+#endif
+}
+
+/* `mkdir -p dir`. Each level may exist already; whether the whole chain now
+ * exists is what the fopen after it finds out. */
+static void
+derived_mkdirs(char const* dir)
+{
+    char path[TORIRS_IOITEM_MAX_PATH * 4];
+    size_t len;
+
+    snprintf(path, sizeof(path), "%s", dir);
+    len = strlen(path);
+    for( size_t i = 1; i <= len; i++ )
+    {
+        if( i == len || path[i] == '/' || path[i] == '\\' )
+        {
+            char const saved = path[i];
+
+            path[i] = '\0';
+#ifdef _WIN32
+            _mkdir(path);
+#else
+            mkdir(path, 0755);
+#endif
+            path[i] = saved;
+        }
+    }
+}
+
+/* The record's file, or 0 when there is no location or the name is not one
+ * (the queue asserts the name; the executor is the second check, because the
+ * name becomes part of a path here). */
+static int
+derived_path(
+    struct PlatformX_IO const* px,
+    char const* name,
+    char* out,
+    size_t out_size)
+{
+    int written;
+
+    if( !px->derived_dir || !ToriRS_IO_DerivedNameValid(name) )
+        return 0;
+    written = snprintf(out, out_size, "%s/%s", px->derived_dir, name);
+    return written > 0 && (size_t)written < out_size;
+}
+
+static int
+read_derived_item(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOItem* item)
+{
+    char path[TORIRS_IOITEM_MAX_PATH * 4 + TORIRS_IOITEM_DERIVED_NAME_MAX];
+    uint64_t const t0 = derived_now_ns();
+    void* data = NULL;
+    int size = 0;
+    int rc = -1;
+
+    item->data = NULL;
+    item->data_size = 0;
+    item->error_code = -1;
+    if( derived_path(px, item->u.derived.name, path, sizeof(path)) )
+    {
+        errno = 0;
+        if( read_whole_file(path, &data, &size) == 0 )
+        {
+            item->data = data;
+            item->data_size = size;
+            item->error_code = 0;
+            rc = 0;
+        }
+        else if( errno != ENOENT && !px->derived_read_logged )
+        {
+            /* Absent is the first run, and says nothing. Anything else is
+             * one line a session: the record is then simply a miss. */
+            px->derived_read_logged = 1;
+            TORIRS_ERR("io: cannot read derived record %s (%s)\n", path, strerror(errno));
+        }
+    }
+    px->derived_stats.reads++;
+    if( rc != 0 )
+        px->derived_stats.read_misses++;
+    else
+        px->derived_stats.read_bytes += size;
+    px->derived_stats.read_ns += derived_now_ns() - t0;
+    return rc;
+}
+
+/*
+ * Write-then-rename, as write_client_file_item does, with the pid in the
+ * temporary name: two clients on one cache (two sessions from one checkout)
+ * may write the same record at once, and each must rename a complete file of
+ * its own. The last writer wins; either winner is a whole, valid record.
+ */
+static int
+write_derived_item(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOItem* item)
+{
+    char path[TORIRS_IOITEM_MAX_PATH * 4 + TORIRS_IOITEM_DERIVED_NAME_MAX];
+    char temp[sizeof(path) + 24];
+    uint64_t const t0 = derived_now_ns();
+    char const* why = NULL;
+    FILE* fp = NULL;
+
+    item->error_code = -1;
+    path[0] = '\0';
+    if( !px->derived_dir )
+        why = "no location";
+    else if( !derived_path(px, item->u.derived.name, path, sizeof(path)) )
+        why = "not a record name";
+    else if( item->data_size < 0 || (item->data_size > 0 && !item->data) )
+        why = "no bytes";
+    if( !why )
+    {
+        derived_mkdirs(px->derived_dir);
+        snprintf(temp, sizeof(temp), "%s.%d.tmp", path, derived_pid());
+        fp = fopen(temp, "wb");
+        if( !fp )
+            why = "cannot create";
+    }
+    if( !why && item->data_size > 0 &&
+        fwrite(item->data, 1, (size_t)item->data_size, fp) != (size_t)item->data_size )
+        why = "short write";
+    if( fp && fclose(fp) != 0 && !why )
+        why = "close";
+    if( fp && !why )
+    {
+#ifdef _WIN32
+        if( !MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) )
+#else
+        if( rename(temp, path) != 0 )
+#endif
+            why = "cannot replace";
+    }
+    if( fp && why )
+        remove(temp);
+
+    px->derived_stats.writes++;
+    if( why )
+    {
+        px->derived_stats.write_failures++;
+        if( !px->derived_write_logged )
+        {
+            px->derived_write_logged = 1;
+            TORIRS_ERR("io: derived record %s not written (%s)\n", path[0] ? path : "-", why);
+        }
+    }
+    else
+    {
+        px->derived_stats.write_bytes += item->data_size;
+        item->error_code = 0;
+    }
+    px->derived_stats.write_ns += derived_now_ns() - t0;
+    return why ? -1 : 0;
 }
 
 /*
@@ -2394,6 +2653,9 @@ PlatformX_IO_LoadItem(
         item->error_code = 0;
         return write_client_file_item(item);
     }
+    /* A derived write lends its bytes the same way. */
+    if( item->kind == TORIRS_IOK_DERIVED_WRITE )
+        return write_derived_item(px, item);
     /* Before the clear too: a launch item lends its request body the same way
      * (the launch service's banner above). */
     if( item_is_launch(item) )
@@ -2428,6 +2690,8 @@ PlatformX_IO_LoadItem(
         return load_reference_table_item(px, item);
     case TORIRS_IOK_FILE_READ:
         return read_client_file_item(item);
+    case TORIRS_IOK_DERIVED_READ:
+        return read_derived_item(px, item);
     default:
         item->error_code = -1;
         return -1;
@@ -2492,7 +2756,7 @@ PlatformX_IO_Process(
          * a prefetch lends its id array the same way, and a launch, an
          * account-server or a files item its request body. */
         if( item->kind != TORIRS_IOK_FILE_WRITE && item->kind != TORIRS_IOK_CACHE_PREFETCH &&
-            !item_is_launch(item) && !item_is_auth(item) && !item_is_files(item) )
+            item->kind != TORIRS_IOK_DERIVED_WRITE && !item_is_launch(item) && !item_is_auth(item) && !item_is_files(item) )
         {
             item->data = NULL;
             item->data_size = 0;

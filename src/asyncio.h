@@ -120,7 +120,35 @@ enum ToriRS_IOKind
      * answers -1.
      */
     TORIRS_IOK_CACHE_PREFETCH,
+    /*
+     * A record DERIVED from the cache this executor serves -- something the
+     * client computed from cache content and keeps so a later run can skip
+     * the work (today: the CS2 jit pack, docs/CS2_JIT.md section 4). The
+     * executor scopes every name to the cache it was given in InitCacheId:
+     * two caches never share a record, and a record never lands inside the
+     * cache directory or the repository's tracked tree. `u.derived.name` is a
+     * bare file name, [A-Za-z0-9._-], 1..63 bytes, no leading dot
+     * (ToriRS_IO_DerivedNameValid); an executor refuses any other.
+     *
+     * DERIVED_READ answers `data`/`data_size` (a NET buffer, freed by
+     * ClearItem like FILE_READ's), or error_code -1 when there is no such
+     * record -- the ordinary first-run state, not a failure.
+     *
+     * DERIVED_WRITE LENDS `data`/`data_size` for the duration of the request,
+     * exactly as FILE_WRITE does, and replaces the record atomically: a reader
+     * sees the old bytes or the new ones, never a mix. error_code 0 is
+     * written; -1 is not (the old record, if any, stands).
+     *
+     * A derived record is an optimisation. Either executor may answer any
+     * read "absent" and any write "failed", and the consumer must run
+     * correctly either way.
+     */
+    TORIRS_IOK_DERIVED_READ,  /* 8 */
+    TORIRS_IOK_DERIVED_WRITE, /* 9 */
 };
+
+/* The size of IOItem_Derived::name, terminator included. */
+#define TORIRS_IOITEM_DERIVED_NAME_MAX 64
 
 struct IOItem_Cache
 {
@@ -150,6 +178,36 @@ struct IOItem_File
     char path[TORIRS_IOITEM_MAX_PATH];
 };
 
+/* TORIRS_IOK_DERIVED_READ / _WRITE: a bare record name, never a path. */
+struct IOItem_Derived
+{
+    char name[TORIRS_IOITEM_DERIVED_NAME_MAX];
+};
+
+/*
+ * Is `name` a legal derived-record name: 1..63 bytes of [A-Za-z0-9._-], not
+ * starting with '.'? The queue asserts it; each executor checks it again,
+ * because the name becomes part of a file path on the desktop and of a
+ * database key in the browser.
+ */
+static inline int
+ToriRS_IO_DerivedNameValid(char const* name)
+{
+    size_t n = 0;
+
+    if( !name || name[0] == '\0' || name[0] == '.' )
+        return 0;
+    for( ; name[n]; n++ )
+    {
+        char const c = name[n];
+        int const ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+                       c == '.' || c == '_' || c == '-';
+        if( !ok || n + 1 >= TORIRS_IOITEM_DERIVED_NAME_MAX )
+            return 0;
+    }
+    return 1;
+}
+
 /*
  * One platform request and its answer.
  *
@@ -168,6 +226,7 @@ struct ToriRS_IOItem
         struct IOItem_Script script;
         struct IOItem_ReferenceTable reference_table;
         struct IOItem_File file;
+        struct IOItem_Derived derived;
     } u;
 
     int error_code;
@@ -214,6 +273,7 @@ ToriRS_IO_ClearItem(struct ToriRS_IOItem* item)
     case TORIRS_IOK_CONFIG_FILE:
     case TORIRS_IOK_SCRIPT:
     case TORIRS_IOK_FILE_READ:
+    case TORIRS_IOK_DERIVED_READ:
         /* A plain buffer the executor allocated for this item, in NET: an IO
          * payload is the net group's until a consumer takes it (and frees it
          * from NET, or moves it into its own group). */
@@ -235,7 +295,9 @@ ToriRS_IO_ClearItem(struct ToriRS_IOItem* item)
     case TORIRS_IOK_NONE:
     case TORIRS_IOK_FILE_WRITE:
     case TORIRS_IOK_CACHE_PREFETCH:
-        /* Nothing owned: FILE_WRITE and PREFETCH lend the caller's bytes. */
+    case TORIRS_IOK_DERIVED_WRITE:
+        /* Nothing owned: FILE_WRITE, PREFETCH and DERIVED_WRITE lend the
+         * caller's bytes. */
         break;
     }
     item->kind = TORIRS_IOK_NONE;
@@ -1034,6 +1096,56 @@ ToriRS_IO_QueueCachePrefetch(
     item->u.cache.flags = flags;
     item->data = ids;
     item->data_size = count * (int)sizeof(int);
+    push_active(io, item);
+}
+
+/**
+ * Read the derived record `name` of the cache this executor serves (see
+ * TORIRS_IOK_DERIVED_READ). Absent is error_code -1, an ordinary answer.
+ */
+static inline void
+ToriRS_IO_QueueDerivedRead(
+    struct ToriRS_IOBatch* io,
+    int slot_id,
+    char const* name)
+{
+    struct ToriRS_IOItem* item;
+
+    assert(io != NULL);
+    assert(name != NULL);
+    assert(ToriRS_IO_DerivedNameValid(name));
+    item = io_item_to_fill(io, slot_id);
+    item->kind = TORIRS_IOK_DERIVED_READ;
+    snprintf(item->u.derived.name, sizeof(item->u.derived.name), "%s", name);
+    push_active(io, item);
+}
+
+/**
+ * Replace the derived record `name` with `data_size` bytes of `data`.
+ *
+ * Borrowed, as FILE_WRITE's bytes are: they must outlive the yield that waits
+ * for this item, and freeing them is still the caller's job.
+ */
+static inline void
+ToriRS_IO_QueueDerivedWrite(
+    struct ToriRS_IOBatch* io,
+    int slot_id,
+    char const* name,
+    void* data,
+    int data_size)
+{
+    struct ToriRS_IOItem* item;
+
+    assert(io != NULL);
+    assert(name != NULL);
+    assert(ToriRS_IO_DerivedNameValid(name));
+    assert(data != NULL || data_size == 0);
+    assert(data_size >= 0);
+    item = io_item_to_fill(io, slot_id);
+    item->kind = TORIRS_IOK_DERIVED_WRITE;
+    snprintf(item->u.derived.name, sizeof(item->u.derived.name), "%s", name);
+    item->data = data;
+    item->data_size = data_size;
     push_active(io, item);
 }
 

@@ -906,7 +906,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	input/torirs_touch.c input/torirs_gesture.c \
 	input/torirs_input_claims.c input/torirs_world_tap.c input/torirs_frame_modifiers.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
-	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
+	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_trigger_args.c \
 	cs2vm2/cs2vm2_strpool.c \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
@@ -954,6 +954,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	engine/dat2/dat2_buildcache.c engine/dat2/dat2_group_cache.c \
 	engine/dat2/task_dat2_model_load.c \
 	engine/dat2/task_dat2_component_pack_load.c engine/dat2/task_dat2_clientscript_load.c \
+	engine/cs2_jit_cache.c engine/task_cs2_jit_pack.c \
 	engine/dat2/task_dat2_clientscript_table_load.c \
 	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \
 	engine/dat2/task_dat2_spotanim_load.c engine/dat2/task_dat2_sound_load.c \
@@ -1604,11 +1605,53 @@ endif
 # linked before an edit to it ships the old executor. Empty on every other
 # lane. (2026-09-17: a deploy carried a stale platform_web_io.js because this
 # rule only knew about the objects.)
+#
+# A WEB OPT=1 LINK CHECKS ITS OWN FUNCTION SIZES, and deletes the module it
+# just made when one is too big. JavaScriptCore (Safari; every browser on an
+# iPhone or iPad) never optimizes a wasm function over 100,000 bytes, and the
+# CS2 VM's run loop crossed that line without anyone seeing it: binaryen -O3
+# inlined the whole opcode switch into it, and Safari ran the VM at half speed
+# (docs/web_wasm_function_size.md). The functions named
+# in tools/wasm_hot_functions.txt must stay under 90,000 bytes; every other
+# function over 100,000 is listed as a warning. The names come from the
+# link's symbol map (--emit-symbol-map, platform.mk), moved into $(OBJ_DIR).
+# `make PLATFORM=web OPT=1 check-wasm-func-size` reruns it on the last link.
+WASM_FUNC_SIZE_MODULE  = $(basename $(TARGET)).wasm
+WASM_FUNC_SIZE_SYMBOLS = $(OBJ_DIR)/$(notdir $(TARGET)).symbols
+WASM_FUNC_SIZE_CHECK   = python3 -I $(REPO_ROOT)/tools/wasm_func_size_check.py \
+	--wasm $(WASM_FUNC_SIZE_MODULE) --symbols $(WASM_FUNC_SIZE_SYMBOLS) \
+	--hot $(REPO_ROOT)/tools/wasm_hot_functions.txt
+
+#
+# The map's move and the check are ONE command with ONE failure branch. There
+# is no .DELETE_ON_ERROR here, so any step after the link that fails without
+# deleting $@ leaves a complete module newer than its objects, and the next
+# make ships it unchecked: a command-line LDFLAGS or PLATFORM_LDFLAGS drops
+# --emit-symbol-map, emcc writes no map, the move fails, and (before
+# 2026-11-22) the module stayed. The old map is removed before the link so
+# check-wasm-func-size can never pair a new module with a previous link's map.
+# tools/test_wasm_link_recipe.py (make test-wasm-link-recipe) runs this recipe
+# with a stub compiler and proves every failure leaves no module behind.
 $(TARGET): $(OBJS) $(ASAN_DYLD_SHIM) $(PLATFORM_JS_LIBRARY)
 	@mkdir -p $(dir $@) $(if $(LTO_CACHE_LDFLAGS),$(LTO_CACHE_DIR))
 	$(file >$(OBJ_DIR)/link_objs.rsp,$(OBJS))
+ifeq ($(PLATFORM)$(OPT),web1)
+	@rm -f $@.symbols $(WASM_FUNC_SIZE_SYMBOLS)
+endif
 	$(LTO_CACHE_LINK) $(CC) $(CFLAGS) -o $@ $(LINK_OBJS_ARG) $(LDFLAGS) $(LTO_CACHE_LDFLAGS) $(ASAN_DYLD_SHIM)
+ifeq ($(PLATFORM)$(OPT),web1)
+	@{ mv -f $@.symbols $(WASM_FUNC_SIZE_SYMBOLS) && $(WASM_FUNC_SIZE_CHECK); } || { rm -f $@; exit 1; }
+endif
 	@echo $(OBJ_DIR) > .last_flavor
+
+.PHONY: check-wasm-func-size
+check-wasm-func-size:
+ifeq ($(PLATFORM)$(OPT),web1)
+	@test -f $(WASM_FUNC_SIZE_SYMBOLS) || { echo "check-wasm-func-size: no $(WASM_FUNC_SIZE_SYMBOLS): link the web lane first (make PLATFORM=web OPT=1 $(TARGET))"; exit 1; }
+	@$(WASM_FUNC_SIZE_CHECK)
+else
+	@echo "check-wasm-func-size: reads a web OPT=1 link; run it with PLATFORM=web OPT=1"; exit 1
+endif
 
 # --- Web target ----------------------------------------------------------
 # `make -C src web` builds the emscripten flavor and copies the JS host
@@ -3253,7 +3296,7 @@ test-cache-provider-invalidate: $(OBJ_DIR) $(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_
 		engine/torirs_types.c engine/torirs_location_from_rscache.c \
 		engine/torirs_npctype_from_rscache.c engine/torirs_worldmap_from_rscache.c \
 		engine/dat2/dat2_group_cache.c engine/torirs_db.c engine/torirs_component_hook.c \
-		cs2vm2/cs2vm2_script.c \
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/hmap.o $(LDFLAGS)
 	./$(OBJ_DIR)/cache_provider_invalidate_test$(PLATFORM_EXE_SUFFIX)
@@ -3441,6 +3484,92 @@ test-cs2-vm-pool: $(OBJ_DIR)
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
 		perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_vm_pool_test
+
+# The CS2 load-time jit, VM side (docs/CS2_JIT.md section 6): the VM alone,
+# as test-cs2-vm-pool links it, plus the script and jit sources. Every case
+# runs a script twice, without and with an overlay, and compares all a run
+# shows. test-cs2-jit runs the four; test-cs2-jit-blob is the one to run
+# under ENABLE_ASAN=1 too (it fuzzes the validator).
+CS2_JIT_TEST_SRCS = $(TORIMEM_SRCS) cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c \
+	cs2vm2/cs2_opcode_meta.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c perf/torirs_perf.c
+# Not $(LDFLAGS): the VM needs no SDL, and an ASan binary that loads SDL2 on
+# macOS stops in SDL's library initializer behind a modal error dialog.
+CS2_JIT_TEST_LDFLAGS = $(filter -fsanitize=%,$(LDFLAGS)) -lm
+.PHONY: test-cs2-jit test-cs2-jit-shapes test-cs2-jit-limits test-cs2-jit-blob test-cs2-jit-strings
+test-cs2-jit: test-cs2-jit-shapes test-cs2-jit-limits test-cs2-jit-blob test-cs2-jit-strings
+
+test-cs2-jit-shapes: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_jit_shapes_test$(PLATFORM_EXE_SUFFIX) \
+		cs2vm2/test/jit_shapes_test.c $(CS2_JIT_TEST_SRCS) $(CS2_JIT_TEST_LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_jit_shapes_test$(PLATFORM_EXE_SUFFIX) > $(OBJ_DIR)/cs2_jit_shapes_test.log 2>&1 \
+		|| (grep -E "FAIL|Assert|assert" $(OBJ_DIR)/cs2_jit_shapes_test.log | head -40; tail -3 $(OBJ_DIR)/cs2_jit_shapes_test.log; exit 1)
+	@tail -1 $(OBJ_DIR)/cs2_jit_shapes_test.log
+
+test-cs2-jit-limits: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_jit_limits_test$(PLATFORM_EXE_SUFFIX) \
+		cs2vm2/test/jit_limits_test.c $(CS2_JIT_TEST_SRCS) $(CS2_JIT_TEST_LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_jit_limits_test$(PLATFORM_EXE_SUFFIX) > $(OBJ_DIR)/cs2_jit_limits_test.log 2>&1 \
+		|| (grep -E "FAIL|Assert|assert" $(OBJ_DIR)/cs2_jit_limits_test.log | head -40; tail -3 $(OBJ_DIR)/cs2_jit_limits_test.log; exit 1)
+	@tail -1 $(OBJ_DIR)/cs2_jit_limits_test.log
+
+test-cs2-jit-blob: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_jit_blob_test$(PLATFORM_EXE_SUFFIX) \
+		cs2vm2/test/jit_blob_test.c $(CS2_JIT_TEST_SRCS) $(CS2_JIT_TEST_LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_jit_blob_test$(PLATFORM_EXE_SUFFIX) > $(OBJ_DIR)/cs2_jit_blob_test.log 2>&1 \
+		|| (grep -E "FAIL|Assert|assert|ERROR" $(OBJ_DIR)/cs2_jit_blob_test.log | head -40; tail -3 $(OBJ_DIR)/cs2_jit_blob_test.log; exit 1)
+	@tail -1 $(OBJ_DIR)/cs2_jit_blob_test.log
+
+test-cs2-jit-strings: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_jit_strings_test$(PLATFORM_EXE_SUFFIX) \
+		cs2vm2/test/jit_strings_test.c $(CS2_JIT_TEST_SRCS) $(CS2_JIT_TEST_LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_jit_strings_test$(PLATFORM_EXE_SUFFIX) > $(OBJ_DIR)/cs2_jit_strings_test.log 2>&1 \
+		|| (grep -E "FAIL|Assert|assert" $(OBJ_DIR)/cs2_jit_strings_test.log | head -40; tail -3 $(OBJ_DIR)/cs2_jit_strings_test.log; exit 1)
+	@tail -1 $(OBJ_DIR)/cs2_jit_strings_test.log
+
+# The CS2 jit's platform cache, host and platform side (docs/CS2_JIT.md
+# section 6). test-cs2-jit-cache: the pack state machine with in-memory packs,
+# no IO. test-platform-derived-io: the desktop executor's derived records on
+# a scratch directory under $(OBJ_DIR). test-cs2-jit-pack-tasks: both pack
+# tasks on role-less runners over that executor, across several "boots" (a
+# second session attaches from the pack written by the first; stale, corrupt
+# and other-version packs and entries are misses that the next store
+# replaces).
+CS2_JIT_HOST_IO_DEFS = -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_ONDEMAND=1 \
+	-DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1
+CS2_JIT_HOST_IO_SRCS = platform/platform_x_io.c platform/platform_x_http.c \
+	platform/sockstream.c platform/platform_mdns.c
+CS2_JIT_HOST_IO_OBJS = $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+	$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+.PHONY: test-cs2-jit-host test-cs2-jit-cache test-platform-derived-io test-cs2-jit-pack-tasks
+test-cs2-jit-host: test-cs2-jit-cache test-platform-derived-io test-cs2-jit-pack-tasks
+
+test-cs2-jit-cache: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/cs2_jit_cache_test$(PLATFORM_EXE_SUFFIX) \
+		engine/test/cs2_jit_cache_test.c engine/cs2_jit_cache.c $(CS2_JIT_TEST_SRCS) $(CS2_JIT_TEST_LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_jit_cache_test$(PLATFORM_EXE_SUFFIX) > $(OBJ_DIR)/cs2_jit_cache_test.log 2>&1 \
+		|| (grep -E "FAIL|Assert|assert" $(OBJ_DIR)/cs2_jit_cache_test.log | head -40; tail -3 $(OBJ_DIR)/cs2_jit_cache_test.log; exit 1)
+	@tail -1 $(OBJ_DIR)/cs2_jit_cache_test.log
+
+test-platform-derived-io: $(OBJ_DIR) $(ASAN_DYLD_SHIM) $(CS2_JIT_HOST_IO_OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG $(CS2_JIT_HOST_IO_DEFS) \
+		-o $(OBJ_DIR)/platform_x_derived_io_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
+		platform/test/platform_x_derived_io_test.c $(CS2_JIT_HOST_IO_SRCS) perf/torirs_perf.c \
+		$(CS2_JIT_HOST_IO_OBJS) -lm
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/platform_x_derived_io_test$(PLATFORM_EXE_SUFFIX) $(OBJ_DIR)/derived_io_scratch \
+		> $(OBJ_DIR)/platform_x_derived_io_test.log 2>&1 \
+		|| (grep -E "FAIL|Assert|assert" $(OBJ_DIR)/platform_x_derived_io_test.log | head -40; tail -3 $(OBJ_DIR)/platform_x_derived_io_test.log; exit 1)
+	@tail -1 $(OBJ_DIR)/platform_x_derived_io_test.log
+
+test-cs2-jit-pack-tasks: $(OBJ_DIR) $(ASAN_DYLD_SHIM) $(CS2_JIT_HOST_IO_OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG $(CS2_JIT_HOST_IO_DEFS) \
+		-o $(OBJ_DIR)/cs2_jit_pack_task_test$(PLATFORM_EXE_SUFFIX) \
+		engine/test/cs2_jit_pack_task_test.c engine/cs2_jit_cache.c engine/task_cs2_jit_pack.c \
+		$(CS2_JIT_TEST_SRCS) $(CS2_JIT_HOST_IO_SRCS) $(CS2_JIT_HOST_IO_OBJS) $(CS2_JIT_TEST_LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_jit_pack_task_test$(PLATFORM_EXE_SUFFIX) $(OBJ_DIR)/cs2_jit_pack_scratch \
+		> $(OBJ_DIR)/cs2_jit_pack_task_test.log 2>&1 \
+		|| (grep -E "FAIL|Assert|assert" $(OBJ_DIR)/cs2_jit_pack_task_test.log | head -40; tail -3 $(OBJ_DIR)/cs2_jit_pack_task_test.log; exit 1)
+	@tail -1 $(OBJ_DIR)/cs2_jit_pack_task_test.log
+
 
 # Procedural-texture coverage report over a 643-era cache. Not a pass/fail test â it
 # names the unported operation blocking the most textures, which is the number to work
@@ -5365,7 +5494,17 @@ test-web-channel:
 	node web/test/js5_reconnect_test.js
 	node web/test/session_resume_test.js
 	$(MAKE) test-web-cache-invalidate
+	$(MAKE) test-web-derived
 	$(MAKE) test-chrome-web-skin
+
+# The CS2 jit pack in the browser (docs/CS2_JIT.md 4.6): the web IO
+# executor's DERIVED_READ / _WRITE kinds against a stub heap, and the derived
+# IndexedDB database and the host's readDerived / writeDerived against a fake
+# IndexedDB. Node only; part of test-web-channel.
+.PHONY: test-web-derived
+test-web-derived:
+	node platform/test/platform_web_io_derived_test.js
+	node web/test/idb_derived_store_test.js
 
 # The web client's half of a live reload (CACHE_INVALIDATE): the IO executor
 # drops its decoded, resident and reference-table copies of the archive
@@ -9383,6 +9522,12 @@ endif
 .PHONY: test-objverify
 test-objverify:
 	python3 $(REPO_ROOT)/tools/test_objverify.py
+
+# The web OPT=1 link's map move + function-size check (see $(TARGET)), run
+# against this makefile with a stub compiler in a temp dir: no emcc, no objects.
+.PHONY: test-wasm-link-recipe
+test-wasm-link-recipe:
+	python3 -I $(REPO_ROOT)/tools/test_wasm_link_recipe.py
 
 # Header dependency tracking: -MMD writes a .d next to each .o; include them so
 # editing a header rebuilds every object that includes it (stale objects read

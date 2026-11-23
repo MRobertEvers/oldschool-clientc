@@ -20,6 +20,9 @@ is delegated to a single host callback (`CS2VM2_HostExec_Fn`).
 | `cs2vm2.h` / `cs2vm2.c` | Public API and interpreter (~6.5k lines) |
 | `cs2vm2_host.h` | `CS2VM_HostRequest` union and `CS2VM2_HostExec_Fn` |
 | `cs2vm2_script.h` / `.c` | Decoded clientscript container (`CS2VM2_Script`) |
+| `cs2vm2_jit.h` / `.c` | The load-time jit: build, serialize, validate, copy and free a script's overlay |
+| `cs2vm2_jit_internal.h` | VM-private: `struct CS2VM2_Jit`, the overlay codes (incl. the hot loop's `CS2VM2_HOT_*`), `g_cs2vm2_hot_op`, the fused shapes |
+| `cs2vm2_hot_cases.inc` | The plain hot instructions' cases, included by both hot loops |
 | `cs2vm2_trigger_args.h` / `.c` | Parse SETON* hook stack layout (`CS2VM2_TriggerArgsParse`) |
 | `cs2vm2_strpool.h` / `.c` | Per-thread string pool backing every VM string (`CS2VM2_StrPool`) |
 | `cs2_opcode.h` | Generated opcode constants |
@@ -78,6 +81,7 @@ Each thread is a self-contained interpreter state (formerly all of `CS2VMX`):
 | `canvas_w` / `canvas_h` | Host-provided canvas size for viewport ops |
 | `yield_halt_*` | Tracks cooperative yields per opcode site |
 | `last_error_*` | Diagnostics when `RunScript` returns `ERROR` |
+| `cycles_run` | Instructions run by every `RunScript` on this thread (one add per return); tests and the replay rig compare it |
 
 ### `CS2VM2_Frame` (call frame)
 
@@ -93,7 +97,58 @@ Each thread is a self-contained interpreter state (formerly all of `CS2VMX`):
 
 Populated by the external decoder. Holds `opcodes`, `int_operands`,
 `string_operands`, switch tables, and argument/local counts. Use
-`CS2VM2_ScriptInit` / `CS2VM2_ScriptFree` for lifecycle.
+`CS2VM2_ScriptInit` / `CS2VM2_ScriptFree` for lifecycle. `jit` is the
+load-time overlay (below), NULL for the plain path.
+
+## The load-time jit
+
+Design: [`docs/CS2_JIT.md`](../../docs/CS2_JIT.md). API: `cs2vm2_jit.h`.
+
+A script keeps its opcodes and operands exactly as the cache decoded them
+(the owner's ruling, 2026-11-22: "the packing of the script should be as it
+appears in the cache"). Beside them the VM can hang an **overlay**,
+`script->jit`: one byte per pc, chosen when the script loads, saying what the
+hot loop runs there.
+
+| code | meaning |
+|------|---------|
+| 0 | the general path (`CS2VM2_RunOp`) |
+| 1..31 | the plain hot instruction, `g_cs2vm2_hot_op[opcode]` |
+| 32 `LD` / 33 `PD` | push / pop a declared local (below `local_int_count`), no range or mark test |
+| 34 `CSTR` | push the script's constant string by pointer |
+| 64..87 | a fused group of 2-4 instructions starting at this pc (`g_cs2vm2_jit_shapes`) |
+
+Inner pcs of a group keep their own code, so a branch into the middle of a
+group lands on a valid entry. `cs2vm2_run_hot_jit` runs a script with an
+overlay; one without runs `cs2vm2_run_hot` exactly as before.
+
+What keeps it equivalent to the plain VM:
+
+- each fused group checks, before it touches anything, that the int stack
+  holds what it needs and has room for its peak, and that the cycle limit
+  cannot fall inside it; otherwise the general path runs its first
+  instruction alone. A group of k counts k cycles.
+- no group contains an instruction that can fail, yield or ask the host.
+- `CS2VM2_PushCallScript` sizes every frame's int locals to the script's
+  declared count (when `0 < n <= CS2VM_MAX_LOCALS`), which is what lets `LD`,
+  `PD` and the groups skip the tests.
+- `PUSH_CONSTANT_STRING` pushes the script's own pointer on both paths, so
+  **nothing may write through a string it popped**: `UPPERCASE` and
+  `LOWERCASE` allocate their result, and a host must treat request strings
+  as read-only. A debug build re-hashes a script's constants in
+  `CS2VM2_JitFree` and asserts they did not change.
+- traced and profiled runs, and RS2-dialect scripts, never enter either hot
+  loop.
+
+Who calls what: the HOST builds (`CS2VM2_JitBuild`) or attaches a cached blob
+(`CS2VM2_JitAttachBlob`, which re-proves every byte against the script, so no
+blob can send the loop out of range), only while no frame references the
+script. The VM side does no IO, reads no environment and takes no clock.
+`cs2vm2.c` reads the overlay through struct fields only, so the test links
+that compile it without `cs2vm2_jit.c` still link. The overlay numbering,
+shapes, blob layout, hash and fingerprint are frozen under
+`CS2VM2_JIT_FORMAT_VERSION`; `test-cs2-jit` (shapes, limits, blob, strings)
+pins them.
 
 ## How execution works
 

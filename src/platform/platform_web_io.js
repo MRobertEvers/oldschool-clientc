@@ -107,6 +107,13 @@ mergeInto(LibraryManager.library, {
          * design measures: work the client could have had on the wire and
          * did not. */
         idleMs: 0, idleGaps: 0, maxIdleMs: 0,
+        /* Derived records (DERIVED_READ / _WRITE, the CS2 jit pack): what
+         * the host calls cost, measured around them. The browser half of
+         * the jit cache's IO cost (docs/CS2_JIT.md section 5). */
+        derived: {
+          reads: 0, readMs: 0, readBytes: 0, readMisses: 0,
+          writes: 0, writeMs: 0, writeBytes: 0, writeFailures: 0,
+        },
       };
       this.lastLandedAt = 0;
       this.pumpScheduled = false;
@@ -170,8 +177,8 @@ mergeInto(LibraryManager.library, {
       if (this.abi) { return this.abi; }
 
       const count = _ToriRS_IO_DescribeAbiCount();
-      const EXPECTED_MAGIC = 0x494f4133; /* "IOA3", see asyncio_abi.c */
-      const EXPECTED_COUNT = 20;
+      const EXPECTED_MAGIC = 0x494f4134; /* "IOA4", see asyncio_abi.c */
+      const EXPECTED_COUNT = 22;
 
       if (count !== EXPECTED_COUNT) {
         throw new Error(
@@ -198,6 +205,7 @@ mergeInto(LibraryManager.library, {
           configPathOff: v[15], scriptPathOff: v[16],
           refTableOff: v[17], filePathOff: v[18],
           maxPath: v[19],
+          derivedNameOff: v[20], derivedNameMax: v[21],
         };
       } finally {
         _free(ptr);
@@ -231,6 +239,22 @@ mergeInto(LibraryManager.library, {
       const limit = at + a.maxPath;
       while (end < limit && HEAPU8[end] !== 0) { end++; }
       return UTF8ArrayToString(HEAPU8, at, end - at);
+    },
+
+    /* A derived record's name (IOItem_Derived), bounded by its own array. */
+    itemDerivedName: function (item) {
+      const a = this.layout();
+      const at = item + a.uOff + a.derivedNameOff;
+      let end = at;
+      const limit = at + a.derivedNameMax;
+      while (end < limit && HEAPU8[end] !== 0) { end++; }
+      return UTF8ArrayToString(HEAPU8, at, end - at);
+    },
+
+    /* The executor's own check of a derived name (asyncio.h
+     * ToriRS_IO_DerivedNameValid): it becomes part of a database key. */
+    derivedNameValid: function (name) {
+      return typeof name === 'string' && /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,62}$/.test(name);
     },
 
     itemCache: function (item) {
@@ -274,6 +298,12 @@ mergeInto(LibraryManager.library, {
       if (result.ptr !== undefined) {
         HEAP32[(item + a.dataOff) >> 2] = result.ptr;
         HEAP32[(item + a.dataSizeOff) >> 2] = result.size;
+        HEAP32[(item + a.errorOff) >> 2] = 0;
+        return;
+      }
+      if (result.written !== undefined) {
+        /* A write that landed: error 0, and the lent bytes left where the
+         * caller put them -- they are its own (a failed write is null). */
         HEAP32[(item + a.errorOff) >> 2] = 0;
         return;
       }
@@ -448,6 +478,21 @@ mergeInto(LibraryManager.library, {
         return {
           kind: kind,
           path: this.itemPath(item, a.filePathOff),
+          bytes: HEAPU8.slice(ptr, ptr + size),
+        };
+      }
+      if (kind === K.DERIVED_READ) {
+        return { kind: kind, name: this.itemDerivedName(item) };
+      }
+      if (kind === K.DERIVED_WRITE) {
+        /* Lent for the request, as FILE_WRITE's bytes are: copied out here,
+         * before the first await, and the C buffer is the task's again the
+         * moment Process returns. */
+        const ptr = HEAP32[(item + a.dataOff) >> 2];
+        const size = HEAP32[(item + a.dataSizeOff) >> 2];
+        return {
+          kind: kind,
+          name: this.itemDerivedName(item),
           bytes: HEAPU8.slice(ptr, ptr + size),
         };
       }
@@ -910,6 +955,44 @@ mergeInto(LibraryManager.library, {
         await inst.host.writeClientFile(req.path, req.bytes);
         return null;
       }
+      if (req.kind === K.DERIVED_READ) {
+        /* A record computed from this cache (asyncio.h TORIRS_IOK_DERIVED_*):
+         * its own database, keyed by the cache (torirs_hostio.js
+         * readDerived). Optional by contract, so a host without it -- or a
+         * name that is not one -- answers "absent", never an error. */
+        const d = this.telemetry.derived;
+        if (!this.derivedNameValid(req.name) || typeof inst.host.readDerived !== 'function') {
+          d.reads++; d.readMisses++;
+          return null;
+        }
+        const t0 = performance.now();
+        let bytes = null;
+        try {
+          bytes = await inst.host.readDerived(req.name);
+        } finally {
+          d.reads++;
+          d.readMs += performance.now() - t0;
+          if (bytes) { d.readBytes += bytes.length; } else { d.readMisses++; }
+        }
+        return bytes || null;
+      }
+      if (req.kind === K.DERIVED_WRITE) {
+        const d = this.telemetry.derived;
+        if (!this.derivedNameValid(req.name) || typeof inst.host.writeDerived !== 'function') {
+          d.writes++; d.writeFailures++;
+          return null;
+        }
+        const t0 = performance.now();
+        let ok = false;
+        try {
+          ok = !!(await inst.host.writeDerived(req.name, req.bytes));
+        } finally {
+          d.writes++;
+          d.writeMs += performance.now() - t0;
+          if (ok) { d.writeBytes += req.bytes.length; } else { d.writeFailures++; }
+        }
+        return ok ? { written: true } : null;
+      }
 
       if (req.kind === K.CACHE) {
         /* A role this branch has no table for: nothing to ask anyone for, and
@@ -1040,6 +1123,7 @@ mergeInto(LibraryManager.library, {
       }
       const kind = inst.kindNames[req.kind] || String(req.kind);
       if (req.path) { return `${kind}:${req.path.replace(/^.*\//, '')}`; }
+      if (req.name) { return `${kind}:${req.name}`; }
       if (req.ids) { return `${kind}:${req.table}x${req.ids.length}`; }
       if (req.table !== undefined && req.archive !== undefined) { return `${kind}:${req.table}/${req.archive}`; }
       if (req.table !== undefined) { return `${kind}:${req.table}`; }
@@ -1069,6 +1153,7 @@ mergeInto(LibraryManager.library, {
           const size = !bytes ? 0
             : bytes.length !== undefined ? bytes.length
             : bytes.prefetched !== undefined ? bytes.prefetched
+            : bytes.written !== undefined ? 0
             : bytes.size;
           this.trace.push(`${now.toFixed(1)} done ${this.traceName(inst, req)} ${(now - started).toFixed(1)}ms ${size}B`);
         }
@@ -1131,7 +1216,7 @@ mergeInto(LibraryManager.library, {
       kinds: {
         NONE: 0, CACHE: 1, CONFIG_FILE: 2, SCRIPT: 3,
         REFERENCE_TABLE: 4, FILE_READ: 5, FILE_WRITE: 6,
-        CACHE_PREFETCH: 7,
+        CACHE_PREFETCH: 7, DERIVED_READ: 8, DERIVED_WRITE: 9,
       },
       join: function (base, path) {
         return base && base.length ? `${base}/${path}` : path;

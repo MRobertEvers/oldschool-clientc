@@ -1020,6 +1020,27 @@ that layout. A lane on another format refuses the flag at parse time.
   [`src/web/torirs_host.js`](../src/web/torirs_host.js),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk)
 
+### WEB-WASM-001 - Safari never optimizes a wasm function over 100,000 bytes
+
+- **Status:** Contract (checked at link)
+- **Applies to:** Web build, JavaScriptCore (Safari; every iPhone and iPad browser)
+- **Behavior:** JavaScriptCore keeps any wasm function whose body is over
+  100,000 bytes in its baseline tier. The CS2 VM's general-path switch is
+  split in two in wasm (`CS2VM2_RUNOP_SPLIT`) so the run loop stays under the
+  limit, and two subtrees of the frame are kept out of `App_RunOnce`
+  (`APP_WASM_OWN_FUNCTION`). Every web OPT=1 link runs
+  `tools/wasm_func_size_check.py`, which fails when a function in
+  `tools/wasm_hot_functions.txt` is over 90,000 bytes and warns about every
+  other function over 100,000 (`main` today, which runs once at boot).
+- **Reason:** binaryen -O3 inlines single-caller functions of any size. The
+  run loop reached 123 KB, and Safari ran the VM at half the speed it would
+  otherwise reach: a logged-in bank open in WebKit went from 4.75 to 3.06 ms
+  with the VM's split.
+- **Sources:** [`docs/web_wasm_function_size.md`](web_wasm_function_size.md),
+  [`src/cs2vm2/cs2vm2.c`](../src/cs2vm2/cs2vm2.c),
+  [`src/app/app_internal.h`](../src/app/app_internal.h),
+  [`tools/wasm_func_size_check.py`](../tools/wasm_func_size_check.py)
+
 ### WEB-LOOP-002 - Client-cycle work must be gated on the cycle, not on elapsed ms
 
 - **Status:** Resolved guardrail
