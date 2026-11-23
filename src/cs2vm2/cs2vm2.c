@@ -4,13 +4,14 @@
  */
 
 #include "cs2vm2.h"
-#include "cs2vm2_dialect.h"
-#include "mem/torirs_mem.h"
 
 #include "cs2_opcode.h"
 #include "cs2_opcode_meta.h"
-#include "cs2vm2_opcode_stack.gen.h"
+#include "cs2vm2_dialect.h"
 #include "cs2vm2_jit_internal.h"
+#include "cs2vm2_opcode_stack.gen.h"
+#include "log/torirs_log.h"
+#include "mem/torirs_mem.h"
 #include "perf/torirs_perf.h"
 
 #include <assert.h>
@@ -20,7 +21,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "log/torirs_log.h"
 
 #define CS2VM2_DEBUG_OPS 0
 
@@ -32,7 +32,9 @@ static int g_cs2_clienttype = 10;
 static int g_cs2_on_mobile = 0;
 
 void
-CS2VM2_SetClientIdentity(int clienttype, int on_mobile)
+CS2VM2_SetClientIdentity(
+    int clienttype,
+    int on_mobile)
 {
     g_cs2_clienttype = clienttype;
     g_cs2_on_mobile = on_mobile ? 1 : 0;
@@ -58,14 +60,18 @@ static int g_cs2_watch_count;
 static uint8_t g_cs2_watch[CS2VM2_SCRIPT_WATCH_MAX];
 
 void
-CS2VM2_SetScriptHook(CS2VM2_ScriptHook_Fn fn, void* user)
+CS2VM2_SetScriptHook(
+    CS2VM2_ScriptHook_Fn fn,
+    void* user)
 {
     g_cs2_script_hook = fn;
     g_cs2_script_hook_user = user;
 }
 
 bool
-CS2VM2_ScriptWatch(int script_id, bool on)
+CS2VM2_ScriptWatch(
+    int script_id,
+    bool on)
 {
     if( script_id < 0 || script_id >= CS2VM2_SCRIPT_WATCH_MAX )
         return false;
@@ -102,13 +108,20 @@ cs2vm2_script_watched(struct CS2VM2_Script const* script)
  * invoked callee's arguments are still on the stacks while it runs and are
  * popped by the caller of this function. */
 static void
-cs2vm2_script_pre(struct CS2VM2_Thread* vm, int invoked)
+cs2vm2_script_pre(
+    struct CS2VM2_Thread* vm,
+    int invoked)
 {
     struct CS2VM2_Frame* frame = CS2VM_FRAME(vm);
     frame->hooked = 1;
-    g_cs2_script_hook(g_cs2_script_hook_user, vm, frame->script->script_id,
-                      CS2VM2_SCRIPT_HOOK_PRE, invoked,
-                      frame->script->int_argument_count, frame->script->string_argument_count);
+    g_cs2_script_hook(
+        g_cs2_script_hook_user,
+        vm,
+        frame->script->script_id,
+        CS2VM2_SCRIPT_HOOK_PRE,
+        invoked,
+        frame->script->int_argument_count,
+        frame->script->string_argument_count);
 }
 char g_cs2_trace_extra[512];
 
@@ -141,7 +154,9 @@ static int g_frame_pool_count;
  * the buffer stays with the block for the rest of the pool's life.
  */
 static int
-cs2vm2_frame_locals_capacity_for(int cap, int need)
+cs2vm2_frame_locals_capacity_for(
+    int cap,
+    int need)
 {
     assert(need > 0);
     assert(need <= CS2VM_MAX_LOCALS);
@@ -160,7 +175,9 @@ cs2vm2_frame_locals_capacity_for(int cap, int need)
  * whole read path depends on it, and realloc leaves the tail indeterminate.
  */
 static void
-cs2vm2_frame_reserve_int_locals(struct CS2VM2_Frame* frame, int need)
+cs2vm2_frame_reserve_int_locals(
+    struct CS2VM2_Frame* frame,
+    int need)
 {
     assert(frame);
 
@@ -168,11 +185,9 @@ cs2vm2_frame_reserve_int_locals(struct CS2VM2_Frame* frame, int need)
         return;
 
     int next = cs2vm2_frame_locals_capacity_for(frame->int_locals_cap, need);
-    int* buf = (int*)ToriMem_Realloc(ToriMem_Script(), frame->int_locals, (size_t)next * sizeof(*buf));
-    memset(
-        buf + frame->int_locals_cap,
-        0,
-        (size_t)(next - frame->int_locals_cap) * sizeof(*buf));
+    int* buf =
+        (int*)ToriMem_Realloc(ToriMem_Script(), frame->int_locals, (size_t)next * sizeof(*buf));
+    memset(buf + frame->int_locals_cap, 0, (size_t)(next - frame->int_locals_cap) * sizeof(*buf));
     TORIRS_PERF_COUNT(
         TORIRS_PERF_CTR_CS2_FRAME_LOCALS_BYTES,
         (long long)(next - frame->int_locals_cap) * (long long)sizeof(*buf));
@@ -181,7 +196,9 @@ cs2vm2_frame_reserve_int_locals(struct CS2VM2_Frame* frame, int need)
 }
 
 static void
-cs2vm2_frame_reserve_str_locals(struct CS2VM2_Frame* frame, int need)
+cs2vm2_frame_reserve_str_locals(
+    struct CS2VM2_Frame* frame,
+    int need)
 {
     assert(frame);
 
@@ -191,10 +208,7 @@ cs2vm2_frame_reserve_str_locals(struct CS2VM2_Frame* frame, int need)
     int next = cs2vm2_frame_locals_capacity_for(frame->str_locals_cap, need);
     char** buf =
         (char**)ToriMem_Realloc(ToriMem_Script(), frame->str_locals, (size_t)next * sizeof(*buf));
-    memset(
-        buf + frame->str_locals_cap,
-        0,
-        (size_t)(next - frame->str_locals_cap) * sizeof(*buf));
+    memset(buf + frame->str_locals_cap, 0, (size_t)(next - frame->str_locals_cap) * sizeof(*buf));
     TORIRS_PERF_COUNT(
         TORIRS_PERF_CTR_CS2_FRAME_LOCALS_BYTES,
         (long long)(next - frame->str_locals_cap) * (long long)sizeof(*buf));
@@ -203,7 +217,9 @@ cs2vm2_frame_reserve_str_locals(struct CS2VM2_Frame* frame, int need)
 }
 
 static void
-cs2vm2_frame_reserve_long_locals(struct CS2VM2_Frame* frame, int need)
+cs2vm2_frame_reserve_long_locals(
+    struct CS2VM2_Frame* frame,
+    int need)
 {
     assert(frame);
 
@@ -211,12 +227,9 @@ cs2vm2_frame_reserve_long_locals(struct CS2VM2_Frame* frame, int need)
         return;
 
     int next = cs2vm2_frame_locals_capacity_for(frame->long_locals_cap, need);
-    int64_t* buf =
-        (int64_t*)ToriMem_Realloc(ToriMem_Script(), frame->long_locals, (size_t)next * sizeof(*buf));
-    memset(
-        buf + frame->long_locals_cap,
-        0,
-        (size_t)(next - frame->long_locals_cap) * sizeof(*buf));
+    int64_t* buf = (int64_t*)ToriMem_Realloc(
+        ToriMem_Script(), frame->long_locals, (size_t)next * sizeof(*buf));
+    memset(buf + frame->long_locals_cap, 0, (size_t)(next - frame->long_locals_cap) * sizeof(*buf));
     TORIRS_PERF_COUNT(
         TORIRS_PERF_CTR_CS2_FRAME_LOCALS_BYTES,
         (long long)(next - frame->long_locals_cap) * (long long)sizeof(*buf));
@@ -235,7 +248,9 @@ cs2vm2_frame_reserve_long_locals(struct CS2VM2_Frame* frame, int need)
  * names one that used to corrupt memory quietly.
  */
 static inline int*
-cs2vm2_frame_int_local_ref(struct CS2VM2_Frame* frame, int idx)
+cs2vm2_frame_int_local_ref(
+    struct CS2VM2_Frame* frame,
+    int idx)
 {
     assert(frame);
     assert(idx >= 0);
@@ -250,7 +265,9 @@ cs2vm2_frame_int_local_ref(struct CS2VM2_Frame* frame, int idx)
 }
 
 static inline char**
-cs2vm2_frame_str_local_ref(struct CS2VM2_Frame* frame, int idx)
+cs2vm2_frame_str_local_ref(
+    struct CS2VM2_Frame* frame,
+    int idx)
 {
     assert(frame);
     assert(idx >= 0);
@@ -265,7 +282,9 @@ cs2vm2_frame_str_local_ref(struct CS2VM2_Frame* frame, int idx)
 }
 
 static inline int64_t*
-cs2vm2_frame_long_local_ref(struct CS2VM2_Frame* frame, int idx)
+cs2vm2_frame_long_local_ref(
+    struct CS2VM2_Frame* frame,
+    int idx)
 {
     assert(frame);
     assert(idx >= 0);
@@ -287,7 +306,9 @@ cs2vm2_frame_long_local_ref(struct CS2VM2_Frame* frame, int idx)
  * buffer.
  */
 static inline int
-cs2vm2_frame_int_local(const struct CS2VM2_Frame* frame, int idx)
+cs2vm2_frame_int_local(
+    const struct CS2VM2_Frame* frame,
+    int idx)
 {
     assert(frame);
     assert(idx >= 0);
@@ -297,7 +318,9 @@ cs2vm2_frame_int_local(const struct CS2VM2_Frame* frame, int idx)
 }
 
 static inline char*
-cs2vm2_frame_str_local(const struct CS2VM2_Frame* frame, int idx)
+cs2vm2_frame_str_local(
+    const struct CS2VM2_Frame* frame,
+    int idx)
 {
     assert(frame);
     assert(idx >= 0);
@@ -307,7 +330,9 @@ cs2vm2_frame_str_local(const struct CS2VM2_Frame* frame, int idx)
 }
 
 static inline int64_t
-cs2vm2_frame_long_local(const struct CS2VM2_Frame* frame, int idx)
+cs2vm2_frame_long_local(
+    const struct CS2VM2_Frame* frame,
+    int idx)
 {
     assert(frame);
     assert(idx >= 0);
@@ -342,14 +367,10 @@ cs2vm2_frame_clear(struct CS2VM2_Frame* frame)
 
     if( frame->int_locals_dirty > 0 )
         memset(
-            frame->int_locals,
-            0,
-            (size_t)frame->int_locals_dirty * sizeof(frame->int_locals[0]));
+            frame->int_locals, 0, (size_t)frame->int_locals_dirty * sizeof(frame->int_locals[0]));
     if( frame->str_locals_dirty > 0 )
         memset(
-            frame->str_locals,
-            0,
-            (size_t)frame->str_locals_dirty * sizeof(frame->str_locals[0]));
+            frame->str_locals, 0, (size_t)frame->str_locals_dirty * sizeof(frame->str_locals[0]));
     if( frame->long_locals_dirty > 0 )
         memset(
             frame->long_locals,
@@ -391,7 +412,8 @@ cs2vm2_frame_acquire(void)
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_FRAME_POOL_MISS, 1);
 
-    struct CS2VM2_Frame* frame = (struct CS2VM2_Frame*)ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*frame));
+    struct CS2VM2_Frame* frame =
+        (struct CS2VM2_Frame*)ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*frame));
     return frame;
 }
 
@@ -572,7 +594,8 @@ cs2vm2_array_reserve(
     if( cap > CS2VM2_ARRAY_CAPACITY )
         cap = CS2VM2_ARRAY_CAPACITY;
 
-    void* cells = ToriMem_Realloc(ToriMem_Script(), array->cells.strings, (size_t)cap * sizeof(char*));
+    void* cells =
+        ToriMem_Realloc(ToriMem_Script(), array->cells.strings, (size_t)cap * sizeof(char*));
     array->cells.strings = (char**)cells;
     array->capacity = cap;
     return 1;
@@ -604,7 +627,7 @@ cs2vm2_array_begin(
  * shape (pop struct, param; push int or string by the ParamType), so the
  * existing handler is correct once the id lines up. */
 static struct CS2VM2_DialectRemap const g_cs2vm2_remap_rs2_634[] = {
-    { 51, CS2_OP_SWITCH },
+    { 51,   CS2_OP_SWITCH       },
     { 4500, CS2_OP_STRUCT_PARAM },
 };
 
@@ -648,7 +671,9 @@ cs2vm2_frame_dialect(struct CS2VM2_Frame const* frame)
  * array, and the op degrades to the same read-0/drop-write the old
  * out-of-range path had. */
 static struct CS2VM2_Array*
-cs2vm2_array_from_handle(struct CS2VM2_Thread* vm, char* handle)
+cs2vm2_array_from_handle(
+    struct CS2VM2_Thread* vm,
+    char* handle)
 {
     ptrdiff_t off = handle - (char*)vm->arrays;
     if( off < 0 || off >= (ptrdiff_t)sizeof(vm->arrays) )
@@ -664,7 +689,10 @@ cs2vm2_array_from_handle(struct CS2VM2_Thread* vm, char* handle)
  * holding the handle -- or, in a dialect without array handles, the number of
  * one of the arrays every frame of the run shares. */
 static struct CS2VM2_Array*
-cs2vm2_array_local(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int slot)
+cs2vm2_array_local(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int slot)
 {
     if( !cs2vm2_frame_dialect(frame)->array_handles )
     {
@@ -681,7 +709,10 @@ cs2vm2_array_local(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int slo
  * it (see the undo_log contract in CS2VM2_Thread). Hosted compound opcodes route
  * writes here; VM-only POP_ARRAY_INT writes directly because it cannot yield. */
 static int
-cs2vm2_array_track(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int index)
+cs2vm2_array_track(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Array* array,
+    int index)
 {
     assert(array);
     if( !array->defined || index < 0 || index >= array->size )
@@ -698,7 +729,11 @@ cs2vm2_array_track(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int ind
 }
 
 void
-CS2VM2_ArrayStore(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int index, int value)
+CS2VM2_ArrayStore(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Array* array,
+    int index,
+    int value)
 {
     assert(vm);
     if( !cs2vm2_array_track(vm, array, index) )
@@ -709,7 +744,11 @@ CS2VM2_ArrayStore(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int inde
 /* The string twin. The pointer is pool-owned (CS2VM2_StrDup); storing it here
  * transfers no ownership and the overwritten cell is never freed. */
 void
-CS2VM2_ArrayStoreStr(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int index, char* value)
+CS2VM2_ArrayStoreStr(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Array* array,
+    int index,
+    char* value)
 {
     assert(vm);
     if( !cs2vm2_array_track(vm, array, index) )
@@ -718,7 +757,10 @@ CS2VM2_ArrayStoreStr(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int i
 }
 
 char*
-CS2VM2_ArrayNewInts(struct CS2VM2_Thread* vm, int const* values, int count)
+CS2VM2_ArrayNewInts(
+    struct CS2VM2_Thread* vm,
+    int const* values,
+    int count)
 {
     assert(vm);
     assert(count >= 0);
@@ -789,7 +831,8 @@ CS2VM2_CheckYieldHalt(
 
     if( vm->yield_halt_count > 1 )
     {
-        TORIRS_LOG("CS2VM: opcode %d yielded more than once at script=%d pc=%d frame=%d\n",
+        TORIRS_LOG(
+            "CS2VM: opcode %d yielded more than once at script=%d pc=%d frame=%d\n",
             opcode,
             script_id,
             op_pc,
@@ -837,7 +880,9 @@ static int g_cs2_trace_capacity = 0;
 static int g_cs2_trace_count = 0;
 
 void
-CS2VM2_TraceCaptureBegin(struct CS2VM2_TraceRecord* out, int capacity)
+CS2VM2_TraceCaptureBegin(
+    struct CS2VM2_TraceRecord* out,
+    int capacity)
 {
     g_cs2_trace_capture = out;
     g_cs2_trace_capacity = out ? capacity : 0;
@@ -897,8 +942,7 @@ CS2VM2_TraceOpcode(
             only = getenv("TORIRS_CS2_TRACE_SCRIPT");
             only_id = only ? (int)strtol(only, NULL, 0) : -1;
         }
-        if( only_id >= 0 && frame->script &&
-            frame->script->script_id != only_id )
+        if( only_id >= 0 && frame->script && frame->script->script_id != only_id )
             return;
     }
 #if !CS2VM2_DEBUG_OPS
@@ -907,7 +951,8 @@ CS2VM2_TraceOpcode(
 #endif
 
     char const* op_name = CS2_OpCode_String(opcode);
-    TORIRS_ERR("CS2TRACE script=%d pc=%d op=%s(%d) intOp=%d istack=%d sstack=%d aw=0x%08x dw=0x%08x",
+    TORIRS_ERR(
+        "CS2TRACE script=%d pc=%d op=%s(%d) intOp=%d istack=%d sstack=%d aw=0x%08x dw=0x%08x",
         frame->script->script_id,
         op_pc,
         op_name ? op_name : "_unknown",
@@ -925,7 +970,8 @@ CS2VM2_TraceOpcode(
         if( vm->ints_stack_top > 0 )
             TORIRS_LOG(" itop=%d", vm->ints_stack[vm->ints_stack_top - 1]);
         if( vm->strs_stack_top > 0 )
-            TORIRS_ERR(" stop=\"%s\"",
+            TORIRS_ERR(
+                " stop=\"%s\"",
                 vm->strs_stack[vm->strs_stack_top - 1] ? vm->strs_stack[vm->strs_stack_top - 1]
                                                        : "(null)");
     }
@@ -994,8 +1040,9 @@ CS2VM2_JumpRelative(
      * dispatched. That instruction must be on the jit's list of jumps, or
      * the overlay builder would not refuse a script whose jump leaves it. */
     assert(frame->pc >= 1);
-    assert(cs2vm2_op_jumps_by_operand(frame->script->opcodes[frame->pc - 1]) ||
-           frame->script->opcodes[frame->pc - 1] == CS2_OP_SWITCH);
+    assert(
+        cs2vm2_op_jumps_by_operand(frame->script->opcodes[frame->pc - 1]) ||
+        frame->script->opcodes[frame->pc - 1] == CS2_OP_SWITCH);
 
     frame->pc += operand;
 
@@ -1698,8 +1745,7 @@ CS2VM2_Op_ToString(
  * literally. Match the renderer, not the reference, for this one.
  */
 static int
-CS2VM2_Op_Escape(
-    struct CS2VM2_Thread* vm)
+CS2VM2_Op_Escape(struct CS2VM2_Thread* vm)
 {
     assert(vm);
 
@@ -1744,8 +1790,7 @@ CS2VM2_Op_Escape(
  * filter keyboard input, so being wrong here silently eats keystrokes.
  */
 static int
-CS2VM2_Op_CharIsPrintable(
-    struct CS2VM2_Thread* vm)
+CS2VM2_Op_CharIsPrintable(struct CS2VM2_Thread* vm)
 {
     assert(vm);
 
@@ -1753,9 +1798,8 @@ CS2VM2_Op_CharIsPrintable(
     if( CS2VM2_PopInt(vm, &chr) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int printable = (chr >= 32 && chr <= 126) || (chr >= 160 && chr <= 255) ||
-                    chr == 0x20AC || chr == 0x0152 || chr == 0x2014 || chr == 0x0153 ||
-                    chr == 0x0178;
+    int printable = (chr >= 32 && chr <= 126) || (chr >= 160 && chr <= 255) || chr == 0x20AC ||
+                    chr == 0x0152 || chr == 0x2014 || chr == 0x0153 || chr == 0x0178;
     return CS2VM2_PushInt(vm, printable ? 1 : 0);
 }
 
@@ -1794,8 +1838,7 @@ CS2VM2_Op_CharClass(
 
 /* UPPERCASE — ASCII-uppercase a string (locale-independent, like the client). */
 static int
-CS2VM2_Op_Uppercase(
-    struct CS2VM2_Thread* vm)
+CS2VM2_Op_Uppercase(struct CS2VM2_Thread* vm)
 {
     assert(vm);
 
@@ -1820,8 +1863,7 @@ CS2VM2_Op_Uppercase(
 
 /* LOWERCASE — ASCII-lowercase a string (locale-independent, like the client). */
 static int
-CS2VM2_Op_Lowercase(
-    struct CS2VM2_Thread* vm)
+CS2VM2_Op_Lowercase(struct CS2VM2_Thread* vm)
 {
     assert(vm);
 
@@ -1844,8 +1886,7 @@ CS2VM2_Op_Lowercase(
 
 /* REMOVETAGS — strip every <...> run, leaving the plain text. */
 static int
-CS2VM2_Op_RemoveTags(
-    struct CS2VM2_Thread* vm)
+CS2VM2_Op_RemoveTags(struct CS2VM2_Thread* vm)
 {
     assert(vm);
 
@@ -2097,7 +2138,8 @@ CS2VM2_Op_GosubWithParams(
         /* Say so. A blown call stack otherwise surfaces as "script N failed at
          * opcode 40", which reads like a bad gosub target and sent this hunt
          * looking at the callee rather than the depth. */
-        TORIRS_LOG("CS2VM2: call depth %d exhausted calling script %d from script %d "
+        TORIRS_LOG(
+            "CS2VM2: call depth %d exhausted calling script %d from script %d "
             "(raise CS2VM_MAX_FRAMES)\n",
             CS2VM_MAX_FRAMES,
             operand,
@@ -2772,17 +2814,17 @@ sound_request(
 {
     struct CS2VM_HostRequest request;
     request.kind = kind;
-#define CS2VM_SOUND_CASE(name)                                      \
-    case CS2VM_HOST_REQUEST_##name:                                 \
-        memset(&request.u.name, 0, sizeof(request.u.name));          \
-        request.u.name.id = id;                                     \
-        request.u.name.secondary_id = secondary_id;                 \
-        request.u.name.loops = loops;                               \
-        request.u.name.delay = delay;                               \
-        request.u.name.fade_out_delay = fade_out_delay;             \
-        request.u.name.fade_out_speed = fade_out_speed;             \
-        request.u.name.fade_in_delay = fade_in_delay;               \
-        request.u.name.fade_in_speed = fade_in_speed;               \
+#define CS2VM_SOUND_CASE(name)                                                                     \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.id = id;                                                                    \
+        request.u.name.secondary_id = secondary_id;                                                \
+        request.u.name.loops = loops;                                                              \
+        request.u.name.delay = delay;                                                              \
+        request.u.name.fade_out_delay = fade_out_delay;                                            \
+        request.u.name.fade_out_speed = fade_out_speed;                                            \
+        request.u.name.fade_in_delay = fade_in_delay;                                              \
+        request.u.name.fade_in_speed = fade_in_speed;                                              \
         break
     switch( kind )
     {
@@ -2812,12 +2854,20 @@ CS2VM2_Op_SoundSynth(
     (void)operand;
     /* sound_synth(synth, loops, delay) */
     if( CS2VM2_PopInt(vm, &delay) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &loops) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
+        CS2VM2_PopInt(vm, &loops) != CS2VM_EXECNO_OK || CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     return sound_request(
-        vm, CS2VM_HOST_REQUEST_SOUND_SYNTH, id, secondary_id, loops, delay,
-        fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed, mark);
+        vm,
+        CS2VM_HOST_REQUEST_SOUND_SYNTH,
+        id,
+        secondary_id,
+        loops,
+        delay,
+        fade_out_delay,
+        fade_out_speed,
+        fade_in_delay,
+        fade_in_speed,
+        mark);
 }
 
 int
@@ -2840,8 +2890,17 @@ CS2VM2_Op_SoundSong(
         CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     return sound_request(
-        vm, CS2VM_HOST_REQUEST_SOUND_SONG, id, secondary_id, loops, delay,
-        fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed, mark);
+        vm,
+        CS2VM_HOST_REQUEST_SOUND_SONG,
+        id,
+        secondary_id,
+        loops,
+        delay,
+        fade_out_delay,
+        fade_out_speed,
+        fade_in_delay,
+        fade_in_speed,
+        mark);
 }
 
 int
@@ -2857,12 +2916,20 @@ CS2VM2_Op_SoundJingle(
     (void)frame;
     (void)operand;
     /* sound_jingle(id, delay) */
-    if( CS2VM2_PopInt(vm, &delay) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_PopInt(vm, &delay) != CS2VM_EXECNO_OK || CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     return sound_request(
-        vm, CS2VM_HOST_REQUEST_SOUND_JINGLE, id, secondary_id, loops, delay,
-        fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed, mark);
+        vm,
+        CS2VM_HOST_REQUEST_SOUND_JINGLE,
+        id,
+        secondary_id,
+        loops,
+        delay,
+        fade_out_delay,
+        fade_out_speed,
+        fade_in_delay,
+        fade_in_speed,
+        mark);
 }
 
 int
@@ -2888,8 +2955,17 @@ CS2VM2_Op_SoundSongWithSecondary(
         CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     return sound_request(
-        vm, CS2VM_HOST_REQUEST_SOUND_SONG_WITHSECONDARY, id, secondary_id, loops, delay,
-        fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed, mark);
+        vm,
+        CS2VM_HOST_REQUEST_SOUND_SONG_WITHSECONDARY,
+        id,
+        secondary_id,
+        loops,
+        delay,
+        fade_out_delay,
+        fade_out_speed,
+        fade_in_delay,
+        fade_in_speed,
+        mark);
 }
 
 int
@@ -2943,11 +3019,12 @@ CS2VM2_Op_IF_TriggerOpLocal(
     if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK || !signature )
         return CS2VM_EXECNO_ERROR;
 
-    struct CS2VM_HostRequest request = {0};
+    struct CS2VM_HostRequest request = { 0 };
     request.kind = CS2VM_HOST_REQUEST_IF_SCRIPT_TRIGGER;
     int typed0 = -1;
     int argc = (int)strlen(signature);
-    if( argc > 16 ) return CS2VM_EXECNO_ERROR;
+    if( argc > 16 )
+        return CS2VM_EXECNO_ERROR;
     request.u.IF_SCRIPT_TRIGGER.signature = signature;
     request.u.IF_SCRIPT_TRIGGER.count = argc;
     for( int i = argc - 1; i >= 0; --i )
@@ -2956,7 +3033,8 @@ CS2VM2_Op_IF_TriggerOpLocal(
         {
             if( CS2VM2_PopInt(vm, &request.u.IF_SCRIPT_TRIGGER.values[i]) != CS2VM_EXECNO_OK )
                 return CS2VM_EXECNO_ERROR;
-            if( i == 0 ) typed0 = request.u.IF_SCRIPT_TRIGGER.values[i];
+            if( i == 0 )
+                typed0 = request.u.IF_SCRIPT_TRIGGER.values[i];
         }
         else if( CS2VM2_PopStr(vm, &request.u.IF_SCRIPT_TRIGGER.strings[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -2965,8 +3043,8 @@ CS2VM2_Op_IF_TriggerOpLocal(
         CS2VM2_PopInt(vm, &request.u.IF_SCRIPT_TRIGGER.component_id) != CS2VM_EXECNO_OK ||
         CS2VM2_PopInt(vm, &request.u.IF_SCRIPT_TRIGGER.crc) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    request.u.IF_SCRIPT_TRIGGER.sub = request.u.IF_SCRIPT_TRIGGER.child != -1
-        ? request.u.IF_SCRIPT_TRIGGER.child : typed0;
+    request.u.IF_SCRIPT_TRIGGER.sub =
+        request.u.IF_SCRIPT_TRIGGER.child != -1 ? request.u.IF_SCRIPT_TRIGGER.child : typed0;
 
     return CS2VM2_Ask(vm, &request, mark);
 }
@@ -3387,14 +3465,13 @@ CS2VM2_Op_CC_SetObject(
     request.kind = num_mode == 0   ? CS2VM_HOST_REQUEST_CC_SETOBJECT
                    : num_mode == 1 ? CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYSNUM
                                    : CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM;
-#define CS2VM_CC_SETOBJECT_CASE(name)                                  \
-    case CS2VM_HOST_REQUEST_##name:                                    \
-        memset(&request.u.name, 0, sizeof(request.u.name));             \
-        request.u.name.component_id =                                  \
-            CS2VM2_DotOrActiveComponentId(vm, operand);                \
-        request.u.name.obj_id = obj_id;                                \
-        request.u.name.count = count;                                  \
-        request.u.name.num_mode = num_mode;                            \
+#define CS2VM_CC_SETOBJECT_CASE(name)                                                              \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);                  \
+        request.u.name.obj_id = obj_id;                                                            \
+        request.u.name.count = count;                                                              \
+        request.u.name.num_mode = num_mode;                                                        \
         break
     switch( request.kind )
     {
@@ -3439,13 +3516,13 @@ CS2VM2_Op_IF_SetObject(
     request.kind = num_mode == 0   ? CS2VM_HOST_REQUEST_IF_SETOBJECT
                    : num_mode == 1 ? CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYSNUM
                                    : CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM;
-#define CS2VM_IF_SETOBJECT_CASE(name)                   \
-    case CS2VM_HOST_REQUEST_##name:                     \
-        memset(&request.u.name, 0, sizeof(request.u.name)); \
-        request.u.name.component_id = component_id;     \
-        request.u.name.obj_id = obj_id;                 \
-        request.u.name.count = count;                   \
-        request.u.name.num_mode = num_mode;             \
+#define CS2VM_IF_SETOBJECT_CASE(name)                                                              \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = component_id;                                                \
+        request.u.name.obj_id = obj_id;                                                            \
+        request.u.name.count = count;                                                              \
+        request.u.name.num_mode = num_mode;                                                        \
         break
     switch( request.kind )
     {
@@ -3702,22 +3779,21 @@ CS2VM2_Op_SetOpKey(
         pair_count++;
     }
 
-    request.kind = is_if ? (is_typed ? CS2VM_HOST_REQUEST_IF_SETOPTKEY
-                                     : CS2VM_HOST_REQUEST_IF_SETOPKEY)
-                         : (is_typed ? CS2VM_HOST_REQUEST_CC_SETOPTKEY
-                                     : CS2VM_HOST_REQUEST_CC_SETOPKEY);
-#define CS2VM_SETOPKEY_CASE(name)                                      \
-    case CS2VM_HOST_REQUEST_##name:                                    \
-        memset(&request.u.name, 0, sizeof(request.u.name));             \
-        request.u.name.component_id =                                  \
-            is_if ? component_id : CS2VM2_DotOrActiveComponentId(vm, operand); \
-        request.u.name.op_index = op_index;                            \
-        request.u.name.pair_count = pair_count;                        \
-        for( int i = 0; i < pair_count; i++ )                          \
-        {                                                              \
-            request.u.name.key_chars[i] = raw[i * 2];                  \
-            request.u.name.key_codes[i] = raw[(i * 2) + 1];            \
-        }                                                              \
+    request.kind =
+        is_if ? (is_typed ? CS2VM_HOST_REQUEST_IF_SETOPTKEY : CS2VM_HOST_REQUEST_IF_SETOPKEY)
+              : (is_typed ? CS2VM_HOST_REQUEST_CC_SETOPTKEY : CS2VM_HOST_REQUEST_CC_SETOPKEY);
+#define CS2VM_SETOPKEY_CASE(name)                                                                  \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id =                                                              \
+            is_if ? component_id : CS2VM2_DotOrActiveComponentId(vm, operand);                     \
+        request.u.name.op_index = op_index;                                                        \
+        request.u.name.pair_count = pair_count;                                                    \
+        for( int i = 0; i < pair_count; i++ )                                                      \
+        {                                                                                          \
+            request.u.name.key_chars[i] = raw[i * 2];                                              \
+            request.u.name.key_codes[i] = raw[(i * 2) + 1];                                        \
+        }                                                                                          \
         break
     switch( request.kind )
     {
@@ -3795,26 +3871,24 @@ CS2VM2_Op_SetOpKeyRate(
     }
 
     if( is_if )
-        request.kind = is_typed
-                           ? (is_ignore_held ? CS2VM_HOST_REQUEST_IF_SETOPTKEYIGNOREHELD
-                                             : CS2VM_HOST_REQUEST_IF_SETOPTKEYRATE)
-                           : (is_ignore_held ? CS2VM_HOST_REQUEST_IF_SETOPKEYIGNOREHELD
-                                             : CS2VM_HOST_REQUEST_IF_SETOPKEYRATE);
+        request.kind = is_typed ? (is_ignore_held ? CS2VM_HOST_REQUEST_IF_SETOPTKEYIGNOREHELD
+                                                  : CS2VM_HOST_REQUEST_IF_SETOPTKEYRATE)
+                                : (is_ignore_held ? CS2VM_HOST_REQUEST_IF_SETOPKEYIGNOREHELD
+                                                  : CS2VM_HOST_REQUEST_IF_SETOPKEYRATE);
     else
-        request.kind = is_typed
-                           ? (is_ignore_held ? CS2VM_HOST_REQUEST_CC_SETOPTKEYIGNOREHELD
-                                             : CS2VM_HOST_REQUEST_CC_SETOPTKEYRATE)
-                           : (is_ignore_held ? CS2VM_HOST_REQUEST_CC_SETOPKEYIGNOREHELD
-                                             : CS2VM_HOST_REQUEST_CC_SETOPKEYRATE);
-#define CS2VM_SETOPKEYRATE_CASE(name)                                  \
-    case CS2VM_HOST_REQUEST_##name:                                    \
-        memset(&request.u.name, 0, sizeof(request.u.name));             \
-        request.u.name.component_id =                                  \
-            is_if ? component_id : CS2VM2_DotOrActiveComponentId(vm, operand); \
-        request.u.name.op_index = op_index;                            \
-        request.u.name.rate = rate;                                    \
-        request.u.name.enabled = tick_rate != 0;                       \
-        request.u.name.ignore_held = is_ignore_held ? 1 : 0;           \
+        request.kind = is_typed ? (is_ignore_held ? CS2VM_HOST_REQUEST_CC_SETOPTKEYIGNOREHELD
+                                                  : CS2VM_HOST_REQUEST_CC_SETOPTKEYRATE)
+                                : (is_ignore_held ? CS2VM_HOST_REQUEST_CC_SETOPKEYIGNOREHELD
+                                                  : CS2VM_HOST_REQUEST_CC_SETOPKEYRATE);
+#define CS2VM_SETOPKEYRATE_CASE(name)                                                              \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id =                                                              \
+            is_if ? component_id : CS2VM2_DotOrActiveComponentId(vm, operand);                     \
+        request.u.name.op_index = op_index;                                                        \
+        request.u.name.rate = rate;                                                                \
+        request.u.name.enabled = tick_rate != 0;                                                   \
+        request.u.name.ignore_held = is_ignore_held ? 1 : 0;                                       \
         break
     switch( request.kind )
     {
@@ -4010,10 +4084,10 @@ cs2vm2_op_cc_get_int(
     struct CS2VM_HostRequest request;
     int component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.kind = kind;
-#define CS2VM_CC_GET_INT_CASE(name)                         \
-    case CS2VM_HOST_REQUEST_##name:                         \
-        memset(&request.u.name, 0, sizeof(request.u.name));  \
-        request.u.name.component_id = component_id;         \
+#define CS2VM_CC_GET_INT_CASE(name)                                                                \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = component_id;                                                \
         break
     switch( kind )
     {
@@ -4064,10 +4138,10 @@ cs2vm2_op_if_get_int(
 
     struct CS2VM_HostRequest request;
     request.kind = kind;
-#define CS2VM_IF_GET_INT_CASE(name)                         \
-    case CS2VM_HOST_REQUEST_##name:                         \
-        memset(&request.u.name, 0, sizeof(request.u.name));  \
-        request.u.name.component_id = component_id;         \
+#define CS2VM_IF_GET_INT_CASE(name)                                                                \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = component_id;                                                \
         break
     switch( kind )
     {
@@ -4130,7 +4204,6 @@ cs2vm2_op_if_get_opbase(
     request.u.IF_GETOPBASE.component_id = component_id;
     return CS2VM2_Ask(vm, &request, mark);
 }
-
 
 int
 CS2VM2_Op_CC_GetId(
@@ -4913,7 +4986,7 @@ CS2VM2_Op_IF_SetHide(
  * reads entries below the count only (rs_cs2_copy_hook_str_args,
  * exec_set_on_cc_event, exec_set_on_if_event).
  */
-#define CS2VM_SETON_ZERO_HEAD(member) \
+#define CS2VM_SETON_ZERO_HEAD(member)                                                              \
     memset(&(member), 0, (size_t)((char*)(member).str_args - (char*)&(member)))
 
 /* A transmit handler's trigger ids, for as long as its registration takes:
@@ -4921,7 +4994,9 @@ CS2VM2_Op_IF_SetHide(
  * of them) lives in the caller's frame; only a long one allocates. */
 #define CS2VM2_TRIGGER_IDS_HERE 32
 static inline int*
-cs2vm2_trigger_ids_new(int* here, int count)
+cs2vm2_trigger_ids_new(
+    int* here,
+    int count)
 {
     int* ids = here;
     assert(count > 0);
@@ -4936,7 +5011,9 @@ cs2vm2_trigger_ids_new(int* here, int count)
 }
 
 static inline void
-cs2vm2_trigger_ids_free(int* ids, int const* here)
+cs2vm2_trigger_ids_free(
+    int* ids,
+    int const* here)
 {
     if( ids != here )
         ToriMem_Free(ToriMem_Script(), ids);
@@ -5020,7 +5097,8 @@ CS2VM2_Op_IF_SetOnEventHandler(
                  * (deob: case '\u00cf'). Hook arguments here are stored as
                  * int-or-string per position, so a long one cannot be carried;
                  * no 241 script sets one. Fail rather than pop the wrong stack. */
-                TORIRS_LOG("CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
+                TORIRS_LOG(
+                    "CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
                     signature);
                 cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                 return CS2VM_EXECNO_ERROR;
@@ -5070,30 +5148,30 @@ CS2VM2_Op_IF_SetOnEventHandler(
     /* A null script still reaches the host and disarms the existing hook. */
     struct CS2VM_HostRequest request;
     request.kind = kind;
-#define CS2VM_IF_SETON_CASE(name)                                      \
-    case CS2VM_HOST_REQUEST_##name:                                    \
-        CS2VM_SETON_ZERO_HEAD(request.u.name);                          \
-        request.u.name.component_id = widget_uid;                      \
-        request.u.name.script_id = script_id;                          \
-        request.u.name.signature = signature;                          \
-        request.u.name.trigger_ids = trigger_ids;                      \
-        request.u.name.trigger_count = trigger_count;                  \
-        /* The head was zeroed; the count is all that was popped. */ \
-        for( int i = 0; i < int_arg_count; i++ )                      \
-            request.u.name.int_args[i] = int_args[i];                 \
-        request.u.name.int_arg_count = int_arg_count;                  \
-        request.u.name.str_arg_mask = str_arg_mask;                    \
-        for( int i = 0; str_arg_mask != 0 && i < CS2VM_SETON_INT_ARG_MAX; i++ ) \
-        {                                                              \
-            if( !(str_arg_mask & ((uint64_t)1 << i)) )                 \
-                continue;                                              \
-            if( request.u.name.str_arg_count < CS2VM_SETON_STR_ARG_MAX ) \
-                request.u.name.str_args[request.u.name.str_arg_count] = \
-                    str_by_pos[i] ? str_by_pos[i] : "";                \
-            request.u.name.str_arg_count++;                            \
-        }                                                              \
-        if( request.u.name.str_arg_count > CS2VM_SETON_STR_ARG_MAX )   \
-            request.u.name.str_arg_count = CS2VM_SETON_STR_ARG_MAX;    \
+#define CS2VM_IF_SETON_CASE(name)                                                                  \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        CS2VM_SETON_ZERO_HEAD(request.u.name);                                                     \
+        request.u.name.component_id = widget_uid;                                                  \
+        request.u.name.script_id = script_id;                                                      \
+        request.u.name.signature = signature;                                                      \
+        request.u.name.trigger_ids = trigger_ids;                                                  \
+        request.u.name.trigger_count = trigger_count;                                              \
+        /* The head was zeroed; the count is all that was popped. */                               \
+        for( int i = 0; i < int_arg_count; i++ )                                                   \
+            request.u.name.int_args[i] = int_args[i];                                              \
+        request.u.name.int_arg_count = int_arg_count;                                              \
+        request.u.name.str_arg_mask = str_arg_mask;                                                \
+        for( int i = 0; str_arg_mask != 0 && i < CS2VM_SETON_INT_ARG_MAX; i++ )                    \
+        {                                                                                          \
+            if( !(str_arg_mask & ((uint64_t)1 << i)) )                                             \
+                continue;                                                                          \
+            if( request.u.name.str_arg_count < CS2VM_SETON_STR_ARG_MAX )                           \
+                request.u.name.str_args[request.u.name.str_arg_count] =                            \
+                    str_by_pos[i] ? str_by_pos[i] : "";                                            \
+            request.u.name.str_arg_count++;                                                        \
+        }                                                                                          \
+        if( request.u.name.str_arg_count > CS2VM_SETON_STR_ARG_MAX )                               \
+            request.u.name.str_arg_count = CS2VM_SETON_STR_ARG_MAX;                                \
         break
     switch( kind )
     {
@@ -5216,7 +5294,8 @@ CS2VM2_Op_CC_SetOnEventHandler(
                  * (deob: case '\u00cf'). Hook arguments here are stored as
                  * int-or-string per position, so a long one cannot be carried;
                  * no 241 script sets one. Fail rather than pop the wrong stack. */
-                TORIRS_LOG("CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
+                TORIRS_LOG(
+                    "CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
                     signature);
                 cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                 return CS2VM_EXECNO_ERROR;
@@ -5266,30 +5345,30 @@ CS2VM2_Op_CC_SetOnEventHandler(
     struct CS2VM_HostRequest request;
     int component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.kind = kind;
-#define CS2VM_CC_SETON_CASE(name)                                      \
-    case CS2VM_HOST_REQUEST_##name:                                    \
-        CS2VM_SETON_ZERO_HEAD(request.u.name);                          \
-        request.u.name.component_id = component_id;                    \
-        request.u.name.script_id = script_id;                          \
-        request.u.name.signature = signature;                          \
-        request.u.name.trigger_ids = trigger_ids;                      \
-        request.u.name.trigger_count = trigger_count;                  \
-        /* The head was zeroed; the count is all that was popped. */ \
-        for( int i = 0; i < int_arg_count; i++ )                      \
-            request.u.name.int_args[i] = int_args[i];                 \
-        request.u.name.int_arg_count = int_arg_count;                  \
-        request.u.name.str_arg_mask = str_arg_mask;                    \
-        for( int i = 0; str_arg_mask != 0 && i < CS2VM_SETON_INT_ARG_MAX; i++ ) \
-        {                                                              \
-            if( !(str_arg_mask & ((uint64_t)1 << i)) )                 \
-                continue;                                              \
-            if( request.u.name.str_arg_count < CS2VM_SETON_STR_ARG_MAX ) \
-                request.u.name.str_args[request.u.name.str_arg_count] = \
-                    str_by_pos[i] ? str_by_pos[i] : "";                \
-            request.u.name.str_arg_count++;                            \
-        }                                                              \
-        if( request.u.name.str_arg_count > CS2VM_SETON_STR_ARG_MAX )   \
-            request.u.name.str_arg_count = CS2VM_SETON_STR_ARG_MAX;    \
+#define CS2VM_CC_SETON_CASE(name)                                                                  \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        CS2VM_SETON_ZERO_HEAD(request.u.name);                                                     \
+        request.u.name.component_id = component_id;                                                \
+        request.u.name.script_id = script_id;                                                      \
+        request.u.name.signature = signature;                                                      \
+        request.u.name.trigger_ids = trigger_ids;                                                  \
+        request.u.name.trigger_count = trigger_count;                                              \
+        /* The head was zeroed; the count is all that was popped. */                               \
+        for( int i = 0; i < int_arg_count; i++ )                                                   \
+            request.u.name.int_args[i] = int_args[i];                                              \
+        request.u.name.int_arg_count = int_arg_count;                                              \
+        request.u.name.str_arg_mask = str_arg_mask;                                                \
+        for( int i = 0; str_arg_mask != 0 && i < CS2VM_SETON_INT_ARG_MAX; i++ )                    \
+        {                                                                                          \
+            if( !(str_arg_mask & ((uint64_t)1 << i)) )                                             \
+                continue;                                                                          \
+            if( request.u.name.str_arg_count < CS2VM_SETON_STR_ARG_MAX )                           \
+                request.u.name.str_args[request.u.name.str_arg_count] =                            \
+                    str_by_pos[i] ? str_by_pos[i] : "";                                            \
+            request.u.name.str_arg_count++;                                                        \
+        }                                                                                          \
+        if( request.u.name.str_arg_count > CS2VM_SETON_STR_ARG_MAX )                               \
+            request.u.name.str_arg_count = CS2VM_SETON_STR_ARG_MAX;                                \
         break
     switch( kind )
     {
@@ -5519,8 +5598,7 @@ CS2VM2_Op_CC_SetOnKey(
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
     assert(frame);
-    return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEY, mark);
+    return CS2VM2_Op_CC_SetOnEventHandler(vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEY, mark);
 }
 
 /* The rev-239 client uses the vendor-named CC_SETONKEYDOWN /
@@ -5560,8 +5638,7 @@ CS2VM2_Op_CC_SetOnOp(
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
     assert(frame);
-    return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONOP, mark);
+    return CS2VM2_Op_CC_SetOnEventHandler(vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONOP, mark);
 }
 
 int
@@ -5699,12 +5776,12 @@ CS2VM2_Op_DragPickup(
     request.kind = kind;
     switch( kind )
     {
-#define CS2VM_DRAGPICKUP_CASE(name)                         \
-    case CS2VM_HOST_REQUEST_##name:                         \
-        memset(&request.u.name, 0, sizeof(request.u.name));  \
-        request.u.name.component_id = component_id;         \
-        request.u.name.pickup_x = pickup_x;                 \
-        request.u.name.pickup_y = pickup_y;                 \
+#define CS2VM_DRAGPICKUP_CASE(name)                                                                \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = component_id;                                                \
+        request.u.name.pickup_x = pickup_x;                                                        \
+        request.u.name.pickup_y = pickup_y;                                                        \
         break
         CS2VM_DRAGPICKUP_CASE(IF_DRAGPICKUP);
         CS2VM_DRAGPICKUP_CASE(CC_DRAGPICKUP);
@@ -5833,7 +5910,8 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                  * (deob: case '\u00cf'). Hook arguments here are stored as
                  * int-or-string per position, so a long one cannot be carried;
                  * no 241 script sets one. Fail rather than pop the wrong stack. */
-                TORIRS_LOG("CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
+                TORIRS_LOG(
+                    "CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
                     signature);
                 cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                 return CS2VM_EXECNO_ERROR;
@@ -5924,8 +6002,7 @@ CS2VM2_Op_IF_SetOnOp(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONOP, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONOP, mark);
 }
 
 int
@@ -5938,8 +6015,7 @@ CS2VM2_Op_IF_SetOnClick(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICK, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICK, mark);
 }
 
 int
@@ -5952,8 +6028,7 @@ CS2VM2_Op_IF_SetOnHold(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONHOLD, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONHOLD, mark);
 }
 
 int
@@ -5966,8 +6041,7 @@ CS2VM2_Op_IF_SetOnMouseOver(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER, mark);
 }
 
 int
@@ -5980,8 +6054,7 @@ CS2VM2_Op_IF_SetOnMouseLeave(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE, mark);
 }
 
 static int
@@ -5992,8 +6065,7 @@ CS2VM2_Op_IF_SetOnTargetEnter(
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETENTER, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETENTER, mark);
 }
 
 static int
@@ -6004,8 +6076,7 @@ CS2VM2_Op_IF_SetOnTargetLeave(
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE, mark);
 }
 
 static int
@@ -6016,8 +6087,7 @@ CS2VM2_Op_IF_SetOnClickRepeat(
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT, mark);
 }
 
 static int
@@ -6028,8 +6098,7 @@ CS2VM2_Op_IF_SetOnRelease(
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONRELEASE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONRELEASE, mark);
 }
 
 static int
@@ -6040,8 +6109,7 @@ CS2VM2_Op_IF_SetOnDialogAbort(
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT, mark);
 }
 
 int
@@ -6054,8 +6122,7 @@ CS2VM2_Op_IF_SetOnDrag(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAG, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAG, mark);
 }
 
 int
@@ -6068,8 +6135,7 @@ CS2VM2_Op_IF_SetOnDragComplete(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE, mark);
 }
 
 int
@@ -6082,8 +6148,7 @@ CS2VM2_Op_IF_SetOnResize(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONRESIZE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONRESIZE, mark);
 }
 
 int
@@ -6096,8 +6161,7 @@ CS2VM2_Op_IF_SetOnSubChange(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE, mark);
 }
 
 int
@@ -6110,8 +6174,7 @@ CS2VM2_Op_IF_SetOnMouseRepeat(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT, mark);
 }
 
 int
@@ -6137,8 +6200,7 @@ CS2VM2_Op_IF_SetOnScrollWheel(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL, mark);
 }
 
 int
@@ -6165,8 +6227,7 @@ CS2VM2_Op_IF_SetOnKeyDown(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYDOWN, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYDOWN, mark);
 }
 
 int
@@ -6179,8 +6240,7 @@ CS2VM2_Op_IF_SetOnKeyUp(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYUP, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYUP, mark);
 }
 
 int
@@ -6193,8 +6253,7 @@ CS2VM2_Op_IF_SetOnMiscTransmit(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT, mark);
 }
 
 /*
@@ -6244,8 +6303,7 @@ CS2VM2_Op_IF_SetOnChatTransmit(
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT, mark);
 }
 
 int
@@ -6504,13 +6562,17 @@ cs2vm2_long_mask(int n)
 }
 
 static inline int64_t
-cs2vm2_long_shl(int64_t v, int n)
+cs2vm2_long_shl(
+    int64_t v,
+    int n)
 {
     return (int64_t)((uint64_t)v << (n & 63));
 }
 
 static inline int64_t
-cs2vm2_long_ushr(int64_t v, int n)
+cs2vm2_long_ushr(
+    int64_t v,
+    int n)
 {
     return (int64_t)((uint64_t)v >> (n & 63));
 }
@@ -6528,7 +6590,8 @@ cs2vm2_long_fail(
     char const* why)
 {
     struct CS2VM2_Frame* frame = CS2VM_FRAME(vm);
-    TORIRS_LOG("CS2VM2: long op %d %s (script %d pc %d)\n",
+    TORIRS_LOG(
+        "CS2VM2: long op %d %s (script %d pc %d)\n",
         opcode,
         why,
         frame->script ? frame->script->script_id : -1,
@@ -6772,8 +6835,8 @@ CS2VM2_Op_LongBitRange(
 {
     int hi_raw, lo_raw;
     int64_t v;
-    if( CS2VM2_PopInt(vm, &hi_raw) != CS2VM_EXECNO_OK || CS2VM2_PopInt(vm, &lo_raw) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopLong(vm, &v) != CS2VM_EXECNO_OK )
+    if( CS2VM2_PopInt(vm, &hi_raw) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &lo_raw) != CS2VM_EXECNO_OK || CS2VM2_PopLong(vm, &v) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     int lo = cs2vm2_clamp_bit(lo_raw);
     int hi = cs2vm2_clamp_bit(hi_raw);
@@ -6803,7 +6866,8 @@ CS2VM2_Op_LongSetBitRangeToLong(struct CS2VM2_Thread* vm)
         return CS2VM_EXECNO_ERROR;
     int width = hi - lo + 1;
     if( width < 0 || width > 64 )
-        return cs2vm2_long_fail(vm, CS2_OP_LONG_SETBIT_RANGE_TOLONG, "has a bit range out of 0..64");
+        return cs2vm2_long_fail(
+            vm, CS2_OP_LONG_SETBIT_RANGE_TOLONG, "has a bit range out of 0..64");
 
     int64_t mask = cs2vm2_long_mask(width);
     int64_t cleared = v & ~cs2vm2_long_shl(mask, lo);
@@ -6920,25 +6984,34 @@ CS2VM2_Op_LongToString(
  * and `b` is the top.
  */
 static inline int
-cs2_math_add(int a, int b)
+cs2_math_add(
+    int a,
+    int b)
 {
     return (int)((uint32_t)a + (uint32_t)b);
 }
 
 static inline int
-cs2_math_sub(int a, int b)
+cs2_math_sub(
+    int a,
+    int b)
 {
     return (int)((uint32_t)a - (uint32_t)b);
 }
 
 static inline int
-cs2_math_mul(int a, int b)
+cs2_math_mul(
+    int a,
+    int b)
 {
     return (int)((uint32_t)a * (uint32_t)b);
 }
 
 static inline bool
-cs2_math_div(int a, int b, int* out)
+cs2_math_div(
+    int a,
+    int b,
+    int* out)
 {
     if( b == 0 )
         return false;
@@ -6947,7 +7020,10 @@ cs2_math_div(int a, int b, int* out)
 }
 
 static inline bool
-cs2_math_mod(int a, int b, int* out)
+cs2_math_mod(
+    int a,
+    int b,
+    int* out)
 {
     if( b == 0 )
         return false;
@@ -6956,25 +7032,33 @@ cs2_math_mod(int a, int b, int* out)
 }
 
 static inline int
-cs2_math_and(int a, int b)
+cs2_math_and(
+    int a,
+    int b)
 {
     return a & b;
 }
 
 static inline int
-cs2_math_or(int a, int b)
+cs2_math_or(
+    int a,
+    int b)
 {
     return a | b;
 }
 
 static inline int
-cs2_math_min(int a, int b)
+cs2_math_min(
+    int a,
+    int b)
 {
     return a < b ? a : b;
 }
 
 static inline int
-cs2_math_max(int a, int b)
+cs2_math_max(
+    int a,
+    int b)
 {
     return a > b ? a : b;
 }
@@ -6983,14 +7067,19 @@ cs2_math_max(int a, int b)
  * reference's exact (non-overflowing) arithmetic; C truncation toward zero on
  * the divide matches the reference truncation. */
 static inline int
-cs2_math_addpercent(int value, int percent)
+cs2_math_addpercent(
+    int value,
+    int percent)
 {
     return value + (int)(((int64_t)value * percent) / 100);
 }
 
 /* SCALE (4018): c * a / b in 64-bit, 0 when b is 0. Stack (top first): c, b, a. */
 static inline int
-cs2_math_scale(int a, int b, int c)
+cs2_math_scale(
+    int a,
+    int b,
+    int c)
 {
     return b != 0 ? (int)(((int64_t)c * (int64_t)a) / (int64_t)b) : 0;
 }
@@ -7052,19 +7141,25 @@ cs2_bit_range_mask(
 }
 
 static inline int
-cs2_math_setbit(int value, int bit)
+cs2_math_setbit(
+    int value,
+    int bit)
 {
     return cs2_bit_in_range(bit) ? value | (int)(1u << bit) : value;
 }
 
 static inline int
-cs2_math_clearbit(int value, int bit)
+cs2_math_clearbit(
+    int value,
+    int bit)
 {
     return cs2_bit_in_range(bit) ? value & ~(int)(1u << bit) : value;
 }
 
 static inline int
-cs2_math_testbit(int value, int bit)
+cs2_math_testbit(
+    int value,
+    int bit)
 {
     if( !cs2_bit_in_range(bit) )
         return 0;
@@ -7074,7 +7169,9 @@ cs2_math_testbit(int value, int bit)
 /* TOGGLEBIT (4026) has no range test in the reference: Java's << takes the
  * count mod 32. */
 static inline int
-cs2_math_togglebit(int value, int bit)
+cs2_math_togglebit(
+    int value,
+    int bit)
 {
     return value ^ (int)(1u << (bit & 31));
 }
@@ -7082,7 +7179,11 @@ cs2_math_togglebit(int value, int bit)
 /* The three range opcodes that build a mask answer false where the reference
  * throws (a high below its low), which ends the script. */
 static inline bool
-cs2_math_setbit_range(int value, int low, int high, int* out)
+cs2_math_setbit_range(
+    int value,
+    int low,
+    int high,
+    int* out)
 {
     int mask;
     if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
@@ -7097,7 +7198,11 @@ cs2_math_setbit_range(int value, int low, int high, int* out)
 }
 
 static inline bool
-cs2_math_clearbit_range(int value, int low, int high, int* out)
+cs2_math_clearbit_range(
+    int value,
+    int low,
+    int high,
+    int* out)
 {
     int mask;
     if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
@@ -7113,7 +7218,10 @@ cs2_math_clearbit_range(int value, int low, int high, int* out)
 
 /* 4029: value << (31 - high) >>> (low + 31 - high), the count mod 32. */
 static inline int
-cs2_math_getbit_range(int value, int low, int high)
+cs2_math_getbit_range(
+    int value,
+    int low,
+    int high)
 {
     if( !cs2_bit_in_range(low) || !cs2_bit_in_range(high) )
         return value;
@@ -7124,7 +7232,12 @@ cs2_math_getbit_range(int value, int low, int high)
 /* Clear bits [low, high] of value, then write new_bits (clamped to the range
  * width) shifted into that position. */
 static inline bool
-cs2_math_setbit_range_value(int value, int new_bits, int low, int high, int* out)
+cs2_math_setbit_range_value(
+    int value,
+    int new_bits,
+    int low,
+    int high,
+    int* out)
 {
     int mask;
     int max_value;
@@ -7615,7 +7728,6 @@ CS2VM2_Op_Enum(
     if( result != CS2VM_EXECNO_OK )
         return result;
 
-
     return CS2VM_EXECNO_OK;
 }
 
@@ -7691,10 +7803,10 @@ CS2VM2_Op_Db(
     assert(vm);
 
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_DB_CASE(name)                                   \
-    case CS2_OP_##name:                                       \
-        memset(&request.u.name, 0, sizeof(request.u.name));    \
-        request.u.name.opcode = opcode;                       \
+#define CS2VM_DB_CASE(name)                                                                        \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
         break
     switch( opcode )
     {
@@ -7795,8 +7907,7 @@ CS2VM2_Op_GetWindowMode(
      * resizable no matter what SETWINDOWMODE had done — the script's own
      * "already in this mode, nothing to do" branch. 0 = the host never set it;
      * resizable is the boot mode this client actually comes up in. */
-    return CS2VM2_PushInt(
-        vm, vm->window_mode > 0 ? vm->window_mode : CS2VM_WINDOW_MODE_RESIZABLE);
+    return CS2VM2_PushInt(vm, vm->window_mode > 0 ? vm->window_mode : CS2VM_WINDOW_MODE_RESIZABLE);
 }
 
 int
@@ -7811,8 +7922,7 @@ CS2VM2_Op_GetDefaultWindowMode(
     (void)operand;
 
     return CS2VM2_PushInt(
-        vm,
-        vm->default_window_mode > 0 ? vm->default_window_mode : CS2VM_WINDOW_MODE_RESIZABLE);
+        vm, vm->default_window_mode > 0 ? vm->default_window_mode : CS2VM_WINDOW_MODE_RESIZABLE);
 }
 
 /* SETWINDOWMODE (5307) / SETDEFAULTWINDOWMODE (5309). Pop the mode, tell the
@@ -7837,8 +7947,8 @@ CS2VM2_Op_SetWindowMode(
     else
         vm->window_mode = mode;
 
-    request.kind = is_default ? CS2VM_HOST_REQUEST_SETDEFAULTWINDOWMODE
-                              : CS2VM_HOST_REQUEST_SETWINDOWMODE;
+    request.kind =
+        is_default ? CS2VM_HOST_REQUEST_SETDEFAULTWINDOWMODE : CS2VM_HOST_REQUEST_SETWINDOWMODE;
     if( is_default )
     {
         memset(&request.u.SETDEFAULTWINDOWMODE, 0, sizeof(request.u.SETDEFAULTWINDOWMODE));
@@ -8310,7 +8420,8 @@ CS2VM2_Op_DefineArray(
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
     {
-        TORIRS_LOG("CS2VM2: array pool exhausted (%d) in script %d\n",
+        TORIRS_LOG(
+            "CS2VM2: array pool exhausted (%d) in script %d\n",
             CS2VM2_MAX_ARRAYS,
             frame->script ? frame->script->script_id : -1);
         vm->array_alloc = CS2VM2_MAX_ARRAYS - 1; /* fail soft: reuse the last */
@@ -8603,13 +8714,15 @@ cs2vm2_array_search(
             char const* cell = array->cells.strings[i];
             if( want_str && strcmp(cell ? cell : "", search_str ? search_str : "") == 0 )
             {
-                if( first_only ) return CS2VM2_PushInt(vm, i);
+                if( first_only )
+                    return CS2VM2_PushInt(vm, i);
                 matches++;
             }
         }
         else if( want_int && array->cells.ints[i] == search_int )
         {
-            if( first_only ) return CS2VM2_PushInt(vm, i);
+            if( first_only )
+                return CS2VM2_PushInt(vm, i);
             matches++;
         }
     }
@@ -8618,7 +8731,10 @@ cs2vm2_array_search(
 }
 
 int
-CS2VM2_Op_ArrayCountMatches(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int operand)
+CS2VM2_Op_ArrayCountMatches(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
 {
     return cs2vm2_array_search(vm, frame, operand, 0);
 }
@@ -8627,7 +8743,10 @@ CS2VM2_Op_ArrayCountMatches(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame
  * arguments as ARRAY_COUNT, but return the first index or -1.
  * Sailing's facility loop searches repeatedly from previous_index + 1. */
 static int
-cs2vm2_array_find(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int operand)
+cs2vm2_array_find(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
 {
     return cs2vm2_array_search(vm, frame, operand, 1);
 }
@@ -8755,7 +8874,8 @@ CS2VM2_Op_ArraySplit(
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
     {
-        TORIRS_LOG("CS2VM2: array pool exhausted (%d) in script %d (STRING_SPLIT)\n",
+        TORIRS_LOG(
+            "CS2VM2: array pool exhausted (%d) in script %d (STRING_SPLIT)\n",
             CS2VM2_MAX_ARRAYS,
             frame->script ? frame->script->script_id : -1);
         return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
@@ -8790,8 +8910,7 @@ CS2VM2_Op_ArraySplit(
                 break;
             }
             size_t part_len = (size_t)(found - cursor);
-            array->cells.strings[array->size++] =
-                CS2VM2_StrDupLen(vm, cursor, part_len);
+            array->cells.strings[array->size++] = CS2VM2_StrDupLen(vm, cursor, part_len);
             cursor = found + sep_len;
         }
     }
@@ -8837,7 +8956,8 @@ CS2VM2_Op_ArrayNew(
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
     {
-        TORIRS_LOG("CS2VM2: array pool exhausted (%d) in script %d (ARRAY_CREATE)\n",
+        TORIRS_LOG(
+            "CS2VM2: array pool exhausted (%d) in script %d (ARRAY_CREATE)\n",
             CS2VM2_MAX_ARRAYS,
             frame->script ? frame->script->script_id : -1);
         return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
@@ -8980,7 +9100,10 @@ cs2vm2_array_arg(
  * an int stride, so an int array's element i is NOT slot i of `cells.strings`;
  * every move has to go through the arm the array actually uses. */
 static void
-cs2vm2_array_swap_cells(struct CS2VM2_Array* array, int i, int j)
+cs2vm2_array_swap_cells(
+    struct CS2VM2_Array* array,
+    int i,
+    int j)
 {
     if( array->is_string )
     {
@@ -9007,13 +9130,18 @@ cs2vm2_array_move_cells(
 {
     assert(dst->is_string == src->is_string);
     if( dst->is_string )
-        memmove(&dst->cells.strings[dst_pos], &src->cells.strings[src_pos], (size_t)count * sizeof(char*));
+        memmove(
+            &dst->cells.strings[dst_pos],
+            &src->cells.strings[src_pos],
+            (size_t)count * sizeof(char*));
     else
         memmove(&dst->cells.ints[dst_pos], &src->cells.ints[src_pos], (size_t)count * sizeof(int));
 }
 
 static int
-cs2vm2_array_fail(char const* what, char const* why)
+cs2vm2_array_fail(
+    char const* what,
+    char const* why)
 {
     TORIRS_LOG("CS2VM2: %s: %s\n", what, why);
     return CS2VM_EXECNO_ERROR;
@@ -9024,7 +9152,9 @@ cs2vm2_array_fail(char const* what, char const* why)
  * 's' are accepted too). A long-typed array is not handled; no 241 script
  * defines one. */
 static int
-cs2vm2_base_type_is_string(int base_type, bool* out_is_string)
+cs2vm2_base_type_is_string(
+    int base_type,
+    bool* out_is_string)
 {
     if( base_type == 0 || base_type == 49 || base_type == 105 )
         *out_is_string = false;
@@ -9043,14 +9173,18 @@ struct cs2vm2_java_random
 };
 
 static int32_t
-cs2vm2_java_random_next(struct cs2vm2_java_random* rng, int bits)
+cs2vm2_java_random_next(
+    struct cs2vm2_java_random* rng,
+    int bits)
 {
     rng->seed = (rng->seed * 0x5DEECE66DULL + 0xBULL) & ((1ULL << 48) - 1);
     return (int32_t)(int64_t)(rng->seed >> (48 - bits));
 }
 
 static int32_t
-cs2vm2_java_random_next_int(struct cs2vm2_java_random* rng, int32_t bound)
+cs2vm2_java_random_next_int(
+    struct cs2vm2_java_random* rng,
+    int32_t bound)
 {
     if( (bound & -bound) == bound )
         return (int32_t)(((int64_t)bound * (int64_t)cs2vm2_java_random_next(rng, 31)) >> 31);
@@ -9177,8 +9311,7 @@ CS2VM2_Op_ArraySwap(struct CS2VM2_Thread* vm)
 {
     int i, j;
     char* handle = NULL;
-    if( CS2VM2_PopInt(vm, &j) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &i) != CS2VM_EXECNO_OK ||
+    if( CS2VM2_PopInt(vm, &j) != CS2VM_EXECNO_OK || CS2VM2_PopInt(vm, &i) != CS2VM_EXECNO_OK ||
         CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     struct CS2VM2_Array* array = cs2vm2_array_arg(vm, handle, "ARRAY_SWAP");
@@ -9260,7 +9393,8 @@ CS2VM2_Op_ArrayInsert(struct CS2VM2_Thread* vm)
         return cs2vm2_array_fail("ARRAY_INSERT", "array is full");
     cs2vm2_array_move_cells(array, index + 1, array, index, array->size - index);
     if( is_string )
-        array->cells.strings[index] = value_str ? CS2VM2_StrDup(vm, value_str) : CS2VM2_StrEmpty(vm);
+        array->cells.strings[index] =
+            value_str ? CS2VM2_StrDup(vm, value_str) : CS2VM2_StrEmpty(vm);
     else
         array->cells.ints[index] = value_int;
     array->size++;
@@ -9508,7 +9642,8 @@ CS2VM2_Op_ChildrenArray(
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
     {
-        TORIRS_LOG("CS2VM2: array pool exhausted (%d) in script %d (IF_QUERY_IDS)\n",
+        TORIRS_LOG(
+            "CS2VM2: array pool exhausted (%d) in script %d (IF_QUERY_IDS)\n",
             CS2VM2_MAX_ARRAYS,
             frame->script ? frame->script->script_id : -1);
         return CS2VM_EXECNO_ERROR;
@@ -10002,8 +10137,7 @@ CS2VM2_Op_IF_SetOnEventDiscard(
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, (enum CS2VM_HostRequestKind)opcode, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, (enum CS2VM_HostRequestKind)opcode, mark);
 }
 
 static int
@@ -10075,7 +10209,8 @@ CS2VM2_ReportUnimplementedOpcode(
     int first;
     int last;
 
-    TORIRS_LOG("CS2VM2: unimplemented opcode %d (%s) — no stack signature\n",
+    TORIRS_LOG(
+        "CS2VM2: unimplemented opcode %d (%s) — no stack signature\n",
         opcode,
         CS2_OpCode_String(opcode));
 
@@ -10089,22 +10224,23 @@ CS2VM2_ReportUnimplementedOpcode(
     if( last > script->op_count )
         last = script->op_count;
 
-    TORIRS_LOG("  in script %d (int_locals=%d str_locals=%d), pc=%d:\n",
+    TORIRS_LOG(
+        "  in script %d (int_locals=%d str_locals=%d), pc=%d:\n",
         script->script_id,
         script->local_int_count,
         script->local_string_count,
         frame->pc);
     for( int pci = first; pci < last; pci++ )
     {
-        TORIRS_ERR("  %s pc=%d op=%d %-22s operand=%d str=%s\n",
+        TORIRS_ERR(
+            "  %s pc=%d op=%d %-22s operand=%d str=%s\n",
             pci == frame->pc ? "->" : "  ",
             pci,
             script->opcodes[pci],
             CS2_OpCode_String(script->opcodes[pci]),
             script->int_operands ? script->int_operands[pci] : 0,
-            (script->string_operands && script->string_operands[pci])
-                ? script->string_operands[pci]
-                : "(null)");
+            (script->string_operands && script->string_operands[pci]) ? script->string_operands[pci]
+                                                                      : "(null)");
     }
 }
 
@@ -10127,7 +10263,9 @@ CS2VM2_ReportUnimplementedOpcode(
  * row — the GET variants are exactly the ones with an int result.
  */
 static int
-CS2VM2_Op_Highlight(struct CS2VM2_Thread* vm, int opcode)
+CS2VM2_Op_Highlight(
+    struct CS2VM2_Thread* vm,
+    int opcode)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
@@ -10171,15 +10309,15 @@ CS2VM2_Op_Highlight(struct CS2VM2_Thread* vm, int opcode)
             return CS2VM_EXECNO_ERROR;
     }
 
-#define CS2VM_HIGHLIGHT_CASE(request_name)                            \
-    case CS2_OP_##request_name:                                       \
-        memset(&request.u.request_name, 0, sizeof(request.u.request_name)); \
-        request.u.request_name.opcode = opcode;                       \
-        request.u.request_name.arg_count = arg_count;                 \
-        request.u.request_name.query = query;                         \
-        request.u.request_name.name = name;                           \
-        for( int i = 0; i < arg_count; i++ )                          \
-            request.u.request_name.args[i] = args[i];                 \
+#define CS2VM_HIGHLIGHT_CASE(request_name)                                                         \
+    case CS2_OP_##request_name:                                                                    \
+        memset(&request.u.request_name, 0, sizeof(request.u.request_name));                        \
+        request.u.request_name.opcode = opcode;                                                    \
+        request.u.request_name.arg_count = arg_count;                                              \
+        request.u.request_name.query = query;                                                      \
+        request.u.request_name.name = name;                                                        \
+        for( int i = 0; i < arg_count; i++ )                                                       \
+            request.u.request_name.args[i] = args[i];                                              \
         break
     switch( opcode )
     {
@@ -10239,7 +10377,9 @@ CS2VM2_Op_Highlight(struct CS2VM2_Thread* vm, int opcode)
 /* LOC_FIND (6803) / TILE_FIND (6951). Both take a coord; LOC_FIND takes a
  * loc type on top of it and leaves the loc it found as the active loc. */
 static int
-CS2VM2_Op_SubjectFind(struct CS2VM2_Thread* vm, int opcode)
+CS2VM2_Op_SubjectFind(
+    struct CS2VM2_Thread* vm,
+    int opcode)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
@@ -10249,19 +10389,18 @@ CS2VM2_Op_SubjectFind(struct CS2VM2_Thread* vm, int opcode)
     int loc_type = -1;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
 
-    if( opcode == CS2_OP_LOC_FIND &&
-        CS2VM2_PopInt(vm, &loc_type) != CS2VM_EXECNO_OK )
+    if( opcode == CS2_OP_LOC_FIND && CS2VM2_PopInt(vm, &loc_type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &coord) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     switch( opcode )
     {
-#define CS2VM_SUBJECT_FIND_CASE(name)                         \
-    case CS2_OP_##name:                                       \
-        memset(&request.u.name, 0, sizeof(request.u.name));    \
-        request.u.name.opcode = opcode;                       \
-        request.u.name.coord = coord;                         \
-        request.u.name.loc_type = loc_type;                   \
+#define CS2VM_SUBJECT_FIND_CASE(name)                                                              \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.coord = coord;                                                              \
+        request.u.name.loc_type = loc_type;                                                        \
         break
         CS2VM_SUBJECT_FIND_CASE(LOC_FIND);
         CS2VM_SUBJECT_FIND_CASE(TILE_FIND);
@@ -10276,7 +10415,8 @@ CS2VM2_Op_SubjectFind(struct CS2VM2_Thread* vm, int opcode)
 /*
  * Scripted entity overlays: the 7200..7214 family, plus the four ops that
  * address an overlay's LAYER where the panel forms address a component id
- * (IF_FIND_ENTITYOVERLAY / CC_FIND_ENTITYOVERLAY / CC_CREATE_ENTITYOVERLAY / CC_DELETEALL_ENTITYOVERLAY).
+ * (IF_FIND_ENTITYOVERLAY / CC_FIND_ENTITYOVERLAY / CC_CREATE_ENTITYOVERLAY /
+ * CC_DELETEALL_ENTITYOVERLAY).
  *
  * Arities come from the generated table for the same reason the highlight
  * family's do: the pop count is the thing a mistake here corrupts silently, and
@@ -10284,7 +10424,10 @@ CS2VM2_Op_SubjectFind(struct CS2VM2_Thread* vm, int opcode)
  * that leave an active component behind. See game/rs_entity_overlay.h.
  */
 static int
-CS2VM2_Op_EntityOverlay(struct CS2VM2_Thread* vm, int opcode, int operand)
+CS2VM2_Op_EntityOverlay(
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    int operand)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
@@ -10309,15 +10452,15 @@ CS2VM2_Op_EntityOverlay(struct CS2VM2_Thread* vm, int opcode, int operand)
         if( CS2VM2_PopInt(vm, &args[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
-#define CS2VM_OVERLAY_CASE(name)                                      \
-    case CS2_OP_##name:                                               \
-        memset(&request.u.name, 0, sizeof(request.u.name));            \
-        request.u.name.opcode = opcode;                               \
-        request.u.name.arg_count = arg_count;                         \
-        request.u.name.query = query;                                 \
-        request.u.name.dot_operand = operand;                         \
-        for( int i = 0; i < arg_count; i++ )                          \
-            request.u.name.args[i] = args[i];                         \
+#define CS2VM_OVERLAY_CASE(name)                                                                   \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.arg_count = arg_count;                                                      \
+        request.u.name.query = query;                                                              \
+        request.u.name.dot_operand = operand;                                                      \
+        for( int i = 0; i < arg_count; i++ )                                                       \
+            request.u.name.args[i] = args[i];                                                      \
         break
     switch( opcode )
     {
@@ -10399,12 +10542,12 @@ CS2VM2_Op_GroundObj(
     }
 
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_GROUNDOBJ_CASE(name)                                  \
-    case CS2_OP_##name:                                             \
-        memset(&request.u.name, 0, sizeof(request.u.name));          \
-        request.u.name.opcode = opcode;                             \
-        request.u.name.coord = coord;                               \
-        request.u.name.index = index;                               \
+#define CS2VM_GROUNDOBJ_CASE(name)                                                                 \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.coord = coord;                                                              \
+        request.u.name.index = index;                                                              \
         break
     switch( opcode )
     {
@@ -10452,16 +10595,16 @@ CS2VM2_Op_Minimenu(
     default:
         break;
     }
-#define CS2VM_MINIMENU_CASE(name)                              \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
+#define CS2VM_MINIMENU_CASE(name)                                                                  \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
         break
-#define CS2VM_MINIMENU_AT_CASE(name)                           \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.index = index;                          \
+#define CS2VM_MINIMENU_AT_CASE(name)                                                               \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.index = index;                                                              \
         break
     switch( opcode )
     {
@@ -10572,7 +10715,8 @@ CS2VM2_Op_ClientRejects(
 {
     assert(vm);
     (void)vm;
-    TORIRS_LOG("CS2VM2: opcode %d (%s) is not implemented by the reference client; the script aborts\n",
+    TORIRS_LOG(
+        "CS2VM2: opcode %d (%s) is not implemented by the reference client; the script aborts\n",
         opcode,
         CS2_OpCode_String(opcode));
     return CS2VM_EXECNO_ERROR;
@@ -10608,12 +10752,12 @@ CS2VM2_Op_ClientOption(
         if( CS2VM2_PopInt(vm, &option_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
-#define CS2VM_CLIENT_OPTION_CASE(name)                         \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.option_id = option_id;                  \
-        request.u.name.value = value;                          \
+#define CS2VM_CLIENT_OPTION_CASE(name)                                                             \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.option_id = option_id;                                                      \
+        request.u.name.value = value;                                                              \
         break
     switch( opcode )
     {
@@ -10667,14 +10811,14 @@ CS2VM2_Op_ClientOp(
     }
     if( CS2VM2_PopInt(vm, &slot) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-#define CS2VM_CLIENT_OP_CASE(name)                             \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.is_set = is_set;                        \
-        request.u.name.slot = slot;                            \
-        request.u.name.script_id = script_id;                  \
-        request.u.name.label = label;                          \
+#define CS2VM_CLIENT_OP_CASE(name)                                                                 \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.is_set = is_set;                                                            \
+        request.u.name.slot = slot;                                                                \
+        request.u.name.script_id = script_id;                                                      \
+        request.u.name.label = label;                                                              \
         break
     switch( opcode )
     {
@@ -10697,7 +10841,8 @@ CS2VM2_Op_ClientOp(
 }
 
 /*
- * The client op's SUBJECT: `NPC_NAME..NPC_TYPE` (6750..6753), `LOC_NAME..LOC_TYPE` (6800..6802), `OBJ_NAME..OBJ_TYPE` (6850..6852),
+ * The client op's SUBJECT: `NPC_NAME..NPC_TYPE` (6750..6753), `LOC_NAME..LOC_TYPE` (6800..6802),
+ * `OBJ_NAME..OBJ_TYPE` (6850..6852),
  * `_6900`, `_6950`.
  *
  * No arguments to pop -- they are bare reads of the op being dispatched -- so
@@ -10705,17 +10850,19 @@ CS2VM2_Op_ClientOp(
  * the MINIMENU_* getters beside them.
  */
 static int
-CS2VM2_Op_ClientOpContext(struct CS2VM2_Thread* vm, int opcode)
+CS2VM2_Op_ClientOpContext(
+    struct CS2VM2_Thread* vm,
+    int opcode)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
 
     struct CS2VM_HostRequest request;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_CLIENT_CONTEXT_CASE(name)                        \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
+#define CS2VM_CLIENT_CONTEXT_CASE(name)                                                            \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
         break
     switch( opcode )
     {
@@ -10756,7 +10903,9 @@ CS2VM2_Op_ClientOpContext(struct CS2VM2_Thread* vm, int opcode)
  * `player->m_routeLength`, having first asserted `m_activePlayer != -1`.
  */
 static int
-CS2VM2_Op_ActivePlayer(struct CS2VM2_Thread* vm, int opcode)
+CS2VM2_Op_ActivePlayer(
+    struct CS2VM2_Thread* vm,
+    int opcode)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
@@ -10768,11 +10917,11 @@ CS2VM2_Op_ActivePlayer(struct CS2VM2_Thread* vm, int opcode)
         CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-#define CS2VM_ACTIVE_PLAYER_CASE(name)                         \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.index = index;                          \
+#define CS2VM_ACTIVE_PLAYER_CASE(name)                                                             \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.index = index;                                                              \
         break
     switch( opcode )
     {
@@ -10852,14 +11001,14 @@ CS2VM2_Op_LocalNotification(
         break;
     }
 
-#define CS2VM_LOCAL_NOTIFICATION_CASE(name)                    \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.id = id;                                \
-        request.u.name.delay_ms = delay_ms;                    \
-        request.u.name.title = title;                          \
-        request.u.name.body = body;                            \
+#define CS2VM_LOCAL_NOTIFICATION_CASE(name)                                                        \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.id = id;                                                                    \
+        request.u.name.delay_ms = delay_ms;                                                        \
+        request.u.name.title = title;                                                              \
+        request.u.name.body = body;                                                                \
         break
     switch( opcode )
     {
@@ -10896,11 +11045,11 @@ CS2VM2_Op_Minimap(
         if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
-#define CS2VM_MINIMAP_CASE(name)                               \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.value = value;                          \
+#define CS2VM_MINIMAP_CASE(name)                                                                   \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.value = value;                                                              \
         break
     switch( opcode )
     {
@@ -10938,13 +11087,13 @@ CS2VM2_Op_Viewport(
         if( CS2VM2_PopInt(vm, &args[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
-#define CS2VM_VIEWPORT_CASE(name)                              \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.arg_count = pop_count;                  \
-        for( int i = 0; i < pop_count; i++ )                   \
-            request.u.name.args[i] = args[i];                  \
+#define CS2VM_VIEWPORT_CASE(name)                                                                  \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.arg_count = pop_count;                                                      \
+        for( int i = 0; i < pop_count; i++ )                                                       \
+            request.u.name.args[i] = args[i];                                                      \
         break
     switch( opcode )
     {
@@ -10982,11 +11131,11 @@ CS2VM2_Op_UiZoom(
         if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
-#define CS2VM_UIZOOM_CASE(name)                                \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.value = value;                          \
+#define CS2VM_UIZOOM_CASE(name)                                                                    \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.value = value;                                                              \
         break
     switch( opcode )
     {
@@ -11014,10 +11163,10 @@ CS2VM2_Op_SafeArea(
 
     struct CS2VM_HostRequest request;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_SAFEAREA_CASE(name)                               \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
+#define CS2VM_SAFEAREA_CASE(name)                                                                  \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
         break
     switch( opcode )
     {
@@ -11064,31 +11213,31 @@ static struct CS2VM2OpcodeStackRs2 const g_cs2vm2_opcode_stack_rs2[] = {
     /* 202/203: remove a widget from its group array (Class66.method714/702).
      * Canonical 202 is IF_FIND_ENTITYOVERLAY, which answers a bool the RS2 form has no
      * value for -- so RS2 diverts to the stub rather than running it. */
-    { 202, { 1, 0, 0, 0, 1 } },
+    { 202,  { 1, 0, 0, 0, 1 }  },
     /* 1122 / 2122: CC_/IF_ set of the type-5 flag bit 1 (Class46.aBoolean745).
      * The IF_ form pops the component id first (Class66:2731 `i -= 1000`). */
-    { 1122, { 1, 0, 0, 0, 1 } },
+    { 1122, { 1, 0, 0, 0, 1 }  },
     /* 1311/2314 collide with CC_SETSUBOP and IF_SETOPPRIORITY: at 634
      * both are plain one-int widget setters (Class66 `class46.anInt713` /
      * `anInt719`). */
-    { 1311, { 1, 0, 0, 0, 1 } },
-    { 2122, { 2, 0, 0, 0, 1 } },
-    { 2314, { 2, 0, 0, 0, 1 } },
+    { 1311, { 1, 0, 0, 0, 1 }  },
+    { 2122, { 2, 0, 0, 0, 1 }  },
+    { 2314, { 2, 0, 0, 0, 1 }  },
     /* 2703: count of a widget's dynamic children (Class46.aClass46Array798). */
-    { 2703, { 1, 0, 1, 0, 1 } },
+    { 2703, { 1, 0, 1, 0, 1 }  },
     /* 3316 STAFFMODLEVEL and 3323 PLAYERMOD used to sit here. Both now carry the
      * same signature in the canonical table (gen_opcode_stack.py's MANUAL_STACK),
      * and the two eras agree on it, so an overlay entry would only shadow an
      * identical one. */
-    { 3329, { 0, 0, 1, 0, 1 } }, /* Class50_Sub2.aBoolean5233 */
-    { 3335, { 0, 0, 1, 0, 1 } }, /* language index (Class348_Sub33.anInt6967) */
-    { 3340, { 0, 0, 1, 0, 1 } }, /* Class175.aBoolean2329 */
-    { 3351, { 0, 0, 3, 0, 1 } }, /* three mouse-button booleans, one call */
+    { 3329, { 0, 0, 1, 0, 1 }  }, /* Class50_Sub2.aBoolean5233 */
+    { 3335, { 0, 0, 1, 0, 1 }  }, /* language index (Class348_Sub33.anInt6967) */
+    { 3340, { 0, 0, 1, 0, 1 }  }, /* Class175.aBoolean2329 */
+    { 3351, { 0, 0, 3, 0, 1 }  }, /* three mouse-button booleans, one call */
     /* 3609/3619 take a name string where the canonical pair takes an int. */
-    { 3609, { 0, 1, 1, 0, 1 } }, /* friend test by display name */
-    { 3619, { 0, 1, 0, 0, 1 } }, /* join clan chat by owner name */
-    { 4124, { 2, 0, 0, 1, 1 } }, /* (value, comma-group) -> formatted number */
-    { 4125, { 1, 1, 1, 0, 1 } }, /* (font, text) -> rendered width */
+    { 3609, { 0, 1, 1, 0, 1 }  }, /* friend test by display name */
+    { 3619, { 0, 1, 0, 0, 1 }  }, /* join clan chat by owner name */
+    { 4124, { 2, 0, 0, 1, 1 }  }, /* (value, comma-group) -> formatted number */
+    { 4125, { 1, 1, 1, 0, 1 }  }, /* (font, text) -> rendered width */
     /*
      * 5003..5024 are a friend/ignore-record accessor family at 634 — every one
      * takes a list index and reads a field off the record
@@ -11097,45 +11246,43 @@ static struct CS2VM2OpcodeStackRs2 const g_cs2vm2_opcode_stack_rs2[] = {
      * type, so these have to be overridden even where the two happen to agree on
      * the count.
      */
-    { 5003, { 1, 0, 0, 1, 1 } },
-    { 5004, { 1, 0, 1, 0, 1 } },
-    { 5010, { 1, 0, 0, 1, 1 } },
-    { 5011, { 1, 0, 0, 1, 1 } },
-    { 5012, { 1, 0, 1, 0, 1 } },
-    { 5019, { 1, 0, 0, 1, 1 } },
-    { 5024, { 1, 0, 1, 0, 1 } },
-    { 5056, { 1, 0, 1, 0, 1 } }, /* array length or 0 */
-    { 5102, { 0, 0, 1, 0, 1 } }, /* key-down test */
-    { 5420, { 0, 0, 1, 0, 1 } },
+    { 5003, { 1, 0, 0, 1, 1 }  },
+    { 5004, { 1, 0, 1, 0, 1 }  },
+    { 5010, { 1, 0, 0, 1, 1 }  },
+    { 5011, { 1, 0, 0, 1, 1 }  },
+    { 5012, { 1, 0, 1, 0, 1 }  },
+    { 5019, { 1, 0, 0, 1, 1 }  },
+    { 5024, { 1, 0, 1, 0, 1 }  },
+    { 5056, { 1, 0, 1, 0, 1 }  }, /* array length or 0 */
+    { 5102, { 0, 0, 1, 0, 1 }  }, /* key-down test */
+    { 5420, { 0, 0, 1, 0, 1 }  },
     /* 5424: eleven ints — four chat/scroll geometry values, five sprite ids the
      * client immediately preloads, then two more. Sets the chat scrollbar skin. */
     { 5424, { 11, 0, 0, 0, 1 } },
-    { 5428, { 2, 0, 1, 0, 1 } },
-    { 5504, { 2, 0, 0, 0, 1 } }, /* CAM_FORCEANGLE */
-    { 5505, { 0, 0, 1, 0, 1 } }, /* CAM_GETANGLE_XA */
-    { 5506, { 0, 0, 1, 0, 1 } }, /* CAM_GETANGLE_YA */
-    { 5507, { 0, 0, 0, 0, 1 } },
-    { 5508, { 0, 0, 0, 0, 1 } },
-    { 5509, { 0, 0, 0, 0, 1 } },
-    { 5510, { 0, 0, 0, 0, 1 } },
-    { 5547, { 0, 0, 1, 0, 1 } },
+    { 5428, { 2, 0, 1, 0, 1 }  },
+    { 5504, { 2, 0, 0, 0, 1 }  }, /* CAM_FORCEANGLE */
+    { 5505, { 0, 0, 1, 0, 1 }  }, /* CAM_GETANGLE_XA */
+    { 5506, { 0, 0, 1, 0, 1 }  }, /* CAM_GETANGLE_YA */
+    { 5507, { 0, 0, 0, 0, 1 }  },
+    { 5508, { 0, 0, 0, 0, 1 }  },
+    { 5509, { 0, 0, 0, 0, 1 }  },
+    { 5510, { 0, 0, 0, 0, 1 }  },
+    { 5547, { 0, 0, 1, 0, 1 }  },
     /* 6506 WORLDLIST_SPECIFIC(world) -> id, name, loc-id, loc-name, flags,
      * players, activity. Four ints and three strings, interleaved on the wire but
      * split across the two stacks. */
-    { 6506, { 1, 0, 4, 3, 1 } },
-    { 6510, { 0, 0, 1, 0, 1 } },
-    { 6900, { 0, 0, 1, 0, 1 } },
+    { 6506, { 1, 0, 4, 3, 1 }  },
+    { 6510, { 0, 0, 1, 0, 1 }  },
+    { 6900, { 0, 0, 1, 0, 1 }  },
 };
 
 #ifndef NDEBUG
 static void
 cs2vm2_opcode_stack_rs2_assert_sorted(void)
 {
-    size_t const count = sizeof(g_cs2vm2_opcode_stack_rs2) /
-                         sizeof(g_cs2vm2_opcode_stack_rs2[0]);
+    size_t const count = sizeof(g_cs2vm2_opcode_stack_rs2) / sizeof(g_cs2vm2_opcode_stack_rs2[0]);
     for( size_t i = 1; i < count; i++ )
-        assert(g_cs2vm2_opcode_stack_rs2[i - 1].opcode <
-               g_cs2vm2_opcode_stack_rs2[i].opcode);
+        assert(g_cs2vm2_opcode_stack_rs2[i - 1].opcode < g_cs2vm2_opcode_stack_rs2[i].opcode);
 }
 #endif
 
@@ -11151,8 +11298,7 @@ cs2vm2_opcode_stack_rs2_lookup(
      * thousands of those cycles per input event. Keep the table as the single
      * source of truth, but search it logarithmically. */
     size_t low = 0;
-    size_t high = sizeof(g_cs2vm2_opcode_stack_rs2) /
-                  sizeof(g_cs2vm2_opcode_stack_rs2[0]);
+    size_t high = sizeof(g_cs2vm2_opcode_stack_rs2) / sizeof(g_cs2vm2_opcode_stack_rs2[0]);
     if( opcode < (int)g_cs2vm2_opcode_stack_rs2[0].opcode ||
         opcode > (int)g_cs2vm2_opcode_stack_rs2[high - 1].opcode )
         return false;
@@ -11165,8 +11311,7 @@ cs2vm2_opcode_stack_rs2_lookup(
         else
             high = middle;
     }
-    if( low < sizeof(g_cs2vm2_opcode_stack_rs2) /
-                  sizeof(g_cs2vm2_opcode_stack_rs2[0]) &&
+    if( low < sizeof(g_cs2vm2_opcode_stack_rs2) / sizeof(g_cs2vm2_opcode_stack_rs2[0]) &&
         g_cs2vm2_opcode_stack_rs2[low].opcode == (uint16_t)opcode )
     {
         if( out )
@@ -11257,7 +11402,8 @@ CS2VM2_Op_StackMetaStub(
             {
                 if( in_table )
                     reported[opcode] = true;
-                TORIRS_LOG("cs2-survey: opcode %d unimplemented (script %d pc %d)\n",
+                TORIRS_LOG(
+                    "cs2-survey: opcode %d unimplemented (script %d pc %d)\n",
                     opcode,
                     frame->script ? frame->script->script_id : -1,
                     frame->pc);
@@ -11284,7 +11430,8 @@ CS2VM2_Op_StackMetaStub(
         if( !announced[opcode] )
         {
             announced[opcode] = true;
-            TORIRS_LOG("cs2-stub: opcode %d has an inherited signature (%d,%d,%d,%d) but no "
+            TORIRS_LOG(
+                "cs2-stub: opcode %d has an inherited signature (%d,%d,%d,%d) but no "
                 "implementation — stack balanced, results faked (script %d pc %d)\n",
                 opcode,
                 meta.int_in,
@@ -11353,18 +11500,18 @@ CS2VM2_Op_WorldMapFamily(
     }
 
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_WORLDMAP_CASE(name)                              \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.arg0 = args[0];                         \
-        request.u.name.arg1 = args[1];                         \
+#define CS2VM_WORLDMAP_CASE(name)                                                                  \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.arg0 = args[0];                                                             \
+        request.u.name.arg1 = args[1];                                                             \
         break
-#define CS2VM_MEC_CASE(name)                                   \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.mec_id = args[0];                       \
+#define CS2VM_MEC_CASE(name)                                                                       \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.mec_id = args[0];                                                           \
         break
     switch( opcode )
     {
@@ -11485,7 +11632,9 @@ CS2VM2_Op_OC_Param(
  * record to look in.
  */
 static int
-CS2VM2_Op_TypeParam(struct CS2VM2_Thread* vm, int opcode)
+CS2VM2_Op_TypeParam(
+    struct CS2VM2_Thread* vm,
+    int opcode)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     int param_id;
@@ -11499,8 +11648,8 @@ CS2VM2_Op_TypeParam(struct CS2VM2_Thread* vm, int opcode)
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    request.kind = opcode == CS2_OP_NC_PARAM ? CS2VM_HOST_REQUEST_NC_PARAM
-                                             : CS2VM_HOST_REQUEST_LC_PARAM;
+    request.kind =
+        opcode == CS2_OP_NC_PARAM ? CS2VM_HOST_REQUEST_NC_PARAM : CS2VM_HOST_REQUEST_LC_PARAM;
     if( opcode == CS2_OP_NC_PARAM )
     {
         memset(&request.u.NC_PARAM, 0, sizeof(request.u.NC_PARAM));
@@ -11627,12 +11776,12 @@ CS2VM2_Op_OC_ActionString(
     request.kind = kind;
     switch( kind )
     {
-#define CS2VM_OC_ACTION_CASE(name)                             \
-    case CS2VM_HOST_REQUEST_##name:                            \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.item_id = item_id;                      \
-        request.u.name.op_index = op_index - 1;                \
+#define CS2VM_OC_ACTION_CASE(name)                                                                 \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.item_id = item_id;                                                          \
+        request.u.name.op_index = op_index - 1;                                                    \
         break
         CS2VM_OC_ACTION_CASE(OC_OP);
         CS2VM_OC_ACTION_CASE(OC_IOP);
@@ -11646,8 +11795,7 @@ CS2VM2_Op_OC_ActionString(
 
 /* OC_DESC: real data (ToriRS_Objtype.desc). */
 static int
-CS2VM2_Op_OC_Examine(
-    struct CS2VM2_Thread* vm)
+CS2VM2_Op_OC_Examine(struct CS2VM2_Thread* vm)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
@@ -11666,8 +11814,7 @@ CS2VM2_Op_OC_Examine(
 /* OC_PLACEHOLDER: mirrors OC_UNPLACEHOLDER's identity-passthrough stub (no
  * placeholder linkage data exists yet). */
 static int
-CS2VM2_Op_OC_Placeholder(
-    struct CS2VM2_Thread* vm)
+CS2VM2_Op_OC_Placeholder(struct CS2VM2_Thread* vm)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
@@ -11713,11 +11860,11 @@ CS2VM2_Op_OC_Find(
 
     struct CS2VM_HostRequest request;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_OC_FIND_CASE(name)                               \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.query = query;                          \
+#define CS2VM_OC_FIND_CASE(name)                                                                   \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.query = query;                                                              \
         break
     switch( opcode )
     {
@@ -11917,14 +12064,14 @@ CS2VM2_Op_Loot(
         return CS2VM_EXECNO_ERROR;
     }
 
-#define CS2VM_LOOT_CASE(request_name)                                  \
-    case CS2_OP_##request_name:                                        \
-        memset(&request.u.request_name, 0, sizeof(request.u.request_name)); \
-        request.u.request_name.opcode = opcode;                        \
-        request.u.request_name.name = name;                            \
-        request.u.request_name.int_arg_count = int_arg_count;          \
-        for( int i = 0; i < int_arg_count; i++ )                       \
-            request.u.request_name.int_args[i] = int_args[i];          \
+#define CS2VM_LOOT_CASE(request_name)                                                              \
+    case CS2_OP_##request_name:                                                                    \
+        memset(&request.u.request_name, 0, sizeof(request.u.request_name));                        \
+        request.u.request_name.opcode = opcode;                                                    \
+        request.u.request_name.name = name;                                                        \
+        request.u.request_name.int_arg_count = int_arg_count;                                      \
+        for( int i = 0; i < int_arg_count; i++ )                                                   \
+            request.u.request_name.int_args[i] = int_args[i];                                      \
         break
     switch( opcode )
     {
@@ -12022,12 +12169,12 @@ CS2VM2_Op_Hiscores(
     }
     switch( opcode )
     {
-#define CS2VM_HISCORES_CASE(name_)                             \
-    case CS2_OP_##name_:                                       \
-        memset(&request.u.name_, 0, sizeof(request.u.name_));   \
-        request.u.name_.opcode = opcode;                       \
-        request.u.name_.key = key;                             \
-        request.u.name_.name = name;                           \
+#define CS2VM_HISCORES_CASE(name_)                                                                 \
+    case CS2_OP_##name_:                                                                           \
+        memset(&request.u.name_, 0, sizeof(request.u.name_));                                      \
+        request.u.name_.opcode = opcode;                                                           \
+        request.u.name_.key = key;                                                                 \
+        request.u.name_.name = name;                                                               \
         break
         CS2VM_HISCORES_CASE(HISCORE_LOOKUP);
         CS2VM_HISCORES_CASE(HISCORE_GETRANK);
@@ -12135,12 +12282,12 @@ CS2VM2_Op_Social(
         return CS2VM_EXECNO_ERROR;
     }
 
-#define CS2VM_SOCIAL_CASE(request_name)                         \
-    case CS2_OP_##request_name:                                 \
-        memset(&request.u.request_name, 0, sizeof(request.u.request_name)); \
-        request.u.request_name.opcode = opcode;                 \
-        request.u.request_name.index = index;                   \
-        request.u.request_name.name = name;                     \
+#define CS2VM_SOCIAL_CASE(request_name)                                                            \
+    case CS2_OP_##request_name:                                                                    \
+        memset(&request.u.request_name, 0, sizeof(request.u.request_name));                        \
+        request.u.request_name.opcode = opcode;                                                    \
+        request.u.request_name.index = index;                                                      \
+        request.u.request_name.name = name;                                                        \
         break
     switch( opcode )
     {
@@ -12303,20 +12450,20 @@ CS2VM2_Op_Chat(
         return CS2VM_EXECNO_ERROR;
     }
 
-#define CS2VM_CHAT_CASE(request_name)                                  \
-    case CS2_OP_##request_name:                                        \
-        memset(&request.u.request_name, 0, sizeof(request.u.request_name)); \
-        request.u.request_name.opcode = opcode;                        \
-        request.u.request_name.public_mode = public_mode;              \
-        request.u.request_name.private_mode = private_mode;            \
-        request.u.request_name.trade_mode = trade_mode;                \
-        request.u.request_name.type = type;                            \
-        request.u.request_name.line = line;                            \
-        request.u.request_name.uid = uid;                              \
-        request.u.request_name.timestamps = timestamps;               \
-        request.u.request_name.colour_effect = colour_effect;         \
-        request.u.request_name.name = name;                            \
-        request.u.request_name.text = text;                            \
+#define CS2VM_CHAT_CASE(request_name)                                                              \
+    case CS2_OP_##request_name:                                                                    \
+        memset(&request.u.request_name, 0, sizeof(request.u.request_name));                        \
+        request.u.request_name.opcode = opcode;                                                    \
+        request.u.request_name.public_mode = public_mode;                                          \
+        request.u.request_name.private_mode = private_mode;                                        \
+        request.u.request_name.trade_mode = trade_mode;                                            \
+        request.u.request_name.type = type;                                                        \
+        request.u.request_name.line = line;                                                        \
+        request.u.request_name.uid = uid;                                                          \
+        request.u.request_name.timestamps = timestamps;                                            \
+        request.u.request_name.colour_effect = colour_effect;                                      \
+        request.u.request_name.name = name;                                                        \
+        request.u.request_name.text = text;                                                        \
         break
     switch( opcode )
     {
@@ -12353,8 +12500,7 @@ CS2VM2_Op_Chat(
 /* OC_SHIFTCLICKIOP: one obj id in, the 1-based inventory op a shift-click runs
  * out (-1 for none). The host owns the rule; see exec_oc_shiftclickiop. */
 static int
-CS2VM2_Op_OC_ShiftClickIop(
-    struct CS2VM2_Thread* vm)
+CS2VM2_Op_OC_ShiftClickIop(struct CS2VM2_Thread* vm)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
@@ -12387,11 +12533,11 @@ CS2VM2_Op_OC_WearPos(
     request.kind = (enum CS2VM_HostRequestKind)opcode;
     switch( opcode )
     {
-#define CS2VM_OC_WEARPOS_CASE(name)                            \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.opcode = opcode;                        \
-        request.u.name.item_id = item_id;                      \
+#define CS2VM_OC_WEARPOS_CASE(name)                                                                \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.opcode = opcode;                                                            \
+        request.u.name.item_id = item_id;                                                          \
         break
         CS2VM_OC_WEARPOS_CASE(OC_WEARPOS);
         CS2VM_OC_WEARPOS_CASE(OC_WEARPOS2);
@@ -12406,8 +12552,7 @@ CS2VM2_Op_OC_WearPos(
 
 /* OC_WEIGHT: no weight data exists yet. */
 static int
-CS2VM2_Op_OC_Weight(
-    struct CS2VM2_Thread* vm)
+CS2VM2_Op_OC_Weight(struct CS2VM2_Thread* vm)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
@@ -12425,8 +12570,7 @@ CS2VM2_Op_OC_Weight(
 
 /* oc_isubop(obj, opIndex, subIndex) -> string. No sub-menu nesting exists yet. */
 static int
-CS2VM2_Op_OC_Isubop(
-    struct CS2VM2_Thread* vm)
+CS2VM2_Op_OC_Isubop(struct CS2VM2_Thread* vm)
 {
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
@@ -12468,8 +12612,14 @@ CS2VM2_Op_Return(
         int const ints = vm->ints_stack_top - frame->hook_int_base;
         int const strings = vm->strs_stack_top - frame->hook_str_base;
         int const result = CS2VM2_PopFrame(vm);
-        g_cs2_script_hook(g_cs2_script_hook_user, vm, script_id, CS2VM2_SCRIPT_HOOK_POST, invoked,
-                          ints > 0 ? ints : 0, strings > 0 ? strings : 0);
+        g_cs2_script_hook(
+            g_cs2_script_hook_user,
+            vm,
+            script_id,
+            CS2VM2_SCRIPT_HOOK_POST,
+            invoked,
+            ints > 0 ? ints : 0,
+            strings > 0 ? strings : 0);
         return result;
     }
 }
@@ -12612,12 +12762,12 @@ CS2VM2_DispatchWidgetSetInt(
 {
     struct CS2VM_HostRequest request;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_WIDGET_INT_CASE(name)                            \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.component_id = component_id;            \
-        request.u.name.field = field;                          \
-        request.u.name.value = value;                          \
+#define CS2VM_WIDGET_INT_CASE(name)                                                                \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = component_id;                                                \
+        request.u.name.field = field;                                                              \
+        request.u.name.value = value;                                                              \
         break
     switch( opcode )
     {
@@ -12676,9 +12826,8 @@ CS2VM2_Op_CC_WidgetInt(
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int result =
-        CS2VM2_DispatchWidgetSetInt(
-            vm, CS2VM2_DotOrActiveComponentId(vm, operand), field, value, opcode, mark);
+    int result = CS2VM2_DispatchWidgetSetInt(
+        vm, CS2VM2_DotOrActiveComponentId(vm, operand), field, value, opcode, mark);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -12989,12 +13138,12 @@ CS2VM2_Op_CC_SetModelKind(
     struct CS2VM_HostRequest request;
     int component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_CC_MODEL_KIND_CASE(name)                         \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.component_id = component_id;            \
-        request.u.name.model_kind = model_kind;                \
-        request.u.name.model_id = model_id;                    \
+#define CS2VM_CC_MODEL_KIND_CASE(name)                                                             \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = component_id;                                                \
+        request.u.name.model_kind = model_kind;                                                    \
+        request.u.name.model_id = model_id;                                                        \
         break
     switch( opcode )
     {
@@ -13038,12 +13187,12 @@ CS2VM2_Op_IF_SetModelKind(
 
     struct CS2VM_HostRequest request;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_IF_MODEL_KIND_CASE(name)                         \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.component_id = component_id;            \
-        request.u.name.model_kind = model_kind;                \
-        request.u.name.model_id = model_id;                    \
+#define CS2VM_IF_MODEL_KIND_CASE(name)                                                             \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = component_id;                                                \
+        request.u.name.model_kind = model_kind;                                                    \
+        request.u.name.model_id = model_id;                                                        \
         break
     switch( opcode )
     {
@@ -13092,14 +13241,20 @@ CS2VM2_Op_InputPlaceholderText(
     if( if_form )
     {
         request.kind = CS2VM_HOST_REQUEST_IF_INPUT_SETPLACEHOLDERTEXT;
-        memset(&request.u.IF_INPUT_SETPLACEHOLDERTEXT, 0, sizeof(request.u.IF_INPUT_SETPLACEHOLDERTEXT));
+        memset(
+            &request.u.IF_INPUT_SETPLACEHOLDERTEXT,
+            0,
+            sizeof(request.u.IF_INPUT_SETPLACEHOLDERTEXT));
         request.u.IF_INPUT_SETPLACEHOLDERTEXT.component_id = component_id;
         request.u.IF_INPUT_SETPLACEHOLDERTEXT.text = text;
     }
     else
     {
         request.kind = CS2VM_HOST_REQUEST_CC_INPUT_SETPLACEHOLDERTEXT;
-        memset(&request.u.CC_INPUT_SETPLACEHOLDERTEXT, 0, sizeof(request.u.CC_INPUT_SETPLACEHOLDERTEXT));
+        memset(
+            &request.u.CC_INPUT_SETPLACEHOLDERTEXT,
+            0,
+            sizeof(request.u.CC_INPUT_SETPLACEHOLDERTEXT));
         request.u.CC_INPUT_SETPLACEHOLDERTEXT.component_id = component_id;
         request.u.CC_INPUT_SETPLACEHOLDERTEXT.text = text;
     }
@@ -13173,11 +13328,11 @@ CS2VM2_Op_CC_InputInt(
     struct CS2VM_HostRequest request;
     int component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_CC_INPUT_INT_CASE(name)                          \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.component_id = component_id;            \
-        request.u.name.value = value;                          \
+#define CS2VM_CC_INPUT_INT_CASE(name)                                                              \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = component_id;                                                \
+        request.u.name.value = value;                                                              \
         break
     switch( opcode )
     {
@@ -13223,11 +13378,11 @@ CS2VM2_Op_IF_InputInt(
 
     struct CS2VM_HostRequest request;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_IF_INPUT_INT_CASE(name)                          \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.component_id = component_id;            \
-        request.u.name.value = value;                          \
+#define CS2VM_IF_INPUT_INT_CASE(name)                                                              \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = component_id;                                                \
+        request.u.name.value = value;                                                              \
         break
     switch( opcode )
     {
@@ -13343,7 +13498,6 @@ CS2VM2_RunOp(
 
     switch( opcode )
     {
-
     /* === CS2 opcode group: vm-core (0..99) ===
      * VM control flow, locals, vars and arrays.
      * rev-239 dispatch: Statics.method6889 -> inline. */
@@ -13669,8 +13823,7 @@ CS2VM2_RunOp(
     case CS2_OP_CC_SETLINEWID:
         return CS2VM2_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_LINE_WIDTH, opcode);
     case CS2_OP_CC_SETLINEDIRECTION:
-        return CS2VM2_Op_CC_WidgetInt(
-            vm, frame, operand, CS2VM_WIDGET_INT_LINE_DIRECTION, opcode);
+        return CS2VM2_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_LINE_DIRECTION, opcode);
     case CS2_OP_CC_SETCLICKMASK:
         return CS2VM2_Op_CC_SetGraphic2(vm, frame, operand);
     case CS2_OP_CC_SETBLENDTRANS:
@@ -13687,12 +13840,8 @@ CS2VM2_RunOp(
          * a phantom value). */
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_CC_RESUME_PAUSEBUTTON;
-        memset(
-            &request.u.CC_RESUME_PAUSEBUTTON,
-            0,
-            sizeof(request.u.CC_RESUME_PAUSEBUTTON));
-        request.u.CC_RESUME_PAUSEBUTTON.component_id =
-            CS2VM2_DotOrActiveComponentId(vm, operand);
+        memset(&request.u.CC_RESUME_PAUSEBUTTON, 0, sizeof(request.u.CC_RESUME_PAUSEBUTTON));
+        request.u.CC_RESUME_PAUSEBUTTON.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
         return CS2VM2_Ask(vm, &request, mark);
     }
     case CS2_OP_CC_INPUT_SETSELECTCOLOUR:
@@ -13745,8 +13894,7 @@ CS2VM2_RunOp(
     case CS2_OP_IF_SETLINEWID:
         return CS2VM2_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_LINE_WIDTH, opcode);
     case CS2_OP_IF_SETLINEDIRECTION:
-        return CS2VM2_Op_IF_WidgetInt(
-            vm, frame, operand, CS2VM_WIDGET_INT_LINE_DIRECTION, opcode);
+        return CS2VM2_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_LINE_DIRECTION, opcode);
     case CS2_OP_IF_SETBLENDTRANS:
         return CS2VM2_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_TRANS_BOT, opcode);
     case CS2_OP_IF_SETBLENDMODE:
@@ -13820,8 +13968,7 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_NPC_HEAD, true, opcode);
     case CS2_OP_CC_SETLOCMODEL:
-        return CS2VM2_Op_CC_SetModelKind(
-            vm, frame, operand, CS2VM_MODEL_KIND_LOC, true, opcode);
+        return CS2VM2_Op_CC_SetModelKind(vm, frame, operand, CS2VM_MODEL_KIND_LOC, true, opcode);
     case CS2_OP_CC_SETPLAYERHEAD_SELF:
         return CS2VM2_Op_CC_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, false, opcode);
@@ -13835,8 +13982,7 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_NPC_HEAD, true, opcode);
     case CS2_OP_IF_SETLOCMODEL:
-        return CS2VM2_Op_IF_SetModelKind(
-            vm, frame, operand, CS2VM_MODEL_KIND_LOC, true, opcode);
+        return CS2VM2_Op_IF_SetModelKind(vm, frame, operand, CS2VM_MODEL_KIND_LOC, true, opcode);
     case CS2_OP_IF_SETPLAYERHEAD_SELF:
         return CS2VM2_Op_IF_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, false, opcode);
@@ -13916,11 +14062,9 @@ CS2VM2_RunOp(
         return CS2VM_EXECNO_OK;
     }
     case CS2_OP_IF_SETDRAGDEADZONE:
-        return CS2VM2_Op_IF_WidgetInt(
-            vm, frame, operand, CS2VM_WIDGET_INT_DRAG_DEAD_ZONE, opcode);
+        return CS2VM2_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_DRAG_DEAD_ZONE, opcode);
     case CS2_OP_IF_SETDRAGDEADTIME:
-        return CS2VM2_Op_IF_WidgetInt(
-            vm, frame, operand, CS2VM_WIDGET_INT_DRAG_DEAD_TIME, opcode);
+        return CS2VM2_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_DRAG_DEAD_TIME, opcode);
     case CS2_OP_IF_SETALWAYSLEFTCLICK:
         /* The IF twin of 1308. This wrote CLICKMASK -- the component's IF3
          * event flags, ops and drag depth -- under its old name IF_SETCLICKMASK,
@@ -14147,23 +14291,17 @@ CS2VM2_RunOp(
     case CS2_OP_CC_GETTEXT:
         return CS2VM2_Op_CC_GetText(vm, frame, operand);
     case CS2_OP_CC_GETSCROLLWIDTH:
-        return cs2vm2_op_cc_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETSCROLLWIDTH);
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETSCROLLWIDTH);
     case CS2_OP_CC_GETSCROLLHEIGHT:
-        return cs2vm2_op_cc_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETSCROLLHEIGHT);
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETSCROLLHEIGHT);
     case CS2_OP_CC_GETMODELZOOM:
-        return cs2vm2_op_cc_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELZOOM);
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELZOOM);
     case CS2_OP_CC_GETMODELANGLE_X:
-        return cs2vm2_op_cc_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELANGLE_X);
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELANGLE_X);
     case CS2_OP_CC_GETMODELANGLE_Z:
-        return cs2vm2_op_cc_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELANGLE_Z);
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELANGLE_Z);
     case CS2_OP_CC_GETMODELANGLE_Y:
-        return cs2vm2_op_cc_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELANGLE_Y);
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELANGLE_Y);
     case CS2_OP_CC_GETCOLOUR:
         return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETCOLOUR);
     case CS2_OP_CC_GETBLENDCOLOUR:
@@ -14171,19 +14309,15 @@ CS2VM2_RunOp(
     case CS2_OP_CC_GETTRANS:
         return CS2VM2_Op_CC_GetTrans(vm, frame, operand);
     case CS2_OP_CC_GETBLENDTRANS:
-        return cs2vm2_op_cc_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETBLENDTRANS);
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETBLENDTRANS);
     case CS2_OP_CC_GETBLENDMODE:
         return CS2VM2_Op_CC_GetParam(vm, frame, operand);
     case CS2_OP_CC_GETMODELTRANSPARENT:
-        return cs2vm2_op_cc_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELTRANSPARENT);
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELTRANSPARENT);
     case CS2_OP_CC_GETARCSTART:
-        return cs2vm2_op_cc_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETARCSTART);
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETARCSTART);
     case CS2_OP_CC_GETARCEND:
-        return cs2vm2_op_cc_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETARCEND);
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETARCEND);
 
     /* === CS2 opcode group: cc-inventory (1700..1799) ===
      * active-component inventory and identity getters.
@@ -14282,17 +14416,13 @@ CS2VM2_RunOp(
     case CS2_OP_IF_GETTEXT:
         return CS2VM2_Op_IF_GetText(vm, frame, operand);
     case CS2_OP_IF_GETMODELZOOM:
-        return cs2vm2_op_if_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELZOOM);
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELZOOM);
     case CS2_OP_IF_GETMODELANGLE_X:
-        return cs2vm2_op_if_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELANGLE_X);
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELANGLE_X);
     case CS2_OP_IF_GETMODELANGLE_Z:
-        return cs2vm2_op_if_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELANGLE_Z);
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELANGLE_Z);
     case CS2_OP_IF_GETMODELANGLE_Y:
-        return cs2vm2_op_if_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELANGLE_Y);
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELANGLE_Y);
     case CS2_OP_IF_GETTRANS:
         return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETTRANS);
     case CS2_OP_IF_GETCOLOUR:
@@ -14302,8 +14432,7 @@ CS2VM2_RunOp(
     case CS2_OP_IF_GETSCROLLWIDTH:
         return CS2VM2_Op_IF_GetScrollWidth(vm, frame, operand);
     case CS2_OP_IF_GETMODELTRANSPARENT:
-        return cs2vm2_op_if_get_int(
-            vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELTRANSPARENT);
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELTRANSPARENT);
 
     /* === CS2 opcode group: if-inventory (2700..2799) ===
      * interface inventory, parent and identity getters.
@@ -14489,8 +14618,7 @@ CS2VM2_RunOp(
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG;
-        if( CS2VM2_PopStr(vm, &request.u.RESUME_COUNTDIALOG.text) !=
-            CS2VM_EXECNO_OK )
+        if( CS2VM2_PopStr(vm, &request.u.RESUME_COUNTDIALOG.text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         return CS2VM2_Ask(vm, &request, mark);
     }
@@ -14597,9 +14725,8 @@ CS2VM2_RunOp(
         struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
-        request.kind = opcode == CS2_OP_RUNENERGY_VISIBLE
-                           ? CS2VM_HOST_REQUEST_RUNENERGY_VISIBLE
-                           : CS2VM_HOST_REQUEST_RUNWEIGHT_VISIBLE;
+        request.kind = opcode == CS2_OP_RUNENERGY_VISIBLE ? CS2VM_HOST_REQUEST_RUNENERGY_VISIBLE
+                                                          : CS2VM_HOST_REQUEST_RUNWEIGHT_VISIBLE;
         return CS2VM2_Ask(vm, &request, mark);
     }
     case CS2_OP_INV_SIZE:
@@ -14619,7 +14746,7 @@ CS2VM2_RunOp(
         if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK ||
             CS2VM2_PopInt(vm, &inv_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        struct CS2VM_HostRequest request = {0};
+        struct CS2VM_HostRequest request = { 0 };
         request.kind = (enum CS2VM_HostRequestKind)opcode;
         switch( opcode )
         {
@@ -15141,10 +15268,7 @@ CS2VM2_RunOp(
         if( CS2VM2_PopInt(vm, &height) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         request.kind = CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT;
-        memset(
-            &request.u.CAM_SETFOLLOWHEIGHT,
-            0,
-            sizeof(request.u.CAM_SETFOLLOWHEIGHT));
+        memset(&request.u.CAM_SETFOLLOWHEIGHT, 0, sizeof(request.u.CAM_SETFOLLOWHEIGHT));
         request.u.CAM_SETFOLLOWHEIGHT.height = height;
         return CS2VM2_Ask(vm, &request, mark);
     }
@@ -15175,10 +15299,7 @@ CS2VM2_RunOp(
         if( CS2VM2_PopInt(vm, &angle_x) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         request.kind = CS2VM_HOST_REQUEST_CAM_FORCEANGLE;
-        memset(
-            &request.u.CAM_FORCEANGLE,
-            0,
-            sizeof(request.u.CAM_FORCEANGLE));
+        memset(&request.u.CAM_FORCEANGLE, 0, sizeof(request.u.CAM_FORCEANGLE));
         request.u.CAM_FORCEANGLE.angle_x = angle_x;
         request.u.CAM_FORCEANGLE.angle_y = angle_y;
         return CS2VM2_Ask(vm, &request, mark);
@@ -15263,14 +15384,15 @@ CS2VM2_RunOp(
     case CS2_OP_RUNELITE_CALLBACK:
     {
         struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
-        char* name=NULL;
-        if( CS2VM2_PopStr(vm,&name)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
-        struct CS2VM_HostRequest request={.kind=CS2VM_HOST_REQUEST_RUNELITE_CALLBACK};
-        request.u.RUNELITE_CALLBACK.name=name ? name : "";
+        char* name = NULL;
+        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        struct CS2VM_HostRequest request = { .kind = CS2VM_HOST_REQUEST_RUNELITE_CALLBACK };
+        request.u.RUNELITE_CALLBACK.name = name ? name : "";
         /* Callback decisions belong to this opcode. Yielding would replay
          * the callback, so only synchronous completion is accepted. */
-        int result=CS2VM2_Ask(vm, &request, mark);
-        return result==CS2VM_EXECNO_OK ? result : CS2VM_EXECNO_ERROR;
+        int result = CS2VM2_Ask(vm, &request, mark);
+        return result == CS2VM_EXECNO_OK ? result : CS2VM_EXECNO_ERROR;
     }
     case CS2_OP_CLIENTTYPE:
         return CS2VM2_Op_ClientType(vm, frame, operand);
@@ -15327,7 +15449,8 @@ CS2VM2_RunOp(
         {
             request.kind = CS2VM_HOST_REQUEST_MOBILE_KEYBOARDSHOWINTEGER;
             memset(
-                &request.u.MOBILE_KEYBOARDSHOWINTEGER, 0,
+                &request.u.MOBILE_KEYBOARDSHOWINTEGER,
+                0,
                 sizeof(request.u.MOBILE_KEYBOARDSHOWINTEGER));
             request.u.MOBILE_KEYBOARDSHOWINTEGER.text = text;
             request.u.MOBILE_KEYBOARDSHOWINTEGER.limit = limit;
@@ -15336,7 +15459,8 @@ CS2VM2_RunOp(
         {
             request.kind = CS2VM_HOST_REQUEST_MOBILE_KEYBOARDSHOWSTRING;
             memset(
-                &request.u.MOBILE_KEYBOARDSHOWSTRING, 0,
+                &request.u.MOBILE_KEYBOARDSHOWSTRING,
+                0,
                 sizeof(request.u.MOBILE_KEYBOARDSHOWSTRING));
             request.u.MOBILE_KEYBOARDSHOWSTRING.text = text;
             request.u.MOBILE_KEYBOARDSHOWSTRING.limit = limit;
@@ -15453,21 +15577,21 @@ CS2VM2_RunOp(
      * player block's 6902.. are about a route -- and a range would have
      * routed those here too and answered them with a confident zero.
      */
-    case CS2_OP_NPC_NAME: /* npc name   */
-    case CS2_OP_NPC_UID: /* npc uid    */
+    case CS2_OP_NPC_NAME:          /* npc name   */
+    case CS2_OP_NPC_UID:           /* npc uid    */
     case CS2_OP_NPC_CREATIONCYCLE: /* npc coord  */
-    case CS2_OP_NPC_TYPE: /* npc type   */
+    case CS2_OP_NPC_TYPE:          /* npc type   */
         return CS2VM2_Op_ClientOpContext(vm, opcode);
 
     /* === CS2 opcode group: clientop-loc (6800..6899) ===
      * active location and object queries.
      * rev-239 dispatch: Statics.method6889 -> method3101. */
-    case CS2_OP_LOC_NAME: /* loc name   */
+    case CS2_OP_LOC_NAME:  /* loc name   */
     case CS2_OP_LOC_COORD: /* loc coord  */
-    case CS2_OP_LOC_TYPE: /* loc type   */
-    case CS2_OP_OBJ_NAME: /* obj name   */
+    case CS2_OP_LOC_TYPE:  /* loc type   */
+    case CS2_OP_OBJ_NAME:  /* obj name   */
     case CS2_OP_OBJ_COORD: /* obj coord  */
-    case CS2_OP_OBJ_TYPE: /* obj id     */
+    case CS2_OP_OBJ_TYPE:  /* obj id     */
     case CS2_OP_OBJ_COUNT: /* obj count  */
         return CS2VM2_Op_ClientOpContext(vm, opcode);
     case CS2_OP_LOC_FIND:
@@ -15501,7 +15625,7 @@ CS2VM2_RunOp(
      * rev-239 dispatch: Statics.method6889 -> method6167. */
     case CS2_OP_LOGIN_INT24:
         return CS2VM2_Op_LoginInt24(vm, frame, operand);
-    case CS2_OP_P_NAME: /* player name  */
+    case CS2_OP_P_NAME:     /* player name  */
     case CS2_OP_TILE_COORD: /* tile coord */
         return CS2VM2_Op_ClientOpContext(vm, opcode);
     /* The active player's route (6902/6903) and the two player uids
@@ -15739,7 +15863,7 @@ CS2VM2_RunOp(
     case CS2_OP_WORLDENTITY_SETRENDERLIMIT:
     {
         struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
-        struct CS2VM_HostRequest request = {0};
+        struct CS2VM_HostRequest request = { 0 };
         request.kind = CS2VM_HOST_REQUEST_WORLDENTITY_SETRENDERLIMIT;
         if( CS2VM2_PopInt(vm, &request.u.WORLDENTITY_SETRENDERLIMIT.limit) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -15748,7 +15872,7 @@ CS2VM2_RunOp(
     case CS2_OP_WORLDENTITY_GETRENDERLIMIT:
     {
         struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
-        struct CS2VM_HostRequest request = {0};
+        struct CS2VM_HostRequest request = { 0 };
         request.kind = CS2VM_HOST_REQUEST_WORLDENTITY_GETRENDERLIMIT;
         return CS2VM2_Ask(vm, &request, mark);
     }
@@ -15760,29 +15884,40 @@ CS2VM2_RunOp(
     {
         /* Statics.method12336 -> method3374: typed value, offset and count.
          * Native Sailing initializes its thirteen facility slots with -1. */
-        int type, count, offset, value=0;
-        char *text=NULL, *handle=NULL;
-        if( CS2VM2_PopInt(vm,&type)!=CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm,&count)!=CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm,&offset)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
-        if( type==0 )
+        int type, count, offset, value = 0;
+        char *text = NULL, *handle = NULL;
+        if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &count) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &offset) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( type == 0 )
         {
-            if( CS2VM2_PopInt(vm,&value)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+            if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
         }
-        else if( type==2 )
+        else if( type == 2 )
         {
-            if( CS2VM2_PopStr(vm,&text)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+            if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
         }
-        else if( type!=-1 ) return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm,&handle)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
-        struct CS2VM2_Array* array=cs2vm2_array_from_handle(vm,handle);
-        if( !array || (array->is_string ? type==0 : type!=0) ) return CS2VM_EXECNO_ERROR;
-        if( offset<0 ) offset=0;
-        if( offset>array->size ) return CS2VM_EXECNO_ERROR;
-        if( count<0 || count>array->size-offset ) count=array->size-offset;
-        for( int i=0; i<count; ++i )
-            if( array->is_string ) array->cells.strings[offset+i]=text;
-            else array->cells.ints[offset+i]=value;
+        else if( type != -1 )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
+        if( !array || (array->is_string ? type == 0 : type != 0) )
+            return CS2VM_EXECNO_ERROR;
+        if( offset < 0 )
+            offset = 0;
+        if( offset > array->size )
+            return CS2VM_EXECNO_ERROR;
+        if( count < 0 || count > array->size - offset )
+            count = array->size - offset;
+        for( int i = 0; i < count; ++i )
+            if( array->is_string )
+                array->cells.strings[offset + i] = text;
+            else
+                array->cells.ints[offset + i] = value;
         return CS2VM_EXECNO_OK;
     }
     case CS2_OP_ARRAY_GENERATERANGE:
@@ -15792,17 +15927,22 @@ CS2VM2_RunOp(
          * Cargo uses (0,-1,-1) to preserve original slots while sorting. */
         int value, offset, count;
         char* handle;
-        if( CS2VM2_PopInt(vm,&count)!=CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm,&offset)!=CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm,&value)!=CS2VM_EXECNO_OK ||
-            CS2VM2_PopStr(vm,&handle)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
-        struct CS2VM2_Array* array=cs2vm2_array_from_handle(vm,handle);
-        if( !array || array->is_string ) return CS2VM_EXECNO_ERROR;
-        if( offset<0 ) offset=0;
-        if( offset>=array->size ) return CS2VM_EXECNO_OK;
-        if( count<0 || count>array->size-offset ) count=array->size-offset;
-        for( int i=0; i<count; ++i )
-            array->cells.ints[offset+i]=(int)((uint32_t)value+(uint32_t)i);
+        if( CS2VM2_PopInt(vm, &count) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &offset) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
+        if( !array || array->is_string )
+            return CS2VM_EXECNO_ERROR;
+        if( offset < 0 )
+            offset = 0;
+        if( offset >= array->size )
+            return CS2VM_EXECNO_OK;
+        if( count < 0 || count > array->size - offset )
+            count = array->size - offset;
+        for( int i = 0; i < count; ++i )
+            array->cells.ints[offset + i] = (int)((uint32_t)value + (uint32_t)i);
         return CS2VM_EXECNO_OK;
     }
     case CS2_OP_ARRAY_SORT:
@@ -15918,9 +16058,9 @@ CS2VM2_RunOp(
         return CS2VM2_Ask(vm, &request, mark);
     }
 
-    /* === CS2 opcode group: op-count (13000..13999) ===
-     * interpreter operation-count introspection.
-     * rev-239 dispatch: Statics.method6889 -> method6817. */
+        /* === CS2 opcode group: op-count (13000..13999) ===
+         * interpreter operation-count introspection.
+         * rev-239 dispatch: Statics.method6889 -> method6817. */
 
     default:
         return CS2VM2_Op_StackMetaStub(vm, frame, opcode, operand);
@@ -15935,7 +16075,8 @@ CS2VM2_RunOp(
  * so export_name is what keeps this half a function of its own (one extra
  * wasm export, called by nothing in JavaScript). */
 #ifdef __wasm__
-#define CS2VM2_RUNOP_KEEP_OUT_OF_LINE __attribute__((export_name("cs2vm2_run_op_outlined"), noinline))
+#define CS2VM2_RUNOP_KEEP_OUT_OF_LINE                                                              \
+    __attribute__((export_name("cs2vm2_run_op_outlined"), noinline))
 #else
 #define CS2VM2_RUNOP_KEEP_OUT_OF_LINE __attribute__((noinline))
 #endif
@@ -16108,9 +16249,7 @@ CS2VM2_DebugPrintOpCode(
     TORIRS_LOG("\n");
 
     if( opcode == CS2_OP_PUSH_INT_LOCAL || opcode == CS2_OP_POP_INT_LOCAL )
-        TORIRS_LOG("    int_local[%d] = %d\n",
-            operand,
-            cs2vm2_frame_int_local(frame, operand));
+        TORIRS_LOG("    int_local[%d] = %d\n", operand, cs2vm2_frame_int_local(frame, operand));
 
     if( opcode == CS2_OP_PUSH_STRING_LOCAL || opcode == CS2_OP_POP_STRING_LOCAL )
     {
@@ -16139,7 +16278,8 @@ CS2VM2_DebugPrintOpCode(
         int depth = vm->strs_stack_top - 1 - i;
         if( depth >= 0 )
         {
-            TORIRS_ERR("    str arg[%d] (top-%d) = \"%s\"\n",
+            TORIRS_ERR(
+                "    str arg[%d] (top-%d) = \"%s\"\n",
                 i,
                 i,
                 vm->strs_stack[depth] ? vm->strs_stack[depth] : "(null)");
@@ -16295,8 +16435,10 @@ cs2_profile_report(void)
             all_ns += g_cs2_profile[i].ns;
             all_calls += g_cs2_profile[i].calls;
         }
-        TORIRS_LOG("=== cs2 RunScript total: %.3f ms over %llu calls, %llu distinct scripts ===\n",
-            (double)all_ns / 1e6, (unsigned long long)all_calls,
+        TORIRS_LOG(
+            "=== cs2 RunScript total: %.3f ms over %llu calls, %llu distinct scripts ===\n",
+            (double)all_ns / 1e6,
+            (unsigned long long)all_calls,
             (unsigned long long)g_cs2_profile_rows);
     }
     TORIRS_LOG("=== cs2 script profile (top 20 by total wall time) ===\n");
@@ -16312,9 +16454,11 @@ cs2_profile_report(void)
         }
         if( best < 0 )
             break;
-        TORIRS_LOG("  script %-6d %8.3f ms total  %6u calls  %8.3f us/call  %8llu creates  %8llu "
+        TORIRS_LOG(
+            "  script %-6d %8.3f ms total  %6u calls  %8.3f us/call  %8llu creates  %8llu "
             "marks  %8llu topo  %7.2f topo/call  uitree.c:%d\n",
-            g_cs2_profile[best].script_id, (double)g_cs2_profile[best].ns / 1e6,
+            g_cs2_profile[best].script_id,
+            (double)g_cs2_profile[best].ns / 1e6,
             g_cs2_profile[best].calls,
             (double)g_cs2_profile[best].ns / 1e3 / (double)g_cs2_profile[best].calls,
             (unsigned long long)g_cs2_profile[best].creates,
@@ -16337,16 +16481,20 @@ cs2_profile_report(void)
             total_ms += (double)g_cs2_profile[i].ns / 1e6;
             total_calls += g_cs2_profile[i].calls_total;
         }
-        TORIRS_LOG("  ALL %d scripts: %.3f ms total, %llu calls\n", g_cs2_profile_rows,
-            total_ms, (unsigned long long)total_calls);
+        TORIRS_LOG(
+            "  ALL %d scripts: %.3f ms total, %llu calls\n",
+            g_cs2_profile_rows,
+            total_ms,
+            (unsigned long long)total_calls);
     }
     TORIRS_LOG("=== end cs2 script profile ===\n");
 
     /* Cumulative share is the number target 8 is actually choosing against: it
      * says how many distinct opcodes a micro-op set has to cover to reach most
      * of the traffic. Forty rows is enough to see that curve flatten. */
-    TORIRS_LOG("=== cs2 opcode histogram (top 40 of %llu executed) ===\n",
-            (unsigned long long)g_cs2_opcode_hist_total);
+    TORIRS_LOG(
+        "=== cs2 opcode histogram (top 40 of %llu executed) ===\n",
+        (unsigned long long)g_cs2_opcode_hist_total);
     {
         uint64_t running = 0;
         for( int rank = 0; rank < 40; rank++ )
@@ -16362,19 +16510,22 @@ cs2_profile_report(void)
             if( best < 0 )
                 break;
             running += g_cs2_opcode_hist[best];
-            TORIRS_LOG("  op %-6d %10u  %5.2f%%  cum %5.2f%%\n", best,
+            TORIRS_LOG(
+                "  op %-6d %10u  %5.2f%%  cum %5.2f%%\n",
+                best,
                 g_cs2_opcode_hist[best],
                 g_cs2_opcode_hist_total
                     ? 100.0 * (double)g_cs2_opcode_hist[best] / (double)g_cs2_opcode_hist_total
                     : 0.0,
-                g_cs2_opcode_hist_total
-                    ? 100.0 * (double)running / (double)g_cs2_opcode_hist_total
-                    : 0.0);
+                g_cs2_opcode_hist_total ? 100.0 * (double)running / (double)g_cs2_opcode_hist_total
+                                        : 0.0);
             g_cs2_opcode_hist[best] = 0; /* consumed, same selection sort as above */
         }
         if( g_cs2_opcode_hist_dropped )
-            TORIRS_LOG("  (%u executions had an opcode outside [0,%d) and were not counted)\n",
-                g_cs2_opcode_hist_dropped, CS2_OPCODE_HIST_SIZE);
+            TORIRS_LOG(
+                "  (%u executions had an opcode outside [0,%d) and were not counted)\n",
+                g_cs2_opcode_hist_dropped,
+                CS2_OPCODE_HIST_SIZE);
     }
     TORIRS_LOG("=== end cs2 opcode histogram ===\n");
 }
@@ -16429,63 +16580,63 @@ cs2_profile_row_for(int script_id)
 /* The shapes the arithmetic cases share. `a` is under `b`, `b` is the top;
  * with three operands `c` is the top. Each leaves one result where its
  * deepest operand was. */
-#define CS2VM2_HOT_UNARY(expr)                \
-    {                                         \
-        if( top < 1 )                         \
-            goto stop;                        \
-        int const a = stack[top - 1];         \
-        stack[top - 1] = (expr);              \
-        pc += 1;                              \
-    }                                         \
+#define CS2VM2_HOT_UNARY(expr)                                                                     \
+    {                                                                                              \
+        if( top < 1 )                                                                              \
+            goto stop;                                                                             \
+        int const a = stack[top - 1];                                                              \
+        stack[top - 1] = (expr);                                                                   \
+        pc += 1;                                                                                   \
+    }                                                                                              \
     break
-#define CS2VM2_HOT_BINARY(expr)               \
-    {                                         \
-        if( top < 2 )                         \
-            goto stop;                        \
-        int const a = stack[top - 2];         \
-        int const b = stack[top - 1];         \
-        stack[top - 2] = (expr);              \
-        top -= 1;                             \
-        pc += 1;                              \
-    }                                         \
+#define CS2VM2_HOT_BINARY(expr)                                                                    \
+    {                                                                                              \
+        if( top < 2 )                                                                              \
+            goto stop;                                                                             \
+        int const a = stack[top - 2];                                                              \
+        int const b = stack[top - 1];                                                              \
+        stack[top - 2] = (expr);                                                                   \
+        top -= 1;                                                                                  \
+        pc += 1;                                                                                   \
+    }                                                                                              \
     break
 /* `call` answers false where the reference ends the script. */
-#define CS2VM2_HOT_BINARY_CHECKED(call)       \
-    {                                         \
-        int out;                              \
-        if( top < 2 )                         \
-            goto stop;                        \
-        int const a = stack[top - 2];         \
-        int const b = stack[top - 1];         \
-        if( !(call) )                         \
-            goto stop;                        \
-        stack[top - 2] = out;                 \
-        top -= 1;                             \
-        pc += 1;                              \
-    }                                         \
+#define CS2VM2_HOT_BINARY_CHECKED(call)                                                            \
+    {                                                                                              \
+        int out;                                                                                   \
+        if( top < 2 )                                                                              \
+            goto stop;                                                                             \
+        int const a = stack[top - 2];                                                              \
+        int const b = stack[top - 1];                                                              \
+        if( !(call) )                                                                              \
+            goto stop;                                                                             \
+        stack[top - 2] = out;                                                                      \
+        top -= 1;                                                                                  \
+        pc += 1;                                                                                   \
+    }                                                                                              \
     break
-#define CS2VM2_HOT_TERNARY_CHECKED(call)      \
-    {                                         \
-        int out;                              \
-        if( top < 3 )                         \
-            goto stop;                        \
-        int const a = stack[top - 3];         \
-        int const b = stack[top - 2];         \
-        int const c = stack[top - 1];         \
-        if( !(call) )                         \
-            goto stop;                        \
-        stack[top - 3] = out;                 \
-        top -= 2;                             \
-        pc += 1;                              \
-    }                                         \
+#define CS2VM2_HOT_TERNARY_CHECKED(call)                                                           \
+    {                                                                                              \
+        int out;                                                                                   \
+        if( top < 3 )                                                                              \
+            goto stop;                                                                             \
+        int const a = stack[top - 3];                                                              \
+        int const b = stack[top - 2];                                                              \
+        int const c = stack[top - 1];                                                              \
+        if( !(call) )                                                                              \
+            goto stop;                                                                             \
+        stack[top - 3] = out;                                                                      \
+        top -= 2;                                                                                  \
+        pc += 1;                                                                                   \
+    }                                                                                              \
     break
-#define CS2VM2_HOT_BRANCH_IF(cmp)             \
-    {                                         \
-        if( top < 2 )                         \
-            goto stop;                        \
-        top -= 2;                             \
-        pc += 1 + (stack[top] cmp stack[top + 1] ? operand : 0); \
-    }                                         \
+#define CS2VM2_HOT_BRANCH_IF(cmp)                                                                  \
+    {                                                                                              \
+        if( top < 2 )                                                                              \
+            goto stop;                                                                             \
+        top -= 2;                                                                                  \
+        pc += 1 + (stack[top] cmp stack[top + 1] ? operand : 0);                                   \
+    }                                                                                              \
     break
 
 /*
@@ -16555,34 +16706,34 @@ stop:
  * No group contains an instruction that can fail, yield or ask the host.
  */
 #define CS2VM2_JIT_SHAPE_OF(code_) (g_cs2vm2_jit_shapes[(code_) - CS2VM2_JIT_FUSED_FIRST])
-#define CS2VM2_JIT_GUARD(code_)                                                \
-    if( top < CS2VM2_JIT_SHAPE_OF(code_).need ||                               \
-        top > CS2VM_STACK_MAX - CS2VM2_JIT_SHAPE_OF(code_).peak ||             \
-        *cycles > CS2VM_MAX_CYCLES - (CS2VM2_JIT_SHAPE_OF(code_).k - 1) )      \
+#define CS2VM2_JIT_GUARD(code_)                                                                    \
+    if( top < CS2VM2_JIT_SHAPE_OF(code_).need ||                                                   \
+        top > CS2VM_STACK_MAX - CS2VM2_JIT_SHAPE_OF(code_).peak ||                                 \
+        *cycles > CS2VM_MAX_CYCLES - (CS2VM2_JIT_SHAPE_OF(code_).k - 1) )                          \
     goto stop
-#define CS2VM2_JIT_DONE(code_)                                                 \
-    pc += CS2VM2_JIT_SHAPE_OF(code_).k;                                        \
-    *cycles += CS2VM2_JIT_SHAPE_OF(code_).k - 1;                               \
+#define CS2VM2_JIT_DONE(code_)                                                                     \
+    pc += CS2VM2_JIT_SHAPE_OF(code_).k;                                                            \
+    *cycles += CS2VM2_JIT_SHAPE_OF(code_).k - 1;                                                   \
     break
 /* C x; BRcc o -- BRcc pops b (top) and a (under it) and tests a cc b, so this
  * tests the value that was on the stack against x. */
-#define CS2VM2_JIT_CBR(code_, cmp)                                             \
-    CS2VM2_JIT_GUARD(code_);                                                   \
-    {                                                                          \
-        int const off = args[pc + 1];                                          \
-        int const v = stack[--top];                                            \
-        if( v cmp operand )                                                    \
-            pc += off;                                                         \
-    }                                                                          \
+#define CS2VM2_JIT_CBR(code_, cmp)                                                                 \
+    CS2VM2_JIT_GUARD(code_);                                                                       \
+    {                                                                                              \
+        int const off = args[pc + 1];                                                              \
+        int const v = stack[--top];                                                                \
+        if( v cmp operand )                                                                        \
+            pc += off;                                                                             \
+    }                                                                                              \
     CS2VM2_JIT_DONE(code_)
 /* L a; C x; BRcc o / L a; L b; BRcc o: taken if loc[a] cc rhs. */
-#define CS2VM2_JIT_LBR(code_, rhs, cmp)                                        \
-    CS2VM2_JIT_GUARD(code_);                                                   \
-    {                                                                          \
-        int const off = args[pc + 2];                                          \
-        if( locals[operand] cmp (rhs) )                                        \
-            pc += off;                                                         \
-    }                                                                          \
+#define CS2VM2_JIT_LBR(code_, rhs, cmp)                                                            \
+    CS2VM2_JIT_GUARD(code_);                                                                       \
+    {                                                                                              \
+        int const off = args[pc + 2];                                                              \
+        if( locals[operand] cmp(rhs) )                                                             \
+            pc += off;                                                                             \
+    }                                                                                              \
     CS2VM2_JIT_DONE(code_)
 
 /*
@@ -16620,8 +16771,9 @@ cs2vm2_run_hot_jit(
     bool for_general = true;
 
     assert(script->jit->op_count == op_count);
-    assert(script->local_int_count <= 0 || script->local_int_count > CS2VM_MAX_LOCALS ||
-           locals_dirty >= script->local_int_count);
+    assert(
+        script->local_int_count <= 0 || script->local_int_count > CS2VM_MAX_LOCALS ||
+        locals_dirty >= script->local_int_count);
 
     for( ;; )
     {
@@ -16774,11 +16926,11 @@ stop:
  * counter, and thread->cycles_run (cs2vm2.h), which tests and the replay rig
  * compare between a jitted and a plain run. One add per return, none per
  * instruction. */
-#define CS2VM2_COUNT_OPCODES(vm_, n_)                                          \
-    do                                                                         \
-    {                                                                          \
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, (n_));                  \
-        (vm_)->cycles_run += (uint64_t)(n_);                                   \
+#define CS2VM2_COUNT_OPCODES(vm_, n_)                                                              \
+    do                                                                                             \
+    {                                                                                              \
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, (n_));                                      \
+        (vm_)->cycles_run += (uint64_t)(n_);                                                       \
     } while( 0 )
 
 static int
@@ -16787,7 +16939,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
     assert(vm);
     assert(vm->frame_sp > 0);
 
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_SCRIPTS, 1);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_SCRIPTS, 1);
 
     /* ScriptPreFired for a top-level script: its arguments are in its locals
      * and its first opcode has not run. `hooked` keeps a resume after a yield
@@ -16926,9 +17078,10 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
              * where the opcode can be named. */
             if( !vm->yield_unwound )
             {
-                TORIRS_ERR("CS2VM2: opcode %d (script %d, pc %d) yielded without being unwound: its "
-                           "implementation must take a mark (CS2VM2_PrepareYield) and ask through "
-                           "CS2VM2_Ask\n",
+                TORIRS_ERR(
+                    "CS2VM2: opcode %d (script %d, pc %d) yielded without being unwound: its "
+                    "implementation must take a mark (CS2VM2_PrepareYield) and ask through "
+                    "CS2VM2_Ask\n",
                     opcode,
                     frame->script->script_id,
                     op_pc);
@@ -17090,15 +17243,15 @@ CS2VM2_Op_CC_CreateUnderParent(
     /* Arm, not union -- see the note on the varbit-read builder above. */
     struct CS2VM_HostRequest request;
     request.kind = kind;
-#define CS2VM_CC_CREATE_PARENT_CASE(name)                      \
-    case CS2VM_HOST_REQUEST_##name:                            \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.parent_id = parent_id;                  \
-        request.u.name.component_type = type;                  \
-        request.u.name.child_index = child_index;              \
-        request.u.name.is_nested = 0;                          \
-        request.u.name.dot_operand = operand;                  \
-        request.u.name.parent_is_sibling = parent_is_sibling;  \
+#define CS2VM_CC_CREATE_PARENT_CASE(name)                                                          \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.parent_id = parent_id;                                                      \
+        request.u.name.component_type = type;                                                      \
+        request.u.name.child_index = child_index;                                                  \
+        request.u.name.is_nested = 0;                                                              \
+        request.u.name.dot_operand = operand;                                                      \
+        request.u.name.parent_is_sibling = parent_is_sibling;                                      \
         break
     switch( kind )
     {
@@ -17130,8 +17283,7 @@ CS2VM2_Op_CC_ChildrenFindNext(
     assert(vm);
     assert(frame);
 
-    if( vm->children_iter_index >= vm->children_iter_count ||
-        vm->children_iter_parent < 0 )
+    if( vm->children_iter_index >= vm->children_iter_count || vm->children_iter_parent < 0 )
         return CS2VM2_PushInt(vm, 0);
 
     int sub_id = vm->children_iter_indices[vm->children_iter_index];
@@ -17349,11 +17501,11 @@ CS2VM2_Op_CC_FindRelative(
 
     struct CS2VM_HostRequest request;
     request.kind = kind;
-#define CS2VM_CC_FIND_RELATIVE_CASE(name)                                  \
-    case CS2VM_HOST_REQUEST_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));                 \
-        request.u.name.component_id = CS2VM2_DotOrActiveComponentId(vm, operand); \
-        request.u.name.dot_operand = operand;                              \
+#define CS2VM_CC_FIND_RELATIVE_CASE(name)                                                          \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);                  \
+        request.u.name.dot_operand = operand;                                                      \
         break
     switch( kind )
     {
@@ -17390,13 +17542,7 @@ CS2VM2_Op_CC_CreateChild(
         return CS2VM_EXECNO_ERROR;
 
     return CS2VM2_Op_CC_CreateUnderParent(
-        vm,
-        parent_id,
-        type,
-        child_index,
-        operand,
-        CS2VM_HOST_REQUEST_CC_CREATE_CHILD,
-        0, mark);
+        vm, parent_id, type, child_index, operand, CS2VM_HOST_REQUEST_CC_CREATE_CHILD, 0, mark);
 }
 
 int
@@ -17421,13 +17567,7 @@ CS2VM2_Op_CC_CreateSibling(
         return CS2VM_EXECNO_ERROR;
 
     return CS2VM2_Op_CC_CreateUnderParent(
-        vm,
-        current_id,
-        type,
-        child_index,
-        operand,
-        CS2VM_HOST_REQUEST_CC_CREATE_SIBLING,
-        1, mark);
+        vm, current_id, type, child_index, operand, CS2VM_HOST_REQUEST_CC_CREATE_SIBLING, 1, mark);
 }
 
 int
@@ -17785,11 +17925,11 @@ CS2VM2_Op_OC_IntParam(
 
     struct CS2VM_HostRequest request;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-#define CS2VM_OC_INT_CASE(name)                                \
-    case CS2_OP_##name:                                        \
-        memset(&request.u.name, 0, sizeof(request.u.name));     \
-        request.u.name.item_id = item_id;                      \
-        request.u.name.field = field;                          \
+#define CS2VM_OC_INT_CASE(name)                                                                    \
+    case CS2_OP_##name:                                                                            \
+        memset(&request.u.name, 0, sizeof(request.u.name));                                        \
+        request.u.name.item_id = item_id;                                                          \
+        request.u.name.field = field;                                                              \
         break
     switch( opcode )
     {
@@ -18055,8 +18195,8 @@ CS2VM2_Acquire(void)
     if( g_torirs_perf_enabled )
     {
         clock_gettime(CLOCK_MONOTONIC, &t1);
-        init_ns = (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL +
-                  (int64_t)(t1.tv_nsec - t0.tv_nsec);
+        init_ns =
+            (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL + (int64_t)(t1.tv_nsec - t0.tv_nsec);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_INIT_NS, init_ns);
     }
     return vm;
@@ -18082,8 +18222,7 @@ CS2VM2_Release(struct CS2VM2* vm)
         clock_gettime(CLOCK_MONOTONIC, &t1);
         TORIRS_PERF_COUNT(
             TORIRS_PERF_CTR_CS2_VM_RELEASE_NS,
-            (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL +
-                (int64_t)(t1.tv_nsec - t0.tv_nsec));
+            (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL + (int64_t)(t1.tv_nsec - t0.tv_nsec));
     }
 
     if( pooled )
