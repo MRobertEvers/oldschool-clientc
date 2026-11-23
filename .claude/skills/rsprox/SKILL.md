@@ -45,6 +45,9 @@ python3 $T get net:820                   # by rsprox.net submission number (what
 python3 $T get 820 3389 --all-players    # every raider's movement/seqs (party rules)
 python3 $T get net:820 --raw             # untranslated instance tiles (player<->npc distances)
 python3 $T get 4286 --bas                # player BAS + worn equipment (stances, weapons)
+# --bas prints worn OBJS only, never the identkits: a body-kit swap (the Keldagrim and Tourist Trap
+# mine cart is feet idk 82, 4494 [2820]) shows only in ~/.rsprox-index-cache/home-wire (every filter on;
+# memory wire-diff-ours-vs-jagex). Check it whenever a stance looks like it is missing a prop.
 ```
 
 Transcripts persist in `~/.rsprox-index-cache/home-<variant>/.rsprox/binary/archive/idx<id>.txt`,

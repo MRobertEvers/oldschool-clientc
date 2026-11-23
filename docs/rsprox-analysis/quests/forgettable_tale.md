@@ -259,17 +259,24 @@ What every ride does that ours did not:
 - **The weapon, shield and boots come off** for the ride into `minecart_temp_inv` (the cache's,
   size 3) and go back on with the landing: 3224 [7499] empties worn slots 3, 5 and 10; 4494
   [2770], [2820], [2893] and 4637 [418], [1319], [1508], [1986] the weapon, the only one worn,
-  back at [2786], [2838], [2907], [435], [1336], [1527], [2004]. `~keldagrim_cart_seat` /
-  `~keldagrim_cart_unseat` on every cart, the tunnels' included (inferred there: 4646 wore none
-  of the three). A logout on a cart gives them back (`~keldagrim_cart_login`, unrecorded).
+  back at [2786], [2838], [2907], [435], [1336], [1527], [2004]. `~minecart_seat` /
+  `~minecart_unseat` on every cart, the tunnels' included (inferred there: 4646 wore none
+  of the three). A logout on a cart gives them back (`~minecart_on_logout`, `~minecart_login`; unrecorded).
 - **The station's carts.** Jagex adds 23 `keldagrim_train_cart` locs to the station's queues
   (4646 [5296], the same set in every session): tracks 1 and 3 from 2911 / 2909 to the front at
   2923, track 4 from 2911 to 2919, the spur's two at 2917 and 2919. We placed four.
-- **No cart model rides along.** Nothing on the wire draws one: the board deletes the station
-  cart, the appearance carries only the `human_minecart_anim` stance (seq 2148, framemap 0, the
-  human skeleton) with `lefthand=hide`, `righthand=hide`, and no spotanim, npc, loc or obj
-  follows the player; the deob has no special case for the seq. What a Jagex client shows on a
-  ride is the seated player over the rails.
+- **The cart is the player's feet kit.** No loc, npc, spotanim or obj follows a ride (the board
+  deletes the station cart), but the appearance swaps the FEET IDENTKIT 42 -> `idk_82`
+  (bodypart 6, model 7117, `notselectable`) beside the `human_minecart_anim` stance (seq 2148,
+  `lefthand=hide`, `righthand=hide`), in both the world and the interface kit lists, colours
+  unchanged; it goes back to 42 with the landing (4494: 82 at [2770], [2820], [2893], [4456],
+  42 at [2786], [2838], [2907], [4474]; Tourist Trap 4531 the same at [9262] / [9293]). That is
+  why the boots come off: worn boots fill the feet slot and the kit would not draw. The default
+  transcripts print no identkits, which is how the first port missed it -- the home-wire
+  transcript (every filter on) does. `idk_83` (bodypart 13, model 7118) is the body-type-B
+  twin (inferred: no recording rides with it). Built in
+  `general/scripts/minecart_seat.rs2` (`~minecart_seat` / `~minecart_unseat`; `[logout]` puts
+  the feet back on a ride a disconnect cut short).
 
 The pub scene's props: D+8 [5143] puts `forget_cutscene_beer` in the right hand and
 `forget_cutscene_chair` in the left (real worn-inventory writes), D+160 [5295] empties both. Ours

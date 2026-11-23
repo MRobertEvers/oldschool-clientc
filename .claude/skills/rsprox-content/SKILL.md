@@ -237,7 +237,10 @@ recording. A quest is done when every row of steps 1-3 and every recorded npc-in
 
 1. **Find the interaction.** Transcribe with `--bas` too (`rsprox_index.py get <id> --bas`)
    whenever the content hands the player anything wieldable or changes their look: the
-   default transcript has no player `[bas]` or `[equipment]` (§1b, §11). Search by the loc/npc/obj/interface id, then
+   default transcript has no player `[bas]` or `[equipment]` (§1b, §11). `--bas` itself still
+   hides the BODY: `[identkit]`, `[interface_identkit]` and `[colours]` print only in a
+   home-wire transcript (below, "A prop that is not an obj"); read one whenever the player's
+   look changes. Search by the loc/npc/obj/interface id, then
    `python3 tools/rsprox/rsprox_interact.py <txt> --list` to count every click in the session.
    Prefer a normal-world session (activity `-` or a place name). Use rev 238+ when facing matters.
 2. **Trace it.** `rsprox_interact.py <txt> --op '<regex on the click line>' --max 5`. It prints
@@ -391,11 +394,14 @@ fight, cutscene, interaction), before reporting it finished:
    - **Projectiles:** every field -- source tile, target, id, `starttime`, `endtime`, `angle`,
      `progress`, start and end height -- against a fit across many shots (section 4).
    - **Locs, music, jingles, varbits, npc spawns (tile, angle), npc deaths and despawn delay.**
-   - **The PLAYER's appearance, from a `--bas` transcript:** every `[bas]` and `[equipment]`
+   - **The PLAYER's appearance, EVERY field of the block:** every `[bas]` and `[equipment]`
      the recorder's appearance block carries across the section (an equip of an item the
-     content gave, a transform, a stance), against the obj's `*_baseanim` params. The
-     default transcript and `ticklog_tells` show neither. Misthalin Mystery passed its audit
-     with the killer's knife on the plain `human_*` stance (index 4336 [1924]).
+     content gave, a transform, a stance), against the obj's `*_baseanim` params, AND every
+     `[identkit]` / `[interface_identkit]` / `[colours]` change, which only a home-wire
+     transcript prints. The default transcript and `ticklog_tells` show none of it, and
+     `--bas` none of the kits. Misthalin Mystery passed its audit with the killer's knife on
+     the plain `human_*` stance (index 4336 [1924]); every Keldagrim and Tourist Trap mine
+     cart shipped without its cart, which is feet kit 82 (index 4494 [2820]).
    - **Damage, every attack** (§13): the splats on the player per cause, prayed and not --
      zero rate, max, the prayed distribution -- against ours, and the npc's levels against
      the cache.
@@ -523,6 +529,34 @@ index 4336, cites in `docs/rsprox-analysis/quests/misthalin_mystery.md`):
   (`quest_misthalinmystery/configs/misthalinmystery.obj`) and delete those lines from the
   generated block. Check the same equip's `combat_weapon_category` (357) and the combat
   tab's `title`/`category` text too.
+- **A prop that is not an obj: the body kit.** When a stance looks like it is missing a prop
+  (sitting with nothing to sit in, holding nothing), no loc, npc, spotanim or obj follows the
+  player, and the worn tab empties a slot for no visible reason, the prop is a BODY KIT. The
+  appearance block swaps one of the player's identkits for a hidden one (`notselectable=yes`
+  in `configs/all.idk`, its `model1` the prop). The mine cart is the case that taught this:
+  Keldagrim's and the Tourist Trap's rides send feet kit 42 -> `idk_82` (model 7117) with
+  `human_minecart_anim`, in both kit lists, colours unchanged, and 42 again on landing
+  (4494 [2820] / [2838], 4531 [9262] / [9293]). The boots come off first (worn slot 10 into
+  `minecart_temp_inv`) because worn boots fill the feet slot and the kit would not draw. That
+  emptied slot is the tell. The first port read only `--bas`, concluded "Jagex sends no cart",
+  and shipped a player squatting on the rails.
+  - **Read it** in a home-wire transcript (every RSProx filter on): link the session's `.bin`
+    (`~/.rsprox-index-cache/bin/idx<N>.bin`, fetched by any `rsprox_index.py get <N>`) into
+    `H=~/.rsprox-index-cache/home-wire`'s `.rsprox/binary/archive/`, then run
+    `cd $H && java -Duser.home=$H -cp "$(cat ~/rsprox-index-data/rsprox-c.classpath)" net.rsprox.proxy.cli.TranscribeCommandKt -name archive/idx<N>`.
+    Then `grep -n "wearpos=<part>, id=" $H/.rsprox/binary/archive/idx<N>.txt | awk -F'id=' '{print $2}' | sort | uniq -c`
+    lists every kit that part ever wore. A kit seen on only a few ticks is a prop: print
+    the ticks it starts and stops on.
+  - **Build it** with `setidkit(idk_<n>, <that part's colour>)`, the colour from
+    `~design_colour_index` so nothing recolours. Put the body back from the design varps
+    (`~design_apply_kit(^design_part_<part>, %varp..._design_kit_<part>)`), never from a value
+    you remember, because there is no `getidkit`. The kit is SAVED with the character, so a
+    swap a disconnect can cut short needs a temp varp and a `[logout]` entry that undoes it.
+    `general/scripts/minecart_seat.rs2` is the worked example (`~minecart_seat` /
+    `~minecart_unseat` / `~minecart_on_logout`). Body type B has its own kit (bodypart + 7:
+    the cart's twin is `idk_83`).
+  - **Check it in the client**, not under scriptrun: scriptrun drops appearance packets, so
+    only a photograph from a client running the private pack shows the prop.
 - **Inventory ops:** `if_buttonx com=inventory:items op=N` is the obj's iop N-1 (`op=2` = Read /
   Drink = `[opheld1,..]`; `op=3` Wield; `op=7` Drop).
 - **Notes and letters** are not mesboxes: `letterscroll` (interface 70) is filled line by line
