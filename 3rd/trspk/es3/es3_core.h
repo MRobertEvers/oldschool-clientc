@@ -212,6 +212,9 @@
 #define ES3_ATTRIB_COLOR 2u
 #define ES3_ATTRIB_TEXINFO 3u
 #define ES3_ATTRIB_MASK_TEXCOORD 3u
+/* The face's depth bias: the WebGL2 (OSRS) renderer's vertex only
+ * (TRSPK_VERTEX_FORMAT_ES3_OSRS), read by its world vertex shader alone. */
+#define ES3_ATTRIB_BIAS 4u
 
 /*
  * The frame's draw sequence.
@@ -251,7 +254,16 @@ struct ES3DrawItem
     uint8_t cutout;
     /** Depth path only: drawn with blending on and depth writes off. */
     uint8_t blended;
+    /** Which buffers the draw writes (ES3_WRITES_*). Every push but
+     *  es3_sequence_push_indexed_writes says ES3_WRITES_COLOR_DEPTH, and only
+     *  the OSRS renderer's issue loop reads it: its two-pass models draw
+     *  colour only, then depth only. Items merge only when it matches. */
+    uint8_t writes;
 };
+
+#define ES3_WRITES_COLOR_DEPTH 0u
+#define ES3_WRITES_COLOR 1u
+#define ES3_WRITES_DEPTH 2u
 
 /* The per-triangle config word (TRSPK_Triangles): the texture id the face was
  * baked against, or -1 for an untextured face. Kept so a texture that arrives
@@ -573,8 +585,24 @@ struct TRSPK_Renderer_ES3
     ToriPlatform_GLContext gl_context;
 
     /* The depth renderer's private state, and the mode selector: non-NULL
-     * means the es3_zbuffer_* implementation owns the world path. */
+     * means the es3_zbuffer_* implementation owns the world path. The OSRS
+     * renderer is built on the same depth world and makes one too. */
     struct ES3ZBufferWorld* zbuffer;
+    /* The OSRS renderer's own per-pass queues (two-pass models, the
+     * translucent pass in arrival order); NULL under any other renderer. */
+    struct ES3OsrsWorld* osrs;
+
+    /* The retained world vertex, fixed when the handle is made
+     * (TRSPK_Renderer_ES3_New: TRSPK_VERTEX_FORMAT_GLES2;
+     * TRSPK_Renderer_ES3_NewOsrs: TRSPK_VERTEX_FORMAT_ES3_OSRS). Every arena,
+     * build and stream of the handle is in it, and `vertex_size` is its
+     * stride. */
+    enum TRSPK_VertexFormat vertex_format;
+    uint32_t vertex_size;
+    /* The world block's y (es3_world_block_upload): 1 while the pass keys
+     * depth the OSRS way, 0 otherwise. Only the OSRS world vertex shader
+     * reads it, and only the OSRS renderer sets it. */
+    float world_block_osrs_depth;
 
     /* TORIRS_ES3_DEBUG=1: the 300-frame counters printed from es3_end_3d
      * and the debug-only glGetError checks. Read once at creation; the
@@ -1004,6 +1032,31 @@ struct ES3ModelPlacement
     int projected_depth;
 };
 
+/*
+ * Which pass a world face belongs to, and one pose's faces classified so. The
+ * depth renderer's material table holds one ES3MaterialPose per baked pose;
+ * the OSRS renderer, built on the same depth world, reads them through
+ * es3_zbuffer_material.
+ */
+enum ES3WorldFacePass
+{
+    ES3_WORLD_FACE_SKIP = 0,
+    ES3_WORLD_FACE_OPAQUE = 1,
+    ES3_WORLD_FACE_CUTOUT = 2,
+    ES3_WORLD_FACE_BLENDED = 3,
+};
+
+struct ES3MaterialPose
+{
+    uint8_t* face_passes;
+    uint32_t face_count;
+    uint32_t opaque_count;
+    uint32_t cutout_count;
+    uint32_t blended_count;
+    /** Every face is opaque or cutout: the pose is one array range. */
+    bool uniform;
+};
+
 /* ---- the two world renderers ------------------------------------------- */
 
 /*
@@ -1054,6 +1107,61 @@ es3_zbuffer_emit_model(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     const struct ES3ModelPlacement* placement);
+
+/*
+ * The depth world's pieces the OSRS renderer composes from. The depth
+ * renderer's own draw is exactly es3_zbuffer_place_model, then
+ * es3_zbuffer_emit_model, which is es3_zbuffer_material, then
+ * es3_zbuffer_queue_opaque, then its blended sort; the OSRS renderer replaces
+ * the last step and, for its two-pass models, the one before it.
+ */
+
+/** Pick, cull, pose and bake one DRAW_MODEL: true with `out` filled when the
+ *  model is to be drawn. */
+bool
+es3_zbuffer_place_model(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    struct ES3ModelPlacement* out);
+
+/** The placed pose's faces, classified (cached per retained pose,
+ *  reclassified every draw for a dynamic one). NULL when the model cannot be
+ *  classified or the classification is for another face count. */
+const struct ES3MaterialPose*
+es3_zbuffer_material(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    const struct ES3ModelPlacement* placement);
+
+/** Queue the placed pose's opaque and cutout faces for the depth-order
+ *  independent half of the pass: one array range when the pose is uniform,
+ *  index buckets per binding otherwise. */
+void
+es3_zbuffer_queue_opaque(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ES3ModelPlacement* placement,
+    const struct ES3MaterialPose* material);
+
+/** Every command that is not BEGIN_3D, END_3D or DRAW_MODEL, as the depth
+ *  renderer handles it: the retained store (and its material tables), the
+ *  world builds, and the 2D commands. Asserts on those three. */
+void
+es3_zbuffer_dispatch_retained(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand* command);
+
+/** The depth world's world-build record bake: bake, then classify into the
+ *  build's material table. What es3_world_prefill takes on the depth path. */
+void
+es3_zbuffer_world_record_bake(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_WorldSlot* slot,
+    int record);
+
+/* The OSRS renderer's state. es3_osrs_destroy is a deallocator, reached from
+ * TRSPK_Renderer_ES3_Free for the same reason es3_zbuffer_destroy is. */
+void
+es3_osrs_destroy(struct TRSPK_Renderer_ES3* renderer);
 
 /*
  * The dispatch loop's per-command prefetch, for a lane that runs its own
@@ -1445,6 +1553,20 @@ es3_sequence_push_indexed(
     bool blended,
     const uint32_t* indices,
     uint32_t index_count);
+/** es3_sequence_push_indexed, writing only the buffers `writes` names
+ *  (ES3_WRITES_*). The OSRS renderer's two-pass models; the WebGL2 core
+ *  only. */
+void
+es3_sequence_push_indexed_writes(
+    struct TRSPK_Renderer_ES3* renderer,
+    uint32_t binding,
+    uint32_t index_min,
+    uint32_t index_max,
+    bool cutout,
+    bool blended,
+    unsigned writes,
+    const uint32_t* indices,
+    uint32_t index_count);
 /* The two halves of es3_sequence_push_indexed for a caller that writes its
  * indices in place: reserve returns room for `index_count` indices at the
  * staging tail (the pointer is valid until the next reserve); commit records
@@ -1513,8 +1635,8 @@ es3_binding_cpu_source(
 
 /** Select a world program (plain or alpha-testing) and push its per-pass
  *  uniforms, then bind the atlas. */
-/** Upload the world pass's shared uniform block (matrix + texture clock).
- *  Once per pass, before any world draw. */
+/** Upload the world pass's shared uniform block (matrix + texture clock +
+ *  world_block_osrs_depth). Once per pass, before any world draw. */
 void
 es3_world_block_upload(struct TRSPK_Renderer_ES3* renderer);
 

@@ -54,6 +54,15 @@ enum ToriRS_RendererKind
      *  the painter's order. XRGB8888 lanes only: the client's colour-key and
      *  blend masks assume that layout. */
     TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF,
+    /** The browser's ES 3.0 renderer drawing the world the rev-241 client's
+     *  way: its depth key with each face's depth bias, its tie rule, two-pass
+     *  players and its translucent pass, on the GPU
+     *  (platform_web_renderer_webgl2_osrs.c). The world is collected in the
+     *  painter's order. */
+    TORIRS_RENDERER_KIND_WEBGL2_OSRS,
+    /** Desktop GL 3.2 the same way (platform_sdl2_renderer_gl3zb.c's OSRS
+     *  mode). */
+    TORIRS_RENDERER_KIND_OPENGL3_OSRS,
 
     TORIRS_RENDERER_KIND_COUNT
 };

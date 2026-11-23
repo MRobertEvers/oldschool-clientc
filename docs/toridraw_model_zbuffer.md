@@ -151,11 +151,26 @@ every model must occlude every other one. Between
 `ToriDraw_SceneZBufferEndPass(scene)` the buffer is cleared once, at the begin,
 and the depth-tested rasters skip their per-model reset. Soft3D opens one pass
 per `BEGIN_3D` .. `END_3D` when it is the "Software (depth buffer)" renderer
-(`ToriPlatform_Renderer_Soft3D_SetDepth`) and draws every model through
-`ToriDraw_KernelGetSoftwareZBuffered` with no face sort.
+(`ToriPlatform_Renderer_Soft3D_SetDepth`) and draws through two tables
+([`kernels/table.software_zbuffered.u.c`](../3rd/toridraw/kernels/table.software_zbuffered.u.c)):
 
-Translucent faces still test without writing, so translucent surfaces in a
-depth world composite in the order the collector emits them, not back to front.
+- **Opaque**, `ToriDraw_KernelGetSoftwareZBufferedOpaque`: every model as it
+  arrives, with no face sort. It draws the faces that write depth and drops
+  the ones that blend.
+- **Translucent**, `ToriDraw_KernelGetSoftwareZBufferedTranslucent`: at
+  `END_3D`, the models that have face alpha, tiles included. Soft3D sorts them
+  back to front by the projected depth of their origin, with arrival order
+  breaking ties (`soft3d_depth_translucent_pass`). Each model runs the
+  painter's face sort, render priorities included, and draws only its blending
+  faces in that order. They test depth and never write it.
+
+So translucent surfaces composite back to front against every opaque face of
+the pass. The order is per model, not per face across models: two translucent
+models that pass through each other blend in the order of their origins. The
+GPU depth renderers make the same split (opaque first, then a back-to-front
+blended pass with depth writes off). The rev-241 client's own z-buffer does
+not: [toridraw_rszbuffer.md](toridraw_rszbuffer.md) replays its translucent
+models in the painter's order and writes their depth.
 
 ## Limitations
 

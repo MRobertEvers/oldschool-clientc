@@ -59,6 +59,12 @@ move_vertices(
             &vbo->vertices.as_gles2[src],
             count * sizeof(struct TRSPK_VertexGLES2));
         break;
+    case TRSPK_VERTEX_FORMAT_ES3_OSRS:
+        memmove(
+            &vbo->vertices.as_es3_osrs[dst],
+            &vbo->vertices.as_es3_osrs[src],
+            count * sizeof(struct TRSPK_VertexES3Osrs));
+        break;
     default:
         assert(false && "Unsupported vertex format");
         break;

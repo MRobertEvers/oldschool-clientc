@@ -65,6 +65,7 @@ extern PFNGLCLEARDEPTHFPROC trspk_glClearDepthf;
 extern PFNGLBLENDFUNCPROC trspk_glBlendFunc;
 extern PFNGLDEPTHFUNCPROC trspk_glDepthFunc;
 extern PFNGLDEPTHMASKPROC trspk_glDepthMask;
+extern PFNGLCOLORMASKPROC trspk_glColorMask;
 extern PFNGLCULLFACEPROC trspk_glCullFace;
 extern PFNGLFRONTFACEPROC trspk_glFrontFace;
 extern PFNGLACTIVETEXTUREPROC trspk_glActiveTexture;
@@ -158,6 +159,7 @@ trspk_sdlgl_init(void);
 #define glBlendFunc trspk_glBlendFunc
 #define glDepthFunc trspk_glDepthFunc
 #define glDepthMask trspk_glDepthMask
+#define glColorMask trspk_glColorMask
 #define glCullFace trspk_glCullFace
 #define glFrontFace trspk_glFrontFace
 #define glActiveTexture trspk_glActiveTexture

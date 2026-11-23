@@ -104,6 +104,66 @@ static const char* const es3_world_vertex_shader =
     "    v_tile = vec2(a_texinfo.xy) * " ES3_SHADER_ATLAS_CELL ";\n"
     "}\n";
 
+/*
+ * The WebGL2 (OSRS) renderer's world vertex stage: es3_world_vertex_shader,
+ * plus the rev-241 client's depth key (docs/toridraw_rszbuffer.md).
+ *
+ * The client keys each corner at
+ *
+ *     key = 150.75377 / ((z - 2*bias - 75) * 1.0100503) + 1.0100503
+ *
+ * where z is the corner's camera depth and bias its face's
+ * RSCache_Model.face_z_offsets byte (a_bias), and interpolates the key
+ * linearly across the screen. Larger is nearer; its buffer clears to 0 and
+ * a pixel is written only where its key is strictly greater.
+ *
+ * NDC depth is what the hardware interpolates linearly across the screen, so
+ * writing an affine map of the key there per vertex gives every pixel the
+ * client's key (up to the map), and the depth test keeps the early rejection
+ * a written gl_FragDepth would lose. The renderer clears to 0 and tests
+ * GL_GREATER, so window depth = key / KEY_MAX keeps the client's order and
+ * its tie rule.
+ *
+ * KEY_MAX is the key at z = 76, one unit past the formula's pole at 75.
+ * Nearer corners -- and any a large bias pulls there -- clamp to window depth
+ * 1, the nearest there is. Corners at or inside the pole get the negative
+ * key the client gives them, below the cleared 0, which never wins, and the
+ * hardware clips those below NDC -1: the client draws nothing that near
+ * either. The projection puts camera depth in clip w (es3_zbuffer_setup_projection).
+ *
+ * u_clock_pad.y is 0 for a pass that cannot be keyed this way (a parallel
+ * projection has no depth in w): the matrix's own depth row stands, and the
+ * renderer tests it the standard way for that pass.
+ */
+static const char* const es3_world_osrs_vertex_shader =
+    ES3_VERTEX_PREAMBLE
+    "layout(location = 0) in vec3 a_position;\n"
+    "layout(location = 1) in vec2 a_texcoord;\n"
+    "layout(location = 2) in vec4 a_color;\n"
+    "layout(location = 3) in uvec4 a_texinfo;\n"
+    "layout(location = 4) in int a_bias;\n"
+    ES3_WORLD_BLOCK
+    "out vec4 v_color;\n"
+    "out vec2 v_texcoord;\n"
+    "out vec2 v_tile;\n"
+    "out vec2 v_wrap;\n"
+    "const float KEY_MAX = 150.75377 / 1.0100503 + 1.0100503;\n"
+    "void main() {\n"
+    "    gl_Position = u_matrix * vec4(a_position, 1.0);\n"
+    "    if (u_clock_pad.y > 0.5) {\n"
+    "        float depth = gl_Position.w - 2.0 * float(a_bias);\n"
+    "        float scaled = (depth - 75.0) * 1.0100503;\n"
+    "        if (abs(scaled) < 1.0e-4) scaled = -1.0e-4;\n"
+    "        float key = 150.75377 / scaled + 1.0100503;\n"
+    "        gl_Position.z = min(2.0 * key / KEY_MAX - 1.0, 1.0) * gl_Position.w;\n"
+    "    }\n"
+    "    v_color = a_color;\n"
+    "    vec2 anim = (vec2(a_texinfo.zw) - 128.0) * (1.0 / 128.0);\n"
+    "    v_texcoord = a_texcoord + u_clock * anim;\n"
+    "    v_wrap = step(0.001, abs(anim));\n"
+    "    v_tile = vec2(a_texinfo.xy) * " ES3_SHADER_ATLAS_CELL ";\n"
+    "}\n";
+
 #define ES3_WORLD_FRAGMENT_IN \
     "uniform sampler2D s_texture;\n" \
     "in vec4 v_color;\n" \

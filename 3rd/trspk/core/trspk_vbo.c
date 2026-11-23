@@ -19,6 +19,8 @@ trspk_vbo_vertex_size(enum TRSPK_VertexFormat format)
         return sizeof(struct TRSPK_VertexD3D9);
     case TRSPK_VERTEX_FORMAT_GLES2:
         return sizeof(struct TRSPK_VertexGLES2);
+    case TRSPK_VERTEX_FORMAT_ES3_OSRS:
+        return sizeof(struct TRSPK_VertexES3Osrs);
     default:
         assert(false);
         return 0;
@@ -90,6 +92,10 @@ trspk_vbo_growby(
         break;
     case TRSPK_VERTEX_FORMAT_GLES2:
         memset(&vbo->vertices.as_gles2[old_count], 0, sizeof(struct TRSPK_VertexGLES2) * amount);
+        break;
+    case TRSPK_VERTEX_FORMAT_ES3_OSRS:
+        memset(
+            &vbo->vertices.as_es3_osrs[old_count], 0, sizeof(struct TRSPK_VertexES3Osrs) * amount);
         break;
     default:
         assert(false);
@@ -163,6 +169,9 @@ trspk_vbo_free(struct TRSPK_VBO* vbo)
         break;
     case TRSPK_VERTEX_FORMAT_GLES2:
         TRSPK_FREE(vbo->vertices.as_gles2);
+        break;
+    case TRSPK_VERTEX_FORMAT_ES3_OSRS:
+        TRSPK_FREE(vbo->vertices.as_es3_osrs);
         break;
     default:
         break;

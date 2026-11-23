@@ -229,7 +229,22 @@ struct GL3AlphaSubmission
     /* Into the frame's index upload, where GL3ZB_StageAlphaPass placed it. */
     uint32_t staged_start;
     int depth;
+    /* The OSRS depth pass's run kind (GL3_OSRS_RUN_*); always
+     * GL3_OSRS_RUN_TRANSLUCENT under the plain depth pass. */
+    uint8_t osrs_kind;
 };
+
+/* The OSRS depth pass's queued runs (GL3ZB_SubmitModel under osrs_depth):
+ *   TRANSLUCENT           a model's blended faces in the client's sorted
+ *                         order, drawn once, blending and writing depth;
+ *   TRANSLUCENT_TWO_PASS  a two-pass model's blended faces in priority order,
+ *                         colour only, then depth only;
+ *   OPAQUE_TWO_PASS       a two-pass model's opaque and cutout faces in
+ *                         priority order, the same two draws, before any
+ *                         translucent run. */
+#define GL3_OSRS_RUN_TRANSLUCENT 0u
+#define GL3_OSRS_RUN_TRANSLUCENT_TWO_PASS 1u
+#define GL3_OSRS_RUN_OPAQUE_TWO_PASS 2u
 
 /*
  * The atlas tile a scene sprite already occupies.
@@ -420,6 +435,18 @@ struct ToriPlatformSDL2_Renderer_GL3
      * changes the context's pixel format.
      */
     bool z_buffer_enabled;
+    /*
+     * The depth pass the rev-241 client's way ("OpenGL (OSRS z-buffer)",
+     * ToriPlatformSDL2_Renderer_GL3_InitOsrs): its depth key with each face's
+     * bias, a buffer cleared to 0 and tested GL_GREATER, two-pass players and
+     * opcode-147 npcs, and the translucent pass in arrival order, writing
+     * depth. Implies z_buffer_enabled. @see platform_sdl2_renderer_gl3zb.h.
+     */
+    bool osrs_depth;
+    /* This pass keys depth the client's way: osrs_depth under a perspective
+     * camera. A parallel one has no depth in w and runs the plain depth
+     * pass's mapping and test. Set per pass by GL3ZB_BeginPass. */
+    bool osrs_key_depth;
     /* Per-model blended submissions, drawn after the opaque pass, sorted
      * back-to-front. Only models that actually have translucent faces land
      * here, so a scene without translucency leaves them empty. */
@@ -441,6 +468,10 @@ struct ToriPlatformSDL2_Renderer_GL3
     /* Scratch for one model's index list while it is being classified. */
     uint32_t* model_indices;
     uint32_t model_index_capacity;
+    /* The OSRS pass's per-model sort scratch (struct GL3OsrsFaceKey, private
+     * to platform_sdl2_renderer_gl3zb.c). */
+    void* osrs_face_keys;
+    uint32_t osrs_face_key_capacity;
 
     GLuint atlas_texture;
     /* Texture storage is allocated once; every later write is a dirty-rect

@@ -2902,7 +2902,9 @@ upload_world_ubo(
     u.uClock = (float)renderer->frame_clock;
     u.uAtlasDim = (float)renderer->atlas_dim;
     u.uAtlasSlots = (float)renderer->tex_cap;
-    u.uDepthBias = renderer->z_buffer_enabled ? 1.0f : 0.0f;
+    /* 0 the painter, 1 the depth pass's biased mapping, 2 the OSRS key
+     * (shaders/vertex.glsl). */
+    u.uDepthBias = renderer->osrs_key_depth ? 2.0f : renderer->z_buffer_enabled ? 1.0f : 0.0f;
     gl3_set_world_uniforms(renderer, &u);
 }
 
@@ -5663,6 +5665,22 @@ ToriPlatformSDL2_Renderer_GL3_Free(struct ToriPlatformSDL2_Renderer_GL3* rendere
     }
 
     ToriMem_Free(ToriMem_Renderer(), renderer);
+}
+
+bool
+ToriPlatformSDL2_Renderer_GL3_InitOsrs(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene)
+{
+    assert(gl3);
+    /* A depth context, and the depth pass's every resource; the OSRS rules
+     * are the pass's own (platform_sdl2_renderer_gl3zb.c). */
+    gl3->osrs_depth = true;
+    if( ToriPlatformSDL2_Renderer_GL3_Init(gl3, window, scene, true) )
+        return true;
+    gl3->osrs_depth = false;
+    return false;
 }
 
 bool

@@ -62,6 +62,31 @@ Soft3D (`ToriPlatform_Renderer_Soft3D_SetRsZBuffer`) wires it up as follows:
 The world is collected in the painter's order (`TORIRS_WORLD_PAINTER`). The
 translucent pass follows that order, and the opaque pass does not depend on it.
 
+## On the GPU
+
+"WebGL 2 (OSRS z-buffer)" (`--webgl2-osrs`, kind 15,
+`platform_web_renderer_webgl2_osrs.c`) and "OpenGL (OSRS z-buffer)"
+(`--opengl3-osrs`, kind 16, the OSRS mode of `platform_sdl2_renderer_gl3zb.c`)
+take the client's depth RULES, not its rasterizer. They sit beside the plain
+depth renderers, which are unchanged:
+
+- **The key.** The world vertex shader computes the key above per corner, from
+  the camera depth in clip w less twice the face's bias, and writes it into
+  NDC z. The hardware interpolates NDC z linearly on screen, as the client
+  interpolates its key, so no `gl_FragDepth` is needed. WebGL2 carries the
+  bias in its own vertex (`TRSPK_VERTEX_FORMAT_ES3_OSRS`, 32 bytes); GL3's
+  vertex already had it in `position.w`.
+- **The tie rule.** Depth clears to 0 and the test is `GREATER`.
+- **Two-pass models.** Players and opcode-147 npcs draw in the painter's
+  priority order, colour only, then the same faces depth only.
+- **Translucency.** Models with blended faces are replayed in the painter's
+  order after the opaque pass. Each one's blended faces are sorted by depth
+  bucket, far to near, with no priorities, and blend while writing depth. The
+  world is collected as `TORIRS_WORLD_PAINTER`.
+
+A parallel camera has no depth in w, so its pass falls back to the plain
+depth mapping and `LEQUAL`.
+
 ## Exactness
 
 Java semantics carried over:

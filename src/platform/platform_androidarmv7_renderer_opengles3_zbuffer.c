@@ -50,24 +50,7 @@ es3z_animation_load(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_AnimLoad* command);
 
-enum ES3WorldFacePass
-{
-    ES3_WORLD_FACE_SKIP = 0,
-    ES3_WORLD_FACE_OPAQUE = 1,
-    ES3_WORLD_FACE_CUTOUT = 2,
-    ES3_WORLD_FACE_BLENDED = 3,
-};
-
-struct ES3MaterialPose
-{
-    uint8_t* face_passes;
-    uint32_t face_count;
-    uint32_t opaque_count;
-    uint32_t cutout_count;
-    uint32_t blended_count;
-    /** Every face is opaque or cutout: the pose is one array range. */
-    bool uniform;
-};
+/* enum ES3WorldFacePass and struct ES3MaterialPose are in es3_core.h. */
 
 struct ES3MaterialTrack
 {

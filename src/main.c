@@ -845,14 +845,17 @@ interactive_render_present(
     struct ToriPlatformWeb_Renderer_WebGL2* webgl2,
     struct ToriPlatformWeb_Renderer_WebGL1* webgl1,
     struct ToriPlatformAndroid_Renderer_GLES3* gles3,
-    bool world_depth)
+    bool world_depth,
+    bool world_osrs)
 {
     int const interface_scale_mode = RS_CS2Host_UiScaleMode(&app->host);
     struct ClientScaleSettings client_scale;
 
     /* Read only inside the D3D9, GLES2 and WebGL2 blocks below; a build
-     * with none of those families (the macOS GL3 client) never looks at it. */
+     * with none of those families (the macOS GL3 client) never looks at it.
+     * `world_osrs` is the WebGL2 handle's third renderer, read there alone. */
     (void)world_depth;
+    (void)world_osrs;
 
     /* Device options 15 and 30..33 are presentation state, just like option
      * 27's canvas size. Apply them immediately after the click that changed
@@ -1068,7 +1071,10 @@ interactive_render_present(
             int caption_font_id = -1;
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
-            if( world_depth )
+            if( world_osrs )
+                ToriPlatformWeb_Renderer_WebGL2_OsrsDrawBootBar(
+                    webgl2, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            else if( world_depth )
                 ToriPlatformWeb_Renderer_WebGL2_ZBufferDrawBootBar(
                     webgl2, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
             else
@@ -1087,7 +1093,9 @@ interactive_render_present(
                 webgl2, PlatformWindow_TicksUs() - main_pacing.s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
-                if( world_depth )
+                if( world_osrs )
+                    ToriPlatformWeb_Renderer_WebGL2_OsrsRenderFrame(webgl2, &frame);
+                else if( world_depth )
                     ToriPlatformWeb_Renderer_WebGL2_ZBufferRenderFrame(webgl2, &frame);
                 else
                     ToriPlatformWeb_Renderer_WebGL2_PainterRenderFrame(webgl2, &frame);
@@ -1614,6 +1622,17 @@ renderer_active_is_depth(void)
            renderer_active == TORIRS_RENDERER_KIND_WEBGL1_DEPTH ||
            renderer_active == TORIRS_RENDERER_KIND_WEBGL2_DEPTH;
 }
+/*
+ * Whether the live renderer is a family's OSRS z-buffer one: the third set of
+ * entry points on the WebGL2 handle, and GL3's third world pass. Asked where
+ * renderer_active_is_depth is, and nowhere else.
+ */
+static bool
+renderer_active_is_osrs(void)
+{
+    return renderer_active == TORIRS_RENDERER_KIND_WEBGL2_OSRS ||
+           renderer_active == TORIRS_RENDERER_KIND_OPENGL3_OSRS;
+}
 /* Soft3D, painter or depth-buffered: the kinds with no GPU handle, that read
  * the scene directly and present a software frame. */
 static bool
@@ -1661,7 +1680,9 @@ renderer_learn_held_frame(void)
 
         while( ToriRS_SceneNextResourceCommand(app.scene, &cursor, &command) )
         {
-            if( renderer_active_is_depth() )
+            if( renderer_active_is_osrs() )
+                ToriPlatformWeb_Renderer_WebGL2_OsrsExecute(webgl2, &command);
+            else if( renderer_active_is_depth() )
                 ToriPlatformWeb_Renderer_WebGL2_ZBufferExecute(webgl2, &command);
             else
                 ToriPlatformWeb_Renderer_WebGL2_PainterExecute(webgl2, &command);
@@ -1690,10 +1711,12 @@ renderer_present(enum ToriRS_RendererKind kind)
         return PLATFORM_PRESENT_SOFTWARE;
     case TORIRS_RENDERER_KIND_OPENGL3:
     case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
+    case TORIRS_RENDERER_KIND_OPENGL3_OSRS:
     case TORIRS_RENDERER_KIND_GLES2:
     case TORIRS_RENDERER_KIND_GLES2_DEPTH:
     case TORIRS_RENDERER_KIND_WEBGL2:
     case TORIRS_RENDERER_KIND_WEBGL2_DEPTH:
+    case TORIRS_RENDERER_KIND_WEBGL2_OSRS:
     case TORIRS_RENDERER_KIND_WEBGL1:
     case TORIRS_RENDERER_KIND_WEBGL1_DEPTH:
     case TORIRS_RENDERER_KIND_GLES3:
@@ -1723,6 +1746,7 @@ renderer_built(enum ToriRS_RendererKind kind)
         return TORIPIXEL_IS_XRGB8888 != 0;
     case TORIRS_RENDERER_KIND_OPENGL3:
     case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
+    case TORIRS_RENDERER_KIND_OPENGL3_OSRS:
 #if defined(TORIRS_HAVE_GL3)
         return true;
 #else
@@ -1744,6 +1768,7 @@ renderer_built(enum ToriRS_RendererKind kind)
 #endif
     case TORIRS_RENDERER_KIND_WEBGL2:
     case TORIRS_RENDERER_KIND_WEBGL2_DEPTH:
+    case TORIRS_RENDERER_KIND_WEBGL2_OSRS:
 #if defined(TORIRS_HAVE_WEBGL2)
         return true;
 #else
@@ -1914,11 +1939,16 @@ renderer_start_kind(enum ToriRS_RendererKind kind)
 #if defined(TORIRS_HAVE_GL3)
     case TORIRS_RENDERER_KIND_OPENGL3:
     case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
+    case TORIRS_RENDERER_KIND_OPENGL3_OSRS:
     {
+        bool const osrs = kind == TORIRS_RENDERER_KIND_OPENGL3_OSRS;
+        /* The OSRS pass is a depth pass, but over the painter's world: its
+         * translucent half replays the painter's order. */
         bool const depth = kind == TORIRS_RENDERER_KIND_OPENGL3_DEPTH;
         gl3 = ToriPlatformSDL2_Renderer_GL3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         assert(gl3);
-        if( !ToriPlatformSDL2_Renderer_GL3_Init(gl3, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        if( !(osrs ? ToriPlatformSDL2_Renderer_GL3_InitOsrs(gl3, PlatformWindow_GLWindow(platform), app.scene)
+                   : ToriPlatformSDL2_Renderer_GL3_Init(gl3, PlatformWindow_GLWindow(platform), app.scene, depth)) )
         {
             TORIRS_ERR("GL3 renderer init failed\n");
             ToriPlatformSDL2_Renderer_GL3_Free(gl3);
@@ -2009,11 +2039,18 @@ renderer_start_kind(enum ToriRS_RendererKind kind)
 #if defined(TORIRS_HAVE_WEBGL2)
     case TORIRS_RENDERER_KIND_WEBGL2:
     case TORIRS_RENDERER_KIND_WEBGL2_DEPTH:
+    case TORIRS_RENDERER_KIND_WEBGL2_OSRS:
     {
         bool const depth = kind == TORIRS_RENDERER_KIND_WEBGL2_DEPTH;
-        webgl2 = ToriPlatformWeb_Renderer_WebGL2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        bool const osrs = kind == TORIRS_RENDERER_KIND_WEBGL2_OSRS;
+        /* The OSRS renderer's world is baked in its own vertex, so its handle
+         * is made for it. Its world is the painter's (TORIRS_WORLD_PAINTER):
+         * the translucent pass replays that order. */
+        webgl2 = osrs ? ToriPlatformWeb_Renderer_WebGL2_NewOsrs(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H)
+                      : ToriPlatformWeb_Renderer_WebGL2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         assert(webgl2);
-        if( !(depth
+        if( !(osrs ? ToriPlatformWeb_Renderer_WebGL2_OsrsInit(webgl2, PlatformWindow_GLWindow(platform), app.scene)
+              : depth
                   ? ToriPlatformWeb_Renderer_WebGL2_ZBufferInit(webgl2, PlatformWindow_GLWindow(platform), app.scene)
                   : ToriPlatformWeb_Renderer_WebGL2_PainterInit(
                         webgl2, PlatformWindow_GLWindow(platform), app.scene)) )
@@ -3217,7 +3254,7 @@ static char const*
 main_view_split_lane_refusal(enum ToriRS_RendererKind kind)
 {
     if( renderer_is_software(kind) || kind == TORIRS_RENDERER_KIND_OPENGL3 ||
-        kind == TORIRS_RENDERER_KIND_OPENGL3_DEPTH )
+        kind == TORIRS_RENDERER_KIND_OPENGL3_DEPTH || kind == TORIRS_RENDERER_KIND_OPENGL3_OSRS )
         return NULL;
     return "the active renderer (D3D9, GLES or WebGL) is not built or tested with a second view: "
            "one view, the script moves the presented camera (runner_view_split)";
@@ -6791,7 +6828,7 @@ frame_loop_step(void)
         {
             interactive_render_present(
                 &app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3,
-                renderer_active_is_depth());
+                renderer_active_is_depth(), renderer_active_is_osrs());
         }
         app.world_views.frame = App_RunnerView(&app);
     }
@@ -8566,7 +8603,8 @@ struct MainArgState
     int use_d3d9;
     int d3d9_zbuffer;
     /* Depth-buffered world pass for the GL backends — the peer of
-     * --d3d9-zbuffer. Selected by --opengl3-zbuffer / --webgl1-zbuffer. */
+     * --d3d9-zbuffer. Selected by --opengl3-zbuffer / --webgl1-zbuffer; 2 is
+     * the OSRS z-buffer renderer (--opengl3-osrs). */
     int gl3_zbuffer;
     /* The Android lane's own GLES2 renderer, and its depth-buffered pass. */
     int use_gles2;
@@ -8575,7 +8613,8 @@ struct MainArgState
      * (--gles2-dualcore / --gles2-dualcore-zbuffer). */
     int gles2_dualcore;
     /* The browser's WebGL2 renderer, and its depth-buffered pass
-     * (--webgl2 / --webgl2-zbuffer). */
+     * (--webgl2 / --webgl2-zbuffer; 2 is the OSRS z-buffer renderer,
+     * --webgl2-osrs). */
     int use_webgl2;
     int webgl2_zbuffer;
     /* The browser's WebGL1 renderer (--webgl1 / --webgl1-zbuffer): the same
@@ -8616,8 +8655,8 @@ main_print_usage(char const* program)
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
         "[--agent-port N] [--agent-port-file <path>] "
-        "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
-        "--webgl2|--webgl2-zbuffer|--gles2|--gles2-zbuffer|--gles3|--gles3-zbuffer|"
+        "[--opengl3|--opengl3-zbuffer|--opengl3-osrs|--webgl1|--webgl1-zbuffer|"
+        "--webgl2|--webgl2-zbuffer|--webgl2-osrs|--gles2|--gles2-zbuffer|--gles3|--gles3-zbuffer|"
         "--gles2-dualcore|--gles2-dualcore-zbuffer|"
         "--d3d9|--d3d9-zbuffer|--soft3d|--soft3d-zbuffer|--soft3d-rszbuffer]\n",
         program);
@@ -8958,9 +8997,13 @@ main_parse_argument_layer(
          * DIFFERENT renderer from both (platform_web_renderer_webgl2_*.c), so it
          * is a third name and not a modifier of the first.
          */
-        if( strcmp(argv[argi], "--opengl3") == 0 || strcmp(argv[argi], "--opengl3-zbuffer") == 0 )
+        if( strcmp(argv[argi], "--opengl3") == 0 || strcmp(argv[argi], "--opengl3-zbuffer") == 0 ||
+            strcmp(argv[argi], "--opengl3-osrs") == 0 )
         {
-            int const zbuffer = strcmp(argv[argi], "--opengl3-zbuffer") == 0;
+            /* 1 the depth renderer, 2 the OSRS z-buffer one. */
+            int const zbuffer = strcmp(argv[argi], "--opengl3-zbuffer") == 0 ? 1
+                                : strcmp(argv[argi], "--opengl3-osrs") == 0  ? 2
+                                                                              : 0;
             /* Read in every branch below but the "not built here" one. */
             (void)zbuffer;
 #if defined(TORIRS_HAVE_GL3)
@@ -9029,9 +9072,13 @@ main_parse_argument_layer(
             return 0;
 #endif
         }
-        if( strcmp(argv[argi], "--webgl2") == 0 || strcmp(argv[argi], "--webgl2-zbuffer") == 0 )
+        if( strcmp(argv[argi], "--webgl2") == 0 || strcmp(argv[argi], "--webgl2-zbuffer") == 0 ||
+            strcmp(argv[argi], "--webgl2-osrs") == 0 )
         {
-            int const zbuffer = strcmp(argv[argi], "--webgl2-zbuffer") == 0;
+            /* 1 the depth renderer, 2 the OSRS z-buffer one. */
+            int const zbuffer = strcmp(argv[argi], "--webgl2-zbuffer") == 0 ? 1
+                                : strcmp(argv[argi], "--webgl2-osrs") == 0  ? 2
+                                                                             : 0;
             /* Read in every branch below but the "not built here" one. */
             (void)zbuffer;
 #if defined(TORIRS_HAVE_WEBGL2)
@@ -10963,8 +11010,9 @@ main(
                           : soft3d_zbuffer ? TORIRS_RENDERER_KIND_SOFTWARE_DEPTH
                                            : TORIRS_RENDERER_KIND_SOFTWARE;
         if( use_webgl2 )
-            renderer_launch =
-                webgl2_zbuffer ? TORIRS_RENDERER_KIND_WEBGL2_DEPTH : TORIRS_RENDERER_KIND_WEBGL2;
+            renderer_launch = webgl2_zbuffer == 2 ? TORIRS_RENDERER_KIND_WEBGL2_OSRS
+                              : webgl2_zbuffer    ? TORIRS_RENDERER_KIND_WEBGL2_DEPTH
+                                                  : TORIRS_RENDERER_KIND_WEBGL2;
         else if( use_webgl1 )
             renderer_launch =
                 webgl1_zbuffer ? TORIRS_RENDERER_KIND_WEBGL1_DEPTH : TORIRS_RENDERER_KIND_WEBGL1;
@@ -10975,8 +11023,9 @@ main(
             renderer_launch =
                 gles2_zbuffer ? TORIRS_RENDERER_KIND_GLES2_DEPTH : TORIRS_RENDERER_KIND_GLES2;
         else if( use_opengl3 )
-            renderer_launch =
-                gl3_zbuffer ? TORIRS_RENDERER_KIND_OPENGL3_DEPTH : TORIRS_RENDERER_KIND_OPENGL3;
+            renderer_launch = gl3_zbuffer == 2 ? TORIRS_RENDERER_KIND_OPENGL3_OSRS
+                              : gl3_zbuffer    ? TORIRS_RENDERER_KIND_OPENGL3_DEPTH
+                                               : TORIRS_RENDERER_KIND_OPENGL3;
         else if( use_d3d9 )
             renderer_launch =
                 d3d9_zbuffer ? TORIRS_RENDERER_KIND_D3D9_DEPTH : TORIRS_RENDERER_KIND_D3D9;
@@ -11290,7 +11339,7 @@ main(
 
         interactive_render_present(
                 &app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3,
-                renderer_active_is_depth());
+                renderer_active_is_depth(), renderer_active_is_osrs());
 
         /* --agent-port / TORIRS_AGENT_PORT: the control server an agent drives
          * the client through (docs/AGENT_API.md). Here, with the App and the

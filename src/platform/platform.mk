@@ -428,6 +428,7 @@ else ifeq ($(PLATFORM),web)
                        platform/platform_web_renderer_webgl2_ui.c \
                        platform/platform_web_renderer_webgl2_painter.c \
                        platform/platform_web_renderer_webgl2_zbuffer.c \
+                       platform/platform_web_renderer_webgl2_osrs.c \
                        platform/platform_web_renderer_webgl2.c
   # The queue's ABI reporter. Not in PLATFORM_SRCS because it belongs to the
   # QUEUE, not to any platform: a second non-C executor would need the same

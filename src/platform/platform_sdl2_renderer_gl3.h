@@ -69,6 +69,19 @@ ToriPlatformSDL2_Renderer_GL3_Init(
     struct ToriDraw_Scene* scene,
     bool z_buffer);
 
+/**
+ * Init with the depth pass in its OSRS mode ("OpenGL (OSRS z-buffer)"): the
+ * rev-241 client's depth key with each face's bias, its tie rule, two-pass
+ * players and opcode-147 npcs, and its translucent pass
+ * (platform_sdl2_renderer_gl3zb.h). The caller puts the app into
+ * TORIRS_WORLD_PAINTER: the translucent pass replays the painter's order.
+ */
+bool
+ToriPlatformSDL2_Renderer_GL3_InitOsrs(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+
 void
 ToriPlatformSDL2_Renderer_GL3_SetPick(struct ToriPlatformSDL2_Renderer_GL3* gl3, int mouse_x, int mouse_y);
 

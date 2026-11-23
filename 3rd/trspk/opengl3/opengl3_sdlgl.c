@@ -69,6 +69,7 @@ PFNGLCLEARCOLORPROC trspk_glClearColor;
 PFNGLCLEARDEPTHFPROC trspk_glClearDepthf;
 PFNGLBLENDFUNCPROC trspk_glBlendFunc;
 PFNGLDEPTHFUNCPROC trspk_glDepthFunc;
+PFNGLCOLORMASKPROC trspk_glColorMask;
 PFNGLDEPTHMASKPROC trspk_glDepthMask;
 PFNGLCULLFACEPROC trspk_glCullFace;
 PFNGLFRONTFACEPROC trspk_glFrontFace;
@@ -164,6 +165,7 @@ trspk_sdlgl_init(void)
     O3L(glBlendFunc, PFNGLBLENDFUNCPROC, trspk_glBlendFunc);
     O3L(glDepthFunc, PFNGLDEPTHFUNCPROC, trspk_glDepthFunc);
     O3L(glDepthMask, PFNGLDEPTHMASKPROC, trspk_glDepthMask);
+    O3L(glColorMask, PFNGLCOLORMASKPROC, trspk_glColorMask);
     O3L(glCullFace, PFNGLCULLFACEPROC, trspk_glCullFace);
     O3L(glFrontFace, PFNGLFRONTFACEPROC, trspk_glFrontFace);
     O3L(glActiveTexture, PFNGLACTIVETEXTUREPROC, trspk_glActiveTexture);

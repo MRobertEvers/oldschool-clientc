@@ -85,6 +85,15 @@ struct TRSPK_Renderer_ES3;
 struct TRSPK_Renderer_ES3*
 TRSPK_Renderer_ES3_New(int width, int height, char const* name);
 
+/**
+ * A handle for the OSRS z-buffer renderer (TRSPK_Renderer_ES3_OsrsInit), the
+ * only one it may be brought up as: its retained world is baked in the OSRS
+ * vertex (es3_osrs_vertex.h), which carries each face's depth bias. The
+ * WebGL2 core only; the GLES3 lane has no OSRS renderer.
+ */
+struct TRSPK_Renderer_ES3*
+TRSPK_Renderer_ES3_NewOsrs(int width, int height, char const* name);
+
 /** What the lane named this renderer. Never NULL. */
 char const*
 TRSPK_Renderer_ES3_Name(struct TRSPK_Renderer_ES3 const* renderer);
@@ -116,6 +125,18 @@ TRSPK_Renderer_ES3_PainterInit(
     struct ToriDraw_Scene* scene);
 bool
 TRSPK_Renderer_ES3_ZBufferInit(
+    struct TRSPK_Renderer_ES3* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+/**
+ * The third renderer, on a TRSPK_Renderer_ES3_NewOsrs handle only: the depth
+ * renderer's world with the rev-241 client's depth key, face biases, tie
+ * rule, two-pass models and translucent pass
+ * (platform_web_renderer_webgl2_osrs.c). The app collects the world in the
+ * painter's order (TORIRS_WORLD_PAINTER): the translucent pass replays it.
+ */
+bool
+TRSPK_Renderer_ES3_OsrsInit(
     struct TRSPK_Renderer_ES3* renderer,
     ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene);
@@ -164,6 +185,10 @@ void
 TRSPK_Renderer_ES3_ZBufferExecute(
     struct TRSPK_Renderer_ES3* renderer,
     struct ToriRS_RenderCommand const* command);
+void
+TRSPK_Renderer_ES3_OsrsExecute(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ToriRS_RenderCommand const* command);
 
 /**
  * The startup progress bar, before there is a frame to build.
@@ -185,11 +210,19 @@ TRSPK_Renderer_ES3_ZBufferDrawBootBar(
     int progress,
     int caption_font_id,
     char const* caption);
+void
+TRSPK_Renderer_ES3_OsrsDrawBootBar(
+    struct TRSPK_Renderer_ES3* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption);
 
 void
 TRSPK_Renderer_ES3_PainterRenderFrame(struct TRSPK_Renderer_ES3* renderer, struct ToriRS_Frame* frame);
 void
 TRSPK_Renderer_ES3_ZBufferRenderFrame(struct TRSPK_Renderer_ES3* renderer, struct ToriRS_Frame* frame);
+void
+TRSPK_Renderer_ES3_OsrsRenderFrame(struct TRSPK_Renderer_ES3* renderer, struct ToriRS_Frame* frame);
 
 /**
  * The pixels behind a rotated-masked sprite (the minimap bake) were rewritten

@@ -24,6 +24,12 @@ ToriPlatformWeb_Renderer_WebGL2_New(int width, int height)
     return (struct ToriPlatformWeb_Renderer_WebGL2*)TRSPK_Renderer_ES3_New(width, height, "WebGL2");
 }
 
+struct ToriPlatformWeb_Renderer_WebGL2*
+ToriPlatformWeb_Renderer_WebGL2_NewOsrs(int width, int height)
+{
+    return (struct ToriPlatformWeb_Renderer_WebGL2*)TRSPK_Renderer_ES3_NewOsrs(width, height, "WebGL2");
+}
+
 void
 ToriPlatformWeb_Renderer_WebGL2_Free(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer)
@@ -47,6 +53,15 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferInit(
     struct ToriDraw_Scene* scene)
 {
     return TRSPK_Renderer_ES3_ZBufferInit((struct TRSPK_Renderer_ES3*)renderer, window, scene);
+}
+
+bool
+ToriPlatformWeb_Renderer_WebGL2_OsrsInit(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene)
+{
+    return TRSPK_Renderer_ES3_OsrsInit((struct TRSPK_Renderer_ES3*)renderer, window, scene);
 }
 
 void
@@ -115,6 +130,14 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferExecute(
 }
 
 void
+ToriPlatformWeb_Renderer_WebGL2_OsrsExecute(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    struct ToriRS_RenderCommand const* command)
+{
+    TRSPK_Renderer_ES3_OsrsExecute((struct TRSPK_Renderer_ES3*)renderer, command);
+}
+
+void
 ToriPlatformWeb_Renderer_WebGL2_PainterDrawBootBar(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     int progress,
@@ -137,6 +160,17 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferDrawBootBar(
 }
 
 void
+ToriPlatformWeb_Renderer_WebGL2_OsrsDrawBootBar(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption)
+{
+    TRSPK_Renderer_ES3_OsrsDrawBootBar(
+        (struct TRSPK_Renderer_ES3*)renderer, progress, caption_font_id, caption);
+}
+
+void
 ToriPlatformWeb_Renderer_WebGL2_PainterRenderFrame(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     struct ToriRS_Frame* frame)
@@ -150,6 +184,14 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferRenderFrame(
     struct ToriRS_Frame* frame)
 {
     TRSPK_Renderer_ES3_ZBufferRenderFrame((struct TRSPK_Renderer_ES3*)renderer, frame);
+}
+
+void
+ToriPlatformWeb_Renderer_WebGL2_OsrsRenderFrame(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    struct ToriRS_Frame* frame)
+{
+    TRSPK_Renderer_ES3_OsrsRenderFrame((struct TRSPK_Renderer_ES3*)renderer, frame);
 }
 
 bool

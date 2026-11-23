@@ -261,6 +261,7 @@ ES3_CORE_SRCS := platform/platform_androidarmv7_renderer_opengles3_core.c \
                  platform/platform_web_renderer_webgl2_ui.c \
                  platform/platform_web_renderer_webgl2_painter.c \
                  platform/platform_web_renderer_webgl2_zbuffer.c \
+                 platform/platform_web_renderer_webgl2_osrs.c \
                  $(REPO_ROOT)/3rd/trspk/es3/es3_core.h \
                  $(REPO_ROOT)/3rd/trspk/es3/es3_shaders.h
 

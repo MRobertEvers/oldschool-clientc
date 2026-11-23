@@ -315,12 +315,14 @@ gl3_reserve_model_indices(
     return true;
 }
 
-/* Hold one model's translucent faces for the sorted pass. */
+/* Hold one model's translucent faces for the sorted pass -- or, under the
+ * OSRS depth pass, one run of any GL3_OSRS_RUN_* kind. */
 static bool
 gl3_queue_alpha_submission(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint32_t group,
     int depth,
+    unsigned osrs_kind,
     const uint32_t* indices,
     uint32_t index_count)
 {
@@ -359,12 +361,177 @@ gl3_queue_alpha_submission(
     submission->index_start = renderer->alpha_index_count;
     submission->index_count = index_count;
     submission->depth = depth;
+    submission->osrs_kind = (uint8_t)osrs_kind;
     memcpy(
         renderer->alpha_indices + renderer->alpha_index_count,
         indices,
         (size_t)index_count * sizeof(uint32_t));
     renderer->alpha_index_count += index_count;
     return true;
+}
+
+/* A blended face and its depth bucket, for the client's sorted order. */
+struct GL3OsrsFaceKey
+{
+    int bucket;
+    int face;
+};
+
+static int
+gl3_osrs_face_key_cmp(const void* lhs, const void* rhs)
+{
+    const struct GL3OsrsFaceKey* a = (const struct GL3OsrsFaceKey*)lhs;
+    const struct GL3OsrsFaceKey* b = (const struct GL3OsrsFaceKey*)rhs;
+    /* Far buckets first, face index order within one [class174.method5697]. */
+    if( a->bucket != b->bucket )
+        return a->bucket > b->bucket ? -1 : 1;
+    return a->face < b->face ? -1 : (a->face > b->face ? 1 : 0);
+}
+
+static inline uint32_t
+gl3_osrs_write_face(
+    uint32_t* destination,
+    uint32_t written,
+    uint32_t vertex_base,
+    uint32_t face)
+{
+    uint32_t const b = vertex_base + face * 3u;
+    destination[written] = b;
+    destination[written + 1u] = b + 1u;
+    destination[written + 2u] = b + 2u;
+    return written + 3u;
+}
+
+/*
+ * One world model under the OSRS depth pass (see the header): a two-pass
+ * model's faces in render-priority order, split into an opaque run and a
+ * translucent one; any other model's opaque faces into the order-free chain
+ * and its blended faces in the client's sorted order.
+ */
+static void
+gl3zb_submit_osrs(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    struct ToriDraw_Scene* ctx,
+    uint32_t group,
+    uint32_t vertex_base,
+    const struct GL3MaterialPose* material,
+    bool projected)
+{
+    const struct ToriDraw_Model* model =
+        ToriDraw_ModelKindIsFull(mcmd->model.kind) ? ToriDraw_ModelRead(mcmd->model) : NULL;
+    bool const two_pass = model && (model->flags & TORIDRAW_MODEL_FLAG_RSZBUF_TWO_PASS);
+    uint32_t written = 0u;
+
+    if( !two_pass )
+    {
+        for( uint32_t face = 0u; face < material->face_count; face++ )
+        {
+            uint8_t const pass = material->face_passes[face];
+            if( pass == GL3_WORLD_FACE_OPAQUE || pass == GL3_WORLD_FACE_CUTOUT )
+                written = gl3_osrs_write_face(renderer->model_indices, written, vertex_base, face);
+        }
+        if( written > 0u )
+        {
+            trspk_ibochain_push32(renderer->ibo_chain, group, 0u, renderer->model_indices, written);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_OPAQUE_TRIANGLES, written / 3u);
+        }
+        if( material->blended_count == 0u )
+            return;
+    }
+
+    if( !projected )
+    {
+        struct ToriDraw_Position position = mcmd->position;
+        if( ToriDraw_RenderModel1ProjectWithTable(
+                mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
+                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+            return;
+    }
+
+    if( two_pass )
+    {
+        int const sorted_face_count =
+            ToriDraw_RenderModel2SortFacesWithTable(mcmd->model, ctx, renderer->kernel);
+        const int* face_order = ToriDraw_FaceOrder(ctx);
+        uint32_t blended_written = 0u;
+
+        if( sorted_face_count <= 0 )
+            return;
+        for( int i = 0; i < sorted_face_count; i++ )
+        {
+            uint8_t pass;
+            if( face_order[i] < 0 || (uint32_t)face_order[i] >= material->face_count )
+                continue;
+            pass = material->face_passes[face_order[i]];
+            if( pass == GL3_WORLD_FACE_OPAQUE || pass == GL3_WORLD_FACE_CUTOUT )
+                written = gl3_osrs_write_face(
+                    renderer->model_indices, written, vertex_base, (uint32_t)face_order[i]);
+        }
+        (void)gl3_queue_alpha_submission(
+            renderer, group, 0, GL3_OSRS_RUN_OPAQUE_TWO_PASS, renderer->model_indices, written);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_OPAQUE_TRIANGLES, written / 3u);
+        if( material->blended_count == 0u )
+            return;
+        for( int i = 0; i < sorted_face_count; i++ )
+        {
+            if( face_order[i] < 0 || (uint32_t)face_order[i] >= material->face_count )
+                continue;
+            if( material->face_passes[face_order[i]] == GL3_WORLD_FACE_BLENDED )
+                blended_written = gl3_osrs_write_face(
+                    renderer->model_indices, blended_written, vertex_base, (uint32_t)face_order[i]);
+        }
+        (void)gl3_queue_alpha_submission(
+            renderer, group, 0, GL3_OSRS_RUN_TRANSLUCENT_TWO_PASS, renderer->model_indices,
+            blended_written);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_BLENDED_TRIANGLES, blended_written / 3u);
+        return;
+    }
+
+    /* The client's sorted mode: blended faces by the bucket of their corners'
+     * average depth, far to near, no priorities. Back faces stay: the GPU
+     * culls them. Only a full model carries face alpha. */
+    assert(model);
+    {
+        const int* depth = ctx->screen_vertices_z;
+        uint32_t key_count = 0u;
+
+        if( material->blended_count > renderer->osrs_face_key_capacity )
+        {
+            uint32_t capacity =
+                renderer->osrs_face_key_capacity ? renderer->osrs_face_key_capacity : 256u;
+            struct GL3OsrsFaceKey* grown;
+            while( capacity < material->blended_count )
+                capacity *= 2u;
+            grown = (struct GL3OsrsFaceKey*)ToriMem_Realloc(
+                ToriMem_Renderer(), renderer->osrs_face_keys, (size_t)capacity * sizeof(*grown));
+            assert(grown);
+            renderer->osrs_face_keys = grown;
+            renderer->osrs_face_key_capacity = capacity;
+        }
+        for( uint32_t face = 0u; face < material->face_count; face++ )
+        {
+            struct GL3OsrsFaceKey* key;
+            if( material->face_passes[face] != GL3_WORLD_FACE_BLENDED )
+                continue;
+            assert(key_count < material->blended_count);
+            key = &((struct GL3OsrsFaceKey*)renderer->osrs_face_keys)[key_count++];
+            key->face = (int)face;
+            key->bucket = (depth[model->face_indices_a[face]] + depth[model->face_indices_b[face]] +
+                           depth[model->face_indices_c[face]]) /
+                          3;
+        }
+        qsort(renderer->osrs_face_keys, key_count, sizeof(struct GL3OsrsFaceKey), gl3_osrs_face_key_cmp);
+        written = 0u;
+        for( uint32_t i = 0u; i < key_count; i++ )
+            written = gl3_osrs_write_face(
+                renderer->model_indices, written, vertex_base,
+                (uint32_t)((struct GL3OsrsFaceKey*)renderer->osrs_face_keys)[i].face);
+    }
+    (void)gl3_queue_alpha_submission(
+        renderer, group, 0, GL3_OSRS_RUN_TRANSLUCENT, renderer->model_indices, written);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_SORTED_MODELS, 1);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_BLENDED_TRIANGLES, written / 3u);
 }
 
 /*
@@ -415,6 +582,11 @@ GL3ZB_SubmitModel(
             renderer, mcmd->element_id, anim_index, pose_id, mcmd->model);
     if( !material || material->face_count != (uint32_t)face_count )
         return;
+    if( renderer->osrs_depth )
+    {
+        gl3zb_submit_osrs(renderer, mcmd, ctx, group, vertex_base, material, projected);
+        return;
+    }
 
     for( int i = 0; i < face_count; i++ )
     {
@@ -472,7 +644,8 @@ GL3ZB_SubmitModel(
     if( written == 0u )
         return;
     (void)gl3_queue_alpha_submission(
-        renderer, group, ctx->projected_vertex.z, renderer->model_indices, written);
+        renderer, group, ctx->projected_vertex.z, GL3_OSRS_RUN_TRANSLUCENT, renderer->model_indices,
+        written);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_BLENDED_TRIANGLES, written / 3u);
 }
 
@@ -531,6 +704,22 @@ GL3ZB_StageAlphaPass(
         renderer->alpha_order = grown;
         renderer->alpha_order_capacity = cap;
     }
+    if( renderer->osrs_depth )
+    {
+        /* The client's order, not a depth sort: the two-pass models' opaque
+         * runs finish its opaque pass, then every translucent run in the
+         * order the world arrived in (the painter's). */
+        uint32_t at = 0u;
+        for( uint32_t i = 0u; i < renderer->alpha_submission_count; i++ )
+            if( renderer->alpha_submissions[i].osrs_kind == GL3_OSRS_RUN_OPAQUE_TWO_PASS )
+                renderer->alpha_order[at++] = i;
+        for( uint32_t i = 0u; i < renderer->alpha_submission_count; i++ )
+            if( renderer->alpha_submissions[i].osrs_kind != GL3_OSRS_RUN_OPAQUE_TWO_PASS )
+                renderer->alpha_order[at++] = i;
+        assert(at == renderer->alpha_submission_count);
+    }
+    else
+    {
     for( uint32_t i = 0u; i < renderer->alpha_submission_count; i++ )
         renderer->alpha_order[i] = i;
     /* Insertion sort: the count is the number of translucent models on screen,
@@ -549,6 +738,7 @@ GL3ZB_StageAlphaPass(
         }
         renderer->alpha_order[j] = key;
     }
+    }
 
     for( uint32_t oi = 0u; oi < renderer->alpha_submission_count; oi++ )
     {
@@ -562,6 +752,66 @@ GL3ZB_StageAlphaPass(
         staged += sub->index_count;
     }
     assert(staged == renderer->alpha_index_count);
+}
+
+/*
+ * The OSRS depth pass's runs, in the staged order: the two-pass opaque runs,
+ * then the translucent ones. A two-pass run is drawn colour only, then depth
+ * only; a plain translucent run blends AND writes depth, as the client's
+ * sorted pass does. Neighbouring plain translucent runs in one group merge.
+ * Blending is on for the whole world pass (gl3_blend_ui), and an opaque face
+ * blends as itself.
+ */
+static void
+gl3zb_draw_osrs_runs(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint32_t index_base)
+{
+    GLuint bound_vao = 0u;
+
+    for( uint32_t oi = 0u; oi < renderer->alpha_submission_count; )
+    {
+        const struct GL3AlphaSubmission* first =
+            &renderer->alpha_submissions[renderer->alpha_order[oi]];
+        uint32_t count = first->index_count;
+        const void* offset =
+            (const void*)(uintptr_t)((index_base + first->staged_start) * sizeof(uint32_t));
+        GLuint vao;
+
+        oi++;
+        if( first->osrs_kind == GL3_OSRS_RUN_TRANSLUCENT )
+        {
+            for( ; oi < renderer->alpha_submission_count; oi++ )
+            {
+                const struct GL3AlphaSubmission* next =
+                    &renderer->alpha_submissions[renderer->alpha_order[oi]];
+                if( next->group != first->group || next->osrs_kind != GL3_OSRS_RUN_TRANSLUCENT )
+                    break;
+                count += next->index_count;
+            }
+        }
+        vao = renderer->groups[first->group].vao;
+        if( vao != bound_vao )
+        {
+            glBindVertexArray(vao);
+            bound_vao = vao;
+        }
+        if( first->osrs_kind == GL3_OSRS_RUN_TRANSLUCENT )
+        {
+            glDepthMask(GL_TRUE);
+            glDrawElements(GL_TRIANGLES, (GLsizei)count, GL_UNSIGNED_INT, offset);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
+            continue;
+        }
+        glDepthMask(GL_FALSE);
+        glDrawElements(GL_TRIANGLES, (GLsizei)count, GL_UNSIGNED_INT, offset);
+        glDepthMask(GL_TRUE);
+        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+        glDrawElements(GL_TRIANGLES, (GLsizei)count, GL_UNSIGNED_INT, offset);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 2);
+    }
+    glDepthMask(GL_TRUE);
 }
 
 /*
@@ -585,6 +835,11 @@ GL3ZB_DrawAlphaPass(
     assert(renderer);
     if( renderer->alpha_submission_count == 0u )
         return;
+    if( renderer->osrs_depth )
+    {
+        gl3zb_draw_osrs_runs(renderer, index_base);
+        return;
+    }
 
     glDepthMask(GL_FALSE);
     for( uint32_t oi = 0u; oi < renderer->alpha_submission_count; )
@@ -628,6 +883,9 @@ GL3ZB_Free(struct ToriPlatformSDL2_Renderer_GL3* renderer)
     ToriMem_Free(ToriMem_Renderer(), renderer->alpha_indices);
     ToriMem_Free(ToriMem_Renderer(), renderer->alpha_order);
     ToriMem_Free(ToriMem_Renderer(), renderer->model_indices);
+    ToriMem_Free(ToriMem_Renderer(), renderer->osrs_face_keys);
+    renderer->osrs_face_keys = NULL;
+    renderer->osrs_face_key_capacity = 0u;
     gl3_material_table_free(&renderer->materials);
     gl3_material_pose_clear(&renderer->dynamic_material);
     renderer->alpha_submissions = NULL;
@@ -669,10 +927,19 @@ GL3ZB_BeginPass(
      * leaves last frame's depth to reject this frame's geometry, and looks like
      * random missing models rather than like a state bug.
      */
+    /* The OSRS pass keys depth only under a perspective camera; its buffer
+     * then clears to 0, farther than any key, and the clear value goes back
+     * to 1 at once for the frame's own clears. */
+    renderer->osrs_key_depth = renderer->osrs_depth &&
+                               renderer->cur_3d.camera.projection_mode != TORIDRAW_PROJECTION_MODE_PARALLEL;
     glEnable(GL_SCISSOR_TEST);
     glScissor(gl_x, gl_y, gl_w, gl_h);
     glDepthMask(GL_TRUE);
+    if( renderer->osrs_key_depth )
+        glClearDepthf(0.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
+    if( renderer->osrs_key_depth )
+        glClearDepthf(1.0f);
     glDisable(GL_SCISSOR_TEST);
 }
 
@@ -711,12 +978,13 @@ GL3ZB_ApplyProjectionDepth(
 void
 GL3ZB_BindDrawState(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
-    (void)renderer;
+    assert(renderer);
     /* LEQUAL, not LESS: coplanar geometry submitted twice (a decor plane on its
      * floor tile) must keep the later one, which is what painter order did and
-     * what the content is authored against. */
+     * what the content is authored against. The OSRS pass is the client's
+     * instead: larger keys are nearer, and an equal key keeps what is there. */
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
+    glDepthFunc(renderer->osrs_key_depth ? GL_GREATER : GL_LEQUAL);
     glDepthMask(GL_TRUE);
     /* The GPU does the front-facing test, as it does on the D3D9 z-buffer
      * lane. The software check this replaces re-derived screen-space
