@@ -35,6 +35,20 @@ recording. A quest is done when every row of steps 1-3 and every recorded npc-in
    - **the recorder's own kit** (their weapon's swing, their autocast) -> say so.
    Never filter inventory clicks (`if_buttonx com=inventory`) or `opheld` out of an event
    list: that is exactly where the tablets were.
+1c. **Every stance the player was put in, over the WHOLE recording.** The default transcript
+   prints no player `[bas]`, so a crawl, a seat, a cart, wading or a carried prop is invisible
+   in it and in every tool that reads it. Transcribe every session with `--bas`
+   (`rsprox_index.py get <id> --bas`; the home-wire transcript has it too), then
+   `python3 tools/rsprox/player_bas_spans.py <bas txt>` lists each stance that is not the
+   normal one as `[on..off] ready=.., walk=.., walkleft=.., run=..`. Copy every span into the
+   doc and give it a verdict: which op, room or scene puts it on and which takes it off, ours
+   (`~bas_set` with `null` for every `-1` slot, `~update_bas` to restore) on the same ticks,
+   and the test row that checks it. Do this BEFORE explaining any recorded pace or movement:
+   `run=-1` is why a player walks with run on, `walk=-1` why they cannot move. Forgettable
+   Tale (2026-11-23) shipped with its listening room and last-scene gallery upright
+   (4646 [3365..3580], [4712..4857]: `human_crawling`, `run=-1`); the walk pace was then
+   "fixed" with an invented no-run rule (`p_runblock`) until the owner asked "Did you miss
+   the BAS?". The span list was one command away the whole time.
 2. **Every move.** Each TELEPORTS row: what caused it, the shape (§2 ladders: face L+1, anim
    L+2, move L+3; from standing, anim on C, move C+1), the landing tile (copy it; check
    `maplink.dbrow` / `maplink_landings.dbrow` and the spell rows' `tele_coord`), and ours from
@@ -918,9 +932,9 @@ still: adds land on their ticks, so nothing looks missing unless the moves are d
 1. Recording: `python3 tools/rsprox/npc_timeline.py <txt> --match '<cast regex>' --from T --to E`
    per cast type (moves, facings, seqs, says), plus the player's `[walk]`/`[run]`/`[teleport]`
    lines and their `[move_speed]`/`[temp_move_speed]` (`grep -E "player=|speed"` over the window),
-   AND every player `[bas]` line in the window and the next normal one after it (home-wire or
-   `--bas` transcript: `awk '/^\[[0-9]+\]/{t=$1} /^ *\[bas\]/{print t, $0}'`). A scene that sneaks,
-   crawls, sits, wades or rides changes the stance; the default transcript never shows it.
+   AND every stance span in the window (`player_bas_spans.py <--bas txt> --from T --to E`,
+   porting step 1c). A scene that sneaks, crawls, sits, wades or rides changes the stance;
+   the default transcript never shows it.
    List every walk run (first-step tick, tiles, end tile), every `[facing]` (coord, entity,
    reset) and every add's `spawnangle`.
 2. Ours: play the scene by itself under scriptrun (a `[debugproc,<name>]` that sets the stage and
@@ -1180,7 +1194,8 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
 
 - **A scene whose cast is added but never walks passes every check except the cast diff**
   (§12b "The cast moves"). `wirelog_tells.py` and the camera/page rows cannot see it.
-- **The player walking with run on is a stance before it is a rule.** Forgettable Tale's
+- **The player walking with run on is a stance before it is a rule** (porting step 1c,
+  `player_bas_spans.py`). Forgettable Tale's
   listening room (4646 [3412..3422]) walked a tile a tick with run on and full energy; I built
   a "no-run room" with `p_runblock` and shipped it. The room's `[bas]` at [3365] was a crawl
   (`human_crawling`, `run=-1`): the player never crawled in ours (owner, 2026-11-23: "Did you
