@@ -1135,9 +1135,9 @@
   const rendererMemory = (() => {
     const ACTIVE_KEY = 'torirs.renderer';
     const FALLBACK_KEY = 'torirs.renderer_fallback';
-    const GPU = { 7: 'webgl2', 8: 'webgl2-zbuffer', 9: 'webgl1', 10: 'webgl1-zbuffer', 15: 'webgl2-osrs' };
+    const GPU = { 7: 'webgl2', 8: 'webgl2-zbuffer', 9: 'webgl1', 10: 'webgl1-zbuffer', 15: 'webgl2-os235sailing', 17: 'webgl2-os241tfa' };
     const FLAGS = {
-      '--webgl2': 7, '--webgl2-zbuffer': 8, '--webgl1': 9, '--webgl1-zbuffer': 10, '--webgl2-osrs': 15,
+      '--webgl2': 7, '--webgl2-zbuffer': 8, '--webgl1': 9, '--webgl1-zbuffer': 10, '--webgl2-os235sailing': 15, '--webgl2-os241tfa': 17,
       '--soft3d': 0, '--soft3d-zbuffer': 13, '--soft3d-rszbuffer': 14,
     };
     const read = key => { try { return window.localStorage.getItem(key); } catch (err) { return null; } };
@@ -1240,8 +1240,9 @@
    *   software                 the module's own (256 MB, grows)
    *   WebGL1, WebGL1 z-buffer  640 MB, then 512, 384
    *   WebGL2, WebGL2 z-buffer  768 MB, then 640, 512 -- its world is ONE
-   *   WebGL2 OSRS z-buffer     block (~150 MB; a seventh more for the OSRS
-   *                            renderer's 32-byte vertex) that needs a hole
+   *   WebGL2 OSRS (Sailing,    block (~150 MB; a seventh more for Sailing
+   *   Post-TFA)                OSRS's 32-byte vertex, ~85% more for
+   *                            Post-TFA's 52-byte one) that needs a hole
    *                            that size
    *
    * The first size the browser grants is used; when it grants none the
@@ -1268,7 +1269,7 @@
     let ladder = [];
     let why = 'software';
     if (forced >= 256) { ladder = [forced]; why = '?heap'; }
-    else if (kind === 7 || kind === 8 || kind === 15) { ladder = WEBGL2; why = rendererMemory.name(kind); }
+    else if (kind === 7 || kind === 8 || kind === 15 || kind === 17) { ladder = WEBGL2; why = rendererMemory.name(kind); }
     else if (kind === 9 || kind === 10) { ladder = WEBGL1; why = rendererMemory.name(kind); }
     else if (kind === null && lowMemory.on) { ladder = WEBGL1; why = 'renderer not known, low-memory device'; }
     let refused = null;

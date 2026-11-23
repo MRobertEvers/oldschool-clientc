@@ -3667,9 +3667,15 @@ _Static_assert(
 _Static_assert(
     (int)TORIRS_RENDERER_SOFTWARE_RSZBUF == (int)TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF, "renderer ids");
 _Static_assert(
-    (int)TORIRS_RENDERER_WEBGL2_OSRS == (int)TORIRS_RENDERER_KIND_WEBGL2_OSRS, "renderer ids");
+    (int)TORIRS_RENDERER_WEBGL2_OS235SAILING == (int)TORIRS_RENDERER_KIND_WEBGL2_OS235SAILING,
+    "renderer ids");
 _Static_assert(
-    (int)TORIRS_RENDERER_OPENGL3_OSRS == (int)TORIRS_RENDERER_KIND_OPENGL3_OSRS, "renderer ids");
+    (int)TORIRS_RENDERER_OPENGL3_OS235SAILING == (int)TORIRS_RENDERER_KIND_OPENGL3_OS235SAILING,
+    "renderer ids");
+_Static_assert(
+    (int)TORIRS_RENDERER_WEBGL2_OS241TFA == (int)TORIRS_RENDERER_KIND_WEBGL2_OS241TFA, "renderer ids");
+_Static_assert(
+    (int)TORIRS_RENDERER_OPENGL3_OS241TFA == (int)TORIRS_RENDERER_KIND_OPENGL3_OS241TFA, "renderer ids");
 _Static_assert((int)TORIRS_RENDERER_COUNT == (int)TORIRS_RENDERER_KIND_COUNT, "renderer ids");
 _Static_assert((int)RS_CS2_RENDERER_MAX == (int)TORIRS_RENDERER_KIND_COUNT, "option 36 stores kind + 1");
 

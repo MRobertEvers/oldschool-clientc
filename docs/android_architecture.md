@@ -199,7 +199,7 @@ The core itself:
   stream at all for most of the static world -- while mixed poses go through
   per-page index buckets and only genuinely blended faces are sorted;
 - every world texture lives in one 2048² atlas. The vertex carries the tile and
-  the scroll speed (28 bytes a vertex, `TRSPK_VertexGLES2`), and the fragment
+  the scroll speed (28 bytes a vertex, `TRSPK_VertexGLES2Os1`), and the fragment
   shader wraps/clamps the local coordinate per fragment, so the world pass binds
   one texture and never switches for scrolling water or lava;
 - the UI is a retained sprite atlas, `GL_LUMINANCE_ALPHA` font atlases and one

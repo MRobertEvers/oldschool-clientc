@@ -31,13 +31,13 @@ int main(void)
     float xyz[12];trspk_toridraw_world_vertices(m,&trspk_world_placement_identity,xyz);
     for(unsigned shade=0;shade<3;shade++)for(unsigned av=0;av<256;av++) {
         cc[0]=cc[1]=shades[shade];alpha[0]=alpha[1]=av;
-        struct TRSPK_VertexGLES2 got[12];
+        struct TRSPK_VertexGLES2Os1 got[12];
         trspk_toridraw_gles2_untextured(m,order,4,xyz,got);
-        struct TRSPK_VertexGLES2 fast[12];
+        struct TRSPK_VertexGLES2Os1 fast[12];
         trspk_toridraw_gles2_untextured_words(m,order,4,xyz,fast);
         if(memcmp(got,fast,sizeof(got))){fprintf(stderr,"word packed bytes mismatch\n");return 1;}
         for(unsigned fi=0;fi<4;fi++) {
-            struct TRSPK_VertexGLES2 expected[3]={0};
+            struct TRSPK_VertexGLES2Os1 expected[3]={0};
             if(fi<2) {
                 struct TRSPK_ToriDrawBakeFaceVerts f;
                 trspk_toridraw_bake_face_cached(m,order[fi],&trspk_world_placement_identity,NULL,true,TRSPK_BAKE_COLOR_ARGB,xyz,&f);

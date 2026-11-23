@@ -42,18 +42,22 @@ struct ToriPlatformWeb_Renderer_WebGL2;
 /** The core, named for this lane. */
 struct ToriPlatformWeb_Renderer_WebGL2*
 ToriPlatformWeb_Renderer_WebGL2_New(int width, int height);
-/** The core in the OSRS vertex: for ToriPlatformWeb_Renderer_WebGL2_OsrsInit
- *  and no other Init (TRSPK_Renderer_ES3_NewOsrs). */
+/** The core in an OSRS vertex -- Sailing (depth bias) or Post-TFA (bias and
+ *  texture projector) -- for that renderer's own Init and no other
+ *  (TRSPK_Renderer_ES3_NewOs235Sailing / _NewOs241Tfa). */
 struct ToriPlatformWeb_Renderer_WebGL2*
-ToriPlatformWeb_Renderer_WebGL2_NewOsrs(int width, int height);
+ToriPlatformWeb_Renderer_WebGL2_NewOs235Sailing(int width, int height);
+struct ToriPlatformWeb_Renderer_WebGL2*
+ToriPlatformWeb_Renderer_WebGL2_NewOs241Tfa(int width, int height);
 
 void
 ToriPlatformWeb_Renderer_WebGL2_Free(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer);
 
 /* Three renderers, three entry points: the painter flag brings up the painter
- * one, the -zbuffer flag the depth one and the -osrs flag the OSRS z-buffer
- * one (on a NewOsrs handle), and whichever was chosen owns the handle's
+ * one, the -zbuffer flag the depth one and the -os235sailing / -os241tfa
+ * flags the OSRS z-buffer one (on a NewOs235Sailing / NewOs241Tfa handle), and
+ * whichever was chosen owns the handle's
  * Execute, DrawBootBar and RenderFrame from then on. There is no flag and no
  * test below this line. @see 3rd/trspk/es3/trspk_es3.h. */
 bool
@@ -67,7 +71,12 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferInit(
     ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene);
 bool
-ToriPlatformWeb_Renderer_WebGL2_OsrsInit(
+ToriPlatformWeb_Renderer_WebGL2_Os235SailingInit(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+bool
+ToriPlatformWeb_Renderer_WebGL2_Os241TfaInit(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene);
@@ -113,7 +122,11 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferExecute(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     struct ToriRS_RenderCommand const* command);
 void
-ToriPlatformWeb_Renderer_WebGL2_OsrsExecute(
+ToriPlatformWeb_Renderer_WebGL2_Os235SailingExecute(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    struct ToriRS_RenderCommand const* command);
+void
+ToriPlatformWeb_Renderer_WebGL2_Os241TfaExecute(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     struct ToriRS_RenderCommand const* command);
 
@@ -130,7 +143,13 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferDrawBootBar(
     int caption_font_id,
     char const* caption);
 void
-ToriPlatformWeb_Renderer_WebGL2_OsrsDrawBootBar(
+ToriPlatformWeb_Renderer_WebGL2_Os235SailingDrawBootBar(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption);
+void
+ToriPlatformWeb_Renderer_WebGL2_Os241TfaDrawBootBar(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     int progress,
     int caption_font_id,
@@ -145,7 +164,11 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferRenderFrame(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     struct ToriRS_Frame* frame);
 void
-ToriPlatformWeb_Renderer_WebGL2_OsrsRenderFrame(
+ToriPlatformWeb_Renderer_WebGL2_Os235SailingRenderFrame(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    struct ToriRS_Frame* frame);
+void
+ToriPlatformWeb_Renderer_WebGL2_Os241TfaRenderFrame(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     struct ToriRS_Frame* frame);
 

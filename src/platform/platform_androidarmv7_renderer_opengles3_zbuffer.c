@@ -1236,7 +1236,7 @@ es3z_world_record_bake(
     int record)
 {
     struct TRSPK_WorldRecord const* baking = &slot->records[record];
-    es3_world_record_bake(renderer, slot, record);
+    es3_world_record_bake_os1(renderer, slot, record);
     es3_zbuffer_batch_pose_baked(
         renderer, slot, baking->element_id, baking->anim_index, baking->pose_id, baking->model);
 }
@@ -1486,7 +1486,7 @@ es3z_bake_dynamic(
         if( vertex_base != UINT32_MAX )
             return vertex_base;
     }
-    vertex_base = es3_bake_into_arena(
+    vertex_base = es3_bake_into_arena_os1(
         renderer,
         group,
         command->element_id,
@@ -1693,7 +1693,7 @@ es3z_draw_model(
          * (renderer creation, an event-queue overflow) has its track
          * announced here first, as its ANIM_LOAD would have. */
         if( command->animation &&
-            !es3_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base, &posed) )
+            !es3_bake_track_pose_os1(renderer, command, anim_index, pose_id, &vertex_base, &posed) )
         {
             struct ToriRS_RenderCommand_AnimLoad load;
             memset(&load, 0, sizeof(load));
@@ -1703,7 +1703,7 @@ es3z_draw_model(
             load.model = command->model;
             load.world_position = command->world_position;
             es3z_animation_load(renderer, &load);
-            (void)es3_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base, &posed);
+            (void)es3_bake_track_pose_os1(renderer, command, anim_index, pose_id, &vertex_base, &posed);
         }
         if( posed )
         {
@@ -1717,7 +1717,7 @@ es3z_draw_model(
         else if( !trspk_pose_table_get(
                      &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
         {
-            vertex_base = es3_bake_into_arena(
+            vertex_base = es3_bake_into_arena_os1(
                 renderer,
                 &renderer->groups[group],
                 command->element_id,
@@ -1816,7 +1816,7 @@ es3z_model_load(
     /* A model replacement invalidates every pose from the old geometry. */
     if( es3_model_unload(renderer, command->element_id) )
         es3_zbuffer_element_dropped(renderer, command->element_id);
-    if( es3_bake_into_arena(
+    if( es3_bake_into_arena_os1(
             renderer,
             &renderer->groups[TRSPK_VBO_GROUP_STATIC],
             command->element_id,

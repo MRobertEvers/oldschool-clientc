@@ -48,7 +48,7 @@ main(void)
 
     printf("trspk-batch32\n");
 
-    batch = trspk_batch32_create(TRSPK_VERTEX_FORMAT_OPENGL3);
+    batch = trspk_batch32_create(TRSPK_VERTEX_FORMAT_OPENGL3_OS1);
     trspk_batch32_begin(batch);
     for( e = 0; e < ELEMENTS; e++ )
     {

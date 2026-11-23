@@ -93,7 +93,7 @@ es3_bake_ordered_fast(
     if( !ordered_painter || !world_xyz || full_model->face_textures )
         return false;
     trspk_toridraw_gles2_untextured_words(
-        full_model, face_order, written_count, world_xyz, &vbo->vertices.as_gles2[vertex_base]);
+        full_model, face_order, written_count, world_xyz, &vbo->vertices.as_gles2_os1[vertex_base]);
     trspk_vbo_mark_dirty_range(vbo, vertex_base, written_count * 3u);
     return true;
 }
@@ -121,7 +121,7 @@ _Static_assert(
     ES3_ATLAS_COLS* ES3_ATLAS_COLS == ES3_ATLAS_SLOTS,
     "the slot count is the grid squared");
 _Static_assert(
-    sizeof(struct TRSPK_VertexGLES2) == 28u,
+    sizeof(struct TRSPK_VertexGLES2Os1) == 28u,
     "the world vertex layout is what the attribute pointers describe");
 _Static_assert(
     sizeof(struct ES3VertexUI) == 28u,
@@ -141,7 +141,7 @@ enum ES3StreamLayout
     ES3_STREAM_ROTMASK = 3,
 };
 
-#define ES3_VERTEX_STRIDE ((GLsizei)sizeof(struct TRSPK_VertexGLES2))
+#define ES3_VERTEX_STRIDE ((GLsizei)sizeof(struct TRSPK_VertexGLES2Os1))
 
 /* ---- cached GL state ------------------------------------------------------ */
 
@@ -956,7 +956,7 @@ es3_refresh_anim_range(
 
     assert(vbo);
     assert(triangles);
-    if( vbo->format != TRSPK_VERTEX_FORMAT_GLES2 || !vbo->vertices.as_gles2 || !triangles->config ||
+    if( vbo->format != TRSPK_VERTEX_FORMAT_GLES2_OS1 || !vbo->vertices.as_gles2_os1 || !triangles->config ||
         vertex_count % 3u != 0u || vertex_base > vbo->vertex_count ||
         vertex_count > vbo->vertex_count - vertex_base )
         return false;
@@ -970,7 +970,7 @@ es3_refresh_anim_range(
             continue;
         for( corner = 0u; corner < 3u; corner++ )
         {
-            struct TRSPK_VertexGLES2* vertex = &vbo->vertices.as_gles2[vertex_index + corner];
+            struct TRSPK_VertexGLES2Os1* vertex = &vbo->vertices.as_gles2_os1[vertex_index + corner];
             if( vertex->anim_u == anim_u && vertex->anim_v == anim_v )
                 continue;
             vertex->anim_u = anim_u;
@@ -1328,22 +1328,22 @@ es3_upload_group(
         /* Rebuilt wholesale every frame, so it goes into this frame's buffer
          * of the dynamic stream set (see ES3_FRAMES_IN_FLIGHT). */
         uint32_t offset;
-        byte_count = (size_t)vertex_count * sizeof(struct TRSPK_VertexGLES2);
+        byte_count = (size_t)vertex_count * sizeof(struct TRSPK_VertexGLES2Os1);
         offset = es3_stream_set_append(
             &renderer->dynamic_stream,
             renderer->frame_slot,
             GL_ARRAY_BUFFER,
             ES3_DYNAMIC_STREAM_INIT_BYTES,
-            group->vbo_cpu->vertices.as_gles2,
+            group->vbo_cpu->vertices.as_gles2_os1,
             (uint32_t)byte_count,
             false);
         /* Growth may have replaced the store; the group's name is this
          * frame's slot, whatever it now is. @see es3_stream_set_append. */
         group->vbo_gpu = renderer->dynamic_stream.buffers[renderer->frame_slot];
         renderer->bound_array_buffer = group->vbo_gpu;
-        group->gpu_base_vertex = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2);
+        group->gpu_base_vertex = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2Os1);
         group->gpu_capacity = renderer->dynamic_stream.capacities[renderer->frame_slot] /
-                              (uint32_t)sizeof(struct TRSPK_VertexGLES2);
+                              (uint32_t)sizeof(struct TRSPK_VertexGLES2Os1);
         trspk_vbo_clear_dirty(group->vbo_cpu);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOAD_BYTES, (int64_t)byte_count);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOADS, 1);
@@ -1357,7 +1357,7 @@ es3_upload_group(
             capacity *= 2u;
         glBufferData(
             GL_ARRAY_BUFFER,
-            (GLsizeiptr)((size_t)capacity * sizeof(struct TRSPK_VertexGLES2)),
+            (GLsizeiptr)((size_t)capacity * sizeof(struct TRSPK_VertexGLES2Os1)),
             NULL,
             GL_STATIC_DRAW);
         group->gpu_capacity = capacity;
@@ -1377,14 +1377,14 @@ es3_upload_group(
         if( first > end )
             first = end;
     }
-    byte_count = (size_t)(end - first) * sizeof(struct TRSPK_VertexGLES2);
+    byte_count = (size_t)(end - first) * sizeof(struct TRSPK_VertexGLES2Os1);
     if( byte_count > 0u )
     {
         glBufferSubData(
             GL_ARRAY_BUFFER,
-            (GLintptr)((size_t)first * sizeof(struct TRSPK_VertexGLES2)),
+            (GLintptr)((size_t)first * sizeof(struct TRSPK_VertexGLES2Os1)),
             (GLsizeiptr)byte_count,
-            &group->vbo_cpu->vertices.as_gles2[first]);
+            &group->vbo_cpu->vertices.as_gles2_os1[first]);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOAD_BYTES, (int64_t)byte_count);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOADS, 1);
     }
@@ -1452,7 +1452,7 @@ es3_ensure_build_vbo(
         }
         capacity *= 2u;
     }
-    byte_capacity = (uint64_t)capacity * sizeof(struct TRSPK_VertexGLES2);
+    byte_capacity = (uint64_t)capacity * sizeof(struct TRSPK_VertexGLES2Os1);
     if( byte_capacity > (uint64_t)INT32_MAX )
         return false;
     if( !gpu->vbo )
@@ -1498,13 +1498,13 @@ es3_upload_build(
             end = vbo->dirty_end < count ? vbo->dirty_end : count;
             if( first < end )
             {
-                size_t const byte_count = (size_t)(end - first) * sizeof(struct TRSPK_VertexGLES2);
+                size_t const byte_count = (size_t)(end - first) * sizeof(struct TRSPK_VertexGLES2Os1);
                 es3_bind_array_buffer(renderer, gpu->vbo);
                 glBufferSubData(
                     GL_ARRAY_BUFFER,
-                    (GLintptr)((uint64_t)first * sizeof(struct TRSPK_VertexGLES2)),
+                    (GLintptr)((uint64_t)first * sizeof(struct TRSPK_VertexGLES2Os1)),
                     (GLsizeiptr)byte_count,
-                    &vbo->vertices.as_gles2[first]);
+                    &vbo->vertices.as_gles2_os1[first]);
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOAD_BYTES, (int64_t)byte_count);
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOADS, 1);
             }
@@ -1581,7 +1581,7 @@ es3_world_add(
 }
 
 void
-es3_world_record_bake(
+es3_world_record_bake_os1(
     struct TRSPK_Renderer_ES3* renderer,
     struct TRSPK_WorldSlot* slot,
     int record)
@@ -1592,7 +1592,7 @@ es3_world_record_bake(
     assert(slot);
     baking = &slot->records[record];
     trspk_world_record_take(slot, record, &reservation);
-    (void)es3_bake_pose_vertices(
+    (void)es3_bake_pose_vertices_os1(
         renderer,
         reservation.vbo,
         reservation.triangles,
@@ -1940,7 +1940,7 @@ es3_pose_track_is_retained(
  * clamps it into the tile.
  */
 bool
-es3_bake_pose_vertices(
+es3_bake_pose_vertices_os1(
     struct TRSPK_Renderer_ES3* renderer,
     struct TRSPK_VBO* vbo,
     struct TRSPK_Triangles* triangles,
@@ -2055,7 +2055,7 @@ es3_bake_pose_vertices(
                         triangles,
                         trspk_triangles_index_from_vertex(vertex),
                         ES3_TRIANGLE_UNTEXTURED);
-                trspk_vbo_write_vertex_gles2(
+                trspk_vbo_write_vertex_gles2_os1(
                     vbo,
                     vertex,
                     0.0f,
@@ -2068,7 +2068,7 @@ es3_bake_pose_vertices(
                     0u,
                     TRSPK_VERTEX_GLES2_ANIM_STILL,
                     TRSPK_VERTEX_GLES2_ANIM_STILL);
-                trspk_vbo_write_vertex_gles2(
+                trspk_vbo_write_vertex_gles2_os1(
                     vbo,
                     vertex + 1u,
                     0.0f,
@@ -2081,7 +2081,7 @@ es3_bake_pose_vertices(
                     0u,
                     TRSPK_VERTEX_GLES2_ANIM_STILL,
                     TRSPK_VERTEX_GLES2_ANIM_STILL);
-                trspk_vbo_write_vertex_gles2(
+                trspk_vbo_write_vertex_gles2_os1(
                     vbo,
                     vertex + 2u,
                     0.0f,
@@ -2160,7 +2160,7 @@ es3_bake_pose_vertices(
 
         if( !ordered_painter )
             trspk_triangles_set(triangles, trspk_triangles_index_from_vertex(vertex), config);
-        trspk_vbo_write_vertex_gles2(
+        trspk_vbo_write_vertex_gles2_os1(
             vbo,
             vertex,
             face.wx_a,
@@ -2173,7 +2173,7 @@ es3_bake_pose_vertices(
             tile_row,
             anim_u,
             anim_v);
-        trspk_vbo_write_vertex_gles2(
+        trspk_vbo_write_vertex_gles2_os1(
             vbo,
             vertex + 1u,
             face.wx_b,
@@ -2186,7 +2186,7 @@ es3_bake_pose_vertices(
             tile_row,
             anim_u,
             anim_v);
-        trspk_vbo_write_vertex_gles2(
+        trspk_vbo_write_vertex_gles2_os1(
             vbo,
             vertex + 2u,
             face.wx_c,
@@ -2212,17 +2212,17 @@ es3_bake_pose_vertices(
         /* Verify the entire ordered direct stream, including placeholders,
          * against the generic final vertex writer above. The normal fast
          * return is suppressed in this diagnostic so both paths execute. */
-        size_t bytes = (size_t)written_count * 3u * sizeof(struct TRSPK_VertexGLES2);
-        struct TRSPK_VertexGLES2* direct = ToriMem_Alloc(ToriMem_Renderer(), bytes ? bytes : 1u);
+        size_t bytes = (size_t)written_count * 3u * sizeof(struct TRSPK_VertexGLES2Os1);
+        struct TRSPK_VertexGLES2Os1* direct = ToriMem_Alloc(ToriMem_Renderer(), bytes ? bytes : 1u);
         /* This renderer's encoder; @see es3_bake_ordered_fast. */
         trspk_toridraw_gles2_untextured_words(
             full_model, face_order, written_count, world_xyz, direct);
-        if( memcmp(direct, &vbo->vertices.as_gles2[vertex_base], bytes) )
+        if( memcmp(direct, &vbo->vertices.as_gles2_os1[vertex_base], bytes) )
         {
             fprintf(stderr, "direct bake verification FAILED: %u ordered faces\n", written_count);
             abort();
         }
-        memcpy(&vbo->vertices.as_gles2[vertex_base], direct, bytes);
+        memcpy(&vbo->vertices.as_gles2_os1[vertex_base], direct, bytes);
         ToriMem_Free(ToriMem_Renderer(), direct);
         static unsigned matched_models, matched_faces;
         matched_faces += written_count;
@@ -2239,7 +2239,7 @@ es3_bake_pose_vertices(
 }
 
 uint32_t
-es3_bake_into_arena(
+es3_bake_into_arena_os1(
     struct TRSPK_Renderer_ES3* renderer,
     struct ES3ModelGroup* group,
     int element_id,
@@ -2284,7 +2284,7 @@ es3_bake_into_arena(
     }
     slot_index = trspk_modelarena_load(group->arena, arena_element_id, arena_pose_id, vertex_count);
     model_slot = trspk_modelarena_get(group->arena, slot_index);
-    if( !model_slot || !es3_bake_pose_vertices(
+    if( !model_slot || !es3_bake_pose_vertices_os1(
                            renderer,
                            group->vbo_cpu,
                            &group->triangles,
@@ -2459,7 +2459,7 @@ es3_animation_announce(
 }
 
 bool
-es3_bake_track_pose(
+es3_bake_track_pose_os1(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     int anim_index,
@@ -2502,7 +2502,7 @@ es3_bake_track_pose(
     memset(&handle, 0, sizeof(handle));
     handle.kind = TORIDRAWMK_MODEL;
     handle.u.model.model = baked;
-    vertex_base = es3_bake_into_arena(
+    vertex_base = es3_bake_into_arena_os1(
         renderer,
         &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         track->announced_id,
@@ -2568,7 +2568,7 @@ es3_specify_world_layout(uint32_t byte_offset)
         GL_FLOAT,
         GL_FALSE,
         ES3_VERTEX_STRIDE,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, position)));
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2Os1, position)));
     glEnableVertexAttribArray(ES3_ATTRIB_COLOR);
     glVertexAttribPointer(
         ES3_ATTRIB_COLOR,
@@ -2576,7 +2576,7 @@ es3_specify_world_layout(uint32_t byte_offset)
         GL_UNSIGNED_BYTE,
         GL_TRUE,
         ES3_VERTEX_STRIDE,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, rgba)));
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2Os1, rgba)));
     glEnableVertexAttribArray(ES3_ATTRIB_TEXCOORD);
     glVertexAttribPointer(
         ES3_ATTRIB_TEXCOORD,
@@ -2584,14 +2584,14 @@ es3_specify_world_layout(uint32_t byte_offset)
         GL_FLOAT,
         GL_FALSE,
         ES3_VERTEX_STRIDE,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, texcoord)));
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2Os1, texcoord)));
     glEnableVertexAttribArray(ES3_ATTRIB_TEXINFO);
     glVertexAttribIPointer(
         ES3_ATTRIB_TEXINFO,
         4,
         GL_UNSIGNED_BYTE,
         ES3_VERTEX_STRIDE,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, tile_col)));
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2Os1, tile_col)));
 }
 
 /*
@@ -2670,7 +2670,7 @@ es3_bind_stream(struct TRSPK_Renderer_ES3* renderer, uint32_t binding)
         return false;
     if( !buffer )
         return false;
-    byte_offset = (uint64_t)base_vertex * sizeof(struct TRSPK_VertexGLES2);
+    byte_offset = (uint64_t)base_vertex * sizeof(struct TRSPK_VertexGLES2Os1);
     assert(byte_offset <= (uint64_t)INT32_MAX);
     if( !renderer->vao_world[binding] )
     {
@@ -3100,18 +3100,18 @@ es3_frame_stream_upload(struct TRSPK_Renderer_ES3* renderer)
     uint32_t offset;
     if( renderer->frame_stream_count == 0u )
         return;
-    bytes = renderer->frame_stream_count * (uint32_t)sizeof(struct TRSPK_VertexGLES2);
+    bytes = renderer->frame_stream_count * (uint32_t)sizeof(struct TRSPK_VertexGLES2Os1);
     offset = es3_stream_set_append(
         &renderer->frame_stream,
         renderer->frame_slot,
         GL_ARRAY_BUFFER,
         ES3_FRAME_STREAM_INIT_BYTES,
-        renderer->frame_stream_cpu->vertices.as_gles2,
+        renderer->frame_stream_cpu->vertices.as_gles2_os1,
         bytes,
         false);
     renderer->frame_stream_vbo = renderer->frame_stream.buffers[renderer->frame_slot];
     renderer->bound_array_buffer = renderer->frame_stream_vbo;
-    renderer->frame_stream_gpu_base = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2);
+    renderer->frame_stream_gpu_base = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2Os1);
     /* The stream just moved. es3_bind_stream compares the binding's base
      * against what its VAO holds, so nothing has to be invalidated by hand
      * -- but the stream cache is kept truthful for the debug readouts. */
@@ -3280,13 +3280,13 @@ TRSPK_Renderer_ES3_New(
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
         renderer->tex_slot_of_id[texture] = -1;
     trspk_pose_table_init(&renderer->poses);
-    trspk_world_build_init(&renderer->build, TRSPK_VERTEX_FORMAT_GLES2,
+    trspk_world_build_init(&renderer->build, TRSPK_VERTEX_FORMAT_GLES2_OS1,
         torirs_env_prep_target_us(), torirs_env_prep_slice_us());
     {
         char const* timing = torirs_env_rebuild_timing();
         renderer->rebuild_log = timing && timing[0] && timing[0] != '0';
     }
-    renderer->frame_stream_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2);
+    renderer->frame_stream_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2_OS1);
     assert(renderer->frame_stream_cpu);
     if( !trspk_atlas_init_grid(
             &renderer->atlas,
@@ -3316,7 +3316,7 @@ TRSPK_Renderer_ES3_New(
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
     {
         struct ES3ModelGroup* model_group = &renderer->groups[group];
-        model_group->vbo_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2);
+        model_group->vbo_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2_OS1);
         assert(model_group->vbo_cpu);
         model_group->arena = trspk_modelarena_create(
             model_group->vbo_cpu, &model_group->triangles, ES3_VBO_PAGE, 64u);
@@ -3357,20 +3357,20 @@ es3_report_retained_memory(struct TRSPK_Renderer_ES3* renderer)
 
     assert(renderer);
     world_vbo_cpu = (uint64_t)trspk_batch32_vbo(renderer->build.world.batch)->capacity *
-                    sizeof(struct TRSPK_VertexGLES2);
+                    sizeof(struct TRSPK_VertexGLES2Os1);
     world_tri_cpu = (uint64_t)trspk_batch32_triangles(renderer->build.world.batch)->cap * sizeof(int);
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
     {
         const struct ES3ModelGroup* model_group = &renderer->groups[group];
         group_vbo_cpu[group] = model_group->vbo_cpu ? (uint64_t)model_group->vbo_cpu->capacity *
-                                                          sizeof(struct TRSPK_VertexGLES2)
+                                                          sizeof(struct TRSPK_VertexGLES2Os1)
                                                     : 0u;
         group_tri_cpu[group] = (uint64_t)model_group->triangles.cap * sizeof(int);
         group_slots_cpu[group] = model_group->arena ? (uint64_t)model_group->arena->slot_capacity *
                                                           sizeof(struct TRSPK_ModelSlot)
                                                     : 0u;
         group_vbo_gpu[group] =
-            (uint64_t)model_group->gpu_capacity * sizeof(struct TRSPK_VertexGLES2);
+            (uint64_t)model_group->gpu_capacity * sizeof(struct TRSPK_VertexGLES2Os1);
     }
     pose_table_megabytes = (double)es3_pose_table_bytes(&renderer->poses) / 1048576.0;
     /* TORIRS_LOG compiles out of a release build; the figure is still computed
@@ -3397,12 +3397,12 @@ es3_report_retained_memory(struct TRSPK_Renderer_ES3* renderer)
         (double)world_vbo_cpu / 1048576.0,
         trspk_batch32_entry_count(renderer->build.world.batch),
         (double)world_tri_cpu / 1048576.0,
-        (double)renderer->world_gpu.vertex_capacity * sizeof(struct TRSPK_VertexGLES2) /
+        (double)renderer->world_gpu.vertex_capacity * sizeof(struct TRSPK_VertexGLES2Os1) /
             1048576.0,
         renderer->build.stage.batch ? (double)trspk_batch32_vbo(renderer->build.stage.batch)->capacity *
-                                          sizeof(struct TRSPK_VertexGLES2) / 1048576.0
+                                          sizeof(struct TRSPK_VertexGLES2Os1) / 1048576.0
                                     : 0.0,
-        (double)renderer->stage_gpu.vertex_capacity * sizeof(struct TRSPK_VertexGLES2) /
+        (double)renderer->stage_gpu.vertex_capacity * sizeof(struct TRSPK_VertexGLES2Os1) /
             1048576.0,
         (double)group_vbo_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
         (double)group_tri_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
@@ -3416,7 +3416,7 @@ es3_report_retained_memory(struct TRSPK_Renderer_ES3* renderer)
         (double)renderer->frame_stream.capacities[renderer->frame_slot] / 1048576.0,
         ES3_FRAMES_IN_FLIGHT,
         renderer->frame_stream_cpu ? (double)renderer->frame_stream_cpu->capacity *
-                                         sizeof(struct TRSPK_VertexGLES2) / 1048576.0
+                                         sizeof(struct TRSPK_VertexGLES2Os1) / 1048576.0
                                    : 0.0,
         (double)renderer->draw_item_capacity * sizeof(struct ES3DrawItem) / 1048576.0,
         (double)renderer->ibo_staging_capacity * sizeof(uint16_t) / 1048576.0,

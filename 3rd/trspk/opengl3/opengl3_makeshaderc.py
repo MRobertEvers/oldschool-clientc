@@ -16,6 +16,9 @@ HEADER_GUARD = "TORIRS_PLATFORM_KIT_OPENGL3_SHADERS_H"
 SHADERS = (
     ("vertex.glsl", "trspk_opengl3_vertex_shader"),
     ("fragment.glsl", "trspk_opengl3_fragment_shader"),
+    ("vertex_os235sailing.glsl", "trspk_opengl3_os235sailing_vertex_shader"),
+    ("vertex_os241tfa.glsl", "trspk_opengl3_os241tfa_vertex_shader"),
+    ("fragment_os241tfa.glsl", "trspk_opengl3_os241tfa_fragment_shader"),
 )
 
 

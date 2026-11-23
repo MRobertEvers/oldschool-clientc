@@ -90,7 +90,7 @@ es2p_world_record_bake(
  * face may be the last one in its buffer. */
 struct ES2FaceVertices
 {
-    struct TRSPK_VertexGLES2 corner[3];
+    struct TRSPK_VertexGLES2Os1 corner[3];
 };
 _Static_assert(sizeof(struct ES2FaceVertices) == 84u, "three packed vertices");
 
@@ -205,7 +205,7 @@ es2_painter_hot_ensure(struct TRSPK_Renderer_ES2* renderer)
     es2_bind_array_buffer(renderer, renderer->hot_vbo);
     glBufferData(
         GL_ARRAY_BUFFER,
-        (GLsizeiptr)((size_t)ES2_HOT_RING_VERTICES * sizeof(struct TRSPK_VertexGLES2)),
+        (GLsizeiptr)((size_t)ES2_HOT_RING_VERTICES * sizeof(struct TRSPK_VertexGLES2Os1)),
         NULL,
         GL_DYNAMIC_DRAW);
     if( !es2_check_error("resident window buffer") )
@@ -240,8 +240,8 @@ es2_painter_send_staged(struct TRSPK_Renderer_ES2* renderer)
     es2_bind_array_buffer(renderer, renderer->hot_vbo);
     glBufferSubData(
         GL_ARRAY_BUFFER,
-        (GLintptr)((size_t)renderer->hot_stage_address * sizeof(struct TRSPK_VertexGLES2)),
-        (GLsizeiptr)((size_t)renderer->hot_stage_count * sizeof(struct TRSPK_VertexGLES2)),
+        (GLintptr)((size_t)renderer->hot_stage_address * sizeof(struct TRSPK_VertexGLES2Os1)),
+        (GLsizeiptr)((size_t)renderer->hot_stage_count * sizeof(struct TRSPK_VertexGLES2Os1)),
         renderer->hot_stage);
     renderer->painter_stat_placed_vertices += renderer->hot_stage_count;
     renderer->hot_stage_count = 0u;
@@ -334,7 +334,7 @@ es2_painter_place(
     struct TRSPK_Renderer_ES2* renderer,
     struct ES2StaticBatch* batch,
     uint32_t entry_index,
-    const struct TRSPK_VertexGLES2* vertices,
+    const struct TRSPK_VertexGLES2Os1* vertices,
     uint32_t span)
 {
     uint32_t address;
@@ -382,10 +382,10 @@ es2_painter_place(
     {
         uint32_t capacity = renderer->hot_stage_capacity ? renderer->hot_stage_capacity
                                                          : ES2_HOT_STAGE_INIT_VERTICES;
-        struct TRSPK_VertexGLES2* grown;
+        struct TRSPK_VertexGLES2Os1* grown;
         while( capacity < renderer->hot_stage_count + span )
             capacity *= 2u;
-        grown = (struct TRSPK_VertexGLES2*)ToriMem_Realloc(ToriMem_Renderer(),
+        grown = (struct TRSPK_VertexGLES2Os1*)ToriMem_Realloc(ToriMem_Renderer(),
             renderer->hot_stage, (size_t)capacity * sizeof(*grown));
         assert(grown);
         renderer->hot_stage = grown;
@@ -510,7 +510,7 @@ es2p_emit_model(
         assert(page->valid);
         assert(page->cpu_vbo);
         source_vbo = page->cpu_vbo;
-        if( source_vbo->format != TRSPK_VERTEX_FORMAT_GLES2 )
+        if( source_vbo->format != TRSPK_VERTEX_FORMAT_GLES2_OS1 )
             return;
         source_base = placement->local_base;
         /* The reservation that made this entry grew the chunk's VBO to
@@ -521,7 +521,7 @@ es2p_emit_model(
             renderer,
             batch,
             placement->entry_index,
-            source_vbo->vertices.as_gles2 + source_base,
+            source_vbo->vertices.as_gles2_os1 + source_base,
             placement->entry_vertex_count);
         if( address != UINT32_MAX )
         {
@@ -537,7 +537,7 @@ es2p_emit_model(
     /* A retained model, the control arm: resolve the CPU source first. */
     if( !es2_binding_cpu_source(
             renderer, placement->binding, placement->page_id, &source_vbo, &source_triangles) ||
-        source_vbo->format != TRSPK_VERTEX_FORMAT_GLES2 )
+        source_vbo->format != TRSPK_VERTEX_FORMAT_GLES2_OS1 )
         return;
     (void)source_triangles;
     /* A Batch16 chunk's CPU copy is the chunk alone and starts at zero; an
@@ -567,7 +567,7 @@ es2p_emit_model(
             renderer,
             &renderer->static_batches[placement->batch_slot],
             placement->entry_index,
-            source_vbo->vertices.as_gles2 + source_base,
+            source_vbo->vertices.as_gles2_os1 + source_base,
             source_face_limit * 3u);
         if( address != UINT32_MAX )
         {
@@ -581,8 +581,8 @@ gather:
     renderer->painter_stat_faces_gathered += face_count;
     first = es2_frame_stream_reserve(renderer, face_count * 3u);
     es2_painter_gather(
-        (struct ES2FaceVertices*)&renderer->frame_stream_cpu->vertices.as_gles2[first],
-        (const struct ES2FaceVertices*)(source_vbo->vertices.as_gles2 + source_base),
+        (struct ES2FaceVertices*)&renderer->frame_stream_cpu->vertices.as_gles2_os1[first],
+        (const struct ES2FaceVertices*)(source_vbo->vertices.as_gles2_os1 + source_base),
         source_face_limit,
         face_order,
         face_count);

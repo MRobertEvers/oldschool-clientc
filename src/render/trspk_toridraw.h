@@ -14,11 +14,11 @@ struct ToriDraw_Scene;
  * was already computed. Invalid order entries retain transparent triplets. */
 void trspk_toridraw_gles2_untextured(
     const struct ToriDraw_Model* model,const int* order,uint32_t count,
-    const float* world_xyz,struct TRSPK_VertexGLES2* destination);
+    const float* world_xyz,struct TRSPK_VertexGLES2Os1* destination);
 /* Equivalent RGB byte reversal and metadata word stores; layout remains identical. */
 void trspk_toridraw_gles2_untextured_words(
     const struct ToriDraw_Model* model,const int* order,uint32_t count,
-    const float* world_xyz,struct TRSPK_VertexGLES2* destination);
+    const float* world_xyz,struct TRSPK_VertexGLES2Os1* destination);
 
 bool
 trspk_toridraw_texture_is_animated(
@@ -75,6 +75,24 @@ trspk_toridraw_uv_pnm_face(
     struct UVFaceCoords* out,
     struct ToriDraw_Model* model,
     uint32_t face_index);
+
+/**
+ * A textured face's texture projector in world space under `placement`: P,
+ * and the edges U = M - P and V = N - P, as trspk_toridraw_uv_pnm_face reads
+ * them (the face's own corners when it names no projector). The client maps
+ * the texel along the EYE RAY onto that plane [class171.method5476]; the
+ * baked UVs drop each corner straight onto it, which agrees only for a face
+ * lying in its projector's plane. The OSRS renderers carry this so the shader
+ * can do what the client does. `model` must be textured at `face_index`.
+ */
+void
+trspk_toridraw_face_projector(
+    const struct ToriDraw_Model* model,
+    uint32_t face_index,
+    const struct TRSPK_WorldPlacement* placement,
+    float out_p[3],
+    float out_u[3],
+    float out_v[3]);
 
 void
 trspk_toridraw_hsl16_to_rgba(

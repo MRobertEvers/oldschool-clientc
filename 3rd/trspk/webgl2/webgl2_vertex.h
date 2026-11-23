@@ -1,7 +1,7 @@
 #ifndef WEBGL2_VERTEX_H
 #define WEBGL2_VERTEX_H
 
-#include "gles2/gles2_vertex.h"
+#include "gles2/gles2_os1_vertex.h"
 
 /*
  * The WebGL2 renderer's retained world vertex is the GLES2 one.
@@ -9,7 +9,7 @@
  * It is spelled here rather than duplicated because the two renderers share
  * their whole bake pipeline -- trspk_vbo's writer, the ToriDraw encoders in
  * src/render/trspk_toridraw.c, Batch16, the model arena and the pose tables
- * all speak TRSPK_VERTEX_FORMAT_GLES2 -- and a second 28-byte struct with
+ * all speak TRSPK_VERTEX_FORMAT_GLES2_OS1 -- and a second 28-byte struct with
  * the same fields would mean every bake fix landing twice and, sooner or
  * later, one of the two drifting.
  *
@@ -31,6 +31,6 @@
  * it would fork the bake, which is the one thing this renderer's separation
  * from the WebGL1 one is meant not to do.
  */
-typedef struct TRSPK_VertexGLES2 TRSPK_VertexWebGL2;
+typedef struct TRSPK_VertexGLES2Os1 TRSPK_VertexWebGL2;
 
 #endif

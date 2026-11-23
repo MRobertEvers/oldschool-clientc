@@ -80,7 +80,9 @@ ifneq ($(filter $(PLATFORM),macos linux),)
                        platform/platform_audio_capture.c \
                        platform/platform_gl_context_sdl.c \
                        platform/platform_sdl2_renderer_gl3.c \
-                       platform/platform_sdl2_renderer_gl3zb.c
+                       platform/platform_sdl2_renderer_gl3zb.c \
+                       platform/platform_sdl2_renderer_gl3_os235sailing.c \
+                       platform/platform_sdl2_renderer_gl3_os241tfa.c
   # The desktop-GL binding. The web lane builds the same renderer against
   # WebGL1 and needs its index-splitting object instead; the Windows lanes own
   # D3D9 in their regular platform source and need no binding object here.
@@ -428,7 +430,8 @@ else ifeq ($(PLATFORM),web)
                        platform/platform_web_renderer_webgl2_ui.c \
                        platform/platform_web_renderer_webgl2_painter.c \
                        platform/platform_web_renderer_webgl2_zbuffer.c \
-                       platform/platform_web_renderer_webgl2_osrs.c \
+                       platform/platform_web_renderer_webgl2_os235sailing.c \
+                       platform/platform_web_renderer_webgl2_os241tfa.c \
                        platform/platform_web_renderer_webgl2.c
   # The queue's ABI reporter. Not in PLATFORM_SRCS because it belongs to the
   # QUEUE, not to any platform: a second non-C executor would need the same

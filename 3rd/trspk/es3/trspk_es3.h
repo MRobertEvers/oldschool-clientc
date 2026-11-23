@@ -86,13 +86,18 @@ struct TRSPK_Renderer_ES3*
 TRSPK_Renderer_ES3_New(int width, int height, char const* name);
 
 /**
- * A handle for the OSRS z-buffer renderer (TRSPK_Renderer_ES3_OsrsInit), the
- * only one it may be brought up as: its retained world is baked in the OSRS
- * vertex (es3_osrs_vertex.h), which carries each face's depth bias. The
- * WebGL2 core only; the GLES3 lane has no OSRS renderer.
+ * Handles for the two OSRS z-buffer renderers, each brought up only as its
+ * own renderer (TRSPK_Renderer_ES3_Os235SailingInit, _Os241TfaInit). Each
+ * bakes the retained world in its own vertex:
+ *   Sailing OSRS   es3_os235sailing_vertex.h -- the face's depth bias
+ *   Post-TFA OSRS  es3_os241tfa_vertex.h -- that, and the face's texture
+ *                  projector, for the client's eye-ray texel lookup
+ * The WebGL2 core only; the GLES3 lane has no OSRS renderer.
  */
 struct TRSPK_Renderer_ES3*
-TRSPK_Renderer_ES3_NewOsrs(int width, int height, char const* name);
+TRSPK_Renderer_ES3_NewOs235Sailing(int width, int height, char const* name);
+struct TRSPK_Renderer_ES3*
+TRSPK_Renderer_ES3_NewOs241Tfa(int width, int height, char const* name);
 
 /** What the lane named this renderer. Never NULL. */
 char const*
@@ -129,14 +134,23 @@ TRSPK_Renderer_ES3_ZBufferInit(
     ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene);
 /**
- * The third renderer, on a TRSPK_Renderer_ES3_NewOsrs handle only: the depth
- * renderer's world with the rev-241 client's depth key, face biases, tie
- * rule, two-pass models and translucent pass
- * (platform_web_renderer_webgl2_osrs.c). The app collects the world in the
- * painter's order (TORIRS_WORLD_PAINTER): the translucent pass replays it.
+ * The two OSRS z-buffer renderers, each on its own handle:
+ *   Sailing OSRS   TRSPK_Renderer_ES3_NewOs235Sailing, ..._Os235Sailing*
+ *                  (platform_web_renderer_webgl2_os235sailing.c)
+ *   Post-TFA OSRS  TRSPK_Renderer_ES3_NewOs241Tfa, ..._Os241Tfa*
+ *                  (platform_web_renderer_webgl2_os241tfa.c)
+ * Both: the depth renderer's world with the rev-241 client's depth key, face
+ * biases, tie rule, two-pass models and translucent pass; Post-TFA adds its
+ * eye-ray texel lookup. The app collects the world in the painter's order
+ * (TORIRS_WORLD_PAINTER): the translucent pass replays it.
  */
 bool
-TRSPK_Renderer_ES3_OsrsInit(
+TRSPK_Renderer_ES3_Os235SailingInit(
+    struct TRSPK_Renderer_ES3* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+bool
+TRSPK_Renderer_ES3_Os241TfaInit(
     struct TRSPK_Renderer_ES3* renderer,
     ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene);
@@ -186,7 +200,11 @@ TRSPK_Renderer_ES3_ZBufferExecute(
     struct TRSPK_Renderer_ES3* renderer,
     struct ToriRS_RenderCommand const* command);
 void
-TRSPK_Renderer_ES3_OsrsExecute(
+TRSPK_Renderer_ES3_Os235SailingExecute(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ToriRS_RenderCommand const* command);
+void
+TRSPK_Renderer_ES3_Os241TfaExecute(
     struct TRSPK_Renderer_ES3* renderer,
     struct ToriRS_RenderCommand const* command);
 
@@ -211,7 +229,13 @@ TRSPK_Renderer_ES3_ZBufferDrawBootBar(
     int caption_font_id,
     char const* caption);
 void
-TRSPK_Renderer_ES3_OsrsDrawBootBar(
+TRSPK_Renderer_ES3_Os235SailingDrawBootBar(
+    struct TRSPK_Renderer_ES3* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption);
+void
+TRSPK_Renderer_ES3_Os241TfaDrawBootBar(
     struct TRSPK_Renderer_ES3* renderer,
     int progress,
     int caption_font_id,
@@ -222,7 +246,9 @@ TRSPK_Renderer_ES3_PainterRenderFrame(struct TRSPK_Renderer_ES3* renderer, struc
 void
 TRSPK_Renderer_ES3_ZBufferRenderFrame(struct TRSPK_Renderer_ES3* renderer, struct ToriRS_Frame* frame);
 void
-TRSPK_Renderer_ES3_OsrsRenderFrame(struct TRSPK_Renderer_ES3* renderer, struct ToriRS_Frame* frame);
+TRSPK_Renderer_ES3_Os235SailingRenderFrame(struct TRSPK_Renderer_ES3* renderer, struct ToriRS_Frame* frame);
+void
+TRSPK_Renderer_ES3_Os241TfaRenderFrame(struct TRSPK_Renderer_ES3* renderer, struct ToriRS_Frame* frame);
 
 /**
  * The pixels behind a rotated-masked sprite (the minimap bake) were rewritten

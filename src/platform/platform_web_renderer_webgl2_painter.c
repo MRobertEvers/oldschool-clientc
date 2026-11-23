@@ -199,7 +199,7 @@ es3p_emit_model(
      */
     if( !es3_binding_cpu_source(
             renderer, placement->binding, &source_vbo, &source_triangles) ||
-        source_vbo->format != TRSPK_VERTEX_FORMAT_GLES2 )
+        source_vbo->format != TRSPK_VERTEX_FORMAT_GLES2_OS1 )
         return;
     (void)source_triangles;
     if( placement->chunk_base > source_vbo->vertex_count )
@@ -234,7 +234,7 @@ es3p_sequence_issue(
             es3_use_world_program(renderer, item->cutout != 0u);
             program_cutout = (int)item->cutout;
         }
-        if( !es3_bind_stream(renderer, item->binding) )
+        if( !es3_bind_stream_os1(renderer, item->binding) )
         {
             /*
              * The binding has no GPU buffer this frame, so every face in this
@@ -579,7 +579,7 @@ es3p_draw_model(
          * its sorted face order, so it needs neither the dynamic arena nor an
          * index. The placement names the stream and the sorted count. */
         uint32_t first = es3_frame_stream_reserve(renderer, (uint32_t)sorted_face_count * 3u);
-        if( !es3_bake_pose_vertices(
+        if( !es3_bake_pose_vertices_os1(
                 renderer,
                 renderer->frame_stream_cpu,
                 &renderer->frame_stream_triangles,
@@ -607,7 +607,7 @@ es3p_draw_model(
     /* A pose the drawn build holds but has not baked yet is baked here, on
      * the draw that first needs it. */
     (void)es3_world_bake_on_draw(
-        renderer, command->element_id, anim_index, pose_id, es3_world_record_bake);
+        renderer, command->element_id, anim_index, pose_id, es3_world_record_bake_os1);
     if( (static_state = es3_static_resolve_recorded(
              renderer, command->element_id, anim_index, pose_id, &static_placement)) != 0 )
     {
@@ -631,7 +631,7 @@ es3p_draw_model(
          * (renderer creation, an event-queue overflow) has its track
          * announced here first, as its ANIM_LOAD would have. */
         if( command->animation &&
-            !es3_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base, &posed) )
+            !es3_bake_track_pose_os1(renderer, command, anim_index, pose_id, &vertex_base, &posed) )
         {
             struct ToriRS_RenderCommand_AnimLoad load;
             memset(&load, 0, sizeof(load));
@@ -641,13 +641,13 @@ es3p_draw_model(
             load.model = command->model;
             load.world_position = command->world_position;
             es3p_animation_load(renderer, &load);
-            (void)es3_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base, &posed);
+            (void)es3_bake_track_pose_os1(renderer, command, anim_index, pose_id, &vertex_base, &posed);
         }
         if( posed )
             ToriDraw_ModelFree(posed);
         else if( !trspk_pose_table_get(
                      &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
-            vertex_base = es3_bake_into_arena(
+            vertex_base = es3_bake_into_arena_os1(
                 renderer,
                 &renderer->groups[group],
                 command->element_id,
@@ -859,7 +859,7 @@ es3p_model_load(
         return;
     /* A model replacement invalidates every pose from the old geometry. */
     (void)es3_model_unload(renderer, command->element_id);
-    (void)es3_bake_into_arena(
+    (void)es3_bake_into_arena_os1(
         renderer,
         &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         command->element_id,
@@ -1192,7 +1192,7 @@ TRSPK_Renderer_ES3_PainterRenderFrame(
     es3p_render_frame_end(renderer);
     /* The frame is drawn: what is left of the world builds' bake takes its
      * slice now, and goes to the GPU with the next frame's upload. */
-    es3_world_prefill(renderer, render_start_us, es3_world_record_bake);
+    es3_world_prefill(renderer, render_start_us, es3_world_record_bake_os1);
 }
 
 
@@ -1211,5 +1211,6 @@ TRSPK_Renderer_ES3_PainterInit(
     assert(renderer);
     assert(window);
     assert(scene);
+    es3_set_world_shaders(renderer, &es3_world_shaders_os1);
     return es3_init_gl(renderer, window, scene, 0, "painter");
 }

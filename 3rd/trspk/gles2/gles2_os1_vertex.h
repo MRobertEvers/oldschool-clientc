@@ -1,5 +1,5 @@
-#ifndef GLES2_VERTEX_H
-#define GLES2_VERTEX_H
+#ifndef GLES2_OS1_VERTEX_H
+#define GLES2_OS1_VERTEX_H
 
 #include <stdint.h>
 
@@ -29,7 +29,7 @@
  * a real fraction of the process; 28 rather than 48 is most of the way to
  * halving both.
  */
-struct TRSPK_VertexGLES2
+struct TRSPK_VertexGLES2Os1
 {
     float position[3];
     uint32_t rgba;

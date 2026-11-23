@@ -103,7 +103,7 @@ that layout. A lane on another format refuses the flag at parse time.
   the same list, at which point it was wrong. Splitting the name without
   splitting the files would have left the same thing one `#if` further in.
 - **What is NOT duplicated:** the cores, the bake pipeline, the 28-byte vertex
-  (`TRSPK_VertexGLES2`), the atlas, the pose tables, every TRSPK helper. A fix
+  (`TRSPK_VertexGLES2Os1`), the atlas, the pose tables, every TRSPK helper. A fix
   to a bake still lands on all four renderers at once.
 - **Verification:** `make -C src lane-check PLATFORM=web` requires the ES2 and
   ES3 core sources plus `platform_web_renderer_webgl1.c` and
@@ -1162,7 +1162,7 @@ that layout. A lane on another format refuses the flag at parse time.
   hysteresis. Making that conditional inside one renderer would put two shapes
   of the scene bake, the draw sequence, the painter and the depth path in one
   set of files under runtime tests. What is genuinely shared already is shared:
-  the bake pipeline, the 28-byte vertex (`TRSPK_VertexGLES2`), the atlas, the
+  the bake pipeline, the 28-byte vertex (`TRSPK_VertexGLES2Os1`), the atlas, the
   pose tables and every TRSPK helper. Only the GL layer differs.
 - **What the WebGL2 renderer uses that the WebGL1 one cannot:** 32-bit indices
   (the big one: the retained world is indexed where it was baked, so a settled
@@ -1280,7 +1280,7 @@ that layout. A lane on another format refuses the flag at parse time.
     page is selected by re-pointing the vertex attributes, never by a
     base-vertex draw or a 32-bit index;
   - one 2048x2048 world atlas for every texture, scrolling ones included. The
-    vertex (`TRSPK_VertexGLES2`, 28 bytes) carries its tile and scroll bytes and
+    vertex (`TRSPK_VertexGLES2Os1`, 28 bytes) carries its tile and scroll bytes and
     the fragment shader wraps/clamps the local coordinate per fragment (the GL3
     formula), so the world pass binds one texture and the index stream is never
     split by texture;
@@ -1313,7 +1313,7 @@ that layout. A lane on another format refuses the flag at parse time.
 - **Sources:** [`src/platform/platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h),
   [`src/platform/platform.mk`](../src/platform/platform.mk),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
-  [`3rd/trspk/gles2/gles2_vertex.h`](../3rd/trspk/gles2/gles2_vertex.h)
+  [`3rd/trspk/gles2/gles2_os1_vertex.h`](../3rd/trspk/gles2/gles2_os1_vertex.h)
 
 ### ANDROID-INPUT-001 - A finger's tap is a press and a release in one frame
 

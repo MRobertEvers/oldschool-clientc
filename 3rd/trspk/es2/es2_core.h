@@ -62,7 +62,7 @@
  *
  * Every world texture -- scrolling ones included -- lives in the single
  * 2048x2048 atlas. Which tile a face samples and how it scrolls travel with
- * the vertex (TRSPK_VertexGLES2), and the fragment shader wraps and clamps the
+ * the vertex (TRSPK_VertexGLES2Os1), and the fragment shader wraps and clamps the
  * local coordinate into the tile per fragment. So the world pass binds the
  * atlas once, the index stream is never split by texture, and the draw loop
  * has exactly two reasons to issue a new draw call: a page change, and the
@@ -773,7 +773,7 @@ struct TRSPK_Renderer_ES2
     /* Frames since the ring was last emptied for fragmentation; the
      * compaction waits ES2_HOT_COMPACT_MIN_INTERVAL_FRAMES between two. */
     uint32_t hot_frames_since_compaction;
-    struct TRSPK_VertexGLES2* hot_stage;
+    struct TRSPK_VertexGLES2Os1* hot_stage;
     uint32_t hot_stage_capacity;
     uint32_t hot_stage_count;
     uint32_t hot_stage_address;

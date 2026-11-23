@@ -1,7 +1,8 @@
 /**
- * The OSRS z-buffer renderer for WebGL2 -- a WHOLE renderer, the third beside
- * the painter (platform_web_renderer_webgl2_painter.c) and the depth renderer
- * (platform_web_renderer_webgl2_zbuffer.c).
+ * "WebGL 2 (Post-TFA OSRS)": the OSRS z-buffer renderer for WebGL2 -- a WHOLE renderer,
+ * beside the painter, the depth renderer and Sailing OSRS
+ * (platform_web_renderer_webgl2_os235sailing.c), whose world pass this one
+ * repeats. Neither OSRS file calls the other.
  *
  * It draws the world the way the rev-241 client does under `::zbuf 1`
  * (docs/toridraw_rszbuffer.md), which the software renderer "Software (OSRS
@@ -9,10 +10,10 @@
  * RESULT rather than the client's rasterizer, and the four things the plain
  * depth renderer lacks are what make OSRS content z-fight there:
  *
- *   the depth key   es3_world_osrs_vertex_shader keys every corner at its
+ *   the depth key   the OSRS world vertex shaders key every corner at its
  *                   camera depth less twice its face's depth bias
- *                   (face_z_offsets, carried by the OSRS vertex,
- *                   es3_osrs_vertex.h), with the client's formula, so a decal
+ *                   (face_z_offsets, carried by the OSRS vertices), with the
+ *                   client's formula, so a decal
  *                   authored on a surface wins that surface everywhere.
  *   the tie rule    the buffer clears to 0 and the test is GL_GREATER: an
  *                   equal key keeps what is there, as the client's does.
@@ -30,13 +31,22 @@
  *
  * Everything else is the depth renderer's, composed rather than copied: the
  * depth world (its material tables, the opaque array ranges and index
- * buckets, every retained-store command) through the es3_zbuffer_* pieces in
- * es3_core.h. What this file owns is the world pass: begin_3d, the draw, the
- * per-pass queues of two-pass models and translucent runs, end_3d and the
- * issue loop that sets the write masks.
+ * buckets, the retained-store commands) through the shared es3_zbuffer_* and
+ * es3_* pieces in es3_core.h. What this file owns is its bake chain (its own
+ * vertex, written around the shared steps) and the world pass: begin_3d, the
+ * draw, the per-pass queues of two-pass models and translucent runs, end_3d
+ * and the issue loop that sets the write masks.
  *
- * It needs the OSRS vertex, so its handle is made by
- * TRSPK_Renderer_ES3_NewOsrs, not TRSPK_Renderer_ES3_New.
+ * And the client's texel lookup [class171.method5476]: a textured pixel's
+ * texel is where the eye ray through it meets the face's P/M/N projector
+ * plane. The baked UVs drop each corner straight onto that plane, which
+ * agrees only for a face lying in it -- every model until The Fractured
+ * Archive, whose Ocellus void starfield sits on a plane below its faces and
+ * slides as the camera moves. Its handle is made by
+ * TRSPK_Renderer_ES3_NewOs241Tfa: the world is baked in the Post-TFA vertex
+ * (es3_os241tfa_vertex.h), which carries each face's projector, and its world
+ * programs (es3_world_os241tfa_*) do the lookup per pixel from the eye this
+ * renderer puts in the world block.
  */
 
 #include "es3/es3_core.h"
@@ -54,6 +64,7 @@
 #include <string.h>
 
 #include "core/trspk_math.h"
+#include "render/trspk_pose_pool.h"
 #include "toridraw_math.h"
 
 /*
@@ -88,7 +99,7 @@ struct ES3OsrsFaceKey
     int face;
 };
 
-struct ES3OsrsWorld
+struct ES3Os241TfaWorld
 {
     /* Both lists' indices, in one array. */
     uint32_t* indices;
@@ -109,43 +120,43 @@ struct ES3OsrsWorld
     bool key_depth;
 };
 
-static struct ES3OsrsWorld*
-es3o_state(struct TRSPK_Renderer_ES3* renderer)
+static struct ES3Os241TfaWorld*
+es3_os241_state(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
-    assert(renderer->osrs);
-    return renderer->osrs;
+    assert(renderer->os241tfa);
+    return renderer->os241tfa;
 }
 
 /* --- lifetime ------------------------------------------------------------------ */
 
 static void
-es3o_create(struct TRSPK_Renderer_ES3* renderer)
+es3_os241_create(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
-    assert(!renderer->osrs);
-    renderer->osrs =
-        (struct ES3OsrsWorld*)ToriMem_Calloc(ToriMem_Renderer(), 1u, sizeof(struct ES3OsrsWorld));
-    assert(renderer->osrs);
+    assert(!renderer->os241tfa);
+    renderer->os241tfa =
+        (struct ES3Os241TfaWorld*)ToriMem_Calloc(ToriMem_Renderer(), 1u, sizeof(struct ES3Os241TfaWorld));
+    assert(renderer->os241tfa);
 }
 
 void
-es3_osrs_destroy(struct TRSPK_Renderer_ES3* renderer)
+es3_os241tfa_destroy(struct TRSPK_Renderer_ES3* renderer)
 {
-    struct ES3OsrsWorld* world;
-    if( !renderer || !renderer->osrs )
+    struct ES3Os241TfaWorld* world;
+    if( !renderer || !renderer->os241tfa )
         return;
-    world = renderer->osrs;
+    world = renderer->os241tfa;
     ToriMem_Free(ToriMem_Renderer(), world->indices);
     ToriMem_Free(ToriMem_Renderer(), world->opaque_two_pass.runs);
     ToriMem_Free(ToriMem_Renderer(), world->translucent.runs);
     ToriMem_Free(ToriMem_Renderer(), world->face_keys);
     ToriMem_Free(ToriMem_Renderer(), world);
-    renderer->osrs = NULL;
+    renderer->os241tfa = NULL;
 }
 
 static void
-es3o_reset_pass(struct ES3OsrsWorld* world)
+es3_os241_reset_pass(struct ES3Os241TfaWorld* world)
 {
     assert(world);
     world->index_count = 0u;
@@ -156,8 +167,8 @@ es3o_reset_pass(struct ES3OsrsWorld* world)
 /* --- the queues ---------------------------------------------------------------- */
 
 static void
-es3o_queue_run(
-    struct ES3OsrsWorld* world,
+es3_os241_queue_run(
+    struct ES3Os241TfaWorld* world,
     struct ES3OsrsRunList* list,
     const struct ES3ModelPlacement* placement,
     bool two_pass,
@@ -209,7 +220,7 @@ es3o_queue_run(
 /* The face's three indices, appended. Faces are baked in index order on this
  * path (face f at absolute_base + 3f), as the depth renderer bakes them. */
 static inline uint32_t
-es3o_write_face(
+es3_os241_write_face(
     uint32_t* destination,
     uint32_t written,
     const struct ES3ModelPlacement* placement,
@@ -225,7 +236,7 @@ es3o_write_face(
 /* The scene's bench must hold this model's projection before a sort reads
  * it: the draw projects only for a pick under the cursor. */
 static bool
-es3o_ensure_projected(
+es3_os241_ensure_projected(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     const struct ES3ModelPlacement* placement)
@@ -250,7 +261,7 @@ es3o_ensure_projected(
 }
 
 static int
-es3o_compare_face_key(const void* lhs, const void* rhs)
+es3_os241_compare_face_key(const void* lhs, const void* rhs)
 {
     const struct ES3OsrsFaceKey* a = (const struct ES3OsrsFaceKey*)lhs;
     const struct ES3OsrsFaceKey* b = (const struct ES3OsrsFaceKey*)rhs;
@@ -269,9 +280,9 @@ es3o_compare_face_key(const void* lhs, const void* rhs)
  * the GPU culls them.
  */
 static uint32_t
-es3o_sorted_blended_indices(
+es3_os241_sorted_blended_indices(
     struct TRSPK_Renderer_ES3* renderer,
-    struct ES3OsrsWorld* world,
+    struct ES3Os241TfaWorld* world,
     const struct ToriRS_RenderCommand_Model* command,
     const struct ES3ModelPlacement* placement,
     const struct ES3MaterialPose* material)
@@ -309,9 +320,9 @@ es3o_sorted_blended_indices(
                        depth[model->face_indices_c[face]]) /
                       3;
     }
-    qsort(world->face_keys, key_count, sizeof(world->face_keys[0]), es3o_compare_face_key);
+    qsort(world->face_keys, key_count, sizeof(world->face_keys[0]), es3_os241_compare_face_key);
     for( uint32_t i = 0u; i < key_count; i++ )
-        written = es3o_write_face(
+        written = es3_os241_write_face(
             renderer->model_indices, written, placement, (uint32_t)world->face_keys[i].face);
     return written;
 }
@@ -322,9 +333,9 @@ es3o_sorted_blended_indices(
  * faces) and the translucent one (blended faces), each keeping that order.
  */
 static void
-es3o_emit_two_pass(
+es3_os241_emit_two_pass(
     struct TRSPK_Renderer_ES3* renderer,
-    struct ES3OsrsWorld* world,
+    struct ES3Os241TfaWorld* world,
     const struct ToriRS_RenderCommand_Model* command,
     const struct ES3ModelPlacement* placement,
     const struct ES3MaterialPose* material)
@@ -340,7 +351,7 @@ es3o_emit_two_pass(
     }
     else
     {
-        if( !es3o_ensure_projected(renderer, command, placement) )
+        if( !es3_os241_ensure_projected(renderer, command, placement) )
             return;
         sorted_face_count =
             ToriDraw_RenderModel2SortFacesWithTable(command->model, renderer->scene, renderer->kernel);
@@ -349,7 +360,7 @@ es3o_emit_two_pass(
     if( sorted_face_count <= 0 )
         return;
 
-    /* model_indices holds face_count * 3 (es3_zbuffer_place_model reserved
+    /* model_indices holds face_count * 3 (es3_zbuffer_place_end reserved
      * it), and each pass below writes at most that. */
     written = 0u;
     for( int i = 0; i < sorted_face_count; i++ )
@@ -359,9 +370,9 @@ es3o_emit_two_pass(
             continue;
         pass = material->face_passes[face_order[i]];
         if( pass == ES3_WORLD_FACE_OPAQUE || pass == ES3_WORLD_FACE_CUTOUT )
-            written = es3o_write_face(renderer->model_indices, written, placement, (uint32_t)face_order[i]);
+            written = es3_os241_write_face(renderer->model_indices, written, placement, (uint32_t)face_order[i]);
     }
-    es3o_queue_run(world, &world->opaque_two_pass, placement, true, renderer->model_indices, written);
+    es3_os241_queue_run(world, &world->opaque_two_pass, placement, true, renderer->model_indices, written);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_OPAQUE_TRIANGLES, written / 3u);
 
     if( material->blended_count == 0u )
@@ -372,19 +383,19 @@ es3o_emit_two_pass(
         if( face_order[i] < 0 || (uint32_t)face_order[i] >= material->face_count )
             continue;
         if( material->face_passes[face_order[i]] == ES3_WORLD_FACE_BLENDED )
-            written = es3o_write_face(renderer->model_indices, written, placement, (uint32_t)face_order[i]);
+            written = es3_os241_write_face(renderer->model_indices, written, placement, (uint32_t)face_order[i]);
     }
-    es3o_queue_run(world, &world->translucent, placement, true, renderer->model_indices, written);
+    es3_os241_queue_run(world, &world->translucent, placement, true, renderer->model_indices, written);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_BLENDED_TRIANGLES, written / 3u);
 }
 
 static void
-es3o_emit_model(
+es3_os241_emit_model(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     const struct ES3ModelPlacement* placement)
 {
-    struct ES3OsrsWorld* world = es3o_state(renderer);
+    struct ES3Os241TfaWorld* world = es3_os241_state(renderer);
     const struct ES3MaterialPose* material;
     uint32_t written;
 
@@ -397,7 +408,7 @@ es3o_emit_model(
     if( ToriDraw_ModelKindIsFull(command->model.kind) &&
         (ToriDraw_ModelRead(command->model)->flags & TORIDRAW_MODEL_FLAG_RSZBUF_TWO_PASS) )
     {
-        es3o_emit_two_pass(renderer, world, command, placement, material);
+        es3_os241_emit_two_pass(renderer, world, command, placement, material);
         return;
     }
 
@@ -408,10 +419,10 @@ es3o_emit_model(
         return;
     /* Only a full model carries face alpha; a tile is never blended. */
     assert(ToriDraw_ModelKindIsFull(command->model.kind));
-    if( !es3o_ensure_projected(renderer, command, placement) )
+    if( !es3_os241_ensure_projected(renderer, command, placement) )
         return;
-    written = es3o_sorted_blended_indices(renderer, world, command, placement, material);
-    es3o_queue_run(world, &world->translucent, placement, false, renderer->model_indices, written);
+    written = es3_os241_sorted_blended_indices(renderer, world, command, placement, material);
+    es3_os241_queue_run(world, &world->translucent, placement, false, renderer->model_indices, written);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_SORTED_MODELS, 1);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_BLENDED_TRIANGLES, written / 3u);
 }
@@ -420,9 +431,9 @@ es3o_emit_model(
  * colour only then depth only, before the next run: the client finishes a
  * model before it starts the next. */
 static void
-es3o_push_runs(
+es3_os241_push_runs(
     struct TRSPK_Renderer_ES3* renderer,
-    struct ES3OsrsWorld* world,
+    struct ES3Os241TfaWorld* world,
     const struct ES3OsrsRunList* list,
     bool blended)
 {
@@ -452,7 +463,7 @@ es3o_push_runs(
 /* --- the issue loop -------------------------------------------------------------- */
 
 static void
-es3o_set_color_writes(bool* current, bool enabled)
+es3_os241_set_color_writes(bool* current, bool enabled)
 {
     if( *current == enabled )
         return;
@@ -461,11 +472,11 @@ es3o_set_color_writes(bool* current, bool enabled)
 }
 
 static void
-es3o_sequence_issue(
+es3_os241_sequence_issue(
     struct TRSPK_Renderer_ES3* renderer,
     uint32_t index_base_bytes)
 {
-    struct ES3OsrsWorld* world = es3o_state(renderer);
+    struct ES3Os241TfaWorld* world = es3_os241_state(renderer);
     uint32_t draw_calls = 0u;
     int program_cutout = -1;
     int blend_on = -1;
@@ -496,13 +507,13 @@ es3o_sequence_issue(
             es3_set_depth(renderer, true, wants_depth_write != 0);
             depth_write = wants_depth_write;
         }
-        es3o_set_color_writes(&color_writes, item->writes != ES3_WRITES_DEPTH);
+        es3_os241_set_color_writes(&color_writes, item->writes != ES3_WRITES_DEPTH);
         if( program_cutout != (int)item->cutout )
         {
             es3_use_world_program(renderer, item->cutout != 0u);
             program_cutout = (int)item->cutout;
         }
-        if( !es3_bind_stream(renderer, item->binding) )
+        if( !es3_bind_stream_os241tfa(renderer, item->binding) )
             continue;
         if( item->indexed )
         {
@@ -523,13 +534,13 @@ es3o_sequence_issue(
             glDrawArrays(GL_TRIANGLES, (GLint)item->first, (GLsizei)item->count);
         draw_calls++;
     }
-    es3o_set_color_writes(&color_writes, true);
+    es3_os241_set_color_writes(&color_writes, true);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, draw_calls);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_RANGES, renderer->draw_item_count);
 }
 
 static void
-es3o_sequence_draw(struct TRSPK_Renderer_ES3* renderer)
+es3_os241_sequence_draw(struct TRSPK_Renderer_ES3* renderer)
 {
     uint32_t index_base_bytes = 0u;
 
@@ -554,17 +565,17 @@ es3o_sequence_draw(struct TRSPK_Renderer_ES3* renderer)
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)bytes);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
     }
-    es3o_sequence_issue(renderer, index_base_bytes);
+    es3_os241_sequence_issue(renderer, index_base_bytes);
 }
 
 /* --- the world pass ---------------------------------------------------------------- */
 
 static void
-es3o_begin_3d(
+es3_os241_begin_3d(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Begin3D* command)
 {
-    struct ES3OsrsWorld* world = es3o_state(renderer);
+    struct ES3Os241TfaWorld* world = es3_os241_state(renderer);
     const struct ToriDraw_ViewPort* viewport;
     int pass_w;
     int pass_h;
@@ -579,7 +590,7 @@ es3o_begin_3d(
     if( !renderer->gl_context )
         return;
     es3_sequence_reset(renderer);
-    es3o_reset_pass(world);
+    es3_os241_reset_pass(world);
     renderer->current_3d = *command;
     renderer->has_3d = true;
     renderer->in3d = true;
@@ -591,6 +602,10 @@ es3o_begin_3d(
     /* The client has no parallel world camera; a parallel pass (an editor
      * view) has no depth in w to key, and draws the standard way. */
     world->key_depth = command->camera.projection_mode != TORIDRAW_PROJECTION_MODE_PARALLEL;
+    /* The texture rays start at the eye (es3_world_os241tfa_vertex_shader). */
+    renderer->world_block_eye[0] = (float)command->camera_position.x;
+    renderer->world_block_eye[1] = (float)command->camera_position.y;
+    renderer->world_block_eye[2] = (float)command->camera_position.z;
 
     viewport = &renderer->current_3d.view_port;
     pass_w = viewport->width > 0 ? viewport->width : renderer->width;
@@ -648,21 +663,268 @@ es3o_begin_3d(
             es3_reset_group(&renderer->groups[group]);
 }
 
+/* ---- the bake chain: the os241tfa vertex -------------------------------------------- */
+
+/*
+ * One pose into `vbo` at `vertex_base`, three Post-TFA vertices per face: the
+ * fields every bake shares (trspk_toridraw_bake_face_handle,
+ * es3_bake_face_atlas) and the face's depth bias and texture projector (trspk_toridraw_face_projector). A face the bake skips keeps
+ * whatever its triplet held, as the os1 bake leaves it.
+ */
+static bool
+es3_os241_bake_pose(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_VBO* vbo,
+    struct TRSPK_Triangles* triangles,
+    uint32_t vertex_base,
+    struct ToriDraw_ModelHandle model_handle,
+    const struct ToriDraw_Position* world_position)
+{
+    struct TRSPK_WorldPlacement placement;
+    int const face_count = trspk_toridraw_face_count(model_handle);
+    /* A tile (TORIDRAWMK_GROUND) has neither a bias nor a projector. */
+    const struct ToriDraw_Model* const model =
+        ToriDraw_ModelKindIsFull(model_handle.kind) ? ToriDraw_ModelRead(model_handle) : NULL;
+    const int8_t* const biases = model ? model->face_z_offsets : NULL;
+
+    assert(renderer);
+    assert(vbo);
+    assert(triangles);
+    assert(vbo->format == TRSPK_VERTEX_FORMAT_ES3_OS241TFA);
+    if( face_count <= 0 )
+        return false;
+    trspk_toridraw_placement_init(&placement, world_position);
+    for( uint32_t face_index = 0u; face_index < (uint32_t)face_count; face_index++ )
+    {
+        struct TRSPK_ToriDrawBakeFaceVerts face;
+        struct ES3FaceAtlas atlas;
+        uint32_t const vertex = vertex_base + face_index * 3u;
+        int8_t const bias = biases ? biases[face_index] : 0;
+        float projector[9];
+        const float* face_projector = NULL;
+        if( !trspk_toridraw_bake_face_handle(
+                model_handle, face_index, &placement, NULL, true, TRSPK_BAKE_COLOR_ARGB, &face) )
+            continue;
+        es3_bake_face_atlas(renderer, &face, &atlas);
+        if( face.tex_id >= 0 && model )
+        {
+            trspk_toridraw_face_projector(
+                model, face_index, &placement, projector, projector + 3, projector + 6);
+            face_projector = projector;
+        }
+        trspk_triangles_set(triangles, trspk_triangles_index_from_vertex(vertex), atlas.config);
+        trspk_vbo_write_vertex_es3_os241tfa(vbo, vertex, face.wx_a, face.wy_a, face.wz_a,
+            es3_argb_to_rgba_bytes(face.argb_a), atlas.u[0], atlas.v[0], atlas.tile_col,
+            atlas.tile_row, atlas.anim_u, atlas.anim_v, bias,
+            face_projector, face_projector ? face_projector + 3 : NULL,
+            face_projector ? face_projector + 6 : NULL);
+        trspk_vbo_write_vertex_es3_os241tfa(vbo, vertex + 1u, face.wx_b, face.wy_b, face.wz_b,
+            es3_argb_to_rgba_bytes(face.argb_b), atlas.u[1], atlas.v[1], atlas.tile_col,
+            atlas.tile_row, atlas.anim_u, atlas.anim_v, bias,
+            face_projector, face_projector ? face_projector + 3 : NULL,
+            face_projector ? face_projector + 6 : NULL);
+        trspk_vbo_write_vertex_es3_os241tfa(vbo, vertex + 2u, face.wx_c, face.wy_c, face.wz_c,
+            es3_argb_to_rgba_bytes(face.argb_c), atlas.u[2], atlas.v[2], atlas.tile_col,
+            atlas.tile_row, atlas.anim_u, atlas.anim_v, bias,
+            face_projector, face_projector ? face_projector + 3 : NULL,
+            face_projector ? face_projector + 6 : NULL);
+    }
+    trspk_vbo_mark_dirty_range(vbo, vertex_base, (uint32_t)face_count * 3u);
+    return true;
+}
+
+/* An arena bake: the shared reserve and commit around this vertex's bake. */
+static uint32_t
+es3_os241_bake_into_arena(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ModelGroup* group,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    struct ToriDraw_ModelHandle model_handle,
+    const struct ToriDraw_Position* world_position,
+    bool update_pose_table)
+{
+    uint32_t const vertex_base = es3_arena_reserve(group, element_id, anim_index,
+        pose_id, trspk_toridraw_face_count(model_handle), update_pose_table);
+    if( vertex_base == UINT32_MAX ||
+        !es3_os241_bake_pose(renderer, group->vbo_cpu, &group->triangles, vertex_base, model_handle,
+            world_position) )
+        return UINT32_MAX;
+    es3_arena_commit(renderer, element_id, anim_index, pose_id, vertex_base, update_pose_table);
+    return vertex_base;
+}
+
+/* A world-build record: taken, baked in this vertex, classified into the
+ * build's material table. What this renderer hands es3_world_prefill and
+ * es3_world_bake_on_draw. */
 static void
-es3o_draw_model(
+es3_os241_world_record_bake(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_WorldSlot* slot,
+    int record)
+{
+    struct TRSPK_WorldRecord const* baking;
+    struct TRSPK_Batch32Reservation reservation;
+    assert(renderer);
+    assert(slot);
+    baking = &slot->records[record];
+    trspk_world_record_take(slot, record, &reservation);
+    (void)es3_os241_bake_pose(renderer, reservation.vbo, reservation.triangles,
+        reservation.vertex_base, baking->model, &baking->world_position);
+    es3_zbuffer_batch_pose_baked(
+        renderer, slot, baking->element_id, baking->anim_index, baking->pose_id, baking->model);
+}
+
+/* An announced track's pose for this draw (es3_track_pose_model), baked into
+ * the static arena under the track's id. *out_baked is freed by the caller. */
+static bool
+es3_os241_bake_track_pose(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id,
+    uint32_t* out_vertex_base,
+    struct ToriDraw_Model** out_baked)
+{
+    const struct TRSPK_AnimTrack* track = NULL;
+    struct ToriDraw_ModelHandle handle;
+    struct ToriDraw_Model* const baked =
+        es3_track_pose_model(renderer, command, anim_index, pose_id, &track);
+    uint32_t vertex_base;
+
+    if( !baked )
+        return false;
+    memset(&handle, 0, sizeof(handle));
+    handle.kind = TORIDRAWMK_MODEL;
+    handle.u.model.model = baked;
+    vertex_base = es3_os241_bake_into_arena(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+        track->announced_id, anim_index, pose_id, handle, &track->world_position, true);
+    if( vertex_base == UINT32_MAX )
+    {
+        ToriDraw_ModelFree(baked);
+        return false;
+    }
+    *out_vertex_base = vertex_base;
+    *out_baked = baked;
+    return true;
+}
+
+/* A dynamic model: the pose pool's copy when it has one, this vertex's bake
+ * kept there otherwise. */
+static uint32_t
+es3_os241_bake_dynamic(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ModelGroup* group,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id)
+{
+    struct TRSPK_PoseKey key;
+    bool keyed;
+    uint32_t vertex_base =
+        es3_zbuffer_dynamic_reuse(renderer, group, command, anim_index, pose_id, &key, &keyed);
+    if( vertex_base != UINT32_MAX )
+        return vertex_base;
+    vertex_base = es3_os241_bake_into_arena(renderer, group, command->element_id, anim_index, pose_id,
+        command->model, &command->world_position, false);
+    es3_zbuffer_dynamic_keep(renderer, group, command, &key, keyed, vertex_base);
+    return vertex_base;
+}
+
+/* A DRAW_MODEL's pose, found or baked in this vertex, between the shared
+ * es3_zbuffer_place_begin and es3_zbuffer_place_end. */
+static bool
+es3_os241_place_model(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    struct ES3ModelPlacement* placement)
+{
+    uint32_t const group = placement->dynamic ? TRSPK_VBO_GROUP_DYNAMIC : TRSPK_VBO_GROUP_STATIC;
+    int const anim_index = placement->anim_index;
+    int const pose_id = placement->pose_id;
+    uint32_t binding = group;
+    uint32_t vertex_base = UINT32_MAX;
+    int world;
+
+    if( !placement->dynamic )
+        (void)es3_world_bake_on_draw(
+            renderer, command->element_id, anim_index, pose_id, es3_os241_world_record_bake);
+    if( placement->dynamic )
+        vertex_base = es3_os241_bake_dynamic(renderer, &renderer->groups[group], command, anim_index, pose_id);
+    else if( (world = es3_zbuffer_place_static_world(renderer, command, placement, &vertex_base)) != 0 )
+    {
+        if( world < 0 )
+            return false;
+        binding = ES3_WORLD_BINDING;
+    }
+    else if( !trspk_pose_table_get(
+                 &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
+    {
+        struct ToriDraw_Model* posed = NULL;
+        renderer->stat_static_rebake += 1.0;
+        if( command->animation &&
+            !es3_os241_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base, &posed) )
+        {
+            es3_zbuffer_announce_from_draw(renderer, command, anim_index);
+            (void)es3_os241_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base, &posed);
+        }
+        if( posed )
+        {
+            struct ToriDraw_ModelHandle handle;
+            memset(&handle, 0, sizeof(handle));
+            handle.kind = TORIDRAWMK_MODEL;
+            handle.u.model.model = posed;
+            es3_zbuffer_pose_baked(renderer, command->element_id, anim_index, pose_id, handle);
+            ToriDraw_ModelFree(posed);
+        }
+        else if( !trspk_pose_table_get(
+                     &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
+        {
+            vertex_base = es3_os241_bake_into_arena(renderer, &renderer->groups[group],
+                command->element_id, anim_index, pose_id, command->model, &command->world_position,
+                true);
+            if( vertex_base != UINT32_MAX )
+                es3_zbuffer_pose_baked(
+                    renderer, command->element_id, anim_index, pose_id, command->model);
+        }
+    }
+    return es3_zbuffer_place_end(renderer, placement, binding, vertex_base);
+}
+
+/* MODEL_LOAD: the element's old poses dropped, the model baked in this
+ * vertex and classified. */
+static void
+es3_os241_model_load(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_ModelLoad* command)
+{
+    assert(renderer);
+    assert(command);
+    if( command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
+        return;
+    es3_zbuffer_model_drop(renderer, command->element_id);
+    if( es3_os241_bake_into_arena(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+            command->element_id, 0, 0, command->model, &command->world_position, true) != UINT32_MAX )
+        es3_zbuffer_pose_baked(renderer, command->element_id, 0, 0, command->model);
+}
+
+static void
+es3_os241_draw_model(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Model* command)
 {
     struct ES3ModelPlacement placement;
 
-    if( es3_zbuffer_place_model(renderer, command, &placement) )
-        es3o_emit_model(renderer, command, &placement);
+    if( es3_zbuffer_place_begin(renderer, command, &placement) &&
+        es3_os241_place_model(renderer, command, &placement) )
+        es3_os241_emit_model(renderer, command, &placement);
 }
 
 static void
-es3o_end_3d(struct TRSPK_Renderer_ES3* renderer)
+es3_os241_end_3d(struct TRSPK_Renderer_ES3* renderer)
 {
-    struct ES3OsrsWorld* world = es3o_state(renderer);
+    struct ES3Os241TfaWorld* world = es3_os241_state(renderer);
 
     if( renderer->scene )
         ToriDraw_SceneClearProjectionCamera(renderer->scene);
@@ -673,18 +935,18 @@ es3o_end_3d(struct TRSPK_Renderer_ES3* renderer)
     /* The client's opaque pass: the batches (order-free), then the two-pass
      * models; then its translucent pass in arrival order. */
     es3_zbuffer_flush_opaque(renderer);
-    es3o_push_runs(renderer, world, &world->opaque_two_pass, false);
+    es3_os241_push_runs(renderer, world, &world->opaque_two_pass, false);
     if( !es3_upload_geometry(renderer) )
         goto done;
-    es3o_push_runs(renderer, world, &world->translucent, true);
-    es3o_sequence_draw(renderer);
+    es3_os241_push_runs(renderer, world, &world->translucent, true);
+    es3_os241_sequence_draw(renderer);
 
 done:
     renderer->has_3d = false;
     renderer->in3d = false;
     es3_sequence_reset(renderer);
     es3_zbuffer_reset_pass(renderer);
-    es3o_reset_pass(world);
+    es3_os241_reset_pass(world);
     es3_set_letterbox_viewport(renderer);
     es3_set_depth(renderer, false, false);
     es3_set_cull(renderer, false);
@@ -694,33 +956,35 @@ done:
 /* ---- dispatch and the frame ------------------------------------------------------------ */
 
 static void
-es3o_dispatch(
+es3_os241_dispatch(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand* command)
 {
     assert(renderer);
     assert(command);
     if( command->kind == TORIRSRC_BEGIN_3D )
-        es3o_begin_3d(renderer, &command->u.begin_3d);
+        es3_os241_begin_3d(renderer, &command->u.begin_3d);
     else if( command->kind == TORIRSRC_END_3D )
-        es3o_end_3d(renderer);
+        es3_os241_end_3d(renderer);
     else if( command->kind == TORIRSRC_DRAW_MODEL )
-        es3o_draw_model(renderer, &command->u.model);
+        es3_os241_draw_model(renderer, &command->u.model);
+    else if( command->kind == TORIRSRC_MODEL_LOAD )
+        es3_os241_model_load(renderer, &command->u.model_load);
     else
         es3_zbuffer_dispatch_retained(renderer, command);
 }
 
 void
-TRSPK_Renderer_ES3_OsrsExecute(
+TRSPK_Renderer_ES3_Os241TfaExecute(
     struct TRSPK_Renderer_ES3* renderer,
     struct ToriRS_RenderCommand const* command)
 {
-    es3o_dispatch(renderer, command);
+    es3_os241_dispatch(renderer, command);
 }
 
 /* The boot bar draws no world: the depth renderer's frame and bar serve. */
 void
-TRSPK_Renderer_ES3_OsrsDrawBootBar(
+TRSPK_Renderer_ES3_Os241TfaDrawBootBar(
     struct TRSPK_Renderer_ES3* renderer,
     int progress,
     int caption_font_id,
@@ -730,7 +994,7 @@ TRSPK_Renderer_ES3_OsrsDrawBootBar(
 }
 
 void
-TRSPK_Renderer_ES3_OsrsRenderFrame(
+TRSPK_Renderer_ES3_Os241TfaRenderFrame(
     struct TRSPK_Renderer_ES3* renderer,
     struct ToriRS_Frame* frame)
 {
@@ -746,17 +1010,17 @@ TRSPK_Renderer_ES3_OsrsRenderFrame(
     while( ToriRS_FrameNextCommand(frame, &command) )
     {
         es3_prefetch_ahead(renderer, frame);
-        es3o_dispatch(renderer, &command);
+        es3_os241_dispatch(renderer, &command);
     }
     ToriRS_FrameEnd(frame);
     if( renderer->in3d )
-        es3o_end_3d(renderer);
+        es3_os241_end_3d(renderer);
     if( renderer->in2d )
         es3_end_2d(renderer);
     if( renderer->target_offscreen )
         es3_scale_target_present(renderer);
     es3_frame_readback(renderer);
-    es3_world_prefill(renderer, render_start_us, es3_zbuffer_world_record_bake);
+    es3_world_prefill(renderer, render_start_us, es3_os241_world_record_bake);
 }
 
 /*
@@ -767,7 +1031,7 @@ TRSPK_Renderer_ES3_OsrsRenderFrame(
  * target already uses (es3_scale_target_ensure_depth).
  */
 bool
-TRSPK_Renderer_ES3_OsrsInit(
+TRSPK_Renderer_ES3_Os241TfaInit(
     struct TRSPK_Renderer_ES3* renderer,
     ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene)
@@ -775,19 +1039,20 @@ TRSPK_Renderer_ES3_OsrsInit(
     assert(renderer);
     assert(window);
     assert(scene);
-    /* The OSRS vertex carries the bias; a handle from TRSPK_Renderer_ES3_New
-     * has none to give. */
-    assert(renderer->vertex_format == TRSPK_VERTEX_FORMAT_ES3_OSRS);
+    /* Its world is baked in its own vertex: a TRSPK_Renderer_ES3_NewOs241Tfa
+     * handle. */
+    assert(renderer->vertex_format == TRSPK_VERTEX_FORMAT_ES3_OS241TFA);
     if( renderer->gl_context )
         return false;
     es3_zbuffer_destroy(renderer);
-    es3_osrs_destroy(renderer);
+    es3_os241tfa_destroy(renderer);
     if( !es3_zbuffer_create(renderer) )
         return false;
-    es3o_create(renderer);
-    if( !es3_init_gl(renderer, window, scene, 24, "OSRS z-buffer") )
+    es3_os241_create(renderer);
+    es3_set_world_shaders(renderer, &es3_world_shaders_os241tfa);
+    if( !es3_init_gl(renderer, window, scene, 24, "Post-TFA OSRS") )
     {
-        es3_osrs_destroy(renderer);
+        es3_os241tfa_destroy(renderer);
         es3_zbuffer_destroy(renderer);
         return false;
     }

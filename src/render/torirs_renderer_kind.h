@@ -54,15 +54,23 @@ enum ToriRS_RendererKind
      *  the painter's order. XRGB8888 lanes only: the client's colour-key and
      *  blend masks assume that layout. */
     TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF,
-    /** The browser's ES 3.0 renderer drawing the world the rev-241 client's
-     *  way: its depth key with each face's depth bias, its tie rule, two-pass
-     *  players and its translucent pass, on the GPU
-     *  (platform_web_renderer_webgl2_osrs.c). The world is collected in the
-     *  painter's order. */
-    TORIRS_RENDERER_KIND_WEBGL2_OSRS,
-    /** Desktop GL 3.2 the same way (platform_sdl2_renderer_gl3zb.c's OSRS
-     *  mode). */
-    TORIRS_RENDERER_KIND_OPENGL3_OSRS,
+    /** "WebGL 2 (Sailing OSRS)": the browser's ES 3.0 renderer drawing the
+     *  world the rev-241 client's way -- its depth key with each face's depth
+     *  bias, its tie rule, two-pass players and its translucent pass
+     *  (platform_web_renderer_webgl2_os235sailing.c). Textures from the
+     *  baked UVs.
+     *  The world is collected in the painter's order. */
+    TORIRS_RENDERER_KIND_WEBGL2_OS235SAILING,
+    /** "OpenGL (Sailing OSRS)": desktop GL 3.2 the same way
+     *  (platform_sdl2_renderer_gl3_os235sailing.c). */
+    TORIRS_RENDERER_KIND_OPENGL3_OS235SAILING,
+    /** "WebGL 2 (Post-TFA OSRS)": Sailing OSRS, plus the client's eye-ray
+     *  texel lookup through each face's texture projector
+     *  (es3_os241tfa_vertex.h) -- the Fractured Archive's effects (the Ocellus
+     *  void) draw wrong without it. */
+    TORIRS_RENDERER_KIND_WEBGL2_OS241TFA,
+    /** "OpenGL (Post-TFA OSRS)": the same on desktop GL 3.2. */
+    TORIRS_RENDERER_KIND_OPENGL3_OS241TFA,
 
     TORIRS_RENDERER_KIND_COUNT
 };

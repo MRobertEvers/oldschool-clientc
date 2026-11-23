@@ -51,9 +51,9 @@ static inline uint32_t trspk_hsl_to_gles2_rev(hsl16_t hsl, uint32_t alpha)
 #undef TRSPK_GLES2_ENCODER
 
 #undef TRSPK_GLES2_METADATA
-static inline void trspk_gles2_store_metadata(struct TRSPK_VertexGLES2* out)
+static inline void trspk_gles2_store_metadata(struct TRSPK_VertexGLES2Os1* out)
 {
-    _Static_assert(offsetof(struct TRSPK_VertexGLES2,anim_v)==offsetof(struct TRSPK_VertexGLES2,tile_col)+3,
+    _Static_assert(offsetof(struct TRSPK_VertexGLES2Os1,anim_v)==offsetof(struct TRSPK_VertexGLES2Os1,tile_col)+3,
         "GLES2 tile/animation bytes must be contiguous");
     static const uint8_t metadata[4]={0,0,128,128};
     memcpy(&out->tile_col,metadata,sizeof(metadata));
@@ -152,6 +152,54 @@ trspk_toridraw_uv_pnm_face(
         (float)model->vertices_x[face_c],
         (float)model->vertices_y[face_c],
         (float)model->vertices_z[face_c]);
+}
+
+void
+trspk_toridraw_face_projector(
+    const struct ToriDraw_Model* model,
+    uint32_t face_index,
+    const struct TRSPK_WorldPlacement* placement,
+    float out_p[3],
+    float out_u[3],
+    float out_v[3])
+{
+    uint32_t p_vertex;
+    uint32_t m_vertex;
+    uint32_t n_vertex;
+    float m[3];
+    float n[3];
+
+    assert(model);
+    assert(placement);
+    assert(out_p);
+    assert(out_u);
+    assert(out_v);
+    assert(model->face_textures);
+    assert(model->face_textures[face_index] >= 0);
+    p_vertex = (uint32_t)model->face_indices_a[face_index];
+    m_vertex = (uint32_t)model->face_indices_b[face_index];
+    n_vertex = (uint32_t)model->face_indices_c[face_index];
+    if( model->face_texture_coords && model->face_texture_coords[face_index] != -1 )
+    {
+        const uint32_t texture_face = (uint32_t)model->face_texture_coords[face_index];
+        assert(model->textured_p_coordinate);
+        assert(model->textured_m_coordinate);
+        assert(model->textured_n_coordinate);
+        p_vertex = (uint32_t)model->textured_p_coordinate[texture_face];
+        m_vertex = (uint32_t)model->textured_m_coordinate[texture_face];
+        n_vertex = (uint32_t)model->textured_n_coordinate[texture_face];
+    }
+    trspk_toridraw_world_vertex(placement, model->vertices_x[p_vertex], model->vertices_y[p_vertex],
+        model->vertices_z[p_vertex], &out_p[0], &out_p[1], &out_p[2]);
+    trspk_toridraw_world_vertex(placement, model->vertices_x[m_vertex], model->vertices_y[m_vertex],
+        model->vertices_z[m_vertex], &m[0], &m[1], &m[2]);
+    trspk_toridraw_world_vertex(placement, model->vertices_x[n_vertex], model->vertices_y[n_vertex],
+        model->vertices_z[n_vertex], &n[0], &n[1], &n[2]);
+    for( int i = 0; i < 3; i++ )
+    {
+        out_u[i] = m[i] - out_p[i];
+        out_v[i] = n[i] - out_p[i];
+    }
 }
 
 const struct TRSPK_WorldPlacement trspk_world_placement_identity = { 0, 0, 0, 0, 0, 0, 0, false, false };

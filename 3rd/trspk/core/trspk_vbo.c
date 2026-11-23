@@ -13,14 +13,18 @@ trspk_vbo_vertex_size(enum TRSPK_VertexFormat format)
     {
     case TRSPK_VERTEX_FORMAT_WEBGL1:
         return sizeof(struct TRSPK_VertexWebGL1);
-    case TRSPK_VERTEX_FORMAT_OPENGL3:
-        return sizeof(struct TRSPK_VertexOpenGl3);
+    case TRSPK_VERTEX_FORMAT_OPENGL3_OS1:
+        return sizeof(struct TRSPK_VertexOpenGl3Os1);
     case TRSPK_VERTEX_FORMAT_D3D9:
         return sizeof(struct TRSPK_VertexD3D9);
-    case TRSPK_VERTEX_FORMAT_GLES2:
-        return sizeof(struct TRSPK_VertexGLES2);
-    case TRSPK_VERTEX_FORMAT_ES3_OSRS:
-        return sizeof(struct TRSPK_VertexES3Osrs);
+    case TRSPK_VERTEX_FORMAT_GLES2_OS1:
+        return sizeof(struct TRSPK_VertexGLES2Os1);
+    case TRSPK_VERTEX_FORMAT_ES3_OS235SAILING:
+        return sizeof(struct TRSPK_VertexES3Os235Sailing);
+    case TRSPK_VERTEX_FORMAT_ES3_OS241TFA:
+        return sizeof(struct TRSPK_VertexES3Os241Tfa);
+    case TRSPK_VERTEX_FORMAT_OPENGL3_OS241TFA:
+        return sizeof(struct TRSPK_VertexOpenGl3Os241Tfa);
     default:
         assert(false);
         return 0;
@@ -83,19 +87,23 @@ trspk_vbo_growby(
     case TRSPK_VERTEX_FORMAT_WEBGL1:
         memset(&vbo->vertices.as_webgl1[old_count], 0, sizeof(struct TRSPK_VertexWebGL1) * amount);
         break;
-    case TRSPK_VERTEX_FORMAT_OPENGL3:
+    case TRSPK_VERTEX_FORMAT_OPENGL3_OS1:
         memset(
-            &vbo->vertices.as_opengl3[old_count], 0, sizeof(struct TRSPK_VertexOpenGl3) * amount);
+            &vbo->vertices.as_opengl3_os1[old_count], 0, sizeof(struct TRSPK_VertexOpenGl3Os1) * amount);
         break;
     case TRSPK_VERTEX_FORMAT_D3D9:
         memset(&vbo->vertices.as_d3d9[old_count], 0, sizeof(struct TRSPK_VertexD3D9) * amount);
         break;
-    case TRSPK_VERTEX_FORMAT_GLES2:
-        memset(&vbo->vertices.as_gles2[old_count], 0, sizeof(struct TRSPK_VertexGLES2) * amount);
+    case TRSPK_VERTEX_FORMAT_GLES2_OS1:
+        memset(&vbo->vertices.as_gles2_os1[old_count], 0, sizeof(struct TRSPK_VertexGLES2Os1) * amount);
         break;
-    case TRSPK_VERTEX_FORMAT_ES3_OSRS:
+    case TRSPK_VERTEX_FORMAT_ES3_OS235SAILING:
+    case TRSPK_VERTEX_FORMAT_ES3_OS241TFA:
+    case TRSPK_VERTEX_FORMAT_OPENGL3_OS241TFA:
         memset(
-            &vbo->vertices.as_es3_osrs[old_count], 0, sizeof(struct TRSPK_VertexES3Osrs) * amount);
+            (uint8_t*)vbo->vertices.as_gles2_os1 + (size_t)old_count * trspk_vbo_vertex_size(vbo->format),
+            0,
+            trspk_vbo_vertex_size(vbo->format) * amount);
         break;
     default:
         assert(false);
@@ -161,17 +169,19 @@ trspk_vbo_free(struct TRSPK_VBO* vbo)
     case TRSPK_VERTEX_FORMAT_WEBGL1:
         TRSPK_FREE(vbo->vertices.as_webgl1);
         break;
-    case TRSPK_VERTEX_FORMAT_OPENGL3:
-        TRSPK_FREE(vbo->vertices.as_opengl3);
+    case TRSPK_VERTEX_FORMAT_OPENGL3_OS1:
+        TRSPK_FREE(vbo->vertices.as_opengl3_os1);
         break;
     case TRSPK_VERTEX_FORMAT_D3D9:
         TRSPK_FREE(vbo->vertices.as_d3d9);
         break;
-    case TRSPK_VERTEX_FORMAT_GLES2:
-        TRSPK_FREE(vbo->vertices.as_gles2);
+    case TRSPK_VERTEX_FORMAT_GLES2_OS1:
+        TRSPK_FREE(vbo->vertices.as_gles2_os1);
         break;
-    case TRSPK_VERTEX_FORMAT_ES3_OSRS:
-        TRSPK_FREE(vbo->vertices.as_es3_osrs);
+    case TRSPK_VERTEX_FORMAT_ES3_OS235SAILING:
+    case TRSPK_VERTEX_FORMAT_ES3_OS241TFA:
+    case TRSPK_VERTEX_FORMAT_OPENGL3_OS241TFA:
+        TRSPK_FREE(vbo->vertices.as_gles2_os1);
         break;
     default:
         break;

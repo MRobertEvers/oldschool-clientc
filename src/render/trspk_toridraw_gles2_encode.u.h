@@ -1,7 +1,7 @@
 /* Ordered packed encoding shared by reference and word-store variants. */
 void TRSPK_GLES2_ENCODER(
     const struct ToriDraw_Model* model,const int* order,uint32_t count,
-    const float* world_xyz,struct TRSPK_VertexGLES2* out)
+    const float* world_xyz,struct TRSPK_VertexGLES2Os1* out)
 {
     assert(!model->face_textures);
     for(uint32_t i=0;i<count;i++,out+=3) {

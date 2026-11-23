@@ -15,12 +15,12 @@ struct Record {struct BakeChainHeader h;struct ToriDraw_Model* m;int32_t* order;
 static volatile uint64_t sink;
 static int encode_mode;
 static int words_mode;
-static struct TRSPK_VertexGLES2* encoded_output;
-static void pack_expected(const struct BakeChainFace* face,struct TRSPK_VertexGLES2* out)
+static struct TRSPK_VertexGLES2Os1* encoded_output;
+static void pack_expected(const struct BakeChainFace* face,struct TRSPK_VertexGLES2Os1* out)
 {
     for(unsigned k=0;k<3;k++) {
         uint32_t argb=face->argb[k];
-        out[k]=(struct TRSPK_VertexGLES2){
+        out[k]=(struct TRSPK_VertexGLES2Os1){
             {face->xyz[k*3],face->xyz[k*3+1],face->xyz[k*3+2]},
             (argb&0xff00ff00u)|((argb>>16)&0xffu)|((argb&0xffu)<<16),
             {0.5f,0.5f},0,0,128,128};
@@ -67,7 +67,7 @@ static void run(struct Record* records,size_t n,float* xyz,int arm,int verify)
             }
             for(int i=0;i<record->h.ordered;i++) {
                 if(verify) {
-                    struct TRSPK_VertexGLES2 expected[3];pack_expected(&record->expected[i],expected);
+                    struct TRSPK_VertexGLES2Os1 expected[3];pack_expected(&record->expected[i],expected);
                     if(memcmp(expected,encoded_output+i*3,sizeof(expected)))fail("direct encoded bytes mismatch");
                 }
                 total+=encoded_output[i*3].rgba;

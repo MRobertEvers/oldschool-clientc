@@ -6,16 +6,19 @@
 #include "trspk_vertex.h"
 
 // clang-format off
-#include "../opengl3/opengl3_vertex.h"
+#include "../opengl3/opengl3_os1_vertex.h"
+#include "../opengl3/opengl3_os241tfa_vertex.h"
 #include "../webgl1/webgl1_vertex.h"
 #include "../d3d9/d3d9_vertex.h"
-#include "../gles2/gles2_vertex.h"
-#include "../es3/es3_osrs_vertex.h"
+#include "../gles2/gles2_os1_vertex.h"
+#include "../es3/es3_os235sailing_vertex.h"
+#include "../es3/es3_os241tfa_vertex.h"
 // clang-format on
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #define TRSPK_VBO_FLAG_DIRTY TRSPK_FLAG(0)
 
@@ -41,10 +44,12 @@ struct TRSPK_VBO
     union
     {
         struct TRSPK_VertexWebGL1* as_webgl1;
-        struct TRSPK_VertexOpenGl3* as_opengl3;
+        struct TRSPK_VertexOpenGl3Os1* as_opengl3_os1;
         struct TRSPK_VertexD3D9* as_d3d9;
-        struct TRSPK_VertexGLES2* as_gles2;
-        struct TRSPK_VertexES3Osrs* as_es3_osrs;
+        struct TRSPK_VertexGLES2Os1* as_gles2_os1;
+        struct TRSPK_VertexES3Os235Sailing* as_es3_os235sailing;
+        struct TRSPK_VertexES3Os241Tfa* as_es3_os241tfa;
+        struct TRSPK_VertexOpenGl3Os241Tfa* as_opengl3_os241tfa;
     } vertices;
 };
 
@@ -162,7 +167,7 @@ trspk_vbo_write_vertex_webgl1(
 }
 
 static inline void
-trspk_vbo_write_vertex_opengl3(
+trspk_vbo_write_vertex_opengl3_os1(
     struct TRSPK_VBO* vbo,
     uint32_t index,
     float x,
@@ -173,7 +178,7 @@ trspk_vbo_write_vertex_opengl3(
     float v,
     float tex_id)
 {
-    struct TRSPK_VertexOpenGl3* vertex = &vbo->vertices.as_opengl3[index];
+    struct TRSPK_VertexOpenGl3Os1* vertex = &vbo->vertices.as_opengl3_os1[index];
 
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -269,7 +274,7 @@ trspk_vbo_write_vertex_d3d9(
 }
 
 /* Write one GLES2 vertex. `rgba` is already in R,G,B,A memory order and
- * `u`/`v` are the face's LOCAL tile coordinates (see gles2_vertex.h); `slot`
+ * `u`/`v` are the face's LOCAL tile coordinates (see gles2_os1_vertex.h); `slot`
  * is the atlas slot (col = slot % 16, row = slot / 16) and `anim_u`/`anim_v`
  * the biased scroll speeds.
  *
@@ -278,7 +283,7 @@ trspk_vbo_write_vertex_d3d9(
  * (trspk_vbo_mark_dirty_range), which is what keeps a retained upload the
  * size of the model that changed rather than the buffer it lives in. */
 static inline void
-trspk_vbo_write_vertex_gles2(
+trspk_vbo_write_vertex_gles2_os1(
     struct TRSPK_VBO* vbo,
     uint32_t index,
     float x,
@@ -292,7 +297,7 @@ trspk_vbo_write_vertex_gles2(
     uint8_t anim_u,
     uint8_t anim_v)
 {
-    struct TRSPK_VertexGLES2* vertex = &vbo->vertices.as_gles2[index];
+    struct TRSPK_VertexGLES2Os1* vertex = &vbo->vertices.as_gles2_os1[index];
 
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -306,10 +311,11 @@ trspk_vbo_write_vertex_gles2(
     vertex->anim_v = anim_v;
 }
 
-/** trspk_vbo_write_vertex_gles2's fields, and the face's raw depth bias
- *  (es3_osrs_vertex.h). Leaves the dirty range alone, as that one does. */
+/** trspk_vbo_write_vertex_gles2_os1's fields and the face's raw depth bias
+ *  (es3_os235sailing_vertex.h). Leaves the dirty range alone, as that one
+ *  does. */
 static inline void
-trspk_vbo_write_vertex_es3_osrs(
+trspk_vbo_write_vertex_es3_os235sailing(
     struct TRSPK_VBO* vbo,
     uint32_t index,
     float x,
@@ -324,7 +330,7 @@ trspk_vbo_write_vertex_es3_osrs(
     uint8_t anim_v,
     int8_t depth_bias)
 {
-    struct TRSPK_VertexES3Osrs* vertex = &vbo->vertices.as_es3_osrs[index];
+    struct TRSPK_VertexES3Os235Sailing* vertex = &vbo->vertices.as_es3_os235sailing[index];
 
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -340,6 +346,62 @@ trspk_vbo_write_vertex_es3_osrs(
     vertex->pad[0] = 0u;
     vertex->pad[1] = 0u;
     vertex->pad[2] = 0u;
+}
+
+/** The Sailing fields and the face's texture projector
+ *  (es3_os241tfa_vertex.h): P, U, V in world space, or NULL for a face with
+ *  none; P is stored relative to (x, y, z). Leaves the dirty range alone. */
+static inline void
+trspk_vbo_write_vertex_es3_os241tfa(
+    struct TRSPK_VBO* vbo,
+    uint32_t index,
+    float x,
+    float y,
+    float z,
+    uint32_t rgba,
+    float u,
+    float v,
+    uint8_t tile_col,
+    uint8_t tile_row,
+    uint8_t anim_u,
+    uint8_t anim_v,
+    int8_t depth_bias,
+    const float* projector_p,
+    const float* projector_u,
+    const float* projector_v)
+{
+    struct TRSPK_VertexES3Os241Tfa* vertex = &vbo->vertices.as_es3_os241tfa[index];
+
+    vertex->position[0] = x;
+    vertex->position[1] = y;
+    vertex->position[2] = z;
+    vertex->rgba = rgba;
+    vertex->texcoord[0] = u;
+    vertex->texcoord[1] = v;
+    vertex->tile_col = tile_col;
+    vertex->tile_row = tile_row;
+    vertex->anim_u = anim_u;
+    vertex->anim_v = anim_v;
+    vertex->depth_bias = depth_bias;
+    vertex->pad[0] = 0u;
+    vertex->pad[1] = 0u;
+    vertex->pad[2] = 0u;
+    vertex->pad2 = 0u;
+    if( !projector_p )
+    {
+        memset(vertex->projector_p, 0, sizeof(vertex->projector_p));
+        memset(vertex->projector_u, 0, sizeof(vertex->projector_u));
+        memset(vertex->projector_v, 0, sizeof(vertex->projector_v));
+        return;
+    }
+    vertex->projector_p[0] = trspk_float_to_half(projector_p[0] - x);
+    vertex->projector_p[1] = trspk_float_to_half(projector_p[1] - y);
+    vertex->projector_p[2] = trspk_float_to_half(projector_p[2] - z);
+    for( int i = 0; i < 3; i++ )
+    {
+        vertex->projector_u[i] = trspk_float_to_half(projector_u[i]);
+        vertex->projector_v[i] = trspk_float_to_half(projector_v[i]);
+    }
 }
 
 #endif

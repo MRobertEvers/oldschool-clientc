@@ -41,11 +41,11 @@ move_vertices(
             &vbo->vertices.as_webgl1[src],
             count * sizeof(struct TRSPK_VertexWebGL1));
         break;
-    case TRSPK_VERTEX_FORMAT_OPENGL3:
+    case TRSPK_VERTEX_FORMAT_OPENGL3_OS1:
         memmove(
-            &vbo->vertices.as_opengl3[dst],
-            &vbo->vertices.as_opengl3[src],
-            count * sizeof(struct TRSPK_VertexOpenGl3));
+            &vbo->vertices.as_opengl3_os1[dst],
+            &vbo->vertices.as_opengl3_os1[src],
+            count * sizeof(struct TRSPK_VertexOpenGl3Os1));
         break;
     case TRSPK_VERTEX_FORMAT_D3D9:
         memmove(
@@ -53,18 +53,23 @@ move_vertices(
             &vbo->vertices.as_d3d9[src],
             count * sizeof(struct TRSPK_VertexD3D9));
         break;
-    case TRSPK_VERTEX_FORMAT_GLES2:
+    case TRSPK_VERTEX_FORMAT_GLES2_OS1:
         memmove(
-            &vbo->vertices.as_gles2[dst],
-            &vbo->vertices.as_gles2[src],
-            count * sizeof(struct TRSPK_VertexGLES2));
+            &vbo->vertices.as_gles2_os1[dst],
+            &vbo->vertices.as_gles2_os1[src],
+            count * sizeof(struct TRSPK_VertexGLES2Os1));
         break;
-    case TRSPK_VERTEX_FORMAT_ES3_OSRS:
+    case TRSPK_VERTEX_FORMAT_ES3_OS235SAILING:
+    case TRSPK_VERTEX_FORMAT_ES3_OS241TFA:
+    case TRSPK_VERTEX_FORMAT_OPENGL3_OS241TFA:
+    {
+        size_t const size = trspk_vbo_vertex_size(vbo->format);
         memmove(
-            &vbo->vertices.as_es3_osrs[dst],
-            &vbo->vertices.as_es3_osrs[src],
-            count * sizeof(struct TRSPK_VertexES3Osrs));
+            (uint8_t*)vbo->vertices.as_gles2_os1 + (size_t)dst * size,
+            (uint8_t*)vbo->vertices.as_gles2_os1 + (size_t)src * size,
+            count * size);
         break;
+    }
     default:
         assert(false && "Unsupported vertex format");
         break;

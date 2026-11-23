@@ -64,18 +64,30 @@ translucent pass follows that order, and the opaque pass does not depend on it.
 
 ## On the GPU
 
-"WebGL 2 (OSRS z-buffer)" (`--webgl2-osrs`, kind 15,
-`platform_web_renderer_webgl2_osrs.c`) and "OpenGL (OSRS z-buffer)"
-(`--opengl3-osrs`, kind 16, the OSRS mode of `platform_sdl2_renderer_gl3zb.c`)
-take the client's depth RULES, not its rasterizer. They sit beside the plain
-depth renderers, which are unchanged:
+Two GPU renderers per lane take the client's depth RULES, not its rasterizer.
+They sit beside the plain depth renderers, which are unchanged:
+
+| renderer | flag | kind | vertex |
+|---|---|---|---|
+| WebGL 2 (Sailing OSRS) | `--webgl2-os235sailing` | 15 | `es3_os235sailing_vertex.h` (GLES2 + bias, 32 bytes) |
+| OpenGL (Sailing OSRS) | `--opengl3-os235sailing` | 16 | `TRSPK_VertexOpenGl3Os1`, the plain GL3 vertex (`position.w` holds the bias) |
+| WebGL 2 (Post-TFA OSRS) | `--webgl2-os241tfa` | 17 | `es3_os241tfa_vertex.h` (Sailing + projector, 52 bytes) |
+| OpenGL (Post-TFA OSRS) | `--opengl3-os241tfa` | 18 | `TRSPK_VertexOpenGl3Os241Tfa` (GL3 + projector, 84 bytes) |
+
+Each is a file of its own, with its own dispatch, frame, world pass entry
+points and bake chain, composed from shared steps that do not ask which
+renderer is running: `platform_web_renderer_webgl2_os235sailing.c` and
+`_os241tfa.c` over the ES3 core, `platform_sdl2_renderer_gl3_os235sailing.c`
+and `_os241tfa.c` over GL3 (whose rev-241 world pass, shared by the two, is
+`GL3ZB_Rev241*` in `platform_sdl2_renderer_gl3zb.c`). Their programs are
+their own (`es3_shaders.h`; GL3 `shaders/vertex_os235sailing.glsl`,
+`vertex_os241tfa.glsl` + `fragment_os241tfa.glsl`). Sailing OSRS on GL3 bakes
+the os1 chain the painter and depth pass share. All four do:
 
 - **The key.** The world vertex shader computes the key above per corner, from
   the camera depth in clip w less twice the face's bias, and writes it into
   NDC z. The hardware interpolates NDC z linearly on screen, as the client
-  interpolates its key, so no `gl_FragDepth` is needed. WebGL2 carries the
-  bias in its own vertex (`TRSPK_VERTEX_FORMAT_ES3_OSRS`, 32 bytes); GL3's
-  vertex already had it in `position.w`.
+  interpolates its key, so no `gl_FragDepth` is needed.
 - **The tie rule.** Depth clears to 0 and the test is `GREATER`.
 - **Two-pass models.** Players and opcode-147 npcs draw in the painter's
   priority order, colour only, then the same faces depth only.
@@ -83,6 +95,21 @@ depth renderers, which are unchanged:
   order after the opaque pass. Each one's blended faces are sorted by depth
   bucket, far to near, with no priorities, and blend while writing depth. The
   world is collected as `TORIRS_WORLD_PAINTER`.
+
+Post-TFA OSRS adds the client's texel lookup [`class171.method5476`]: a
+textured pixel's texel is where the EYE RAY through it meets the face's P/M/N
+projector plane. The baked UVs drop each corner straight onto that plane,
+which agrees only for a face lying in it -- every model until The Fractured
+Archive, whose Ocellus void (loc `tfa_ocellus_void_degen_bomb`, models
+62507/62508, texture 215) has its starfield on a plane 40 units below its
+faces, sliding as the camera moves. The vertex carries P (less the corner),
+U = M - P and V = N - P in world space (`trspk_toridraw_face_projector`); the
+vertex shader outputs a = dot(r, Prel x V), b = dot(r, U x Prel),
+c = dot(r, U x V) with r = corner - eye, all linear in position so
+perspective-correct interpolation is exact, and the fragment shader takes
+u = -a/c, v = -b/c. u is clamped and v wraps, as the client's; c = 0 reads
+texel 0,0, as the client's does. All per pixel on the GPU; the CPU writes the
+projector once per bake. `::tfaocpatch` lays a patch under you to look at.
 
 A parallel camera has no depth in w, so its pass falls back to the plain
 depth mapping and `LEQUAL`.

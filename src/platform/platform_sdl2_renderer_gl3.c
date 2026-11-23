@@ -7,10 +7,10 @@
  * one frame. Now nothing is baked on arrival:
  *
  *   ADD          is a record (TRSPK_WorldRecord). The bake happens on the first
- *                draw that resolves to it (gl3_world_pose), or in the
- *                prefill (gl3_world_prefill), whichever is first.
+ *                draw that resolves to it (gl3_world_pose_os1), or in the
+ *                prefill (gl3_world_prefill_os1), whichever is first.
  *   ANIM_LOAD    announces a track (TRSPK_AnimTrack); each pose is baked on the
- *                first draw that asks for it (gl3_bake_track_pose).
+ *                first draw that asks for it (gl3_bake_track_pose_os1).
  *   prefill      runs at the end of RenderFrame, after the frame is drawn, in
  *                what is left of the frame's work budget: up to
  *                prep_target_us (6 ms) of frame work, never more than
@@ -98,7 +98,6 @@
 
 /* TORIRS_REBUILD_TIMING's clock: 0 when the timing is off, so a disabled
  * build pays one load and a branch per site. */
-#define GL3_TICKS(r_) ((r_)->dbg_timing.on ? SDL_GetPerformanceCounter() : 0u)
 
 /* -----------------------------------------------------------------------
  * Helpers
@@ -146,13 +145,15 @@ bind_vbo_attribs(
     GLuint vbo_gpu,
     uint32_t base_vertex)
 {
-    const GLsizei stride = (GLsizei)sizeof(struct TRSPK_VertexOpenGl3);
-    const uintptr_t base = (uintptr_t)base_vertex * sizeof(struct TRSPK_VertexOpenGl3);
-    const uintptr_t offset_position = base + offsetof(struct TRSPK_VertexOpenGl3, position);
-    const uintptr_t offset_color = base + offsetof(struct TRSPK_VertexOpenGl3, color);
-    const uintptr_t offset_texcoord = base + offsetof(struct TRSPK_VertexOpenGl3, texcoord);
-    const uintptr_t offset_tex_id = base + offsetof(struct TRSPK_VertexOpenGl3, tex_id);
-    const uintptr_t offset_uv_mode = base + offsetof(struct TRSPK_VertexOpenGl3, uv_mode);
+    /* Every GL3 vertex starts with the os1 one (opengl3_os241tfa_vertex.h);
+     * the handle's stride says how far apart they are. */
+    const GLsizei stride = (GLsizei)renderer->vertex_size;
+    const uintptr_t base = (uintptr_t)base_vertex * renderer->vertex_size;
+    const uintptr_t offset_position = base + offsetof(struct TRSPK_VertexOpenGl3Os1, position);
+    const uintptr_t offset_color = base + offsetof(struct TRSPK_VertexOpenGl3Os1, color);
+    const uintptr_t offset_texcoord = base + offsetof(struct TRSPK_VertexOpenGl3Os1, texcoord);
+    const uintptr_t offset_tex_id = base + offsetof(struct TRSPK_VertexOpenGl3Os1, tex_id);
+    const uintptr_t offset_uv_mode = base + offsetof(struct TRSPK_VertexOpenGl3Os1, uv_mode);
     glBindBuffer(GL_ARRAY_BUFFER, vbo_gpu);
     if( renderer->a_position >= 0 )
     {
@@ -198,6 +199,25 @@ bind_vbo_attribs(
             GL_FALSE,
             stride,
             (const void*)offset_uv_mode);
+    }
+    /* The os241tfa vertex's texture projector. Like every input above it is
+     * bound when the linked program declares it: only the Post-TFA program
+     * does, and only its handle's vertex carries the fields. */
+    {
+        const GLint locations[3] = { renderer->a_proj_p, renderer->a_proj_u, renderer->a_proj_v };
+        const uintptr_t offsets[3] = {
+            base + offsetof(struct TRSPK_VertexOpenGl3Os241Tfa, projector_p),
+            base + offsetof(struct TRSPK_VertexOpenGl3Os241Tfa, projector_u),
+            base + offsetof(struct TRSPK_VertexOpenGl3Os241Tfa, projector_v),
+        };
+        for( int i = 0; i < 3; i++ )
+        {
+            if( locations[i] < 0 )
+                continue;
+            glEnableVertexAttribArray((GLuint)locations[i]);
+            glVertexAttribPointer(
+                (GLuint)locations[i], 3, GL_FLOAT, GL_FALSE, stride, (const void*)offsets[i]);
+        }
     }
 }
 
@@ -2890,11 +2910,16 @@ gl3_ev_font(
 }
 
 
+/* The world block. `depth_mode` is what the pass's program does with depth:
+ * 0 the painter's (none), 1 the depth pass's biased mapping
+ * (shaders/vertex.glsl), 2 the rev-241 client's key (vertex_os235sailing.glsl,
+ * vertex_os241tfa.glsl). */
 static void
 upload_world_ubo(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     const float* view,
-    const float* proj)
+    const float* proj,
+    float depth_mode)
 {
     TRSPK_UboWorld u = { 0 };
     memcpy(u.modelViewMatrix, view, sizeof(float) * 16u);
@@ -2902,9 +2927,14 @@ upload_world_ubo(
     u.uClock = (float)renderer->frame_clock;
     u.uAtlasDim = (float)renderer->atlas_dim;
     u.uAtlasSlots = (float)renderer->tex_cap;
-    /* 0 the painter, 1 the depth pass's biased mapping, 2 the OSRS key
-     * (shaders/vertex.glsl). */
-    u.uDepthBias = renderer->osrs_key_depth ? 2.0f : renderer->z_buffer_enabled ? 1.0f : 0.0f;
+    u.uDepthBias = depth_mode;
+    /* The eye the pass's matrices were built from: the Post-TFA program's
+     * texture rays start here (shaders/vertex_os241tfa.glsl); the others do
+     * not declare it. */
+    u.uEye[0] = (float)renderer->cur_3d.camera_position.x;
+    u.uEye[1] = (float)renderer->cur_3d.camera_position.y;
+    u.uEye[2] = (float)renderer->cur_3d.camera_position.z;
+    u.uEye[3] = 1.0f;
     gl3_set_world_uniforms(renderer, &u);
 }
 
@@ -3011,8 +3041,10 @@ gl3_upload_atlas_texture(struct ToriPlatformSDL2_Renderer_GL3* renderer)
     trspk_atlas_clear_dirty(&renderer->atlas);
 }
 
-static void
-gl3_bind_world_draw_state(struct ToriPlatformSDL2_Renderer_GL3* renderer)
+/* The world program, its uniforms and atlas, and blending: every world pass
+ * binds this, then its own depth state. */
+void
+gl3_bind_world_program(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     glUseProgram(renderer->program3d);
     gl3_push_world_uniforms(renderer);
@@ -3023,6 +3055,12 @@ gl3_bind_world_draw_state(struct ToriPlatformSDL2_Renderer_GL3* renderer)
         glBindTexture(GL_TEXTURE_2D, renderer->atlas_texture);
     }
     gl3_blend_ui();
+}
+
+static void
+gl3_bind_world_draw_state(struct ToriPlatformSDL2_Renderer_GL3* renderer)
+{
+    gl3_bind_world_program(renderer);
     if( renderer->z_buffer_enabled )
         GL3ZB_BindDrawState(renderer);
     else
@@ -3076,7 +3114,7 @@ gl3_release_gpu_mesh_buffers(struct ToriPlatformSDL2_Renderer_GL3* renderer)
             glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
             glBufferData(
                 GL_ARRAY_BUFFER,
-                TRSPK_GL3_GPU_VBO_INIT * sizeof(struct TRSPK_VertexOpenGl3),
+                TRSPK_GL3_GPU_VBO_INIT * trspk_vbo_vertex_size(g->vbo_cpu->format),
                 NULL,
                 GL_DYNAMIC_DRAW);
             g->gpu_capacity = TRSPK_GL3_GPU_VBO_INIT;
@@ -3178,7 +3216,7 @@ gl3_upload_group(struct GL3ModelGroup* g)
             ; /* drain, so the next check is about this allocation */
         glBufferData(
             GL_ARRAY_BUFFER,
-            (GLsizeiptr)((size_t)cap * sizeof(struct TRSPK_VertexOpenGl3)),
+            (GLsizeiptr)((size_t)cap * trspk_vbo_vertex_size(g->vbo_cpu->format)),
             NULL,
             GL_DYNAMIC_DRAW);
         {
@@ -3187,7 +3225,7 @@ gl3_upload_group(struct GL3ModelGroup* g)
                 fprintf(stderr,
                         "gl3_upload_group: group %s grow to %u verts (%.1f MiB) err=0x%x%s\n",
                         g->reset_each_frame ? "dynamic" : "static", cap,
-                        (double)((size_t)cap * sizeof(struct TRSPK_VertexOpenGl3)) / 1048576.0,
+                        (double)((size_t)cap * trspk_vbo_vertex_size(g->vbo_cpu->format)) / 1048576.0,
                         (unsigned)e,
                         e != GL_NO_ERROR ? "  <== ALLOCATION FAILED" : "");
         }
@@ -3199,13 +3237,14 @@ gl3_upload_group(struct GL3ModelGroup* g)
         return true;
     }
     const GLsizeiptr byte_size =
-        (GLsizeiptr)((size_t)(upload_end - upload_from) * sizeof(struct TRSPK_VertexOpenGl3));
+        (GLsizeiptr)((size_t)(upload_end - upload_from) * trspk_vbo_vertex_size(g->vbo_cpu->format));
     glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
     glBufferSubData(
         GL_ARRAY_BUFFER,
-        (GLintptr)((size_t)upload_from * sizeof(struct TRSPK_VertexOpenGl3)),
+        (GLintptr)((size_t)upload_from * trspk_vbo_vertex_size(g->vbo_cpu->format)),
         byte_size,
-        g->vbo_cpu->vertices.as_opengl3 + upload_from);
+        (const uint8_t*)g->vbo_cpu->vertices.as_opengl3_os1 +
+            (size_t)upload_from * trspk_vbo_vertex_size(g->vbo_cpu->format));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     /* Counted per group so a steady scene can be asserted to move no static
@@ -3250,8 +3289,10 @@ gl3_ensure_gpu_ibo(
     return true;
 }
 
+/* One os1 world vertex: the painter, the depth pass and Sailing OSRS bake
+ * these. position.w carries the face's depth bias. */
 static void
-gl3_write_vertex_opengl3(
+gl3_write_vertex_os1(
     struct TRSPK_VBO* vbo,
     uint32_t index,
     float x,
@@ -3264,11 +3305,40 @@ gl3_write_vertex_opengl3(
     float uv_mode,
     float depth_bias)
 {
-    trspk_vbo_write_vertex_opengl3(vbo, index, x, y, z, color, u, v, tex_id);
-    vbo->vertices.as_opengl3[index].uv_mode = uv_mode;
-    vbo->vertices.as_opengl3[index].position[3] = depth_bias;
+    trspk_vbo_write_vertex_opengl3_os1(vbo, index, x, y, z, color, u, v, tex_id);
+    vbo->vertices.as_opengl3_os1[index].uv_mode = uv_mode;
+    vbo->vertices.as_opengl3_os1[index].position[3] = depth_bias;
 }
 
+/* One widget-model vertex into the dynamic group, whatever vertex the handle
+ * keeps there: the os1 fields every GL3 vertex starts with, and zero after
+ * them (an os241tfa vertex's projector: none, so its baked texcoord holds). */
+static void
+gl3_write_widget_vertex(
+    struct TRSPK_VBO* vbo,
+    uint32_t index,
+    float x,
+    float y,
+    float z,
+    float color[4],
+    float u,
+    float v,
+    float tex_id,
+    float uv_mode)
+{
+    size_t const stride = trspk_vbo_vertex_size(vbo->format);
+    struct TRSPK_VertexOpenGl3Os1* vertex =
+        (struct TRSPK_VertexOpenGl3Os1*)((uint8_t*)vbo->vertices.as_opengl3_os1 + (size_t)index * stride);
+    memset(vertex, 0, stride);
+    vertex->position[0] = x;
+    vertex->position[1] = y;
+    vertex->position[2] = z;
+    memcpy(vertex->color, color, sizeof(vertex->color));
+    vertex->texcoord[0] = u;
+    vertex->texcoord[1] = v;
+    vertex->tex_id = tex_id;
+    vertex->uv_mode = uv_mode;
+}
 
 static void
 gl3_decode_texture_rgba(
@@ -3443,10 +3513,15 @@ gl3_ev_anim_unload(
     gl3_ev_model_unload(renderer, command);
 }
 
-static void
-gl3_ev_begin_3d(
+/*
+ * BEGIN_3D's camera and viewport: the pass is open from here. `out_rect` is
+ * the world viewport in framebuffer pixels, for the depth clear.
+ */
+void
+gl3_begin_3d_viewport(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
-    struct ToriRS_RenderCommand* command)
+    struct ToriRS_RenderCommand* command,
+    int out_rect[4])
 {
     assert(command->kind == TORIRSRC_BEGIN_3D);
 
@@ -3469,10 +3544,6 @@ gl3_ev_begin_3d(
         const int vp_h = vp->height > 0 ? vp->height : renderer->height;
         const int wx = vp->x_center - vp_w / 2;
         const int wy = vp->y_center - vp_h / 2;
-        int gl_x = 0;
-        int gl_y = 0;
-        int gl_w = 0;
-        int gl_h = 0;
         trspk_logical_rect_to_framebuffer(
             wx,
             wy,
@@ -3485,45 +3556,52 @@ gl3_ev_begin_3d(
             renderer->lb_h,
             renderer->width,
             renderer->height,
-            &gl_x,
-            &gl_y,
-            &gl_w,
-            &gl_h);
-        glViewport(gl_x, gl_y, gl_w, gl_h);
-        if( renderer->z_buffer_enabled )
-            GL3ZB_BeginPass(renderer, gl_x, gl_y, gl_w, gl_h);
+            &out_rect[0],
+            &out_rect[1],
+            &out_rect[2],
+            &out_rect[3]);
+        glViewport(out_rect[0], out_rect[1], out_rect[2], out_rect[3]);
     }
+}
 
-    {
-        const struct ToriDraw_ViewPort* vp = &renderer->cur_3d.view_port;
-        const struct ToriDraw_Camera* cam = &renderer->cur_3d.camera;
-        const struct ToriDraw_Position* cam_pos = &renderer->cur_3d.camera_position;
-        const int pass_w = vp->width > 0 ? vp->width : renderer->width;
-        const int pass_h = vp->height > 0 ? vp->height : renderer->height;
-        trspk_compute_pass_matrices(
-            renderer->view,
-            renderer->proj,
-            (float)cam_pos->x,
-            (float)cam_pos->y,
-            (float)cam_pos->z,
-            ToriDraw_AngleToRadians(cam->pitch),
-            ToriDraw_AngleToRadians(cam->yaw),
-            pass_w,
-            pass_h,
-            /* The camera's own projection, not an assumed one. The GPU used to
-             * project at a hardcoded scale of 512 while the rasterizer used
-             * whatever the layout computed — at this boot's viewport that is
-             * ~191, so the GPU drew the world 2.7x magnified about the viewport
-             * centre. Identical camera, identical scene, different size. */
-            (int)cam->projection_mode,
-            cam->projection_scale,
-            cam->fov_rpi2048,
-            cam->parallel_zoom16);
+/* The pass's view and projection from its camera (renderer->view, ->proj). */
+void
+gl3_begin_3d_matrices(struct ToriPlatformSDL2_Renderer_GL3* renderer)
+{
+    const struct ToriDraw_ViewPort* vp = &renderer->cur_3d.view_port;
+    const struct ToriDraw_Camera* cam = &renderer->cur_3d.camera;
+    const struct ToriDraw_Position* cam_pos = &renderer->cur_3d.camera_position;
+    const int pass_w = vp->width > 0 ? vp->width : renderer->width;
+    const int pass_h = vp->height > 0 ? vp->height : renderer->height;
+    trspk_compute_pass_matrices(
+        renderer->view,
+        renderer->proj,
+        (float)cam_pos->x,
+        (float)cam_pos->y,
+        (float)cam_pos->z,
+        ToriDraw_AngleToRadians(cam->pitch),
+        ToriDraw_AngleToRadians(cam->yaw),
+        pass_w,
+        pass_h,
+        /* The camera's own projection, not an assumed one. The GPU used to
+         * project at a hardcoded scale of 512 while the rasterizer used
+         * whatever the layout computed — at this boot's viewport that is
+         * ~191, so the GPU drew the world 2.7x magnified about the viewport
+         * centre. Identical camera, identical scene, different size. */
+        (int)cam->projection_mode,
+        cam->projection_scale,
+        cam->fov_rpi2048,
+        cam->parallel_zoom16);
+}
 
-        if( renderer->z_buffer_enabled )
-            GL3ZB_ApplyProjectionDepth(renderer, cam);
-    }
-    upload_world_ubo(renderer, renderer->view, renderer->proj);
+/* The pass's uniforms (see upload_world_ubo for `depth_mode`), its atlas, and
+ * the per-frame groups emptied. */
+void
+gl3_begin_3d_finish(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    float depth_mode)
+{
+    upload_world_ubo(renderer, renderer->view, renderer->proj, depth_mode);
 
     if( trspk_atlas_is_dirty(&renderer->atlas) )
         gl3_upload_atlas_texture(renderer);
@@ -3536,7 +3614,22 @@ gl3_ev_begin_3d(
 }
 
 static void
-gl3_bake_pose_vertices(
+gl3_ev_begin_3d(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command)
+{
+    int rect[4];
+    gl3_begin_3d_viewport(renderer, command, rect);
+    if( renderer->z_buffer_enabled )
+        GL3ZB_BeginPass(renderer, rect[0], rect[1], rect[2], rect[3]);
+    gl3_begin_3d_matrices(renderer);
+    if( renderer->z_buffer_enabled )
+        GL3ZB_ApplyProjectionDepth(renderer, &renderer->cur_3d.camera);
+    gl3_begin_3d_finish(renderer, renderer->z_buffer_enabled ? 1.0f : 0.0f);
+}
+
+static void
+gl3_bake_pose_vertices_os1(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct TRSPK_VBO* vbo,
     struct TRSPK_Triangles* triangles,
@@ -3553,6 +3646,15 @@ gl3_world_reserve(
     struct GL3ModelGroup* g,
     uint64_t vertices);
 
+void
+gl3_world_record_count(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriDraw_ModelHandle model)
+{
+    if( renderer->dbg_timing.on )
+        renderer->dbg_timing.add_faces += (uint32_t)trspk_toridraw_face_count(model);
+}
+
 /*
  * Bake one record into its build: what BATCH3D_*_ADD did on arrival before
  * the bake was deferred, byte for byte. Only for a record whose element is
@@ -3560,7 +3662,7 @@ gl3_world_reserve(
  * build would never draw it anyway.
  */
 static void
-gl3_world_record_bake(
+gl3_world_record_bake_os1(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct TRSPK_WorldSlot* w,
     int r)
@@ -3568,21 +3670,35 @@ gl3_world_record_bake(
     struct TRSPK_WorldRecord const* record = &w->records[r];
     struct TRSPK_Batch32Reservation reservation;
     trspk_world_record_take(w, r, &reservation);
-    gl3_bake_pose_vertices(
+    gl3_bake_pose_vertices_os1(
         renderer,
         reservation.vbo,
         reservation.triangles,
         reservation.vertex_base,
         record->model,
         &record->world_position);
+    gl3_world_record_count(renderer, record->model);
+}
+
+void
+gl3_world_prefill_unit(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint64_t t0)
+{
     if( renderer->dbg_timing.on )
-        renderer->dbg_timing.add_faces += (uint32_t)trspk_toridraw_face_count(record->model);
+    {
+        uint64_t const unit = SDL_GetPerformanceCounter() - t0;
+        renderer->dbg_timing.prefill_ticks += unit;
+        renderer->dbg_timing.prefill_bakes++;
+        if( unit > renderer->dbg_timing.prefill_max_unit_ticks )
+            renderer->dbg_timing.prefill_max_unit_ticks = unit;
+    }
 }
 
 /* Bake `w`'s records in arrival order until `deadline` (performance-counter
  * ticks). 1: the deadline came first. */
 static bool
-gl3_world_prefill_slot(
+gl3_world_prefill_slot_os1(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct TRSPK_WorldSlot* w,
     uint64_t deadline)
@@ -3596,62 +3712,56 @@ gl3_world_prefill_slot(
         r = trspk_world_prefill_next(w);
         if( r < 0 )
             continue;
-        gl3_world_record_bake(renderer, w, r);
-        if( renderer->dbg_timing.on )
-        {
-            uint64_t const unit = SDL_GetPerformanceCounter() - t0;
-            renderer->dbg_timing.prefill_ticks += unit;
-            renderer->dbg_timing.prefill_bakes++;
-            if( unit > renderer->dbg_timing.prefill_max_unit_ticks )
-                renderer->dbg_timing.prefill_max_unit_ticks = unit;
-        }
+        gl3_world_record_bake_os1(renderer, w, r);
+        gl3_world_prefill_unit(renderer, t0);
     }
     return false;
 }
 
-/*
- * The world builds' records not yet baked, the drawn build's first, then the
- * stage's, until `deadline`. The record is the unit: the clock is read before
- * each, so the slice overruns by at most the largest model's bake. The stage's
- * baked span goes to its GPU buffer in the same slice, a slice's worth at a
- * time, so the swap has no upload left to do.
- */
-static void
-gl3_world_prefill(
+uint64_t
+gl3_world_stage_prefill_begin(struct ToriPlatformSDL2_Renderer_GL3* renderer)
+{
+    struct TRSPK_WorldBuild* build = &renderer->build;
+    uint64_t const t0 = GL3_TICKS(renderer);
+    /* Sized once, before the first bake, for every add received (they
+     * arrive together: ToriDraw_SceneStageBatchStep sends a region's in
+     * one slice) plus an eighth, so neither buffer grows mid-bake. */
+    uint64_t const reserve = trspk_world_build_stage_reserve_wanted(build);
+    if( reserve > 0u )
+        gl3_world_reserve(&build->stage, &renderer->stage_group, reserve);
+    return t0;
+}
+
+void
+gl3_world_stage_prefill_end(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint64_t t0)
+{
+    struct TRSPK_WorldBuild* build = &renderer->build;
+    if( renderer->dbg_timing.on )
+        renderer->dbg_timing.stage_ticks += SDL_GetPerformanceCounter() - t0;
+    /* What this slice baked goes up now, one range per frame (the span
+     * the bakes dirtied), so no frame carries the whole build's upload. */
+    if( renderer->stage_group.vbo_cpu && trspk_vbo_is_dirty(renderer->stage_group.vbo_cpu) )
+    {
+        uint64_t const t1 = GL3_TICKS(renderer);
+        gl3_upload_group(&renderer->stage_group);
+        if( renderer->dbg_timing.on )
+            renderer->dbg_timing.stage_upload_ticks += SDL_GetPerformanceCounter() - t1;
+    }
+    /* Baked and uploaded: the job may swap it in (it waits for this,
+     * app_world_job.c, up to its deadline). */
+    if( build->stage.unbaked == 0u && renderer->scene &&
+        !(renderer->stage_group.vbo_cpu && trspk_vbo_is_dirty(renderer->stage_group.vbo_cpu)) )
+        ToriDraw_SceneStageBatchMarkPrepared(renderer->scene, build->stage.batch_id);
+}
+
+void
+gl3_world_stage_release(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint64_t deadline)
 {
     struct TRSPK_WorldBuild* build = &renderer->build;
-    if( build->world.drawable && gl3_world_prefill_slot(renderer, &build->world, deadline) )
-        return;
-    if( trspk_world_build_stage_open(build) )
-    {
-        uint64_t const t0 = GL3_TICKS(renderer);
-        /* Sized once, before the first bake, for every add received (they
-         * arrive together: ToriDraw_SceneStageBatchStep sends a region's in
-         * one slice) plus an eighth, so neither buffer grows mid-bake. */
-        uint64_t const reserve = trspk_world_build_stage_reserve_wanted(build);
-        if( reserve > 0u )
-            gl3_world_reserve(&build->stage, &renderer->stage_group, reserve);
-        gl3_world_prefill_slot(renderer, &build->stage, deadline);
-        if( renderer->dbg_timing.on )
-            renderer->dbg_timing.stage_ticks += SDL_GetPerformanceCounter() - t0;
-        /* What this slice baked goes up now, one range per frame (the span
-         * the bakes dirtied), so no frame carries the whole build's upload. */
-        if( renderer->stage_group.vbo_cpu && trspk_vbo_is_dirty(renderer->stage_group.vbo_cpu) )
-        {
-            uint64_t const t1 = GL3_TICKS(renderer);
-            gl3_upload_group(&renderer->stage_group);
-            if( renderer->dbg_timing.on )
-                renderer->dbg_timing.stage_upload_ticks += SDL_GetPerformanceCounter() - t1;
-        }
-        /* Baked and uploaded: the job may swap it in (it waits for this,
-         * app_world_job.c, up to its deadline). */
-        if( build->stage.unbaked == 0u && renderer->scene &&
-            !(renderer->stage_group.vbo_cpu && trspk_vbo_is_dirty(renderer->stage_group.vbo_cpu)) )
-            ToriDraw_SceneStageBatchMarkPrepared(renderer->scene, build->stage.batch_id);
-        return;
-    }
     /* Nothing left to bake: the retired build's storage goes now. */
     if( build->stage_release_pending && SDL_GetPerformanceCounter() < deadline )
     {
@@ -3663,11 +3773,33 @@ gl3_world_prefill(
     }
 }
 
-/* The build's pose for this draw, or NULL when the build does not describe the
- * element as it is now. A pose the build holds but has not baked yet is baked
- * here, on the draw that first needs it. */
-static const struct TRSPK_Batch32Entry*
-gl3_world_pose(
+/*
+ * The world builds' records not yet baked, the drawn build's first, then the
+ * stage's, until `deadline`. The record is the unit: the clock is read before
+ * each, so the slice overruns by at most the largest model's bake. The stage's
+ * baked span goes to its GPU buffer in the same slice, a slice's worth at a
+ * time, so the swap has no upload left to do.
+ */
+void
+gl3_world_prefill_os1(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint64_t deadline)
+{
+    struct TRSPK_WorldBuild* build = &renderer->build;
+    if( build->world.drawable && gl3_world_prefill_slot_os1(renderer, &build->world, deadline) )
+        return;
+    if( trspk_world_build_stage_open(build) )
+    {
+        uint64_t const t0 = gl3_world_stage_prefill_begin(renderer);
+        gl3_world_prefill_slot_os1(renderer, &build->stage, deadline);
+        gl3_world_stage_prefill_end(renderer, t0);
+        return;
+    }
+    gl3_world_stage_release(renderer, deadline);
+}
+
+int
+gl3_world_pose_unbaked(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand_Model const* mcmd,
     int anim_index,
@@ -3675,7 +3807,6 @@ gl3_world_pose(
 {
     struct TRSPK_WorldSlot* w = &renderer->build.world;
     int const index = ToriDraw_ElementIndexOfRaw(mcmd->element_id);
-    const struct TRSPK_Batch32Entry* entry;
     if( renderer->dbg_timing.on )
     {
         if( !w->drawable )
@@ -3688,27 +3819,61 @@ gl3_world_pose(
             renderer->dbg_timing.miss_why[2]++;
     }
     if( !trspk_world_slot_describes(w, mcmd->element_id) )
-        return NULL;
-    entry = trspk_batch32_find_entry(w->batch, index, anim_index, pose_id);
-    if( !entry )
+        return -1;
+    if( trspk_batch32_find_entry(w->batch, index, anim_index, pose_id) )
+        return -1;
+    return trspk_world_record_unbaked(w, index, anim_index, pose_id);
+}
+
+void
+gl3_world_draw_bake_timed(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint64_t t0)
+{
+    if( renderer->dbg_timing.on )
     {
-        int const r = trspk_world_record_unbaked(w, index, anim_index, pose_id);
-        if( r >= 0 )
-        {
-            uint64_t const t0 = GL3_TICKS(renderer);
-            gl3_world_record_bake(renderer, w, r);
-            if( renderer->dbg_timing.on )
-            {
-                renderer->dbg_timing.world_draw_bake_ticks += SDL_GetPerformanceCounter() - t0;
-                renderer->dbg_timing.world_draw_bakes++;
-            }
-            entry = trspk_batch32_find_entry(w->batch, index, anim_index, pose_id);
-        }
+        renderer->dbg_timing.world_draw_bake_ticks += SDL_GetPerformanceCounter() - t0;
+        renderer->dbg_timing.world_draw_bakes++;
     }
+}
+
+const struct TRSPK_Batch32Entry*
+gl3_world_pose_entry(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id)
+{
+    struct TRSPK_WorldSlot* w = &renderer->build.world;
+    const struct TRSPK_Batch32Entry* entry;
+    if( !trspk_world_slot_describes(w, mcmd->element_id) )
+        return NULL;
+    entry = trspk_batch32_find_entry(
+        w->batch, ToriDraw_ElementIndexOfRaw(mcmd->element_id), anim_index, pose_id);
     if( !entry ||
         entry->vertex_count != (uint32_t)trspk_toridraw_face_count(mcmd->model) * 3u )
         return NULL;
     return entry;
+}
+
+/* The build's pose for this draw, or NULL when the build does not describe the
+ * element as it is now. A pose the build holds but has not baked yet is baked
+ * here, on the draw that first needs it. */
+static const struct TRSPK_Batch32Entry*
+gl3_world_pose_os1(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id)
+{
+    int const r = gl3_world_pose_unbaked(renderer, mcmd, anim_index, pose_id);
+    if( r >= 0 )
+    {
+        uint64_t const t0 = GL3_TICKS(renderer);
+        gl3_world_record_bake_os1(renderer, &renderer->build.world, r);
+        gl3_world_draw_bake_timed(renderer, t0);
+    }
+    return gl3_world_pose_entry(renderer, mcmd, anim_index, pose_id);
 }
 
 /* Empty a slot: its detach marks, its contents, its records. The drawn
@@ -3803,12 +3968,51 @@ gl3_ensure_texture(
 }
 
 /*
- * Write one model pose, three vertices per face, into `vbo` at `base`, and its
- * triangles' draw config into `triangles`. The storage is the caller's: a slot
- * of an arena group, or a reservation in the world build.
+ * One face of a model pose, ready to write: baked, its texture made resident
+ * and encoded, its triangle's draw config set, and its rev-241 depth bias.
+ * False: the face has nothing to bake. Every GL3 world bake runs its faces
+ * through this and writes them in its own vertex.
+ */
+bool
+gl3_bake_face(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriDraw_ModelHandle model_handle,
+    uint32_t face_index,
+    const struct TRSPK_WorldPlacement* placement,
+    struct TRSPK_Triangles* triangles,
+    uint32_t base,
+    struct TRSPK_ToriDrawBakeFaceVerts* face,
+    float* out_depth_bias)
+{
+    if( !trspk_toridraw_bake_face_handle(
+            model_handle, face_index, placement, renderer->scene, true,
+            TRSPK_BAKE_COLOR_FLOAT, face) )
+        return false;
+    {
+        int const slot = gl3_ensure_texture(renderer, face->tex_id);
+        face->tex_id_encoded = trspk_encode_vertex_tex_id(
+            slot, face->tex_cutout, (int)renderer->tex_cap);
+    }
+
+    trspk_triangles_set(triangles, (base / 3u) + face_index, TRSPK_TRIANGLES_ATLAS);
+
+    /* The rev-241 depth buffer keys a face at its camera depth less
+     * twice this [class174.field2408]: a floor glow or a sword's shadow
+     * authored on the ground wins the floor by it. */
+    *out_depth_bias = 0.0f;
+    if( ToriDraw_ModelKindIsFull(model_handle.kind) &&
+        model_handle.u.model.model->face_z_offsets )
+        *out_depth_bias = 2.0f * (float)model_handle.u.model.model->face_z_offsets[face_index];
+    return true;
+}
+
+/*
+ * Write one model pose, three os1 vertices per face, into `vbo` at `base`, and
+ * its triangles' draw config into `triangles`. The storage is the caller's: a
+ * slot of an arena group, or a reservation in the world build.
  */
 static void
-gl3_bake_pose_vertices(
+gl3_bake_pose_vertices_os1(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct TRSPK_VBO* vbo,
     struct TRSPK_Triangles* triangles,
@@ -3816,11 +4020,11 @@ gl3_bake_pose_vertices(
     struct ToriDraw_ModelHandle model_handle,
     const struct ToriDraw_Position* world_position)
 {
-    struct ToriDraw_Scene* ctx = renderer->scene;
     const uint32_t tri_count = (uint32_t)trspk_toridraw_face_count(model_handle);
-    assert(ctx);
+    assert(renderer->scene);
     assert(vbo);
     assert(triangles);
+    assert(vbo->format == TRSPK_VERTEX_FORMAT_OPENGL3_OS1);
 
     /* Resolved once for the model, not once per corner. */
     struct TRSPK_WorldPlacement placement;
@@ -3830,85 +4034,41 @@ gl3_bake_pose_vertices(
     {
         const uint32_t vi = base + face_index * 3u;
         struct TRSPK_ToriDrawBakeFaceVerts face;
-        if( !trspk_toridraw_bake_face_handle(
-                model_handle, face_index, &placement, ctx, true,
-                TRSPK_BAKE_COLOR_FLOAT, &face) )
+        float depth_bias;
+        if( !gl3_bake_face(
+                renderer, model_handle, face_index, &placement, triangles, base, &face,
+                &depth_bias) )
             continue;
-        {
-            int const slot = gl3_ensure_texture(renderer, face.tex_id);
-            face.tex_id_encoded = trspk_encode_vertex_tex_id(
-                slot, face.tex_cutout, (int)renderer->tex_cap);
-        }
-
-        trspk_triangles_set(triangles, (base / 3u) + face_index, TRSPK_TRIANGLES_ATLAS);
-
-        /* The rev-241 depth buffer keys a face at its camera depth less
-         * twice this [class174.field2408]: a floor glow or a sword's shadow
-         * authored on the ground wins the floor by it. */
-        float depth_bias = 0.0f;
-        if( ToriDraw_ModelKindIsFull(model_handle.kind) &&
-            model_handle.u.model.model->face_z_offsets )
-            depth_bias = 2.0f * (float)model_handle.u.model.model->face_z_offsets[face_index];
-
-        gl3_write_vertex_opengl3(
-            vbo,
-            vi + 0u,
-            face.wx_a,
-            face.wy_a,
-            face.wz_a,
-            face.color_a,
-            face.uv.u1,
-            face.uv.v1,
-            face.tex_id_encoded,
-            face.uv_mode,
-            depth_bias);
-        gl3_write_vertex_opengl3(
-            vbo,
-            vi + 1u,
-            face.wx_b,
-            face.wy_b,
-            face.wz_b,
-            face.color_b,
-            face.uv.u2,
-            face.uv.v2,
-            face.tex_id_encoded,
-            face.uv_mode,
-            depth_bias);
-        gl3_write_vertex_opengl3(
-            vbo,
-            vi + 2u,
-            face.wx_c,
-            face.wy_c,
-            face.wz_c,
-            face.color_c,
-            face.uv.u3,
-            face.uv.v3,
-            face.tex_id_encoded,
-            face.uv_mode,
-            depth_bias);
+        gl3_write_vertex_os1(
+            vbo, vi + 0u, face.wx_a, face.wy_a, face.wz_a, face.color_a, face.uv.u1, face.uv.v1,
+            face.tex_id_encoded, face.uv_mode, depth_bias);
+        gl3_write_vertex_os1(
+            vbo, vi + 1u, face.wx_b, face.wy_b, face.wz_b, face.color_b, face.uv.u2, face.uv.v2,
+            face.tex_id_encoded, face.uv_mode, depth_bias);
+        gl3_write_vertex_os1(
+            vbo, vi + 2u, face.wx_c, face.wy_c, face.wz_c, face.color_c, face.uv.u3, face.uv.v3,
+            face.tex_id_encoded, face.uv_mode, depth_bias);
     }
     trspk_vbo_mark_dirty_range(vbo, base, tri_count * 3u);
 }
 
-static uint32_t
-gl3_bake_into_arena(
-    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+/* An arena slot for one pose of `face_count` faces, the pose's old slot
+ * released first when it goes in the pose table. Its vertex base, or
+ * UINT32_MAX when there is none to give. */
+uint32_t
+gl3_arena_reserve(
     struct GL3ModelGroup* g,
     int element_id,
     int anim_index,
     int pose_id,
-    struct ToriDraw_ModelHandle model_handle,
-    const struct ToriDraw_Position* world_position,
+    int face_count,
     bool update_pose_table)
 {
-    int face_count_faces;
-    assert(g->arena && g->vbo_cpu);
-    face_count_faces = trspk_toridraw_face_count(model_handle);
-    if( face_count_faces <= 0 )
-        return UINT32_MAX;
-    const uint32_t vert_count = (uint32_t)face_count_faces * 3u;
-
     int arena_pose_id;
+    assert(g->arena);
+    assert(g->vbo_cpu);
+    if( face_count <= 0 )
+        return UINT32_MAX;
     if( anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT || pose_id < 0 ||
         pose_id > (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
         return UINT32_MAX;
@@ -3921,34 +4081,59 @@ gl3_bake_into_arena(
             trspk_modelarena_unload(g->arena, existing_slot);
     }
     const uint32_t slot_index =
-        trspk_modelarena_load(g->arena, element_id, arena_pose_id, vert_count);
+        trspk_modelarena_load(g->arena, element_id, arena_pose_id, (uint32_t)face_count * 3u);
     const struct TRSPK_ModelSlot* model_slot = trspk_modelarena_get(g->arena, slot_index);
     if( !model_slot )
         return UINT32_MAX;
+    return model_slot->vertex_base;
+}
 
-    const uint32_t base = model_slot->vertex_base;
-    gl3_bake_pose_vertices(renderer, g->vbo_cpu, &g->triangles, base, model_handle, world_position);
-
+/* The baked pose at `base` into the pose table, when it goes there. */
+void
+gl3_arena_commit(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    uint32_t base,
+    bool update_pose_table)
+{
     if( update_pose_table )
         trspk_pose_table_set(&renderer->poses, element_id, anim_index, pose_id, base);
+}
 
+static uint32_t
+gl3_bake_into_arena_os1(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct GL3ModelGroup* g,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    struct ToriDraw_ModelHandle model_handle,
+    const struct ToriDraw_Position* world_position,
+    bool update_pose_table)
+{
+    uint32_t const base = gl3_arena_reserve(
+        g, element_id, anim_index, pose_id, trspk_toridraw_face_count(model_handle),
+        update_pose_table);
+    if( base == UINT32_MAX )
+        return UINT32_MAX;
+    gl3_bake_pose_vertices_os1(renderer, g->vbo_cpu, &g->triangles, base, model_handle, world_position);
+    gl3_arena_commit(renderer, element_id, anim_index, pose_id, base, update_pose_table);
     return base;
 }
 
 /*
- * One pose of an announced track into the static arena: the model's bind pose
- * copied, posed to `frame` and baked. Exactly what ANIM_LOAD baked for every
- * frame up front before poses were baked on first draw.
+ * One pose of an announced track, as a model of its own: the model's bind
+ * pose copied and posed to `frame`. Exactly what ANIM_LOAD baked for every
+ * frame up front before poses were baked on first draw. The caller bakes it
+ * and frees it (ToriDraw_ModelFree).
  */
-static void
-gl3_bake_track_pose(
-    struct ToriPlatformSDL2_Renderer_GL3* renderer,
-    int element_id,
-    int anim_index,
-    int frame,
+struct ToriDraw_Model*
+gl3_track_pose_copy(
     struct ToriDraw_Model* source,
     struct ToriDraw_Animation* animation,
-    const struct ToriDraw_Position* world_position)
+    int frame)
 {
     struct ToriDraw_SkeletalAnim* skeletal = animation->skeletal;
     struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
@@ -3990,21 +4175,35 @@ gl3_bake_track_pose(
      * and it still has to be baked at render scale. */
     if( !posed )
         ToriDraw_ModelApplyPostTransforms(baked);
+    return baked;
+}
 
+/* One pose of an announced track into the static arena. */
+static void
+gl3_bake_track_pose_os1(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    int element_id,
+    int anim_index,
+    int frame,
+    struct ToriDraw_Model* source,
+    struct ToriDraw_Animation* animation,
+    const struct ToriDraw_Position* world_position)
+{
+    struct ToriDraw_Model* baked = gl3_track_pose_copy(source, animation, frame);
     struct ToriDraw_ModelHandle baked_handle = {
         .kind = TORIDRAWMK_MODEL,
         .u.model.model = baked,
     };
-    gl3_bake_into_arena(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+    gl3_bake_into_arena_os1(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         element_id,
         anim_index,
         frame,
         baked_handle,
         world_position,
         true);
-
     ToriDraw_ModelFree(baked);
 }
+
 
 static void
 gl3_animation_track_unload(
@@ -4066,26 +4265,36 @@ gl3_ev_anim_load(
         renderer->dbg_timing.anim_scan_ticks += SDL_GetPerformanceCounter() - t_scan;
 
     /* Announced, not baked: each pose is baked the first time a draw asks
-     * for it (gl3_ev_model_draw -> gl3_bake_track_pose). */
+     * for it (gl3_ev_model_draw -> gl3_bake_track_pose_os1). */
     trspk_anim_track_announce(
         &renderer->anim_tracks, element_id, anim_index, source, animation, world_position);
 }
 
-static void
-gl3_ev_model_load(
+/* What a MODEL_LOAD replaces: every pose the element had, its tracks, its
+ * depth-pass materials and its place in the world build. */
+void
+gl3_model_load_forget(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
-    struct ToriRS_RenderCommand* command)
+    int element_id)
 {
-    int element_id;
-    assert(command->kind == TORIRSRC_MODEL_LOAD);
-    element_id = command->u.model_load.element_id;
     trspk_modelarena_unload_element(
         renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
     trspk_pose_table_remove_element(&renderer->poses, element_id);
     trspk_anim_track_forget_element(&renderer->anim_tracks, element_id);
     GL3ZB_ForgetElement(renderer, element_id);
     trspk_world_build_detach(&renderer->build, element_id);
-    gl3_bake_into_arena(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+}
+
+void
+gl3_model_load_os1(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command)
+{
+    int element_id;
+    assert(command->kind == TORIRSRC_MODEL_LOAD);
+    element_id = command->u.model_load.element_id;
+    gl3_model_load_forget(renderer, element_id);
+    gl3_bake_into_arena_os1(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         element_id,
         0,
         0,
@@ -4180,7 +4389,7 @@ gl3_world_reserve(
         glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
         glBufferData(
             GL_ARRAY_BUFFER,
-            (GLsizeiptr)((size_t)cap * sizeof(struct TRSPK_VertexOpenGl3)),
+            (GLsizeiptr)((size_t)cap * trspk_vbo_vertex_size(g->vbo_cpu->format)),
             NULL,
             GL_DYNAMIC_DRAW);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -4197,7 +4406,7 @@ gl3_ev_batch3d_end(
 {
     assert(command->kind == TORIRSRC_BATCH3D_END);
     /* Drawable now; the batch keeps taking reservations until every record
-     * is baked (gl3_world_record_bake, gl3_world_prefill). */
+     * is baked (gl3_world_record_bake_os1, gl3_world_prefill_os1). */
     if( !trspk_world_build_end(&renderer->build, command->u.batch.batch_id) )
         return;
     gl3_world_reserve(&renderer->build.world, &renderer->groups[TRSPK_VBO_GROUP_WORLD],
@@ -4218,7 +4427,7 @@ gl3_stage_ensure(struct ToriPlatformSDL2_Renderer_GL3* renderer)
     glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
     glBufferData(
         GL_ARRAY_BUFFER,
-        TRSPK_GL3_GPU_VBO_INIT * sizeof(struct TRSPK_VertexOpenGl3),
+        TRSPK_GL3_GPU_VBO_INIT * trspk_vbo_vertex_size(g->vbo_cpu->format),
         NULL,
         GL_DYNAMIC_DRAW);
     bind_vbo_attribs(renderer, g->vbo_gpu, 0u);
@@ -4300,12 +4509,45 @@ gl3_pick_test(
 }
 
 /*
- * A dynamic model into this frame's arena: from the pose pool when the same
- * model in the same pose at the same place was baked recently
- * (render/trspk_pose_pool.h), baked otherwise.
+ * A dynamic model from the pose pool, when the same model in the same pose at
+ * the same place was baked recently (render/trspk_pose_pool.h): its vertex
+ * base, or UINT32_MAX to bake it. `key` and `keyed` go on to gl3_dynamic_keep.
  */
+uint32_t
+gl3_dynamic_reuse(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct GL3ModelGroup* g,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id,
+    struct TRSPK_PoseKey* key,
+    bool* keyed)
+{
+    *keyed = trspk_pose_key_for_command(renderer->scene, mcmd, key);
+    if( *keyed && pose_id >= 0 && pose_id <= (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
+        return trspk_pose_pool_place(&renderer->pose_pool, key, g->arena, g->vbo_cpu,
+            &g->triangles, mcmd->element_id, pose_id * TRSPK_POSE_TRACK_COUNT + anim_index);
+    return UINT32_MAX;
+}
+
+/* A dynamic model just baked at `vertex_base` into the pose pool. */
+void
+gl3_dynamic_keep(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct GL3ModelGroup* g,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    const struct TRSPK_PoseKey* key,
+    bool keyed,
+    uint32_t vertex_base)
+{
+    if( keyed && vertex_base != UINT32_MAX )
+        trspk_pose_pool_store(&renderer->pose_pool, key, g->vbo_cpu, &g->triangles, vertex_base,
+            (uint32_t)trspk_toridraw_face_count(mcmd->model) * 3u);
+}
+
+/* A dynamic model into this frame's arena, from the pose pool or baked. */
 static uint32_t
-gl3_bake_dynamic(
+gl3_bake_dynamic_os1(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3ModelGroup* g,
     struct ToriRS_RenderCommand_Model const* mcmd,
@@ -4313,21 +4555,176 @@ gl3_bake_dynamic(
     int pose_id)
 {
     struct TRSPK_PoseKey key;
-    uint32_t vertex_base;
-    bool const keyed = trspk_pose_key_for_command(renderer->scene, mcmd, &key);
-    if( keyed && pose_id >= 0 && pose_id <= (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
-    {
-        vertex_base = trspk_pose_pool_place(&renderer->pose_pool, &key, g->arena, g->vbo_cpu,
-            &g->triangles, mcmd->element_id, pose_id * TRSPK_POSE_TRACK_COUNT + anim_index);
-        if( vertex_base != UINT32_MAX )
-            return vertex_base;
-    }
-    vertex_base = gl3_bake_into_arena(
+    bool keyed;
+    uint32_t vertex_base = gl3_dynamic_reuse(renderer, g, mcmd, anim_index, pose_id, &key, &keyed);
+    if( vertex_base != UINT32_MAX )
+        return vertex_base;
+    vertex_base = gl3_bake_into_arena_os1(
         renderer, g, mcmd->element_id, anim_index, pose_id, mcmd->model, &mcmd->world_position, false);
-    if( keyed && vertex_base != UINT32_MAX )
-        trspk_pose_pool_store(&renderer->pose_pool, &key, g->vbo_cpu, &g->triangles, vertex_base,
-            (uint32_t)trspk_toridraw_face_count(mcmd->model) * 3u);
+    gl3_dynamic_keep(renderer, g, mcmd, &key, keyed, vertex_base);
     return vertex_base;
+}
+
+/*
+ * A draw's model up to the point a world pass takes over: false when there is
+ * nothing to draw (no 3D pass open, no model). Applies the element's
+ * animation to the scene's copy, as every pass needs.
+ */
+bool
+gl3_model_draw_begin(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command)
+{
+    struct ToriRS_RenderCommand_Model const* mcmd = &command->u.model;
+    assert(command->kind == TORIRSRC_DRAW_MODEL);
+    if( !renderer->has_3d || !renderer->ibo_chain )
+        return false;
+    if( mcmd->model.kind == TORIDRAWMK_NONE )
+        return false;
+    assert(renderer->scene);
+    if( mcmd->animation && mcmd->element_id >= 0 )
+        ToriDraw_SceneElementApplyAnimation(
+            renderer->scene, mcmd->element_id, mcmd->anim_index == 0, mcmd->anim_frame);
+    return true;
+}
+
+/*
+ * A depth-buffered pass's cull and pick. The pass draws the baked vertices and
+ * lets the GPU test depth, so the software projection is wanted for the pick
+ * only (and a translucent model's face sort, which the submit projects for
+ * itself). The cylinder cull decides visibility without projecting a vertex
+ * and says whether the cursor could be on the model; only then -- or for a box
+ * pick, whose box can outgrow a small model -- is it projected. False: not
+ * visible. `projected`: the scene's bench holds this model's projection.
+ */
+bool
+gl3_model_cull_depth(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    bool* projected)
+{
+    struct ToriDraw_Scene* ctx = renderer->scene;
+    struct ToriDraw_Position position = mcmd->position;
+    bool const pick_wanted = renderer->pick_enabled && mcmd->pickable && mcmd->element_id >= 0;
+    bool cursor_inside = false;
+    *projected = false;
+    if( ToriDraw_RenderModel1CullPoint(
+            mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
+            renderer->pick_mouse_x, renderer->pick_mouse_y,
+            pick_wanted && !mcmd->pick_aabb ? &cursor_inside : NULL) != TORIDRAW_CULL_VISIBLE )
+        return false;
+    if( pick_wanted && (mcmd->pick_aabb || cursor_inside) )
+    {
+        if( ToriDraw_RenderModel1ProjectWithTable(
+                mcmd->model, ctx, &position, &renderer->cur_3d.view_port,
+                &renderer->cur_3d.camera, renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+            return false;
+        *projected = true;
+        gl3_pick_test(renderer, mcmd);
+    }
+    return true;
+}
+
+/* The pose a draw names: its track, clamped, and its frame (0 past the end). */
+void
+gl3_model_pose_ids(
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int* out_anim_index,
+    int* out_pose_id)
+{
+    int anim_index = mcmd->anim_index;
+    int pose_id;
+    if( anim_index < 0 )
+        anim_index = 0;
+    else if( anim_index >= TRSPK_POSE_TRACK_COUNT )
+        anim_index = TRSPK_POSE_TRACK_COUNT - 1;
+    pose_id = mcmd->animation && mcmd->anim_frame >= 0 ? mcmd->anim_frame : 0;
+    if( mcmd->animation && mcmd->animation->frame_count > 0 &&
+        pose_id >= mcmd->animation->frame_count )
+        pose_id = 0;
+    *out_anim_index = anim_index;
+    *out_pose_id = pose_id;
+}
+
+/* The announced track a static draw's pose bakes from, or NULL to bake the
+ * draw's own model. */
+const struct TRSPK_AnimTrack*
+gl3_static_track(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id)
+{
+    struct TRSPK_AnimTrack const* track =
+        mcmd->animation && mcmd->element_id >= 0 && ToriDraw_ModelKindIsFull(mcmd->model.kind)
+            ? trspk_anim_track_match(&renderer->anim_tracks, mcmd->element_id, anim_index,
+                  mcmd->model.u.model.model, mcmd->animation)
+            : NULL;
+    if( track && pose_id < mcmd->animation->frame_count )
+        return track;
+    return NULL;
+}
+
+void
+gl3_lazy_bake_timed(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    uint64_t t0)
+{
+    if( renderer->dbg_timing.on )
+    {
+        renderer->dbg_timing.lazy_bake_ticks += SDL_GetPerformanceCounter() - t0;
+        renderer->dbg_timing.lazy_bakes++;
+        renderer->dbg_timing.lazy_faces += (uint32_t)trspk_toridraw_face_count(mcmd->model);
+    }
+}
+
+/*
+ * Where a draw's os1 vertices are: the frame's dynamic arena, the world build,
+ * or the static arena's pose table, baking the pose on the first draw that
+ * needs it. False: nowhere.
+ */
+bool
+gl3_model_vertices_os1(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id,
+    uint32_t* out_group,
+    uint32_t* out_vertex_base)
+{
+    const struct TRSPK_Batch32Entry* world_pose;
+    if( mcmd->dynamic )
+    {
+        *out_group = TRSPK_VBO_GROUP_DYNAMIC;
+        *out_vertex_base = gl3_bake_dynamic_os1(
+            renderer, &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC], mcmd, anim_index, pose_id);
+        return *out_vertex_base != UINT32_MAX;
+    }
+    world_pose = gl3_world_pose_os1(renderer, mcmd, anim_index, pose_id);
+    if( world_pose )
+    {
+        *out_group = TRSPK_VBO_GROUP_WORLD;
+        *out_vertex_base = world_pose->vertex_base;
+        if( renderer->dbg_timing.on )
+            renderer->dbg_timing.world_hits++;
+        return true;
+    }
+    *out_group = TRSPK_VBO_GROUP_STATIC;
+    if( trspk_pose_table_get(&renderer->poses, mcmd->element_id, anim_index, pose_id, out_vertex_base) )
+        return true;
+    {
+        uint64_t const t0 = GL3_TICKS(renderer);
+        const struct TRSPK_AnimTrack* track = gl3_static_track(renderer, mcmd, anim_index, pose_id);
+        if( track )
+            gl3_bake_track_pose_os1(renderer, track->announced_id, anim_index, pose_id,
+                mcmd->model.u.model.model, mcmd->animation, &track->world_position);
+        else
+            gl3_bake_into_arena_os1(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+                mcmd->element_id, anim_index, pose_id, mcmd->model, &mcmd->world_position, true);
+        gl3_lazy_bake_timed(renderer, mcmd, t0);
+    }
+    return trspk_pose_table_get(&renderer->poses, mcmd->element_id, anim_index, pose_id, out_vertex_base);
 }
 
 static void
@@ -4336,55 +4733,22 @@ gl3_ev_model_draw(
     struct ToriRS_RenderCommand* command)
 {
     struct ToriRS_RenderCommand_Model const* mcmd = &command->u.model;
-    struct ToriDraw_Position position;
+    struct ToriDraw_Scene* ctx = renderer->scene;
     int anim_index;
     int pose_id;
-    uint32_t group = TRSPK_VBO_GROUP_STATIC;
-    uint32_t vertex_base = 0u;
-    struct ToriDraw_Scene* ctx;
+    uint32_t group;
+    uint32_t vertex_base;
     bool projected = false;
-    assert(command->kind == TORIRSRC_DRAW_MODEL);
-    if( !renderer->has_3d || !renderer->ibo_chain )
+    if( !gl3_model_draw_begin(renderer, command) )
         return;
-    if( mcmd->model.kind == TORIDRAWMK_NONE )
-        return;
-    ctx = renderer->scene;
-    assert(ctx);
-    if( mcmd->animation && mcmd->element_id >= 0 )
-        ToriDraw_SceneElementApplyAnimation(
-            ctx, mcmd->element_id, mcmd->anim_index == 0, mcmd->anim_frame);
-    position = mcmd->position;
     if( renderer->z_buffer_enabled )
     {
-        /*
-         * The depth pass draws the baked vertices and lets the GPU test depth,
-         * so the software projection is wanted for the pick only (and a
-         * translucent model's face sort, which GL3ZB_SubmitModel projects
-         * for itself). The cylinder cull decides visibility without
-         * projecting a vertex and says whether the cursor could be on the
-         * model; only then -- or for a box pick, whose box can outgrow a small
-         * model -- is it projected. The painter path sorts every model's
-         * faces, so it projects every one.
-         */
-        bool const pick_wanted = renderer->pick_enabled && mcmd->pickable && mcmd->element_id >= 0;
-        bool cursor_inside = false;
-        if( ToriDraw_RenderModel1CullPoint(
-                mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
-                renderer->pick_mouse_x, renderer->pick_mouse_y,
-                pick_wanted && !mcmd->pick_aabb ? &cursor_inside : NULL) != TORIDRAW_CULL_VISIBLE )
+        if( !gl3_model_cull_depth(renderer, mcmd, &projected) )
             return;
-        if( pick_wanted && (mcmd->pick_aabb || cursor_inside) )
-        {
-            if( ToriDraw_RenderModel1ProjectWithTable(
-                    mcmd->model, ctx, &position, &renderer->cur_3d.view_port,
-                    &renderer->cur_3d.camera, renderer->kernel) != TORIDRAW_CULL_VISIBLE )
-                return;
-            projected = true;
-            gl3_pick_test(renderer, mcmd);
-        }
     }
     else
     {
+        struct ToriDraw_Position position = mcmd->position;
         if( ToriDraw_RenderModel1ProjectWithTable(
                 mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
                 renderer->kernel) != TORIDRAW_CULL_VISIBLE )
@@ -4418,64 +4782,9 @@ gl3_ev_model_draw(
         int* face_order;
         if( face_count <= 0 )
             return;
-        anim_index = mcmd->anim_index;
-        if( anim_index < 0 )
-            anim_index = 0;
-        else if( anim_index >= TRSPK_POSE_TRACK_COUNT )
-            anim_index = TRSPK_POSE_TRACK_COUNT - 1;
-        pose_id = mcmd->animation && mcmd->anim_frame >= 0
-                      ? mcmd->anim_frame
-                      : 0;
-        if( mcmd->animation && mcmd->animation->frame_count > 0 &&
-            pose_id >= mcmd->animation->frame_count )
-            pose_id = 0;
-        if( mcmd->dynamic )
-        {
-            vertex_base = gl3_bake_dynamic(
-                renderer, &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC], mcmd, anim_index, pose_id);
-            if( vertex_base == UINT32_MAX )
-                return;
-            group = TRSPK_VBO_GROUP_DYNAMIC;
-        }
-        else
-        {
-            const struct TRSPK_Batch32Entry* world_pose =
-                gl3_world_pose(renderer, mcmd, anim_index, pose_id);
-            if( world_pose )
-            {
-                vertex_base = world_pose->vertex_base;
-                group = TRSPK_VBO_GROUP_WORLD;
-                if( renderer->dbg_timing.on )
-                    renderer->dbg_timing.world_hits++;
-            }
-            else if( !trspk_pose_table_get(
-                    &renderer->poses, mcmd->element_id, anim_index, pose_id, &vertex_base) )
-            {
-                uint64_t const t0 = GL3_TICKS(renderer);
-                struct TRSPK_AnimTrack const* track =
-                    mcmd->animation && mcmd->element_id >= 0 &&
-                            ToriDraw_ModelKindIsFull(mcmd->model.kind)
-                        ? trspk_anim_track_match(&renderer->anim_tracks, mcmd->element_id,
-                              anim_index, mcmd->model.u.model.model, mcmd->animation)
-                        : NULL;
-                if( track && pose_id < mcmd->animation->frame_count )
-                    gl3_bake_track_pose(renderer, track->announced_id, anim_index, pose_id,
-                        mcmd->model.u.model.model, mcmd->animation, &track->world_position);
-                else
-                    gl3_bake_into_arena(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
-                        mcmd->element_id, anim_index, pose_id, mcmd->model, &mcmd->world_position,
-                        true);
-                if( renderer->dbg_timing.on )
-                {
-                    renderer->dbg_timing.lazy_bake_ticks += SDL_GetPerformanceCounter() - t0;
-                    renderer->dbg_timing.lazy_bakes++;
-                    renderer->dbg_timing.lazy_faces += (uint32_t)trspk_toridraw_face_count(mcmd->model);
-                }
-                if( !trspk_pose_table_get(
-                        &renderer->poses, mcmd->element_id, anim_index, pose_id, &vertex_base) )
-                    return;
-            }
-        }
+        gl3_model_pose_ids(mcmd, &anim_index, &pose_id);
+        if( !gl3_model_vertices_os1(renderer, mcmd, anim_index, pose_id, &group, &vertex_base) )
+            return;
         if( renderer->z_buffer_enabled )
         {
             GL3ZB_SubmitModel(renderer, mcmd, ctx, group, vertex_base, face_count, projected);
@@ -4493,15 +4802,14 @@ gl3_ev_model_draw(
     }
 }
 
-static void
-gl3_ev_end_3d(
-    struct ToriPlatformSDL2_Renderer_GL3* renderer,
-    struct ToriRS_RenderCommand* command)
-{
-    (void)command;
-    if( !renderer->has_3d )
-        goto done;
 
+/*
+ * END_3D's uploads: the atlas and every group's dirty span. False: a group
+ * could not go up, and the pass draws nothing.
+ */
+bool
+gl3_end_3d_upload(struct ToriPlatformSDL2_Renderer_GL3* renderer)
+{
     if( trspk_atlas_is_dirty(&renderer->atlas) )
         gl3_upload_atlas_texture(renderer);
 
@@ -4515,32 +4823,45 @@ gl3_ev_end_3d(
                                   ? g->vbo_cpu->dirty_end - g->vbo_cpu->dirty_first
                                   : (g->vbo_cpu ? g->vbo_cpu->vertex_count : 0u);
         if( !gl3_upload_group(g) )
-            goto done;
+            return false;
         if( renderer->dbg_timing.on && gi < 4u )
         {
             renderer->dbg_timing.upload_ticks[gi] += SDL_GetPerformanceCounter() - t0;
             if( dirty || g->reset_each_frame )
                 renderer->dbg_timing.upload_bytes[gi] +=
                     (uint64_t)(g->gpu_capacity != cap0 ? g->vbo_cpu->vertex_count : span) *
-                    sizeof(struct TRSPK_VertexOpenGl3);
+                    renderer->vertex_size;
             if( g->gpu_capacity != cap0 )
                 renderer->dbg_timing.upload_grew[gi]++;
         }
     }
-    uint64_t const t_ibo = GL3_TICKS(renderer);
+    return true;
+}
+
+/*
+ * The frame's opaque draw order into the index staging, with room after it
+ * for the pass's queued runs (alpha_index_count of them): they ride at the
+ * tail of the same upload, because a second glBufferSubData into a buffer the
+ * opaque draws are queued against makes the CPU wait for the GPU (see
+ * GL3ZB_StageAlphaPass). False: nothing to draw.
+ */
+bool
+gl3_end_3d_stage(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct GL3End3D* pass)
+{
+    pass->t_ibo = GL3_TICKS(renderer);
 
     if( !renderer->ibo_chain || !renderer->ibo_chain->head )
-        goto done;
+        return false;
 
-    gl3_bind_world_draw_state(renderer);
-
-    uint32_t total_indices = 0u;
+    pass->total_indices = 0u;
     for( struct TRSPK_IBOChainNode* node = renderer->ibo_chain->head; node != NULL;
          node = node->next )
-        total_indices += node->ibo.index_count;
+        pass->total_indices += node->ibo.index_count;
 
-    if( total_indices == 0u )
-        goto done;
+    if( pass->total_indices == 0u )
+        return false;
 
     {
         /* Painter-order fragmentation: how many separate ranges the frame's
@@ -4555,19 +4876,15 @@ gl3_ev_end_3d(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_RANGES, (int64_t)range_count);
     }
 
-    /* The depth pass's translucent runs ride at the tail of the same upload:
-     * a second glBufferSubData into a buffer the opaque draws are queued
-     * against makes the CPU wait for the GPU. See GL3ZB_StageAlphaPass. */
-    const uint32_t alpha_indices = renderer->alpha_index_count;
-    const uint32_t upload_indices = total_indices + alpha_indices;
+    pass->upload_indices = pass->total_indices + renderer->alpha_index_count;
 
-    if( !gl3_ensure_gpu_ibo(renderer, upload_indices) )
-        goto done;
+    if( !gl3_ensure_gpu_ibo(renderer, pass->upload_indices) )
+        return false;
 
-    if( !trspk_ibo_reserve(renderer->ibo_staging, upload_indices) )
-        goto done;
+    if( !trspk_ibo_reserve(renderer->ibo_staging, pass->upload_indices) )
+        return false;
 
-    uint32_t* staging = renderer->ibo_staging->indices.as_u32;
+    pass->staging = renderer->ibo_staging->indices.as_u32;
 
     const struct TRSPK_Triangles* triangles_by_group[TRSPK_DRAW_GROUP_COUNT] = {
         [TRSPK_VBO_GROUP_STATIC] = &renderer->groups[TRSPK_VBO_GROUP_STATIC].triangles,
@@ -4576,12 +4893,21 @@ gl3_ev_end_3d(
     };
 
     const uint32_t built = trspk_drawrangeex_build32(
-        renderer->draw_ranges, triangles_by_group, renderer->ibo_chain, staging);
+        renderer->draw_ranges, triangles_by_group, renderer->ibo_chain, pass->staging);
 
-    assert(built == total_indices);
+    assert(built == pass->total_indices);
     (void)built;
-    GL3ZB_StageAlphaPass(renderer, staging + total_indices);
+    return true;
+}
 
+/* The staging up, and the opaque ranges drawn. The runs at the tail are the
+ * pass's to draw after this (index base pass->total_indices). */
+void
+gl3_end_3d_draw_opaque(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct GL3End3D* pass)
+{
+    uint32_t const* staging = pass->staging;
     /* TORIRS_GL3_3D_DEBUG=1: error-check the index upload and each world draw,
      * and verify the drawn range against the CPU staging. The failure this
      * exists for is silent: a VAO whose element-buffer attachment went stale
@@ -4596,17 +4922,17 @@ gl3_ev_end_3d(
     }
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
     glBufferSubData(
-        GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(upload_indices * sizeof(uint32_t)), staging);
+        GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(pass->upload_indices * sizeof(uint32_t)), staging);
     if( dbg3d )
         gl3_check_error("3d ebo upload");
     TORIRS_PERF_COUNT(
-        TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)(upload_indices * sizeof(uint32_t)));
+        TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)(pass->upload_indices * sizeof(uint32_t)));
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
-    uint64_t const t_draw = GL3_TICKS(renderer);
+    pass->t_draw = GL3_TICKS(renderer);
     if( renderer->dbg_timing.on )
     {
-        renderer->dbg_timing.ibo_ticks += t_draw - t_ibo;
-        renderer->dbg_timing.ibo_indices += upload_indices;
+        renderer->dbg_timing.ibo_ticks += pass->t_draw - pass->t_ibo;
+        renderer->dbg_timing.ibo_indices += pass->upload_indices;
     }
 
     GLuint bound_vao = 0u;
@@ -4657,15 +4983,23 @@ gl3_ev_end_3d(
 
         range = trspk_drawrangelist_next(renderer->draw_ranges, range);
     }
+}
 
-    /* Translucent models last, back to front, depth-tested but not written. */
-    GL3ZB_DrawAlphaPass(renderer, total_indices);
-
+/* The pass's draws are done. */
+void
+gl3_end_3d_drawn(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    const struct GL3End3D* pass)
+{
     gl3_unbind_attribs(renderer);
     if( renderer->dbg_timing.on )
-        renderer->dbg_timing.draw_ticks += SDL_GetPerformanceCounter() - t_draw;
+        renderer->dbg_timing.draw_ticks += SDL_GetPerformanceCounter() - pass->t_draw;
+}
 
-done:
+/* The pass closed, drawn or not. */
+void
+gl3_end_3d_close(struct ToriPlatformSDL2_Renderer_GL3* renderer)
+{
     if( renderer->scene )
         ToriDraw_SceneClearProjectionCamera(renderer->scene);
     renderer->has_3d = false;
@@ -4677,10 +5011,29 @@ done:
     glDepthMask(GL_FALSE);
     if( renderer->ibo_chain )
         trspk_ibochain_reset(renderer->ibo_chain);
-    /* Reset even on the `done` path: a frame that bailed early must not leave
-     * its queued translucent models to be drawn against the next frame's
-     * depth buffer and camera. */
+    /* Reset even on a pass that bailed early: it must not leave its queued
+     * translucent models to be drawn against the next frame's depth buffer
+     * and camera. */
     GL3ZB_ResetFrame(renderer);
+}
+
+static void
+gl3_ev_end_3d(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command)
+{
+    struct GL3End3D pass;
+    (void)command;
+    if( renderer->has_3d && gl3_end_3d_upload(renderer) && gl3_end_3d_stage(renderer, &pass) )
+    {
+        gl3_bind_world_draw_state(renderer);
+        GL3ZB_StageAlphaPass(renderer, pass.staging + pass.total_indices);
+        gl3_end_3d_draw_opaque(renderer, &pass);
+        /* Translucent models last, back to front, depth-tested but not written. */
+        GL3ZB_DrawAlphaPass(renderer, pass.total_indices);
+        gl3_end_3d_drawn(renderer, &pass);
+    }
+    gl3_end_3d_close(renderer);
 }
 
 
@@ -5108,7 +5461,7 @@ gl3_bake_widget_model(
 
             trspk_triangles_set(&g->triangles, (base / 3u) + tri_count, TRSPK_TRIANGLES_ATLAS);
             tri_count++;
-            gl3_write_vertex_opengl3(
+            gl3_write_widget_vertex(
                 g->vbo_cpu,
                 vi + 0u,
                 sx[0],
@@ -5118,9 +5471,8 @@ gl3_bake_widget_model(
                 face.uv.u1,
                 face.uv.v1,
                 face.tex_id_encoded,
-                face.uv_mode,
-                0.0f);
-            gl3_write_vertex_opengl3(
+                face.uv_mode);
+            gl3_write_widget_vertex(
                 g->vbo_cpu,
                 vi + 1u,
                 sx[1],
@@ -5130,9 +5482,8 @@ gl3_bake_widget_model(
                 face.uv.u2,
                 face.uv.v2,
                 face.tex_id_encoded,
-                face.uv_mode,
-                0.0f);
-            gl3_write_vertex_opengl3(
+                face.uv_mode);
+            gl3_write_widget_vertex(
                 g->vbo_cpu,
                 vi + 2u,
                 sx[2],
@@ -5142,8 +5493,7 @@ gl3_bake_widget_model(
                 face.uv.u3,
                 face.uv.v3,
                 face.tex_id_encoded,
-                face.uv_mode,
-                0.0f);
+                face.uv_mode);
         }
     }
     *out_tri_count = tri_count;
@@ -5283,8 +5633,10 @@ gl3_ev_model_widget(
     gl3_bind_quad_attribs(renderer);
 }
 
-static void
-handle_render_command(
+/* One command, as the painter and the depth pass take it. The OSRS
+ * renderers take their world commands themselves and the rest through this. */
+void
+gl3_dispatch(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
@@ -5355,7 +5707,7 @@ handle_render_command(
         break;
 
     case TORIRSRC_MODEL_LOAD:
-        gl3_ev_model_load(renderer, command);
+        gl3_model_load_os1(renderer, command);
         break;
 
     case TORIRSRC_MODEL_UNLOAD:
@@ -5445,14 +5797,22 @@ handle_render_command(
  * Public API
  * ----------------------------------------------------------------------- */
 
+/* Every arena and build is made in `format` here, before Init: the Post-TFA
+ * OSRS handle comes from ToriPlatformSDL2_Renderer_GL3_NewOs241Tfa for that
+ * reason. */
 struct ToriPlatformSDL2_Renderer_GL3*
-ToriPlatformSDL2_Renderer_GL3_New(
+gl3_renderer_new(
     int width,
-    int height)
+    int height,
+    enum TRSPK_VertexFormat format)
 {
     struct ToriPlatformSDL2_Renderer_GL3* renderer =
         (struct ToriPlatformSDL2_Renderer_GL3*)ToriMem_Calloc(
             ToriMem_Renderer(), 1, sizeof(struct ToriPlatformSDL2_Renderer_GL3));
+
+    assert(format == TRSPK_VERTEX_FORMAT_OPENGL3_OS1 || format == TRSPK_VERTEX_FORMAT_OPENGL3_OS241TFA);
+    renderer->vertex_format = format;
+    renderer->vertex_size = (uint32_t)trspk_vbo_vertex_size(format);
 
     renderer->width = width;
     renderer->height = height;
@@ -5472,7 +5832,7 @@ ToriPlatformSDL2_Renderer_GL3_New(
     for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
     {
         struct GL3ModelGroup* g = &renderer->groups[gi];
-        g->vbo_cpu = trspk_vbo_create(0, TRSPK_VERTEX_FORMAT_OPENGL3);
+        g->vbo_cpu = trspk_vbo_create(0, renderer->vertex_format);
         if( !g->vbo_cpu )
             goto fail;
 
@@ -5484,7 +5844,7 @@ ToriPlatformSDL2_Renderer_GL3_New(
         trspk_vbo_set_dirty(g->vbo_cpu);
     }
 
-    trspk_world_build_init(&renderer->build, TRSPK_VERTEX_FORMAT_OPENGL3,
+    trspk_world_build_init(&renderer->build, renderer->vertex_format,
         torirs_env_prep_target_us(), torirs_env_prep_slice_us());
     renderer->groups[TRSPK_VBO_GROUP_WORLD].vbo_cpu = trspk_batch32_vbo(renderer->build.world.batch);
 
@@ -5549,6 +5909,14 @@ fail:
         trspk_atlas_free(&renderer->sprite_atlas);
     ToriMem_Free(ToriMem_Renderer(), renderer);
     return NULL;
+}
+
+struct ToriPlatformSDL2_Renderer_GL3*
+ToriPlatformSDL2_Renderer_GL3_New(
+    int width,
+    int height)
+{
+    return gl3_renderer_new(width, height, TRSPK_VERTEX_FORMAT_OPENGL3_OS1);
 }
 
 void
@@ -5667,33 +6035,28 @@ ToriPlatformSDL2_Renderer_GL3_Free(struct ToriPlatformSDL2_Renderer_GL3* rendere
     ToriMem_Free(ToriMem_Renderer(), renderer);
 }
 
+/*
+ * Everything a GL3 handle needs to draw: the context (with a depth buffer when
+ * `z_buffer`), the atlas, the world program linked from `vs_src` / `fs_src`,
+ * the groups' buffers. Each renderer's Init names its own program.
+ */
 bool
-ToriPlatformSDL2_Renderer_GL3_InitOsrs(
-    struct ToriPlatformSDL2_Renderer_GL3* gl3,
-    ToriPlatform_GLWindow* window,
-    struct ToriDraw_Scene* scene)
-{
-    assert(gl3);
-    /* A depth context, and the depth pass's every resource; the OSRS rules
-     * are the pass's own (platform_sdl2_renderer_gl3zb.c). */
-    gl3->osrs_depth = true;
-    if( ToriPlatformSDL2_Renderer_GL3_Init(gl3, window, scene, true) )
-        return true;
-    gl3->osrs_depth = false;
-    return false;
-}
-
-bool
-ToriPlatformSDL2_Renderer_GL3_Init(
+gl3_init(
     struct ToriPlatformSDL2_Renderer_GL3* gl3,
     ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene,
-    bool z_buffer)
+    bool z_buffer,
+    const char* vs_src,
+    const char* fs_src)
 {
     GLuint vertexShader = 0u;
     GLuint fragmentShader = 0u;
 
-    assert(gl3 && window && scene);
+    assert(gl3);
+    assert(window);
+    assert(scene);
+    assert(vs_src);
+    assert(fs_src);
     gl3->scene = scene;
     gl3->kernel = ToriDraw_KernelGetGpu();
     gl3->window = window;
@@ -5792,8 +6155,6 @@ ToriPlatformSDL2_Renderer_GL3_Init(
         }
     }
 
-    const char* vs_src = trspk_opengl3_vertex_shader;
-    const char* fs_src = trspk_opengl3_fragment_shader;
     vertexShader = gl3_compile_shader(GL_VERTEX_SHADER, vs_src);
     fragmentShader = gl3_compile_shader(GL_FRAGMENT_SHADER, fs_src);
     if( vertexShader == 0u || fragmentShader == 0u )
@@ -5842,6 +6203,9 @@ ToriPlatformSDL2_Renderer_GL3_Init(
     gl3->a_texcoord = glGetAttribLocation(gl3->program3d, "a_texcoord");
     gl3->a_tex_id = glGetAttribLocation(gl3->program3d, "a_tex_id");
     gl3->a_uv_mode = glGetAttribLocation(gl3->program3d, "a_uv_mode");
+    gl3->a_proj_p = glGetAttribLocation(gl3->program3d, "a_proj_p");
+    gl3->a_proj_u = glGetAttribLocation(gl3->program3d, "a_proj_u");
+    gl3->a_proj_v = glGetAttribLocation(gl3->program3d, "a_proj_v");
     gl3->s_atlas = glGetUniformLocation(gl3->program3d, "s_atlas");
 
     glGenBuffers(1, &gl3->ebo);
@@ -5855,7 +6219,7 @@ ToriPlatformSDL2_Renderer_GL3_Init(
         glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
         glBufferData(
             GL_ARRAY_BUFFER,
-            TRSPK_GL3_GPU_VBO_INIT * sizeof(struct TRSPK_VertexOpenGl3),
+            TRSPK_GL3_GPU_VBO_INIT * trspk_vbo_vertex_size(g->vbo_cpu->format),
             NULL,
             GL_DYNAMIC_DRAW);
         bind_vbo_attribs(gl3, g->vbo_gpu, 0u);
@@ -5997,6 +6361,20 @@ fail_gl:
     return false;
 }
 
+/* The painter (`z_buffer` false) and the depth pass share the generic pair. */
+bool
+ToriPlatformSDL2_Renderer_GL3_Init(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene,
+    bool z_buffer)
+{
+    assert(gl3);
+    assert(gl3->vertex_format == TRSPK_VERTEX_FORMAT_OPENGL3_OS1);
+    return gl3_init(
+        gl3, window, scene, z_buffer, trspk_opengl3_vertex_shader, trspk_opengl3_fragment_shader);
+}
+
 void
 ToriPlatformSDL2_Renderer_GL3_SetPick(struct ToriPlatformSDL2_Renderer_GL3* gl3, int mouse_x, int mouse_y)
 {
@@ -6031,7 +6409,7 @@ ToriPlatformSDL2_Renderer_GL3_Execute(struct ToriPlatformSDL2_Renderer_GL3* gl3,
 {
     assert(gl3);
     assert(cmd);
-    handle_render_command(gl3, (struct ToriRS_RenderCommand*)cmd);
+    gl3_dispatch(gl3, (struct ToriRS_RenderCommand*)cmd);
 }
 
 /*
@@ -6387,11 +6765,17 @@ ToriPlatformSDL2_Renderer_GL3_TimingReport(
     }
 }
 
+/* A frame up to its first command: the output rect, the scale FBO, the clear,
+ * the static group compacted, and the frame's walk begun. */
 void
-ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* gl3, struct ToriRS_Frame* frame)
+gl3_frame_begin(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct ToriRS_Frame* frame,
+    struct GL3FrameState* state)
 {
     assert(gl3);
     assert(frame);
+    assert(state);
 
     ToriPlatform_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
 
@@ -6399,6 +6783,8 @@ ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* 
     int drawable_h = gl3->height;
     ToriPlatform_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
     int const full_drawable_w = drawable_w;
+    state->full_drawable_w = full_drawable_w;
+    state->drawable_h = drawable_h;
     if( gl3->host_right_inset > 0 )
     {
         drawable_w -= gl3->host_right_inset;
@@ -6409,6 +6795,8 @@ ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* 
     struct ClientScalePresent present;
     int output_gl_y = 0;
     gl3_client_scale_present(gl3, drawable_w, drawable_h, &present, &output_gl_y);
+    state->present = present;
+    state->output_gl_y = output_gl_y;
     { static int pw,ph,ox,oy,ow,oh,lw,lh,aw,ah; if(getenv("TORIRS_PROBE") && (pw!=present.render_w||ph!=present.render_h||ox!=present.output.x||oy!=present.output.y||ow!=present.output.w||oh!=present.output.h||lw!=gl3->width||lh!=gl3->height||aw!=drawable_w||ah!=drawable_h)){pw=present.render_w;ph=present.render_h;ox=present.output.x;oy=present.output.y;ow=present.output.w;oh=present.output.h;lw=gl3->width;lh=gl3->height;aw=drawable_w;ah=drawable_h; fprintf(stderr,"PROBE gl3 frame %.0f layout %dx%d area %dx%d -> render %dx%d output %d,%d %dx%d\n",gl3->frame_clock,lw,lh,aw,ah,pw,ph,ox,oy,ow,oh);} }
     /* The pixel limit made the render buffer smaller than the output rect:
      * draw into the scale FBO and blit it up. Otherwise draw in place. */
@@ -6437,46 +6825,57 @@ ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* 
         glViewport(0, 0, full_drawable_w, drawable_h);
     }
     gl3->frame_used_scale_fbo = use_fbo;
+    state->use_fbo = use_fbo;
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     gl3->in3d = false;
     gl3->has_3d = false;
     gl3->frame_clock += 1.0;
 
-    uint64_t const t_frame = GL3_TICKS(gl3);
-    uint64_t const t_render_start = SDL_GetPerformanceCounter();
+    state->t_frame = GL3_TICKS(gl3);
+    state->t_render_start = SDL_GetPerformanceCounter();
     gl3_compact_static_group(gl3);
     if( gl3->dbg_timing.on )
-        gl3->dbg_timing.compact_ticks += SDL_GetPerformanceCounter() - t_frame;
+        gl3->dbg_timing.compact_ticks += SDL_GetPerformanceCounter() - state->t_frame;
 
     ToriRS_FrameBegin(frame);
-    struct ToriRS_RenderCommand command;
+    state->t_command = GL3_TICKS(gl3);
+}
+
+/* One command's share of the frame, under TORIRS_GL3_TIMING. */
+void
+gl3_frame_command_timed(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct GL3FrameState* state,
+    const struct ToriRS_RenderCommand* command)
+{
     if( gl3->dbg_timing.on )
     {
-        uint64_t t_prev = SDL_GetPerformanceCounter();
-        while( ToriRS_FrameNextCommand(frame, &command) )
-        {
-            unsigned const kind = (unsigned)command.kind & 63u;
-            ToriPlatformSDL2_Renderer_GL3_Execute(gl3, &command);
-            uint64_t const t_now = SDL_GetPerformanceCounter();
-            gl3->dbg_timing.kind_ticks[kind] += t_now - t_prev;
-            gl3->dbg_timing.kind_n[kind]++;
-            t_prev = t_now;
-        }
+        unsigned const kind = (unsigned)command->kind & 63u;
+        uint64_t const t_now = SDL_GetPerformanceCounter();
+        gl3->dbg_timing.kind_ticks[kind] += t_now - state->t_command;
+        gl3->dbg_timing.kind_n[kind]++;
+        state->t_command = t_now;
     }
-    else
-    {
-        while( ToriRS_FrameNextCommand(frame, &command) )
-            ToriPlatformSDL2_Renderer_GL3_Execute(gl3, &command);
-    }
+}
+
+/* The frame's walk ended and the scale FBO blitted to the output rect. */
+void
+gl3_frame_present(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct ToriRS_Frame* frame,
+    const struct GL3FrameState* state)
+{
+    struct ClientScalePresent const present = state->present;
+    int const output_gl_y = state->output_gl_y;
     ToriRS_FrameEnd(frame);
 
-    if( use_fbo )
+    if( state->use_fbo )
     {
         gl3_flush_2d_batch(gl3);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glDisable(GL_SCISSOR_TEST);
-        glViewport(0, 0, full_drawable_w, drawable_h);
+        glViewport(0, 0, state->full_drawable_w, state->drawable_h);
         glClearColor(0.125f, 0.141f, 0.157f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, gl3->scale_fbo);
@@ -6494,20 +6893,39 @@ ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* 
                                                                            : GL_LINEAR);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
-    /* The frame is drawn: what is left of the world build's bake takes its
-     * slice now, and goes to the GPU with the next frame's upload. */
-    if( trspk_world_build_has_work(&gl3->build) )
+}
+
+/* The frame is drawn: what is left of the world build's bake takes a slice
+ * now, and goes to the GPU with the next frame's upload. The slice's deadline
+ * (performance-counter ticks), or 0 when there is nothing to bake. */
+uint64_t
+gl3_frame_prefill_deadline(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    const struct GL3FrameState* state)
+{
+    if( !trspk_world_build_has_work(&gl3->build) )
+        return 0u;
     {
         /* What the frame has left of prep_target_us, clamped to the floor
          * and the slice. */
         uint64_t const freq = SDL_GetPerformanceFrequency();
         uint64_t const now = SDL_GetPerformanceCounter();
-        uint64_t const slice_us =
-            trspk_world_build_slice_us(&gl3->build, (now - t_render_start) * 1000000u / freq);
-        gl3_world_prefill(gl3, now + slice_us * freq / 1000000u);
+        uint64_t const slice_us = trspk_world_build_slice_us(
+            &gl3->build, (now - state->t_render_start) * 1000000u / freq);
+        return now + slice_us * freq / 1000000u;
     }
+}
+
+/* The frame's timing and its debug dumps. */
+void
+gl3_frame_finish(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    const struct GL3FrameState* state)
+{
+    struct ClientScalePresent const present = state->present;
+    bool const use_fbo = state->use_fbo;
     if( gl3->dbg_timing.on )
-        gl3->dbg_timing.frame_ticks += SDL_GetPerformanceCounter() - t_frame;
+        gl3->dbg_timing.frame_ticks += SDL_GetPerformanceCounter() - state->t_frame;
     if( getenv("TORIRS_PROBE_DIR") && use_fbo )
     {
         static int probe_last = -1;
@@ -6585,6 +7003,25 @@ ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* 
             ToriMem_Free(ToriMem_Renderer(), top);
         }
     }
+}
+
+void
+ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* gl3, struct ToriRS_Frame* frame)
+{
+    struct GL3FrameState state;
+    struct ToriRS_RenderCommand command;
+    uint64_t deadline;
+    gl3_frame_begin(gl3, frame, &state);
+    while( ToriRS_FrameNextCommand(frame, &command) )
+    {
+        gl3_dispatch(gl3, &command);
+        gl3_frame_command_timed(gl3, &state, &command);
+    }
+    gl3_frame_present(gl3, frame, &state);
+    deadline = gl3_frame_prefill_deadline(gl3, &state);
+    if( deadline )
+        gl3_world_prefill_os1(gl3, deadline);
+    gl3_frame_finish(gl3, &state);
 }
 
 void

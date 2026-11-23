@@ -94,14 +94,14 @@
  * emscripten's automatic extension enablement off, as the WebGL1 lane does),
  * transform feedback, instancing, texture arrays, or 3D textures. The bake
  * pipeline is shared with the GLES2 renderer down to the 28-byte vertex
- * (TRSPK_VertexGLES2, 3rd/trspk/gles2/gles2_vertex.h), so a fix to a bake
+ * (TRSPK_VertexGLES2Os1, 3rd/trspk/gles2/gles2_os1_vertex.h), so a fix to a bake
  * lands on both lanes; only the GL layer differs.
  *
  * ## One atlas, one texture bind per pass
  *
  * Every world texture -- scrolling ones included -- lives in the single
  * 2048x2048 atlas. Which tile a face samples and how it scrolls travel with
- * the vertex (TRSPK_VertexGLES2), and the fragment shader wraps and clamps the
+ * the vertex (TRSPK_VertexGLES2Os1), and the fragment shader wraps and clamps the
  * local coordinate into the tile per fragment. So the world pass binds the
  * atlas once, the index stream is never split by texture, and the draw loop
  * has exactly two reasons to issue a new draw call: a page change, and the
@@ -130,6 +130,9 @@
 #include "toridraw_types.h"
 
 #include <GLES3/gl3.h>
+
+struct TRSPK_AnimTrack;
+struct TRSPK_PoseKey;
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -212,9 +215,14 @@
 #define ES3_ATTRIB_COLOR 2u
 #define ES3_ATTRIB_TEXINFO 3u
 #define ES3_ATTRIB_MASK_TEXCOORD 3u
-/* The face's depth bias: the WebGL2 (OSRS) renderer's vertex only
- * (TRSPK_VERTEX_FORMAT_ES3_OSRS), read by its world vertex shader alone. */
+/* The face's depth bias: the OSRS renderers' vertices only
+ * (TRSPK_VERTEX_FORMAT_ES3_OS235SAILING, _TFA), read by their world vertex
+ * shaders alone. */
 #define ES3_ATTRIB_BIAS 4u
+/* The Post-TFA vertex's texture projector: P (relative to the corner), U, V. */
+#define ES3_ATTRIB_PROJECTOR_P 5u
+#define ES3_ATTRIB_PROJECTOR_U 6u
+#define ES3_ATTRIB_PROJECTOR_V 7u
 
 /*
  * The frame's draw sequence.
@@ -588,13 +596,15 @@ struct TRSPK_Renderer_ES3
      * means the es3_zbuffer_* implementation owns the world path. The OSRS
      * renderer is built on the same depth world and makes one too. */
     struct ES3ZBufferWorld* zbuffer;
-    /* The OSRS renderer's own per-pass queues (two-pass models, the
-     * translucent pass in arrival order); NULL under any other renderer. */
-    struct ES3OsrsWorld* osrs;
+    /* The OSRS renderers' own per-pass queues (two-pass models, the
+     * translucent pass in arrival order), one per renderer file; NULL under
+     * any other renderer. */
+    struct ES3Os235SailingWorld* os235sailing;
+    struct ES3Os241TfaWorld* os241tfa;
 
     /* The retained world vertex, fixed when the handle is made
-     * (TRSPK_Renderer_ES3_New: TRSPK_VERTEX_FORMAT_GLES2;
-     * TRSPK_Renderer_ES3_NewOsrs: TRSPK_VERTEX_FORMAT_ES3_OSRS). Every arena,
+     * (TRSPK_Renderer_ES3_New: TRSPK_VERTEX_FORMAT_GLES2_OS1; _NewOs235Sailing:
+     * ES3_OS235SAILING; _NewOs241Tfa: ES3_OS241TFA). Every arena,
      * build and stream of the handle is in it, and `vertex_size` is its
      * stride. */
     enum TRSPK_VertexFormat vertex_format;
@@ -603,6 +613,11 @@ struct TRSPK_Renderer_ES3
      * depth the OSRS way, 0 otherwise. Only the OSRS world vertex shader
      * reads it, and only the OSRS renderer sets it. */
     float world_block_osrs_depth;
+    /* The world programs es3_init_gl links (es3_set_world_shaders). */
+    const struct ES3WorldShaders* world_shaders;
+    /* The world block's eye (es3_world_block_upload): the camera position the
+     * pass's matrices were built from. Set and read by Post-TFA OSRS only. */
+    float world_block_eye[3];
 
     /* TORIRS_ES3_DEBUG=1: the 300-frame counters printed from es3_end_3d
      * and the debug-only glGetError checks. Read once at creation; the
@@ -1109,20 +1124,75 @@ es3_zbuffer_emit_model(
     const struct ES3ModelPlacement* placement);
 
 /*
- * The depth world's pieces the OSRS renderer composes from. The depth
- * renderer's own draw is exactly es3_zbuffer_place_model, then
+ * The depth world's pieces the OSRS renderers compose from. The depth
+ * renderer's own draw is the place steps below with the os1 bakes, then
  * es3_zbuffer_emit_model, which is es3_zbuffer_material, then
- * es3_zbuffer_queue_opaque, then its blended sort; the OSRS renderer replaces
- * the last step and, for its two-pass models, the one before it.
+ * es3_zbuffer_queue_opaque, then its blended sort; the OSRS renderers bake
+ * their own vertex and replace the last step (and, for two-pass models, the
+ * one before it).
  */
 
-/** Pick, cull, pose and bake one DRAW_MODEL: true with `out` filled when the
- *  model is to be drawn. */
+/*
+ * A DRAW_MODEL placed, in three steps around the renderer's own bakes:
+ *   es3_zbuffer_place_begin         stage, pick, cull, face count, track and
+ *                                   pose; false when nothing is drawn
+ *   (the renderer's bakes)          es3_world_bake_on_draw with its record
+ *                                   bake; its dynamic bake
+ *                                   (es3_zbuffer_dynamic_reuse/_keep around
+ *                                   its arena bake); es3_zbuffer_place_static_world;
+ *                                   the pose table, its track-pose and arena
+ *                                   bakes, es3_zbuffer_pose_baked
+ *   es3_zbuffer_place_end           the binding and bases; false when the bake
+ *                                   failed
+ */
 bool
-es3_zbuffer_place_model(
+es3_zbuffer_place_begin(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     struct ES3ModelPlacement* out);
+/** 1 placed in the drawn world build, 0 not in it, -1 skip the draw. */
+int
+es3_zbuffer_place_static_world(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    struct ES3ModelPlacement* placement,
+    uint32_t* out_vertex_base);
+bool
+es3_zbuffer_place_end(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ModelPlacement* placement,
+    uint32_t binding,
+    uint32_t vertex_base);
+/** A dynamic model's pose from the pose pool (UINT32_MAX when not there), and
+ *  the key to keep the renderer's own bake under. */
+uint32_t
+es3_zbuffer_dynamic_reuse(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ModelGroup* group,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id,
+    struct TRSPK_PoseKey* key,
+    bool* keyed);
+void
+es3_zbuffer_dynamic_keep(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ModelGroup* group,
+    const struct ToriRS_RenderCommand_Model* command,
+    const struct TRSPK_PoseKey* key,
+    bool keyed,
+    uint32_t vertex_base);
+/** A static element drawn with a track its ANIM_LOAD never announced:
+ *  announce it now, as that load would have. */
+void
+es3_zbuffer_announce_from_draw(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index);
+/** MODEL_LOAD's first half: the element's old poses and their materials
+ *  dropped. The renderer then bakes the model into its arena. */
+void
+es3_zbuffer_model_drop(struct TRSPK_Renderer_ES3* renderer, int element_id);
 
 /** The placed pose's faces, classified (cached per retained pose,
  *  reclassified every draw for a dynamic one). NULL when the model cannot be
@@ -1142,9 +1212,9 @@ es3_zbuffer_queue_opaque(
     const struct ES3ModelPlacement* placement,
     const struct ES3MaterialPose* material);
 
-/** Every command that is not BEGIN_3D, END_3D or DRAW_MODEL, as the depth
- *  renderer handles it: the retained store (and its material tables), the
- *  world builds, and the 2D commands. Asserts on those three. */
+/** Every command that is not BEGIN_3D, END_3D, DRAW_MODEL or MODEL_LOAD, as
+ *  the depth renderer handles it: the retained store (and its material
+ *  tables), the world builds, and the 2D commands. Asserts on those four. */
 void
 es3_zbuffer_dispatch_retained(
     struct TRSPK_Renderer_ES3* renderer,
@@ -1158,10 +1228,13 @@ es3_zbuffer_world_record_bake(
     struct TRSPK_WorldSlot* slot,
     int record);
 
-/* The OSRS renderer's state. es3_osrs_destroy is a deallocator, reached from
- * TRSPK_Renderer_ES3_Free for the same reason es3_zbuffer_destroy is. */
+/* The OSRS renderers' state (platform_web_renderer_webgl2_os235sailing.c,
+ * _os241tfa.c). Deallocators, reached from TRSPK_Renderer_ES3_Free for the
+ * same reason es3_zbuffer_destroy is. */
 void
-es3_osrs_destroy(struct TRSPK_Renderer_ES3* renderer);
+es3_os235sailing_destroy(struct TRSPK_Renderer_ES3* renderer);
+void
+es3_os241tfa_destroy(struct TRSPK_Renderer_ES3* renderer);
 
 /*
  * The dispatch loop's per-command prefetch, for a lane that runs its own
@@ -1294,6 +1367,31 @@ es3_init_gl(
     int depth_bits,
     char const* world_pass);
 
+/*
+ * A renderer's world programs: one vertex stage over four fragment stages
+ * (plain, cutout, and their fast twins). Each renderer names its own set with
+ * es3_set_world_shaders before es3_init_gl, which links what it is given; the
+ * WebGL2 core defines the three sets. The vertex the stage reads is the
+ * renderer's own (os1, os235sailing, os241tfa).
+ */
+struct ES3WorldShaders
+{
+    const char* vertex;
+    const char* plain;
+    const char* cutout;
+    const char* fast_plain;
+    const char* fast_cutout;
+};
+
+extern const struct ES3WorldShaders es3_world_shaders_os1;
+extern const struct ES3WorldShaders es3_world_shaders_os235sailing;
+extern const struct ES3WorldShaders es3_world_shaders_os241tfa;
+
+void
+es3_set_world_shaders(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ES3WorldShaders* shaders);
+
 /* The frame's surface, in two halves with the composing renderer's choice of
  * framebuffer between them. @see es3p_begin_frame. */
 bool
@@ -1372,7 +1470,30 @@ es3_unload_texture(struct TRSPK_Renderer_ES3* renderer, int texture_id);
 /* ---- the retained model store ------------------------------------------ */
 
 /*
- * Write one posed model into `vbo` at `vertex_base`.
+ * The atlas side of one baked face (es3_bake_face_atlas): its tile, scroll
+ * bytes, triangle config and three local uvs. Shared by every renderer's
+ * bake; only the vertex each writes it into differs.
+ */
+struct ES3FaceAtlas
+{
+    uint8_t tile_col;
+    uint8_t tile_row;
+    uint8_t anim_u;
+    uint8_t anim_v;
+    int config;
+    float u[3];
+    float v[3];
+};
+
+void
+es3_bake_face_atlas(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_ToriDrawBakeFaceVerts* face,
+    struct ES3FaceAtlas* out);
+
+/*
+ * Write one posed model into `vbo` at `vertex_base`, in the os1 vertex: the
+ * painter's and the depth renderer's bake.
  *
  * `ordered_painter` says the caller is writing an ACTOR into the frame
  * stream in `face_order`'s order -- the painter renderer's one case, and
@@ -1381,7 +1502,7 @@ es3_unload_texture(struct TRSPK_Renderer_ES3* renderer, int texture_id);
  * writer, which is what every retained bake wants.
  */
 bool
-es3_bake_pose_vertices(
+es3_bake_pose_vertices_os1(
     struct TRSPK_Renderer_ES3* renderer,
     struct TRSPK_VBO* vbo,
     struct TRSPK_Triangles* triangles,
@@ -1392,9 +1513,32 @@ es3_bake_pose_vertices(
     int order_count,
     bool ordered_painter);
 
-/** Bake one pose into `group`'s arena. UINT32_MAX when it could not be. */
+/*
+ * An arena bake, in three steps every renderer shares around its own bake:
+ * es3_arena_reserve (a slot for the pose; UINT32_MAX when there is none),
+ * the renderer's bake at that base, es3_arena_commit (the pose table names
+ * it). es3_bake_into_arena_os1 is the three with the os1 bake.
+ */
 uint32_t
-es3_bake_into_arena(
+es3_arena_reserve(
+    struct ES3ModelGroup* group,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    int face_count,
+    bool update_pose_table);
+void
+es3_arena_commit(
+    struct TRSPK_Renderer_ES3* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    uint32_t vertex_base,
+    bool update_pose_table);
+
+/** Bake one pose into `group`'s arena, os1. UINT32_MAX when it could not be. */
+uint32_t
+es3_bake_into_arena_os1(
     struct TRSPK_Renderer_ES3* renderer,
     struct ES3ModelGroup* group,
     int element_id,
@@ -1438,8 +1582,8 @@ es3_apply_animation(
  * es3_world_swap are the background rebuild's (see TRSPK_WorldBuild). The
  * depth path wraps them with its material hooks.
  *
- * A record is baked by es3_world_record_bake. The two paths bake through a
- * function of this type -- the painter passes es3_world_record_bake itself,
+ * A record is baked by es3_world_record_bake_os1. The paths bake through a
+ * function of this type -- the painter passes es3_world_record_bake_os1 itself,
  * the depth path its own that also classifies the pose -- so nothing here
  * asks which path is running.
  */
@@ -1470,10 +1614,11 @@ es3_world_stage_begin(struct TRSPK_Renderer_ES3* renderer, int batch_id);
 void
 es3_world_swap(struct TRSPK_Renderer_ES3* renderer, int batch_id);
 
-/** Bake record `record` of `slot` into its build: what BATCH3D_*_ADD baked
- *  on arrival before the bake was deferred. */
+/** Bake record `record` of `slot` into its build, os1: what BATCH3D_*_ADD
+ *  baked on arrival before the bake was deferred. Another vertex's renderer
+ *  takes the record with trspk_world_record_take and bakes it itself. */
 void
-es3_world_record_bake(
+es3_world_record_bake_os1(
     struct TRSPK_Renderer_ES3* renderer,
     struct TRSPK_WorldSlot* slot,
     int record);
@@ -1501,20 +1646,31 @@ es3_world_prefill(
     ES3WorldRecordBake bake);
 
 /** ANIM_LOAD accepted by es3_animation_load_check: the track is announced,
- *  not baked (each pose is baked by es3_bake_track_pose on first draw). */
+ *  not baked (each pose is baked by a track-pose bake on first draw). */
 void
 es3_animation_announce(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_AnimLoad* command,
     int anim_index);
 
-/** A draw's pose from its element's announced track, baked into the static
- *  arena now -- the first draw that asks for it -- and recorded in the pose
- *  table. False when no announced track matches the draw. On true,
+/** The posed model an announced track wants for this draw (NULL when none
+ *  matches), and the track (its announced id and placement) to bake it
+ *  under. The caller bakes it into the static arena and frees it. */
+struct ToriDraw_Model*
+es3_track_pose_model(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id,
+    const struct TRSPK_AnimTrack** out_track);
+
+/** A draw's pose from its element's announced track, baked (os1) into the
+ *  static arena now -- the first draw that asks for it -- and recorded in the
+ *  pose table. False when no announced track matches the draw. On true,
  *  *out_baked is the posed model the bake read (the depth path classifies
  *  it); the caller frees it with ToriDraw_ModelFree. */
 bool
-es3_bake_track_pose(
+es3_bake_track_pose_os1(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     int anim_index,
@@ -1611,6 +1767,14 @@ es3_upload_geometry(struct TRSPK_Renderer_ES3* renderer);
  *  bound. False if the binding has no GPU buffer yet. */
 bool
 es3_bind_stream(struct TRSPK_Renderer_ES3* renderer, uint32_t binding);
+/** The WebGL2 core's: the same, in each vertex's layout -- os1 (painter, depth
+ *  renderer), os235sailing, os241tfa. Each renderer calls its own. */
+bool
+es3_bind_stream_os1(struct TRSPK_Renderer_ES3* renderer, uint32_t binding);
+bool
+es3_bind_stream_os235sailing(struct TRSPK_Renderer_ES3* renderer, uint32_t binding);
+bool
+es3_bind_stream_os241tfa(struct TRSPK_Renderer_ES3* renderer, uint32_t binding);
 
 /** Bind an array buffer through the state cache (no-op when already bound;
  *  invalidates the attribute layout when it changes). */
@@ -1633,10 +1797,8 @@ es3_binding_cpu_source(
     const struct TRSPK_VBO** out_vbo,
     const struct TRSPK_Triangles** out_triangles);
 
-/** Select a world program (plain or alpha-testing) and push its per-pass
- *  uniforms, then bind the atlas. */
-/** Upload the world pass's shared uniform block (matrix + texture clock +
- *  world_block_osrs_depth). Once per pass, before any world draw. */
+/** Upload the world pass's shared uniform block (matrix, texture clock,
+ *  world_block_osrs_depth, the eye). Once per pass, before any world draw. */
 void
 es3_world_block_upload(struct TRSPK_Renderer_ES3* renderer);
 

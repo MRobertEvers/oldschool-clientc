@@ -25,9 +25,16 @@ ToriPlatformWeb_Renderer_WebGL2_New(int width, int height)
 }
 
 struct ToriPlatformWeb_Renderer_WebGL2*
-ToriPlatformWeb_Renderer_WebGL2_NewOsrs(int width, int height)
+ToriPlatformWeb_Renderer_WebGL2_NewOs235Sailing(int width, int height)
 {
-    return (struct ToriPlatformWeb_Renderer_WebGL2*)TRSPK_Renderer_ES3_NewOsrs(width, height, "WebGL2");
+    return (struct ToriPlatformWeb_Renderer_WebGL2*)TRSPK_Renderer_ES3_NewOs235Sailing(
+        width, height, "WebGL2");
+}
+
+struct ToriPlatformWeb_Renderer_WebGL2*
+ToriPlatformWeb_Renderer_WebGL2_NewOs241Tfa(int width, int height)
+{
+    return (struct ToriPlatformWeb_Renderer_WebGL2*)TRSPK_Renderer_ES3_NewOs241Tfa(width, height, "WebGL2");
 }
 
 void
@@ -56,12 +63,21 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferInit(
 }
 
 bool
-ToriPlatformWeb_Renderer_WebGL2_OsrsInit(
+ToriPlatformWeb_Renderer_WebGL2_Os235SailingInit(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene)
 {
-    return TRSPK_Renderer_ES3_OsrsInit((struct TRSPK_Renderer_ES3*)renderer, window, scene);
+    return TRSPK_Renderer_ES3_Os235SailingInit((struct TRSPK_Renderer_ES3*)renderer, window, scene);
+}
+
+bool
+ToriPlatformWeb_Renderer_WebGL2_Os241TfaInit(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene)
+{
+    return TRSPK_Renderer_ES3_Os241TfaInit((struct TRSPK_Renderer_ES3*)renderer, window, scene);
 }
 
 void
@@ -130,11 +146,19 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferExecute(
 }
 
 void
-ToriPlatformWeb_Renderer_WebGL2_OsrsExecute(
+ToriPlatformWeb_Renderer_WebGL2_Os235SailingExecute(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     struct ToriRS_RenderCommand const* command)
 {
-    TRSPK_Renderer_ES3_OsrsExecute((struct TRSPK_Renderer_ES3*)renderer, command);
+    TRSPK_Renderer_ES3_Os235SailingExecute((struct TRSPK_Renderer_ES3*)renderer, command);
+}
+
+void
+ToriPlatformWeb_Renderer_WebGL2_Os241TfaExecute(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    struct ToriRS_RenderCommand const* command)
+{
+    TRSPK_Renderer_ES3_Os241TfaExecute((struct TRSPK_Renderer_ES3*)renderer, command);
 }
 
 void
@@ -160,13 +184,24 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferDrawBootBar(
 }
 
 void
-ToriPlatformWeb_Renderer_WebGL2_OsrsDrawBootBar(
+ToriPlatformWeb_Renderer_WebGL2_Os235SailingDrawBootBar(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     int progress,
     int caption_font_id,
     char const* caption)
 {
-    TRSPK_Renderer_ES3_OsrsDrawBootBar(
+    TRSPK_Renderer_ES3_Os235SailingDrawBootBar(
+        (struct TRSPK_Renderer_ES3*)renderer, progress, caption_font_id, caption);
+}
+
+void
+ToriPlatformWeb_Renderer_WebGL2_Os241TfaDrawBootBar(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption)
+{
+    TRSPK_Renderer_ES3_Os241TfaDrawBootBar(
         (struct TRSPK_Renderer_ES3*)renderer, progress, caption_font_id, caption);
 }
 
@@ -187,11 +222,19 @@ ToriPlatformWeb_Renderer_WebGL2_ZBufferRenderFrame(
 }
 
 void
-ToriPlatformWeb_Renderer_WebGL2_OsrsRenderFrame(
+ToriPlatformWeb_Renderer_WebGL2_Os235SailingRenderFrame(
     struct ToriPlatformWeb_Renderer_WebGL2* renderer,
     struct ToriRS_Frame* frame)
 {
-    TRSPK_Renderer_ES3_OsrsRenderFrame((struct TRSPK_Renderer_ES3*)renderer, frame);
+    TRSPK_Renderer_ES3_Os235SailingRenderFrame((struct TRSPK_Renderer_ES3*)renderer, frame);
+}
+
+void
+ToriPlatformWeb_Renderer_WebGL2_Os241TfaRenderFrame(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    struct ToriRS_Frame* frame)
+{
+    TRSPK_Renderer_ES3_Os241TfaRenderFrame((struct TRSPK_Renderer_ES3*)renderer, frame);
 }
 
 bool

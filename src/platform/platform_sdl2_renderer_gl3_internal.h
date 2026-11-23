@@ -77,13 +77,13 @@
 
 /*
  * The two vertex layouts are the same 48 bytes in the same order (see
- * webgl1_vertex.h and opengl3_vertex.h). The CPU-side arena is built on the
+ * webgl1_vertex.h and opengl3_os1_vertex.h). The CPU-side arena is built on the
  * OpenGL3 one on both paths because trspk_modelarena's compaction moves
  * vertices through that member; declaring a second identical format would only
  * give the two a chance to drift apart.
  */
 _Static_assert(
-    sizeof(struct TRSPK_VertexWebGL1) == sizeof(struct TRSPK_VertexOpenGl3),
+    sizeof(struct TRSPK_VertexWebGL1) == sizeof(struct TRSPK_VertexOpenGl3Os1),
     "WebGL1 and OpenGL3 vertices must stay layout-compatible");
 
 typedef struct TRSPK_UboWorld
@@ -96,6 +96,10 @@ typedef struct TRSPK_UboWorld
     /* 1 on the depth lane: the vertex shader applies each corner's face
      * depth bias (position.w) to its depth. 0 leaves clip z alone. */
     float uDepthBias;
+    /* The camera position in world space: the Post-TFA program's texture rays
+     * start here (shaders/vertex_os241tfa.glsl; the other programs' block
+     * stops before it). std140 puts this vec4 at 144. */
+    float uEye[4];
 } TRSPK_UboWorld;
 
 /* Preferred atlas: 4096^2 / 128 = 32x32 = 1024 slots. Falls back to 2048/16/256
@@ -229,12 +233,12 @@ struct GL3AlphaSubmission
     /* Into the frame's index upload, where GL3ZB_StageAlphaPass placed it. */
     uint32_t staged_start;
     int depth;
-    /* The OSRS depth pass's run kind (GL3_OSRS_RUN_*); always
+    /* The run's kind under the OSRS passes (GL3_OSRS_RUN_*); always
      * GL3_OSRS_RUN_TRANSLUCENT under the plain depth pass. */
     uint8_t osrs_kind;
 };
 
-/* The OSRS depth pass's queued runs (GL3ZB_SubmitModel under osrs_depth):
+/* The OSRS passes' queued runs (GL3ZB_SubmitModelRuns):
  *   TRANSLUCENT           a model's blended faces in the client's sorted
  *                         order, drawn once, blending and writing depth;
  *   TRANSLUCENT_TWO_PASS  a two-pass model's blended faces in priority order,
@@ -435,18 +439,10 @@ struct ToriPlatformSDL2_Renderer_GL3
      * changes the context's pixel format.
      */
     bool z_buffer_enabled;
-    /*
-     * The depth pass the rev-241 client's way ("OpenGL (OSRS z-buffer)",
-     * ToriPlatformSDL2_Renderer_GL3_InitOsrs): its depth key with each face's
-     * bias, a buffer cleared to 0 and tested GL_GREATER, two-pass players and
-     * opcode-147 npcs, and the translucent pass in arrival order, writing
-     * depth. Implies z_buffer_enabled. @see platform_sdl2_renderer_gl3zb.h.
-     */
-    bool osrs_depth;
-    /* This pass keys depth the client's way: osrs_depth under a perspective
-     * camera. A parallel one has no depth in w and runs the plain depth
-     * pass's mapping and test. Set per pass by GL3ZB_BeginPass. */
-    bool osrs_key_depth;
+    /* The retained vertex, fixed at New (OPENGL3_OS1, or OPENGL3_OS241TFA
+     * from ToriPlatformSDL2_Renderer_GL3_NewOs241Tfa), and its stride. */
+    enum TRSPK_VertexFormat vertex_format;
+    uint32_t vertex_size;
     /* Per-model blended submissions, drawn after the opaque pass, sorted
      * back-to-front. Only models that actually have translucent faces land
      * here, so a scene without translucency leaves them empty. */
@@ -468,8 +464,8 @@ struct ToriPlatformSDL2_Renderer_GL3
     /* Scratch for one model's index list while it is being classified. */
     uint32_t* model_indices;
     uint32_t model_index_capacity;
-    /* The OSRS pass's per-model sort scratch (struct GL3OsrsFaceKey, private
-     * to platform_sdl2_renderer_gl3zb.c). */
+    /* The OSRS passes' per-model sort scratch (struct GL3OsrsFaceKey,
+     * private to platform_sdl2_renderer_gl3zb.c). */
     void* osrs_face_keys;
     uint32_t osrs_face_key_capacity;
 
@@ -578,6 +574,11 @@ struct ToriPlatformSDL2_Renderer_GL3
     GLint a_texcoord;
     GLint a_tex_id;
     GLint a_uv_mode;
+    /* The Post-TFA vertex's texture projector (P less the corner, U, V); -1
+     * when the program has no such input. */
+    GLint a_proj_p;
+    GLint a_proj_u;
+    GLint a_proj_v;
     GLint s_atlas;
 
     GLuint program2d;
@@ -677,5 +678,260 @@ gl3_ensure_gpu_ibo(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint32_t index_count);
 
+
+/* --- the pieces every GL3 renderer is built from ------------------------- *
+ *
+ * The painter and the depth pass (platform_sdl2_renderer_gl3.c), Sailing OSRS
+ * (platform_sdl2_renderer_gl3_os235sailing.c) and Post-TFA OSRS
+ * (platform_sdl2_renderer_gl3_os241tfa.c) each compose their own frame, world
+ * pass and bake from these. None of them asks which renderer is running.
+ */
+
+#include <SDL_timer.h>
+
+#define GL3_TICKS(r_) ((r_)->dbg_timing.on ? SDL_GetPerformanceCounter() : 0u)
+
+/** A handle whose arenas and builds hold `format` vertices. */
+struct ToriPlatformSDL2_Renderer_GL3*
+gl3_renderer_new(
+    int width,
+    int height,
+    enum TRSPK_VertexFormat format);
+
+/** The context, atlas, world program (`vs_src`, `fs_src`) and buffers. */
+bool
+gl3_init(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene,
+    bool z_buffer,
+    const char* vs_src,
+    const char* fs_src);
+
+/** One command as the painter and the depth pass take it. */
+void
+gl3_dispatch(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command);
+
+/* The frame. */
+struct GL3FrameState
+{
+    struct ClientScalePresent present;
+    int output_gl_y;
+    int full_drawable_w;
+    int drawable_h;
+    bool use_fbo;
+    uint64_t t_frame;
+    uint64_t t_render_start;
+    uint64_t t_command;
+};
+
+void
+gl3_frame_begin(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct ToriRS_Frame* frame,
+    struct GL3FrameState* state);
+void
+gl3_frame_command_timed(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct GL3FrameState* state,
+    const struct ToriRS_RenderCommand* command);
+void
+gl3_frame_present(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct ToriRS_Frame* frame,
+    const struct GL3FrameState* state);
+/** The prefill slice's deadline, or 0 when the world build has nothing left. */
+uint64_t
+gl3_frame_prefill_deadline(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    const struct GL3FrameState* state);
+void
+gl3_frame_finish(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    const struct GL3FrameState* state);
+
+/* BEGIN_3D: viewport (out_rect = the world viewport, framebuffer pixels),
+ * then the pass's depth clear, matrices, the pass's projection depth, then
+ * finish with the program's depth mode (0 painter, 1 biased, 2 OSRS key). */
+void
+gl3_begin_3d_viewport(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command,
+    int out_rect[4]);
+void
+gl3_begin_3d_matrices(struct ToriPlatformSDL2_Renderer_GL3* renderer);
+void
+gl3_begin_3d_finish(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    float depth_mode);
+
+/* END_3D: upload, stage the opaque order, bind the program and the pass's
+ * depth state, stage the pass's runs at staging + total_indices, draw the
+ * opaque ranges, draw the runs, drawn; close in every case. */
+struct GL3End3D
+{
+    uint32_t* staging;
+    uint32_t total_indices;
+    uint32_t upload_indices;
+    uint64_t t_ibo;
+    uint64_t t_draw;
+};
+
+bool
+gl3_end_3d_upload(struct ToriPlatformSDL2_Renderer_GL3* renderer);
+bool
+gl3_end_3d_stage(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct GL3End3D* pass);
+void
+gl3_bind_world_program(struct ToriPlatformSDL2_Renderer_GL3* renderer);
+void
+gl3_end_3d_draw_opaque(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct GL3End3D* pass);
+void
+gl3_end_3d_drawn(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    const struct GL3End3D* pass);
+void
+gl3_end_3d_close(struct ToriPlatformSDL2_Renderer_GL3* renderer);
+
+/* DRAW_MODEL. */
+bool
+gl3_model_draw_begin(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command);
+bool
+gl3_model_cull_depth(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    bool* projected);
+void
+gl3_model_pose_ids(
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int* out_anim_index,
+    int* out_pose_id);
+
+/* The bake: a renderer's chain is its vertex writer over these steps. The os1
+ * chain (painter, depth pass, Sailing OSRS) is gl3_model_vertices_os1,
+ * gl3_model_load_os1 and gl3_world_prefill_os1. */
+bool
+gl3_bake_face(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriDraw_ModelHandle model_handle,
+    uint32_t face_index,
+    const struct TRSPK_WorldPlacement* placement,
+    struct TRSPK_Triangles* triangles,
+    uint32_t base,
+    struct TRSPK_ToriDrawBakeFaceVerts* face,
+    float* out_depth_bias);
+uint32_t
+gl3_arena_reserve(
+    struct GL3ModelGroup* g,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    int face_count,
+    bool update_pose_table);
+void
+gl3_arena_commit(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    uint32_t base,
+    bool update_pose_table);
+struct ToriDraw_Model*
+gl3_track_pose_copy(
+    struct ToriDraw_Model* source,
+    struct ToriDraw_Animation* animation,
+    int frame);
+uint32_t
+gl3_dynamic_reuse(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct GL3ModelGroup* g,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id,
+    struct TRSPK_PoseKey* key,
+    bool* keyed);
+void
+gl3_dynamic_keep(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct GL3ModelGroup* g,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    const struct TRSPK_PoseKey* key,
+    bool keyed,
+    uint32_t vertex_base);
+const struct TRSPK_AnimTrack*
+gl3_static_track(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id);
+void
+gl3_lazy_bake_timed(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    uint64_t t0);
+void
+gl3_model_load_forget(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    int element_id);
+/* The world build: -1, or the record a draw's pose is waiting on. */
+int
+gl3_world_pose_unbaked(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id);
+const struct TRSPK_Batch32Entry*
+gl3_world_pose_entry(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id);
+void
+gl3_world_draw_bake_timed(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint64_t t0);
+void
+gl3_world_record_count(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriDraw_ModelHandle model);
+void
+gl3_world_prefill_unit(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint64_t t0);
+uint64_t
+gl3_world_stage_prefill_begin(struct ToriPlatformSDL2_Renderer_GL3* renderer);
+void
+gl3_world_stage_prefill_end(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint64_t t0);
+void
+gl3_world_stage_release(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint64_t deadline);
+
+/* The os1 chain. */
+bool
+gl3_model_vertices_os1(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id,
+    uint32_t* out_group,
+    uint32_t* out_vertex_base);
+void
+gl3_model_load_os1(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command);
+void
+gl3_world_prefill_os1(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint64_t deadline);
 
 #endif

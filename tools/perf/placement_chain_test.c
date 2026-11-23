@@ -38,7 +38,7 @@ main(void)
     CHECK(r->static_batches);
     struct GLES2StaticBatch* b = r->static_batches;
     b->active = true;
-    b->cpu = trspk_batch16_create(TRSPK_VERTEX_FORMAT_GLES2);
+    b->cpu = trspk_batch16_create(TRSPK_VERTEX_FORMAT_GLES2_OS1);
     CHECK(b->cpu);
     b->cpu->entries = calloc(3, sizeof(*b->cpu->entries));
     CHECK(b->cpu->entries);

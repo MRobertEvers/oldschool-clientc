@@ -17,6 +17,14 @@ struct ToriPlatformSDL2_Renderer_GL3;
 
 struct ToriPlatformSDL2_Renderer_GL3*
 ToriPlatformSDL2_Renderer_GL3_New(int width, int height);
+/** A handle in the os241tfa vertex (texture projectors), for
+ *  ToriPlatformSDL2_Renderer_GL3_Os241TfaInit and no other Init. Every other
+ *  GL3 renderer, Sailing OSRS too, runs on a ToriPlatformSDL2_Renderer_GL3_New
+ *  handle. */
+struct ToriPlatformSDL2_Renderer_GL3*
+ToriPlatformSDL2_Renderer_GL3_NewOs241Tfa(
+    int width,
+    int height);
 
 void
 ToriPlatformSDL2_Renderer_GL3_Free(struct ToriPlatformSDL2_Renderer_GL3* gl3);
@@ -70,17 +78,38 @@ ToriPlatformSDL2_Renderer_GL3_Init(
     bool z_buffer);
 
 /**
- * Init with the depth pass in its OSRS mode ("OpenGL (OSRS z-buffer)"): the
- * rev-241 client's depth key with each face's bias, its tie rule, two-pass
- * players and opcode-147 npcs, and its translucent pass
- * (platform_sdl2_renderer_gl3zb.h). The caller puts the app into
- * TORIRS_WORLD_PAINTER: the translucent pass replays the painter's order.
+ * "OpenGL (Sailing OSRS)" (platform_sdl2_renderer_gl3_os235sailing.c) on a New
+ * handle: the rev-241 client's world pass (platform_sdl2_renderer_gl3zb.h)
+ * over the os1 vertex. Drawn with its own RenderFrame. The caller puts the
+ * app into TORIRS_WORLD_PAINTER: the translucent pass replays the painter's
+ * order.
  */
 bool
-ToriPlatformSDL2_Renderer_GL3_InitOsrs(
+ToriPlatformSDL2_Renderer_GL3_Os235SailingInit(
     struct ToriPlatformSDL2_Renderer_GL3* gl3,
     ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene);
+
+void
+ToriPlatformSDL2_Renderer_GL3_Os235SailingRenderFrame(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct ToriRS_Frame* frame);
+
+/**
+ * "OpenGL (Post-TFA OSRS)" (platform_sdl2_renderer_gl3_os241tfa.c) on a
+ * NewOs241Tfa handle: the same world pass, with each textured face's texel
+ * found along the eye ray as the client does. TORIRS_WORLD_PAINTER, as Sailing.
+ */
+bool
+ToriPlatformSDL2_Renderer_GL3_Os241TfaInit(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+
+void
+ToriPlatformSDL2_Renderer_GL3_Os241TfaRenderFrame(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct ToriRS_Frame* frame);
 
 void
 ToriPlatformSDL2_Renderer_GL3_SetPick(struct ToriPlatformSDL2_Renderer_GL3* gl3, int mouse_x, int mouse_y);

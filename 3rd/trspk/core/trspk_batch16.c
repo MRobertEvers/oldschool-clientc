@@ -33,9 +33,10 @@ struct TRSPK_Batch16
 static bool
 trspk_batch16_format_supported(enum TRSPK_VertexFormat format)
 {
-    return format == TRSPK_VERTEX_FORMAT_WEBGL1 || format == TRSPK_VERTEX_FORMAT_OPENGL3 ||
-           format == TRSPK_VERTEX_FORMAT_D3D9 || format == TRSPK_VERTEX_FORMAT_GLES2 ||
-           format == TRSPK_VERTEX_FORMAT_ES3_OSRS;
+    return format == TRSPK_VERTEX_FORMAT_WEBGL1 || format == TRSPK_VERTEX_FORMAT_OPENGL3_OS1 ||
+           format == TRSPK_VERTEX_FORMAT_D3D9 || format == TRSPK_VERTEX_FORMAT_GLES2_OS1 ||
+           format == TRSPK_VERTEX_FORMAT_ES3_OS235SAILING || format == TRSPK_VERTEX_FORMAT_ES3_OS241TFA ||
+           format == TRSPK_VERTEX_FORMAT_OPENGL3_OS241TFA;
 }
 
 static uint32_t

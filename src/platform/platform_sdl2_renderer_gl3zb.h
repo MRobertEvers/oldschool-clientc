@@ -42,6 +42,7 @@
 struct ToriDraw_Camera;
 struct ToriDraw_Scene;
 struct ToriPlatformSDL2_Renderer_GL3;
+struct ToriRS_RenderCommand;
 struct ToriRS_RenderCommand_Model;
 
 /** Release the pass's buffers. Safe on a renderer that never used the mode. */
@@ -123,5 +124,67 @@ GL3ZB_ForgetTrack(
  *  models would be drawn against the next frame's depth buffer and camera. */
 void
 GL3ZB_ResetFrame(struct ToriPlatformSDL2_Renderer_GL3* renderer);
+
+/*
+ * The rev-241 client's world pass, which Sailing OSRS
+ * (platform_sdl2_renderer_gl3_os235sailing.c) and Post-TFA OSRS
+ * (platform_sdl2_renderer_gl3_os241tfa.c) both run over their own vertices:
+ * its depth key with each face's bias (their programs' vertex stage), a
+ * buffer cleared to 0 and tested GL_GREATER, two-pass players and opcode-147
+ * npcs, and the translucent pass in arrival order, writing depth. A parallel
+ * camera has no depth in w; it runs the plain pass's mapping and test.
+ * docs/toridraw_rszbuffer.md.
+ */
+
+/** BEGIN_3D: the pass's camera, its depth clear and its depth key. */
+void
+GL3ZB_Rev241Begin3D(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command);
+
+/** END_3D: the opaque chain, then the runs in the client's order. */
+void
+GL3ZB_Rev241End3D(struct ToriPlatformSDL2_Renderer_GL3* renderer);
+
+/** One world model's faces the client's way: a two-pass model's in priority
+ *  order as an opaque and a translucent run; any other model's opaque faces
+ *  into the order-free chain and its blended faces in depth-bucket order.
+ *  `projected` as GL3ZB_SubmitModel's. */
+void
+GL3ZB_SubmitModelRev241(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    struct ToriDraw_Scene* ctx,
+    uint32_t group,
+    uint32_t vertex_base,
+    int face_count,
+    bool projected);
+
+/** GL3ZB_BeginPass, clearing to 0: the client's key is larger when nearer. */
+void
+GL3ZB_BeginPassKeyed(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    int gl_x,
+    int gl_y,
+    int gl_w,
+    int gl_h);
+
+/** GL3ZB_BindDrawState, testing GL_GREATER. */
+void
+GL3ZB_BindDrawStateKeyed(struct ToriPlatformSDL2_Renderer_GL3* renderer);
+
+/** The queued runs to `staging` in the client's order: two-pass opaque runs,
+ *  then every other run as it arrived. */
+void
+GL3ZB_StageRunsInArrivalOrder(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint32_t* staging);
+
+/** Draw the staged runs: a two-pass run colour only then depth only, a
+ *  translucent run blending and writing depth. */
+void
+GL3ZB_DrawRuns(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint32_t index_base);
 
 #endif

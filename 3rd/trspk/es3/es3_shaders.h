@@ -104,66 +104,6 @@ static const char* const es3_world_vertex_shader =
     "    v_tile = vec2(a_texinfo.xy) * " ES3_SHADER_ATLAS_CELL ";\n"
     "}\n";
 
-/*
- * The WebGL2 (OSRS) renderer's world vertex stage: es3_world_vertex_shader,
- * plus the rev-241 client's depth key (docs/toridraw_rszbuffer.md).
- *
- * The client keys each corner at
- *
- *     key = 150.75377 / ((z - 2*bias - 75) * 1.0100503) + 1.0100503
- *
- * where z is the corner's camera depth and bias its face's
- * RSCache_Model.face_z_offsets byte (a_bias), and interpolates the key
- * linearly across the screen. Larger is nearer; its buffer clears to 0 and
- * a pixel is written only where its key is strictly greater.
- *
- * NDC depth is what the hardware interpolates linearly across the screen, so
- * writing an affine map of the key there per vertex gives every pixel the
- * client's key (up to the map), and the depth test keeps the early rejection
- * a written gl_FragDepth would lose. The renderer clears to 0 and tests
- * GL_GREATER, so window depth = key / KEY_MAX keeps the client's order and
- * its tie rule.
- *
- * KEY_MAX is the key at z = 76, one unit past the formula's pole at 75.
- * Nearer corners -- and any a large bias pulls there -- clamp to window depth
- * 1, the nearest there is. Corners at or inside the pole get the negative
- * key the client gives them, below the cleared 0, which never wins, and the
- * hardware clips those below NDC -1: the client draws nothing that near
- * either. The projection puts camera depth in clip w (es3_zbuffer_setup_projection).
- *
- * u_clock_pad.y is 0 for a pass that cannot be keyed this way (a parallel
- * projection has no depth in w): the matrix's own depth row stands, and the
- * renderer tests it the standard way for that pass.
- */
-static const char* const es3_world_osrs_vertex_shader =
-    ES3_VERTEX_PREAMBLE
-    "layout(location = 0) in vec3 a_position;\n"
-    "layout(location = 1) in vec2 a_texcoord;\n"
-    "layout(location = 2) in vec4 a_color;\n"
-    "layout(location = 3) in uvec4 a_texinfo;\n"
-    "layout(location = 4) in int a_bias;\n"
-    ES3_WORLD_BLOCK
-    "out vec4 v_color;\n"
-    "out vec2 v_texcoord;\n"
-    "out vec2 v_tile;\n"
-    "out vec2 v_wrap;\n"
-    "const float KEY_MAX = 150.75377 / 1.0100503 + 1.0100503;\n"
-    "void main() {\n"
-    "    gl_Position = u_matrix * vec4(a_position, 1.0);\n"
-    "    if (u_clock_pad.y > 0.5) {\n"
-    "        float depth = gl_Position.w - 2.0 * float(a_bias);\n"
-    "        float scaled = (depth - 75.0) * 1.0100503;\n"
-    "        if (abs(scaled) < 1.0e-4) scaled = -1.0e-4;\n"
-    "        float key = 150.75377 / scaled + 1.0100503;\n"
-    "        gl_Position.z = min(2.0 * key / KEY_MAX - 1.0, 1.0) * gl_Position.w;\n"
-    "    }\n"
-    "    v_color = a_color;\n"
-    "    vec2 anim = (vec2(a_texinfo.zw) - 128.0) * (1.0 / 128.0);\n"
-    "    v_texcoord = a_texcoord + u_clock * anim;\n"
-    "    v_wrap = step(0.001, abs(anim));\n"
-    "    v_tile = vec2(a_texinfo.xy) * " ES3_SHADER_ATLAS_CELL ";\n"
-    "}\n";
-
 #define ES3_WORLD_FRAGMENT_IN \
     "uniform sampler2D s_texture;\n" \
     "in vec4 v_color;\n" \
@@ -224,6 +164,209 @@ static const char* const es3_world_fast_cutout_fragment_shader =
     "    if (c.a < 0.002) discard;\n"
     "    fragColor = c;\n"
     "}\n";
+
+/*
+ * The WebGL 2 (Sailing OSRS) renderer's world vertex stage:
+ * es3_world_vertex_shader, plus the rev-241 client's depth key (docs/toridraw_rszbuffer.md).
+ *
+ * The client keys each corner at
+ *
+ *     key = 150.75377 / ((z - 2*bias - 75) * 1.0100503) + 1.0100503
+ *
+ * where z is the corner's camera depth and bias its face's
+ * RSCache_Model.face_z_offsets byte (a_bias), and interpolates the key
+ * linearly across the screen. Larger is nearer; its buffer clears to 0 and
+ * a pixel is written only where its key is strictly greater.
+ *
+ * NDC depth is what the hardware interpolates linearly across the screen, so
+ * writing an affine map of the key there per vertex gives every pixel the
+ * client's key (up to the map), and the depth test keeps the early rejection
+ * a written gl_FragDepth would lose. The renderer clears to 0 and tests
+ * GL_GREATER, so window depth = key / KEY_MAX keeps the client's order and
+ * its tie rule.
+ *
+ * KEY_MAX is the key at z = 76, one unit past the formula's pole at 75.
+ * Nearer corners -- and any a large bias pulls there -- clamp to window depth
+ * 1, the nearest there is. Corners at or inside the pole get the negative
+ * key the client gives them, below the cleared 0, which never wins, and the
+ * hardware clips those below NDC -1: the client draws nothing that near
+ * either. The projection puts camera depth in clip w (es3_zbuffer_setup_projection).
+ *
+ * u_clock_pad.y is 0 for a pass that cannot be keyed this way (a parallel
+ * projection has no depth in w): the matrix's own depth row stands, and the
+ * renderer tests it the standard way for that pass.
+ */
+static const char* const es3_world_os235sailing_vertex_shader =
+    ES3_VERTEX_PREAMBLE
+    "layout(location = 0) in vec3 a_position;\n"
+    "layout(location = 1) in vec2 a_texcoord;\n"
+    "layout(location = 2) in vec4 a_color;\n"
+    "layout(location = 3) in uvec4 a_texinfo;\n"
+    "layout(location = 4) in int a_bias;\n"
+    ES3_WORLD_BLOCK
+    "out vec4 v_color;\n"
+    "out vec2 v_texcoord;\n"
+    "out vec2 v_tile;\n"
+    "out vec2 v_wrap;\n"
+    "const float KEY_MAX = 150.75377 / 1.0100503 + 1.0100503;\n"
+    "void main() {\n"
+    "    gl_Position = u_matrix * vec4(a_position, 1.0);\n"
+    "    if (u_clock_pad.y > 0.5) {\n"
+    "        float depth = gl_Position.w - 2.0 * float(a_bias);\n"
+    "        float scaled = (depth - 75.0) * 1.0100503;\n"
+    "        if (abs(scaled) < 1.0e-4) scaled = -1.0e-4;\n"
+    "        float key = 150.75377 / scaled + 1.0100503;\n"
+    "        gl_Position.z = min(2.0 * key / KEY_MAX - 1.0, 1.0) * gl_Position.w;\n"
+    "    }\n"
+    "    v_color = a_color;\n"
+    "    vec2 anim = (vec2(a_texinfo.zw) - 128.0) * (1.0 / 128.0);\n"
+    "    v_texcoord = a_texcoord + u_clock * anim;\n"
+    "    v_wrap = step(0.001, abs(anim));\n"
+    "    v_tile = vec2(a_texinfo.xy) * " ES3_SHADER_ATLAS_CELL ";\n"
+    "}\n";
+
+/*
+ * The WebGL 2 (Post-TFA OSRS) renderer's world programs: the Sailing ones'
+ * depth key (es3_world_os235sailing_vertex_shader, above) plus the client's
+ * eye-ray texel lookup, from the projector its vertex carries
+ * (es3_os241tfa_vertex.h).
+ */
+/*
+ * Its world block: the shared one, plus the eye (es3_world_block_upload
+ * writes 24 floats; the other world programs declare only the first 20).
+ */
+#define ES3_WORLD_OS241TFA_BLOCK \
+    "layout(std140) uniform WorldBlock {\n" \
+    "    mat4 u_matrix;\n" \
+    "    vec4 u_clock_pad;\n" \
+    "    vec4 u_eye;\n" \
+    "};\n" \
+    "#define u_clock (u_clock_pad.x)\n"
+
+/*
+ * And its texel lookup, the client's [class171.method5476]: a textured
+ * pixel's texel is where the eye ray through it meets the face's texture
+ * projector plane, P + u*U + v*V, not where the corner was dropped onto that
+ * plane at bake time. Those agree for a face lying in the plane (almost all of
+ * them) and nowhere else: the Ocellus void's starfield sits on a plane below
+ * its faces and slides as the camera moves.
+ *
+ * With r = corner - eye and Q = P - eye = r + Prel, Cramer's rule on
+ * eye + t*r = P + u*U + v*V gives
+ *     u = -dot(r, Prel x V) / dot(r, U x V)
+ *     v = -dot(r, U x Prel) / dot(r, U x V)
+ * (the r x r terms vanish). All three dots are linear in the position across
+ * the face, so the hardware's perspective-correct interpolation hands every
+ * pixel its exact values, and the fragment stage only divides. A face with no
+ * projector (an untextured one, a tile) keeps its baked texcoord.
+ */
+static const char* const es3_world_os241tfa_vertex_shader =
+    ES3_VERTEX_PREAMBLE
+    "layout(location = 0) in vec3 a_position;\n"
+    "layout(location = 1) in vec2 a_texcoord;\n"
+    "layout(location = 2) in vec4 a_color;\n"
+    "layout(location = 3) in uvec4 a_texinfo;\n"
+    "layout(location = 4) in int a_bias;\n"
+    "layout(location = 5) in vec3 a_proj_p;\n"
+    "layout(location = 6) in vec3 a_proj_u;\n"
+    "layout(location = 7) in vec3 a_proj_v;\n"
+    ES3_WORLD_OS241TFA_BLOCK
+    "out vec4 v_color;\n"
+    "out vec2 v_texcoord;\n"
+    "out vec2 v_tile;\n"
+    "out vec2 v_wrap;\n"
+    "out vec3 v_ray;\n"
+    "out vec3 v_ray_anim;\n"
+    "const float KEY_MAX = 150.75377 / 1.0100503 + 1.0100503;\n"
+    "void main() {\n"
+    "    gl_Position = u_matrix * vec4(a_position, 1.0);\n"
+    "    if (u_clock_pad.y > 0.5) {\n"
+    "        float depth = gl_Position.w - 2.0 * float(a_bias);\n"
+    "        float scaled = (depth - 75.0) * 1.0100503;\n"
+    "        if (abs(scaled) < 1.0e-4) scaled = -1.0e-4;\n"
+    "        float key = 150.75377 / scaled + 1.0100503;\n"
+    "        gl_Position.z = min(2.0 * key / KEY_MAX - 1.0, 1.0) * gl_Position.w;\n"
+    "    }\n"
+    "    v_color = a_color;\n"
+    "    vec2 anim = (vec2(a_texinfo.zw) - 128.0) * (1.0 / 128.0);\n"
+    "    v_texcoord = a_texcoord + u_clock * anim;\n"
+    "    v_wrap = step(0.001, abs(anim));\n"
+    "    v_tile = vec2(a_texinfo.xy) * " ES3_SHADER_ATLAS_CELL ";\n"
+    "    vec3 r = a_position - u_eye.xyz;\n"
+    "    v_ray = vec3(dot(r, cross(a_proj_p, a_proj_v)),\n"
+    "                 dot(r, cross(a_proj_u, a_proj_p)),\n"
+    "                 dot(r, cross(a_proj_u, a_proj_v)));\n"
+    "    v_ray_anim = vec3(u_clock * anim, dot(a_proj_u, a_proj_u) > 0.0 ? 1.0 : 0.0);\n"
+    "}\n";
+
+/* The OSRS fragment programs: the shared samplers, from the eye-ray texcoord
+ * when the face has a projector. u is clamped and v wraps in the sampling
+ * below, as the client clamps u to 0..127 texels and wraps v; a ray parallel
+ * to the plane reads texel 0,0, as the client's does. */
+#define ES3_WORLD_OS241TFA_FRAGMENT_IN \
+    ES3_WORLD_FRAGMENT_IN \
+    "in vec3 v_ray;\n" \
+    "in vec3 v_ray_anim;\n"
+
+#define ES3_WORLD_OS241TFA_TEXCOORD \
+    "    vec2 tc = v_texcoord;\n" \
+    "    if (v_ray_anim.z > 0.5) {\n" \
+    "        tc = v_ray.z == 0.0 ? vec2(0.0) : -v_ray.xy / v_ray.z;\n" \
+    "        tc += v_ray_anim.xy;\n" \
+    "    }\n"
+
+#define ES3_WORLD_OS241TFA_FRAGMENT_SAMPLE \
+    ES3_WORLD_OS241TFA_TEXCOORD \
+    "    vec2 local = mix(tc, fract(tc), v_wrap);\n" \
+    "    local.x = clamp(local.x, 0.008, 0.992);\n" \
+    "    local.y = clamp(fract(local.y), 0.008, 0.992);\n" \
+    "    vec4 c = v_color * texture(s_texture, v_tile + local * " ES3_SHADER_ATLAS_CELL ");\n"
+
+#define ES3_WORLD_OS241TFA_FRAGMENT_FAST_SAMPLE \
+    "    vec4 c;\n" \
+    "    if (v_tile.x == 0.0 && v_tile.y == 0.0) { c = v_color; }\n" \
+    "    else {\n" \
+    ES3_WORLD_OS241TFA_TEXCOORD \
+    "        vec2 local = mix(tc, fract(tc), v_wrap);\n" \
+    "        local.x = clamp(local.x, 0.008, 0.992);\n" \
+    "        local.y = clamp(fract(local.y), 0.008, 0.992);\n" \
+    "        c = v_color * texture(s_texture, v_tile + local * " ES3_SHADER_ATLAS_CELL ");\n" \
+    "    }\n"
+
+static const char* const es3_world_os241tfa_plain_fragment_shader =
+    ES3_FRAGMENT_PREAMBLE
+    ES3_WORLD_OS241TFA_FRAGMENT_IN
+    "void main() {\n"
+    ES3_WORLD_OS241TFA_FRAGMENT_SAMPLE
+    "    fragColor = c;\n"
+    "}\n";
+
+static const char* const es3_world_os241tfa_cutout_fragment_shader =
+    ES3_FRAGMENT_PREAMBLE
+    ES3_WORLD_OS241TFA_FRAGMENT_IN
+    "void main() {\n"
+    ES3_WORLD_OS241TFA_FRAGMENT_SAMPLE
+    "    if (c.a < 0.002) discard;\n"
+    "    fragColor = c;\n"
+    "}\n";
+
+static const char* const es3_world_os241tfa_fast_plain_fragment_shader =
+    ES3_FRAGMENT_PREAMBLE
+    ES3_WORLD_OS241TFA_FRAGMENT_IN
+    "void main() {\n"
+    ES3_WORLD_OS241TFA_FRAGMENT_FAST_SAMPLE
+    "    fragColor = c;\n"
+    "}\n";
+
+static const char* const es3_world_os241tfa_fast_cutout_fragment_shader =
+    ES3_FRAGMENT_PREAMBLE
+    ES3_WORLD_OS241TFA_FRAGMENT_IN
+    "void main() {\n"
+    ES3_WORLD_OS241TFA_FRAGMENT_FAST_SAMPLE
+    "    if (c.a < 0.002) discard;\n"
+    "    fragColor = c;\n"
+    "}\n";
+
 
 /*
  * a_texinfo is the per-vertex sampler select (struct ES3VertexUI.sel): 0

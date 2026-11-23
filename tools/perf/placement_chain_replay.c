@@ -90,7 +90,7 @@ load(const char* path)
         b->active = bh.active;
         if( bh.has_cpu )
         {
-            b->cpu = trspk_batch16_create(TRSPK_VERTEX_FORMAT_GLES2);
+            b->cpu = trspk_batch16_create(TRSPK_VERTEX_FORMAT_GLES2_OS1);
             if( !b->cpu )
                 fail("batch allocation failed");
             free(b->cpu->entries);
