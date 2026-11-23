@@ -216,6 +216,11 @@ def load_overlays(exclude=None):
             continue
         if skip and fname == skip:
             continue
+        # tools/port_weapon_defend.py's output states blocks only. Read as an overlay it would mark
+        # every obj in it "overlaid" and the next --write would drop that obj's rsmod attacks; the
+        # writer leaves those objs' rsmod block out instead (cmd_write, recorded_blocks).
+        if fname == "defend_anims_recorded.obj":
+            continue
         name = None
         with open(os.path.join(BAS_DIR, fname), encoding="utf-8") as fh:
             for line in config_text.filter_lines(fh):
@@ -588,12 +593,27 @@ def cmd_write(src, path, shard, families="all"):
             return is_sound_param(param)
         return True
 
+    # A block the recordings decide is tools/port_weapon_defend.py's (defend_anims_recorded.obj):
+    # rsmod's is left out for those objs, so one file states each block (frostmoon_spear: rsmod
+    # human_zamorakspear_block, RSProx 4509 human_staff_block 4/4).
+    recorded_blocks = set()
+    rec_path = os.path.join(os.path.dirname(path), "defend_anims_recorded.obj")
+    if os.path.exists(rec_path):
+        cur = None
+        for line in open(rec_path, encoding="utf-8"):
+            m = re.match(r"^\[([^\]]+)\]", line)
+            if m:
+                cur = m.group(1)
+            elif cur and line.startswith("param=defend_anim,"):
+                recorded_blocks.add(cur)
+
     written = 0
     for name in names:
         r = src.row(name)
         if not r["fx"]:
             continue
-        emit = [(p, v) for p, (v, _why) in sorted(r["fx"].items()) if wanted(p)]
+        emit = [(p, v) for p, (v, _why) in sorted(r["fx"].items()) if wanted(p)
+                and not (p == "defend_anim" and name in recorded_blocks)]
         if not emit:
             continue
         lines.append("[%s]" % name)

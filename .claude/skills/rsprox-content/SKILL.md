@@ -19,8 +19,9 @@ the script command that emits it. Keep it open.
 the same session's three teleport-tablet breaks unbound in our tree (Break did nothing), its ten
 ladder climbs, chopping, drinking, drops and pickups never looked at, the battlefield's
 npc-vs-npc fight found only by accident, and the journal never checked. Every one was in the
-recording. A quest is done when every row of steps 1-3 and every recorded npc-info block kind
-(step 12) has a verdict, not when the quest gate is green.
+recording. A quest is done when every row of steps 1-3 (1b included: every npc type added and
+every UNUSED cache asset) and every recorded npc-info block kind (step 12) has a verdict, not
+when the quest gate is green.
 
 1. **Inventory every action the recorder took.**
    `python3 tools/rsprox/rsprox_actions.py <idx.txt>` lists each distinct op (npc, loc, obj,
@@ -35,6 +36,33 @@ recording. A quest is done when every row of steps 1-3 and every recorded npc-in
    - **the recorder's own kit** (their weapon's swing, their autocast) -> say so.
    Never filter inventory clicks (`if_buttonx com=inventory`) or `opheld` out of an event
    list: that is exactly where the tablets were.
+1b. **Every npc TYPE the server added, in every session, and everything the cache names after
+   the content: not only the ones the recorder clicked.** Step 1 lists the recorder's clicks.
+   Content that comes TO the player is not in it: an assassin a carried item calls, an npc that
+   spawns on a timer, a random attacker, a messenger. Desert Treasure I (rebuilt 2026-11-21) shipped without the
+   Stranger, npc 685 `fourdiamonds_assasin`. He spawned in index 4628 [2962] ("That Ice Diamond is
+   mine, thief!"), fought the recorder for 200 ticks and set a quest varbit on his death. It
+   happened in a Grand Exchange stretch that no section's tick window covered. Our only trace was
+   two constants nothing read. Run all three checks, before any section work:
+   - `python3 tools/rsprox/rsprox_npc_types.py <every session's txt> --quest '<the quest's
+     internal prefixes>' --unscripted` lists every type added, with its first add, any
+     `[say]` on the add, and whether our content scripts it (`SCRIPTED` / `SPAWNED` / only
+     `GENERATED` stats / `NONE`). Give every row a verdict in the doc: this content (a
+     section), a generic world npc, another player's follower or pet, or the recorder's own.
+     A quest-named type (`<-- quest`) that is not `SCRIPTED` is a missing mechanic until shown
+     otherwise. Read its recorded life (loop step 3) and the wiki page for the npc.
+   - `python3 tools/rsprox/content_asset_inventory.py --names '<the quest's internal prefixes,
+     npcs and places>' --unused` for EVERY port, whatever it was ported from (LostCity,
+     2009scape, the wiki, nothing). Find the internal prefixes in the cache: DT1's are
+     `fourdiamonds_`, `fd_`, `deserttreasure_`, not the quest's title. At DT1's commit the
+     Stranger's only mention was the generated stats block, which this tool does not count:
+     it would have printed `UNUSED 685 fourdiamonds_assasin`. It was not run, because §16
+     asked for it only on LostCity ports.
+   - Grep the content's own files for names declared and never read (`^\^` constants, `.varn`,
+     `.varp`, procs). `^dt_stranger_interval` sat in `deserttreasure.constant` with no reader:
+     a declaration with no use is unfinished work, so find what it was for.
+   Then read the wiki page of every npc the quest's page names, including its "random" or
+   "may appear" encounters, and match each against the type list.
 1c. **Every stance the player was put in, over the WHOLE recording.** The default transcript
    prints no player `[bas]`, so a crawl, a seat, a cart, wading or a carried prop is invisible
    in it and in every tool that reads it. Transcribe every session with `--bas`
@@ -1160,7 +1188,9 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
    carrying an npc's name, quest-named locs, an npc type nothing spawns, a varbit. Read each
    carrier whose switch is NEVER WRITTEN as a form the player can never see change (the tailored
    bush, Juliet's balcony). Pass the npcs' names and the area's prefix too (`fai_varrock_*`):
-   Jagex names assets after the npc, the place or the update.
+   Jagex names assets after the npc, the place or the update. This step is not only for LostCity
+   ports. Every port runs it (step 1b of "Porting a quest"): a 2009scape/wiki port of Desert
+   Treasure I skipped it and shipped without the Stranger.
 3. **Find recordings by content, not by completion.**
    - Search the quest varp, every npc in the cast (`search npc ... --any`), its items and locs.
    - Look for a queued upload in `latest 30`; the indexer may be down. Index 4361, the only
@@ -1221,6 +1251,11 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
 - **The scope is the recording, not the files.** Run `rsprox_actions.py` before anything and
   give every action and every teleport a verdict; a click that is "not the quest" (a tablet
   break) still has to work (Tree Gnome Village, 2026-10-27: no standard tablet had a Break).
+- **Content that comes to the player is in no click list, and it falls between sections.** Run
+  `rsprox_npc_types.py` over every session and `content_asset_inventory.py --unused`, whatever
+  the port came from (step 1b). Desert Treasure I's Stranger was recorded in full (4628
+  [2962..3170]) in a Grand Exchange stretch no section covered, and shipped missing
+  (2026-11-21). A constant nothing reads is a mechanic someone started and never built.
 - **Every teleport and maplink is captured from the recordings, by every route** (§2b): the
   submenu (`if_subop`), the worn tab and the backpack op of each item, landings pooled across
   sessions. The games necklace and ring of dueling were still 2004 ports on 2026-10-29.

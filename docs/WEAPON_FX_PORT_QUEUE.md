@@ -1433,3 +1433,25 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   all in a single-target dispatch. Every simplification and every broadened
   gate is named in its own file's header, not silently assumed — read the
   file before trusting a specific number out of it.
+
+## Block animations from RSProx (2026-11-23)
+
+Every obj without a block in LostCity's or rsmod's data blocked bare-handed: the generated
+layer states `defend_anim,human_unarmedblock` for all 32,865. A shield without one let the
+weapon's block show. Found on the Desert Treasure I audit: the dragon scimitar's block, 4628 [3082].
+
+`tools/port_weapon_defend.py --write` mines every cached `--bas` transcript (351). For each splat
+on a player, it reads the hands they wore and the sequence on that tick. It writes
+`skill_combat/configs/bas/defend_anims_recorded.obj`:
+
+- **38 recorded objs** (the dragon scimitar, thunder khopesh, sulphur blades, the axes and
+  pickaxes, blowpipes, sceptres, the non-dragon parrying daggers, the elemental, dragonfire and
+  spectral shields, the custodian antler guard, ...).
+- **264 category fills**: 200 shields, 34 slash swords, 14 spears and halberds, 13 defenders.
+  Category 18 also holds the Leagues trophies, a pumpkin lantern and two dummy knife off-hands,
+  so they block like shields now.
+
+107 recorded objs agree with the existing overlays. One contradicts rsmod: the frostmoon spear is
+`human_staff_block` 4/4 in 4509, against rsmod's `human_zamorakspear_block`. `port_weapon_fx.py
+--write` now leaves rsmod's block out for any obj the recorded file states, and does not read that
+file as an overlay (it states blocks only).

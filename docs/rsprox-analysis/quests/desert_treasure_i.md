@@ -20,6 +20,7 @@ Nothing here is from another recorder; no other session in the index holds any o
 | ice: the troll child, the gate, the cold, the trolls, the path, the parents | 4628 | `dt_ice.rs2` | `desert_treasure_i_ice.md` | `deserttreasure.lua` |
 | Kamil | 4628 [1507..1700] | `dt_kamil.rs2` | `desert_treasure_i_kamil.md` | `_dt_kamil.lua` |
 | blood: Malak, Ruantun, the pot, Entrana, the tomb | 4628, 4629 | `dt_blood.rs2` | `desert_treasure_i_blood.md` | `deserttreasure.lua` |
+| the Stranger (the assassin a diamond calls; added 2026-11-23, missed by the first rebuild) | 4628 [1680], [2962..3170]; 413; six ownerless sessions | `dt_stranger.rs2` | `desert_treasure_i_stranger.md` | `_dt_stranger.lua` |
 | Malak's tithe scene | 4628 [3273..3283] | `dt_malak_scene.rs2` | below | `_dt_malak.lua` |
 | Dessous, the unkillable one and the real one | 4629 [1482..1682], [3404] | `dt_dessous.rs2` | `desert_treasure_i_dessous.md` | `_dt_dessous.lua` |
 | pillars, pyramid, Azzanadra, completion, Eblis afterwards | 4629 [4356..5922] | `dt_pyramid.rs2`, `dt_start_eblis_complete.rs2` | `desert_treasure_i_pyramid.md` | `_dt_pyramid.lua` |
@@ -106,6 +107,8 @@ walk ended, and a pit took it 27 times running on one roll. Damis's first form i
 every 24 ticks: on one roll a single press left the character 300 ticks beside him without a kill.
 `_dt_pyramid.lua` 67, `_dt_malak.lua` 6, `_dt_migrate.lua` 3, `_dt_journal.lua` 24,
 `_dt_fareed.lua` 12, `_dt_damis.lua` 8, `_dt_dessous.lua` 21, `_dt_kamil.lua` 12: all passing.
+`_dt_stranger.lua` 11 on seven rolls, `_dt_mummies.lua` 9 on six (2026-11-23), and `deserttreasure.lua` 447/447 again with
+the Stranger's attempts wired in (one roll).
 `_dt_kamil.lua` and `_dt_pyramid.lua` were each run on three more rolls after two test faults were
 fixed: a lost press on Protect from Melee (Kamil then hit through the wrong prayer and the
 character died) and the third floor's ladder pressed from too far, as in the whole-quest test.
@@ -133,6 +136,12 @@ Per section in each document. Across the quest:
   read 0).
 - `ancient_sceptre.rs2` (Eblis and the ancient icon) is invented text.
 - The start section's npcs' facing and wander were not diffed block by block.
+- **The pyramid's mummies**: their adds were fixed 2026-11-23 ("Rawr!", the face, the emerge seq on
+  a rotation-1 lid; `_dt_mummies.lua`), but the T+1 face reset on the glide does not reach the
+  wire (engine: `npc_face_settle`), and the rest of their npc info and their combat were never
+  diffed. The world-spawned `deserttreasure_mummy_2..5` (211 adds in 4623 and 4629) run on no
+  script of ours.
+- **The Stranger's** chance per attempt, boss-area radii and poison: `desert_treasure_i_stranger.md`.
 - Two other quest tests press the Shantay carpet's Travel and were updated to the new menu.
   `icthlarin.lua`: its carpet rows pass (its one failing row, `finish-contact-no`, is elsewhere).
   `ratcatchers.lua` fails 29 rows from its second on (a scroll's box kind, the cat, Shantay's
