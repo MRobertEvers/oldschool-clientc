@@ -1,5 +1,6 @@
 #include "task_world_load.h"
 
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
 #include "engine/world_builder/world_builder.h"
@@ -120,10 +121,10 @@ struct Task_WorldLoad
     int pass;
     int added;
     /*
-     * Siblings queued and not yet ended. Every stage fans its loads out
-     * against this and then joins on it (PT_TASK_JOIN), so a stage ends when
-     * its loaders END -- a loader that exits on a record the cache cannot
-     * serve counts the same as one that landed. The wait this replaced was on
+     * Records asked of the assets table and not yet ended. Every stage asks
+     * for its records against this and then waits on it (TASK_AWAIT_ASSETS),
+     * so a stage ends when their loads END -- a load that ends on a record
+     * the cache cannot serve counts the same as one that landed. The wait this replaced was on
      * RESIDENCY with a 600-pass budget, and a single unservable id spent the
      * whole budget, two passes a frame: six seconds per rebuild on a local
      * disk, with nothing on the wire.
@@ -142,41 +143,28 @@ struct Task_WorldLoad
 };
 
 /*
- * A residency test and a loader factory, both shaped (provider, id).
- *
- * Every stage of the load below is the same three steps over a different kind
- * of record -- ask what is missing, queue it, join it -- so the stages say
- * which kind and share the rest.
- */
-typedef bool (*WorldLoadHasFn)(struct CacheProvider*, int);
-typedef struct ToriRS_Task* (*WorldLoadMakeFn)(struct CacheProvider*, int);
-
-/*
- * Queue a loader for every id in `ids` that is not already resident.
- *
- * Queued as SIBLINGS of this task rather than awaited inside it, which is the
- * whole point: they are independent reads, so the runner can have them all on
- * the wire at once instead of one per round trip. Nothing downstream of a
- * cache read cares which of them lands first. Each is counted on
- * `self->pending`, which is what the stage then joins on.
+ * Ask the assets table for every id in `ids` as a `kind` record (with
+ * `variant`, the config table for ASSET_KIND_CONFIG), counted on
+ * `self->pending`, which is what the stage then waits on. The table skips one
+ * that is resident and keeps one load in flight for one that is not, so every
+ * record of a stage is on the wire at once, and a record another task is
+ * already loading is not read twice.
  */
 static void
-world_load_fanout(
+world_load_ask(
     struct Task_WorldLoad* self,
     struct WorldLoadIdSet const* ids,
-    WorldLoadHasFn has,
-    WorldLoadMakeFn make)
+    enum AssetKind kind,
+    int variant)
 {
     assert(self);
-    assert(self->queue);
     assert(ids);
     for( int i = 0; i < ids->count; i++ )
-    {
-        if( has(self->provider, ids->items[i]) )
-            continue;
-        ToriRS_TaskQueue_AddParallelPoolSubTask(self->queue, make(self->provider, ids->items[i]), &self->pending);
-    }
+        (void)Assets_Await(
+            self->provider->assets, AssetKey_Make(kind, ids->items[i], variant), &self->pending);
 }
+
+#define PT_WORLD_LOAD_WAIT() TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending)
 
 /*
  * Pull every varbit/varp morph target into `locs`.
@@ -358,8 +346,8 @@ Task_WorldLoad_Run(
      * round trips deep -- the same fan-out every stage below uses, spelled out
      * here because a map is addressed by (x, z) rather than by an id.
      *
-     * Resident squares are skipped, the same way the underlay, flotype and
-     * texture loads below skip what the provider already holds. Without that a
+     * Resident squares are skipped (the assets table asks the cache first),
+     * the same way the underlay, flotype and texture loads below are. Without that a
      * square is re-read on every rebuild, which is wasted IO for the game --
      * and wrong for anything that puts a square into the provider from
      * somewhere other than the cache. The map editor does exactly that: it
@@ -370,18 +358,15 @@ Task_WorldLoad_Run(
      */
     for( self->c = 0; self->c < self->chunk_count; self->c++ )
     {
-        int const map_x = self->chunks_xz[self->c * 2];
-        int const map_z = self->chunks_xz[self->c * 2 + 1];
-        int const map_id = CacheProvider_MapId(map_x, map_z);
+        int const map_id =
+            CacheProvider_MapId(self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]);
 
-        if( !CacheProvider_MapTerrainHas(p, map_id) )
-            ToriRS_TaskQueue_AddParallelPoolSubTask(
-                self->queue, CreateTask_MapTerrainLoad(p, map_x, map_z), &self->pending);
-        if( !CacheProvider_MapSceneryHas(p, map_id) )
-            ToriRS_TaskQueue_AddParallelPoolSubTask(
-                self->queue, CreateTask_MapSceneryLoad(p, map_x, map_z), &self->pending);
+        (void)Assets_Await(
+            p->assets, AssetKey_Make(ASSET_KIND_MAP_TERRAIN, map_id, 0), &self->pending);
+        (void)Assets_Await(
+            p->assets, AssetKey_Make(ASSET_KIND_MAP_SCENERY, map_id, 0), &self->pending);
     }
-    PT_TASK_JOIN(pending);
+    PT_WORLD_LOAD_WAIT();
     /* Its loader has ended, so a square still absent is one the cache does
      * not hold -- the loader said why on its own line. */
     for( self->c = 0; self->c < self->chunk_count; self->c++ )
@@ -408,10 +393,10 @@ Task_WorldLoad_Run(
      * long enough to be worth stopping for on a queue that is given time. On
      * a drained queue this never yields. */
     PT_TASK_YIELD_IF_SPENT();
-    world_load_fanout(self, &self->underlays, CacheProvider_UnderlayHas, CreateTask_UnderlayLoad);
-    world_load_fanout(self, &self->overlays, CacheProvider_FlotypeHas, CreateTask_FlotypeLoad);
-    world_load_fanout(self, &self->locs, CacheProvider_LocationHas, CreateTask_LocLoad);
-    PT_TASK_JOIN(pending);
+    world_load_ask(self, &self->underlays, ASSET_KIND_CONFIG, ASSET_CONFIG_UNDERLAY);
+    world_load_ask(self, &self->overlays, ASSET_KIND_CONFIG, ASSET_CONFIG_FLOTYPE);
+    world_load_ask(self, &self->locs, ASSET_KIND_CONFIG, ASSET_CONFIG_LOC);
+    PT_WORLD_LOAD_WAIT();
 
     /*
      * 3. Overlay textures, alongside the loc morph closure.
@@ -426,7 +411,7 @@ Task_WorldLoad_Run(
         if( flo && flo->texture >= 0 )
             idset_add(&self->textures, flo->texture);
     }
-    world_load_fanout(self, &self->textures, CacheProvider_TextureHas, CreateTask_TextureLoad);
+    world_load_ask(self, &self->textures, ASSET_KIND_TEXTURE, 0);
 
     /* 3b. Morph closure: a loc the map names may resolve to a transform target at rebuild time,
      * and that target can morph again. Collect (CPU only) then load, until nothing new appears.
@@ -437,10 +422,10 @@ Task_WorldLoad_Run(
         if( self->added <= 0 )
             break;
 
-        world_load_fanout(self, &self->locs, CacheProvider_LocationHas, CreateTask_LocLoad);
-        PT_TASK_JOIN(pending);
+        world_load_ask(self, &self->locs, ASSET_KIND_CONFIG, ASSET_CONFIG_LOC);
+        PT_WORLD_LOAD_WAIT();
     }
-    PT_TASK_JOIN(pending);
+    PT_WORLD_LOAD_WAIT();
 
     for( self->i = 0; self->i < self->locs.count; self->i++ )
     {
@@ -475,8 +460,8 @@ Task_WorldLoad_Run(
      * finish, App_WorldViewLoadFinish). `seqs` is still collected, for the
      * count below.
      */
-    world_load_fanout(self, &self->models, CacheProvider_ModelHas, CreateTask_ModelLoad);
-    PT_TASK_JOIN(pending);
+    world_load_ask(self, &self->models, ASSET_KIND_MODEL, 0);
+    PT_WORLD_LOAD_WAIT();
     /* The face-texture walk below reads every face of every model just
      * landed. */
     PT_TASK_YIELD_IF_SPENT();
@@ -508,8 +493,8 @@ Task_WorldLoad_Run(
                 CacheProvider_TextureIsSd(p, loc->retextures_to[r]) )
                 idset_add(&self->textures, loc->retextures_to[r]);
     }
-    world_load_fanout(self, &self->textures, CacheProvider_TextureHas, CreateTask_TextureLoad);
-    PT_TASK_JOIN(pending);
+    world_load_ask(self, &self->textures, ASSET_KIND_TEXTURE, 0);
+    PT_WORLD_LOAD_WAIT();
 
     TORIRS_LOG("world_load: %d chunks, %d underlays, %d overlays, %d textures, %d locs, %d models, "
         "%d seqs\n",
@@ -567,6 +552,9 @@ static void
 Task_WorldLoad_Free(struct ToriRS_Task* task_base)
 {
     struct Task_WorldLoad* self = (struct Task_WorldLoad*)task_base;
+    /* Freed while it waits on the table (a queue freed whole). */
+    if( self->pending > 0 )
+        Assets_Unjoin(self->provider->assets, &self->pending);
     idset_free(&self->underlays);
     idset_free(&self->overlays);
     idset_free(&self->textures);
@@ -727,8 +715,9 @@ TaskWorldLoad_Cancel(
     assert(queue);
     assert(task);
     assert(task->vtable == &Task_WorldLoad_VTable);
-    /* Its loaders outlive it; nothing may count them into freed memory. */
-    ToriRS_TaskQueue_DetachJoin(queue, &self->pending);
+    /* Its loads outlive it; nothing may count them into freed memory. */
+    if( self->pending > 0 )
+        Assets_Unjoin(self->provider->assets, &self->pending);
     self->report = NULL;
     /* It owns no read of its own (every read is a sibling's), so its item is
      * empty and the queue may unlink it at any yield; that decrements the

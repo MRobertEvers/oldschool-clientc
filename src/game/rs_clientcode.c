@@ -189,7 +189,8 @@ design_preview_rebuild(struct App* app)
         return 0;
 
     /* The kit table is only walkable once the idk configs are resident, and
-     * the preview mount is what prefetches them (PackAssetsLoad needs_player). */
+     * the preview mount's model task is what prefetches them (Task_MountModel's
+     * default appearance, CreateTask_PlayerAppearanceLoad). */
     if( !RS_IdkDesign_EnsureResolved(design, app->provider) )
         return 0;
 

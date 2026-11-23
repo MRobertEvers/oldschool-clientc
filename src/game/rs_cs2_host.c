@@ -2546,6 +2546,7 @@ RS_CS2Host_Free(struct RS_CS2Host* host)
     assert(host);
     RS_CS2TaskPool_Free(&host->run_task_pool);
     RS_CS2TaskPool_Free(&host->timer_task_pool);
+    RS_CS2TaskPool_Free(&host->wait_task_pool);
     RS_CS2ClientState_Free(&host->client);
     RS_ClanStore_Free(&host->clan);
     RS_GroupStore_Free(&host->groups);
@@ -13313,7 +13314,7 @@ rs_cs2_host_exec_dispatch(
 #define RS_CS2_HOST_CKPT_WORLD_FIELDS(F) F(local_coord) F(local_pid) F(dest_coord) F(hover_coord)
 
 #define RS_CS2_HOST_CKPT_LIVE_FIELDS(F)                                                            \
-    F(run_task_pool) F(timer_task_pool)                                                            \
+    F(run_task_pool) F(timer_task_pool) F(wait_task_pool)                                          \
     F(tree) F(provider) F(invs) F(varps) F(stats) F(social) F(chat) F(chat_filter_mode) F(bridge)  \
     F(events_override_for_component) F(events_user) F(if_written) F(if_written_user)               \
     F(script_callback) F(script_callback_user) F(script_callback_running) F(loc_at_coord)          \
@@ -13400,6 +13401,7 @@ RS_CS2Host_CheckpointTake(struct RS_CS2Host const* host)
     /* The pools hold the live host's finished tasks, not the copy's. */
     memset(&cp->run_task_pool, 0, sizeof(cp->run_task_pool));
     memset(&cp->timer_task_pool, 0, sizeof(cp->timer_task_pool));
+    memset(&cp->wait_task_pool, 0, sizeof(cp->wait_task_pool));
     return cp;
 }
 

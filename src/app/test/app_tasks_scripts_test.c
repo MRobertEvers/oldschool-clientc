@@ -136,6 +136,9 @@ fixture_init(struct Fixture* fx)
     Assets_SetLoader(app->assets, ASSET_KIND_MODEL, &loader);
     app->frame_runner.queue = ToriRS_TaskQueue_New();
     app->packet_runner.queue = ToriRS_TaskQueue_New();
+    /* As App_Init: a loader's siblings, and a script's wait task, go on the
+     * parallel queue. */
+    CacheProvider_SetAssetQueue(app->provider, app->frame_runner.queue);
     fx->io = ToriRS_IOBatch_New();
     RS_ClientScriptQueue_Init(&app->pending_clientscripts);
 
@@ -157,6 +160,21 @@ fixture_init(struct Fixture* fx)
     InvManager_Init(&fx->invs);
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &fx->invs, NULL, NULL, NULL);
     g_started = 0;
+}
+
+/* One pass of the parallel queue by hand: every task that is not parked. */
+static void
+fixture_step_frame_queue(struct Fixture* fx)
+{
+    struct ToriRS_Task* task = fx->app->frame_runner.queue->head;
+
+    while( task )
+    {
+        struct ToriRS_Task* next = task->next;
+        if( !task->parked )
+            (void)ToriRS_TaskQueue_RunTask(fx->app->frame_runner.queue, fx->io, task);
+        task = next;
+    }
 }
 
 static void
@@ -660,7 +678,7 @@ test_a_script_gone_mid_read_is_forgotten(void)
     int32_t child;
     int child_id;
 
-    printf("TEST: a script that goes away while it waits on a required read is forgotten by the table\n");
+    printf("TEST: a script that goes away while it waits on a required read leaves its wait counting into nothing\n");
 
     /* Freed mid-wait: a gosub to a script the cache has not got. */
     {
@@ -675,14 +693,23 @@ test_a_script_gone_mid_read_is_forgotten(void)
         task = CreateTask_CS2RunScript(&fx.app->host, &script, -1, -1, NULL, 0);
         fx.io->task = task;
         CHECK(task_run(task, fx.io) == PT_YIELDED, "the script did not stop for its callee");
+        /* Its wait task is queued beside it; that task asks the table. */
+        CHECK(fx.app->frame_runner.queue->head && !fx.app->frame_runner.queue->head->next,
+            "the script did not queue one wait task");
+        fixture_step_frame_queue(&fx);
         CHECK(Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG) == 1,
-            "the script's read is not counted on the table (%d)",
+            "the wait task's read is not counted on the table (%d)",
             Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG));
         task_free(task);
-        CHECK(Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG) == 0,
-            "the table still counts a load into a freed script");
-        /* The load's end: nothing is counted into the freed task. */
+        CHECK(fx.app->frame_runner.queue->head && !fx.app->frame_runner.queue->head->join,
+            "the wait task still counts into the freed script");
+        /* The load's end: the wait task ends on its own, counting into
+         * nothing. */
         Assets_Finished(fx.app->assets, callee, false);
+        CHECK(Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG) == 0,
+            "the table still counts the ended load");
+        fixture_step_frame_queue(&fx);
+        CHECK(!fx.app->frame_runner.queue->head, "the wait task did not end with its load");
         fixture_free(&fx);
     }
 
@@ -719,6 +746,7 @@ test_a_script_gone_mid_read_is_forgotten(void)
         task = CreateTask_CS2RunScript(&fx.app->host, &script, child_id, dot_id, NULL, 0);
         fx.io->task = task;
         CHECK(task_run(task, fx.io) == PT_YIELDED, "the script did not stop for its callee");
+        fixture_step_frame_queue(&fx);
         CHECK(Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG) == 1,
             "the callee read is not counted on the table (%d)",
             Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG));
@@ -733,7 +761,11 @@ test_a_script_gone_mid_read_is_forgotten(void)
         Assets_Finished(fx.app->assets, callee, true);
         CHECK(Assets_JoinCount(fx.app->assets, ASSET_KIND_CONFIG) == 0,
             "the landed callee is still counted");
+        /* The wait task ends, which is what the script is joined on. */
+        fixture_step_frame_queue(&fx);
+        CHECK(!fx.app->frame_runner.queue->head, "the wait task did not end with its load");
         ToriRS_IOBatch_Reset(fx.io);
+        fx.io->task = task;
         CHECK(task_run(task, fx.io) == PT_ENDED, "the script did not carry on through its callee");
         CHECK(fx.app->tree->components[child].colour == 0,
             "a write through the stale context reached the component that took its id");

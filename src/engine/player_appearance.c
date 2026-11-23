@@ -126,14 +126,12 @@ Task_PlayerAppearanceLoad_Run(
      * load idk" line. */
     for( self->scan_i = 0; self->scan_i < PLAYER_IDK_SCAN_MAX; self->scan_i++ )
     {
-        if( !CacheProvider_IdkHas(self->provider, self->scan_i) && self->assets )
+        if( !CacheProvider_IdkHas(self->provider, self->scan_i) )
             (void)Assets_Await(
                 self->assets,
                 AssetKey_Make(ASSET_KIND_CONFIG, self->scan_i, ASSET_CONFIG_IDK),
                 &self->pending);
-        PT_TASK_JOIN(pending);
-        if( !CacheProvider_IdkHas(self->provider, self->scan_i) && !self->assets )
-            PT_TASK_AWAITSELF_IF(CreateTask_IdkLoad(self->provider, self->scan_i));
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
         if( !CacheProvider_IdkHas(self->provider, self->scan_i) )
             break;
         player_try_record_kit(self, self->scan_i);
@@ -151,11 +149,8 @@ Task_PlayerAppearanceLoad_Run(
             self->kits[5],
             self->kits[6]);
 
-    /* Load every model referenced by the chosen kits: as siblings, all on
-     * the wire at once, rather than one awaited round trip per model. The
-     * ids are distinct by construction (one kit per body part, and a kit's
-     * models are its own), so nothing is queued twice. */
-    assert(self->provider->asset_queue);
+    /* Every model the chosen kits name, asked of the table together: all on
+     * the wire at once, rather than one awaited round trip per model. */
     for( self->model_part = 0; self->model_part < PLAYER_APPEARANCE_PARTS; self->model_part++ )
     {
         for( self->model_i = 0;
@@ -164,20 +159,12 @@ Task_PlayerAppearanceLoad_Run(
         {
             int const model_id =
                 player_kit_model_id(self->provider, self->kits[self->model_part], self->model_i);
-            if( self->assets )
-            {
-                if( model_id >= 0 )
-                    (void)Assets_Await(
-                        self->assets, AssetKey_Make(ASSET_KIND_MODEL, model_id, 0), &self->pending);
-                continue;
-            }
-            ToriRS_TaskQueue_AddParallelPoolSubTask(
-                self->provider->asset_queue,
-                CreateTask_ModelLoad(self->provider, model_id),
-                &self->pending);
+            if( model_id >= 0 )
+                (void)Assets_Await(
+                    self->assets, AssetKey_Make(ASSET_KIND_MODEL, model_id, 0), &self->pending);
         }
     }
-    PT_TASK_JOIN(pending);
+    TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
 
     PT_END(&self->pt);
 }
@@ -187,8 +174,8 @@ Task_PlayerAppearanceLoad_Free(struct ToriRS_Task* base)
 {
     struct Task_PlayerAppearanceLoad* self = (struct Task_PlayerAppearanceLoad*)base;
     /* Freed while it waits on the table: it must not count on a join that is
-     * gone. (Siblings it queued itself detach on their own.) */
-    if( self->assets && self->pending > 0 )
+     * gone. */
+    if( self->pending > 0 )
         Assets_Unjoin(self->assets, &self->pending);
     ToriMem_Free(ToriMem_Assets(), base);
 }
@@ -199,18 +186,17 @@ static struct ToriRS_TaskVTable Task_PlayerAppearanceLoad_VTable = {
 };
 
 struct ToriRS_Task*
-CreateTask_PlayerAppearanceLoad(
-    struct CacheProvider* provider,
-    struct Assets* assets)
+CreateTask_PlayerAppearanceLoad(struct CacheProvider* provider)
 {
     struct Task_PlayerAppearanceLoad* task;
     assert(provider);
+    assert(provider->assets);
     task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_PlayerAppearanceLoad_VTable;
     strncpy(task->task.name, "PlayerAppearanceLoad", sizeof(task->task.name) - 1);
     task->provider = provider;
-    task->assets = assets;
+    task->assets = provider->assets;
     for( int i = 0; i < PLAYER_APPEARANCE_PARTS; i++ )
         task->kits[i] = -1;
     PT_INIT(&task->pt);

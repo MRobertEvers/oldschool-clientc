@@ -58,93 +58,6 @@
 
 /* ---- the required reads' rows in the assets table ----------------------- */
 
-bool
-app_script_config_resident(
-    struct App* app,
-    struct AssetKey key)
-{
-    struct CacheProvider* p;
-    int size;
-
-    assert(app);
-    assert(app->provider);
-    assert(key.kind == ASSET_KIND_CONFIG);
-    assert(key.variant >= ASSET_CONFIG_SCRIPTS_FIRST);
-    assert(key.variant < ASSET_CONFIG_SCRIPTS_END);
-    p = app->provider;
-    if( key.variant == ASSET_CONFIG_SCRIPT )
-        return CacheProvider_ClientScriptHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_ENUM )
-        return CacheProvider_EnumHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_STRUCT )
-        return CacheProvider_StructHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_PARAM )
-        return CacheProvider_ParamHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_INVTYPE )
-        return CacheProvider_InvtypeGet(p, key.id, &size);
-    if( key.variant == ASSET_CONFIG_NPC )
-        return CacheProvider_NpctypeHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_LOC )
-        return CacheProvider_LocationHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_DBROW )
-        return CacheProvider_DbRowHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_DBTABLE )
-        return CacheProvider_DbTableHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_DBINDEX )
-        return CacheProvider_DbTableIndexHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_FONT )
-        return CacheProvider_FontHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_MAPELEMENT )
-        return CacheProvider_MapElementHas(p, key.id);
-    if( key.variant == ASSET_CONFIG_WORLDMAP )
-        return CacheProvider_WorldMapGet(p) != NULL;
-    assert(key.variant == ASSET_CONFIG_OBJ_ALL);
-    return p->objtypes_all_loaded;
-}
-
-struct ToriRS_Task*
-app_script_config_load(
-    struct App* app,
-    struct AssetKey key)
-{
-    struct CacheProvider* p;
-
-    assert(app);
-    assert(app->provider);
-    assert(key.kind == ASSET_KIND_CONFIG);
-    assert(key.variant >= ASSET_CONFIG_SCRIPTS_FIRST);
-    assert(key.variant < ASSET_CONFIG_SCRIPTS_END);
-    p = app->provider;
-    if( key.variant == ASSET_CONFIG_SCRIPT )
-        return CreateTask_ClientScriptLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_ENUM )
-        return CreateTask_EnumLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_STRUCT )
-        return CreateTask_StructLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_PARAM )
-        return CreateTask_ParamLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_INVTYPE )
-        return CreateTask_InvtypeLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_NPC )
-        return CreateTask_NpcLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_LOC )
-        return CreateTask_LocLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_DBROW )
-        return CreateTask_DbRowLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_DBTABLE )
-        return CreateTask_DbTableLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_DBINDEX )
-        return CreateTask_DbTableIndexLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_FONT )
-        return CreateTask_FontLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_MAPELEMENT )
-        return CreateTask_MapElementLoad(p, key.id);
-    if( key.variant == ASSET_CONFIG_WORLDMAP )
-        return CreateTask_WorldMapLoad(p);
-    assert(key.variant == ASSET_CONFIG_OBJ_ALL);
-    return CreateTask_ObjLoadAll(p);
-}
-
 /* ---- the widget a visual task binds onto ------------------------------- */
 
 /* Who a task binds onto: the node, and its group's close serial when the set
@@ -411,9 +324,9 @@ struct Task_ScriptPackModels
     int needs_player;
 };
 
-/* Count every model and npc config the pack names on the task's join (what
- * Task_PackAssetsLoad loaded before the bake, less the sprites and fonts the
- * script waited for itself). */
+/* Count every model and npc config the ComponentPack names on the task's join
+ * (what its bake did not wait for: Task_GroupMount waited for the sprites,
+ * fonts and npc configs). */
 static void
 app_script_pack_models_want(struct Task_ScriptPackModels* self)
 {
@@ -450,7 +363,7 @@ app_script_pack_models_want(struct Task_ScriptPackModels* self)
 }
 
 /* The bind the bake made when the models were awaited before it
- * (task_cs2_bake_pack): every MODEL node of the group names a cache model,
+ * (task_cs2_wait_bake_pack): every MODEL node of the group names a cache model,
  * which is put in the scene now that it is here. Walks the tree's model
  * list, not the tree. */
 static void
@@ -499,7 +412,7 @@ Task_ScriptPackModels_Run(
     PT_PARALLEL_AWAIT_ASSETS(app->assets);
     /* A player-design preview widget composes the default kit. */
     if( self->needs_player && !RS_ParallelTask_Cancelled(&self->par) )
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider, app->assets));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
 
     /* A newer bake of the group replaced this one, or the group closed. */
     if( RS_ParallelTask_Cancelled(&self->par) )

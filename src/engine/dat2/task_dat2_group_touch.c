@@ -18,7 +18,7 @@
  * the queue's contract is that a task's items are complete when it resumes,
  * and a fan-out of thousands has to be waited on as a set. Siblings joined
  * with PT_TASK_JOIN are how every other fan-out in this tree does that
- * (task_pack_assets_load.c, app_world_spawn.c), so this is the same shape
+ * (task_uibuilder_assets_load.c, app_world_spawn.c), so this is the same shape
  * with the smallest possible body.
  */
 struct Task_Dat2GroupTouch

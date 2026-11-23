@@ -3637,6 +3637,16 @@ CacheProvider_TextureGet(
 }
 
 void
+CacheProvider_SetAssets(
+    struct CacheProvider* provider,
+    struct Assets* assets)
+{
+    assert(provider);
+    assert(assets);
+    provider->assets = assets;
+}
+
+void
 CacheProvider_SetAssetQueue(
     struct CacheProvider* provider,
     struct ToriRS_TaskQueue* queue)

@@ -51,6 +51,29 @@ int g_failures;
  * and ignore lists through the host, so the host is handed the social store
  * as App_Init hands it (app.c, RS_CS2Host_SetSocial).
  */
+/* A cache provider that loads nothing: what the assets table's loaders are
+ * made over when a fixture never loads a record. */
+static struct CacheProvider*
+logout_test_provider_new(void)
+{
+    struct CacheProvider* provider = calloc(1, sizeof(*provider));
+    struct CacheProviderVTable* no_loads = calloc(1, sizeof(*no_loads));
+
+    assert(provider);
+    assert(no_loads);
+    provider->vtable = no_loads;
+    CacheProvider_InitEngineCaches(provider);
+    return provider;
+}
+
+static void
+logout_test_provider_free(struct CacheProvider* provider)
+{
+    CacheProvider_FreeEngineCaches(provider);
+    free((void*)provider->vtable);
+    free(provider);
+}
+
 static struct App*
 make_app(struct ToriRS_Network* net)
 {
@@ -61,6 +84,7 @@ make_app(struct ToriRS_Network* net)
     RS_Social_Init(&app->social);
     RS_CS2Host_SetSocial(&app->host, &app->social, app->slots.chat_filter_mode, app->social.node_id);
     RS_EntitySync_Init(&app->esync);
+    app->provider = logout_test_provider_new();
     App_AssetsInit(app);
     App_PendingInit(app);
     app->net = net;
@@ -74,6 +98,7 @@ free_app(struct App* app)
 {
     App_PendingFree(app);
     App_AssetsFree(app);
+    logout_test_provider_free(app->provider);
     free(app);
 }
 

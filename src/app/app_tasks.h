@@ -384,18 +384,6 @@ App_MountsGroupClosed(
 
 /* ---- app_tasks_scripts.c: visual script operations ---------------------- */
 
-/* The assets table's rows for what a client script reads and waits for
- * (ASSET_KIND_CONFIG from ASSET_CONFIG_SCRIPTS_FIRST): is it in the cache, and
- * the provider's task that loads it (NULL: nothing to load). */
-bool
-app_script_config_resident(
-    struct App* app,
-    struct AssetKey key);
-struct ToriRS_Task*
-app_script_config_load(
-    struct App* app,
-    struct AssetKey key);
-
 /* Give the CS2 host this family's visual hooks and the assets table its
  * required reads wait through. */
 void

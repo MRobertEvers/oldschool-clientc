@@ -109,6 +109,10 @@ enum AssetKind
      * compositemap): id = CacheProvider_WorldMapGeographyKey, which carries
      * the area. Released once baked, so "here" is the provider's answer. */
     ASSET_KIND_WORLDMAP_GEOGRAPHY,
+    /* One map square's terrain archive: id = CacheProvider_MapId(x, z). */
+    ASSET_KIND_MAP_TERRAIN,
+    /* One map square's scenery (locs) archive: id = CacheProvider_MapId(x, z). */
+    ASSET_KIND_MAP_SCENERY,
 
     ASSET_KIND_COUNT
 };
@@ -123,6 +127,8 @@ enum AssetConfigType
      * a floor underlay and a floor overlay (flotype). */
     ASSET_CONFIG_UNDERLAY = 2,
     ASSET_CONFIG_FLOTYPE = 3,
+    /* A spot-animation's type: its model and sequence ids. */
+    ASSET_CONFIG_SPOTANIM = 4,
 
     /* What a client script reads the value of and waits for
      * (game/task_cs2_run.c, the yield table; the loaders are

@@ -9,6 +9,7 @@
 #include <rscache.h>
 #include <stdbool.h>
 
+struct Assets;
 struct CS2VM2_Script;
 struct CacheProviderVTable;
 struct ToriMem_Group;
@@ -166,6 +167,15 @@ struct CacheProvider
     struct ToriRS_TaskQueue* asset_queue;
 
     /**
+     * The assets table every load goes through (engine/asset_requests.h):
+     * one entry per asset that is wanted and not here, one load in flight
+     * for it. A task that needs a record, a composite loader that needs its
+     * parts, awaits the record's key here (Assets_Await) rather than running
+     * the cache's load itself. Borrowed; set with CacheProvider_SetAssets.
+     */
+    struct Assets* assets;
+
+    /**
      * Where a loader puts the work it has to COMPUTE once its reads are in,
      * when that is more than a frame's worth: the background queue (App's
      * `background_runner`), which is given time and time-sliced, where the
@@ -253,6 +263,12 @@ struct CacheProvider
     int cs2jit_enabled;
     struct CS2JitCache* cs2jit;
 };
+
+/** The assets table loads go through. See `assets`. */
+void
+CacheProvider_SetAssets(
+    struct CacheProvider* provider,
+    struct Assets* assets);
 
 /** Name the queue loaders fan their siblings out on. See `asset_queue`. */
 void

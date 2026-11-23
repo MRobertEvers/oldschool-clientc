@@ -1,7 +1,3 @@
-#include "perf/torirs_perf.h"
-#include "mem/torirs_mem.h"
-#include "torirs_env.h"
-
 #include "game/task_cs2_run.h"
 
 #include "cs2vm2/cs2_opcode_meta.h"
@@ -12,14 +8,18 @@
 #include "engine/cache_provider.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/torirs_types.h"
-#include "engine/uitree_builder/task_pack_assets_load.h"
+#include "engine/uitree_builder/task_group_mount.h"
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs2_host.h"
+#include "log/torirs_log.h"
+#include "mem/torirs_mem.h"
 #include "net/rev/revpacket.h"
+#include "perf/torirs_perf.h"
+#include "torirs_env.h"
 #include "ui/uitree.h"
-#include "varp/varp_manager.h"
 #include "ui/uitree_layout.h"
+#include "varp/varp_manager.h"
 #include <3rd/minipt.h>
 
 #include <assert.h>
@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "log/torirs_log.h"
 
 #ifndef UITREE_CLICK_DEBUG
 #define UITREE_CLICK_DEBUG 0
@@ -40,10 +39,12 @@
  * as well, because these arguments must survive both initial dispatch and a
  * repaint hook installed by the script. */
 #define TASK_CS2_RUN_STR_ARGS_MAX 16
-_Static_assert(TASK_CS2_RUN_STR_ARGS_MAX == CS2VM_SETON_STR_ARG_MAX,
-               "CS2 dispatch and set-on requests must keep the same strings");
-_Static_assert(TASK_CS2_RUN_STR_ARGS_MAX == UITREE_HOOK_STR_ARG_MAX,
-               "CS2 dispatch and stored hooks must keep the same strings");
+_Static_assert(
+    TASK_CS2_RUN_STR_ARGS_MAX == CS2VM_SETON_STR_ARG_MAX,
+    "CS2 dispatch and set-on requests must keep the same strings");
+_Static_assert(
+    TASK_CS2_RUN_STR_ARGS_MAX == UITREE_HOOK_STR_ARG_MAX,
+    "CS2 dispatch and stored hooks must keep the same strings");
 /*
  * A clientscript string argument is not a label — it can be a payload.
  *
@@ -72,8 +73,9 @@ _Static_assert(TASK_CS2_RUN_STR_ARGS_MAX == UITREE_HOOK_STR_ARG_MAX,
  * whole and the *task* silently trims it — which is the harder of the two
  * failures to find, because the wire trace shows the full string.
  */
-_Static_assert(TASK_CS2_RUN_STR_ARG_LEN >= PKT_RUNCLIENTSCRIPT_STR_LEN,
-               "a clientscript string argument must survive the packet that carried it");
+_Static_assert(
+    TASK_CS2_RUN_STR_ARG_LEN >= PKT_RUNCLIENTSCRIPT_STR_LEN,
+    "a clientscript string argument must survive the packet that carried it");
 
 enum TaskCS2YieldPlan
 {
@@ -113,12 +115,13 @@ enum TaskCS2YieldPlan
  * can stop a script is added.
  *
  *   REQUIRED  the script needs the VALUE (a config it reads, the script it
- *             calls, a pack it is about to look into): it waits, and resumes
- *             when the read ends. On the app's host the wait is through the
- *             assets table (RS_CS2Host.assets: Assets_Await, one load in
- *             flight per asset however many scripts want it, whichever cache
- *             table the value is in); a host with no table waits on the
- *             provider's load task. Where the value is fetched on demand
+ *             calls, a ComponentPack it is about to look into): it waits, and resumes
+ *             when the read ends. The wait is through the assets table
+ *             (RS_CS2Host.assets: Assets_Await, one load in flight per asset
+ *             however many scripts want it, whichever cache table the value
+ *             is in), made by the plan's wait task (Task_CS2Wait); a host
+ *             that runs a script which stops for a load has the table.
+ *             Where the value is fetched on demand
  *             rather than filled at boot, the fix is the boot fill (the db
  *             table index, revconfig [preload:dbtableindex]), not a non-wait.
  *   VISUAL    the operation only PUTS SOMETHING ON SCREEN: it writes what was
@@ -144,6 +147,43 @@ enum TaskCS2Wait
     TASK_CS2_WAIT_VISUAL,
 };
 
+struct Task_CS2Run;
+
+/*
+ * One record a plan waits for: the assets-table key it is asked for by. The
+ * id is the request's await_id (slot 0) or await_id2 (slot 1); a `whole`
+ * record (the world map, every objtype) is asked for as id 0.
+ */
+struct TaskCS2Slot
+{
+    enum AssetKind kind;
+    /* enum AssetConfigType for ASSET_KIND_CONFIG, 0 for every other kind. */
+    int variant;
+    bool whole;
+};
+
+/*
+ * A plan's factory: the task that waits for what the yielded request needs
+ * (Task_CS2Wait below), or NULL when there is nothing to wait for. The script
+ * queues it beside itself and joins it -- one wait, the same for every plan.
+ * What the wait task does is always the same too: Assets_Await, then wait on
+ * its own count. A plan that needs one record's contents to know what to ask
+ * for next (a loc's models, a multinpc's rung) is a wait
+ * task with more than one await, written top to bottom.
+ */
+typedef struct ToriRS_Task* (*TaskCS2WaitMake)(struct Task_CS2Run* self);
+
+static struct ToriRS_Task*
+task_cs2_make_keys(struct Task_CS2Run* self);
+static struct ToriRS_Task*
+task_cs2_make_group(struct Task_CS2Run* self);
+static struct ToriRS_Task*
+task_cs2_make_loc_model(struct Task_CS2Run* self);
+static struct ToriRS_Task*
+task_cs2_make_npc_head(struct Task_CS2Run* self);
+static struct ToriRS_Task*
+task_cs2_make_setobject(struct Task_CS2Run* self);
+
 struct TaskCS2YieldRow
 {
     char const* name;
@@ -152,65 +192,107 @@ struct TaskCS2YieldRow
     char const* what;
     /** What the operation does when the asset never arrives. */
     char const* absent;
+    /* NULL only for ABORT, which waits for nothing and ends the script. */
+    TaskCS2WaitMake make;
+    /* task_cs2_make_keys' records, awaited together. Only a plan made by
+     * task_cs2_make_keys has any, and only those plans can be waited for by
+     * a runner that is not this task (CS2Run_RequestAwait). */
+    int slot_count;
+    struct TaskCS2Slot slots[2];
 };
 
+#define TASK_CS2_CONFIG(t) { ASSET_KIND_CONFIG, ASSET_CONFIG_##t, false }
+#define TASK_CS2_WHOLE(t) { ASSET_KIND_CONFIG, ASSET_CONFIG_##t, true }
+#define TASK_CS2_KIND(k) { ASSET_KIND_##k, 0, false }
+#define TASK_CS2_LOADS0 .make = task_cs2_make_keys, .slot_count = 0
+#define TASK_CS2_LOADS1(a) .make = task_cs2_make_keys, .slot_count = 1, .slots = { a }
+#define TASK_CS2_LOADS2(a, b) .make = task_cs2_make_keys, .slot_count = 2, .slots = { a, b }
+#define TASK_CS2_MAKE(fn) .make = (fn)
+
+/* One row a plan, kept aligned by hand. */
+/* clang-format off */
 static struct TaskCS2YieldRow const k_task_cs2_yields[TASK_CS2_YIELD_COUNT] = {
-    [TASK_CS2_YIELD_NONE] = { "none", TASK_CS2_WAIT_NONE, "nothing (a cleared id)", "-" },
+    [TASK_CS2_YIELD_NONE] = { "none", TASK_CS2_WAIT_NONE, "nothing (a cleared id)", "-",
+        TASK_CS2_LOADS0 },
     [TASK_CS2_YIELD_SCRIPT] = { "script", TASK_CS2_WAIT_REQUIRED,
         "the script a gosub calls, and the task's own script",
-        "the call is an error (its return values cannot be made up)" },
+        "the call is an error (its return values cannot be made up)",
+        TASK_CS2_LOADS1(TASK_CS2_CONFIG(SCRIPT)) },
     [TASK_CS2_YIELD_INVTYPE] = { "invtype", TASK_CS2_WAIT_REQUIRED, "inv_size's inventory type",
-        "size 0" },
+        "size 0",
+        TASK_CS2_LOADS1(TASK_CS2_CONFIG(INVTYPE)) },
     [TASK_CS2_YIELD_ENUM] = { "enum", TASK_CS2_WAIT_REQUIRED, "enum, enum_string, enum counts",
-        "the enum's default / empty" },
+        "the enum's default / empty",
+        TASK_CS2_LOADS1(TASK_CS2_CONFIG(ENUM)) },
     [TASK_CS2_YIELD_STRUCT] = { "struct", TASK_CS2_WAIT_REQUIRED,
         "struct_param's struct and ParamType; cc_param, if_query_refine's ParamType",
-        "the ParamType default (null when that is missing too)" },
+        "the ParamType default (null when that is missing too)",
+        TASK_CS2_LOADS2(TASK_CS2_CONFIG(STRUCT), TASK_CS2_CONFIG(PARAM)) },
     [TASK_CS2_YIELD_PARAMS] = { "params", TASK_CS2_WAIT_REQUIRED, "cc_find_param's two ParamTypes",
-        "a missing param's default is null" },
+        "a missing param's default is null",
+        TASK_CS2_LOADS2(TASK_CS2_CONFIG(PARAM), TASK_CS2_CONFIG(PARAM)) },
     [TASK_CS2_YIELD_OBJ] = { "obj", TASK_CS2_WAIT_REQUIRED,
         "oc_* (name, ops, cost, cert, param, ...) and stockmarket_*: the objtype (+ ParamType)",
-        "the objtype's defaults (null name, no ops, the ParamType default)" },
+        "the objtype's defaults (null name, no ops, the ParamType default)",
+        TASK_CS2_LOADS2(TASK_CS2_CONFIG(OBJ), TASK_CS2_CONFIG(PARAM)) },
     [TASK_CS2_YIELD_COMPONENT] = { "component", TASK_CS2_WAIT_REQUIRED,
-        "a group's pack a cc_/if_ op looks into, with its sprites and fonts; its MODELS are "
-        "visual (pack_models_lazy)",
-        "the op treats the component as not found; the script ends" },
+        "a group a cc_/if_ op looks into: its ComponentPack, sprites, fonts and npc configs, "
+        "baked into the tree (Task_GroupMount); its MODELS are visual (pack_models_lazy)",
+        "the op treats the component as not found",
+        TASK_CS2_MAKE(task_cs2_make_group) },
     [TASK_CS2_YIELD_MODEL] = { "model", TASK_CS2_WAIT_VISUAL,
-        "cc_setmodel / if_setmodel: the model (widget_model_lazy)", "the widget draws nothing" },
+        "cc_setmodel / if_setmodel: the model (widget_model_lazy)", "the widget draws nothing",
+        TASK_CS2_LOADS1(TASK_CS2_KIND(MODEL)) },
     [TASK_CS2_YIELD_LOC_MODEL] = { "loc_model", TASK_CS2_WAIT_VISUAL,
         "cc_setlocmodel: the loc config and its models (widget_loc_model_lazy)",
-        "the widget draws nothing" },
-    [TASK_CS2_YIELD_NPC] = { "npc", TASK_CS2_WAIT_REQUIRED, "nc_name's npc config", "\"null\"" },
+        "the widget draws nothing",
+        TASK_CS2_MAKE(task_cs2_make_loc_model) },
+    [TASK_CS2_YIELD_NPC] = { "npc", TASK_CS2_WAIT_REQUIRED, "nc_name's npc config", "\"null\"",
+        TASK_CS2_LOADS1(TASK_CS2_CONFIG(NPC)) },
     [TASK_CS2_YIELD_NPC_HEAD] = { "npc_head", TASK_CS2_WAIT_VISUAL,
         "cc_setnpchead: the npc, its multinpc rung and its head models (widget_npc_head_lazy)",
-        "the widget is left as it was" },
+        "the widget is left as it was",
+        TASK_CS2_MAKE(task_cs2_make_npc_head) },
     [TASK_CS2_YIELD_NPC_PARAM] = { "npc_param", TASK_CS2_WAIT_REQUIRED,
-        "nc_param's npc config and ParamType", "the ParamType default" },
+        "nc_param's npc config and ParamType", "the ParamType default",
+        TASK_CS2_LOADS2(TASK_CS2_CONFIG(NPC), TASK_CS2_CONFIG(PARAM)) },
     [TASK_CS2_YIELD_LOC_PARAM] = { "loc_param", TASK_CS2_WAIT_REQUIRED,
-        "lc_param's loc config and ParamType", "the ParamType default" },
+        "lc_param's loc config and ParamType", "the ParamType default",
+        TASK_CS2_LOADS2(TASK_CS2_CONFIG(LOC), TASK_CS2_CONFIG(PARAM)) },
     [TASK_CS2_YIELD_SETOBJECT] = { "setobject", TASK_CS2_WAIT_VISUAL,
         "cc_setobject: an icon cell's obj model (widget_obj_icon_lazy), a MODEL widget's "
         "(widget_obj_model_lazy)",
-        "the icon is built from what arrived; a model-less obj shows its icon" },
+        "the icon is built from what arrived; a model-less obj shows its icon",
+        TASK_CS2_MAKE(task_cs2_make_setobject) },
     [TASK_CS2_YIELD_SPRITE] = { "sprite", TASK_CS2_WAIT_REQUIRED,
         "cc_setgraphic, setfeedbacksprite: the sprite (the bake binds it; local from boot)",
-        "no graphic" },
+        "no graphic",
+        TASK_CS2_LOADS1(TASK_CS2_KIND(SPRITE)) },
     [TASK_CS2_YIELD_FONT] = { "font", TASK_CS2_WAIT_REQUIRED,
         "cc_settextfont, paraheight, parawidth: the font (text is measured with it)",
-        "no font; measured as 0" },
+        "no font; measured as 0",
+        TASK_CS2_LOADS1(TASK_CS2_CONFIG(FONT)) },
     [TASK_CS2_YIELD_WORLDMAP] = { "worldmap", TASK_CS2_WAIT_REQUIRED, "worldmap_* and mel_*: the map",
-        "the map ops answer as for a cache with no map" },
+        "the map ops answer as for a cache with no map",
+        TASK_CS2_LOADS1(TASK_CS2_WHOLE(WORLDMAP)) },
     [TASK_CS2_YIELD_MAPELEMENT] = { "mapelement", TASK_CS2_WAIT_REQUIRED,
-        "mec_*: the map element config", "the element's defaults" },
+        "mec_*: the map element config", "the element's defaults",
+        TASK_CS2_LOADS1(TASK_CS2_CONFIG(MAPELEMENT)) },
     [TASK_CS2_YIELD_OBJALL] = { "objall", TASK_CS2_WAIT_REQUIRED, "oc_find, oc_byid: every objtype",
-        "the search finds what is resident" },
-    [TASK_CS2_YIELD_DBROW] = { "dbrow", TASK_CS2_WAIT_REQUIRED, "db_*: a row", "the row is absent" },
+        "the search finds what is resident",
+        TASK_CS2_LOADS1(TASK_CS2_WHOLE(OBJ_ALL)) },
+    [TASK_CS2_YIELD_DBROW] = { "dbrow", TASK_CS2_WAIT_REQUIRED, "db_*: a row", "the row is absent",
+        TASK_CS2_LOADS1(TASK_CS2_CONFIG(DBROW)) },
     [TASK_CS2_YIELD_DBINDEX] = { "dbindex", TASK_CS2_WAIT_REQUIRED,
-        "db_find*: a table's index (cache table 21, filled at boot)", "an empty index: no match" },
+        "db_find*: a table's index (cache table 21, filled at boot)", "an empty index: no match",
+        TASK_CS2_LOADS1(TASK_CS2_CONFIG(DBINDEX)) },
     [TASK_CS2_YIELD_DBTABLE] = { "dbtable", TASK_CS2_WAIT_REQUIRED,
-        "db_getfield's column defaults: the table", "no default" },
-    [TASK_CS2_YIELD_ABORT] = { "abort", TASK_CS2_WAIT_NONE, "nothing: the script ends", "-" },
+        "db_getfield's column defaults: the table", "no default",
+        TASK_CS2_LOADS1(TASK_CS2_CONFIG(DBTABLE)) },
+    [TASK_CS2_YIELD_ABORT] = { "abort", TASK_CS2_WAIT_NONE, "nothing: the script ends", "-",
+        TASK_CS2_MAKE(NULL) },
 };
+/* clang-format on */
 
 /* The name a plan is traced by (TORIRS_TRACE_CS2_YIELD). */
 static char const*
@@ -304,14 +386,9 @@ struct Task_CS2Run
     int await_id2;
     int yield_obj_id;
     int yield_obj_count;
-    /* Persistent index for TASK_CS2_YIELD_NPC_HEAD head-model load loop
-     * (protothread-safe; mirrors Task_AppIfHead.model_i). */
-    int yield_i;
-    int yield_npc_id;
-    int yield_npc_depth;
     int started;
-    /* A REQUIRED read waited through the assets table (RS_CS2Host.assets):
-     * the loads counted, dropped as each attempt ends, landed or not. */
+    /* The wait task of the current yield (TaskCS2YieldRow::make), queued
+     * beside this one: 1 until it ends, however it ends. */
     int join;
 
     /*
@@ -331,31 +408,6 @@ struct Task_CS2Run
      */
     struct CS2VM2* vm;
 };
-
-static int
-task_cs2_resolve_sprite(
-    void* ud,
-    int graphic_id)
-{
-    struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)ud;
-    assert(bridge);
-    if( graphic_id < 0 )
-        return -1;
-    /* A pack bake binds its nodes for good: see UITreeSceneBridge_BindSprite. */
-    return UITreeSceneBridge_BindSprite(bridge, graphic_id);
-}
-
-static int
-task_cs2_resolve_font(
-    void* ud,
-    int font_id)
-{
-    struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)ud;
-    assert(bridge);
-    if( font_id < 0 )
-        return -1;
-    return UITreeSceneBridge_EnsureFont(bridge, font_id);
-}
 
 static void
 task_cs2_set_int_local(
@@ -431,8 +483,7 @@ task_cs2_set_int_local(
         CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, self->event_drag_target_id);
         break;
     case CS2VM_SCRIPT_ARG_DRAG_TARGET_CHILD_INDEX:
-        CS2VM2_SetIntCurrentFrameLocal(
-            thread, local_idx, self->event_drag_target_child_index);
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, self->event_drag_target_child_index);
         break;
     /* See struct LibToriRS_KeyEvent: key_typed is the OSRS key CODE and
      * key_pressed the typed CHARACTER, inverted vs canonical OSRS naming but
@@ -458,8 +509,9 @@ task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
     assert(request);
     switch( request->kind )
     {
-#define TASK_CS2_COMPONENT_ID_CASE(name, field) \
-    case CS2VM_HOST_REQUEST_##name: return request->u.name.field
+#define TASK_CS2_COMPONENT_ID_CASE(name, field)                                                    \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        return request->u.name.field
         TASK_CS2_COMPONENT_ID_CASE(CC_CREATE, parent_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_COPY, parent_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_CREATE_CHILD, parent_id);
@@ -556,108 +608,6 @@ task_cs2_mount_parent_id_from_request(struct CS2VM_HostRequest const* request)
 }
 
 static void
-task_cs2_bake_pack(struct Task_CS2Run* self)
-{
-    struct ToriRS_ComponentPack* pack;
-    struct UITree* tree;
-    int (*resolve_sprite)(void*, int) = NULL;
-    int (*resolve_font)(void*, int) = NULL;
-    void* resolve_ud = NULL;
-    int pack_root_id;
-    int32_t pack_root_idx;
-    int mount_parent_id;
-    int mount_group;
-
-    assert(self);
-    assert(self->host);
-    assert(self->host->tree);
-    assert(self->await_id > 0);
-
-    tree = self->host->tree;
-
-    if( !CacheProvider_ComponentPackHas(self->provider, self->await_id) )
-    {
-        TORIRS_ERR("Task_CS2Run: component pack %d missing after load (script %d)\n",
-            self->await_id,
-            self->script_id);
-        return;
-    }
-
-    pack = CacheProvider_ComponentPackGet(self->provider, self->await_id);
-    assert(pack);
-
-    if( self->host->bridge )
-    {
-        resolve_ud = self->host->bridge;
-        resolve_sprite = task_cs2_resolve_sprite;
-        resolve_font = task_cs2_resolve_font;
-    }
-    (void)UITree_BuildFromComponentPack(
-        tree, pack, resolve_sprite, resolve_font, resolve_ud);
-
-    /* If the yield parent lives on another already-baked group, mount this pack
-     * root under it (sub-interface style). Same-group parents (e.g. CC_CREATE
-     * under 728:6 while loading 728) are already linked inside the pack. */
-    pack_root_id = (self->await_id << 16) | 0;
-    pack_root_idx = UITree_FindByComponentId(tree, pack_root_id);
-    mount_parent_id = task_cs2_mount_parent_id_from_request(self->pending);
-    mount_group = (mount_parent_id >> 16) & 0xffff;
-    if( pack_root_idx >= 0 && mount_group > 0 && mount_group != self->await_id )
-    {
-        int32_t mount_idx = UITree_FindByComponentId(tree, mount_parent_id);
-        if( mount_idx >= 0 )
-            UITree_Reparent(tree, pack_root_idx, mount_idx);
-    }
-
-    /*
-     * A pack nobody mounted is not on screen yet, so it must not be drawn or
-     * measured. This bake is speculative — the script only *touched* the group
-     * (an if_hassub, a cc_find on a panel that is still closed) — and without
-     * this the copy sits at the tree root, visible, laid out against the whole
-     * canvas.
-     *
-     * That is not merely a stray draw. The fixed-mode canvas is sized from the
-     * widest right-docked full-height column in the tree (the popout strip, see
-     * App_MeasureRightChromeStripWidth), and a speculatively baked panel root
-     * has exactly that shape: the login arming of XP tracker 729 baked a 264-wide
-     * right-docked column, so fixed mode grew the canvas to 765+264 and left a
-     * 222px black band between the classic frame and the 42px strip.
-     *
-     * mount_hidden, not a native hide: it is the same marker the spillover
-     * sweep and a replacing mount use, and it is what the eventual open (sub or
-     * top) knows how to undo.
-     */
-    if( pack_root_idx >= 0 && tree->components[pack_root_idx].parent < 0 &&
-        !UITree_InterfaceParentIsMountedGroup(tree, self->await_id) )
-    {
-        (void)UITree_SetMountHiddenAt(tree, pack_root_idx, 1);
-    }
-
-    UITree_LayoutResolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-
-    if( self->host->bridge )
-    {
-        int mi;
-        for( mi = 0; mi < tree->models.count; mi++ )
-        {
-            int32_t idx = tree->models.slots[mi];
-            struct UITreeComponent* c;
-            assert(idx >= 0 && (uint32_t)idx < tree->component_count);
-            c = &tree->components[idx];
-            if( c->type != UIELEM_RS_MODEL )
-                continue;
-            if( c->u.rs_model.gamecache_model_id >= 0 )
-            {
-                int sid = UITreeSceneBridge_EnsureModel(
-                    self->host->bridge, c->u.rs_model.gamecache_model_id);
-                if( sid >= 0 )
-                    (void)UITree_SetModelAt(tree, idx, sid);
-            }
-        }
-    }
-}
-
-static void
 task_cs2_plan_pushscript(struct Task_CS2Run* self)
 {
     self->await_id = self->pending->u.GOSUB_WITH_PARAMS.script_id;
@@ -700,10 +650,10 @@ task_cs2_plan_db(struct Task_CS2Run* self)
 
     switch( self->pending->kind )
     {
-#define TASK_CS2_DB_CASE(name)                                               \
-    case CS2VM_HOST_REQUEST_##name:                                          \
-        self->await_id = self->pending->u.name.load_id;              \
-        load_kind = self->pending->u.name.load_kind;                 \
+#define TASK_CS2_DB_CASE(name)                                                                     \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        self->await_id = self->pending->u.name.load_id;                                            \
+        load_kind = self->pending->u.name.load_kind;                                               \
         break
         TASK_CS2_DB_CASE(DB_FIND);
         TASK_CS2_DB_CASE(DB_FINDNEXT);
@@ -747,9 +697,9 @@ task_cs2_plan_mapelement(struct Task_CS2Run* self)
 {
     switch( self->pending->kind )
     {
-#define TASK_CS2_MEC_CASE(name)                                              \
-    case CS2VM_HOST_REQUEST_##name:                                          \
-        self->await_id = self->pending->u.name.mec_id;               \
+#define TASK_CS2_MEC_CASE(name)                                                                    \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        self->await_id = self->pending->u.name.mec_id;                                             \
         break
         TASK_CS2_MEC_CASE(MEC_TEXT);
         TASK_CS2_MEC_CASE(MEC_TEXTSIZE);
@@ -830,8 +780,7 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
         break;
     case CS2VM_HOST_REQUEST_STOCKMARKET_SELLABLE:
     case CS2VM_HOST_REQUEST_STOCKMARKET_BUYABLE:
-        self->await_id =
-            ((struct CS2VM_HostSignatureArgs const*)&self->pending->u)->ints[0];
+        self->await_id = ((struct CS2VM_HostSignatureArgs const*)&self->pending->u)->ints[0];
         break;
     case CS2VM_HOST_REQUEST_OC_PARAM:
         /* Same pairing as task_cs2_plan_struct: objtype + ParamType. */
@@ -901,10 +850,10 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
 
     switch( self->pending->kind )
     {
-#define TASK_CS2_MODEL_KIND_CASE(name)                                       \
-    case CS2VM_HOST_REQUEST_##name:                                          \
-        model_id = self->pending->u.name.model_id;                   \
-        kind = self->pending->u.name.model_kind;                     \
+#define TASK_CS2_MODEL_KIND_CASE(name)                                                             \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        model_id = self->pending->u.name.model_id;                                                 \
+        kind = self->pending->u.name.model_kind;                                                   \
         break
         TASK_CS2_MODEL_KIND_CASE(CC_SETNPCHEAD);
         TASK_CS2_MODEL_KIND_CASE(CC_SETLOCMODEL);
@@ -955,9 +904,8 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
     {
         /* No appearance compositor yet — do not abort; let the script continue
          * (e.g. IF_SETTEXT for equipment bonuses). clientCode 328 emit handles preview. */
-        TORIRS_LOG("Task_CS2Run: player model kind %d no-op (script %d)\n",
-            (int)kind,
-            self->script_id);
+        TORIRS_LOG(
+            "Task_CS2Run: player model kind %d no-op (script %d)\n", (int)kind, self->script_id);
         self->yield_plan = TASK_CS2_YIELD_NONE;
         return;
     }
@@ -970,10 +918,10 @@ task_cs2_plan_setobject(struct Task_CS2Run* self)
 {
     switch( self->pending->kind )
     {
-#define TASK_CS2_SETOBJECT_CASE(name)                                        \
-    case CS2VM_HOST_REQUEST_##name:                                          \
-        self->yield_obj_id = self->pending->u.name.obj_id;           \
-        self->yield_obj_count = self->pending->u.name.count;         \
+#define TASK_CS2_SETOBJECT_CASE(name)                                                              \
+    case CS2VM_HOST_REQUEST_##name:                                                                \
+        self->yield_obj_id = self->pending->u.name.obj_id;                                         \
+        self->yield_obj_count = self->pending->u.name.count;                                       \
         break
         TASK_CS2_SETOBJECT_CASE(CC_SETOBJECT);
         TASK_CS2_SETOBJECT_CASE(CC_SETOBJECT_NONUM);
@@ -1057,8 +1005,7 @@ task_cs2_kind_is_worldmap(enum CS2VM_HostRequestKind kind)
 {
     return (kind >= CS2VM_HOST_REQUEST_WORLDMAP_JUMPTOPLAYER &&
             kind <= CS2VM_HOST_REQUEST_WORLDMAP_LISTELEMENT_NEXT) ||
-           (kind >= CS2VM_HOST_REQUEST_MEL_TYPE &&
-            kind <= CS2VM_HOST_REQUEST_MEL_DISPLAYCOORD);
+           (kind >= CS2VM_HOST_REQUEST_MEL_TYPE && kind <= CS2VM_HOST_REQUEST_MEL_DISPLAYCOORD);
 }
 
 static bool
@@ -1070,8 +1017,7 @@ task_cs2_kind_is_mapelement(enum CS2VM_HostRequestKind kind)
 static bool
 task_cs2_kind_is_db(enum CS2VM_HostRequestKind kind)
 {
-    return kind >= CS2VM_HOST_REQUEST_DB_FIND &&
-           kind <= CS2VM_HOST_REQUEST_DB_LISTALL_PRE228;
+    return kind >= CS2VM_HOST_REQUEST_DB_FIND && kind <= CS2VM_HOST_REQUEST_DB_LISTALL_PRE228;
 }
 
 static void
@@ -1084,9 +1030,6 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     self->yield_plan = TASK_CS2_YIELD_NONE;
     self->await_id = -1;
     self->await_id2 = -1;
-    self->yield_i = 0;
-    self->yield_npc_id = -1;
-    self->yield_npc_depth = 0;
 
     /* These exact opcode families share a load plan, not a discriminator. */
     if( task_cs2_group_id_from_request(self->pending) >= 0 )
@@ -1191,25 +1134,22 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_CC_PARAM:
         self->await_id = -1;
         self->await_id2 = self->pending->u.CC_PARAM.param_id;
-        self->yield_plan =
-            self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
+        self->yield_plan = self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
         break;
     /* IF_QUERY_REFINE compares against the ParamType default for components
      * with no entry: the same ParamType-only load. */
     case CS2VM_HOST_REQUEST_IF_QUERY_REFINE:
         self->await_id = -1;
         self->await_id2 = self->pending->u.IF_QUERY_REFINE.param_id;
-        self->yield_plan =
-            self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
+        self->yield_plan = self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
         break;
     /* CC_FIND_PARAM compares two params, each against its ParamType default
      * where a child has no entry: both ParamTypes in one yield. */
     case CS2VM_HOST_REQUEST_CC_FIND_PARAM:
         self->await_id = self->pending->u.CC_FIND_PARAM.param1;
         self->await_id2 = self->pending->u.CC_FIND_PARAM.param2;
-        self->yield_plan = self->await_id >= 0 || self->await_id2 >= 0
-                               ? TASK_CS2_YIELD_PARAMS
-                               : TASK_CS2_YIELD_NONE;
+        self->yield_plan = self->await_id >= 0 || self->await_id2 >= 0 ? TASK_CS2_YIELD_PARAMS
+                                                                       : TASK_CS2_YIELD_NONE;
         break;
 
     case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
@@ -1252,8 +1192,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
 
     case CS2VM_HOST_REQUEST_INV_SIZE:
         self->await_id = self->pending->u.INV_SIZE.inv_id;
-        self->yield_plan =
-            self->await_id >= 0 ? TASK_CS2_YIELD_INVTYPE : TASK_CS2_YIELD_NONE;
+        self->yield_plan = self->await_id >= 0 ? TASK_CS2_YIELD_INVTYPE : TASK_CS2_YIELD_NONE;
         break;
 
     case CS2VM_HOST_REQUEST_ENUM_STRING:
@@ -1350,7 +1289,8 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         break;
 
     default:
-        TORIRS_LOG("Task_CS2Run: unhandled yield kind %d (script %d)\n",
+        TORIRS_LOG(
+            "Task_CS2Run: unhandled yield kind %d (script %d)\n",
             (int)self->pending->kind,
             self->script_id);
         self->yield_plan = TASK_CS2_YIELD_ABORT;
@@ -1382,31 +1322,11 @@ task_cs2_resume_forget_stale_context(struct Task_CS2Run* self)
     thread = CS2VM2_ThreadMain(self->vm);
     active = UITree_ResolveRef(self->host->tree, self->resume_active_ref);
     dot = UITree_ResolveRef(self->host->tree, self->resume_dot_ref);
-    if( active < 0 || self->host->tree->components[active].component_id != thread->active_component_id )
+    if( active < 0 ||
+        self->host->tree->components[active].component_id != thread->active_component_id )
         thread->active_component_id = -1;
     if( dot < 0 || self->host->tree->components[dot].component_id != thread->dot_component_id )
         thread->dot_component_id = -1;
-}
-
-/*
- * Start a REQUIRED read of `key` through the assets table, counted on
- * self->join: true when the host has the table (the caller then waits with
- * PT_TASK_JOIN(join); nothing is counted when the asset is already here or
- * remembered failed), false when it has none and the caller awaits the
- * provider's load task instead. Two lines at every wait, because two
- * suspension points cannot share a line.
- */
-static bool
-task_cs2_read(
-    struct Task_CS2Run* self,
-    struct AssetKey key)
-{
-    assert(self);
-    assert(self->join == 0);
-    if( !self->host->assets )
-        return false;
-    (void)Assets_Await(self->host->assets, key, &self->join);
-    return true;
 }
 
 static struct AssetKey
@@ -1417,40 +1337,328 @@ task_cs2_config(
     return AssetKey_Make(ASSET_KIND_CONFIG, id, (int)table);
 }
 
+/* ---- the wait tasks ------------------------------------------------------ */
+
 /*
- * The COMPONENT yield on the app's host: the pack's sprites and fonts are
- * required (the bake binds the sprites and lays text out with the fonts), its
- * models are not (pack_models_lazy). Counts each on self->join.
+ * What a yielded script waits on: one small task per yield, made by the
+ * plan's row (TaskCS2YieldRow::make), queued beside the script and joined by
+ * it. Every wait task asks the same way -- Assets_Await on its own count, then
+ * PT_CS2_WAIT_ASSETS -- so every load a script causes is the assets table's:
+ * one in flight per asset however many tasks want it, under its kind's
+ * policy. A wait task ends when what it asked for has ended, landed or not;
+ * the host sees its own request spent and answers the miss.
+ */
+struct Task_CS2Wait
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct RS_CS2Host* host;
+    struct CacheProvider* provider;
+    /* The loads asked of the assets table and not yet ended. */
+    int join;
+    /* Task_CS2WaitKeys: what to ask for. */
+    struct AssetKey keys[2];
+    int key_count;
+    /* A chained wait's first record: the loc, the npc. */
+    int id;
+    /* Task_CS2WaitNpcHead: the multinpc rung being walked, and its depth. */
+    int npc_id;
+    int npc_depth;
+};
+
+#define PT_CS2_WAIT_ASSETS() TASK_AWAIT_ASSETS(&self->task, &self->pt, self->join)
+
+static void
+task_cs2_wait_ask(
+    struct Task_CS2Wait* self,
+    struct AssetKey key)
+{
+    (void)Assets_Await(self->host->assets, key, &self->join);
+}
+
+/* The plain wait: its one or two records, together. */
+static int
+Task_CS2WaitKeys_Run(
+    struct ToriRS_Task* task,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_CS2Wait* self = (struct Task_CS2Wait*)task;
+
+    (void)io;
+    PT_BEGIN(&self->pt);
+    for( int i = 0; i < self->key_count; i++ )
+        task_cs2_wait_ask(self, self->keys[i]);
+    PT_CS2_WAIT_ASSETS();
+    PT_END(&self->pt);
+}
+
+static void
+task_cs2_wait_ask_loc_models(struct Task_CS2Wait* self)
+{
+    struct ToriRS_Location* loc = CacheProvider_LocationGet(self->provider, self->id);
+    int const* ids;
+    int count;
+
+    if( !loc )
+        return;
+    count = UITreeSceneBridge_LocModelIds(loc, &ids);
+    for( int i = 0; i < count; i++ )
+        if( ids[i] >= 0 )
+            task_cs2_wait_ask(self, AssetKey_Make(ASSET_KIND_MODEL, ids[i], 0));
+}
+
+/* A loc's config, then every model it names. */
+static int
+Task_CS2WaitLocModel_Run(
+    struct ToriRS_Task* task,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_CS2Wait* self = (struct Task_CS2Wait*)task;
+
+    (void)io;
+    PT_BEGIN(&self->pt);
+    task_cs2_wait_ask(self, task_cs2_config(ASSET_CONFIG_LOC, self->id));
+    PT_CS2_WAIT_ASSETS();
+    task_cs2_wait_ask_loc_models(self);
+    PT_CS2_WAIT_ASSETS();
+    PT_END(&self->pt);
+}
+
+/* The rung just loaded: true with npc_id moved to the rung its transform
+ * picks, false to stop here (npc_id is the rung to draw, or -1 for none). */
+static bool
+task_cs2_wait_npc_climb(struct Task_CS2Wait* self)
+{
+    struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(self->provider, self->npc_id);
+    int next;
+
+    if( !npc || npc->transform_count <= 0 || !npc->transforms )
+        return false;
+    next = self->host->varps ? VarPManager_ResolveTransform(
+                                   self->host->varps,
+                                   npc->transforms,
+                                   npc->transform_count,
+                                   npc->transform_varbit,
+                                   npc->transform_varp)
+                             : npc->transforms[npc->transform_count - 1];
+    if( next < 0 || next == self->npc_id )
+    {
+        self->npc_id = next;
+        return false;
+    }
+    if( self->npc_depth == TORIRS_NPC_MULTI_MAX_DEPTH )
+        return false;
+    self->npc_id = next;
+    return true;
+}
+
+static void
+task_cs2_wait_ask_npc_heads(struct Task_CS2Wait* self)
+{
+    struct ToriRS_Npctype* npc =
+        self->npc_id < 0 ? NULL : CacheProvider_NpctypeGet(self->provider, self->npc_id);
+
+    for( int i = 0; npc && i < npc->heads_count; i++ )
+        if( npc->heads[i] >= 0 )
+            task_cs2_wait_ask(self, AssetKey_Make(ASSET_KIND_MODEL, npc->heads[i], 0));
+}
+
+/*
+ * IF1 Task_AppIfHead parity: the npc's config, each multinpc rung's in turn
+ * (which rung comes next is in the one just loaded), then the chosen rung's
+ * head models together. Only ids are kept across a wait: provider insertions
+ * may move the records.
+ */
+static int
+Task_CS2WaitNpcHead_Run(
+    struct ToriRS_Task* task,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_CS2Wait* self = (struct Task_CS2Wait*)task;
+
+    (void)io;
+    PT_BEGIN(&self->pt);
+    for( self->npc_depth = 0; self->npc_depth <= TORIRS_NPC_MULTI_MAX_DEPTH && self->npc_id >= 0;
+         self->npc_depth++ )
+    {
+        task_cs2_wait_ask(self, task_cs2_config(ASSET_CONFIG_NPC, self->npc_id));
+        PT_CS2_WAIT_ASSETS();
+        if( !task_cs2_wait_npc_climb(self) )
+            break;
+    }
+    task_cs2_wait_ask_npc_heads(self);
+    PT_CS2_WAIT_ASSETS();
+    PT_END(&self->pt);
+}
+
+static void
+Task_CS2Wait_Free(struct ToriRS_Task* task)
+{
+    struct Task_CS2Wait* self = (struct Task_CS2Wait*)task;
+
+    assert(self);
+    /* Freed mid-wait (its queue freed whole): the table stops counting. */
+    if( self->join > 0 )
+        Assets_Unjoin(self->host->assets, &self->join);
+    RS_CS2TaskPool_Release(&self->host->wait_task_pool, self);
+}
+
+static struct ToriRS_TaskVTable Task_CS2WaitKeys_VTable = {
+    .run = Task_CS2WaitKeys_Run,
+    .free = Task_CS2Wait_Free,
+};
+static struct ToriRS_TaskVTable Task_CS2WaitLocModel_VTable = {
+    .run = Task_CS2WaitLocModel_Run,
+    .free = Task_CS2Wait_Free,
+};
+static struct ToriRS_TaskVTable Task_CS2WaitNpcHead_VTable = {
+    .run = Task_CS2WaitNpcHead_Run,
+    .free = Task_CS2Wait_Free,
+};
+
+/* ---- the factories (TaskCS2YieldRow::make) -------------------------------- */
+
+static struct Task_CS2Wait*
+task_cs2_wait_new(
+    struct Task_CS2Run* run,
+    struct ToriRS_TaskVTable* vtable,
+    char const* name)
+{
+    struct Task_CS2Wait* wait;
+
+    assert(run);
+    /* Every wait is the assets table's: a host that runs a script which can
+     * stop for a load has one. */
+    assert(run->host->assets);
+    wait = RS_CS2TaskPool_New(&run->host->wait_task_pool, sizeof(*wait));
+    wait->task.vtable = vtable;
+    strncpy(wait->task.name, name, sizeof(wait->task.name) - 1);
+    wait->host = run->host;
+    wait->provider = run->provider;
+    wait->id = -1;
+    wait->npc_id = -1;
+    PT_INIT(&wait->pt);
+    return wait;
+}
+
+static struct ToriRS_Task*
+task_cs2_make_wait_keys(
+    struct Task_CS2Run* self,
+    struct AssetKey const* keys,
+    int count)
+{
+    struct Task_CS2Wait* wait;
+
+    assert(count >= 0);
+    assert(count <= 2);
+    if( count == 0 )
+        return NULL;
+    assert(keys);
+    wait = task_cs2_wait_new(self, &Task_CS2WaitKeys_VTable, "CS2WaitKeys");
+    memcpy(wait->keys, keys, (size_t)count * sizeof(keys[0]));
+    wait->key_count = count;
+    return &wait->task;
+}
+
+/* A plain plan's records as assets-table keys, by the request's ids: 0, 1
+ * or 2 of them (a paired plan may state either id or both). */
+static int
+task_cs2_plan_keys(
+    struct Task_CS2Run const* self,
+    struct AssetKey keys[2])
+{
+    struct TaskCS2YieldRow const* row = &k_task_cs2_yields[self->yield_plan];
+    int count = 0;
+
+    for( int i = 0; i < row->slot_count; i++ )
+    {
+        struct TaskCS2Slot const* slot = &row->slots[i];
+        int const id = slot->whole ? 0 : i == 0 ? self->await_id : self->await_id2;
+        if( id >= 0 )
+            keys[count++] = AssetKey_Make(slot->kind, id, slot->variant);
+    }
+    return count;
+}
+
+/* The plain plans: the row's records, together. */
+static struct ToriRS_Task*
+task_cs2_make_keys(struct Task_CS2Run* self)
+{
+    struct AssetKey keys[2];
+    int const count = task_cs2_plan_keys(self, keys);
+
+    return task_cs2_make_wait_keys(self, keys, count);
+}
+
+/* An icon cell's or a MODEL widget's obj model (variant = its count). */
+static struct ToriRS_Task*
+task_cs2_make_setobject(struct Task_CS2Run* self)
+{
+    struct AssetKey const key =
+        AssetKey_Make(ASSET_KIND_OBJ_MODEL, self->yield_obj_id, self->yield_obj_count);
+
+    return task_cs2_make_wait_keys(self, &key, self->yield_obj_id >= 0 ? 1 : 0);
+}
+
+/* A group a cc_/if_ op reaches into: the one task that puts a group in the
+ * tree, whoever asks (Task_GroupMount, as the server's open uses). */
+static struct ToriRS_Task*
+task_cs2_make_group(struct Task_CS2Run* self)
+{
+    return CreateTask_GroupMount(
+        self->host, self->await_id, task_cs2_mount_parent_id_from_request(self->pending));
+}
+
+static struct ToriRS_Task*
+task_cs2_make_loc_model(struct Task_CS2Run* self)
+{
+    struct Task_CS2Wait* wait;
+
+    if( self->await_id < 0 )
+        return NULL;
+    wait = task_cs2_wait_new(self, &Task_CS2WaitLocModel_VTable, "CS2WaitLocModel");
+    wait->id = self->await_id;
+    return &wait->task;
+}
+
+static struct ToriRS_Task*
+task_cs2_make_npc_head(struct Task_CS2Run* self)
+{
+    struct Task_CS2Wait* wait;
+
+    if( self->await_id < 0 )
+        return NULL;
+    wait = task_cs2_wait_new(self, &Task_CS2WaitNpcHead_VTable, "CS2WaitNpcHead");
+    wait->npc_id = self->await_id;
+    return &wait->task;
+}
+
+/* ---- the script's side of a wait ------------------------------------------ */
+
+/*
+ * Queue `wait` beside the script, counted on its join, for the PT_TASK_JOIN
+ * that follows. On the provider's asset queue: the parallel queue the script
+ * itself is on. NULL (nothing to wait for) is not counted.
  */
 static void
-task_cs2_read_pack_faces(struct Task_CS2Run* self)
+task_cs2_queue_wait(
+    struct Task_CS2Run* self,
+    struct ToriRS_Task* wait)
 {
-    struct ToriRS_ComponentPack* pack;
-
-    assert(self->host->assets);
+    assert(self);
     assert(self->join == 0);
-    if( !CacheProvider_ComponentPackHas(self->provider, self->await_id) )
-        return;
-    pack = CacheProvider_ComponentPackGet(self->provider, self->await_id);
-    assert(pack);
-    for( int i = 0; i < pack->component_count; i++ )
-    {
-        struct ToriRS_Component const* c = &pack->components[i];
-        if( c->graphic >= 0 )
-            (void)Assets_Await(self->host->assets,
-                AssetKey_Make(ASSET_KIND_SPRITE, c->graphic, 0), &self->join);
-        if( c->graphic_active >= 0 )
-            (void)Assets_Await(self->host->assets,
-                AssetKey_Make(ASSET_KIND_SPRITE, c->graphic_active, 0), &self->join);
-        for( int slot = 0; c->inv_slots && slot < TORIRS_INV_SLOT_MAX; slot++ )
-            if( c->inv_slots->graphic_id[slot] > 0 )
-                (void)Assets_Await(self->host->assets,
-                    AssetKey_Make(ASSET_KIND_SPRITE, c->inv_slots->graphic_id[slot], 0),
-                    &self->join);
-        if( c->font_id >= 0 )
-            (void)Assets_Await(self->host->assets,
-                task_cs2_config(ASSET_CONFIG_FONT, c->font_id), &self->join);
-    }
+    assert(self->provider->asset_queue);
+    (void)ToriRS_TaskQueue_AddParallelPoolSubTask(self->provider->asset_queue, wait, &self->join);
+}
+
+/* The script is going away with its wait task still running: that task runs
+ * on to its own end, and no longer counts into this one. */
+static void
+task_cs2_drop_wait(struct Task_CS2Run* self)
+{
+    assert(self);
+    if( self->join > 0 )
+        ToriRS_TaskQueue_DetachJoin(self->host->provider->asset_queue, &self->join);
 }
 
 static int
@@ -1464,42 +1672,27 @@ Task_CS2Run_Run(
     struct CS2VM2_ThreadError err;
     int j;
 
+    /* Every wait is a join on a queued wait task: nothing runs inline. */
+    (void)io;
+
     /* Queue-time event identity is checked until execution starts. A running
      * native script may delete its own origin; each yielded widget request
      * instead retains the exact target that existed when that request began. */
     if( self->cancelled ||
-        (!self->started &&
-         ((self->active_component_id >= 0 &&
-           UITree_ResolveRef(self->host->tree, self->active_ref) < 0) ||
-          (self->dot_component_id >= 0 &&
-           UITree_ResolveRef(self->host->tree, self->dot_ref) < 0))) ||
+        (!self->started && ((self->active_component_id >= 0 &&
+                             UITree_ResolveRef(self->host->tree, self->active_ref) < 0) ||
+                            (self->dot_component_id >= 0 &&
+                             UITree_ResolveRef(self->host->tree, self->dot_ref) < 0))) ||
         (self->pending_target_ref.incarnation &&
          UITree_ResolveRef(self->host->tree, self->pending_target_ref) < 0) )
     {
         if( !self->cancelled && getenv("TORIRS_TRACE_NATIVE_UI") )
-            TORIRS_REPORT("NATIVE_CALLBACK_CANCEL script=%d reason=stale-widget\n", self->script_id);
+            TORIRS_REPORT(
+                "NATIVE_CALLBACK_CANCEL script=%d reason=stale-widget\n", self->script_id);
         self->cancelled = 1;
-        /* A read counted on the assets table is the table's to finish: stop
-         * counting it. */
-        if( self->join > 0 )
-            Assets_Unjoin(self->host->assets, &self->join);
-        /* Resource-load children own outstanding IO. Drain that load without
-         * resuming the callback or its tree bake, then release the child. */
-        struct ToriRS_Task* child = self->pt.user;
-        if( child )
-        {
-            int result;
-            child->woke = self->task.woke;
-            result = task_run(child, io);
-            self->task.park_req = child->park_req;
-            self->task.wants_render = child->wants_render;
-            self->task.render = child->render;
-            if( result != PT_ENDED && result != PT_EXITED ) return result;
-            child->completed = 1;
-            self->task.inline_child = NULL;
-            task_free(child);
-            self->pt.user = NULL;
-        }
+        /* Its wait task runs on to its own end (a load that lands is still
+         * a record the cache holds); stop counting it. */
+        task_cs2_drop_wait(self);
         PT_EXIT(&self->pt);
     }
 
@@ -1525,8 +1718,8 @@ Task_CS2Run_Run(
         if( !CacheProvider_ClientScriptHas(self->provider, self->script_id) )
         {
             self->await_id = self->script_id;
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_SCRIPT, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
+            self->yield_plan = TASK_CS2_YIELD_SCRIPT;
+            task_cs2_queue_wait(self, task_cs2_make_keys(self));
             PT_TASK_JOIN(join);
         }
         self->script = CacheProvider_ClientScriptGet(self->provider, self->script_id);
@@ -1573,8 +1766,7 @@ Task_CS2Run_Run(
                 }
                 else if( j < 64 && (self->str_mask & ((uint64_t)1 << j)) )
                 {
-                    char const* s =
-                        str_i < self->str_arg_count ? self->str_args[str_i] : "";
+                    char const* s = str_i < self->str_arg_count ? self->str_args[str_i] : "";
                     /*
                      * `event_opbase` is the one event local that is a STRING,
                      * so it travels in the arg list as its own literal name
@@ -1593,8 +1785,8 @@ Task_CS2Run_Run(
                      */
                     if( strcmp(s, "event_opbase") == 0 )
                     {
-                        int32_t opb = UITree_FindByComponentId(
-                            self->host->tree, self->active_component_id);
+                        int32_t opb =
+                            UITree_FindByComponentId(self->host->tree, self->active_component_id);
                         if( opb >= 0 )
                             s = UITree_MenuOptions(&self->host->tree->components[opb])->option;
                     }
@@ -1636,17 +1828,23 @@ Task_CS2Run_Run(
             }
             if( want && !s_dumped )
             {
-                struct CS2VM2_Script* d =
-                    CacheProvider_ClientScriptGet(self->provider, atoi(want));
+                struct CS2VM2_Script* d = CacheProvider_ClientScriptGet(self->provider, atoi(want));
                 if( d )
                 {
                     s_dumped = 1;
-                    TORIRS_LOG("== DUMP script %d (ops=%d int_args=%d str_args=%d local_ints=%d) ==\n",
-                        d->script_id, d->op_count, d->int_argument_count, d->string_argument_count,
+                    TORIRS_LOG(
+                        "== DUMP script %d (ops=%d int_args=%d str_args=%d local_ints=%d) ==\n",
+                        d->script_id,
+                        d->op_count,
+                        d->int_argument_count,
+                        d->string_argument_count,
                         d->local_int_count);
                     for( int p = 0; p < d->op_count; p++ )
-                        TORIRS_ERR("  pc=%d op=%d %s operand=%d str=%s\n",
-                            p, d->opcodes[p], CS2_OpCode_String(d->opcodes[p]),
+                        TORIRS_ERR(
+                            "  pc=%d op=%d %s operand=%d str=%s\n",
+                            p,
+                            d->opcodes[p],
+                            CS2_OpCode_String(d->opcodes[p]),
                             d->int_operands ? d->int_operands[p] : 0,
                             (d->string_operands && d->string_operands[p]) ? d->string_operands[p]
                                                                           : "(null)");
@@ -1662,7 +1860,7 @@ Task_CS2Run_Run(
          * cleared straight after, so a write from outside any script reads -1
          * rather than inheriting the last script that ran. @see
          * TORIRS_DUMP_SETPOS in rs_cs2_host.c. */
-        self->pending_target_ref = (struct UITreeNodeRef){0};
+        self->pending_target_ref = (struct UITreeNodeRef){ 0 };
         self->has_resume_context = 0;
         self->host->trace_script_id = self->script_id;
         status = CS2VM2_ThreadRun(thread, &err);
@@ -1671,7 +1869,8 @@ Task_CS2Run_Run(
             break;
         if( status == CS2VM2_THREAD_ERROR )
         {
-            TORIRS_ERR("Task_CS2Run: script %d failed at opcode %d pc %d "
+            TORIRS_ERR(
+                "Task_CS2Run: script %d failed at opcode %d pc %d "
                 "(invoked as script %d for component 0x%x)\n",
                 thread->last_error_script_id,
                 thread->last_error_opcode,
@@ -1682,7 +1881,8 @@ Task_CS2Run_Run(
              * FULL stack, not a bad operand, and the leak is always in a caller
              * — without these two lines the report names the innocent script
              * that happened to need one more slot. */
-            TORIRS_LOG("  stack: ints=%d/%d strs=%d/%d frames=%d\n",
+            TORIRS_LOG(
+                "  stack: ints=%d/%d strs=%d/%d frames=%d\n",
                 thread->ints_stack_top,
                 CS2VM_STACK_MAX,
                 thread->strs_stack_top,
@@ -1691,7 +1891,8 @@ Task_CS2Run_Run(
             for( int fi = thread->frame_sp - 1; fi >= 0; fi-- )
             {
                 struct CS2VM2_Frame* fr = thread->frames[fi];
-                TORIRS_LOG("  frame[%d]: script %d pc %d\n",
+                TORIRS_LOG(
+                    "  frame[%d]: script %d pc %d\n",
                     fi,
                     (fr && fr->script) ? fr->script->script_id : -1,
                     fr ? fr->pc : -1);
@@ -1704,7 +1905,8 @@ Task_CS2Run_Run(
                 if( dbg )
                 {
                     int pci;
-                    TORIRS_LOG("  script %d: int_args=%d str_args=%d int_locals=%d str_locals=%d "
+                    TORIRS_LOG(
+                        "  script %d: int_args=%d str_args=%d int_locals=%d str_locals=%d "
                         "ops=%d\n",
                         dbg->script_id,
                         dbg->int_argument_count,
@@ -1720,7 +1922,8 @@ Task_CS2Run_Run(
                     if( pci < 0 )
                         pci = 0;
                     for( ; pci < dbg->op_count && pci <= pc_hi; pci++ )
-                        TORIRS_ERR("  pc=%d op=%d %s operand=%d str=%s\n",
+                        TORIRS_ERR(
+                            "  pc=%d op=%d %s operand=%d str=%s\n",
                             pci,
                             dbg->opcodes[pci],
                             CS2_OpCode_String(dbg->opcodes[pci]),
@@ -1751,27 +1954,29 @@ Task_CS2Run_Run(
         *self->pending = self->host->pending;
         self->host->has_pending = false;
         self->has_resume_context = 1;
-        self->resume_active_ref = UITree_RefAt(self->host->tree,
-            self->host->tree ? UITree_FindByComponentId(self->host->tree, thread->active_component_id) : -1);
-        self->resume_dot_ref = UITree_RefAt(self->host->tree,
-            self->host->tree ? UITree_FindByComponentId(self->host->tree, thread->dot_component_id) : -1);
+        self->resume_active_ref = UITree_RefAt(
+            self->host->tree,
+            UITree_FindByComponentId(self->host->tree, thread->active_component_id));
+        self->resume_dot_ref = UITree_RefAt(
+            self->host->tree, UITree_FindByComponentId(self->host->tree, thread->dot_component_id));
         int target_id = task_cs2_component_id_from_request(self->pending);
-        self->pending_target_ref = UITree_RefAt(self->host->tree,
-            self->host->tree ? UITree_FindByComponentId(self->host->tree, target_id) : -1);
+        self->pending_target_ref =
+            UITree_RefAt(self->host->tree, UITree_FindByComponentId(self->host->tree, target_id));
         /* Missing cache groups may be loaded by this explicit native lookup.
          * A request that already resolved a live node cannot acquire its reuse. */
 
-        /* Flat switch (no PT) then linear awaits — protothreads cannot nest switch. */
+        /* Plan in a plain function (it may switch); the PT body only waits. */
         task_cs2_plan_yield(self);
         /* Asked for by name, so it prints in every build (torirs_log.h: a
          * line someone turned on is a report, not narration). */
         if( getenv("TORIRS_TRACE_CS2_YIELD") )
-            TORIRS_REPORT("cs2-yield: script=%d plan=%s wait=%s id=%d id2=%d\n",
+            TORIRS_REPORT(
+                "cs2-yield: script=%d plan=%s wait=%s id=%d id2=%d\n",
                 self->script_id,
                 task_cs2_yield_name(self->yield_plan),
-                k_task_cs2_yields[self->yield_plan].wait == TASK_CS2_WAIT_VISUAL ? "visual"
-                    : k_task_cs2_yields[self->yield_plan].wait == TASK_CS2_WAIT_REQUIRED ? "required"
-                    : "none",
+                k_task_cs2_yields[self->yield_plan].wait == TASK_CS2_WAIT_VISUAL     ? "visual"
+                : k_task_cs2_yields[self->yield_plan].wait == TASK_CS2_WAIT_REQUIRED ? "required"
+                                                                                     : "none",
                 self->await_id,
                 self->await_id2);
 
@@ -1780,248 +1985,10 @@ Task_CS2Run_Run(
             CS2VM2_ResetRuntime(CS2VM2_ThreadMain(self->vm));
             PT_EXIT(&self->pt);
         }
-        else if( self->yield_plan == TASK_CS2_YIELD_SCRIPT )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_SCRIPT, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_INVTYPE )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_INVTYPE, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_InvtypeLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_ENUM )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_ENUM, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_EnumLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_WORLDMAP )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_WORLDMAP, 0)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_WorldMapLoad(self->provider));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_MAPELEMENT )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_MAPELEMENT, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_MapElementLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_OBJALL )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_OBJ_ALL, 0)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ObjLoadAll(self->provider));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_STRUCT )
-        {
-            if( self->await_id >= 0 &&
-                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_STRUCT, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-            if( self->await_id2 >= 0 &&
-                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id2)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_PARAMS )
-        {
-            if( self->await_id >= 0 &&
-                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-            if( self->await_id2 >= 0 &&
-                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id2)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_DBROW )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_DBROW, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_DbRowLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_DBINDEX )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_DBINDEX, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_DbTableIndexLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_DBTABLE )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_DBTABLE, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_DbTableLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_OBJ )
-        {
-            if( self->await_id >= 0 &&
-                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_OBJ, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-            if( self->await_id2 >= 0 &&
-                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id2)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_COMPONENT )
-        {
-            assert(self->host->tree);
-            if( !task_cs2_read(self, AssetKey_Make(ASSET_KIND_IF_GROUP, self->await_id, 0)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-            /* The pack is required; its sprites and fonts too (the bake binds
-             * and measures with them). Its models are VISUAL: on the app's
-             * host they load and bind after the bake (pack_models_lazy). */
-            if( self->host->assets && self->host->pack_models_lazy )
-                task_cs2_read_pack_faces(self);
-            else
-                PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-            task_cs2_bake_pack(self);
-            if( self->host->assets && self->host->pack_models_lazy &&
-                CacheProvider_ComponentPackHas(self->provider, self->await_id) )
-                self->host->pack_models_lazy(self->host->world_user, self->await_id);
-            if( !CacheProvider_ComponentPackHas(self->provider, self->await_id) )
-            {
-                CS2VM2_ResetRuntime(CS2VM2_ThreadMain(self->vm));
-                PT_EXIT(&self->pt);
-            }
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_MODEL )
-        {
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->await_id));
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_LOC_MODEL )
-        {
-            PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(self->provider, self->await_id));
-            for( self->yield_i = 0;; self->yield_i++ )
-            {
-                struct ToriRS_Location* loc =
-                    CacheProvider_LocationGet(self->provider, self->await_id);
-                int const* ids;
-                int count;
-                if( !loc )
-                    break;
-                count = UITreeSceneBridge_LocModelIds(loc, &ids);
-                if( self->yield_i >= count )
-                    break;
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_ModelLoad(self->provider, ids[self->yield_i]));
-            }
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_NPC )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_NPC, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-        }
-        /* NC_PARAM / LC_PARAM: the record AND the ParamType, the same pairing
-         * TASK_CS2_YIELD_OBJ makes for OC_PARAM -- the answer needs the key
-         * from one and the default from the other. */
-        else if( self->yield_plan == TASK_CS2_YIELD_NPC_PARAM )
-        {
-            if( self->await_id >= 0 &&
-                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_NPC, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-            if( self->await_id2 >= 0 &&
-                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id2)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_LOC_PARAM )
-        {
-            if( self->await_id >= 0 &&
-                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_LOC, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-            if( self->await_id2 >= 0 &&
-                !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_PARAM, self->await_id2)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_NPC_HEAD )
-        {
-            /* IF1 Task_AppIfHead parity: load and resolve the multiNpc shell
-             * first, then load the selected child's chathead models. Every
-             * loop index/id is persistent because each await may resume on a
-             * later frame and provider cache insertions may move pointers. */
-            self->yield_npc_id = self->await_id;
-            for( self->yield_npc_depth = 0;
-                 self->yield_npc_depth <= TORIRS_NPC_MULTI_MAX_DEPTH &&
-                 self->yield_npc_id >= 0;
-                 self->yield_npc_depth++ )
-            {
-                int next;
-                struct ToriRS_Npctype* npc;
-
-                /* Each rung's config through the assets table, as the NPC
-                 * yield reads it (a host with no table loads it itself). */
-                if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_NPC, self->yield_npc_id)) )
-                    PT_TASK_AWAITSELF_IF(
-                        CreateTask_NpcLoad(self->provider, self->yield_npc_id));
-                PT_TASK_JOIN(join);
-                npc = CacheProvider_NpctypeGet(
-                    self->provider, self->yield_npc_id);
-                if( !npc || npc->transform_count <= 0 || !npc->transforms )
-                    break;
-                next = self->host->varps
-                           ? VarPManager_ResolveTransform(
-                                 self->host->varps,
-                                 npc->transforms,
-                                 npc->transform_count,
-                                 npc->transform_varbit,
-                                 npc->transform_varp)
-                           : npc->transforms[npc->transform_count - 1];
-                if( next < 0 || next == self->yield_npc_id )
-                {
-                    self->yield_npc_id = next;
-                    break;
-                }
-                if( self->yield_npc_depth == TORIRS_NPC_MULTI_MAX_DEPTH )
-                    break;
-                self->yield_npc_id = next;
-            }
-            for( self->yield_i = 0;; self->yield_i++ )
-            {
-                struct ToriRS_Npctype* npc =
-                    self->yield_npc_id < 0
-                        ? NULL
-                        : CacheProvider_NpctypeGet(
-                              self->provider, self->yield_npc_id);
-                if( !npc || self->yield_i >= npc->heads_count )
-                    break;
-                if( npc->heads[self->yield_i] < 0 )
-                    continue;
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_ModelLoad(self->provider, npc->heads[self->yield_i]));
-            }
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_SETOBJECT )
-        {
-            int ids[1];
-            int counts[1];
-            ids[0] = self->yield_obj_id;
-            counts[0] = self->yield_obj_count;
-            PT_TASK_AWAITSELF_IF(CreateTask_ObjModelLoad(self->provider, ids, counts, 1));
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_SPRITE )
-        {
-            if( !task_cs2_read(self, AssetKey_Make(ASSET_KIND_SPRITE, self->await_id, 0)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_FONT )
-        {
-            if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_FONT, self->await_id)) )
-                PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->await_id));
-            PT_TASK_JOIN(join);
-        }
-        /* TASK_CS2_YIELD_NONE: expected no-op (clear ids). Re-enter ThreadRun. */
+        /* One wait for every plan: the row makes the task that waits for what
+         * the request needs, it is queued beside this one, and this joins it. */
+        task_cs2_queue_wait(self, k_task_cs2_yields[self->yield_plan].make(self));
+        PT_TASK_JOIN(join);
     }
 
     PT_END(&self->pt);
@@ -2033,8 +2000,8 @@ Task_CS2Run_Free(struct ToriRS_Task* task)
 {
     struct Task_CS2Run* self = (struct Task_CS2Run*)task;
     assert(self);
-    if( self->join > 0 )
-        Assets_Unjoin(self->host->assets, &self->join);
+    /* Freed mid-wait: its wait task must not count into freed memory. */
+    task_cs2_drop_wait(self);
     /* NULL when the task was dropped before it ever ran (queue teardown). */
     CS2VM2_Release(self->vm);
     /* NULL when the task never yielded, which is the common case. Both come
@@ -2056,7 +2023,7 @@ static struct ToriRS_TaskVTable Task_CS2Run_VTable = {
  *
  * The same planner Task_CS2Run's resume uses, run over a probe that carries
  * only the request -- so the two can never disagree about what a request is
- * waiting for. The plans that need the task's own resume (a pack baked into
+ * waiting for. The plans that need the task's own resume (a group baked into
  * the tree, a loc's or a head's model set, an obj icon) are refused, as is an
  * ABORT; every other plan is at most two plain config loads.
  */
@@ -2079,85 +2046,13 @@ CS2Run_RequestAwait(
     probe.pending = (struct CS2VM_HostRequest*)request;
     task_cs2_plan_yield(&probe);
 
-    out->plan = (int)probe.yield_plan;
-    out->ids[0] = probe.await_id;
-    out->ids[1] = -1;
     out->count = 0;
-    if( probe.yield_plan == TASK_CS2_YIELD_COMPONENT || probe.yield_plan == TASK_CS2_YIELD_LOC_MODEL ||
-        probe.yield_plan == TASK_CS2_YIELD_NPC_HEAD || probe.yield_plan == TASK_CS2_YIELD_SETOBJECT ||
-        probe.yield_plan == TASK_CS2_YIELD_ABORT )
+    /* A plan with a wait task of its own (a group baked into the tree, a
+     * loc's or a head's model set, an obj icon) or an ABORT. */
+    if( k_task_cs2_yields[probe.yield_plan].make != task_cs2_make_keys )
         return 0;
-    if( probe.yield_plan == TASK_CS2_YIELD_NONE )
-        return 1;
-    /* The one-id plans state no second id; the paired ones may state either
-     * or both (a struct param with no struct, an empty obj slot's param). */
-    if( probe.yield_plan == TASK_CS2_YIELD_STRUCT || probe.yield_plan == TASK_CS2_YIELD_PARAMS ||
-        probe.yield_plan == TASK_CS2_YIELD_OBJ || probe.yield_plan == TASK_CS2_YIELD_NPC_PARAM ||
-        probe.yield_plan == TASK_CS2_YIELD_LOC_PARAM )
-    {
-        out->ids[1] = probe.await_id2;
-        out->count = 2;
-        return 1;
-    }
-    out->count = 1;
+    out->count = task_cs2_plan_keys(&probe, out->keys);
     return 1;
-}
-
-struct ToriRS_Task*
-CS2Run_RequestLoadTask(
-    struct CacheProvider* provider,
-    struct CS2RunAwait const* await,
-    int which)
-{
-    int id;
-    enum TaskCS2YieldPlan plan;
-
-    assert(provider);
-    assert(await);
-    assert(which >= 0);
-    assert(which < await->count);
-    id = await->ids[which];
-    plan = (enum TaskCS2YieldPlan)await->plan;
-    if( id < 0 && plan != TASK_CS2_YIELD_WORLDMAP && plan != TASK_CS2_YIELD_OBJALL )
-        return NULL;
-    /* The second id of every paired plan is a ParamType, except PARAMS, whose
-     * both are. */
-    if( which == 1 || plan == TASK_CS2_YIELD_PARAMS )
-        return CreateTask_ParamLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_SCRIPT )
-        return CreateTask_ClientScriptLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_INVTYPE )
-        return CreateTask_InvtypeLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_ENUM )
-        return CreateTask_EnumLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_STRUCT )
-        return CreateTask_StructLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_OBJ )
-        return CreateTask_ObjLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_NPC || plan == TASK_CS2_YIELD_NPC_PARAM )
-        return CreateTask_NpcLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_LOC_PARAM )
-        return CreateTask_LocLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_MODEL )
-        return CreateTask_ModelLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_SPRITE )
-        return CreateTask_SpriteLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_FONT )
-        return CreateTask_FontLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_WORLDMAP )
-        return CreateTask_WorldMapLoad(provider);
-    if( plan == TASK_CS2_YIELD_MAPELEMENT )
-        return CreateTask_MapElementLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_OBJALL )
-        return CreateTask_ObjLoadAll(provider);
-    if( plan == TASK_CS2_YIELD_DBROW )
-        return CreateTask_DbRowLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_DBINDEX )
-        return CreateTask_DbTableIndexLoad(provider, id);
-    if( plan == TASK_CS2_YIELD_DBTABLE )
-        return CreateTask_DbTableLoad(provider, id);
-    assert(0 && "CS2Run_RequestLoadTask: a plan CS2Run_RequestAwait refuses");
-    return NULL;
 }
 
 /*
@@ -2203,6 +2098,7 @@ task_cs2_run_new(
 
     assert(host);
     assert(host->provider);
+    assert(host->tree);
 
     self = RS_CS2TaskPool_New(&host->run_task_pool, sizeof(*self));
 
@@ -2214,10 +2110,10 @@ task_cs2_run_new(
     self->script = script;
     self->active_component_id = active_component_id;
     self->dot_component_id = dot_component_id >= 0 ? dot_component_id : active_component_id;
-    self->active_ref = UITree_RefAt(host->tree,
-        host->tree ? UITree_FindByComponentId(host->tree, self->active_component_id) : -1);
-    self->dot_ref = UITree_RefAt(host->tree,
-        host->tree ? UITree_FindByComponentId(host->tree, self->dot_component_id) : -1);
+    self->active_ref =
+        UITree_RefAt(host->tree, UITree_FindByComponentId(host->tree, self->active_component_id));
+    self->dot_ref =
+        UITree_RefAt(host->tree, UITree_FindByComponentId(host->tree, self->dot_component_id));
 
     /* Freeze the event the dispatcher just wrote. See struct Task_CS2Run. */
     self->event_key_typed = host->event_key_typed;
@@ -2275,7 +2171,8 @@ task_cs2_run_new(
         {
             if( warned_count < (int)(sizeof(warned_script) / sizeof(warned_script[0])) )
                 warned_script[warned_count++] = script_id;
-            TORIRS_LOG("cs2: clientscript %d passed %d string arguments; only the first %d are "
+            TORIRS_LOG(
+                "cs2: clientscript %d passed %d string arguments; only the first %d are "
                 "kept and the rest arrive as \"\" (TASK_CS2_RUN_STR_ARGS_MAX)\n",
                 script_id,
                 str_arg_count,
@@ -2294,8 +2191,8 @@ task_cs2_run_new(
      * early-out on setwindowmode when already in the same fixed/resizable class
      * (Classic↔Modern). Stash the mode arg at dispatch so WINDOW_STATUS still
      * fires. */
-    if( host->script_settings_client_mode > 0 &&
-        script_id == host->script_settings_client_mode && int_arg_count >= 1 && int_args )
+    if( host->script_settings_client_mode > 0 && script_id == host->script_settings_client_mode &&
+        int_arg_count >= 1 && int_args )
     {
         int layout = int_args[0];
         if( layout >= 0 && layout <= 2 )
@@ -2309,7 +2206,8 @@ task_cs2_run_new(
     if( cc_debug < 0 )
         cc_debug = getenv("TORIRS_CC_DEBUG") != NULL;
     if( cc_debug )
-        TORIRS_LOG("CS2RUN script=%d com=%d|%d\n",
+        TORIRS_LOG(
+            "CS2RUN script=%d com=%d|%d\n",
             script_id,
             (active_component_id >> 16) & 0xffff,
             active_component_id & 0xffff);
@@ -2432,10 +2330,22 @@ CreateTask_CS2RunScript(
 
 /* Registrations may move during a yielded callback. Snapshot participants,
  * then use their old slot as an O(1) hint; only compaction needs a search. */
-_Static_assert(offsetof(struct RS_CS2InvTransmitHook, ref) == offsetof(struct RS_CS2VarTransmitHook, ref),
-               "transmit identity prefix differs");
-_Static_assert(offsetof(struct RS_CS2InvTransmitHook, ref) == offsetof(struct RS_CS2StatTransmitHook, ref),
-               "transmit identity prefix differs");
+_Static_assert(
+    offsetof(
+        struct RS_CS2InvTransmitHook,
+        ref) ==
+        offsetof(
+            struct RS_CS2VarTransmitHook,
+            ref),
+    "transmit identity prefix differs");
+_Static_assert(
+    offsetof(
+        struct RS_CS2InvTransmitHook,
+        ref) ==
+        offsetof(
+            struct RS_CS2StatTransmitHook,
+            ref),
+    "transmit identity prefix differs");
 
 struct Task_CS2HookSnapshot
 {
@@ -2444,18 +2354,27 @@ struct Task_CS2HookSnapshot
 };
 
 static struct UITreeNodeRef
-task_cs2_hook_ref(void const* hooks, size_t stride, int index)
+task_cs2_hook_ref(
+    void const* hooks,
+    size_t stride,
+    int index)
 {
     struct UITreeNodeRef ref;
-    memcpy(&ref, (char const*)hooks + stride * (size_t)index +
-                 offsetof(struct RS_CS2InvTransmitHook, ref), sizeof(ref));
+    memcpy(
+        &ref,
+        (char const*)hooks + stride * (size_t)index + offsetof(struct RS_CS2InvTransmitHook, ref),
+        sizeof(ref));
     return ref;
 }
 
 static struct Task_CS2HookSnapshot
-task_cs2_snapshot_hooks(struct ToriMem_Group* mem, void const* hooks, size_t stride, int count)
+task_cs2_snapshot_hooks(
+    struct ToriMem_Group* mem,
+    void const* hooks,
+    size_t stride,
+    int count)
 {
-    struct Task_CS2HookSnapshot snapshot = {.count=count};
+    struct Task_CS2HookSnapshot snapshot = { .count = count };
     if( count > 0 )
     {
         snapshot.refs = ToriMem_Alloc(mem, (size_t)count * sizeof(*snapshot.refs));
@@ -2466,20 +2385,29 @@ task_cs2_snapshot_hooks(struct ToriMem_Group* mem, void const* hooks, size_t str
 }
 
 static bool
-task_cs2_refs_equal(struct UITreeNodeRef a, struct UITreeNodeRef b)
+task_cs2_refs_equal(
+    struct UITreeNodeRef a,
+    struct UITreeNodeRef b)
 {
-    return a.tree_instance == b.tree_instance && a.index == b.index && a.incarnation == b.incarnation;
+    return a.tree_instance == b.tree_instance && a.index == b.index &&
+           a.incarnation == b.incarnation;
 }
 
 static int
-task_cs2_snapshot_slot(void const* hooks, size_t stride, int count,
-                       struct UITreeNodeRef ref, int hint)
+task_cs2_snapshot_slot(
+    void const* hooks,
+    size_t stride,
+    int count,
+    struct UITreeNodeRef ref,
+    int hint)
 {
-    if( !ref.incarnation ) return -1;
+    if( !ref.incarnation )
+        return -1;
     if( hint < count && task_cs2_refs_equal(ref, task_cs2_hook_ref(hooks, stride, hint)) )
         return hint;
     for( int i = 0; i < count; ++i )
-        if( task_cs2_refs_equal(ref, task_cs2_hook_ref(hooks, stride, i)) ) return i;
+        if( task_cs2_refs_equal(ref, task_cs2_hook_ref(hooks, stride, i)) )
+            return i;
     return -1;
 }
 
@@ -2555,14 +2483,21 @@ Task_CS2InvTransmitDispatch_Run(
 
     assert(self->host);
 
-    self->snapshot = task_cs2_snapshot_hooks(ToriRS_TaskMem(&self->task), self->host->inv_transmit_hooks,
-        sizeof(*self->host->inv_transmit_hooks), self->host->inv_transmit_hook_count);
+    self->snapshot = task_cs2_snapshot_hooks(
+        ToriRS_TaskMem(&self->task),
+        self->host->inv_transmit_hooks,
+        sizeof(*self->host->inv_transmit_hooks),
+        self->host->inv_transmit_hook_count);
     for( self->hook_index = 0; self->hook_index < self->snapshot.count; self->hook_index++ )
     {
-        int slot = task_cs2_snapshot_slot(self->host->inv_transmit_hooks,
-            sizeof(*self->host->inv_transmit_hooks), self->host->inv_transmit_hook_count,
-            self->snapshot.refs[self->hook_index], self->hook_index);
-        if( slot < 0 ) continue;
+        int slot = task_cs2_snapshot_slot(
+            self->host->inv_transmit_hooks,
+            sizeof(*self->host->inv_transmit_hooks),
+            self->host->inv_transmit_hook_count,
+            self->snapshot.refs[self->hook_index],
+            self->hook_index);
+        if( slot < 0 )
+            continue;
         hook = &self->host->inv_transmit_hooks[slot];
         if( self->unhide_only )
         {
@@ -2616,7 +2551,8 @@ Task_CS2InvTransmitDispatch_Run(
         hook->pending_unhide = 0;
 
 #if UITREE_CLICK_DEBUG
-        TORIRS_LOG("uitree_click: InvTransmitDispatch script_id=%d component_id=%d argc=%d "
+        TORIRS_LOG(
+            "uitree_click: InvTransmitDispatch script_id=%d component_id=%d argc=%d "
             "container_filter=%d\n",
             hook->script_id,
             hook->component_id,
@@ -2682,8 +2618,7 @@ CreateTask_CS2InvTransmitDispatch(
 }
 
 struct ToriRS_Task*
-CreateTask_CS2InvTransmitUnhideDispatch(
-    struct RS_CS2Host* host)
+CreateTask_CS2InvTransmitUnhideDispatch(struct RS_CS2Host* host)
 {
     struct Task_CS2InvTransmitDispatch* self =
         (struct Task_CS2InvTransmitDispatch*)CreateTask_CS2InvTransmitDispatch(host, -1);
@@ -2765,14 +2700,21 @@ Task_CS2VarTransmitDispatch_Run(
 
     assert(self->host);
 
-    self->snapshot = task_cs2_snapshot_hooks(ToriRS_TaskMem(&self->task), self->host->var_transmit_hooks,
-        sizeof(*self->host->var_transmit_hooks), self->host->var_transmit_hook_count);
+    self->snapshot = task_cs2_snapshot_hooks(
+        ToriRS_TaskMem(&self->task),
+        self->host->var_transmit_hooks,
+        sizeof(*self->host->var_transmit_hooks),
+        self->host->var_transmit_hook_count);
     for( self->hook_index = 0; self->hook_index < self->snapshot.count; self->hook_index++ )
     {
-        int slot = task_cs2_snapshot_slot(self->host->var_transmit_hooks,
-            sizeof(*self->host->var_transmit_hooks), self->host->var_transmit_hook_count,
-            self->snapshot.refs[self->hook_index], self->hook_index);
-        if( slot < 0 ) continue;
+        int slot = task_cs2_snapshot_slot(
+            self->host->var_transmit_hooks,
+            sizeof(*self->host->var_transmit_hooks),
+            self->host->var_transmit_hook_count,
+            self->snapshot.refs[self->hook_index],
+            self->hook_index);
+        if( slot < 0 )
+            continue;
         hook = &self->host->var_transmit_hooks[slot];
         /* TORIRS_VAR_HOOK_DEBUG=1: one line per registered hook per dispatch,
          * with its trigger list and the varps that actually changed. A hook
@@ -2781,7 +2723,8 @@ Task_CS2VarTransmitDispatch_Run(
         if( var_hook_debug_on() )
         {
             int t;
-            TORIRS_LOG("VARHOOK com=0x%08x script=%d unhide_only=%d triggers=%d[",
+            TORIRS_LOG(
+                "VARHOOK com=0x%08x script=%d unhide_only=%d triggers=%d[",
                 (unsigned)hook->component_id,
                 hook->script_id,
                 self->unhide_only,
@@ -2791,7 +2734,8 @@ Task_CS2VarTransmitDispatch_Run(
             TORIRS_LOG("] changed=%d[", self->var_count);
             for( t = 0; t < self->var_count; t++ )
                 TORIRS_LOG("%s%d", t ? "," : "", self->var_ids[t]);
-            TORIRS_LOG("] match=%d hidden=%d\n",
+            TORIRS_LOG(
+                "] match=%d hidden=%d\n",
                 RS_CS2_VarTransmitTriggersMatch(hook, self->var_ids, self->var_count),
                 UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id));
         }
@@ -2910,8 +2854,7 @@ CreateTask_CS2VarTransmitDispatchSet(
 }
 
 struct ToriRS_Task*
-CreateTask_CS2VarTransmitUnhideDispatch(
-    struct RS_CS2Host* host)
+CreateTask_CS2VarTransmitUnhideDispatch(struct RS_CS2Host* host)
 {
     struct Task_CS2VarTransmitDispatch* self =
         (struct Task_CS2VarTransmitDispatch*)CreateTask_CS2VarTransmitDispatchSet(host, NULL, 0);
@@ -2984,9 +2927,15 @@ stat_dispatch_trace(
         on = getenv("TORIRS_STAT_DEBUG") ? 1 : 0;
     if( !on )
         return;
-    TORIRS_LOG("statdisp: %-16s hook %d/%d com=0x%x script=%d triggers=%d serial=%u\n", what,
-        hook_index, host->stat_transmit_hook_count, hook->component_id, hook->script_id,
-        hook->trigger_count, host->stat_change_serial);
+    TORIRS_LOG(
+        "statdisp: %-16s hook %d/%d com=0x%x script=%d triggers=%d serial=%u\n",
+        what,
+        hook_index,
+        host->stat_transmit_hook_count,
+        hook->component_id,
+        hook->script_id,
+        hook->trigger_count,
+        host->stat_change_serial);
 }
 
 static int
@@ -3024,14 +2973,21 @@ Task_CS2StatTransmitDispatch_Run(
 
     assert(self->host);
 
-    self->snapshot = task_cs2_snapshot_hooks(ToriRS_TaskMem(&self->task), self->host->stat_transmit_hooks,
-        sizeof(*self->host->stat_transmit_hooks), self->host->stat_transmit_hook_count);
+    self->snapshot = task_cs2_snapshot_hooks(
+        ToriRS_TaskMem(&self->task),
+        self->host->stat_transmit_hooks,
+        sizeof(*self->host->stat_transmit_hooks),
+        self->host->stat_transmit_hook_count);
     for( self->hook_index = 0; self->hook_index < self->snapshot.count; self->hook_index++ )
     {
-        int slot = task_cs2_snapshot_slot(self->host->stat_transmit_hooks,
-            sizeof(*self->host->stat_transmit_hooks), self->host->stat_transmit_hook_count,
-            self->snapshot.refs[self->hook_index], self->hook_index);
-        if( slot < 0 ) continue;
+        int slot = task_cs2_snapshot_slot(
+            self->host->stat_transmit_hooks,
+            sizeof(*self->host->stat_transmit_hooks),
+            self->host->stat_transmit_hook_count,
+            self->snapshot.refs[self->hook_index],
+            self->hook_index);
+        if( slot < 0 )
+            continue;
         hook = &self->host->stat_transmit_hooks[slot];
         /* TORIRS_STAT_DEBUG prints the SKIPS as well as the runs, and that is
          * what this loop is worth debugging with: every one of the five gates
@@ -3064,8 +3020,7 @@ Task_CS2StatTransmitDispatch_Run(
             stat_dispatch_trace(self->host, hook, slot, "hidden");
             continue;
         }
-        if( !self->unhide_only &&
-            hook->last_seen_serial >= self->host->stat_change_serial )
+        if( !self->unhide_only && hook->last_seen_serial >= self->host->stat_change_serial )
             continue;
         hook->last_seen_serial = self->host->stat_change_serial;
         hook->pending_unhide = 0;
@@ -3137,12 +3092,10 @@ CreateTask_CS2StatTransmitDispatchSet(
 }
 
 struct ToriRS_Task*
-CreateTask_CS2StatTransmitUnhideDispatch(
-    struct RS_CS2Host* host)
+CreateTask_CS2StatTransmitUnhideDispatch(struct RS_CS2Host* host)
 {
     struct Task_CS2StatTransmitDispatch* self =
-        (struct Task_CS2StatTransmitDispatch*)CreateTask_CS2StatTransmitDispatchSet(
-            host, NULL, 0);
+        (struct Task_CS2StatTransmitDispatch*)CreateTask_CS2StatTransmitDispatchSet(host, NULL, 0);
     self->unhide_only = 1;
     strcpy(self->task.name, "CS2StatTransmitUnhideDispatch");
     return &self->task;
@@ -3269,9 +3222,8 @@ CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host)
             for( int ai = 0; ai < dst->argc; ai++ )
                 dst->argv[ai] = UITree_HookArg(slot, ai);
             dst->str_mask = slot->str_mask;
-            dst->str_argc = slot->str_argc > UITREE_HOOK_STR_ARG_MAX
-                                ? UITREE_HOOK_STR_ARG_MAX
-                                : slot->str_argc;
+            dst->str_argc =
+                slot->str_argc > UITREE_HOOK_STR_ARG_MAX ? UITREE_HOOK_STR_ARG_MAX : slot->str_argc;
             for( int si = 0; si < dst->str_argc; si++ )
                 snprintf(dst->strv[si], UITREE_HOOK_STR_ARG_LEN, "%s", UITree_HookStr(slot, si));
         }
@@ -3398,9 +3350,8 @@ create_no_trigger_transmit_dispatch(
             for( int ai = 0; ai < dst->argc; ai++ )
                 dst->argv[ai] = UITree_HookArg(slot, ai);
             dst->str_mask = slot->str_mask;
-            dst->str_argc = slot->str_argc > UITREE_HOOK_STR_ARG_MAX
-                                ? UITREE_HOOK_STR_ARG_MAX
-                                : slot->str_argc;
+            dst->str_argc =
+                slot->str_argc > UITREE_HOOK_STR_ARG_MAX ? UITREE_HOOK_STR_ARG_MAX : slot->str_argc;
             for( int si = 0; si < dst->str_argc; si++ )
                 snprintf(dst->strv[si], UITREE_HOOK_STR_ARG_LEN, "%s", UITree_HookStr(slot, si));
         }
@@ -3461,8 +3412,7 @@ clan_channel_transmit_slot(struct UITreeComponent const* node)
 struct ToriRS_Task*
 CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host)
 {
-    return create_no_trigger_transmit_dispatch(
-        host, "CS2MiscTransmitDispatch", misc_transmit_slot);
+    return create_no_trigger_transmit_dispatch(host, "CS2MiscTransmitDispatch", misc_transmit_slot);
 }
 
 /*
@@ -3486,8 +3436,7 @@ CreateTask_CS2FriendTransmitDispatch(struct RS_CS2Host* host)
 struct ToriRS_Task*
 CreateTask_CS2ClanTransmitDispatch(struct RS_CS2Host* host)
 {
-    return create_no_trigger_transmit_dispatch(
-        host, "CS2ClanTransmitDispatch", clan_transmit_slot);
+    return create_no_trigger_transmit_dispatch(host, "CS2ClanTransmitDispatch", clan_transmit_slot);
 }
 
 /* The Grand Exchange offer slots changed: every CC/IF_SETONSTOCKTRANSMIT hook re-runs. */
@@ -3536,6 +3485,5 @@ CreateTask_CS2ClanChannelTransmitDispatch(struct RS_CS2Host* host)
 struct ToriRS_Task*
 CreateTask_CS2ChatTransmitDispatch(struct RS_CS2Host* host)
 {
-    return create_no_trigger_transmit_dispatch(
-        host, "CS2ChatTransmitDispatch", chat_transmit_slot);
+    return create_no_trigger_transmit_dispatch(host, "CS2ChatTransmitDispatch", chat_transmit_slot);
 }

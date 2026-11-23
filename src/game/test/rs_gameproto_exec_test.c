@@ -313,6 +313,53 @@ test_list_400(
     free(csoc);
 }
 
+/* A cache provider that loads nothing: what the assets table's loaders are
+ * made over when a fixture never loads a record. */
+static struct CacheProvider*
+exec_test_provider_new(void)
+{
+    struct CacheProvider* provider = calloc(1, sizeof(*provider));
+    struct CacheProviderVTable* no_loads = calloc(1, sizeof(*no_loads));
+
+    assert(provider);
+    assert(no_loads);
+    provider->vtable = no_loads;
+    CacheProvider_InitEngineCaches(provider);
+    return provider;
+}
+
+static void
+exec_test_provider_free(struct CacheProvider* provider)
+{
+    CacheProvider_FreeEngineCaches(provider);
+    free((void*)provider->vtable);
+    free(provider);
+}
+
+/* An assets-table loader for a cache that holds no ComponentPack: every
+ * load fails at once, as a real one does for a group the cache lacks. */
+static enum AssetStart
+exec_test_if_group_absent_start(
+    void* data,
+    struct Assets* assets,
+    struct AssetKey key)
+{
+    (void)data;
+    (void)assets;
+    (void)key;
+    return ASSET_START_FAILED;
+}
+
+static bool
+exec_test_if_group_absent_resident(
+    void* data,
+    struct AssetKey key)
+{
+    (void)data;
+    (void)key;
+    return false;
+}
+
 int
 main(void)
 {
@@ -1809,6 +1856,7 @@ main(void)
         assert(app);
         app->packet_runner.queue = ToriRS_TaskQueue_New();
         app->frame_runner.queue = ToriRS_TaskQueue_New();
+        app->provider = exec_test_provider_new();
         App_AssetsInit(app);
         App_PendingInit(app);
         /* A root view whose world is not built: nothing stands on any tile. */
@@ -1922,6 +1970,7 @@ main(void)
         TEST_EXEC_ASSERT(RS_Pending_Listed(app->pending) == 0, "freed unrun, every change unlisted");
         App_PendingFree(app);
         App_AssetsFree(app);
+        exec_test_provider_free(app->provider);
         free(app);
         printf("ok - a LOC_ANIM goes to the standing loc; a pending LOC_ADD_CHANGE keeps it only as rev 239 does\n");
     }
@@ -2397,6 +2446,20 @@ main(void)
         app->tree = UITree_New(4);
         /* The host's tree is bound, as App init binds it (ba95a2734). */
         app->host.tree = app->tree;
+        /* And what an open needs of it to put a group in the tree
+         * (Task_GroupMount): the provider, the bridge, the assets table with
+         * an IF_GROUP loader, and the parallel queue the mount runs on. */
+        {
+            struct AssetLoader loader = { .start = exec_test_if_group_absent_start,
+                                          .resident = exec_test_if_group_absent_resident,
+                                          .data = NULL };
+            Assets_SetLoader(app->assets, ASSET_KIND_IF_GROUP, &loader);
+        }
+        app->host.provider = provider;
+        app->host.assets = app->assets;
+        CacheProvider_SetAssets(provider, app->assets);
+        app->host.bridge = &app->bridge;
+        CacheProvider_SetAssetQueue(provider, app->frame_runner.queue);
         memset(&spec, 0, sizeof(spec));
         memset(&layer_behavior, 0, sizeof(layer_behavior));
         spec.behavior = &layer_behavior;
@@ -2411,7 +2474,16 @@ main(void)
         UITree_InterfaceParentSet(app->tree, slot, 500, 1);
 
         App_OpenSubInterface(app, slot, 777, 1);
-        (void)ToriRS_TaskQueue_Run(app->packet_runner.queue, io);
+        /* The open waits on its group mount, which runs on the parallel
+         * queue: step both until both are empty. */
+        for( int pass = 0; pass < 16 && (app->packet_runner.queue->head ||
+                                         app->frame_runner.queue->head); pass++ )
+        {
+            (void)ToriRS_TaskQueue_Run(app->packet_runner.queue, io);
+            (void)ToriRS_TaskQueue_Run(app->frame_runner.queue, io);
+        }
+        TEST_EXEC_ASSERT(!app->packet_runner.queue->head && !app->frame_runner.queue->head,
+                         "the open and its group mount ended");
         for( uint32_t i = 0; i < app->drive_events.ring.count; i++ )
         {
             struct RS_Event const* e = &app->drive_events.entries[i];

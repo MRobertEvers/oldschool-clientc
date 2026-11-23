@@ -284,8 +284,8 @@ test_kit_scan_reads_through_the_table(void)
     printf("TEST: two default kit scans read each kit and model once\n");
     fixture_init(&fx);
     fx.provider.asset_queue = fx.app.frame_runner.queue;
-    a = CreateTask_PlayerAppearanceLoad(&fx.provider, fx.app.assets);
-    b = CreateTask_PlayerAppearanceLoad(&fx.provider, fx.app.assets);
+    a = CreateTask_PlayerAppearanceLoad(&fx.provider);
+    b = CreateTask_PlayerAppearanceLoad(&fx.provider);
     ToriRS_TaskQueue_Add(fx.app.frame_runner.queue, a);
     ToriRS_TaskQueue_Add(fx.app.frame_runner.queue, b);
     pump(&fx);
@@ -356,6 +356,9 @@ test_script_carries_its_subject(void)
     provider.vtable = &vtable;
     CacheProvider_InitEngineCaches(&provider);
     host.provider = &provider;
+    /* A script host always has a tree (RS_CS2Host_Init asserts it); these
+     * scripts name no widget, so an empty one. */
+    host.tree = UITree_New(16);
     RS_ClientOpReset(&host.clientop);
     memset(&first, 0, sizeof(first));
     memset(&second, 0, sizeof(second));
@@ -379,6 +382,7 @@ test_script_carries_its_subject(void)
 
     ToriRS_TaskQueue_Free(queue);
     ToriRS_IOBatch_Free(io);
+    UITree_Free(host.tree);
     CacheProvider_FreeEngineCaches(&provider);
 }
 

@@ -67,6 +67,7 @@
  *   TORIRS_SCANLINE_SCAN=N       how many model ids to sweep (default 4000).
  */
 
+#include "engine/asset_cache_loaders.h"
 #include "engine/cache_provider.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
@@ -1439,6 +1440,8 @@ main(
     viewer.buildcache = dat1_buildcache_new();
     viewer.provider = dat1_buildcache_as_provider(viewer.buildcache);
     CacheProvider_SetAssetQueue(viewer.provider, viewer.runner.queue);
+    /* Every load goes through an assets table, as the client's does. */
+    AssetCache_RegisterLoaders(Assets_New(), viewer.provider);
 
     /* The decoders branch on cache identity, and the world load asserts it has
      * been stated. cache254 is the rev-254 RS2 dat1 cache (manifests/manifest_rs254lc.ini

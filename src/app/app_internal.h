@@ -495,6 +495,8 @@ struct Task_AppBoot
      *  (on the main queue, where its frame requests are legal); NULL once
      *  taken, or for a profile that names none. */
     struct ToriRS_Task* preload;
+    /** A record the boot asked of the assets table, until it ends. */
+    int join;
 };
 
 

@@ -816,10 +816,12 @@ Task_AppBoot_Run(
      * [font:…] — so this only does work when the profile reaches b12 through a
      * different section. A profile that declares no b12 at all skips it, and
      * the minimenu falls back to a text node's font. */
-    PT_TASK_AWAITSELF_IF(
-        app_font_b12_cache_id(app) >= 0
-            ? CreateTask_FontLoad(app->provider, app_font_b12_cache_id(app))
-            : NULL);
+    if( app_font_b12_cache_id(app) >= 0 )
+        (void)Assets_Await(
+            app->assets,
+            AssetKey_Make(ASSET_KIND_CONFIG, app_font_b12_cache_id(app), ASSET_CONFIG_FONT),
+            &self->join);
+    TASK_AWAIT_ASSETS(&self->task, &self->pt, self->join);
 
     /* This stage's place in the profile's own list, where it declares
      * one. The modern lane's boot is numbered by the deob and continues
@@ -959,6 +961,8 @@ Task_AppBoot_Free(struct ToriRS_Task* base)
      * task_free (ToriRS_Task::inline_child). */
     if( self->preload )
         task_free(self->preload);
+    if( self->join > 0 )
+        Assets_Unjoin(self->app->assets, &self->join);
     ToriMem_Free(ToriMem_Process(), base);
 }
 

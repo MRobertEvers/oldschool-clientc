@@ -33,6 +33,7 @@
 #include "app.h"
 #include "asyncio.h"
 #include "task_runner.h"
+#include "engine/asset_cache_loaders.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_types.h"
@@ -768,6 +769,10 @@ test_raft_deck_rebuild(char const* cache_dir)
     queue = ToriRS_TaskQueue_New();
     bc = dat2_buildcache_new();
     provider = dat2_buildcache_as_provider(bc);
+    /* Every load goes through an assets table, as the client's does, its
+     * loads on this one queue. */
+    CacheProvider_SetAssetQueue(provider, queue);
+    AssetCache_RegisterLoaders(Assets_New(), provider);
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     TEST_WEVR_ASSERT(disk != NULL, "dat2 disk opens");
     TEST_WEVR_ASSERT(RSCache_ProfileByName("osrs239", &profile), "osrs239 profile exists");

@@ -77,6 +77,11 @@ static struct AssetPolicy const g_asset_policy[ASSET_KIND_COUNT] = {
      * world map's own request table re-asked after two seconds. */
     [ASSET_KIND_WORLDMAP_GEOGRAPHY] = { "worldmap_geography", ASSET_FAIL_BACKOFF, 0, 500, 4000,
                                         ASSET_NEWER_KEEP_BOTH },
+    /* A rebuild asks for its squares again on every rebuild: a square the
+     * cache cannot serve (an ocean, a keyless region) fails that attempt and
+     * the next rebuild asks once more. */
+    [ASSET_KIND_MAP_TERRAIN] = { "map_terrain", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_NEWER_KEEP_BOTH },
+    [ASSET_KIND_MAP_SCENERY] = { "map_scenery", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_NEWER_KEEP_BOTH },
 };
 
 /* A node is one awaiting task's count on an entry's attempt. */

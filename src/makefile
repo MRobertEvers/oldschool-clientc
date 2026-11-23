@@ -905,7 +905,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	input/torirs_touch.c input/torirs_gesture.c \
 	input/torirs_input_claims.c input/torirs_world_tap.c input/torirs_frame_modifiers.c \
-	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
+	$(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_trigger_args.c \
 	cs2vm2/cs2vm2_strpool.c \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
@@ -982,8 +982,9 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	engine/uitree_builder/uitree_builder_inv.c \
 	engine/uitree_builder/task_uibuilder_assets_load.c \
 	engine/uitree_builder/task_uitree_build.c \
-	engine/uitree_builder/task_pack_assets_load.c \
 	engine/uitree_builder/task_interface_open.c \
+	engine/uitree_builder/task_group_mount.c \
+	engine/asset_cache_loaders.c \
 	engine/uitree_builder/task_slot_mount.c \
 	engine/task_obj_model_load.c \
 	engine/uitree_scene_bridge.c \

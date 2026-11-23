@@ -12,6 +12,7 @@
 
 #include "asyncio.h"
 #include "cs1vm/cs1vm.h"
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "game/rs_cs1_host.h"
 #include "ui/uitree.h"
@@ -49,6 +50,8 @@ struct Task_CS1Eval
     struct CS1VM_HostRequest pending;
     enum TaskCS1YieldPlan yield_plan;
     int await_id;
+    /* The ComponentPack load asked of the assets table, until it ends. */
+    int join;
 };
 
 /** True when the component's text carries a %N placeholder. */
@@ -186,7 +189,11 @@ Task_CS1Eval_Run(
 
             if( self->yield_plan == TASK_CS1_YIELD_COMPONENT )
             {
-                PT_TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
+                (void)Assets_Await(
+                    self->provider->assets,
+                    AssetKey_Make(ASSET_KIND_IF_GROUP, self->await_id, 0),
+                    &self->join);
+                TASK_AWAIT_ASSETS(&self->task, &self->pt, self->join);
             }
             else
             {
@@ -206,6 +213,9 @@ Task_CS1Eval_Free(struct ToriRS_Task* task)
 {
     struct Task_CS1Eval* self = (struct Task_CS1Eval*)task;
     assert(self);
+    /* Freed while it waits on the table: stop counting into it. */
+    if( self->join > 0 )
+        Assets_Unjoin(self->provider->assets, &self->join);
     ToriMem_Free(ToriMem_Script(), self);
 }
 

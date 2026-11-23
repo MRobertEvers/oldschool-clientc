@@ -1,7 +1,8 @@
 #include "task_slot_mount.h"
 #include "mem/torirs_mem.h"
 
-#include "task_pack_assets_load.h"
+#include "task_group_mount.h"
+#include "engine/asset_requests.h"
 #include "uitree_builder.h"
 #include "uitree_builder_bake.h"
 #include "uitree_builder_manifest.h"
@@ -27,6 +28,8 @@ struct Task_SlotMount
     int32_t owner_index;
     int iface_id;
     int packed_id;
+    /* Records asked of the assets table and not yet ended. */
+    int join;
 };
 
 static int
@@ -49,10 +52,17 @@ Task_SlotMount_Run(
     if( self->iface_id > 0 )
     {
         self->packed_id = uibuilder_pack_component_id(self->iface_id);
-        PT_TASK_AWAITSELF_IF(CreateTask_ComponentLoad(self->builder->provider, self->packed_id));
-        /* What a later packet or script reads; the models are not. */
-        PT_TASK_AWAITSELF_IF(
-            CreateTask_PackAssetsLoadRequired(self->builder->provider, self->packed_id >> 16));
+        /* The ComponentPack, then what a later packet or script reads of it
+         * (the models are not), through the assets table. */
+        (void)Assets_Await(
+            self->builder->provider->assets,
+            AssetKey_Make(ASSET_KIND_IF_GROUP, self->packed_id >> 16, 0),
+            &self->join);
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->join);
+        if( CacheProvider_ComponentPackHas(self->builder->provider, self->packed_id >> 16) )
+            GroupMount_AskComponentPackParts(
+                self->builder->provider, self->packed_id >> 16, &self->join);
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->join);
 
         {
             struct ToriRS_ComponentPack* pack =
@@ -71,7 +81,7 @@ Task_SlotMount_Run(
             }
             else
             {
-                TORIRS_ERR("slot_mount: pack %d missing after load\n", self->iface_id);
+                TORIRS_ERR("slot_mount: ComponentPack %d missing after load\n", self->iface_id);
             }
         }
     }
@@ -88,6 +98,10 @@ Task_SlotMount_Run(
 static void
 Task_SlotMount_Free(struct ToriRS_Task* base)
 {
+    struct Task_SlotMount* self = (struct Task_SlotMount*)base;
+    /* Freed while it waits on the table: stop counting into it. */
+    if( self->join > 0 )
+        Assets_Unjoin(self->builder->provider->assets, &self->join);
     ToriMem_Free(ToriMem_Ui(), base);
 }
 

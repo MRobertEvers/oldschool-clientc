@@ -10,7 +10,9 @@
 #include "engine/static_sprites.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_builder/task_interface_open.h"
-#include "engine/uitree_builder/task_pack_assets_load.h"
+#include "engine/asset_cache_loaders.h"
+#include "engine/asset_requests.h"
+#include "engine/uitree_builder/task_group_mount.h"
 #include "engine/uitree_builder/uitree_builder.h"
 #include "engine/uitree_builder/uitree_builder_bake.h"
 #include "engine/uitree_builder/uitree_builder_manifest.h"
@@ -133,6 +135,9 @@ main(
     struct CacheProvider* provider = dat1_buildcache_as_provider(bc);
     CacheProvider_SetAssetQueue(provider, runner.queue);
     CacheProvider_SetComputeQueue(provider, background.queue);
+    /* Every load goes through an assets table, as the client's does. */
+    struct Assets* assets = Assets_New();
+    AssetCache_RegisterLoaders(assets, provider);
 
     struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     assert(scene);
@@ -330,14 +335,20 @@ main(
             int count;
             int wanting = -1;
 
-            ToriRS_TaskQueue_Add(
-                runner.queue, CreateTask_ComponentLoad(provider, uibuilder_pack_component_id(iface)));
-            drain_both(&runner, &background);
             {
-                struct ToriRS_Task* required = CreateTask_PackAssetsLoadRequired(provider, iface);
-                if( required )
-                    ToriRS_TaskQueue_Add(runner.queue, required);
+                /* The ComponentPack, then what a mount waits for of it: the
+                 * slot mount's own two asks. */
+                int join = 0;
+                (void)Assets_Await(
+                    assets,
+                    AssetKey_Make(ASSET_KIND_IF_GROUP, uibuilder_pack_component_id(iface) >> 16, 0),
+                    &join);
                 drain_both(&runner, &background);
+                CHECK(join == 0, "the ComponentPack load ended");
+                if( CacheProvider_ComponentPackHas(provider, iface) )
+                    GroupMount_AskComponentPackParts(provider, iface, &join);
+                drain_both(&runner, &background);
+                CHECK(join == 0, "its parts' loads ended");
             }
             pack = CacheProvider_ComponentPackGet(provider, iface);
             CHECK(pack != NULL, "its pack loaded");
@@ -414,6 +425,8 @@ main(
         UITree_EmitBufferFree(&emit);
     }
 
+    Assets_Close(assets);
+    Assets_Free(assets);
     if( g_failures == 0 )
         printf("ALL PASS\n");
     else

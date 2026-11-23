@@ -2,6 +2,7 @@
 #define TASK_CS2_RUN_H
 
 #include "asyncio.h"
+#include "engine/asset_requests.h"
 
 #include <stdint.h>
 
@@ -11,8 +12,10 @@ struct CS2VM2_Script;
 
 /**
  * Cooperative CS2 script runner: binds RS_CS2Host_Exec, runs CS2VM2_ThreadRun,
- * and on YIELD awaits the matching CreateTask_*Load then re-enters ThreadRun
- * (CS2VM2 restores the opcode site so the host succeeds without PushCallScript).
+ * and on YIELD queues the wait task the request's plan makes (it awaits what
+ * the request needs through the host's assets table), joins it, then
+ * re-enters ThreadRun (CS2VM2 restores the opcode site so the host succeeds
+ * without PushCallScript).
  */
 struct ToriRS_Task*
 CreateTask_CS2Run(
@@ -214,37 +217,27 @@ CreateTask_CS2StatTransmitUnhideDispatch(struct RS_CS2Host* host);
 
 /*
  * What a yielded host request is waiting for, for a runner that CANNOT wait
- * (the plugin api's synchronous scripts.run): it abandons the run, queues the
- * loads, and runs the script again on a later frame.
+ * (the plugin api's synchronous scripts.run): it abandons the run, awaits the
+ * keys on the assets table itself (Assets_Await), and runs the script again on
+ * a later frame.
  *
- * `plan` is Task_CS2Run's own yield plan (opaque outside task_cs2_run.c) and
- * ids[0..count) the records it loads, in the order the task awaits them; a
- * negative id is a half the request does not need. count 0 is a plan that
- * needs no load at all: resume the thread at once, exactly as the task does.
+ * keys[0..count) are the records, as Task_CS2Run's own plain wait asks for
+ * them. count 0 is a plan that needs no load at all: resume the thread at
+ * once, exactly as the task does.
  */
 struct CS2VM_HostRequest;
-struct CacheProvider;
 struct CS2RunAwait
 {
-    int plan;
-    int ids[2];
+    struct AssetKey keys[2];
     int count;
 };
 
 /** 1 with `out` filled; 0 when only Task_CS2Run's own resume can satisfy the
- *  request (a component pack baked into the tree, a model set, an obj icon). */
+ *  request (a group baked into the tree, a model set, an obj icon). */
 int
 CS2Run_RequestAwait(
     struct RS_CS2Host* host,
     struct CS2VM_HostRequest const* request,
     struct CS2RunAwait* out);
-
-/** The load for ids[which], or NULL when that record is already resident or
- *  there is nothing to load for it -- the CreateTask_*Load convention. */
-struct ToriRS_Task*
-CS2Run_RequestLoadTask(
-    struct CacheProvider* provider,
-    struct CS2RunAwait const* await,
-    int which);
 
 #endif /* TASK_CS2_RUN_H */

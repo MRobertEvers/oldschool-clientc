@@ -2,7 +2,8 @@
 #include "mem/torirs_mem.h"
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/title_panel.h"
-#include "engine/uitree_builder/task_pack_assets_load.h"
+#include "engine/asset_requests.h"
+#include "engine/uitree_builder/task_group_mount.h"
 #include "uitree_builder.h"
 #include "uitree_builder_manifest.h"
 
@@ -22,9 +23,22 @@ struct Task_UIBuilderAssetsLoad
     int* unique_objs;
     int unique_obj_count;
     int unique_obj_cap;
-    /* Siblings still running from a fan-out below; PT_TASK_JOIN waits on it. */
+    /* Name-addressed loads (a sprite by archive name) still running as
+     * siblings; PT_TASK_JOIN waits on it. */
     int pending;
+    /* Records asked of the assets table and not yet ended. */
+    int join;
 };
+
+static void
+uibuilder_ask(
+    struct Task_UIBuilderAssetsLoad* self,
+    struct AssetKey key)
+{
+    (void)Assets_Await(self->builder->provider->assets, key, &self->join);
+}
+
+#define PT_UIBUILDER_WAIT_ASSETS() TASK_AWAIT_ASSETS(&self->task, &self->pt, self->join)
 
 static int
 unique_obj_add(
@@ -84,9 +98,8 @@ Task_UIBuilderAssetsLoad_Run(
     }
     /*
      * Every load below that is addressed by a cache id -- a sprite archive, a
-     * font, an obj, a component pack -- is independent of the others, so it is
-     * queued as a sibling on the frame queue and joined, the way
-     * task_pack_assets_load.c already loads an interface's assets. Awaited
+     * font, an obj, a ComponentPack -- is independent of the others, so they
+     * are all asked of the assets table at once and waited for together. Awaited
      * one after another they were a network round trip apiece on a streamed
      * cache: 212 of the 251 round trips a browser paid before the title screen
      * were this loop's sprites, at ~70 ms each through a reverse proxy. The
@@ -104,10 +117,7 @@ Task_UIBuilderAssetsLoad_Run(
     {
         struct UIBuilderSpriteReq const* req = &self->manifest->sprites[k];
         if( req->archive_id >= 0 )
-            ToriRS_TaskQueue_AddParallelPoolSubTask(
-                self->builder->provider->asset_queue,
-                CreateTask_SpriteLoad(self->builder->provider, req->archive_id),
-                &self->pending);
+            uibuilder_ask(self, AssetKey_Make(ASSET_KIND_SPRITE, req->archive_id, 0));
         else if( req->defaults_slot >= 0 && strcmp(req->table, "defaults") == 0 )
             continue;
         else if(
@@ -128,6 +138,7 @@ Task_UIBuilderAssetsLoad_Run(
                 &self->pending);
     }
     PT_TASK_JOIN(pending);
+    PT_UIBUILDER_WAIT_ASSETS();
     for( self->i = 0; self->i < self->manifest->sprite_count; self->i++ )
     {
         struct UIBuilderSpriteReq const* req = &self->manifest->sprites[self->i];
@@ -230,12 +241,10 @@ Task_UIBuilderAssetsLoad_Run(
     {
         struct UIBuilderFontReq const* req = &self->manifest->fonts[k];
         if( req->archive_id >= 0 )
-            ToriRS_TaskQueue_AddParallelPoolSubTask(
-                self->builder->provider->asset_queue,
-                CreateTask_FontLoad(self->builder->provider, req->archive_id),
-                &self->pending);
+            uibuilder_ask(
+                self, AssetKey_Make(ASSET_KIND_CONFIG, req->archive_id, ASSET_CONFIG_FONT));
     }
-    PT_TASK_JOIN(pending);
+    PT_UIBUILDER_WAIT_ASSETS();
     for( self->i = 0; self->i < self->manifest->font_count; self->i++ )
     {
         struct UIBuilderFontReq const* req = &self->manifest->fonts[self->i];
@@ -247,35 +256,30 @@ Task_UIBuilderAssetsLoad_Run(
     /* Unique inv objs */
     collect_unique_objs(self);
     for( int k = 0; k < self->unique_obj_count; k++ )
-        ToriRS_TaskQueue_AddParallelPoolSubTask(
-            self->builder->provider->asset_queue,
-            CreateTask_ObjLoad(self->builder->provider, self->unique_objs[k]),
-            &self->pending);
-    PT_TASK_JOIN(pending);
+        uibuilder_ask(
+            self, AssetKey_Make(ASSET_KIND_CONFIG, self->unique_objs[k], ASSET_CONFIG_OBJ));
+    PT_UIBUILDER_WAIT_ASSETS();
 
-    /* Components / packs: the packs first, together; then each pack's own
-     * assets, in order, because a pack's asset list is read out of the loaded
-     * pack. The pack loader fans its assets out itself. */
+    /* ComponentPacks: all of them first, together; then what each names, all
+     * together, because a ComponentPack's list is read out of the loaded one.
+     * What a bake reads, the way every builder of a group asks for it
+     * (GroupMount_AskComponentPackParts); its models too unless the owner
+     * binds them when they come (defer_visual). */
     for( int k = 0; k < self->manifest->component_count; k++ )
-        ToriRS_TaskQueue_AddParallelPoolSubTask(
-            self->builder->provider->asset_queue,
-            CreateTask_ComponentLoad(
-                self->builder->provider, self->manifest->components[k].packed_id),
-            &self->pending);
-    PT_TASK_JOIN(pending);
-    for( self->i = 0; self->i < self->manifest->component_count; self->i++ )
+        uibuilder_ask(
+            self,
+            AssetKey_Make(ASSET_KIND_IF_GROUP, self->manifest->components[k].packed_id >> 16, 0));
+    PT_UIBUILDER_WAIT_ASSETS();
+    for( int k = 0; k < self->manifest->component_count; k++ )
     {
-        /* Prefetch pack-referenced assets (MODEL widgets especially; dat1 sprite
-         * refs resolve during the pack load itself, so those awaits no-op).
-         * Deferred: only what the bake, the load scripts and a later packet
-         * read -- the owner binds the models when they come. */
-        if( self->builder->defer_visual )
-            PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoadRequired(
-                self->builder->provider, self->manifest->components[self->i].iface_id));
-        else
-            PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(
-                self->builder->provider, self->manifest->components[self->i].iface_id));
+        int const group = self->manifest->components[k].iface_id;
+        if( group <= 0 || !CacheProvider_ComponentPackHas(self->builder->provider, group) )
+            continue;
+        GroupMount_AskComponentPackParts(self->builder->provider, group, &self->join);
+        if( !self->builder->defer_visual )
+            GroupMount_AskComponentPackModels(self->builder->provider, group, &self->join);
     }
+    PT_UIBUILDER_WAIT_ASSETS();
 
     PT_END(&self->pt);
 }
@@ -284,6 +288,9 @@ static void
 Task_UIBuilderAssetsLoad_Free(struct ToriRS_Task* base)
 {
     struct Task_UIBuilderAssetsLoad* self = (struct Task_UIBuilderAssetsLoad*)base;
+    /* Freed while it waits on the table: stop counting into it. */
+    if( self->join > 0 )
+        Assets_Unjoin(self->builder->provider->assets, &self->join);
     ToriMem_Free(base->mem, self->unique_objs); /* the task's scratch */
     ToriMem_Free(ToriMem_Ui(), self);
 }

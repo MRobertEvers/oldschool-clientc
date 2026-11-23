@@ -24,6 +24,7 @@
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 
+#include "engine/asset_cache_loaders.h"
 #include "engine/asset_load_task.h"
 #include "engine/asset_requests.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -38,37 +39,14 @@ App_AssetResident(
     struct AssetKey key)
 {
     assert(app);
-    if( key.kind == ASSET_KIND_MODEL || key.kind == ASSET_KIND_SKYBOX )
-        return CacheProvider_ModelHas(app->provider, key.id);
-    if( key.kind == ASSET_KIND_TEXTURE )
-        return CacheProvider_TextureHas(app->provider, key.id);
-    if( key.kind == ASSET_KIND_SPRITE )
-        return CacheProvider_SpriteHas(app->provider, key.id);
+    if( AssetCache_HandlesKind((enum AssetKind)key.kind) )
+        return AssetCache_Resident(app->provider, key);
     if( key.kind == ASSET_KIND_SEQUENCE )
         return ToriDraw_SceneAnimationHas(app->scene, key.id);
-    if( key.kind == ASSET_KIND_IF_GROUP )
-        return CacheProvider_ComponentPackHas(app->provider, key.id);
-    if( key.kind == ASSET_KIND_SOUND )
-        return CacheProvider_SoundHas(app->provider, key.id);
-    if( key.kind == ASSET_KIND_OBJ_MODEL )
-        return !ObjModelLoad_NeedsWork(app->provider, key.id, key.variant);
     if( key.kind == ASSET_KIND_SPOTANIM )
         return app_entity_spotanim_resident(app, key.id) != 0;
-    if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_IDK )
-        return CacheProvider_IdkHas(app->provider, key.id);
-    if( key.kind == ASSET_KIND_CONFIG && key.variant >= ASSET_CONFIG_SCRIPTS_FIRST )
-        return app_script_config_resident(app, key);
-    if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_UNDERLAY )
-        return CacheProvider_UnderlayHas(app->provider, key.id);
-    if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_FLOTYPE )
-        return CacheProvider_FlotypeHas(app->provider, key.id);
     if( key.kind == ASSET_KIND_WORLDMAP_GEOGRAPHY )
         return CacheProvider_WorldMapGeographyHas(app->provider, key.id);
-    if( key.kind == ASSET_KIND_CONFIG )
-    {
-        assert(key.variant == ASSET_CONFIG_OBJ);
-        return CacheProvider_ObjtypeHas(app->provider, key.id);
-    }
     /* A song is "here" only while the player holds it; the loader installs
      * it, so the end of the load is the whole answer. */
     if( key.kind == ASSET_KIND_MUSIC )
@@ -151,34 +129,12 @@ asset_start_leaf(
     struct AssetLoadTask* task = AssetLoadTask_New(assets, key, asset_resident_at_end, app);
     struct ToriRS_Task* child = NULL;
 
-    if( key.kind == ASSET_KIND_MODEL || key.kind == ASSET_KIND_SKYBOX )
-        child = CreateTask_ModelLoad(app->provider, key.id);
-    else if( key.kind == ASSET_KIND_TEXTURE )
-        child = CreateTask_TextureLoad(app->provider, key.id);
-    else if( key.kind == ASSET_KIND_SPRITE )
-        child = CreateTask_SpriteLoad(app->provider, key.id);
-    else if( key.kind == ASSET_KIND_SEQUENCE )
+    if( key.kind == ASSET_KIND_SEQUENCE )
         child = CreateTask_SequenceLoad(app->provider, app->scene, key.id);
-    else if( key.kind == ASSET_KIND_IF_GROUP )
-        child = CreateTask_ComponentPackLoad(app->provider, key.id);
-    else if( key.kind == ASSET_KIND_SOUND )
-        child = CreateTask_SoundLoad(app->provider, key.id);
-    else if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_IDK )
-        child = CreateTask_IdkLoad(app->provider, key.id);
-    else if( key.kind == ASSET_KIND_CONFIG && key.variant >= ASSET_CONFIG_SCRIPTS_FIRST )
-        child = app_script_config_load(app, key);
-    else if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_UNDERLAY )
-        child = CreateTask_UnderlayLoad(app->provider, key.id);
-    else if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_FLOTYPE )
-        child = CreateTask_FlotypeLoad(app->provider, key.id);
     else if( key.kind == ASSET_KIND_WORLDMAP_GEOGRAPHY )
         child = app_worldmap_geography_load(app, key.id);
-    else if( key.kind == ASSET_KIND_CONFIG )
-        child = CreateTask_ObjLoad(app->provider, key.id);
     else if( key.kind == ASSET_KIND_MUSIC )
         child = CreateTask_MusicLoad(app->provider, &app->audio.music, key.id, key.variant);
-    else if( key.kind == ASSET_KIND_OBJ_MODEL )
-        child = CreateTask_ObjModelLoad(app->provider, &task->args[0], &task->args[1], 1);
     else if( key.kind == ASSET_KIND_SPOTANIM )
     {
         /* The type, then its model and sequence together (each of those
@@ -223,15 +179,18 @@ App_AssetsSetLoader(
 void
 App_AssetsInit(struct App* app)
 {
+    /* What the App's own state loads: a sequence into the scene, a song into
+     * the player, a spot-animation's chain, a world map region's tiles. Every
+     * kind the cache loads on its own is the engine's (asset_cache_loaders). */
     static enum AssetKind const leaves[] = {
-        ASSET_KIND_MODEL,    ASSET_KIND_TEXTURE, ASSET_KIND_SPRITE, ASSET_KIND_SEQUENCE,
-        ASSET_KIND_IF_GROUP, ASSET_KIND_SOUND,   ASSET_KIND_MUSIC,  ASSET_KIND_SKYBOX,
-        ASSET_KIND_OBJ_MODEL, ASSET_KIND_SPOTANIM, ASSET_KIND_CONFIG, ASSET_KIND_WORLDMAP_GEOGRAPHY,
+        ASSET_KIND_SEQUENCE, ASSET_KIND_MUSIC, ASSET_KIND_SPOTANIM, ASSET_KIND_WORLDMAP_GEOGRAPHY,
     };
 
     assert(app);
+    assert(app->provider);
     assert(!app->assets);
     app->assets = Assets_New();
+    AssetCache_RegisterLoaders(app->assets, app->provider);
     for( size_t i = 0; i < sizeof(leaves) / sizeof(leaves[0]); i++ )
         App_AssetsSetLoader(app, leaves[i], asset_start_leaf, asset_resident_leaf);
     /* The composites: each unit registers the task that follows its chain. */

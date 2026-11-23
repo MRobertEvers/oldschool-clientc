@@ -1824,8 +1824,6 @@ drive_loc_element_row(struct App* app, int element_id, struct DriveLocRow* out)
 
 /* The one loc def DriveUi_LocVariants is currently fetching, and how many
  * times it has been asked since -- see the retry note in the body. */
-static int g_drive_ui_loc_load_id = -1;
-static int g_drive_ui_loc_load_polls;
 
 /*
  * Flatten a multiloc family.  Breadth-first over `out_slots` itself: each id
@@ -1862,39 +1860,16 @@ DriveUi_LocVariants(
     cfg = CacheProvider_LocationGet(app->provider, loc_id);
     if( !cfg )
     {
-        /* One load in flight per id, not one per poll.  The caller polls this
-         * from an await's `level`, which runs once a FRAME, and
-         * CreateTask_Dat2LocLoad dedups only against residency (it has no
-         * in-flight check) -- so asking plainly would queue thirty group
-         * reads a tick for one answer.  The retry every DRIVE_UI_LOC_LOAD_
-         * RETRY polls is there because a dropped task would otherwise hang
-         * the await for its whole deadline with nothing left fetching. */
-        enum
-        {
-            DRIVE_UI_LOC_LOAD_RETRY = 30
-        };
-        struct ToriRS_Task* load = NULL;
-
-        if( loc_id != g_drive_ui_loc_load_id )
-        {
-            g_drive_ui_loc_load_id = loc_id;
-            g_drive_ui_loc_load_polls = 0;
-            load = CreateTask_LocLoad(app->provider, loc_id);
-        }
-        else if( ++g_drive_ui_loc_load_polls % DRIVE_UI_LOC_LOAD_RETRY == 0 )
-            load = CreateTask_LocLoad(app->provider, loc_id);
-        else
-            return DRIVE_TIMEOUT;
-        /* CreateTask_LocLoad answers NULL when there is nothing left to fetch;
-         * with the config still absent after that, this provider cannot
-         * produce one and no amount of polling will change that. */
-        if( !load )
+        /* Asked of the assets table, which keeps one load in flight per loc
+         * however often this is polled (once a frame, from an await's
+         * `level`). Absent and not loading: this cache cannot produce one,
+         * and no amount of polling will change that. */
+        enum AssetState const state = Assets_Want(
+            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, loc_id, ASSET_CONFIG_LOC));
+        if( state == ASSET_STATE_FAILED || state == ASSET_STATE_HERE )
             return DRIVE_NOT_FOUND;
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
         return DRIVE_TIMEOUT;
     }
-    if( loc_id == g_drive_ui_loc_load_id )
-        g_drive_ui_loc_load_id = -1;
     *out_resolved = drive_ui_loc_resolved(app, loc_id);
 
     for( ;; )

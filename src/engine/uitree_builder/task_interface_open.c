@@ -13,7 +13,7 @@
 #include "game/rs_cs2_host.h"
 #include "game/task_cs2_run.h"
 #include "inv/inv_manager.h"
-#include "task_pack_assets_load.h"
+#include "task_group_mount.h"
 #include "perf/torirs_perf.h"
 #include "ui/uitree.h"
 #include "ui/uitree_iface_stats.h"
@@ -99,39 +99,12 @@ struct Task_InterfaceOpen
 
     int i;
     int script_id;
+    /* The group's Task_GroupMount, queued beside this one: 1 until it ends. */
+    int join;
+    /* The group was in the tree before this open asked for it (a script, or
+     * an earlier open, baked it): for the bake/reuse counters. */
+    int was_baked;
 };
-
-static int
-open_resolve_sprite(
-    void* ud,
-    int graphic_id)
-{
-    struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)ud;
-    int scene_id;
-    assert(self);
-    assert(self->bridge);
-    if( graphic_id < 0 )
-        return -1;
-    /* Bound, not ensured: a sprite whose read came back empty is filled when
-     * it lands (UITreeSceneBridge_BindSprite) instead of blank for good. */
-    scene_id = UITreeSceneBridge_BindSprite(self->bridge, graphic_id);
-    if( scene_id < 0 )
-        TORIRS_LOG("InterfaceOpen: RS sprite %d not in scene\n", graphic_id);
-    return scene_id;
-}
-
-static int
-open_resolve_font(
-    void* ud,
-    int font_id)
-{
-    struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)ud;
-    assert(self);
-    assert(self->bridge);
-    if( font_id < 0 )
-        return -1;
-    return UITreeSceneBridge_EnsureFont(self->bridge, font_id);
-}
 
 static void
 upload_model_nodes(
@@ -648,7 +621,7 @@ layout_tree(struct Task_InterfaceOpen* self)
 }
 
 /* True when the tree already holds nodes of `group` — the pack was baked by an
- * earlier open or, more often, by the CS2 runtime (task_cs2_bake_pack) when a
+ * earlier open or, more often, by the CS2 runtime (task_cs2_wait_bake_pack) when a
  * script touched the group before the server opened it. */
 static int
 interface_group_in_tree(
@@ -803,22 +776,30 @@ Task_InterfaceOpen_Run(
 
     PT_BEGIN(&self->pt);
 
-    /* 1. Load interface pack. A live server can open an interface id our local
-     * cache does not carry; the load then no-ops and the pack stays absent, so
-     * skip the mount gracefully instead of asserting (and crashing the client). */
-    PT_TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->interface_id));
-    if( !CacheProvider_ComponentPackHas(self->provider, self->interface_id) )
+    /* 1-2. The group in the tree: its ComponentPack, its sprites, fonts and
+     * npc configs (what the bake, the load scripts and the transmits read),
+     * and the bake -- by the one task that puts a group there, whoever asks
+     * (Task_GroupMount; a script reaching into a group uses the same one). A
+     * group already in the tree is reused, with every dynamic child its
+     * scripts made. Its models and the default avatar's kit models are
+     * VISUAL: the mount does not wait for them, and the client's parallel
+     * task binds them when they arrive (app/app_tasks_mounts.c). */
+    assert(self->host->bridge == self->bridge);
+    assert(self->provider->asset_queue);
+    self->was_baked = interface_group_in_tree(self->tree, self->interface_id);
+    (void)ToriRS_TaskQueue_AddParallelPoolSubTask(
+        self->provider->asset_queue,
+        CreateTask_GroupMount(self->host, self->interface_id, -1),
+        &self->join);
+    PT_TASK_JOIN(join);
+    /* A live server can open an interface id our local cache does not carry:
+     * nothing was mounted, so skip the open instead of asserting. */
+    if( !interface_group_in_tree(self->tree, self->interface_id) )
     {
-        TORIRS_ERR("interface open: pack %d missing from cache; skipping mount\n",
+        TORIRS_ERR("interface open: ComponentPack %d missing from cache; skipping mount\n",
             self->interface_id);
         PT_EXIT(&self->pt);
     }
-
-    /* 2. The pack's sprites, fonts and npc configs: what the bake, the load
-     * scripts and the transmits read. Its models and the default avatar's kit
-     * models are VISUAL: the mount does not wait for them, and the client's
-     * parallel task binds them when they arrive (app/app_tasks_mounts.c). */
-    PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoadRequired(self->provider, self->interface_id));
 
     /* 2b. Client-hardcoded sprites (scrollbar arrows, compass, cross, …). */
     PT_TASK_AWAITSELF_IF(CreateTask_StaticSpritesLoad(self->provider, self->bridge));
@@ -828,15 +809,7 @@ Task_InterfaceOpen_Run(
      * binds these icons again when they arrive. */
     InterfaceOpen_BindSeedIcons(self->invs, self->bridge);
 
-    /* 4. Bake pack into UITree + collect on_load hooks (scene ids via bridge).
-     *
-     * Bake only when the group is not in the tree yet. The CS2 runtime bakes a
-     * pack as soon as a script touches it (task_cs2_bake_pack), which for the
-     * gameframe happens well before the server's IF_OPENSUB, and every dynamic
-     * child the scripts create (an inventory's 28 obj boxes, say) lives in that
-     * copy — component lookups resolve an id to its lowest node index, so the
-     * scripts keep writing there. Baking a second copy therefore mounts an
-     * empty duplicate over the populated one and the panel renders blank. */
+    /* 4. Collect on_load hooks; the group was baked (or reused) above. */
     {
         struct timespec mount_t0;
         uint64_t mount_ns;
@@ -847,7 +820,7 @@ Task_InterfaceOpen_Run(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_OPEN, 1);
         UITreeIfaceStats_NoteOpen(self->interface_id);
         collect_onloads(self, pack);
-        if( interface_group_in_tree(self->tree, self->interface_id) )
+        if( self->was_baked )
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_BAKE_REUSE, 1);
             UITreeIfaceStats_NoteBakeReuse(self->interface_id);
@@ -859,8 +832,6 @@ Task_InterfaceOpen_Run(
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_BAKE, 1);
             UITreeIfaceStats_NoteBake(self->interface_id);
-            (void)UITree_BuildFromComponentPack(
-                self->tree, pack, open_resolve_sprite, open_resolve_font, self);
         }
         /* After the bake: a hook's node ref must resolve (see the function). */
         arm_cache_transmit_hooks(self, pack);
@@ -1067,6 +1038,9 @@ Task_InterfaceOpen_Free(struct ToriRS_Task* base)
 {
     struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)base;
     assert(self);
+    /* Freed mid-wait: its group mount runs on, counting into nothing. */
+    if( self->join > 0 )
+        ToriRS_TaskQueue_DetachJoin(self->provider->asset_queue, &self->join);
     /* Both lists are the task's own scratch (ToriRS_TaskMem). */
     ToriMem_Free(base->mem, self->onloads);
     ToriMem_Free(base->mem, self->runtime_hooks);

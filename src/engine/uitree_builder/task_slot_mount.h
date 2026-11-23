@@ -35,9 +35,9 @@ CreateTask_SlotMount(
  * The App layer's half of a slot mount (app/app_tasks_mounts.c), declared
  * here because the slot mount is the one caller.
  *
- * What the mount waits for is what a later packet or script reads: the pack,
- * its sprites, fonts and npc configs (CreateTask_PackAssetsLoadRequired) and
- * the bake. Its models and the default avatar only change what is drawn:
+ * What the mount waits for is what a later packet or script reads: the
+ * ComponentPack, its sprites, fonts and npc configs (through the assets table,
+ * GroupMount_AskComponentPackParts) and the bake. Its models and the default avatar only change what is drawn:
  * App_SlotVisualsAdd gives each model a widget under `owner_index` still
  * waits for one parallel task, which binds it when it arrives, and wants the
  * worn and backpack icons not baked yet. Returns how many model tasks it

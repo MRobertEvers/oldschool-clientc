@@ -776,10 +776,11 @@ struct RS_CS2StatTransmitHook
 
 struct RS_CS2Host
 {
-    /** Finished script-run and timer task objects, kept for the next script
-     *  (game/rs_cs2_task_pool.h). */
+    /** Finished script-run, timer and yield-wait task objects, kept for the
+     *  next script (game/rs_cs2_task_pool.h). */
     struct RS_CS2TaskPool run_task_pool;
     struct RS_CS2TaskPool timer_task_pool;
+    struct RS_CS2TaskPool wait_task_pool;
     struct UITree* tree;
     struct CacheProvider* provider;
     struct InvManager* invs;

@@ -2311,8 +2311,9 @@ app_plugin_open_url(void* user, char const* url)
 
 /*
  * The load memo (App::plugin_loads). Kinds below APP_PLUGIN_LOAD_PLAN are
- * the def records; a script run's awaits are keyed APP_PLUGIN_LOAD_PLAN +
- * plan * 2 + which, so the two halves of a paired yield are remembered apart.
+ * the def records; a script run's awaits are keyed by their assets-table key
+ * (APP_PLUGIN_LOAD_PLAN + kind * APP_PLUGIN_LOAD_PLAN + variant, and the id),
+ * so the two halves of a paired yield are remembered apart.
  */
 enum
 {
@@ -2340,18 +2341,20 @@ app_plugin_load_find(struct App* app, int kind, int id)
 }
 
 /*
- * Queue `task` and remember it. A slot whose load is still out is never
- * reused -- the frame queue holds a pointer to its count -- so when all of
- * them are out the task is dropped unrun and the caller is simply told to
- * ask again, which it was going to be told anyway.
+ * Await `key` on the assets table and remember it: true when a load is now
+ * counted on a memo. A memo whose load is still out is never reused (the
+ * table holds a pointer to its count). False when
+ * there is nothing to wait for (the asset is here, or its failure is
+ * remembered), and when every slot's load is still out -- the caller is told
+ * to ask again either way.
  */
-static void
-app_plugin_load_queue(struct App* app, int kind, int id, struct ToriRS_Task* task)
+static bool
+app_plugin_load_await(struct App* app, int kind, struct AssetKey key)
 {
     struct AppPluginLoadMemo* slot = NULL;
 
     assert(app);
-    assert(task);
+    assert(app->assets);
     for( int i = 0; i < APP_PLUGIN_LOAD_MEMOS; i++ )
     {
         struct AppPluginLoadMemo* memo = &app->plugin_loads[i];
@@ -2361,16 +2364,15 @@ app_plugin_load_queue(struct App* app, int kind, int id, struct ToriRS_Task* tas
             slot = memo;
     }
     if( !slot )
-    {
-        task_free(task);
-        return;
-    }
-    slot->kind = kind;
-    slot->id = id;
-    slot->id2 = -1;
+        return true;
     slot->join = 0;
+    if( !Assets_Await(app->assets, key, &slot->join) )
+        return false;
+    slot->kind = kind;
+    slot->id = key.id;
+    slot->id2 = -1;
     slot->stamp = ++app->plugin_load_stamp;
-    (void)ToriRS_TaskQueue_AddParallelPoolSubTask(app->frame_runner.queue, task, &slot->join);
+    return true;
 }
 
 /* A def record the cache does not hold: PENDING while its load is out (or
@@ -2379,7 +2381,7 @@ static enum ToriRS_AssetState
 app_plugin_record_miss(struct App* app, int kind, int id)
 {
     struct AppPluginLoadMemo* memo;
-    struct ToriRS_Task* task;
+    struct AssetKey key;
 
     assert(app);
     assert(app->provider);
@@ -2387,23 +2389,22 @@ app_plugin_record_miss(struct App* app, int kind, int id)
     if( memo )
         return memo->join > 0 ? TORIRS_ASSET_PENDING : TORIRS_ASSET_MISSING;
     if( kind == APP_PLUGIN_LOAD_ENUM )
-        task = CreateTask_EnumLoad(app->provider, id);
+        key = AssetKey_Make(ASSET_KIND_CONFIG, id, ASSET_CONFIG_ENUM);
     else if( kind == APP_PLUGIN_LOAD_NPC )
-        task = CreateTask_NpcLoad(app->provider, id);
+        key = AssetKey_Make(ASSET_KIND_CONFIG, id, ASSET_CONFIG_NPC);
     else if( kind == APP_PLUGIN_LOAD_LOC )
-        task = CreateTask_LocLoad(app->provider, id);
+        key = AssetKey_Make(ASSET_KIND_CONFIG, id, ASSET_CONFIG_LOC);
     else if( kind == APP_PLUGIN_LOAD_SEQ )
-        task = CreateTask_SequenceLoad(app->provider, app->scene, id);
+        key = AssetKey_Make(ASSET_KIND_SEQUENCE, id, 0);
     else
     {
         assert(kind == APP_PLUGIN_LOAD_SCRIPT);
-        task = CreateTask_ClientScriptLoad(app->provider, id);
+        key = AssetKey_Make(ASSET_KIND_CONFIG, id, ASSET_CONFIG_SCRIPT);
     }
-    /* NULL is the CreateTask_*Load answer for "nothing to load": this cache
-     * cannot serve the record at all. */
-    if( !task )
+    /* Nothing to wait for while the record is absent: the table remembers
+     * this cache cannot serve it. */
+    if( !app_plugin_load_await(app, kind, key) )
         return TORIRS_ASSET_MISSING;
-    app_plugin_load_queue(app, kind, id, task);
     return TORIRS_ASSET_PENDING;
 }
 
@@ -2673,21 +2674,22 @@ app_plugin_script_await(struct App* app, struct CS2VM_HostRequest const* request
         return APP_PLUGIN_SCRIPT_BLOCKED;
     for( int i = 0; i < await.count; i++ )
     {
-        int const kind = APP_PLUGIN_LOAD_PLAN + await.plan * 2 + i;
-        struct AppPluginLoadMemo* memo = app_plugin_load_find(app, kind, await.ids[i]);
-        struct ToriRS_Task* task;
+        struct AssetKey const key = await.keys[i];
+        int const kind = APP_PLUGIN_LOAD_PLAN + key.kind * APP_PLUGIN_LOAD_PLAN + key.variant;
+        struct AppPluginLoadMemo* memo = app_plugin_load_find(app, kind, key.id);
 
+        assert(key.variant >= 0);
+        assert(key.variant < APP_PLUGIN_LOAD_PLAN);
         if( memo && memo->join > 0 )
             return APP_PLUGIN_SCRIPT_PENDING;
-        /* A load of this half has already ENDED and the host still yields on
-         * it: there is no such record, and the resume answers the miss. */
+        /* A load of this record has already ENDED and the host still yields
+         * on it: there is no such record, and the resume answers the miss. */
         if( memo )
             continue;
-        task = CS2Run_RequestLoadTask(app->provider, &await, i);
-        if( !task )
-            continue;
-        app_plugin_load_queue(app, kind, await.ids[i], task);
-        return APP_PLUGIN_SCRIPT_PENDING;
+        /* Through the assets table, as a script task's own wait: one load in
+         * flight per asset whoever wants it. */
+        if( app_plugin_load_await(app, kind, key) )
+            return APP_PLUGIN_SCRIPT_PENDING;
     }
     return APP_PLUGIN_SCRIPT_RESUME;
 }
@@ -5652,30 +5654,25 @@ app_plugin_obj_image(
      * awaits its obj's whole model chain (ASSET_KIND_OBJ_MODEL) before it
      * rasterises anything. This is that step, for the plugin lane.
      *
-     * The request is made from a plugin's COMPOSE, which runs at the plugin's
-     * own cadence rather than per frame, and CreateTask_ObjModelLoad answers
-     * NULL the moment nothing is left to fetch -- so the duplicates this can
-     * queue are the ones asked for while the first is in flight.
+     * The request is made from a plugin's COMPOSE, at the plugin's own
+     * cadence, and goes through the assets table: one load of the chain in
+     * flight however often it is asked.
      */
     if( scene_id < 0 )
     {
-        int const ids[1] = { obj_id };
-        int const counts[1] = { count > 0 ? count : 1 };
-        struct ToriRS_Task* load =
-            CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
+        enum AssetState const state = Assets_Want(
+            app->assets, AssetKey_Make(ASSET_KIND_OBJ_MODEL, obj_id, count > 0 ? count : 1));
 
-        if( load )
-        {
-            ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
-            return 0;
-        }
         /*
-         * CreateTask_ObjModelLoad answers NULL only when ObjModelLoad_NeedsWork
-         * is false for every id it was given -- so nothing is left to fetch and
-         * the icon still will not build. That is terminal, and saying "not yet"
-         * for it is what makes a caller ask for the rest of the session.
+         * HERE means the whole model chain is resident (ObjModelLoad_NeedsWork
+         * is false) and the icon still will not build; FAILED is a chain the
+         * table remembers it could not load. Both are terminal, and saying
+         * "not yet" for them is what makes a caller ask for the rest of the
+         * session.
          */
-        return -1;
+        if( state == ASSET_STATE_HERE || state == ASSET_STATE_FAILED )
+            return -1;
+        return 0;
     }
 
     /* Past here the bridge HAS the icon, so anything that goes wrong is about
@@ -7351,11 +7348,8 @@ static int g_widget_item_pending_count;
 static void
 app_widget_item_queue_load(struct App* app, int obj_id, int count)
 {
-    int const ids[1] = { obj_id };
-    int const counts[1] = { count > 0 ? count : 1 };
-    struct ToriRS_Task* load = CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
-    if( load )
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
+    (void)Assets_Want(
+        app->assets, AssetKey_Make(ASSET_KIND_OBJ_MODEL, obj_id, count > 0 ? count : 1));
 }
 
 static void

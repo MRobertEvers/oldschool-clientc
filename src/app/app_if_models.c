@@ -402,6 +402,7 @@ Task_AppIfPlayerModel_Run(
     struct Task_AppIfPlayerModel* self = (struct Task_AppIfPlayerModel*)base;
     struct App* app = self->app;
 
+    (void)io;
     PT_BEGIN(&self->pt);
 
     /* BODYTYPE scans the complete idk table; OBJ needs its wearpos triplet.
@@ -427,7 +428,11 @@ Task_AppIfPlayerModel_Run(
         }
     }
     else
-        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->arg0));
+    {
+        (void)Assets_Await(
+            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, self->arg0, ASSET_CONFIG_OBJ), &self->join);
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->join);
+    }
     app_if_player_model_compose(app, self->op, self->component_id, self->arg0, self->arg1);
 
     PT_END(&self->pt);

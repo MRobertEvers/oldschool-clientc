@@ -463,6 +463,8 @@ test_npc_info_resident_sequence_queues_nothing(void)
     app.pending = RS_Pending_New();
     app.provider = &provider;
     app.frame_runner.queue = ToriRS_TaskQueue_New();
+    /* As App_Init: the cache's loads go on the parallel queue. */
+    CacheProvider_SetAssetQueue(&provider, app.frame_runner.queue);
     /* The sequence is wanted through the assets table, which asks the scene
      * whether it is registered before it asks the loader. */
     app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
@@ -628,6 +630,7 @@ test_multinpc_interface_head_loads_selected_child(void)
     /* The parallel queue: the head's task (Task_IfModel) runs there, listed
      * in the pending index. */
     app.frame_runner.queue = ToriRS_TaskQueue_New();
+    CacheProvider_SetAssetQueue(&provider, app.frame_runner.queue);
     App_AssetsInit(&app);
     App_PendingInit(&app);
     io = ToriRS_IOBatch_New();
@@ -745,6 +748,7 @@ fixture_init(struct EntityFixture* fx)
     fx->app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&fx->app.esync);
     fx->app.frame_runner.queue = ToriRS_TaskQueue_New();
+    CacheProvider_SetAssetQueue(&fx->provider, fx->app.frame_runner.queue);
     fx->app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     App_AssetsInit(&fx->app);
     App_PendingInit(&fx->app);

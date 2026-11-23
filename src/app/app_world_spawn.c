@@ -1117,7 +1117,7 @@ Task_AppSpawn_Run(
 
     if( self->kind == APP_SPAWN_PLAYER )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider, app->assets));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
         app_spawn_await_part(self, AssetKey_Make(ASSET_KIND_SEQUENCE, APP_PLAYER_SEQ_READY, 0));
         TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
         if( !app_spawn_wanted(self) )
@@ -1180,7 +1180,9 @@ Task_AppSpawn_Run(
         /* Attached graphic (SPOTANIM mask): load the same asset chain as the
          * free-standing spotanim. No completion callback — once resident,
          * app_world_sync_entity_spotanims combines synchronously next frame. */
-        PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
+        app_spawn_await_part(
+            self, AssetKey_Make(ASSET_KIND_CONFIG, self->spotanim_id, ASSET_CONFIG_SPOTANIM));
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
         app_spawn_fan_spotanim_assets(self);
         PT_TASK_JOIN(pending);
         RedrawRequest_Raise(&app->redraw_request);
@@ -1199,7 +1201,9 @@ Task_AppSpawn_Run(
                 (obj && obj->source == TORIRS_HOST_MODEL_SPOTANIM) ? obj->model_id : -1;
         }
         if( self->spotanim_id >= 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
+            app_spawn_await_part(
+                self, AssetKey_Make(ASSET_KIND_CONFIG, self->spotanim_id, ASSET_CONFIG_SPOTANIM));
+        TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending);
         {
             struct PluginObject* obj = PluginGeometry_Object(&app->plugin_geometry, self->plugin_object);
             self->model_id = obj ? app_plugin_object_model_id(app, obj) : -1;

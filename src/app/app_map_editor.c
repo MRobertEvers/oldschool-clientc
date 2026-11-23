@@ -4928,7 +4928,7 @@ app_player_body_spawn(
     /* The identity kits (every idk config) and the gear's configs and models. */
     if( !app_mapeditor_state(app)->spawns.player_ghost.idk_asked )
     {
-        struct ToriRS_Task* task = CreateTask_PlayerAppearanceLoad(app->provider, app->assets);
+        struct ToriRS_Task* task = CreateTask_PlayerAppearanceLoad(app->provider);
         if( task )
             ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         app_mapeditor_state(app)->spawns.player_ghost.idk_asked = 1;

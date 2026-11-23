@@ -60,6 +60,8 @@
 #include "cs2vm2/cs2vm2_script.h"
 #include "cs2vm2/cs2_opcode.h"
 #include "3rd/rscache/src/datatypes/clientscript.h"
+#include "engine/asset_load_task.h"
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/uitree_anim.h"
 #include "engine/torirs_component_from_rscache.h"
@@ -116,7 +118,55 @@ struct Fixture
     struct InvManager invs;
     struct RS_CS2Host host;
     struct TaskRunner runner;
+    /* What a script that stops for a load needs of its host, as the App
+     * gives it: the assets table (its config loader queues the cache's own
+     * load) and the parallel queue the script's wait task and that load go
+     * on. A case steps the queue by hand (fixture_step_assets). */
+    struct Assets* assets;
+    struct ToriRS_TaskQueue* asset_queue;
 };
+
+static bool
+fixture_config_resident(
+    void* data,
+    struct AssetKey key)
+{
+    struct Fixture* fx = data;
+
+    assert(key.kind == ASSET_KIND_CONFIG);
+    assert(key.variant == ASSET_CONFIG_SCRIPT);
+    return CacheProvider_ClientScriptHas(fx->host.provider, key.id);
+}
+
+static enum AssetStart
+fixture_config_start(
+    void* data,
+    struct Assets* assets,
+    struct AssetKey key)
+{
+    struct Fixture* fx = data;
+    struct AssetLoadTask* task = AssetLoadTask_New(assets, key, fixture_config_resident, fx);
+
+    return AssetLoadTask_Start(
+        task, CreateTask_ClientScriptLoad(fx->host.provider, key.id), fx->asset_queue);
+}
+
+/* One pass of the parallel queue by hand: every task that is not parked. */
+static void
+fixture_step_assets(
+    struct Fixture* fx,
+    struct ToriRS_IOBatch* io)
+{
+    struct ToriRS_Task* task = fx->asset_queue->head;
+
+    while( task )
+    {
+        struct ToriRS_Task* next = task->next;
+        if( !task->parked )
+            (void)ToriRS_TaskQueue_RunTask(fx->asset_queue, io, task);
+        task = next;
+    }
+}
 
 static void
 fixture_init(struct Fixture* fx)
@@ -137,11 +187,22 @@ fixture_init(struct Fixture* fx)
      * tasks, it does not run them. Leaving io/px NULL keeps this test off the
      * platform layer entirely; TaskRunner_Step is never called. */
     fx->runner.queue = ToriRS_TaskQueue_New();
+
+    struct AssetLoader loader = { .start = fixture_config_start,
+                                  .resident = fixture_config_resident, .data = fx };
+    fx->asset_queue = ToriRS_TaskQueue_New();
+    CacheProvider_SetAssetQueue(provider, fx->asset_queue);
+    fx->assets = Assets_New();
+    Assets_SetLoader(fx->assets, ASSET_KIND_CONFIG, &loader);
+    fx->host.assets = fx->assets;
 }
 
 static void
 fixture_free(struct Fixture* fx)
 {
+    Assets_Close(fx->assets);
+    ToriRS_TaskQueue_Free(fx->asset_queue);
+    Assets_Free(fx->assets);
     ToriRS_TaskQueue_Free(fx->runner.queue);
     RS_CS2Host_Free(&fx->host);
     InvManager_Free(&fx->invs);
@@ -1203,6 +1264,10 @@ test_callback_context_across_asset_yield(void)
         struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
         io->task = callback;
         CHECK(task_run(callback, io) == PT_YIELDED, "native callback yields for missing callee");
+        CHECK(io->active_count == 0, "the callback reads nothing itself");
+        /* Its wait task asks the table, whose loader queues the cache's load. */
+        fixture_step_assets(&fx, io);
+        fixture_step_assets(&fx, io);
         CHECK(io->active_count == 1 && io->active[0]->kind == TORIRS_IOK_CACHE,
               "callee load reaches real cache IO request");
         if( stale )
@@ -1224,6 +1289,11 @@ test_callback_context_across_asset_yield(void)
         CHECK(archive->data_size > 0, "encode callee for native cache decoder");
         io->active[0]->data = archive;
         ToriRS_IOBatch_Reset(io);
+        /* The load lands and ends, then the wait task the callback joined. */
+        fixture_step_assets(&fx, io);
+        fixture_step_assets(&fx, io);
+        CHECK(!fx.asset_queue->head, "the callee load and the wait task have ended");
+        io->task = callback;
         CHECK(task_run(callback, io) == PT_ENDED, "native callback resumes through loaded callee");
         CHECK(fx.tree->components[child].colour == (stale ? 0 : dot ? 0x345678 : 0x234567),
               "resumed callback respects widget incarnation dot=%d stale=%d", dot, stale);
@@ -1302,6 +1372,9 @@ test_registry_compaction_during_callback(void)
         struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
         io->task = dispatch;
         CHECK(task_run(dispatch, io) == PT_YIELDED, "dispatch pauses in native callback channel=%d", channel);
+        fixture_step_assets(&fx, io);
+        fixture_step_assets(&fx, io);
+        CHECK(io->active_count == 1, "the callee load asks the cache channel=%d", channel);
         /* Adding D compacts the dead first entry. A and B move, while the
          * dispatcher is suspended inside A's resource load. */
         register_test_transmit(thread, channel, fx.tree->components[nodes[3]].component_id, 99993);
@@ -1317,6 +1390,10 @@ test_registry_compaction_during_callback(void)
             RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY, archive->data, cap);
         io->active[0]->data = archive;
         ToriRS_IOBatch_Reset(io);
+        fixture_step_assets(&fx, io);
+        fixture_step_assets(&fx, io);
+        CHECK(!fx.asset_queue->head, "the callee load and the wait task have ended channel=%d", channel);
+        io->task = dispatch;
         CHECK(task_run(dispatch, io) == PT_ENDED, "dispatch finishes after compaction channel=%d", channel);
         CHECK(fx.tree->components[nodes[2]].colour == 0x56789a,
               "compaction cannot skip original listener channel=%d", channel);

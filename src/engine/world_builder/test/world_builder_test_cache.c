@@ -2,6 +2,7 @@
 #include <assert.h>
 
 #include "asyncio.h"
+#include "engine/asset_cache_loaders.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_types.h"
@@ -312,6 +313,8 @@ test_world_builder_cache_render(void)
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
     CacheProvider_SetAssetQueue(provider, queue);
+    /* Every load goes through an assets table, as the client's does. */
+    AssetCache_RegisterLoaders(Assets_New(), provider);
     struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
     {
@@ -1042,6 +1045,8 @@ test_world_builder_bench(void)
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
     CacheProvider_SetAssetQueue(provider, queue);
+    /* Every load goes through an assets table, as the client's does. */
+    AssetCache_RegisterLoaders(Assets_New(), provider);
     struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
     {
@@ -1280,6 +1285,8 @@ test_world_builder_stepped(void)
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
     CacheProvider_SetAssetQueue(provider, queue);
+    /* Every load goes through an assets table, as the client's does. */
+    AssetCache_RegisterLoaders(Assets_New(), provider);
     struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
     {
@@ -1595,6 +1602,8 @@ test_world_builder_hot_swap(void)
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
     CacheProvider_SetAssetQueue(provider, queue);
+    /* Every load goes through an assets table, as the client's does. */
+    AssetCache_RegisterLoaders(Assets_New(), provider);
     struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
     {

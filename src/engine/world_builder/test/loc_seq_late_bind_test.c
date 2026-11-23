@@ -34,6 +34,7 @@
 
 #include "asyncio.h"
 #include "engine/asset_requests.h"
+#include "engine/asset_cache_loaders.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -197,6 +198,7 @@ main(
     struct Assets* assets = Assets_New();
     assert(assets);
     Dat2BuildCache_AttachAssets(bc, assets);
+    AssetCache_RegisterLoaders(assets, provider);
     ToriDraw_Init();
     struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     struct World* world = World_New();

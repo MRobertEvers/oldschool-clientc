@@ -1,6 +1,7 @@
 #include "task_obj_model_load.h"
 #include "mem/torirs_mem.h"
 
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
 
@@ -29,7 +30,7 @@ struct Task_ObjModelLoad
     int model_id;
     int base_obj_id;
     int base_model_id;
-    /** Loaders fanned out on the provider's frame queue and not yet ended. */
+    /** Records asked of the provider's assets table and not yet ended. */
     int pending;
 };
 
@@ -44,29 +45,44 @@ obj_model_face_count(
     struct CacheProvider* provider,
     int model_id);
 
+/* Ask the provider's assets table for `key`, counted on `pending`. */
+static void
+obj_model_ask(
+    struct Task_ObjModelLoad* self,
+    struct AssetKey key)
+{
+    (void)Assets_Await(self->provider->assets, key, &self->pending);
+}
+
+static void
+obj_model_ask_obj(
+    struct Task_ObjModelLoad* self,
+    int obj_id)
+{
+    obj_model_ask(self, AssetKey_Make(ASSET_KIND_CONFIG, obj_id, ASSET_CONFIG_OBJ));
+}
+
 /*
- * Queue a load for every SD face texture of `model_id` the provider does not
- * hold, as siblings counted on `pending`. The textures of one model are
- * independent reads, so they go out together; the join is the caller's.
+ * Ask for every SD face texture of `model_id`, counted on `pending`. The
+ * textures of one model are independent reads, so they go out together; the
+ * wait is the caller's.
  */
 static void
-obj_model_fanout_textures(
+obj_model_ask_textures(
     struct Task_ObjModelLoad* self,
     int model_id)
 {
     int const faces = obj_model_face_count(self->provider, model_id);
 
-    assert(self->provider->asset_queue);
     for( int f = 0; f < faces; f++ )
     {
         int const texture_id = obj_model_face_texture(self->provider, model_id, f);
-        if( texture_id >= 0 && !CacheProvider_TextureHas(self->provider, texture_id) )
-            ToriRS_TaskQueue_AddParallelPoolSubTask(
-                self->provider->asset_queue,
-                CreateTask_TextureLoad(self->provider, texture_id),
-                &self->pending);
+        if( texture_id >= 0 )
+            obj_model_ask(self, AssetKey_Make(ASSET_KIND_TEXTURE, texture_id, 0));
     }
 }
+
+#define PT_OBJ_MODEL_WAIT() TASK_AWAIT_ASSETS(&self->task, &self->pt, self->pending)
 
 static int
 obj_model_resolve_count_obj_id(
@@ -426,8 +442,9 @@ Task_ObjModelLoad_Run(
      * -> textures) and have to be read in order; the chains of different objs
      * are independent, and this task used to run them nose to tail -- an
      * inventory of twenty-eight items was twenty-eight chains of round trips
-     * on a streamed cache. So each obj gets a single-obj instance of this task
-     * as a sibling on the frame queue, and this one joins.
+     * on a streamed cache. So each obj's chain is asked of the assets table
+     * as its own OBJ_MODEL entry (whose loader is a single-obj instance of
+     * this task), all at once, and this one waits for them.
      */
     if( self->n > 1 )
     {
@@ -435,13 +452,12 @@ Task_ObjModelLoad_Run(
         {
             if( self->obj_ids[k] < 0 )
                 continue;
-            ToriRS_TaskQueue_AddParallelPoolSubTask(
-                self->provider->asset_queue,
-                CreateTask_ObjModelLoad(
-                    self->provider, &self->obj_ids[k], self->counts ? &self->counts[k] : NULL, 1),
-                &self->pending);
+            obj_model_ask(
+                self,
+                AssetKey_Make(
+                    ASSET_KIND_OBJ_MODEL, self->obj_ids[k], self->counts ? self->counts[k] : 1));
         }
-        PT_TASK_JOIN(pending);
+        PT_OBJ_MODEL_WAIT();
         PT_EXIT(&self->pt);
     }
 
@@ -453,12 +469,14 @@ Task_ObjModelLoad_Run(
         if( self->obj_id < 0 )
             continue;
 
-        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->obj_id));
+        obj_model_ask_obj(self, self->obj_id);
+        PT_OBJ_MODEL_WAIT();
 
         self->count_obj_id =
             obj_model_resolve_count_obj_id(self->provider, self->obj_id, self->count);
         if( self->count_obj_id > 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->count_obj_id));
+            obj_model_ask_obj(self, self->count_obj_id);
+        PT_OBJ_MODEL_WAIT();
 
         /* Bank note: pull in the cert template objtype whose model it borrows
          * (base obj/count obj are resident now, so render-id resolves). */
@@ -466,7 +484,8 @@ Task_ObjModelLoad_Run(
             self->provider, self->count_obj_id > 0 ? self->count_obj_id : self->obj_id);
         if( self->render_obj_id >= 0 && self->render_obj_id != self->obj_id &&
             self->render_obj_id != self->count_obj_id )
-            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->render_obj_id));
+            obj_model_ask_obj(self, self->render_obj_id);
+        PT_OBJ_MODEL_WAIT();
 
         /* Bank note: also load the base item (cert_link) objtype + its model +
          * textures — the icon composites the base's icon over the note paper. */
@@ -474,7 +493,8 @@ Task_ObjModelLoad_Run(
             self->provider, self->count_obj_id > 0 ? self->count_obj_id : self->obj_id);
         if( self->base_obj_id >= 0 )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->base_obj_id));
+            obj_model_ask_obj(self, self->base_obj_id);
+            PT_OBJ_MODEL_WAIT();
             /* The base is drawn at quantity 10 (reference
              * getItemSprite(noteLink, 10, ...)): its stack variant, if any. */
             if( obj_model_resolve_count_obj_id(
@@ -482,27 +502,29 @@ Task_ObjModelLoad_Run(
             {
                 self->base_obj_id = obj_model_resolve_count_obj_id(
                     self->provider, self->base_obj_id, OBJ_MODEL_CERT_BASE_COUNT);
-                PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->base_obj_id));
+                obj_model_ask_obj(self, self->base_obj_id);
             }
+            PT_OBJ_MODEL_WAIT();
             self->base_model_id =
                 obj_model_objtype_model_id(self->provider, self->base_obj_id);
             if( self->base_model_id > 0 )
-                PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->base_model_id));
-            obj_model_fanout_textures(self, self->base_model_id);
-            PT_TASK_JOIN(pending);
+                obj_model_ask(self, AssetKey_Make(ASSET_KIND_MODEL, self->base_model_id, 0));
+            PT_OBJ_MODEL_WAIT();
+            obj_model_ask_textures(self, self->base_model_id);
+            PT_OBJ_MODEL_WAIT();
         }
 
         self->model_id = obj_model_resolve_inventory_model_id(
             self->provider, self->obj_id, self->count_obj_id);
         if( self->model_id > 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->model_id));
+            obj_model_ask(self, AssetKey_Make(ASSET_KIND_MODEL, self->model_id, 0));
+        PT_OBJ_MODEL_WAIT();
 
         /* One attempt per face: a texture whose load fails stays missing and
          * the icon raster skips those faces instead of looping here. The
-         * textures of one model are independent, so they go out together and
-         * are joined. */
-        obj_model_fanout_textures(self, self->model_id);
-        PT_TASK_JOIN(pending);
+         * textures of one model are independent, so they go out together. */
+        obj_model_ask_textures(self, self->model_id);
+        PT_OBJ_MODEL_WAIT();
     }
 
     PT_END(&self->pt);
@@ -512,6 +534,9 @@ static void
 Task_ObjModelLoad_Free(struct ToriRS_Task* base)
 {
     struct Task_ObjModelLoad* self = (struct Task_ObjModelLoad*)base;
+    /* Freed while it waits on the table: stop counting into it. */
+    if( self->pending > 0 )
+        Assets_Unjoin(self->provider->assets, &self->pending);
     /* Both came from the arena made at creation (obj_ids is never NULL), so
      * this never makes a new one during teardown. */
     ToriMem_Free(ToriRS_TaskMem(base), self->obj_ids);
@@ -540,6 +565,7 @@ CreateTask_ObjModelLoad(
     assert(obj_ids);
     if( !obj_model_batch_needs_work(provider, obj_ids, counts, n) )
         return NULL;
+    assert(provider->assets);
 
     task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     task->task.vtable = &Task_ObjModelLoad_VTable;
