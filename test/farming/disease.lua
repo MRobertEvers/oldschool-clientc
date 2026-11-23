@@ -6,7 +6,8 @@
 -- and what the player is told:
 --   * a diseased potato draws potato_1_diseased (135), cured it is potato_1 (7);
 --   * a diseased crop that is not cured dies (potato_1_dead, 199), and Clear
---     digs it up the recorded way (RSProx 3265: two digs, 5 ticks);
+--     digs it up the recorded way (RSProx index 4422/4427: a dig every 4 ticks
+--     until a roll after the first finishes it);
 --   * a herb's dead art is the herbs' shared set (herb_1_dead, 170), not +192;
 --   * Elstan's Pay (north-west) and Vasquen's Talk-to deal (wiki
 --     Transcript:Kragen).
@@ -64,7 +65,7 @@ return {
         t.cheat("::farmtick")
         t.expect("dead.art", t.var.await_server("varb4771_farming_transmit_a", 199, 5))
         do
-            local _, v = t.var.varbit("varb708_varbit_708")
+            local _, v = t.var.server("varb708_varbit_708")
             t.check("dead.state", v == 7, "state " .. tostring(v))
         end
 
@@ -72,9 +73,11 @@ return {
         t.exec("dead.pay.page", t.chat.play, { "npc:That patch is dead - it's too late for me to do anything about it now.", "end" })
 
         t.exec("clear", t.player.click_loc, "farming_veg_patch_1", 1)
+        -- The dig starts the tick after the op and finishes on a roll every 4
+        -- ticks after the first (RSProx index 4422 [806..818], [830..838]).
+        t.ticks(1)
         t.exec("clear.start", t.msg.expect, "You start digging the farming patch...")
-        t.ticks(6)
-        t.exec("clear.done", t.msg.expect, "You have successfully cleared this patch for new crops.")
+        t.exec("clear.done", t.msg.await, "You have successfully cleared this patch for new crops.", 80)
         t.expect("clear.state", t.var.await_server("varb708_varbit_708", 3, 8))
         t.expect("clear.art", t.var.await_server("varb4771_farming_transmit_a", 3, 5))
 

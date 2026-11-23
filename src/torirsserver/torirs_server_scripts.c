@@ -12467,20 +12467,39 @@ script_command(
          * events have to be enabled too or the player looks at a live-looking
          * prompt that swallows every click.
          *
-         * The slot range covers dynamic children, not just 0. A resume button
-         * on a *container* is the multi-choice dialogue: `chatmenu:options` has
-         * no rows of its own, and the five the clientscript `cc_create`s carry
-         * sub-ids 1..5. Arming 0..0 arms the empty container and none of the
-         * rows, which is the same looks-right-does-nothing failure this call
-         * exists to prevent. A plain component has no sub-ids, so the wider
-         * range costs it nothing.
+         * The range is the plain component's, -1..-1: what Jagex arms on every
+         * continue line (chat_left 26842/26842 PAUSEBUTTON pages, chat_right
+         * 16425, messagebox 4689, objectbox_double 264; index 4300-4699, 1155
+         * transcripts). A page whose rows are `cc_create`d children -- the
+         * chatmenu's options 1..N, an objbox's 0..1, the xp lamp's 0..22 --
+         * sends its own if_setevents with that range and registers with
+         * if_resumebutton instead, as Jagex's scripts do; this used to arm
+         * 0..28 on every page to cover them all, which no recording shows.
          *
          * Clear last_slot so a bare RESUME_PAUSEBUTTON / IF_BUTTON cannot
          * inherit memset 0 or a stale inv slot and make ~p_choice* take its
          * last option.
          */
         player->last_slot = -1;
-        ToriRSServer_SendIfSetevents(srv->active_player, uid, 0, TORIRSSERVER_RESUME_SUB_MAX, TORIRSSERVER_EVENT_CLICK);
+        ToriRSServer_SendIfSetevents(srv->active_player, uid, -1, -1, TORIRSSERVER_EVENT_CLICK);
+        return 1;
+    }
+
+    /*
+     * if_resumebutton(component) -- the registration half of
+     * if_addresumebutton alone: the page's resume button, with no events
+     * packet. The page states its own events (a ranged if_setevents) or none
+     * (the level-up box arms nothing: 0 of its recorded pages send one).
+     */
+    case SS_OP_IF_RESUMEBUTTON:
+    {
+        int32_t uid;
+
+        if( !SSVM_PopInt(state, &uid) )
+            return 1;
+        assert(player->resume_button_count < TORIRSSERVER_RESUME_BUTTON_MAX);
+        player->resume_buttons[player->resume_button_count++] = uid;
+        player->last_slot = -1;
         return 1;
     }
 

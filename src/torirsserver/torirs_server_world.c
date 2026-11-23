@@ -19383,9 +19383,14 @@ ToriRSServer_PlayerOrientation(
  * (varp 3079) on every tick (13,604/13,604 ticks of index 1223), the milliseconds
  * and seconds past the minute (varp 3077 bits 0..9 and 10..15, beside `busy` at 16)
  * whenever they move -- every tick, 600 ms a tick -- and `date_minutes` (varp 3078)
- * on the minute itself. Written before anything else of the tick, the order the
- * recordings print them in. The world's realtime clock, so a seeded run reads its
- * ticks (ToriRSServer_WorldRealtimeMs) and every lane sends the same values.
+ * on the minute itself. Written before anything else of the tick.
+ *
+ * One packet per field and in Jagex's order: `date_minutes` when the minute turns,
+ * then varp 3077 with the milliseconds, then varp 3077 again with the seconds when
+ * they move, then `map_clock` (index 4422 with the varp roots shown: [196] all
+ * four, [174] three, [175] two; 1200 of 1835 ticks carry the two 3077 packets).
+ * The two fields used to go out in one 3077 packet, after `map_clock` and before
+ * `date_minutes`.
  */
 static void
 player_clock_vars(
@@ -19403,17 +19408,18 @@ player_clock_vars(
         date_vars = ToriRSServer_WorldVarp("varp3077_date_vars");
         date_minutes = ToriRSServer_WorldVarp("varp3078_date_minutes");
     }
+    if( date_minutes >= 0 )
+        ToriRSServer_WorldSetVarpOn(srv, player, date_minutes, (int)(now / 60000LL));
     if( date_vars >= 0 )
     {
         uint32_t const ms = (uint32_t)(now % 1000LL);
         uint32_t const seconds = (uint32_t)((now / 1000LL) % 60LL);
 
-        ToriRSServer_VarbitSetBitsOn(srv, player, date_vars, 0xffffu, ms | (seconds << 10));
+        ToriRSServer_VarbitSetBitsOn(srv, player, date_vars, 0x3ffu, ms);
+        ToriRSServer_VarbitSetBitsOn(srv, player, date_vars, 0xfc00u, seconds << 10);
     }
     if( map_clock >= 0 )
         ToriRSServer_WorldSetVarpOn(srv, player, map_clock, srv->tick);
-    if( date_minutes >= 0 )
-        ToriRSServer_WorldSetVarpOn(srv, player, date_minutes, (int)(now / 60000LL));
 }
 
 /** 5. The player: delays, resumes, queues, timers, then interaction. */

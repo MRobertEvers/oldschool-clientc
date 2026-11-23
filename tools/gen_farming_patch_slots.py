@@ -145,11 +145,16 @@ def build_rs2():
     for p in PATCHES:
         if p[3] not in squares:
             squares.append(p[3])
+    # Jagex writes an area's transmits d, c, b, a -- one VARP packet each, in
+    # that order (RSProx index 4422 with the varp roots shown: [174], [797]);
+    # the ones on other carriers after them.
+    order = "dcbaefghijklmnop"
     for sq in squares:
         o.append("[proc,farming_slot_sync_0_%s]" % sq)
-        for i, (key, w, f, s, tx, *_rest) in enumerate(PATCHES):
-            if s == sq:
-                o.append("%%%s = ~farming_display_state(%s, %s);" % (TRANSMIT[tx], w, var(i, key, "state")))
+        rows = [(i, p) for i, p in enumerate(PATCHES) if p[3] == sq]
+        rows.sort(key=lambda r: order.index(r[1][4]))
+        for i, (key, w, f, s, tx, *_rest) in rows:
+            o.append("%%%s = ~farming_display_state(%s, %s);" % (TRANSMIT[tx], w, var(i, key, "state")))
         o.append("")
         if sq in SHARED_SQUARES:
             o.append("// [mapzone,0_%s] is %s's; it calls the sync above." % (sq, SHARED_SQUARES[sq]))

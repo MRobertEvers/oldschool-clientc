@@ -196,6 +196,9 @@ return {
             t.ticks(1)
         end
         t.exec("plantMarigolds", t.player.use_on, "marigold_seed", t.player.by_symbol("loc", "farming_flower_patch_1"))
+        -- Disease is a roll on an unprotected patch; this step is about Elstan,
+        -- so keep the marigolds healthy (the farming tests' protected flag).
+        t.cheat("::setvar varp7052_farming_falador_flower_flags 32")
         t.ticks(8)
         t.expect("elstan.planted", t.var.expect("varb967_garden_elstan_varbit", 2))
         for i = 1, 4 do
@@ -204,6 +207,9 @@ return {
             t.exec("catchup-talk-dialog" .. i, t.chat.play, { "choose:/What did I agree/", "player:What did I agree", "npc:I need some marigolds so that" })
             t.ticks(2)
         end
+        -- The last stage lands on the farming softtimer, not on the skip: wait for
+        -- the grown art (12) rather than racing it.
+        t.exec("marigold-grown", t.var.await_server, "varb4773_farming_transmit_c", 12, 200)
         t.exec("collectMarigold", t.player.click_loc, "farming_flower_patch_1", 1)
         t.ticks(10)
         t.expect("elstan.harvested", t.var.expect("varb967_garden_elstan_varbit", 3))
@@ -291,7 +297,7 @@ return {
         end
         t.exec("plantOnions", t.player.use_on, "onion_seed", t.player.by_symbol("loc", "farming_veg_patch_7"))
         t.ticks(8)
-        local v0, v1 = t.var.varbit("varb714_varbit_714")
+        local v0, v1 = t.var.server("varb714_varbit_714")
         t.check("patch7-planted", v0 == "ok" and v1 == 13, "varbit_714 = " .. tostring(v1) .. " (want 13: onion seed planted)")
         t.expect("patch7.marker", t.var.expect("varb969_garden_patch_7_varbit", 1))
         t.exec("seeds-consumed", t.inv.await, "onion_seed", 0, 5)
@@ -311,7 +317,7 @@ return {
             t.exec("catchup-dialog" .. i, t.chat.play, { "choose:/What did you ask me to do/", "player:What did you ask", "npc:I need you to grow some onions" })
             t.ticks(2)
         end
-        local vr, vv = t.var.varbit("varb714_varbit_714")
+        local vr, vv = t.var.server("varb714_varbit_714")
         t.check("patch7-state", vr == "ok" and vv == 17, "varbit_714 = " .. tostring(vv) .. " (want 17: onions grown, 13 when planted)")
         t.exec("talkToLyraAgain-dialog", t.chat.play, {
             "choose:/Okay, I've grown those onions/", "player:Okay, I've grown those onions",

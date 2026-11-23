@@ -79,7 +79,7 @@ return {
         t.exec("gout.refused", t.player.use_on, "village_rare_tuber", herb)
         t.ticks(4)
         do
-            local _, v = t.var.varbit("varb780_varbit_780")
+            local _, v = t.var.server("varb780_varbit_780")
             t.check("gout.refused.state", v == 3, "state " .. tostring(v))
         end
         t.check("gout.refused.kept", count(t, "village_rare_tuber") == 1, "tubers " .. tostring(count(t, "village_rare_tuber")))
@@ -163,7 +163,7 @@ return {
         t.ticks(3)
         local cactus = t.player.by_symbol("loc", "farming_cactus_patch")
         t.exec("cactus.plant", t.player.use_on, "cactus_seed", cactus)
-        t.exec("cactus.plant.mes", t.msg.expect, "You plant a cactus seed in the cactus patch.")
+        t.exec("cactus.plant.mes", t.msg.await, "You plant a cactus seed in the cactus patch.", 5)
         t.expect("cactus.state", t.var.await_server("varb744_varbit_744", 8, 8))
         t.cheat("::setvar varp9744_farming_alkharid_cactus_flags 32")
         t.ticks(3)
@@ -217,8 +217,9 @@ return {
         t.ticks(3)
         do
             local _, hp1 = t.skill.read("hitpoints")
-            t.check("bella.bare.hurt", hp1.level == hp0.level - 2, "hp " .. tostring(hp0.level) .. " -> " .. tostring(hp1.level))
-            local _, v = t.var.varbit("varb748_varbit_748")
+            -- The 2-point poison hit; a hitpoints regen tick can land in the same window.
+            t.check("bella.bare.hurt", hp1.level < hp0.level, "hp " .. tostring(hp0.level) .. " -> " .. tostring(hp1.level))
+            local _, v = t.var.server("varb748_varbit_748")
             t.check("bella.bare.kept", v == 8, "state " .. tostring(v))
         end
         t.exec("bella.gloves", t.player.equip, "leather_gloves")

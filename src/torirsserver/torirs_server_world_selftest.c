@@ -61648,9 +61648,17 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_LOC, 1, -1, patch_loc, px, pz,
                                               0, sx, sz);
                 ToriRSServer_WorldProcessInteraction(srv);
-                ticks = selftest_settle(srv, 60);
-                SELFTEST_CHECK(ticks > 0, "raking should hold the interaction for several ticks, "
-                                          "got %d", ticks);
+                /* Tick until the patch is clear rather than until the
+                 * interaction settles: the first sweep is the tick after the
+                 * op (RSProx index 4419 [401]), so the op parks in a p_delay
+                 * with no interaction pending before the loop re-issues it. */
+                ticks = 0;
+                while( ticks < 80 && ToriRSServer_VarbitGet(player, vb_state) != 3 )
+                {
+                    selftest_tick(srv);
+                    ticks++;
+                }
+                SELFTEST_CHECK(ticks > 1, "raking should take several ticks, got %d", ticks);
                 SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_state) == 3 /* weeded */,
                                "raking should clear the patch to weeded, state is %d",
                                ToriRSServer_VarbitGet(player, vb_state));
@@ -61789,7 +61797,8 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_LOC, 1, -1, patch3, px, pz,
                                                   0, sx, sz);
                     ToriRSServer_WorldProcessInteraction(srv);
-                    selftest_settle(srv, 60);
+                    for( int t = 0; t < 80 && ToriRSServer_VarbitGet(player, vb710) != 3; t++ )
+                        selftest_tick(srv);
 
                     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb710) == 3,
                                    "raking Catherby should clear varbit 710 to weeded, got %d",

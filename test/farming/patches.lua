@@ -50,7 +50,7 @@ return {
         t.expect("hos.grown", t.var.await_server("varp9753_farming_hosidius_allot_ne_state", 10, 5))
         t.expect("hos.grown.art", t.var.await_server("varb4771_farming_transmit_a", 10, 5))
         t.exec("hos.harvest", t.player.click_loc, "farming_veg_patch_10", 1)
-        t.exec("hos.harvest.mes", t.msg.expect, "You begin to harvest the allotment.")
+        t.exec("hos.harvest.mes", t.msg.await, "You begin to harvest the allotment.", 5)
         t.exec("hos.empty", t.msg.await, "The allotment is now empty.", 300)
         t.check("hos.yield", count(t, "potato") >= 3, "potatoes " .. tostring(count(t, "potato")))
 

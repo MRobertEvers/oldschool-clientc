@@ -1228,6 +1228,17 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # ride, whose last step held an angle (4646 [2798], [2967]).
     "P_FACERESET": (11372, 0, 0, 0, 0),
 
+    # if_resumebutton(component)
+    #
+    # Register `component` as the open page's resume button and send nothing.
+    # if_addresumebutton does the same and also arms the component's events,
+    # which Jagex does per page with the page's own range: -1..-1 on a
+    # continue line, 1..N on the chatmenu's N options, 0..1 on an objbox,
+    # 0..22 on the xp lamp (index 4300-4699, 1155 transcripts), and nothing at
+    # all on the level-up box. A page that needs a range sends its own
+    # if_setevents and registers with this.
+    "IF_RESUMEBUTTON": (11373, 1, 0, 0, 0),
+
     # p_transparency(int $start_cycle, int $end_cycle, int $from, int $to,
     #                boolean $usestart)
     #
@@ -2102,6 +2113,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "P_ORIENTATION": (1 << POINTER_BITS["active_player"], 0),
     "P_FACEANGLE": (1 << POINTER_BITS["active_player"], 0),
     "P_FACERESET": (1 << POINTER_BITS["active_player"], 0),
+    "IF_RESUMEBUTTON": (1 << POINTER_BITS["active_player"], 0),
     "P_HEADBAR_CLEAR": (1 << POINTER_BITS["active_player"], 0),
     "P_TRANSPARENCY": (1 << POINTER_BITS["active_player"], 0),
     "NPC_TINT": (1 << POINTER_BITS["active_npc"], 0),

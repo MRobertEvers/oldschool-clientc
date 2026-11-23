@@ -1228,6 +1228,34 @@ d_var_content(lua_State* L)
     return 3;
 }
 
+/* api_drive.varbit_content(id) -> ("ok", value, base_varp, reaches_client):
+ * the server's own copy of a varbit, for one whose base varp never reaches
+ * the client -- the scriptrun twin of the plugin's
+ * drive_state_varbit_content (torirs_plugin_drive_state.c), same answers.
+ * Without it the driver read the bot's client record of an unsent varbit,
+ * a confident 0: every farming patch's saved state since those carriers
+ * stopped being sent (RSProx shows Jagex never sends them). */
+static int
+d_varbit_content(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    int id = (int)luaL_checkinteger(L, 1);
+    int base;
+    int startbit;
+    int endbit;
+    const struct ToriRSServerVarpDef* def;
+
+    assert(bot->player);
+    if( !ToriRSServer_VarbitRange(id, &base, &startbit, &endbit) || base >= TORIRSSERVER_VARP_COUNT )
+        return push_result(L, "not_found", NULL);
+    def = ToriRSServer_ContentVarp(base);
+    lua_pushstring(L, "ok");
+    lua_pushinteger(L, ToriRSServer_VarbitGet(bot->player, id));
+    lua_pushinteger(L, base);
+    lua_pushboolean(L, def && def->transmit && base < ToriRSServer_VarpClientCount());
+    return 4;
+}
+
 static int
 d_varbit(lua_State* L)
 {
@@ -3355,8 +3383,8 @@ stone_button_press(
  * boats_click_layer at the boat's slot 1..5, which `~sailing_select_owned`
  * reads back as last_slot). A press of (list, sub) sends
  * RESUME_PAUSEBUTTON(list, sub) when the server armed the resume
- * (if_addresumebutton arms 0..TORIRSSERVER_RESUME_SUB_MAX with the click
- * bit), and nothing else. */
+ * (`~sailing_select_owned` arms the rows 1..5 with the click and op1 bits,
+ * as Jagex does), and nothing else. */
 static char const* const RESUME_ROW_LISTS[] = {
     "sailing_boat_selection:boats_click_layer",
 };
@@ -5003,7 +5031,7 @@ static char const* const CLIENT_VERBS[] = {
     "party_host", "pause_pending", "pick_holds", "pick_point", "play", "player_delayed",
     "plan", "pump", "quit", "render_frame", "render_skip", "route", "say", "screen_position", "server_los",
     "server_npc_pack", "shot", "sote_guard", "start", "stop", "tab", "tab_by_name", "tests",
-    "text", "tiles_nearest", "var_content", "varbit_base", "varbit_content", "view_attach",
+    "text", "tiles_nearest", "var_content", "varbit_base", "view_attach",
     "view_detach", "view_interact", "view_status", "view_watcher", "widget_at",
     "widget_bounds", "widget_own_hidden", "world_gate", "yellow_chains", "yellow_match",
 };
@@ -5068,6 +5096,7 @@ push_drive_table(
     bind(L, bot, "var_content", d_var_content);
     bind(L, bot, "varbit", d_varbit);
     bind(L, bot, "varbit_server", d_varbit);
+    bind(L, bot, "varbit_content", d_varbit_content);
     bind(L, bot, "inv_count", d_inv_count);
     bind(L, bot, "inv_slot", d_inv_slot);
     bind(L, bot, "inv_capacity", d_inv_capacity);
