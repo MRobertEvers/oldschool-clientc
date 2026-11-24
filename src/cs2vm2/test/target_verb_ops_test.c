@@ -132,6 +132,7 @@ run_target_hook(
     thread = CS2VM2_ThreadMain(&vm);
     CS2VM2_SetTargetComponentId(thread, 0, active);
     CS2VM2_SetTargetComponentId(thread, 1, dot);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread, &script);
     {
         int const result = CS2VM2_RunScript(thread);
@@ -176,6 +177,7 @@ run_target_verb(int opcode, int operand, int named_component, int active, int do
     thread = CS2VM2_ThreadMain(&vm);
     CS2VM2_SetTargetComponentId(thread, 0, active);
     CS2VM2_SetTargetComponentId(thread, 1, dot);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread, &script);
     int result = CS2VM2_RunScript(thread);
     CS2VM2_Free(&vm);
@@ -225,6 +227,7 @@ run_get_op(
     thread = CS2VM2_ThreadMain(&vm);
     CS2VM2_SetTargetComponentId(thread, 0, active);
     CS2VM2_SetTargetComponentId(thread, 1, dot);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread, &script);
     int result = CS2VM2_RunScript(thread);
     CS2VM2_Free(&vm);

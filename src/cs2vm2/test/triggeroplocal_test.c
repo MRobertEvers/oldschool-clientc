@@ -97,6 +97,7 @@ run_op(
     script.opcodes[4+argc] = CS2_OP_IF_SCRIPT_TRIGGER;
 
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread, &script);
     CS2VM2_RunScript(thread);
 

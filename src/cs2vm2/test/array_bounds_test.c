@@ -75,6 +75,7 @@ test_int_bounds(void)
 
     CS2VM2_Init(&vm);
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CHECK(CS2VM2_ThreadStart(thread, &script) == CS2VM_EXECNO_OK, "int array starts");
     CHECK(CS2VM2_ThreadRun(thread, &error) == CS2VM2_THREAD_DONE, "int array completes");
     CHECK(thread->array_alloc == 1, "int array allocated once");
@@ -152,6 +153,7 @@ test_string_bounds(void)
 
     CS2VM2_Init(&vm);
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CHECK(CS2VM2_ThreadStart(thread, &script) == CS2VM_EXECNO_OK, "string array starts");
     CHECK(CS2VM2_ThreadRun(thread, &error) == CS2VM2_THREAD_DONE, "string array completes");
     CHECK(thread->array_alloc == 1, "string array allocated once");

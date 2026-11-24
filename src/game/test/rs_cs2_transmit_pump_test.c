@@ -1058,10 +1058,12 @@ test_queued_callback_identity(void)
     char* strings[] = {NULL, NULL, NULL};
     struct CS2VM2_Script script = {.script_id=99999, .op_count=3, .opcodes=opcodes,
         .int_operands=operands, .string_operands=strings, .int_stack_depth=1};
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     struct ToriRS_Task* live = CreateTask_CS2RunScript(&fx.host, &script, id, id, NULL, 0);
     live->vtable->run(live, NULL);
     CHECK(fx.tree->components[source].colour == 0x123456, "live CS2 callback writes native color");
     live->vtable->free(live);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     struct ToriRS_Task* queued = CreateTask_CS2RunScript(&fx.host, &script, id, id, NULL, 0);
     UITree_CcDelete(fx.tree, source);
     fx.tree->next_dynamic_uid = (uint16_t)(id & 0xffff);
@@ -1077,6 +1079,7 @@ test_queued_callback_identity(void)
     struct CS2VM2_Script global_script = {.script_id=99997, .op_count=4,
         .opcodes=global_ops, .int_operands=global_operands,
         .string_operands=global_strings, .int_stack_depth=2};
+    CS2VM2_ScriptPrepare(&global_script); /* what a loader does */
     struct ToriRS_Task* global = CreateTask_CS2RunScript(&fx.host, &global_script, -1, -1, NULL, 0);
     global->vtable->run(global, NULL);
     CHECK(fx.tree->components[replacement].colour == 0xabcdef,
@@ -1259,6 +1262,7 @@ test_callback_context_across_asset_yield(void)
         char* strings[] = {NULL, NULL, NULL, NULL, NULL, NULL};
         struct CS2VM2_Script script = {.script_id=99995, .op_count=6, .opcodes=ops,
             .int_operands=operands, .string_operands=strings, .int_stack_depth=1};
+        CS2VM2_ScriptPrepare(&script); /* what a loader does */
         struct ToriRS_Task* callback = CreateTask_CS2RunScript(&fx.host, &script,
             fx.tree->components[active_node].component_id, fx.tree->components[dot_node].component_id, NULL, 0);
         struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();

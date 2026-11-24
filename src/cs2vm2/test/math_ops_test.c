@@ -56,6 +56,7 @@ run_op(
     script.opcodes[argc + 1] = (uint16_t)CS2_OP_RETURN;
 
     struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(t, &script);
     CS2VM2_RunScript(t);
 
@@ -113,6 +114,7 @@ run_op_path(
     script.opcodes[argc + 1] = (uint16_t)CS2_OP_RETURN;
 
     struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(t, &script);
     if( traced )
         CS2VM2_TraceCaptureBegin(records, 16);
@@ -273,6 +275,7 @@ op1_with_sentinel(
     script.opcodes[3] = (uint16_t)CS2_OP_RETURN;
 
     t = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(t, &script);
     CS2VM2_RunScript(t);
 

@@ -83,6 +83,7 @@ fixture_begin(struct Fixture* fixture, int opcode)
     fixture->script.int_operands = fixture->int_operands;
     fixture->script.string_operands = fixture->string_operands;
     fixture->thread = CS2VM2_ThreadMain(&fixture->vm);
+    CS2VM2_ScriptPrepare(&fixture->script); /* what a loader does */
     CS2VM2_PushCallScript(fixture->thread, &fixture->script);
 }
 

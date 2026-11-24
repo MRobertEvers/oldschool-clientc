@@ -25,6 +25,7 @@ static void run_case(int initial,int offset,int count,const int* expected)
     script.opcodes=ops;script.int_operands=values;script.string_operands=strings;
     CS2VM2_Init(&vm);
     struct CS2VM2_Thread* thread=CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     if(CS2VM2_ThreadStart(thread,&script)!=CS2VM_EXECNO_OK ||
        CS2VM2_ThreadRun(thread,&error)!=CS2VM2_THREAD_DONE ||
        thread->ints_stack_top!=4 || thread->strs_stack_top!=0) exit(1);

@@ -108,6 +108,7 @@ run_align(
     thread = CS2VM2_ThreadMain(&vm);
     CS2VM2_SetTargetComponentId(thread, 0, active_component);
     CS2VM2_SetTargetComponentId(thread, 1, dot_component);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread, &script);
     CHECK_INT(CS2VM2_RunScript(thread), CS2VM_EXECNO_DONE, "script completes");
 

@@ -107,6 +107,7 @@ test_host_exec(
     struct CS2VM2_Thread* thread,
     struct CS2VM_HostRequest* request)
 {
+    CS2VM2_ScriptPrepare(g_callee); /* what a loader does */
     if( request->kind == CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS && g_callee )
         return CS2VM2_PushCallScript(thread, g_callee);
     printf("  FAIL: unexpected host request %d\n", (int)request->kind);
@@ -140,6 +141,7 @@ run(
     assemble(&script, 9999, ins, n);
 
     struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_ThreadStart(t, &script);
     r.rc = CS2VM2_RunScript(t);
     r.longs = t->longs_stack_top;

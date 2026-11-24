@@ -133,6 +133,7 @@ exercise_producer(struct HostRequestProducerEntry const* entry)
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, capture_host_exec);
     thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     if( CS2VM2_ThreadStart(thread, &script) != CS2VM_EXECNO_OK )
     {
         fprintf(stderr, "FAIL: %s (%d) could not start\n", entry->name, entry->opcode);
@@ -235,6 +236,7 @@ exercise_input_set_producer(
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, capture_input_set_exec);
     thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     if( CS2VM2_ThreadStart(thread, &script) != CS2VM_EXECNO_OK )
     {
         fprintf(stderr, "FAIL: input-set %d could not start\n", (int)kind);
@@ -338,6 +340,7 @@ static int exercise_script_callback(void)
         CS2VM2_Init(&vm);CS2VM2_BindHost(&vm,NULL,callback_exec);
         struct CS2VM2_Thread* thread=CS2VM2_ThreadMain(&vm);
         callback_calls=0;callback_yield=yield;
+        CS2VM2_ScriptPrepare(&script); /* what a loader does */
         CS2VM2_ThreadStart(thread,&script);
         enum CS2VM2_ThreadStatus status=CS2VM2_ThreadRun(thread,&error);
         if( yield )

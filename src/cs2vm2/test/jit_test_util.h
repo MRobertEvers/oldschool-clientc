@@ -237,6 +237,7 @@ jt_run(
         t->ints_stack[t->ints_stack_top++] = 1000 + i;
     for( int i = 0; i < setup->strs_prefill; i++ )
         t->strs_stack[t->strs_stack_top++] = CS2VM2_StrFmt(t, "s%d", i);
+    CS2VM2_ScriptPrepare(s); /* what a loader does */
     int const pushed = CS2VM2_PushCallScript(t, s);
     assert(pushed == CS2VM_EXECNO_OK);
     for( int i = 0; i < setup->locals_count; i++ )

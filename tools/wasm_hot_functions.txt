@@ -8,15 +8,13 @@
 #   <name> required   must be in the module: its absence means binaryen folded
 #                     it into its caller, which now carries its body
 #
-# The CS2 VM, per instruction. cs2vm2_run_script_body carries the run loop, the
-# hot loops and (inlined by binaryen) the general path's inline half;
-# cs2vm2_run_op_outlined is the out-of-line half (CS2VM2_RUNOP_SPLIT).
+# The CS2 VM, per instruction. cs2vm2_run_script_body is the one loop: the hot
+# and jit cases and (inlined by binaryen) the inline half of the handlers'
+# switch; cs2vm2_run_op_outlined is the out-of-line half (CS2VM2_RUNOP_SPLIT).
 cs2vm2_run_script_body required
 cs2vm2_run_op_outlined required
 CS2VM2_RunOp
 cs2vm2_run_op_split
-cs2vm2_run_hot
-cs2vm2_run_hot_jit
 
 # The frame. binaryen folds every single-caller function under App_RunOnce into
 # it; app_world_frame (the world step) and app_plugin_panel_tick (the plugin

@@ -130,6 +130,7 @@ run_resume(
     script.opcodes[3] = (uint16_t)CS2_OP_RETURN;
 
     thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread, &script);
     CS2VM2_RunScript(thread);
 

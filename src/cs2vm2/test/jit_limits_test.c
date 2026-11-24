@@ -403,9 +403,11 @@ test_reused_frame(void)
         /* One thread: the reader's frame is the writer's block. */
         CS2VM2_Init(&g_jt_vm);
         struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&g_jt_vm);
+        CS2VM2_ScriptPrepare(&writer); /* what a loader does */
         CS2VM2_PushCallScript(t, &writer);
         int const rc_w = CS2VM2_RunScript(t);
         jt_check(rc_w == CS2VM_EXECNO_DONE && t->frame_sp == 0, "%s writer done", jit ? "jit" : "plain");
+        CS2VM2_ScriptPrepare(&reader); /* what a loader does */
         CS2VM2_PushCallScript(t, &reader);
         int const rc_r = CS2VM2_RunScript(t);
         bool zeros = rc_r == CS2VM_EXECNO_DONE && t->ints_stack_top == 10;

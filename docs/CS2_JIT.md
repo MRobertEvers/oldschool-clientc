@@ -138,6 +138,14 @@ script on today's path:
 
 ### 2.3 The loop
 
+> Since 2026-11-24 there is one loop. `cs2vm2_run_hot`, `cs2vm2_run_hot_jit`
+> and the outer loop that ran one handler between two stretches of hot
+> instructions are merged into `cs2vm2_run_script_body`: it switches on
+> `script->run_code[pc]` (the overlay's codes, or the script's own plain codes
+> from `CS2VM2_ScriptPrepare` when it has no overlay), the cases below are its
+> cases, and code 0 writes the stack top and pc back, calls the handler and
+> reads them again. The text below is the design as it was built.
+
 `cs2vm2_run_hot` gains a sibling, `cs2vm2_run_hot_jit`, chosen once on entry by
 `frame->script->jit != NULL`. The plain loop is left byte for byte as it is, so
 a script without an overlay runs exactly today's code. The jit loop is the same

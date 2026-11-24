@@ -29,6 +29,7 @@ static void write_setting(struct RS_CS2Host* host, int script_id, int bit, int v
     script.int_operands=operands;
     script.string_operands=strings;
     struct CS2VM2_Thread* thread=CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     assert(CS2VM2_PushCallScript(thread,&script)==CS2VM_EXECNO_OK);
     assert(CS2VM2_RunScript(thread)==CS2VM_EXECNO_DONE);
     CS2VM2_Free(&vm);
@@ -52,6 +53,7 @@ static void apply_dropdown(struct RS_CS2Host* host, int setting, int choice)
     script.int_operands=operands;
     script.string_operands=strings;
     struct CS2VM2_Thread* thread=CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     assert(CS2VM2_PushCallScript(thread,&script)==CS2VM_EXECNO_OK);
     assert(CS2VM2_SetIntCurrentFrameLocal(thread,0,setting)==CS2VM_EXECNO_OK);
     assert(CS2VM2_SetIntCurrentFrameLocal(thread,1,choice)==CS2VM_EXECNO_OK);
@@ -126,6 +128,7 @@ static void dropdown_entry_op(
     script.int_operands = operands;
     script.string_operands = strings;
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     assert(CS2VM2_PushCallScript(thread, &script) == CS2VM_EXECNO_OK);
     for( int i = 0; i < SAILING_CARGO_PRIVACY_DROPDOWN_ARG_COUNT; ++i )
         assert(CS2VM2_SetIntCurrentFrameLocal(thread, i, locals[i]) == CS2VM_EXECNO_OK);

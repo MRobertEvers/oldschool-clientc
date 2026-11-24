@@ -183,6 +183,7 @@ test_dispatch(void)
         script.opcodes[at] = (uint16_t)CS2_OP_RETURN;
 
         thread = CS2VM2_ThreadMain(&vm);
+        CS2VM2_ScriptPrepare(&script); /* what a loader does */
         CS2VM2_PushCallScript(thread, &script);
         CS2VM2_RunScript(thread);
 
@@ -506,6 +507,7 @@ test_settings_number_varp(void)
     hub.int_argument_count = 1;
     hub.local_int_count = 1;
 
+    CS2VM2_ScriptPrepare(&hub); /* what a loader does */
     CS2VM2_PushCallScript(thread, &hub);
     (void)CS2VM2_SetIntCurrentFrameLocal(thread, 0, 328);
     CS2VM2_RunScript(thread);
@@ -533,6 +535,7 @@ test_settings_number_varp(void)
     other.int_argument_count = 1;
     other.local_int_count = 1;
 
+    CS2VM2_ScriptPrepare(&other); /* what a loader does */
     CS2VM2_PushCallScript(thread, &other);
     (void)CS2VM2_SetIntCurrentFrameLocal(thread, 0, 999);
     CS2VM2_RunScript(thread);

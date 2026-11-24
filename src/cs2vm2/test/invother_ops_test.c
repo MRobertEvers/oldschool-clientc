@@ -24,6 +24,7 @@ static int read_op(struct RS_CS2Host* host, int opcode, int inv, int arg)
     script.script_id=9998; script.op_count=4;
     script.opcodes=ops; script.int_operands=operands; script.string_operands=strings;
     struct CS2VM2_Thread* thread=CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread,&script);
     CS2VM2_RunScript(thread);
     int value=-999;

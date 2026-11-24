@@ -307,6 +307,17 @@ CS2VM2_JitCopy(
 void
 CS2VM2_JitFree(struct CS2VM2_Script* script);
 
+/*
+ * The plain dispatch code of every instruction of `script`, into
+ * out[0 .. op_count): g_cs2vm2_hot_op of its opcode, 0 (CS2VM2_HOT_NONE) for
+ * an instruction its handler runs. What a script with no overlay runs
+ * (CS2VM2_ScriptPrepare); an overlay's plain codes are these.
+ */
+void
+CS2VM2_JitPlainCodes(
+    struct CS2VM2_Script const* script,
+    uint8_t* out);
+
 /* Describe `script`'s overlay. Asserts `script`, script->jit and `out`. */
 void
 CS2VM2_JitGetInfo(

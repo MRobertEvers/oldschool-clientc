@@ -125,6 +125,7 @@ check_opcode(int opcode)
     script.string_operands = string_operands;
 
     thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread, &script);
     struct CS2VM2_Str* const sentinel_str = CS2VM2_StrDup(thread, sentinel);
     for( int i = 0; i < SENTINELS; i++ )

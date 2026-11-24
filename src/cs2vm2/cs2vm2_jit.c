@@ -579,6 +579,7 @@ CS2VM2_JitBuild(struct CS2VM2_Script* script)
     CS2VM2_ScriptEnsureConstants(script); /* the canary hashes what a run reads */
     jit->strings_hash = cs2vm2_jit_strings_hash(script);
     script->jit = jit;
+    script->run_code = jit->code;
     return CS2VM2_JIT_BUILT;
 }
 
@@ -739,6 +740,7 @@ CS2VM2_JitAttachBlob(
     CS2VM2_ScriptEnsureConstants(script); /* the canary hashes what a run reads */
     jit->strings_hash = cs2vm2_jit_strings_hash(script);
     script->jit = jit;
+    script->run_code = jit->code;
     return CS2VM2_JIT_ATTACHED;
 }
 
@@ -760,6 +762,7 @@ CS2VM2_JitCopy(
     CS2VM2_ScriptEnsureConstants(dst); /* the canary hashes what a run reads */
     jit->strings_hash = cs2vm2_jit_strings_hash(dst);
     dst->jit = jit;
+    dst->run_code = jit->code;
 }
 
 void
@@ -773,6 +776,20 @@ CS2VM2_JitFree(struct CS2VM2_Script* script)
     assert(cs2vm2_jit_strings_hash(script) == script->jit->strings_hash);
     ToriMem_Free(ToriMem_Script(), script->jit);
     script->jit = NULL;
+    /* Back to the script's own codes (NULL for one never prepared). */
+    script->run_code = script->plain_code;
+}
+
+void
+CS2VM2_JitPlainCodes(
+    struct CS2VM2_Script const* script,
+    uint8_t* out)
+{
+    assert(script);
+    assert(out);
+    assert(script->opcodes);
+    for( int pc = 0; pc < script->op_count; pc++ )
+        out[pc] = (uint8_t)cs2vm2_jit_plain_code(script, pc);
 }
 
 void

@@ -195,6 +195,7 @@ run_converted_script(struct CS2VM2_Script* script)
     struct CS2VM2 vm;
     CS2VM2_Init(&vm);
     struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(script); /* what a loader does */
     CS2VM2_PushCallScript(t, script);
     CS2VM2_RunScript(t);
 
@@ -314,6 +315,7 @@ run_branch_if_one(int value)
     script.opcodes[5] = (uint16_t)CS2_OP_RETURN;
 
     struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(t, &script);
     CS2VM2_RunScript(t);
 
@@ -370,6 +372,7 @@ test_varc_string_pair(
     script.opcodes[3] = (uint16_t)CS2_OP_RETURN;
 
     struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(t, &script);
     CS2VM2_RunScript(t);
 
@@ -440,6 +443,7 @@ test_rs2_overlay_entry(
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, unexpected_host_exec);
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CHECK_EQ(CS2VM2_ThreadStart(thread, &script), CS2VM_EXECNO_OK, label);
     for( int i = 0; i < int_in; i++ )
         thread->ints_stack[thread->ints_stack_top++] = 100 + i;
@@ -522,6 +526,7 @@ test_cc_create_arity(
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, create_host_exec);
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&dst); /* what a loader does */
     CS2VM2_PushCallScript(thread, &dst);
     CS2VM2_RunScript(thread);
     CHECK_EQ(host.calls, 1, label);
@@ -546,6 +551,7 @@ gosub_host_exec(
 {
     if( request->kind != CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS )
         return CS2VM_EXECNO_ERROR;
+    CS2VM2_ScriptPrepare(g_gosub_callee); /* what a loader does */
     CS2VM2_PushCallScript(vm, g_gosub_callee);
     return CS2VM_EXECNO_OK;
 }
@@ -608,6 +614,7 @@ test_array_model(
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, NULL, gosub_host_exec);
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&caller); /* what a loader does */
     CS2VM2_PushCallScript(thread, &caller);
     CS2VM2_RunScript(thread);
     CHECK_EQ(thread->ints_stack_top, 2, label);

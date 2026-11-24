@@ -113,6 +113,7 @@ run_findnextid(
     script.opcodes[steps] = (uint16_t)CS2_OP_RETURN;
 
     thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread, &script);
 
     thread->children_iter_parent = 1;
@@ -204,6 +205,7 @@ test_shares_the_cursor_with_213(void)
     script.opcodes[2] = (uint16_t)CS2_OP_RETURN;
 
     thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread, &script);
 
     thread->children_iter_parent = 1;

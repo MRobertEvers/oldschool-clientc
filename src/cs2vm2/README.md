@@ -119,8 +119,12 @@ hot loop runs there.
 | 64..87 | a fused group of 2-4 instructions starting at this pc (`g_cs2vm2_jit_shapes`) |
 
 Inner pcs of a group keep their own code, so a branch into the middle of a
-group lands on a valid entry. `cs2vm2_run_hot_jit` runs a script with an
-overlay; one without runs `cs2vm2_run_hot` exactly as before.
+group lands on a valid entry. There is one loop, `cs2vm2_run_script_body`: it
+switches on `script->run_code[pc]`, which is the overlay's codes while one is
+attached and otherwise the script's own plain codes (`plain_code`, built by
+`CS2VM2_ScriptPrepare` when the script is loaded). Code 0 calls the opcode's
+handler from inside the loop; the stack top and pc are written back before the
+call and read again after it.
 
 What keeps it equivalent to the plain VM:
 

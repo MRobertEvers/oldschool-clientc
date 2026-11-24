@@ -135,7 +135,11 @@ enum CS2VM_DbLoadKind
 /* Hook string args ('s'/'W'/'X' signature chars). str_arg_mask bit i marks
  * signature position i as a string; strings fill str_args[] in position order
  * (k-th set bit -> str_args[k]). int_args[i] is unused at string positions. */
-/* str_args[] are POINTERS to the VM's own strings, valid for the call: the
+/* int_args is a POINTER to the registering instruction's own array, valid for
+ * the call like trigger_ids: the host copies the int_arg_count entries it keeps
+ * before it returns. It was 64 ints copied into every request, which on wasm
+ * is a memory.copy the engine runs as a call out to C.
+ * str_args[] are POINTERS to the VM's own strings, valid for the call: the
  * host copies what it keeps before it returns (a registration never yields).
  * They were 16 x 256-byte rows held in the request, which made 73 request
  * kinds, and so the request and the frame of every function that builds one,

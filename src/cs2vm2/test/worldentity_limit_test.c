@@ -22,6 +22,7 @@ static int run(struct RS_CS2Host* host, int set, int value)
     script.op_count=set ? 4:2; script.opcodes=ops+(set ? 0:2);
     script.int_operands=operands+(set ? 0:2); script.string_operands=strings+(set ? 0:2);
     struct CS2VM2_Thread* thread=CS2VM2_ThreadMain(&vm);
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     CS2VM2_PushCallScript(thread,&script); CS2VM2_RunScript(thread);
     int result=-1; assert(CS2VM2_PopInt(thread,&result)==CS2VM_EXECNO_OK);
     CS2VM2_Free(&vm); return result;

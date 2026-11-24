@@ -24,6 +24,7 @@ static void check(int type,int value,int offset,int count,const char* text,
         .opcodes=ops,.int_operands=values,.string_operands=strings};
     struct CS2VM2_Thread* t=CS2VM2_ThreadMain(&vm);
     struct CS2VM2_ThreadError err={0};
+    CS2VM2_ScriptPrepare(&script); /* what a loader does */
     if(CS2VM2_ThreadStart(t,&script)!=CS2VM_EXECNO_OK)exit(1);
     int state=CS2VM2_ThreadRun(t,&err);
     if(error_expected){if(state==CS2VM2_THREAD_DONE)exit(1);CS2VM2_Free(&vm);return;}

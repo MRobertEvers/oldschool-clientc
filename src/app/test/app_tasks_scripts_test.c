@@ -690,6 +690,7 @@ test_a_script_gone_mid_read_is_forgotten(void)
 
         fixture_init(&fx);
         fx.app->host.assets = fx.app->assets;
+        CS2VM2_ScriptPrepare(&script); /* what a loader does */
         task = CreateTask_CS2RunScript(&fx.app->host, &script, -1, -1, NULL, 0);
         fx.io->task = task;
         CHECK(task_run(task, fx.io) == PT_YIELDED, "the script did not stop for its callee");
@@ -743,6 +744,7 @@ test_a_script_gone_mid_read_is_forgotten(void)
         CHECK(child >= 0 && dot >= 0, "no dynamic children");
         child_id = fx.app->tree->components[child].component_id;
         dot_id = fx.app->tree->components[dot].component_id;
+        CS2VM2_ScriptPrepare(&script); /* what a loader does */
         task = CreateTask_CS2RunScript(&fx.app->host, &script, child_id, dot_id, NULL, 0);
         fx.io->task = task;
         CHECK(task_run(task, fx.io) == PT_YIELDED, "the script did not stop for its callee");
@@ -860,6 +862,7 @@ test_a_typed_burst_keeps_every_key(void)
         scripts[k].int_operands = operands[k];
         scripts[k].string_operands = strings[k];
         scripts[k].str_stack_depth = 2;
+        CS2VM2_ScriptPrepare(&scripts[k]); /* what a loader does */
         task = CreateTask_CS2RunScript(&fx.app->host, &scripts[k], -1, -1, NULL, 0);
         /* How the key broadcast queues each one (RS_CS2_DispatchHook). */
         TaskRunner_AddRenderBlockingSerialTask(&fx.app->frame_runner, task);

@@ -1,11 +1,12 @@
 /*
- * The plain hot instructions, one case each: included by BOTH hot loops in
- * cs2vm2.c (cs2vm2_run_hot and cs2vm2_run_hot_jit), so the plain path and the
- * jit's plain codes are one text. Not a header: it is the inside of a switch
- * on a CS2VM2_HOT_* code, and reads the loop's locals by name -- `operand`
- * (args[pc]), `stack`, `top`, `pc`, `locals`, `locals_dirty`, `frame`. Each
- * case either completes its instruction (pc moved on, `break`) or changes
- * nothing and does `goto stop` for the general path.
+ * The plain hot instructions, one case each: included by the interpreter's
+ * one loop (cs2vm2_run_script_body in cs2vm2.c), where a script's plain codes
+ * and a jit overlay's plain codes meet the same text. Not a header: it is the
+ * inside of a switch on a CS2VM2_HOT_* code, and reads the loop's locals by
+ * name -- `operand` (args[pc]), `stack`, `top`, `pc`, `locals`,
+ * `locals_dirty`, `frame`. Each case either completes its instruction (pc
+ * moved on, `break`) or changes nothing and does `goto stop`, which gives the
+ * instruction to its handler.
  */
         case CS2VM2_HOT_PUSH_CONSTANT_INT:
             if( top >= CS2VM_STACK_MAX )

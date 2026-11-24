@@ -144,6 +144,7 @@ run(struct Fixture* fx, struct Step const* steps, int count)
         fx->string_operands[i] = (char*)steps[i].string_operand;
     }
     fx->opcodes[count] = (uint16_t)CS2_OP_RETURN;
+    CS2VM2_ScriptPrepare(&fx->script); /* what a loader does */
     CS2VM2_PushCallScript(fx->thread, &fx->script);
     if( g_iterator_seed )
     {

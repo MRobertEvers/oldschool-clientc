@@ -85,6 +85,7 @@ CS2VM2_ScriptFree(struct CS2VM2_Script* script)
             ToriMem_Free(ToriMem_Script(), script->string_constants[i]);
         ToriMem_Free(ToriMem_Script(), script->string_constants);
     }
+    ToriMem_Free(ToriMem_Script(), script->plain_code);
     memset(script, 0, sizeof(*script));
 }
 
@@ -159,7 +160,7 @@ CS2VM2_ScriptCopy(
             assert(dst->string_operands[i]);
         }
     }
-    CS2VM2_ScriptEnsureConstants(dst);
+    CS2VM2_ScriptPrepare(dst);
 
     if( src->jit )
         CS2VM2_JitCopy(src, dst);
@@ -206,4 +207,33 @@ CS2VM2_ScriptEnsureConstants(struct CS2VM2_Script* script)
         return;
     assert(script->op_count > 0);
     script->string_constants = script_constants_from(script->op_count, script->string_operands);
+}
+
+void
+CS2VM2_ScriptPrepare(struct CS2VM2_Script* script)
+{
+    assert(script);
+    assert(script->op_count > 0);
+    assert(script->opcodes);
+
+    CS2VM2_ScriptEnsureConstants(script);
+    /* A script with no string operand still gets its row of NULLs: the loop
+     * reads constants[pc] for every handler instruction without a test. */
+    if( !script->string_constants )
+    {
+        script->string_constants = ToriMem_Calloc(
+            ToriMem_Script(), (size_t)script->op_count, sizeof(*script->string_constants));
+        assert(script->string_constants);
+    }
+
+    /* Written again on every call, so a script whose opcodes were changed by
+     * hand (a test) is prepared again by calling this again. */
+    if( !script->plain_code )
+    {
+        script->plain_code = ToriMem_Calloc(ToriMem_Script(), (size_t)script->op_count, 1u);
+        assert(script->plain_code);
+    }
+    CS2VM2_JitPlainCodes(script, script->plain_code);
+    if( !script->jit )
+        script->run_code = script->plain_code;
 }

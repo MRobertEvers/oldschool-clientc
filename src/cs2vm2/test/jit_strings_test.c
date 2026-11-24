@@ -116,6 +116,7 @@ test_pointer(void)
         "a NULL constant stays on the general path");
     CS2VM2_Init(&g_jt_vm);
     struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&g_jt_vm);
+    CS2VM2_ScriptPrepare(&s); /* what a loader does */
     CS2VM2_PushCallScript(t, &s);
     int const rc = CS2VM2_RunScript(t);
     jt_check(rc == CS2VM_EXECNO_DONE && t->strs_stack_top == 2 && t->strs_stack[0] && t->strs_stack[1] &&

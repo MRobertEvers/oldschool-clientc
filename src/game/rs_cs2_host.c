@@ -7154,7 +7154,7 @@ exec_set_on_inv_transmit(
     hook->int_arg_count = int_arg_count;
     if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
         hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-    memcpy(hook->int_args, int_args, sizeof(hook->int_args));
+    memcpy(hook->int_args, int_args, (size_t)hook->int_arg_count * sizeof(hook->int_args[0]));
     rs_cs2_copy_hook_str_args(
         &hook->str_arg_mask,
         &hook->str_arg_count,
@@ -7617,7 +7617,7 @@ exec_set_on_stat_transmit(
     hook->int_arg_count = int_arg_count;
     if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
         hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-    memcpy(hook->int_args, int_args, sizeof(hook->int_args));
+    memcpy(hook->int_args, int_args, (size_t)hook->int_arg_count * sizeof(hook->int_args[0]));
     rs_cs2_copy_hook_str_args(
         &hook->str_arg_mask,
         &hook->str_arg_count,
@@ -7667,7 +7667,7 @@ exec_set_on_var_transmit(
     hook->int_arg_count = int_arg_count;
     if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
         hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-    memcpy(hook->int_args, int_args, sizeof(hook->int_args));
+    memcpy(hook->int_args, int_args, (size_t)hook->int_arg_count * sizeof(hook->int_args[0]));
     rs_cs2_copy_hook_str_args(
         &hook->str_arg_mask,
         &hook->str_arg_count,
@@ -7729,7 +7729,7 @@ exec_set_on_cc_transmit(
         hook->int_arg_count = int_arg_count;
         if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
             hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-        memcpy(hook->int_args, int_args, sizeof(hook->int_args));
+        memcpy(hook->int_args, int_args, (size_t)hook->int_arg_count * sizeof(hook->int_args[0]));
         rs_cs2_copy_hook_str_args(
             &hook->str_arg_mask,
             &hook->str_arg_count,
@@ -7757,7 +7757,7 @@ exec_set_on_cc_transmit(
         hook->int_arg_count = int_arg_count;
         if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
             hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-        memcpy(hook->int_args, int_args, sizeof(hook->int_args));
+        memcpy(hook->int_args, int_args, (size_t)hook->int_arg_count * sizeof(hook->int_args[0]));
         rs_cs2_copy_hook_str_args(
             &hook->str_arg_mask,
             &hook->str_arg_count,
@@ -7781,7 +7781,7 @@ exec_set_on_cc_transmit(
         hook->int_arg_count = int_arg_count;
         if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
             hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-        memcpy(hook->int_args, int_args, sizeof(hook->int_args));
+        memcpy(hook->int_args, int_args, (size_t)hook->int_arg_count * sizeof(hook->int_args[0]));
         rs_cs2_copy_hook_str_args(
             &hook->str_arg_mask,
             &hook->str_arg_count,
