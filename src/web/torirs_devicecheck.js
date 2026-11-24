@@ -349,6 +349,13 @@
       + 'settings, on a computer, phone or tablet.' }));
     box.appendChild(el('h3', { text: 'What this browser has' }));
     box.appendChild(factList(wasm, found));
+    /* The device bench (devicebench.html) times a frame of the game's own
+     * scene in plain JavaScript: how this browser would fare without
+     * WebAssembly. Linked here because this is the page such a browser
+     * reaches; the sign-in does not carry a deep link through. */
+    const bench = el('a', { href: 'devicebench.html', text: 'Time how this browser draws the game →' });
+    bench.style.fontSize = '16px';
+    box.appendChild(el('p', {}, [bench]));
   }
 
   /* The readings, as the player sees them: on the choice panel and on the
