@@ -314,10 +314,16 @@ def stage_web(stage: Path) -> None:
               ".woff", ".woff2"}
 
     leftovers = {"CMakeCache.txt", "Makefile", "cmake_install.cmake"}
+    # Served files of a kind the list above does not take wholesale: build-web/
+    # is shared with experiments, so these are named, not matched by suffix.
+    # devicebench.html's scene (tools/web/devicebench_crop.py).
+    named = {"devicebench_lumbridge.tscn.gz"}
 
     def keep(rel: Path, is_dir: bool) -> bool:
         if is_dir:
             return rel.name != "CMakeFiles"
+        if rel.name in named:
+            return True
         return rel.suffix in served and rel.name not in leftovers
     total = copy_tree(src, stage / "build-web", keep)
     log(f"build-web: {total / 1e6:.0f} MB")
