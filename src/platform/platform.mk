@@ -489,6 +489,14 @@ else ifeq ($(PLATFORM),web)
   # otherwise needs (WebGL1, BigInt, modern ES) has shipped wasm SIMD since
   # 2021-2023; a browser without it refuses to compile the module.
   WEB_SIMD_CFLAGS := -msimd128 -msse4.1
+  # WEB_JS=1: the client as plain JavaScript instead of WebAssembly, for a
+  # browser that has none (a Kindle's, which runs JavaScript without a JIT).
+  # Emscripten's -sWASM=0 cannot carry wasm SIMD, so the build is scalar:
+  # pair it with TORIDRAW_NO_SIMD=1, and an object base and target of its own
+  # (PLATFORM_OBJ_BASE=build_webjs PLATFORM_TARGET=...), never build-web/.
+  ifeq ($(WEB_JS),1)
+    WEB_SIMD_CFLAGS :=
+  endif
   PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_WEB=1 -D_GNU_SOURCE $(WEB_CACHE_CFLAGS) $(WEB_SIMD_CFLAGS)
   # --- The GPU variant is the GLES2 renderer, shared with Android ------------
   #
@@ -601,6 +609,14 @@ else ifeq ($(PLATFORM),web)
                       -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPU8","HEAP32","callMain","FS","FS_readFile"$(WEB_CACHE_RUNTIME)]' \
                       -sEXPORTED_FUNCTIONS='["_main","_malloc","_free","_torirs_cmdbus_push_bytes","_torirs_web_text_input","_torirs_web_key"$(WEB_CACHE_EXPORTS)]' \
                       --js-library $(PLATFORM_JS_LIBRARY)
+  # WEB_JS=1 (above): JavaScript output. It takes no imported WebAssembly
+  # memory and at most 2 GB of heap, and starts at 196 MB (the owner's
+  # number): the browsers it is for (a Kindle's) have half a gigabyte in all,
+  # and the heap still grows.
+  ifeq ($(WEB_JS),1)
+    PLATFORM_LDFLAGS := $(filter-out -sIMPORTED_MEMORY=1 -sMAXIMUM_MEMORY=4294967296 -sINITIAL_MEMORY=268435456,$(PLATFORM_LDFLAGS)) \
+                        -sWASM=0 -sMAXIMUM_MEMORY=2147483648 -sINITIAL_MEMORY=205520896
+  endif
   # emcc strips at the wasm level; there is no ld flag to add here.
   PLATFORM_STRIP_LDFLAGS :=
   # emscripten's musl only routes these four through --wrap; reallocf and

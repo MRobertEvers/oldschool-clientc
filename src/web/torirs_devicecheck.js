@@ -365,6 +365,27 @@
     const bench = el('a', { href: 'devicebench.html', text: 'Time how this browser draws the game →' });
     bench.style.fontSize = '16px';
     box.appendChild(el('p', {}, [bench]));
+    /* The opt-in: the client built as plain JavaScript (torirs_js.js, loaded
+     * by compat.html when there is no WebAssembly). It runs, at a fraction of
+     * a frame a second on a JIT-less browser, so it is a choice the player
+     * makes here, never a default. Kept like compatibility mode is
+     * (COMPAT_KEY): later visits go straight to it, and ?compat=0 or the
+     * Account page's "Ask again next time" ends it. */
+    const tryIt = el('button', { type: 'button', text: 'Try the JavaScript version anyway (very slow)' });
+    tryIt.style.fontSize = '15px';
+    tryIt.style.marginTop = '4px';
+    tryIt.addEventListener('click', () => {
+      write('localStorage', COMPAT_KEY, '1');
+      try {
+        window.sessionStorage.setItem('torirs.compat_choice',
+          JSON.stringify({ renderer: 0, fps: 5, score: found.cpu.score, compat: true }));
+      } catch (err) { /* private mode: the defaults apply */ }
+      record('device_check', { verdict: 'js_opt_in', score: found.cpu.score }, true);
+      window.location.replace('compat.html' + window.location.search);
+    });
+    box.appendChild(el('p', { text: 'There is a plain JavaScript version of the game for browsers like this one. '
+      + 'It loads, but expect seconds per frame.' }));
+    box.appendChild(el('p', {}, [tryIt]));
     /* Back to the site (the account home: "/" without the game's query). */
     const home = el('a', { href: '/', text: '\u2190 Home' });
     home.style.fontSize = '16px';

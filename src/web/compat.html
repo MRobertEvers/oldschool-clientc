@@ -84,6 +84,16 @@ globalThis.torirsPageKeyboard(document.getElementById('torirs-keyboard'));
 <script src="torirs_hostio.js"></script>
 <script src="torirs_host.js"></script>
 <script src="torirs_credentials.js"></script>
-<script src="torirs.js"></script>
+<script>
+/* The client: WebAssembly where the browser has it, else the plain
+ * JavaScript build (torirs_js.js, platform.mk WEB_JS=1) that the cannot-run
+ * page's opt-in leads here for -- very slow, but it runs. */
+(function () {
+  var script = document.createElement('script');
+  script.src = typeof WebAssembly === 'object' ? 'torirs.js' : 'torirs_js.js';
+  script.async = false;
+  document.body.appendChild(script);
+})();
+</script>
 </body>
 </html>

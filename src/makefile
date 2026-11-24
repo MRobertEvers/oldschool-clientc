@@ -1638,11 +1638,12 @@ WASM_FUNC_SIZE_CHECK   = python3 -I $(REPO_ROOT)/tools/wasm_func_size_check.py \
 $(TARGET): $(OBJS) $(ASAN_DYLD_SHIM) $(PLATFORM_JS_LIBRARY)
 	@mkdir -p $(dir $@) $(if $(LTO_CACHE_LDFLAGS),$(LTO_CACHE_DIR))
 	$(file >$(OBJ_DIR)/link_objs.rsp,$(OBJS))
-ifeq ($(PLATFORM)$(OPT),web1)
+# A WEB_JS=1 link (platform.mk) makes no .wasm, so it has no functions to size.
+ifeq ($(PLATFORM)$(OPT)$(WEB_JS),web1)
 	@rm -f $@.symbols $(WASM_FUNC_SIZE_SYMBOLS)
 endif
 	$(LTO_CACHE_LINK) $(CC) $(CFLAGS) -o $@ $(LINK_OBJS_ARG) $(LDFLAGS) $(LTO_CACHE_LDFLAGS) $(ASAN_DYLD_SHIM)
-ifeq ($(PLATFORM)$(OPT),web1)
+ifeq ($(PLATFORM)$(OPT)$(WEB_JS),web1)
 	@{ mv -f $@.symbols $(WASM_FUNC_SIZE_SYMBOLS) && $(WASM_FUNC_SIZE_CHECK); } || { rm -f $@; exit 1; }
 endif
 	@echo $(OBJ_DIR) > .last_flavor

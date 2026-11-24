@@ -304,6 +304,15 @@ def stage_quest_tests(stage: Path) -> None:
     log(f"quest tests: {total / 1e6:.1f} MB, manifest {manifest.relative_to(stage)}")
 
 
+# The client as plain JavaScript (platform.mk WEB_JS=1), for a browser with
+# no WebAssembly that opts in from the cannot-run page (compat.html loads it).
+# Built into its own object base and output, never build-web/; staged as
+# build-web/torirs_js.js.
+WEB_JS_TARGET = REPO / "build" / "webjs" / "torirs.js"
+WEB_JS_MAKE = ["PLATFORM=web", "OPT=1", "WEB_JS=1", "TORIDRAW_NO_SIMD=1",
+               "PLATFORM_OBJ_BASE=build_webjs", f"PLATFORM_TARGET={WEB_JS_TARGET}", "all"]
+
+
 def stage_web(stage: Path) -> None:
     """build-web/ minus the CMake and C leftovers that live beside the page."""
     src = REPO / "build-web"
@@ -326,6 +335,10 @@ def stage_web(stage: Path) -> None:
             return True
         return rel.suffix in served and rel.name not in leftovers
     total = copy_tree(src, stage / "build-web", keep)
+    if not WEB_JS_TARGET.is_file():
+        die(f"{WEB_JS_TARGET} missing -- run without --skip-web")
+    shutil.copy2(WEB_JS_TARGET, stage / "build-web" / "torirs_js.js")
+    total += WEB_JS_TARGET.stat().st_size
     log(f"build-web: {total / 1e6:.0f} MB")
 
 
@@ -1024,6 +1037,7 @@ def main() -> int:
         make(["torirsserver-servpack"], jobs=1)
     if not args.skip_web:
         make(["web"], args.jobs)                     # also builds io_server
+        make(WEB_JS_MAKE, args.jobs)                 # build/webjs/torirs.js
     if not args.skip_servers:
         make(["io-server"], args.jobs)
         make(["website-server"], args.jobs)
