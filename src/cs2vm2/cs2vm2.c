@@ -502,80 +502,54 @@ CS2VM2_SetTraceExtra(
 }
 
 /*
- * PREPARE, ASK, UNWIND: the yield mark's three functions (cs2vm2.h says why).
+ * ASK, and what a "not ready" costs (cs2vm2.h, struct CS2VM2_Took, says why).
  *
- * An opcode's implementation calls CS2VM2_PrepareYield before it pops or
- * stores anything; a helper that asks the host takes its caller's mark,
- * because by the time a helper runs the caller may have popped. The undo log
- * (array stores a yielding op must take back) starts empty at the mark.
+ * An instruction that can reach the host counts what it takes off the stacks
+ * in a local (CS2VM2_TakeInt / _TakeStr / _TakeLong) and hands the count to
+ * CS2VM2_Ask. Nothing is saved before it runs. When the host answers "not
+ * ready", the count goes back on the stacks (CS2VM2_YieldRestore) and the
+ * instruction runs again on resume from exactly where it began; a pop does not
+ * erase, so the values are still there. A helper that asks takes its caller's
+ * count, because by the time it runs its caller may have popped.
+ *
+ * A debug build checks the count at every ask, yield or not: the stacks plus
+ * what was taken must be the stacks the instruction started with. A release
+ * build checks nothing.
  */
-static inline struct CS2VM2_YieldMark
-CS2VM2_PrepareYield(struct CS2VM2_Thread* vm)
+#ifndef NDEBUG
+static bool
+cs2vm2_took_accounts_for_the_instruction(
+    struct CS2VM2_Thread const* vm,
+    struct CS2VM2_Took took)
 {
-    struct CS2VM2_YieldMark mark;
-
-    assert(vm);
-    /* Taken late, the mark would restore to the middle of the instruction. */
-    assert(vm->ints_stack_top == vm->instr_ints_stack_top);
-    assert(vm->strs_stack_top == vm->instr_strs_stack_top);
-    assert(vm->longs_stack_top == vm->instr_longs_stack_top);
-
-    vm->undo_log_len = 0;
-    mark.ints_stack_top = (uint16_t)vm->ints_stack_top;
-    mark.strs_stack_top = (uint16_t)vm->strs_stack_top;
-    mark.longs_stack_top = (uint16_t)vm->longs_stack_top;
-    mark.unused = 0;
-    mark.active_component_id = vm->active_component_id;
-    mark.dot_component_id = vm->dot_component_id;
-    return mark;
+    return vm->ints_stack_top + took.ints == vm->instr_ints_stack_top &&
+           vm->strs_stack_top + took.strs == vm->instr_strs_stack_top &&
+           vm->longs_stack_top + took.longs == vm->instr_longs_stack_top;
 }
+#endif
 
-/* The host said "not ready": the opcode's pops, and the host's own, are taken
- * back, and whatever array cells it stored are restored newest first, so the
- * opcode re-runs from the state it started in. Off the common path. */
-static __attribute__((noinline)) void
-cs2vm2_unwind(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_YieldMark mark)
-{
-    assert(vm);
-
-    vm->ints_stack_top = mark.ints_stack_top;
-    vm->strs_stack_top = mark.strs_stack_top;
-    vm->longs_stack_top = mark.longs_stack_top;
-    vm->active_component_id = mark.active_component_id;
-    vm->dot_component_id = mark.dot_component_id;
-
-    while( vm->undo_log_len > 0 )
-    {
-        struct CS2VM2_ArrayUndo const* undo = &vm->undo_log[--vm->undo_log_len];
-        if( undo->slot < 0 || undo->slot >= CS2VM2_MAX_ARRAYS || undo->index < 0 ||
-            undo->index >= vm->arrays[undo->slot].capacity )
-            continue;
-        if( vm->arrays[undo->slot].is_string )
-            vm->arrays[undo->slot].cells.strings[undo->index] = undo->old_string;
-        else
-            vm->arrays[undo->slot].cells.ints[undo->index] = undo->old_value;
-    }
-    vm->yield_unwound = 1;
-}
-
-/* The only call to the host. It takes the mark, so there is no asking without
- * having prepared. */
+/* The only call to the host. It takes the count, so there is no asking
+ * without saying what to put back. */
 static inline int
 CS2VM2_Ask(
     struct CS2VM2_Thread* vm,
     struct CS2VM_HostRequest* request,
-    struct CS2VM2_YieldMark mark)
+    struct CS2VM2_Took took)
 {
     int result;
 
     assert(vm);
     assert(request);
+    /* Every pop since the instruction began went through CS2VM2_Take*. */
+    assert(cs2vm2_took_accounts_for_the_instruction(vm, took));
 
     result = vm->vm->host_exec(vm, request);
     if( result == CS2VM_EXECNO_YIELD )
-        cs2vm2_unwind(vm, mark);
+    {
+        /* The host put back whatever it took itself before it answered. */
+        assert(cs2vm2_took_accounts_for_the_instruction(vm, took));
+        CS2VM2_YieldRestore(vm, took);
+    }
     return result;
 }
 
@@ -710,57 +684,6 @@ cs2vm2_array_shared(
     if( slot < 0 || slot >= CS2VM2_SHARED_ARRAYS )
         return NULL;
     return cs2vm2_array_from_handle(vm, vm->shared_arrays[slot]);
-}
-
-/* Opt-in tracked array store: records the prior value so a yield restore can undo
- * it (see the undo_log contract in CS2VM2_Thread). Hosted compound opcodes route
- * writes here; VM-only POP_ARRAY_INT writes directly because it cannot yield. */
-static int
-cs2vm2_array_track(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Array* array,
-    int index)
-{
-    assert(array);
-    if( !array->defined || index < 0 || index >= array->size )
-        return 0;
-    if( vm->undo_log_len < CS2VM2_ARRAY_UNDO_MAX )
-    {
-        struct CS2VM2_ArrayUndo* undo = &vm->undo_log[vm->undo_log_len++];
-        undo->slot = (short)(array - vm->arrays);
-        undo->index = index;
-        undo->old_value = array->cells.ints[index];
-        undo->old_string = array->cells.strings[index];
-    }
-    return 1;
-}
-
-void
-CS2VM2_ArrayStore(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Array* array,
-    int index,
-    int value)
-{
-    assert(vm);
-    if( !cs2vm2_array_track(vm, array, index) )
-        return;
-    array->cells.ints[index] = value;
-}
-
-/* The string twin. The pointer is pool-owned (CS2VM2_StrDup); storing it here
- * transfers no ownership and the overwritten cell is never freed. */
-void
-CS2VM2_ArrayStoreStr(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Array* array,
-    int index,
-    struct CS2VM2_Str* value)
-{
-    assert(vm);
-    if( !cs2vm2_array_track(vm, array, index) )
-        return;
-    array->cells.strings[index] = value;
 }
 
 struct CS2VM2_Array*
@@ -1383,7 +1306,7 @@ CS2VM2_Op_PushVar(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -1393,7 +1316,7 @@ CS2VM2_Op_PushVar(
     memset(&request.u.PUSH_VAR, 0, sizeof(request.u.PUSH_VAR));
     request.u.PUSH_VAR.varp_id = operand;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -1406,7 +1329,7 @@ CS2VM2_Op_PushVarbit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -1425,7 +1348,7 @@ CS2VM2_Op_PushVarbit(
     memset(&request.u.PUSH_VARBIT, 0, sizeof(request.u.PUSH_VARBIT));
     request.u.PUSH_VARBIT.varbit_id = operand;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -1439,13 +1362,13 @@ CS2VM2_Op_KeyQuery(
     struct CS2VM2_Frame* frame,
     enum CS2VM_HostRequestKind kind)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int key_code;
-    if( CS2VM2_PopInt(vm, &key_code) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &key_code) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -1464,7 +1387,7 @@ CS2VM2_Op_KeyQuery(
         assert(0 && "unexpected key-query host request");
         return CS2VM_EXECNO_ERROR;
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -1473,7 +1396,7 @@ CS2VM2_Op_PushVarcInt(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -1483,7 +1406,7 @@ CS2VM2_Op_PushVarcInt(
     memset(&request.u.PUSH_VARC_INT, 0, sizeof(request.u.PUSH_VARC_INT));
     request.u.PUSH_VARC_INT.varc_id = operand;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -1496,13 +1419,13 @@ CS2VM2_Op_PopVarcInt(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int value;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -1511,7 +1434,7 @@ CS2VM2_Op_PopVarcInt(
     request.u.POP_VARC_INT.varc_id = operand;
     request.u.POP_VARC_INT.value = value;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -1525,7 +1448,7 @@ CS2VM2_Op_PushVarcString(
     int operand,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -1546,7 +1469,7 @@ CS2VM2_Op_PushVarcString(
         assert(0 && "unexpected varc-string read opcode");
         return CS2VM_EXECNO_ERROR;
     }
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -1560,13 +1483,13 @@ CS2VM2_Op_PopVarcString(
     int operand,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     struct CS2VM2_Str* value;
-    if( CS2VM2_PopStr(vm, &value) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -1587,7 +1510,7 @@ CS2VM2_Op_PopVarcString(
         assert(0 && "unexpected varc-string write opcode");
         return CS2VM_EXECNO_ERROR;
     }
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2051,7 +1974,7 @@ CS2VM2_Op_ParaHeight(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -2061,11 +1984,11 @@ CS2VM2_Op_ParaHeight(
     int max_width;
     struct CS2VM2_Str* text;
 
-    if( CS2VM2_PopInt(vm, &font_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &font_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &max_width) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &max_width) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2075,7 +1998,7 @@ CS2VM2_Op_ParaHeight(
     request.u.PARAHEIGHT.max_width = max_width;
     request.u.PARAHEIGHT.text = text;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2088,21 +2011,21 @@ CS2VM2_Op_FromDate(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int day;
-    if( CS2VM2_PopInt(vm, &day) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &day) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
     request.kind = CS2VM_HOST_REQUEST_FROMDATE;
     memset(&request.u.FROMDATE, 0, sizeof(request.u.FROMDATE));
     request.u.FROMDATE.day = day;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -2111,7 +2034,7 @@ CS2VM2_Op_ParaWidth(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -2121,11 +2044,11 @@ CS2VM2_Op_ParaWidth(
     int max_width;
     struct CS2VM2_Str* text;
 
-    if( CS2VM2_PopInt(vm, &font_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &font_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &max_width) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &max_width) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2135,7 +2058,7 @@ CS2VM2_Op_ParaWidth(
     request.u.PARAWIDTH.max_width = max_width;
     request.u.PARAWIDTH.text = text;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2148,7 +2071,7 @@ CS2VM2_Op_GosubWithParams(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     assert(vm->vm->host_exec);
@@ -2178,7 +2101,7 @@ CS2VM2_Op_GosubWithParams(
     memset(&request.u.GOSUB_WITH_PARAMS, 0, sizeof(request.u.GOSUB_WITH_PARAMS));
     request.u.GOSUB_WITH_PARAMS.script_id = operand;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2196,14 +2119,14 @@ CS2VM2_Op_GosubWithParams(
     for( int i = long_args - 1; i >= 0; i-- )
     {
         int64_t value;
-        if( CS2VM2_PopLong(vm, &value) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeLong(vm, &took, &value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         *cs2vm2_frame_long_local_ref(callee, i) = value;
     }
     for( int i = str_args - 1; i >= 0; i-- )
     {
         struct CS2VM2_Str* value = NULL;
-        if( CS2VM2_PopStr(vm, &value) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         *cs2vm2_frame_str_local_ref(callee, i) = value;
     }
@@ -2226,14 +2149,14 @@ CS2VM2_Op_CC_DeleteAll(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int component_id;
 
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2241,7 +2164,7 @@ CS2VM2_Op_CC_DeleteAll(
     memset(&request.u.CC_DELETEALL, 0, sizeof(request.u.CC_DELETEALL));
     request.u.CC_DELETEALL.component_id = component_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2256,18 +2179,18 @@ CS2VM2_Op_CC_Copy(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int dst_sub, src_sub, parent_id;
 
-    if( CS2VM2_PopInt(vm, &dst_sub) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &dst_sub) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &src_sub) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &src_sub) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &parent_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &parent_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2278,7 +2201,7 @@ CS2VM2_Op_CC_Copy(
     request.u.CC_COPY.dst_sub_id = dst_sub;
     request.u.CC_COPY.dot_operand = operand;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -2287,16 +2210,16 @@ CS2VM2_Op_CC_Find(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int sub, parent;
 
-    if( CS2VM2_PopInt(vm, &sub) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &sub) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &parent) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &parent) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2306,7 +2229,7 @@ CS2VM2_Op_CC_Find(
     request.u.CC_FIND.sub_id = sub;
     request.u.CC_FIND.dot_operand = operand;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2319,7 +2242,7 @@ CS2VM2_Op_CC_Find(
 static int
 cs2vm2_cc_create_ask(
     struct CS2VM2_Thread* vm,
-    struct CS2VM2_YieldMark mark,
+    struct CS2VM2_Took took,
     int operand,
     int parent_id,
     int type,
@@ -2338,7 +2261,7 @@ cs2vm2_cc_create_ask(
     request.u.CC_CREATE.is_nested = is_nested;
     request.u.CC_CREATE.dot_operand = operand;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* CC_CREATE (100): (parent, type, index, nested), nested on top. The nested
@@ -2349,21 +2272,21 @@ CS2VM2_Op_CC_Create(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
 
     int is_nested, child_index, type, parent_id;
-    if( CS2VM2_PopInt(vm, &is_nested) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &is_nested) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &child_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &parent_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &parent_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return cs2vm2_cc_create_ask(vm, mark, operand, parent_id, type, child_index, is_nested);
+    return cs2vm2_cc_create_ask(vm, took, operand, parent_id, type, child_index, is_nested);
 }
 
 /* CC_CREATE_FLAT: CC_CREATE where the era pushes only (parent, type, index):
@@ -2376,19 +2299,19 @@ CS2VM2_Op_CC_CreateFlat(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
 
     int child_index, type, parent_id;
-    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &child_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &parent_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &parent_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return cs2vm2_cc_create_ask(vm, mark, operand, parent_id, type, child_index, 0);
+    return cs2vm2_cc_create_ask(vm, took, operand, parent_id, type, child_index, 0);
 }
 
 // === Position and Size ===
@@ -2399,20 +2322,20 @@ CS2VM2_Op_CC_SetPosition(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int x, y, xmode, ymode;
 
-    if( CS2VM2_PopInt(vm, &ymode) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &ymode) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &xmode) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &xmode) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &y) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &y) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &x) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &x) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2424,7 +2347,7 @@ CS2VM2_Op_CC_SetPosition(
     request.u.CC_SETPOSITION.xmode = xmode;
     request.u.CC_SETPOSITION.ymode = ymode;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2437,20 +2360,20 @@ CS2VM2_Op_CC_SetSize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int w, h, wmode, hmode;
 
-    if( CS2VM2_PopInt(vm, &hmode) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &hmode) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &wmode) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &wmode) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &h) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &h) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &w) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &w) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2462,7 +2385,7 @@ CS2VM2_Op_CC_SetSize(
     request.u.CC_SETSIZE.wmode = wmode;
     request.u.CC_SETSIZE.hmode = hmode;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2475,14 +2398,14 @@ CS2VM2_Op_CC_SetGraphic(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int graphic_id;
 
-    if( CS2VM2_PopInt(vm, &graphic_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &graphic_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2491,7 +2414,7 @@ CS2VM2_Op_CC_SetGraphic(
     request.u.CC_SETGRAPHIC.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETGRAPHIC.graphic_id = graphic_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2504,14 +2427,14 @@ CS2VM2_Op_CC_SetGraphic2(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int graphic_id;
 
-    if( CS2VM2_PopInt(vm, &graphic_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &graphic_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2520,7 +2443,7 @@ CS2VM2_Op_CC_SetGraphic2(
     request.u.CC_SETCLICKMASK.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETCLICKMASK.graphic_id = graphic_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2533,13 +2456,13 @@ CS2VM2_Op_CC_SetTiling(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int tiling;
-    if( CS2VM2_PopInt(vm, &tiling) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &tiling) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2548,7 +2471,7 @@ CS2VM2_Op_CC_SetTiling(
     request.u.CC_SETTILING.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETTILING.tiling = tiling;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2561,13 +2484,13 @@ CS2VM2_Op_CC_SetOutline(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int outline;
-    if( CS2VM2_PopInt(vm, &outline) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &outline) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2576,7 +2499,7 @@ CS2VM2_Op_CC_SetOutline(
     request.u.CC_SETOUTLINE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETOUTLINE.outline = outline;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2589,13 +2512,13 @@ CS2VM2_Op_CC_SetGraphicShadow(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int shadow;
-    if( CS2VM2_PopInt(vm, &shadow) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &shadow) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2604,7 +2527,7 @@ CS2VM2_Op_CC_SetGraphicShadow(
     request.u.CC_SETGRAPHICSHADOW.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETGRAPHICSHADOW.shadow = shadow;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2617,16 +2540,16 @@ CS2VM2_Op_IF_SetTiling(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id, tiling;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &tiling) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &tiling) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2635,7 +2558,7 @@ CS2VM2_Op_IF_SetTiling(
     request.u.IF_SETTILING.component_id = component_id;
     request.u.IF_SETTILING.tiling = tiling;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2648,16 +2571,16 @@ CS2VM2_Op_IF_SetGraphicShadow(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id, shadow;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &shadow) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &shadow) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2666,7 +2589,7 @@ CS2VM2_Op_IF_SetGraphicShadow(
     request.u.IF_SETGRAPHICSHADOW.component_id = component_id;
     request.u.IF_SETGRAPHICSHADOW.shadow = shadow;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2679,13 +2602,13 @@ CS2VM2_Op_CC_SetColour(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int colour;
-    if( CS2VM2_PopInt(vm, &colour) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &colour) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2694,7 +2617,7 @@ CS2VM2_Op_CC_SetColour(
     request.u.CC_SETCOLOUR.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETCOLOUR.colour = colour;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2707,16 +2630,16 @@ CS2VM2_Op_IF_SetColour(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id, colour;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &colour) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &colour) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2725,7 +2648,7 @@ CS2VM2_Op_IF_SetColour(
     request.u.IF_SETCOLOUR.component_id = component_id;
     request.u.IF_SETCOLOUR.colour = colour;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2738,13 +2661,13 @@ CS2VM2_Op_CC_SetFill(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int filled;
-    if( CS2VM2_PopInt(vm, &filled) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &filled) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2753,7 +2676,7 @@ CS2VM2_Op_CC_SetFill(
     request.u.CC_SETFILL.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETFILL.filled = filled;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2766,16 +2689,16 @@ CS2VM2_Op_IF_SetFill(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id, filled;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &filled) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &filled) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2784,7 +2707,7 @@ CS2VM2_Op_IF_SetFill(
     request.u.IF_SETFILL.component_id = component_id;
     request.u.IF_SETFILL.filled = filled;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2797,13 +2720,13 @@ CS2VM2_Op_CC_SetTrans(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int trans;
-    if( CS2VM2_PopInt(vm, &trans) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &trans) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2812,7 +2735,7 @@ CS2VM2_Op_CC_SetTrans(
     request.u.CC_SETTRANS.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETTRANS.trans = trans;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2858,7 +2781,7 @@ sound_request(
     int fade_out_speed,
     int fade_in_delay,
     int fade_in_speed,
-    struct CS2VM2_YieldMark mark)
+    struct CS2VM2_Took took)
 {
     struct CS2VM_HostRequest request;
     request.kind = kind;
@@ -2885,7 +2808,7 @@ sound_request(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_SOUND_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -2894,15 +2817,15 @@ CS2VM2_Op_SoundSynth(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int id = 0, secondary_id = 0, loops = 0, delay = 0;
     int fade_out_delay = 0, fade_out_speed = 0, fade_in_delay = 0, fade_in_speed = 0;
 
     (void)frame;
     (void)operand;
     /* sound_synth(synth, loops, delay) */
-    if( CS2VM2_PopInt(vm, &delay) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &loops) != CS2VM_EXECNO_OK || CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &loops) != CS2VM_EXECNO_OK || CS2VM2_TakeInt(vm, &took, &id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     return sound_request(
         vm,
@@ -2915,7 +2838,7 @@ CS2VM2_Op_SoundSynth(
         fade_out_speed,
         fade_in_delay,
         fade_in_speed,
-        mark);
+        took);
 }
 
 int
@@ -2924,18 +2847,18 @@ CS2VM2_Op_SoundSong(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int id = 0, secondary_id = 0, loops = 0, delay = 0;
     int fade_out_delay = 0, fade_out_speed = 0, fade_in_delay = 0, fade_in_speed = 0;
 
     (void)frame;
     (void)operand;
     /* sound_song(id, fadeOutDelay, fadeOutSpeed, fadeInDelay, fadeInSpeed) */
-    if( CS2VM2_PopInt(vm, &fade_in_speed) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &fade_in_delay) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &fade_out_speed) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &fade_out_delay) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &fade_in_speed) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &fade_in_delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &fade_out_speed) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &fade_out_delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     return sound_request(
         vm,
@@ -2948,7 +2871,7 @@ CS2VM2_Op_SoundSong(
         fade_out_speed,
         fade_in_delay,
         fade_in_speed,
-        mark);
+        took);
 }
 
 int
@@ -2957,14 +2880,14 @@ CS2VM2_Op_SoundJingle(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int id = 0, secondary_id = 0, loops = 0, delay = 0;
     int fade_out_delay = 0, fade_out_speed = 0, fade_in_delay = 0, fade_in_speed = 0;
 
     (void)frame;
     (void)operand;
     /* sound_jingle(id, delay) */
-    if( CS2VM2_PopInt(vm, &delay) != CS2VM_EXECNO_OK || CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &delay) != CS2VM_EXECNO_OK || CS2VM2_TakeInt(vm, &took, &id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     return sound_request(
         vm,
@@ -2977,7 +2900,7 @@ CS2VM2_Op_SoundJingle(
         fade_out_speed,
         fade_in_delay,
         fade_in_speed,
-        mark);
+        took);
 }
 
 int
@@ -2986,7 +2909,7 @@ CS2VM2_Op_SoundSongWithSecondary(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int id = 0, secondary_id = 0, loops = 0, delay = 0;
     int fade_out_delay = 0, fade_out_speed = 0, fade_in_delay = 0, fade_in_speed = 0;
 
@@ -2995,12 +2918,12 @@ CS2VM2_Op_SoundSongWithSecondary(
     /* _3221(primary, secondary, fadeOutDelay, fadeOutSpeed, fadeInDelay,
      *       fadeInSpeed) -- script9630 passes the same four fade arguments it
      *       would have passed to sound_song, with the secondary spliced in. */
-    if( CS2VM2_PopInt(vm, &fade_in_speed) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &fade_in_delay) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &fade_out_speed) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &fade_out_delay) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &secondary_id) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &fade_in_speed) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &fade_in_delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &fade_out_speed) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &fade_out_delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &secondary_id) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     return sound_request(
         vm,
@@ -3013,7 +2936,7 @@ CS2VM2_Op_SoundSongWithSecondary(
         fade_out_speed,
         fade_in_delay,
         fade_in_speed,
-        mark);
+        took);
 }
 
 int
@@ -3022,13 +2945,13 @@ CS2VM2_Op_CC_TriggerOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int op_index;
-    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &op_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3037,7 +2960,7 @@ CS2VM2_Op_CC_TriggerOp(
     request.u.CC_TRIGGEROP.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_TRIGGEROP.op_index = op_index;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -3057,14 +2980,14 @@ CS2VM2_Op_IF_TriggerOpLocal(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     struct CS2VM2_Str* signature = NULL;
-    if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK || !signature )
+    if( CS2VM2_TakeStr(vm, &took, &signature) != CS2VM_EXECNO_OK || !signature )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request = { 0 };
@@ -3079,22 +3002,22 @@ CS2VM2_Op_IF_TriggerOpLocal(
     {
         if( signature->text[i] == 'i' )
         {
-            if( CS2VM2_PopInt(vm, &request.u.IF_SCRIPT_TRIGGER.values[i]) != CS2VM_EXECNO_OK )
+            if( CS2VM2_TakeInt(vm, &took, &request.u.IF_SCRIPT_TRIGGER.values[i]) != CS2VM_EXECNO_OK )
                 return CS2VM_EXECNO_ERROR;
             if( i == 0 )
                 typed0 = request.u.IF_SCRIPT_TRIGGER.values[i];
         }
-        else if( CS2VM2_PopStr(vm, &request.u.IF_SCRIPT_TRIGGER.strings[i]) != CS2VM_EXECNO_OK )
+        else if( CS2VM2_TakeStr(vm, &took, &request.u.IF_SCRIPT_TRIGGER.strings[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
-    if( CS2VM2_PopInt(vm, &request.u.IF_SCRIPT_TRIGGER.child) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &request.u.IF_SCRIPT_TRIGGER.component_id) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &request.u.IF_SCRIPT_TRIGGER.crc) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &request.u.IF_SCRIPT_TRIGGER.child) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &request.u.IF_SCRIPT_TRIGGER.component_id) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &request.u.IF_SCRIPT_TRIGGER.crc) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     request.u.IF_SCRIPT_TRIGGER.sub =
         request.u.IF_SCRIPT_TRIGGER.child != -1 ? request.u.IF_SCRIPT_TRIGGER.child : typed0;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -3103,16 +3026,16 @@ CS2VM2_Op_IF_SetTrans(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id, trans;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &trans) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &trans) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3121,7 +3044,7 @@ CS2VM2_Op_IF_SetTrans(
     request.u.IF_SETTRANS.component_id = component_id;
     request.u.IF_SETTRANS.trans = trans;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3134,13 +3057,13 @@ CS2VM2_Op_CC_SetNoClickThrough(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int enabled;
-    if( CS2VM2_PopInt(vm, &enabled) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &enabled) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3149,7 +3072,7 @@ CS2VM2_Op_CC_SetNoClickThrough(
     request.u.CC_SETNOCLICKTHROUGH.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETNOCLICKTHROUGH.enabled = enabled;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3162,13 +3085,13 @@ CS2VM2_Op_CC_SetText(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     struct CS2VM2_Str* text;
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3177,7 +3100,7 @@ CS2VM2_Op_CC_SetText(
     request.u.CC_SETTEXT.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETTEXT.text = text;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3190,13 +3113,13 @@ CS2VM2_Op_CC_SetTextFont(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int font_id;
-    if( CS2VM2_PopInt(vm, &font_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &font_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3205,7 +3128,7 @@ CS2VM2_Op_CC_SetTextFont(
     request.u.CC_SETTEXTFONT.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETTEXTFONT.font_id = font_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3218,16 +3141,16 @@ CS2VM2_Op_IF_SetTextFont(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id, font_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &font_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &font_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3236,7 +3159,7 @@ CS2VM2_Op_IF_SetTextFont(
     request.u.IF_SETTEXTFONT.component_id = component_id;
     request.u.IF_SETTEXTFONT.font_id = font_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3249,17 +3172,17 @@ CS2VM2_Op_CC_SetTextAlign(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int line_height, y_align, x_align;
-    if( CS2VM2_PopInt(vm, &line_height) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &line_height) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &y_align) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &y_align) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &x_align) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &x_align) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3270,7 +3193,7 @@ CS2VM2_Op_CC_SetTextAlign(
     request.u.CC_SETTEXTALIGN.y_align = y_align;
     request.u.CC_SETTEXTALIGN.line_height = line_height;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3283,20 +3206,20 @@ CS2VM2_Op_IF_SetTextAlign(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id, line_height, y_align, x_align;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &line_height) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &line_height) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &y_align) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &y_align) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &x_align) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &x_align) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3307,7 +3230,7 @@ CS2VM2_Op_IF_SetTextAlign(
     request.u.IF_SETTEXTALIGN.y_align = y_align;
     request.u.IF_SETTEXTALIGN.line_height = line_height;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3320,13 +3243,13 @@ CS2VM2_Op_CC_SetTextShadow(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int shadowed;
-    if( CS2VM2_PopInt(vm, &shadowed) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &shadowed) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3335,7 +3258,7 @@ CS2VM2_Op_CC_SetTextShadow(
     request.u.CC_SETTEXTSHADOW.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETTEXTSHADOW.shadowed = shadowed;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3348,16 +3271,16 @@ CS2VM2_Op_IF_SetTextShadow(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id, shadowed;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &shadowed) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &shadowed) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3366,7 +3289,7 @@ CS2VM2_Op_IF_SetTextShadow(
     request.u.IF_SETTEXTSHADOW.component_id = component_id;
     request.u.IF_SETTEXTSHADOW.shadowed = shadowed;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3379,7 +3302,7 @@ CS2VM2_Op_CC_SetDraggable(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -3387,9 +3310,9 @@ CS2VM2_Op_CC_SetDraggable(
     int child_index;
     int parent_uid;
 
-    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &child_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &parent_uid) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &parent_uid) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3399,7 +3322,7 @@ CS2VM2_Op_CC_SetDraggable(
     request.u.CC_SETDRAGGABLE.parent_uid = parent_uid;
     request.u.CC_SETDRAGGABLE.child_index = child_index;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3412,13 +3335,13 @@ CS2VM2_Op_CC_SetDraggableBehavior(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int behavior;
-    if( CS2VM2_PopInt(vm, &behavior) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &behavior) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3427,7 +3350,7 @@ CS2VM2_Op_CC_SetDraggableBehavior(
     request.u.CC_SETDRAGRENDERBEHAVIOUR.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETDRAGRENDERBEHAVIOUR.behavior = behavior;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3440,13 +3363,13 @@ CS2VM2_Op_CC_SetDragDeadZone(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int zone;
-    if( CS2VM2_PopInt(vm, &zone) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &zone) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3455,7 +3378,7 @@ CS2VM2_Op_CC_SetDragDeadZone(
     request.u.CC_SETDRAGDEADZONE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETDRAGDEADZONE.zone = zone;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3468,13 +3391,13 @@ CS2VM2_Op_CC_SetDragDeadTime(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int time;
-    if( CS2VM2_PopInt(vm, &time) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &time) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3483,7 +3406,7 @@ CS2VM2_Op_CC_SetDragDeadTime(
     request.u.CC_SETDRAGDEADTIME.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETDRAGDEADTIME.time = time;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3497,16 +3420,16 @@ CS2VM2_Op_CC_SetObject(
     int operand,
     int num_mode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int count, obj_id;
 
-    if( CS2VM2_PopInt(vm, &count) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &count) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &obj_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &obj_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3531,7 +3454,7 @@ CS2VM2_Op_CC_SetObject(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CC_SETOBJECT_CASE
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3545,7 +3468,7 @@ CS2VM2_Op_IF_SetObject(
     int operand,
     int num_mode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -3553,11 +3476,11 @@ CS2VM2_Op_IF_SetObject(
 
     int component_id, count, obj_id;
 
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &count) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &count) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &obj_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &obj_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3582,7 +3505,7 @@ CS2VM2_Op_IF_SetObject(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_IF_SETOBJECT_CASE
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3595,7 +3518,7 @@ CS2VM2_Op_IF_SetGraphic(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -3603,9 +3526,9 @@ CS2VM2_Op_IF_SetGraphic(
 
     int graphic_id, component_id;
 
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &graphic_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &graphic_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3614,7 +3537,7 @@ CS2VM2_Op_IF_SetGraphic(
     request.u.IF_SETGRAPHIC.component_id = component_id;
     request.u.IF_SETGRAPHIC.graphic_id = graphic_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3633,7 +3556,7 @@ CS2VM2_Op_IF_SetGraphic2(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -3641,9 +3564,9 @@ CS2VM2_Op_IF_SetGraphic2(
 
     int graphic_id, component_id;
 
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &graphic_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &graphic_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3652,7 +3575,7 @@ CS2VM2_Op_IF_SetGraphic2(
     request.u.IF_SETCLICKMASK.component_id = component_id;
     request.u.IF_SETCLICKMASK.graphic_id = graphic_id;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -3661,7 +3584,7 @@ CS2VM2_Op_IF_SetText(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -3670,9 +3593,9 @@ CS2VM2_Op_IF_SetText(
     int component_id;
     struct CS2VM2_Str* text;
 
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3681,7 +3604,7 @@ CS2VM2_Op_IF_SetText(
     request.u.IF_SETTEXT.component_id = component_id;
     request.u.IF_SETTEXT.text = text;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3694,7 +3617,7 @@ CS2VM2_Op_CC_SetOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -3702,9 +3625,9 @@ CS2VM2_Op_CC_SetOp(
     int index;
     struct CS2VM2_Str* text;
 
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3714,7 +3637,7 @@ CS2VM2_Op_CC_SetOp(
     request.u.CC_SETOP.index = index;
     request.u.CC_SETOP.text = text;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3727,13 +3650,13 @@ CS2VM2_Op_CC_SetOpBase(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     struct CS2VM2_Str* text;
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -3742,7 +3665,7 @@ CS2VM2_Op_CC_SetOpBase(
     request.u.CC_SETOPBASE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETOPBASE.text = text;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -3755,20 +3678,20 @@ CS2VM2_Op_CC_SetTargetVerb(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     struct CS2VM2_Str* text;
 
     assert(vm);
     assert(frame);
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request = { 0 };
     request.kind = CS2VM_HOST_REQUEST_CC_SETTARGETVERB;
     request.u.CC_SETTARGETVERB.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETTARGETVERB.text = text;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -3791,7 +3714,7 @@ CS2VM2_Op_SetOpKey(
     int is_if,
     int is_typed)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     struct CS2VM_HostRequest request;
     int raw[2 * CS2VM_OPKEY_PAIR_MAX];
@@ -3805,18 +3728,18 @@ CS2VM2_Op_SetOpKey(
 
     if( is_if )
     {
-        if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
     /* Pop the pair block top-down so raw[] ends up in push order. */
     for( int i = (2 * available_pairs) - 1; i >= 0; i-- )
-        if( CS2VM2_PopInt(vm, &raw[i]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &raw[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
 
     if( !is_typed )
     {
-        if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &op_index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
@@ -3854,7 +3777,7 @@ CS2VM2_Op_SetOpKey(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_SETOPKEY_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -3877,7 +3800,7 @@ CS2VM2_Op_SetOpKeyRate(
     int is_typed,
     int is_ignore_held)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     struct CS2VM_HostRequest request;
     int component_id = 0;
@@ -3890,7 +3813,7 @@ CS2VM2_Op_SetOpKeyRate(
 
     if( is_if )
     {
-        if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
@@ -3898,23 +3821,23 @@ CS2VM2_Op_SetOpKeyRate(
     {
         if( is_typed )
         {
-            if( CS2VM2_PopInt(vm, &rate) != CS2VM_EXECNO_OK )
+            if( CS2VM2_TakeInt(vm, &took, &rate) != CS2VM_EXECNO_OK )
                 return CS2VM_EXECNO_ERROR;
-            if( CS2VM2_PopInt(vm, &tick_rate) != CS2VM_EXECNO_OK )
+            if( CS2VM2_TakeInt(vm, &took, &tick_rate) != CS2VM_EXECNO_OK )
                 return CS2VM_EXECNO_ERROR;
         }
         else
         {
-            if( CS2VM2_PopInt(vm, &tick_rate) != CS2VM_EXECNO_OK )
+            if( CS2VM2_TakeInt(vm, &took, &tick_rate) != CS2VM_EXECNO_OK )
                 return CS2VM_EXECNO_ERROR;
-            if( CS2VM2_PopInt(vm, &rate) != CS2VM_EXECNO_OK )
+            if( CS2VM2_TakeInt(vm, &took, &rate) != CS2VM_EXECNO_OK )
                 return CS2VM_EXECNO_ERROR;
         }
     }
 
     if( !is_typed )
     {
-        if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &op_index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
@@ -3953,7 +3876,7 @@ CS2VM2_Op_SetOpKeyRate(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_SETOPKEYRATE_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -3975,7 +3898,7 @@ CS2VM2_Op_CC_Delete(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -3985,7 +3908,7 @@ CS2VM2_Op_CC_Delete(
     memset(&request.u.CC_DELETE, 0, sizeof(request.u.CC_DELETE));
     request.u.CC_DELETE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -3994,7 +3917,7 @@ CS2VM2_Op_CC_ClearOps(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -4004,7 +3927,7 @@ CS2VM2_Op_CC_ClearOps(
     memset(&request.u.CC_CLEAROPS, 0, sizeof(request.u.CC_CLEAROPS));
     request.u.CC_CLEAROPS.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4017,13 +3940,13 @@ CS2VM2_Op_CC_ClearOpSubmenu(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
 
     int op_index;
-    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &op_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4032,7 +3955,7 @@ CS2VM2_Op_CC_ClearOpSubmenu(
     request.u.CC_CLEARSUBOPS.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_CLEARSUBOPS.op_index = op_index;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -4041,18 +3964,18 @@ CS2VM2_Op_CC_SetOpSubmenu(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
 
     int sub_index, op_index;
     struct CS2VM2_Str* text;
-    if( CS2VM2_PopInt(vm, &sub_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &sub_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &op_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4063,7 +3986,7 @@ CS2VM2_Op_CC_SetOpSubmenu(
     request.u.CC_SETSUBOP.op_index = op_index;
     request.u.CC_SETSUBOP.text = text;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -4072,13 +3995,13 @@ CS2VM2_Op_CC_SetTargetPriority(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
 
     int priority;
-    if( CS2VM2_PopInt(vm, &priority) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &priority) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4087,7 +4010,7 @@ CS2VM2_Op_CC_SetTargetPriority(
     request.u.CC_SETOPPRIORITY.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETOPPRIORITY.priority = priority;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -4096,13 +4019,13 @@ CS2VM2_Op_CC_SetHide(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int hide;
-    if( CS2VM2_PopInt(vm, &hide) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &hide) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4111,7 +4034,7 @@ CS2VM2_Op_CC_SetHide(
     request.u.CC_SETHIDE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETHIDE.hidden = hide != 0;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4124,7 +4047,7 @@ cs2vm2_op_cc_get_int(
     int operand,
     enum CS2VM_HostRequestKind kind)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -4164,7 +4087,7 @@ cs2vm2_op_cc_get_int(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CC_GET_INT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 static int
@@ -4174,14 +4097,14 @@ cs2vm2_op_if_get_int(
     int operand,
     enum CS2VM_HostRequestKind kind)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
     (void)frame;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4209,7 +4132,7 @@ cs2vm2_op_if_get_int(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_IF_GET_INT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 static int
@@ -4218,7 +4141,7 @@ cs2vm2_op_cc_get_opbase(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -4227,7 +4150,7 @@ cs2vm2_op_cc_get_opbase(
     request.kind = CS2VM_HOST_REQUEST_CC_GETOPBASE;
     memset(&request.u.CC_GETOPBASE, 0, sizeof(request.u.CC_GETOPBASE));
     request.u.CC_GETOPBASE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 static int
@@ -4236,21 +4159,21 @@ cs2vm2_op_if_get_opbase(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
     request.kind = CS2VM_HOST_REQUEST_IF_GETOPBASE;
     memset(&request.u.IF_GETOPBASE, 0, sizeof(request.u.IF_GETOPBASE));
     request.u.IF_GETOPBASE.component_id = component_id;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -4259,7 +4182,7 @@ CS2VM2_Op_CC_GetId(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -4269,7 +4192,7 @@ CS2VM2_Op_CC_GetId(
     memset(&request.u.CC_GETID, 0, sizeof(request.u.CC_GETID));
     request.u.CC_GETID.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4282,7 +4205,7 @@ CS2VM2_Op_CC_GetX(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -4292,7 +4215,7 @@ CS2VM2_Op_CC_GetX(
     memset(&request.u.CC_GETX, 0, sizeof(request.u.CC_GETX));
     request.u.CC_GETX.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4305,7 +4228,7 @@ CS2VM2_Op_CC_GetY(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -4315,7 +4238,7 @@ CS2VM2_Op_CC_GetY(
     memset(&request.u.CC_GETY, 0, sizeof(request.u.CC_GETY));
     request.u.CC_GETY.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4328,7 +4251,7 @@ CS2VM2_Op_CC_GetWidth(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -4338,7 +4261,7 @@ CS2VM2_Op_CC_GetWidth(
     memset(&request.u.CC_GETWIDTH, 0, sizeof(request.u.CC_GETWIDTH));
     request.u.CC_GETWIDTH.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4351,7 +4274,7 @@ CS2VM2_Op_CC_GetHeight(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -4361,7 +4284,7 @@ CS2VM2_Op_CC_GetHeight(
     memset(&request.u.CC_GETHEIGHT, 0, sizeof(request.u.CC_GETHEIGHT));
     request.u.CC_GETHEIGHT.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4374,7 +4297,7 @@ CS2VM2_Op_CC_GetHide(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -4384,7 +4307,7 @@ CS2VM2_Op_CC_GetHide(
     memset(&request.u.CC_GETHIDE, 0, sizeof(request.u.CC_GETHIDE));
     request.u.CC_GETHIDE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4397,21 +4320,21 @@ CS2VM2_Op_CC_GetOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int op_index;
     struct CS2VM_HostRequest request;
     assert(vm);
     assert(frame);
     (void)frame;
 
-    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &op_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     request.kind = CS2VM_HOST_REQUEST_CC_GETOP;
     memset(&request.u.CC_GETOP, 0, sizeof(request.u.CC_GETOP));
     request.u.CC_GETOP.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_GETOP.op_index = op_index;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -4420,14 +4343,14 @@ CS2VM2_Op_IF_GetWidth(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4435,7 +4358,7 @@ CS2VM2_Op_IF_GetWidth(
     memset(&request.u.IF_GETWIDTH, 0, sizeof(request.u.IF_GETWIDTH));
     request.u.IF_GETWIDTH.component_id = component_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4448,14 +4371,14 @@ CS2VM2_Op_IF_GetHeight(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4463,7 +4386,7 @@ CS2VM2_Op_IF_GetHeight(
     memset(&request.u.IF_GETHEIGHT, 0, sizeof(request.u.IF_GETHEIGHT));
     request.u.IF_GETHEIGHT.component_id = component_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4476,7 +4399,7 @@ CS2VM2_Op_IF_GetOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int component_id, op_index;
     struct CS2VM_HostRequest request;
     assert(vm);
@@ -4486,15 +4409,15 @@ CS2VM2_Op_IF_GetOp(
 
     /* Official rev-239 method2 resolves the explicit component first, then
      * pops and normalizes the one-based operation index. */
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &op_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     request.kind = CS2VM_HOST_REQUEST_IF_GETOP;
     memset(&request.u.IF_GETOP, 0, sizeof(request.u.IF_GETOP));
     request.u.IF_GETOP.component_id = component_id;
     request.u.IF_GETOP.op_index = op_index;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -4503,14 +4426,14 @@ CS2VM2_Op_IF_GetHide(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4518,7 +4441,7 @@ CS2VM2_Op_IF_GetHide(
     memset(&request.u.IF_GETHIDE, 0, sizeof(request.u.IF_GETHIDE));
     request.u.IF_GETHIDE.component_id = component_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4534,14 +4457,14 @@ CS2VM2_Op_IF_HasSub(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4549,7 +4472,7 @@ CS2VM2_Op_IF_HasSub(
     memset(&request.u.IF_HASSUB, 0, sizeof(request.u.IF_HASSUB));
     request.u.IF_HASSUB.component_id = component_id;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* IF_SETPARAM (2704): write a runtime param onto a named component.
@@ -4562,7 +4485,7 @@ CS2VM2_Op_IF_SetParam(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -4575,21 +4498,21 @@ CS2VM2_Op_IF_SetParam(
     int value = 0;
     struct CS2VM2_Str* str_value = NULL;
 
-    if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &child_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( type == 2 || type == 115 || type == CS2_CC_COMPONENTPARAM_KIND_STRING )
     {
-        if( CS2VM2_PopStr(vm, &str_value) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &str_value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         type = CS2_CC_COMPONENTPARAM_KIND_STRING;
     }
-    else if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+    else if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &param_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     /* child_index != -1 would mean a dynamic child under component_id; Overview
@@ -4606,7 +4529,7 @@ CS2VM2_Op_IF_SetParam(
     request.u.IF_SETPARAM.str_value = str_value;
     request.u.IF_SETPARAM.kind = type;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* _2705 (2705): pop widget + parent group, push 1 iff mounted.
@@ -4617,7 +4540,7 @@ CS2VM2_Op_IF_HasChild(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -4625,9 +4548,9 @@ CS2VM2_Op_IF_HasChild(
 
     int group_id;
     int component_id;
-    if( CS2VM2_PopInt(vm, &group_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &group_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4636,7 +4559,7 @@ CS2VM2_Op_IF_HasChild(
     request.u._2705.component_id = component_id;
     request.u._2705.group_id = group_id;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -4645,14 +4568,14 @@ CS2VM2_Op_IF_GetY(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4660,7 +4583,7 @@ CS2VM2_Op_IF_GetY(
     memset(&request.u.IF_GETY, 0, sizeof(request.u.IF_GETY));
     request.u.IF_GETY.component_id = component_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4673,14 +4596,14 @@ CS2VM2_Op_IF_GetLayer(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4688,7 +4611,7 @@ CS2VM2_Op_IF_GetLayer(
     memset(&request.u.IF_GETLAYER, 0, sizeof(request.u.IF_GETLAYER));
     request.u.IF_GETLAYER.component_id = component_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4701,7 +4624,7 @@ CS2VM2_Op_IF_GetTop(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -4711,7 +4634,7 @@ CS2VM2_Op_IF_GetTop(
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETTOP;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4724,14 +4647,14 @@ CS2VM2_Op_IF_GetScrollX(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4739,7 +4662,7 @@ CS2VM2_Op_IF_GetScrollX(
     memset(&request.u.IF_GETSCROLLX, 0, sizeof(request.u.IF_GETSCROLLX));
     request.u.IF_GETSCROLLX.component_id = component_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4752,14 +4675,14 @@ CS2VM2_Op_IF_GetScrollY(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4767,7 +4690,7 @@ CS2VM2_Op_IF_GetScrollY(
     memset(&request.u.IF_GETSCROLLY, 0, sizeof(request.u.IF_GETSCROLLY));
     request.u.IF_GETSCROLLY.component_id = component_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4780,14 +4703,14 @@ CS2VM2_Op_IF_GetScrollHeight(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4795,7 +4718,7 @@ CS2VM2_Op_IF_GetScrollHeight(
     memset(&request.u.IF_GETSCROLLHEIGHT, 0, sizeof(request.u.IF_GETSCROLLHEIGHT));
     request.u.IF_GETSCROLLHEIGHT.component_id = component_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4808,7 +4731,7 @@ CS2VM2_Op_IF_SetScrollPos(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -4819,11 +4742,11 @@ CS2VM2_Op_IF_SetScrollPos(
     int scroll_y;
 
     /* Stack (bottom to top): [scroll_x, scroll_y, uid] — pop in reverse. */
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &scroll_y) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &scroll_y) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &scroll_x) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &scroll_x) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4833,7 +4756,7 @@ CS2VM2_Op_IF_SetScrollPos(
     request.u.IF_SETSCROLLPOS.scroll_x = scroll_x;
     request.u.IF_SETSCROLLPOS.scroll_y = scroll_y;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4846,7 +4769,7 @@ CS2VM2_Op_IF_SetScrollSize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -4857,11 +4780,11 @@ CS2VM2_Op_IF_SetScrollSize(
     int scroll_height;
 
     /* Stack (bottom to top): [width, height, uid] — pop in reverse. */
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &scroll_height) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &scroll_height) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &scroll_width) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &scroll_width) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4871,7 +4794,7 @@ CS2VM2_Op_IF_SetScrollSize(
     request.u.IF_SETSCROLLSIZE.scroll_width = scroll_width;
     request.u.IF_SETSCROLLSIZE.scroll_height = scroll_height;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4884,7 +4807,7 @@ CS2VM2_Op_IF_SetPosition(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -4893,15 +4816,15 @@ CS2VM2_Op_IF_SetPosition(
     int component_id;
     int x, y, xmode, ymode;
 
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &ymode) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &ymode) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &xmode) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &xmode) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &y) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &y) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &x) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &x) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4913,7 +4836,7 @@ CS2VM2_Op_IF_SetPosition(
     request.u.IF_SETPOSITION.xmode = xmode;
     request.u.IF_SETPOSITION.ymode = ymode;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4926,16 +4849,16 @@ CS2VM2_Op_IF_SetOutline(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id, outline;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &outline) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &outline) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4944,7 +4867,7 @@ CS2VM2_Op_IF_SetOutline(
     request.u.IF_SETOUTLINE.component_id = component_id;
     request.u.IF_SETOUTLINE.outline = outline;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4957,7 +4880,7 @@ CS2VM2_Op_IF_SetSize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -4966,15 +4889,15 @@ CS2VM2_Op_IF_SetSize(
     int component_id;
     int w, h, wmode, hmode;
 
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &hmode) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &hmode) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &wmode) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &wmode) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &h) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &h) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &w) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &w) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -4986,7 +4909,7 @@ CS2VM2_Op_IF_SetSize(
     request.u.IF_SETSIZE.wmode = wmode;
     request.u.IF_SETSIZE.hmode = hmode;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -4999,7 +4922,7 @@ CS2VM2_Op_IF_SetHide(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     (void)operand;
     assert(vm);
@@ -5007,9 +4930,9 @@ CS2VM2_Op_IF_SetHide(
 
     int component_id, hide;
 
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &hide) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &hide) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     bool hidden = hide != 0;
@@ -5020,7 +4943,7 @@ CS2VM2_Op_IF_SetHide(
     request.u.IF_SETHIDE.component_id = component_id;
     request.u.IF_SETHIDE.hidden = hidden;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -5091,7 +5014,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
     enum CS2VM_HostRequestKind kind,
-    struct CS2VM2_YieldMark mark)
+    struct CS2VM2_Took took)
 {
     (void)frame;
     assert(vm);
@@ -5106,17 +5029,17 @@ CS2VM2_Op_IF_SetOnEventHandler(
     struct CS2VM2_Str* str_by_pos[CS2VM_SETON_INT_ARG_MAX];
     uint64_t str_arg_mask = 0;
 
-    if( CS2VM2_PopInt(vm, &widget_uid) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &widget_uid) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &signature) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     int signature_len = (int)CS2VM2_StrLen(signature);
     int signature_parse_len = signature_len;
     if( signature_len > 0 && signature->text[signature_len - 1] == 'Y' )
     {
-        if( CS2VM2_PopInt(vm, &trigger_count) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &trigger_count) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( trigger_count > 0 )
         {
@@ -5124,7 +5047,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
 
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
-                if( CS2VM2_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
+                if( CS2VM2_TakeInt(vm, &took, &trigger_ids[i]) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
@@ -5159,7 +5082,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
             if( c == 's' || c == 'W' || c == 'X' )
             {
                 struct CS2VM2_Str* v = NULL;
-                if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
+                if( CS2VM2_TakeStr(vm, &took, &v) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
@@ -5177,7 +5100,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
             else
             {
                 int v = 0;
-                if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
+                if( CS2VM2_TakeInt(vm, &took, &v) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
@@ -5192,7 +5115,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
         }
     }
 
-    if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &script_id) != CS2VM_EXECNO_OK )
     {
         cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
         return CS2VM_EXECNO_ERROR;
@@ -5270,7 +5193,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
     }
 #undef CS2VM_IF_SETON_CASE
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
     return result;
 }
@@ -5290,7 +5213,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
     struct CS2VM2_Frame* frame,
     int operand,
     enum CS2VM_HostRequestKind kind,
-    struct CS2VM2_YieldMark mark)
+    struct CS2VM2_Took took)
 {
     (void)frame;
     assert(vm);
@@ -5305,14 +5228,14 @@ CS2VM2_Op_CC_SetOnEventHandler(
     struct CS2VM2_Str* str_by_pos[CS2VM_SETON_INT_ARG_MAX];
     uint64_t str_arg_mask = 0;
 
-    if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &signature) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     int signature_len = (int)CS2VM2_StrLen(signature);
     int signature_parse_len = signature_len;
     if( signature_len > 0 && signature->text[signature_len - 1] == 'Y' )
     {
-        if( CS2VM2_PopInt(vm, &trigger_count) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &trigger_count) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( trigger_count > 0 )
         {
@@ -5320,7 +5243,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
 
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
-                if( CS2VM2_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
+                if( CS2VM2_TakeInt(vm, &took, &trigger_ids[i]) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
@@ -5355,7 +5278,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
             if( c == 's' || c == 'W' || c == 'X' )
             {
                 struct CS2VM2_Str* v = NULL;
-                if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
+                if( CS2VM2_TakeStr(vm, &took, &v) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
@@ -5373,7 +5296,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
             else
             {
                 int v = 0;
-                if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
+                if( CS2VM2_TakeInt(vm, &took, &v) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
@@ -5388,7 +5311,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
         }
     }
 
-    if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &script_id) != CS2VM_EXECNO_OK )
     {
         cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
         return CS2VM_EXECNO_ERROR;
@@ -5467,7 +5390,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
     }
 #undef CS2VM_CC_SETON_CASE
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
     return result;
 }
@@ -5478,11 +5401,11 @@ CS2VM2_Op_CC_SetOnClick(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCLICK, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCLICK, took);
 }
 
 int
@@ -5491,11 +5414,11 @@ CS2VM2_Op_CC_SetOnHold(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONHOLD, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONHOLD, took);
 }
 
 int
@@ -5504,11 +5427,11 @@ CS2VM2_Op_CC_SetOnMouseOver(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER, took);
 }
 
 int
@@ -5517,11 +5440,11 @@ CS2VM2_Op_CC_SetOnMouseLeave(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE, took);
 }
 
 static int
@@ -5530,9 +5453,9 @@ CS2VM2_Op_CC_SetOnTargetEnter(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTARGETENTER, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTARGETENTER, took);
 }
 
 static int
@@ -5541,9 +5464,9 @@ CS2VM2_Op_CC_SetOnTargetLeave(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE, took);
 }
 
 static int
@@ -5552,9 +5475,9 @@ CS2VM2_Op_CC_SetOnClickRepeat(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT, took);
 }
 
 static int
@@ -5563,9 +5486,9 @@ CS2VM2_Op_CC_SetOnRelease(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONRELEASE, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONRELEASE, took);
 }
 
 static int
@@ -5574,9 +5497,9 @@ CS2VM2_Op_CC_SetOnDialogAbort(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT, took);
 }
 
 static int
@@ -5585,9 +5508,9 @@ CS2VM2_Op_CC_SetOnFriendTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT, took);
 }
 
 static int
@@ -5596,9 +5519,9 @@ CS2VM2_Op_CC_SetOnChatTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCHATTRANSMIT, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCHATTRANSMIT, took);
 }
 
 int
@@ -5607,11 +5530,11 @@ CS2VM2_Op_CC_SetOnMouseRepeat(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT, took);
 }
 
 int
@@ -5620,11 +5543,11 @@ CS2VM2_Op_CC_SetOnDrag(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDRAG, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDRAG, took);
 }
 
 int
@@ -5633,11 +5556,11 @@ CS2VM2_Op_CC_SetOnScrollWheel(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL, took);
 }
 
 int
@@ -5646,10 +5569,10 @@ CS2VM2_Op_CC_SetOnKey(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
-    return CS2VM2_Op_CC_SetOnEventHandler(vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEY, mark);
+    return CS2VM2_Op_CC_SetOnEventHandler(vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEY, took);
 }
 
 /* The rev-239 client uses the vendor-named CC_SETONKEYDOWN /
@@ -5660,11 +5583,11 @@ CS2VM2_Op_CC_SetOnKeyDown(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEYDOWN, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEYDOWN, took);
 }
 
 int
@@ -5673,11 +5596,11 @@ CS2VM2_Op_CC_SetOnKeyUp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEYUP, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEYUP, took);
 }
 
 int
@@ -5686,10 +5609,10 @@ CS2VM2_Op_CC_SetOnOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
-    return CS2VM2_Op_CC_SetOnEventHandler(vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONOP, mark);
+    return CS2VM2_Op_CC_SetOnEventHandler(vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONOP, took);
 }
 
 int
@@ -5698,11 +5621,11 @@ CS2VM2_Op_CC_SetOnDragComplete(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE, took);
 }
 
 int
@@ -5711,11 +5634,11 @@ CS2VM2_Op_CC_SetOnResize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONRESIZE, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONRESIZE, took);
 }
 
 int
@@ -5724,11 +5647,11 @@ CS2VM2_Op_CC_SetOnSubChange(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE, took);
 }
 
 int
@@ -5737,7 +5660,7 @@ CS2VM2_Op_IF_SetDraggable(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -5748,11 +5671,11 @@ CS2VM2_Op_IF_SetDraggable(
     int component_id;
 
     /* Stack (bottom to top): [parentUid, childIndex, uid] — pop in reverse. */
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &child_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &parent_uid) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &parent_uid) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -5761,7 +5684,7 @@ CS2VM2_Op_IF_SetDraggable(
     request.u.IF_SETDRAGGABLE.component_id = component_id;
     request.u.IF_SETDRAGGABLE.parent_uid = parent_uid;
     request.u.IF_SETDRAGGABLE.child_index = child_index;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -5770,7 +5693,7 @@ CS2VM2_Op_IF_SetDraggableBehavior(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -5778,9 +5701,9 @@ CS2VM2_Op_IF_SetDraggableBehavior(
 
     int behavior;
     int component_id;
-    if( CS2VM2_PopInt(vm, &behavior) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &behavior) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -5788,7 +5711,7 @@ CS2VM2_Op_IF_SetDraggableBehavior(
     memset(&request.u.IF_SETDRAGRENDERBEHAVIOUR, 0, sizeof(request.u.IF_SETDRAGRENDERBEHAVIOUR));
     request.u.IF_SETDRAGRENDERBEHAVIOUR.component_id = component_id;
     request.u.IF_SETDRAGRENDERBEHAVIOUR.behavior = behavior;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -5798,7 +5721,7 @@ CS2VM2_Op_DragPickup(
     int operand,
     enum CS2VM_HostRequestKind kind)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int pickup_x;
     int pickup_y;
     int component_id;
@@ -5812,15 +5735,15 @@ CS2VM2_Op_DragPickup(
      * Reference ScriptRunner 3108/3109. */
     if( kind == CS2VM_HOST_REQUEST_IF_DRAGPICKUP )
     {
-        if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
     else
         component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    if( CS2VM2_PopInt(vm, &pickup_y) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &pickup_y) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &pickup_x) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &pickup_x) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -5841,7 +5764,7 @@ CS2VM2_Op_DragPickup(
         assert(0 && "unexpected drag-pickup host request");
         return CS2VM_EXECNO_ERROR;
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -5850,21 +5773,21 @@ CS2VM2_Op_SetAntiDrag(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int value;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
     request.kind = CS2VM_HOST_REQUEST_SETANTIDRAG;
     memset(&request.u.SETANTIDRAG, 0, sizeof(request.u.SETANTIDRAG));
     request.u.SETANTIDRAG.value = value;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 static int
@@ -5873,10 +5796,10 @@ cs2vm2_op_if_set_on_transmit(
     struct CS2VM2_Frame* frame,
     int operand,
     enum CS2VM_HostRequestKind kind,
-    struct CS2VM2_YieldMark mark)
+    struct CS2VM2_Took took)
 {
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, kind, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, kind, took);
 }
 
 int
@@ -5885,9 +5808,9 @@ CS2VM2_Op_IF_SetOnVarTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return cs2vm2_op_if_set_on_transmit(
-        vm, frame, operand, CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT, took);
 }
 
 int
@@ -5896,9 +5819,9 @@ CS2VM2_Op_IF_SetOnStatTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return cs2vm2_op_if_set_on_transmit(
-        vm, frame, operand, CS2VM_HOST_REQUEST_IF_SETONSTATTRANSMIT, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_IF_SETONSTATTRANSMIT, took);
 }
 
 int
@@ -5907,7 +5830,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -5918,16 +5841,16 @@ CS2VM2_Op_IF_SetOnInvTransmit(
     int* trigger_ids = NULL;
     struct CS2VM2_Str* signature = NULL;
 
-    if( CS2VM2_PopInt(vm, &widget_uid) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &widget_uid) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &signature) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     int signature_len = (int)CS2VM2_StrLen(signature);
     int signature_parse_len = signature_len;
     if( signature_len > 0 && signature->text[signature_len - 1] == 'Y' )
     {
-        if( CS2VM2_PopInt(vm, &trigger_count) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &trigger_count) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( trigger_count > 0 )
         {
@@ -5935,7 +5858,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
 
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
-                if( CS2VM2_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
+                if( CS2VM2_TakeInt(vm, &took, &trigger_ids[i]) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
@@ -5970,7 +5893,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
             if( c == 's' || c == 'W' || c == 'X' )
             {
                 struct CS2VM2_Str* v = NULL;
-                if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
+                if( CS2VM2_TakeStr(vm, &took, &v) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
@@ -5987,7 +5910,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
             else
             {
                 int v = 0;
-                if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
+                if( CS2VM2_TakeInt(vm, &took, &v) != CS2VM_EXECNO_OK )
                 {
                     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
                     return CS2VM_EXECNO_ERROR;
@@ -6002,7 +5925,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         }
     }
 
-    if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &script_id) != CS2VM_EXECNO_OK )
     {
         cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
         return CS2VM_EXECNO_ERROR;
@@ -6034,7 +5957,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
     if( request.u.IF_SETONINVTRANSMIT.str_arg_count > CS2VM_SETON_STR_ARG_MAX )
         request.u.IF_SETONINVTRANSMIT.str_arg_count = CS2VM_SETON_STR_ARG_MAX;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     cs2vm2_trigger_ids_free(trigger_ids, trigger_ids_here);
     if( result != CS2VM_EXECNO_OK )
         return result;
@@ -6048,11 +5971,11 @@ CS2VM2_Op_IF_SetOnOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONOP, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONOP, took);
 }
 
 int
@@ -6061,11 +5984,11 @@ CS2VM2_Op_IF_SetOnClick(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICK, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICK, took);
 }
 
 int
@@ -6074,11 +5997,11 @@ CS2VM2_Op_IF_SetOnHold(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONHOLD, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONHOLD, took);
 }
 
 int
@@ -6087,11 +6010,11 @@ CS2VM2_Op_IF_SetOnMouseOver(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER, took);
 }
 
 int
@@ -6100,11 +6023,11 @@ CS2VM2_Op_IF_SetOnMouseLeave(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE, took);
 }
 
 static int
@@ -6113,9 +6036,9 @@ CS2VM2_Op_IF_SetOnTargetEnter(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETENTER, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETENTER, took);
 }
 
 static int
@@ -6124,9 +6047,9 @@ CS2VM2_Op_IF_SetOnTargetLeave(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE, took);
 }
 
 static int
@@ -6135,9 +6058,9 @@ CS2VM2_Op_IF_SetOnClickRepeat(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT, took);
 }
 
 static int
@@ -6146,9 +6069,9 @@ CS2VM2_Op_IF_SetOnRelease(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONRELEASE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONRELEASE, took);
 }
 
 static int
@@ -6157,9 +6080,9 @@ CS2VM2_Op_IF_SetOnDialogAbort(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT, took);
 }
 
 int
@@ -6168,11 +6091,11 @@ CS2VM2_Op_IF_SetOnDrag(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAG, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAG, took);
 }
 
 int
@@ -6181,11 +6104,11 @@ CS2VM2_Op_IF_SetOnDragComplete(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE, took);
 }
 
 int
@@ -6194,11 +6117,11 @@ CS2VM2_Op_IF_SetOnResize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONRESIZE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONRESIZE, took);
 }
 
 int
@@ -6207,11 +6130,11 @@ CS2VM2_Op_IF_SetOnSubChange(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE, took);
 }
 
 int
@@ -6220,11 +6143,11 @@ CS2VM2_Op_IF_SetOnMouseRepeat(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT, took);
 }
 
 int
@@ -6233,11 +6156,11 @@ CS2VM2_Op_IF_SetOnTimer(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTIMER, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTIMER, took);
 }
 
 int
@@ -6246,11 +6169,11 @@ CS2VM2_Op_IF_SetOnScrollWheel(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL, took);
 }
 
 int
@@ -6259,11 +6182,11 @@ CS2VM2_Op_IF_SetOnKey(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEY, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEY, took);
 }
 
 /* IF_SETONKEYDOWN / IF_SETONKEYUP are the IF twins of the CC pair. */
@@ -6273,11 +6196,11 @@ CS2VM2_Op_IF_SetOnKeyDown(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYDOWN, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYDOWN, took);
 }
 
 int
@@ -6286,11 +6209,11 @@ CS2VM2_Op_IF_SetOnKeyUp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYUP, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYUP, took);
 }
 
 int
@@ -6299,11 +6222,11 @@ CS2VM2_Op_IF_SetOnMiscTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT, took);
 }
 
 /*
@@ -6324,12 +6247,12 @@ CS2VM2_Op_IF_SetOnFriendTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
     return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT, mark);
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT, took);
 }
 
 /*
@@ -6349,11 +6272,11 @@ CS2VM2_Op_IF_SetOnChatTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT, took);
 }
 
 int
@@ -6362,7 +6285,7 @@ CS2VM2_Op_IF_SetOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     (void)operand;
     assert(vm);
@@ -6371,13 +6294,13 @@ CS2VM2_Op_IF_SetOp(
     int widget, index;
     struct CS2VM2_Str* text;
 
-    if( CS2VM2_PopInt(vm, &widget) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &widget) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -6387,7 +6310,7 @@ CS2VM2_Op_IF_SetOp(
     request.u.IF_SETOP.index = index;
     request.u.IF_SETOP.text = text;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -6400,7 +6323,7 @@ CS2VM2_Op_IF_SetOpBase(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -6408,9 +6331,9 @@ CS2VM2_Op_IF_SetOpBase(
 
     int component_id;
     struct CS2VM2_Str* text;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -6419,7 +6342,7 @@ CS2VM2_Op_IF_SetOpBase(
     request.u.IF_SETOPBASE.component_id = component_id;
     request.u.IF_SETOPBASE.text = text;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -6432,7 +6355,7 @@ CS2VM2_Op_IF_SetTargetVerb(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     int component_id;
     struct CS2VM2_Str* text;
@@ -6440,15 +6363,15 @@ CS2VM2_Op_IF_SetTargetVerb(
     assert(vm);
     assert(frame);
     (void)operand;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request = { 0 };
     request.kind = CS2VM_HOST_REQUEST_IF_SETTARGETVERB;
     request.u.IF_SETTARGETVERB.component_id = component_id;
     request.u.IF_SETTARGETVERB.text = text;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -6457,7 +6380,7 @@ CS2VM2_Op_IF_SetOpSubmenu(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -6465,13 +6388,13 @@ CS2VM2_Op_IF_SetOpSubmenu(
 
     int component_id, sub_index, op_index;
     struct CS2VM2_Str* text;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &sub_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &sub_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &op_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -6482,7 +6405,7 @@ CS2VM2_Op_IF_SetOpSubmenu(
     request.u.IF_SETSUBOP.op_index = op_index;
     request.u.IF_SETSUBOP.text = text;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -6495,16 +6418,16 @@ CS2VM2_Op_IF_SetTargetPriority(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int priority, component_id;
-    if( CS2VM2_PopInt(vm, &priority) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &priority) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -6513,7 +6436,7 @@ CS2VM2_Op_IF_SetTargetPriority(
     request.u.IF_SETOPPRIORITY.component_id = component_id;
     request.u.IF_SETOPPRIORITY.priority = priority;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -6526,14 +6449,14 @@ CS2VM2_Op_IF_ClearOps(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     (void)operand;
     assert(vm);
     assert(frame);
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -6541,7 +6464,7 @@ CS2VM2_Op_IF_ClearOps(
     memset(&request.u.IF_CLEAROPS, 0, sizeof(request.u.IF_CLEAROPS));
     request.u.IF_CLEAROPS.component_id = component_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -6566,14 +6489,14 @@ CS2VM2_Op_IF_CallOnResize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -6581,7 +6504,7 @@ CS2VM2_Op_IF_CallOnResize(
     memset(&request.u.IF_CALLONRESIZE, 0, sizeof(request.u.IF_CALLONRESIZE));
     request.u.IF_CALLONRESIZE.component_id = component_id;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -6682,7 +6605,7 @@ CS2VM2_Op_LongVar(
     int opcode,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     struct CS2VM_HostRequest request;
     if( opcode == CS2_OP_PUSH_VARC_LONG )
     {
@@ -6699,7 +6622,7 @@ CS2VM2_Op_LongVar(
     else
     {
         int64_t value;
-        if( CS2VM2_PopLong(vm, &value) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeLong(vm, &took, &value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( opcode == CS2_OP_POP_VARC_LONG )
         {
@@ -6716,7 +6639,7 @@ CS2VM2_Op_LongVar(
             request.u.POP_VAR_LONG.value = value;
         }
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* Two longs in (a pushed first), one long out: 4037..4042, 4055..4057. */
@@ -7746,7 +7669,7 @@ CS2VM2_Op_Enum(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -7754,13 +7677,13 @@ CS2VM2_Op_Enum(
 
     int key, enum_id, output_type, input_type;
 
-    if( CS2VM2_PopInt(vm, &key) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &key) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &enum_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &enum_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &output_type) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &output_type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &input_type) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &input_type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     /* Arm, not union -- see the note on the varbit-read builder above. */
@@ -7772,7 +7695,7 @@ CS2VM2_Op_Enum(
     request.u.ENUM.enum_id = enum_id;
     request.u.ENUM.key = key;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -7786,16 +7709,16 @@ CS2VM2_Op_EnumString(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int key, enum_id;
-    if( CS2VM2_PopInt(vm, &key) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &key) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &enum_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &enum_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -7806,7 +7729,7 @@ CS2VM2_Op_EnumString(
     request.u.ENUM_STRING.enum_id = enum_id;
     request.u.ENUM_STRING.key = key;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -7815,14 +7738,14 @@ CS2VM2_Op_EnumGetOutputCount(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int enum_id;
-    if( CS2VM2_PopInt(vm, &enum_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &enum_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -7830,7 +7753,7 @@ CS2VM2_Op_EnumGetOutputCount(
     memset(&request.u.ENUM_GETOUTPUTCOUNT, 0, sizeof(request.u.ENUM_GETOUTPUTCOUNT));
     request.u.ENUM_GETOUTPUTCOUNT.enum_id = enum_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -7845,7 +7768,7 @@ CS2VM2_Op_Db(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     struct CS2VM_HostRequest request;
 
     assert(vm);
@@ -7874,7 +7797,7 @@ CS2VM2_Op_Db(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_DB_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -7982,12 +7905,12 @@ CS2VM2_Op_SetWindowMode(
     struct CS2VM2_Thread* vm,
     bool is_default)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     struct CS2VM_HostRequest request;
     int mode;
 
     assert(vm);
-    if( CS2VM2_PopInt(vm, &mode) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &mode) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     if( is_default )
@@ -8007,7 +7930,7 @@ CS2VM2_Op_SetWindowMode(
         memset(&request.u.SETWINDOWMODE, 0, sizeof(request.u.SETWINDOWMODE));
         request.u.SETWINDOWMODE.mode = mode;
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* COORD returns the local player's packed world coordinate; it does not pop from the
@@ -8019,7 +7942,7 @@ CS2VM2_Op_Coord(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     struct CS2VM_HostRequest request;
 
@@ -8045,7 +7968,7 @@ CS2VM2_Op_Coord(
      */
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_COORD;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -8400,13 +8323,13 @@ CS2VM2_Op_PopVar(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int value;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -8415,7 +8338,7 @@ CS2VM2_Op_PopVar(
     request.u.POP_VAR.varp_id = operand;
     request.u.POP_VAR.value = value;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -8424,13 +8347,13 @@ CS2VM2_Op_PopVarbit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int value;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -8439,7 +8362,7 @@ CS2VM2_Op_PopVarbit(
     request.u.POP_VARBIT.varbit_id = operand;
     request.u.POP_VARBIT.value = value;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* DEFINE_ARRAY's array, from the pool, cells filled for its element type
@@ -8638,9 +8561,8 @@ cs2vm2_array_pop_element(
             return CS2VM_EXECNO_ERROR;
         if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        /* POP_ARRAY_INT is VM-only and cannot yield, so this write is already
-         * committed when the opcode returns; recording an undo entry would be
-         * dead work. Hosted compound ops still use CS2VM2_ArrayStoreStr. */
+        /* POP_ARRAY_INT is VM-only and cannot yield, so this write is
+         * committed when the opcode returns. */
         if( index >= 0 && index < array->size )
             array->cells.strings[index] = text;
         return CS2VM_EXECNO_OK;
@@ -8651,7 +8573,7 @@ cs2vm2_array_pop_element(
     if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    /* As above, no host call means no yield/replay boundary to undo. */
+    /* As above: no host call, so no yield to take the write back for. */
     if( array && index >= 0 && index < array->size )
         array->cells.ints[index] = value;
 
@@ -8692,8 +8614,8 @@ CS2VM2_Op_PopArrayIntShared(
  * string array, numeric otherwise — and applies the same permutation to
  * secondary so the pairing survives. The older deob signature recorded in the
  * decompiler's tables (one int, numbered-global arrays) predates handles and
- * is wrong for this revision. No host call can occur mid-op, so the writes
- * need no undo tracking. Insertion sort: the biggest caller is the 213-row
+ * is wrong for this revision. No host call can occur mid-op, so no yield has
+ * the writes to take back. Insertion sort: the biggest caller is the 213-row
  * questlist.
  */
 int
@@ -9673,13 +9595,13 @@ CS2VM2_Op_CC_ChildrenFindCount(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int start_index;
-    if( CS2VM2_PopInt(vm, &start_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &start_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -9688,7 +9610,7 @@ CS2VM2_Op_CC_ChildrenFindCount(
     request.u.CC_QUERY.parent_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_QUERY.start_index = start_index;
 
-    int rc = CS2VM2_Ask(vm, &request, mark);
+    int rc = CS2VM2_Ask(vm, &request, took);
     if( rc != CS2VM_EXECNO_OK )
         return rc;
     return CS2VM2_PushInt(vm, vm->children_iter_count);
@@ -9714,7 +9636,7 @@ CS2VM2_Op_IF_ChildrenCollect(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -9722,11 +9644,11 @@ CS2VM2_Op_IF_ChildrenCollect(
     int start_index;
     int uid;
     int unused;
-    if( CS2VM2_PopInt(vm, &start_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &start_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &uid) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &uid) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &unused) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &unused) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     (void)unused;
 
@@ -9737,7 +9659,7 @@ CS2VM2_Op_IF_ChildrenCollect(
     request.u.IF_QUERY.start_index = start_index;
     request.u.IF_QUERY.dot_operand = operand;
 
-    int rc = CS2VM2_Ask(vm, &request, mark);
+    int rc = CS2VM2_Ask(vm, &request, took);
     if( rc != CS2VM_EXECNO_OK )
         return rc;
 
@@ -10268,9 +10190,9 @@ CS2VM2_Op_IF_SetOnEventDiscard(
     int operand,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, (enum CS2VM_HostRequestKind)opcode, mark);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, (enum CS2VM_HostRequestKind)opcode, took);
 }
 
 static int
@@ -10280,9 +10202,9 @@ CS2VM2_Op_CC_SetOnEventDiscard(
     int operand,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, (enum CS2VM_HostRequestKind)opcode, mark);
+        vm, frame, operand, (enum CS2VM_HostRequestKind)opcode, took);
 }
 
 static int
@@ -10291,9 +10213,9 @@ CS2VM2_Op_CC_SetOnTimer(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTIMER, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTIMER, took);
 }
 
 static int
@@ -10302,9 +10224,9 @@ CS2VM2_Op_CC_SetOnVarTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT, took);
 }
 
 static int
@@ -10313,9 +10235,9 @@ CS2VM2_Op_CC_SetOnInvTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT, took);
 }
 
 static int
@@ -10324,9 +10246,9 @@ CS2VM2_Op_CC_SetOnStatTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT, mark);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT, took);
 }
 
 /* Print the calling script and a window of ops around the current pc when an
@@ -10400,7 +10322,7 @@ CS2VM2_Op_Highlight(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(opcode >= 0);
     assert(opcode < CS2VM2_OPCODE_STACK_MAX);
@@ -10431,14 +10353,14 @@ CS2VM2_Op_Highlight(
      */
     for( int i = 0; i < meta.str_in; i++ )
     {
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
     /* Pop into push order: args[0] is the first int the script pushed. */
     for( int i = meta.int_in - 1; i >= 0; i-- )
     {
-        if( CS2VM2_PopInt(vm, &args[i]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &args[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
@@ -10504,7 +10426,7 @@ CS2VM2_Op_Highlight(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_HIGHLIGHT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* LOC_FIND (6803) / TILE_FIND (6951). Both take a coord; LOC_FIND takes a
@@ -10514,7 +10436,7 @@ CS2VM2_Op_SubjectFind(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
@@ -10522,9 +10444,9 @@ CS2VM2_Op_SubjectFind(
     int loc_type = -1;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
 
-    if( opcode == CS2_OP_LOC_FIND && CS2VM2_PopInt(vm, &loc_type) != CS2VM_EXECNO_OK )
+    if( opcode == CS2_OP_LOC_FIND && CS2VM2_TakeInt(vm, &took, &loc_type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &coord) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &coord) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     switch( opcode )
     {
@@ -10542,7 +10464,7 @@ CS2VM2_Op_SubjectFind(
         assert(0 && "unexpected subject-find opcode");
         return CS2VM_EXECNO_ERROR;
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -10562,7 +10484,7 @@ CS2VM2_Op_EntityOverlay(
     int opcode,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(opcode >= 0);
     assert(opcode < CS2VM2_OPCODE_STACK_MAX);
@@ -10582,7 +10504,7 @@ CS2VM2_Op_EntityOverlay(
     /* Pop into push order: args[0] is the first int the script pushed. */
     for( int i = meta.int_in - 1; i >= 0; i-- )
     {
-        if( CS2VM2_PopInt(vm, &args[i]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &args[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 #define CS2VM_OVERLAY_CASE(name)                                                                   \
@@ -10618,7 +10540,7 @@ CS2VM2_Op_EntityOverlay(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_OVERLAY_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -10637,7 +10559,7 @@ CS2VM2_Op_GroundObj(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     struct CS2VM_HostRequest request;
     int coord = -1;
     int index = -1;
@@ -10650,15 +10572,15 @@ CS2VM2_Op_GroundObj(
     case CS2_OP_OBJSTACK_OBJ:
     case CS2_OP_OBJSTACK_COUNT:
     case CS2_OP_OBJ_FINDBYINDEX:
-        if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &coord) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &coord) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
 
     /* (coord) */
     case CS2_OP_OBJSTACK_SIZE:
-        if( CS2VM2_PopInt(vm, &coord) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &coord) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
 
@@ -10697,7 +10619,7 @@ CS2VM2_Op_GroundObj(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_GROUNDOBJ_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* MINIMENU_* (7100..7110): no-arg getters over the current mouseover target and
@@ -10708,7 +10630,7 @@ CS2VM2_Op_Minimenu(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
@@ -10722,7 +10644,7 @@ CS2VM2_Op_Minimenu(
     case CS2_OP_MINIMENU_FINDLOCAT:
     case CS2_OP_MINIMENU_FINDOBJAT:
     case CS2_OP_MINIMENU_FINDPLAYERAT:
-        if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     default:
@@ -10764,7 +10686,7 @@ CS2VM2_Op_Minimenu(
     }
 #undef CS2VM_MINIMENU_CASE
 #undef CS2VM_MINIMENU_AT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -10779,7 +10701,7 @@ CS2VM2_Op_HostSignature(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(opcode >= 0);
     assert(opcode < CS2VM2_OPCODE_STACK_MAX);
@@ -10798,12 +10720,12 @@ CS2VM2_Op_HostSignature(
     args->int_count = meta.int_in;
     args->str_count = meta.str_in;
     for( int i = meta.int_in - 1; i >= 0; i-- )
-        if( CS2VM2_PopInt(vm, &args->ints[i]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &args->ints[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     for( int i = meta.str_in - 1; i >= 0; i-- )
-        if( CS2VM2_PopStr(vm, &args->strs[i]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &args->strs[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -10867,7 +10789,7 @@ CS2VM2_Op_ClientOption(
     bool has_id,
     bool has_value)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
@@ -10877,12 +10799,12 @@ CS2VM2_Op_ClientOption(
 
     if( has_value )
     {
-        if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
     if( has_id )
     {
-        if( CS2VM2_PopInt(vm, &option_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &option_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 #define CS2VM_CLIENT_OPTION_CASE(name)                                                             \
@@ -10914,7 +10836,7 @@ CS2VM2_Op_ClientOption(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CLIENT_OPTION_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* CLIENTOP_* (6700..6709): install/remove transient client-owned context-menu
@@ -10926,7 +10848,7 @@ CS2VM2_Op_ClientOp(
     int opcode,
     bool is_set)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
@@ -10937,12 +10859,12 @@ CS2VM2_Op_ClientOp(
 
     if( is_set )
     {
-        if( CS2VM2_PopStr(vm, &label) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &label) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &script_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
-    if( CS2VM2_PopInt(vm, &slot) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &slot) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 #define CS2VM_CLIENT_OP_CASE(name)                                                                 \
     case CS2_OP_##name:                                                                            \
@@ -10970,7 +10892,7 @@ CS2VM2_Op_ClientOp(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CLIENT_OP_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -10987,7 +10909,7 @@ CS2VM2_Op_ClientOpContext(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
@@ -11017,7 +10939,7 @@ CS2VM2_Op_ClientOpContext(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CLIENT_CONTEXT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -11040,14 +10962,14 @@ CS2VM2_Op_ActivePlayer(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
     int index = -1;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
     if( opcode == CS2_OP_ACTIVEPLAYER_GETROUTECOORD &&
-        CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
 #define CS2VM_ACTIVE_PLAYER_CASE(name)                                                             \
@@ -11068,7 +10990,7 @@ CS2VM2_Op_ActivePlayer(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_ACTIVE_PLAYER_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* Mobile local notifications (3170..3173). Only NOTIFICATIONS_SENDLOCAL carries a
@@ -11081,7 +11003,7 @@ CS2VM2_Op_LocalNotification(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
@@ -11097,12 +11019,12 @@ CS2VM2_Op_LocalNotification(
     {
     case CS2_OP_NOTIFICATIONS_SENDLOCAL:
         /* Strings pop top-down: body was pushed last, so it comes off first. */
-        if( CS2VM2_PopStr(vm, &body) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &body) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &title) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &title) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &delay_ms) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &delay_ms) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_NOTIFICATIONS_SENDGROUPEDLOCAL:
@@ -11112,13 +11034,13 @@ CS2VM2_Op_LocalNotification(
          * command beside it -- and leave five arguments on the stacks. */
         struct CS2VM2_Str* group = NULL;
         int grouped_delay_ms;
-        if( CS2VM2_PopInt(vm, &grouped_delay_ms) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &delay_ms) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &grouped_delay_ms) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &delay_ms) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &group) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopStr(vm, &body) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopStr(vm, &title) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &group) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeStr(vm, &took, &body) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeStr(vm, &took, &title) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         (void)group;
         (void)grouped_delay_ms;
@@ -11127,7 +11049,7 @@ CS2VM2_Op_LocalNotification(
     case CS2_OP_NOTIFICATIONS_CANCELLOCAL:
     case CS2_OP_NOTIFICATIONS_ISLOCALSCHEDULED:
         /* (id) and (id) -> boolean. Both used to pop nothing. */
-        if( CS2VM2_PopInt(vm, &id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     default:
@@ -11154,7 +11076,7 @@ CS2VM2_Op_LocalNotification(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_LOCAL_NOTIFICATION_CASE
-    result = CS2VM2_Ask(vm, &request, mark);
+    result = CS2VM2_Ask(vm, &request, took);
     return result;
 }
 
@@ -11166,7 +11088,7 @@ CS2VM2_Op_Minimap(
     int opcode,
     bool has_value)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
@@ -11175,7 +11097,7 @@ CS2VM2_Op_Minimap(
 
     if( has_value )
     {
-        if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 #define CS2VM_MINIMAP_CASE(name)                                                                   \
@@ -11195,7 +11117,7 @@ CS2VM2_Op_Minimap(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_MINIMAP_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* Viewport FOV/zoom (6200..6205, GETEFFECTIVESIZE excluded — that one still
@@ -11207,7 +11129,7 @@ CS2VM2_Op_Viewport(
     int opcode,
     int pop_count)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(pop_count <= CS2VM_VIEWPORT_ARG_MAX);
 
@@ -11217,7 +11139,7 @@ CS2VM2_Op_Viewport(
 
     for( int i = pop_count - 1; i >= 0; i-- )
     {
-        if( CS2VM2_PopInt(vm, &args[i]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &args[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 #define CS2VM_VIEWPORT_CASE(name)                                                                  \
@@ -11241,7 +11163,7 @@ CS2VM2_Op_Viewport(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_VIEWPORT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* UI zoom (6210..6214). SET pops a value (has_value); GET/RESET/GETDEFAULT pop
@@ -11252,7 +11174,7 @@ CS2VM2_Op_UiZoom(
     int opcode,
     bool has_value)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
@@ -11261,7 +11183,7 @@ CS2VM2_Op_UiZoom(
 
     if( has_value )
     {
-        if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 #define CS2VM_UIZOOM_CASE(name)                                                                    \
@@ -11281,7 +11203,7 @@ CS2VM2_Op_UiZoom(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_UIZOOM_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* Safe-area bounds (6220..6223, 6231): no-arg getters, the host pushes the
@@ -11291,7 +11213,7 @@ CS2VM2_Op_SafeArea(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
@@ -11312,7 +11234,7 @@ CS2VM2_Op_SafeArea(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_SAFEAREA_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -11566,7 +11488,7 @@ CS2VM2_Op_WorldMapFamily(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     struct CS2VM_HostRequest request;
     int args[2] = { 0, 0 };
     int int_in;
@@ -11581,7 +11503,7 @@ CS2VM2_Op_WorldMapFamily(
      * args in source order. */
     for( int i = int_in - 1; i >= 0; i-- )
     {
-        if( CS2VM2_PopInt(vm, &args[i]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &args[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
@@ -11655,7 +11577,7 @@ CS2VM2_Op_WorldMapFamily(
     }
 #undef CS2VM_MEC_CASE
 #undef CS2VM_WORLDMAP_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 // OC is object config
@@ -11665,7 +11587,7 @@ CS2VM2_Op_OC_Param(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     (void)operand;
     assert(vm);
@@ -11692,9 +11614,9 @@ CS2VM2_Op_OC_Param(
     //     }
 
     int param_id, item_id;
-    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &param_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -11703,7 +11625,7 @@ CS2VM2_Op_OC_Param(
     request.u.OC_PARAM.param_id = param_id;
     request.u.OC_PARAM.item_id = item_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -11722,15 +11644,15 @@ CS2VM2_Op_TypeParam(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int param_id;
     int type_id;
 
     assert(vm);
 
-    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &param_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &type_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &type_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -11749,7 +11671,7 @@ CS2VM2_Op_TypeParam(
         request.u.LC_PARAM.param_id = param_id;
         request.u.LC_PARAM.type_id = type_id;
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -11758,14 +11680,14 @@ CS2VM2_Op_OC_Name(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int item_id;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -11773,7 +11695,7 @@ CS2VM2_Op_OC_Name(
     memset(&request.u.OC_NAME, 0, sizeof(request.u.OC_NAME));
     request.u.OC_NAME.item_id = item_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -11786,14 +11708,14 @@ CS2VM2_Op_NC_Name(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int npc_id;
-    if( CS2VM2_PopInt(vm, &npc_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &npc_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -11801,7 +11723,7 @@ CS2VM2_Op_NC_Name(
     memset(&request.u.NC_NAME, 0, sizeof(request.u.NC_NAME));
     request.u.NC_NAME.npc_id = npc_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -11814,14 +11736,14 @@ CS2VM2_Op_OC_Unplaceholder(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int item_id;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -11829,7 +11751,7 @@ CS2VM2_Op_OC_Unplaceholder(
     memset(&request.u.OC_UNPLACEHOLDER, 0, sizeof(request.u.OC_UNPLACEHOLDER));
     request.u.OC_UNPLACEHOLDER.item_id = item_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -11848,14 +11770,14 @@ CS2VM2_Op_OC_ActionString(
     int operand,
     enum CS2VM_HostRequestKind kind)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     (void)operand;
 
     int item_id;
     int op_index;
-    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &op_index) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -11876,25 +11798,25 @@ CS2VM2_Op_OC_ActionString(
         assert(0 && "unexpected object-action host request");
         return CS2VM_EXECNO_ERROR;
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* OC_DESC: real data (ToriRS_Objtype.desc). */
 static int
 CS2VM2_Op_OC_Examine(struct CS2VM2_Thread* vm)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     int item_id;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
     request.kind = CS2VM_HOST_REQUEST_OC_DESC;
     memset(&request.u.OC_DESC, 0, sizeof(request.u.OC_DESC));
     request.u.OC_DESC.item_id = item_id;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* OC_PLACEHOLDER: mirrors OC_UNPLACEHOLDER's identity-passthrough stub (no
@@ -11902,18 +11824,18 @@ CS2VM2_Op_OC_Examine(struct CS2VM2_Thread* vm)
 static int
 CS2VM2_Op_OC_Placeholder(struct CS2VM2_Thread* vm)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     int item_id;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
     request.kind = CS2VM_HOST_REQUEST_OC_PLACEHOLDER;
     memset(&request.u.OC_PLACEHOLDER, 0, sizeof(request.u.OC_PLACEHOLDER));
     request.u.OC_PLACEHOLDER.item_id = item_id;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* OC_FIND/OC_FINDNEXT/OC_FINDRESET: a stateful item-name search (see
@@ -11931,16 +11853,16 @@ CS2VM2_Op_OC_Find(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM2_Str* query = NULL;
     int ge_tradeable_only = 0;
     if( opcode == CS2_OP_OC_FIND )
     {
-        if( CS2VM2_PopInt(vm, &ge_tradeable_only) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &ge_tradeable_only) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &query) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &query) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
@@ -11964,7 +11886,7 @@ CS2VM2_Op_OC_Find(
 #undef CS2VM_OC_FIND_CASE
     if( opcode == CS2_OP_OC_FIND )
         request.u.OC_FIND.ge_tradeable_only = ge_tradeable_only == 1;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -11979,7 +11901,7 @@ CS2VM2_Op_Loot(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     struct CS2VM_HostRequest request;
     struct CS2VM2_Str* name = NULL;
     int int_args[4] = { 0 };
@@ -12014,7 +11936,7 @@ CS2VM2_Op_Loot(
     case CS2_OP_LOOTTRACKER_IGNORELOOTDELAT:
     case CS2_OP_LOOTTRACKER_IGNORESOURCEDELAT:
     case CS2_OP_LOOTTRACKER_SETDROPLIMIT:
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 1;
         break;
@@ -12028,44 +11950,44 @@ CS2VM2_Op_Loot(
     case CS2_OP_LOOTTRACKER_IGNORELOOTDEL:
     case CS2_OP_LOOTTRACKER_IGNORESOURCEADD:
     case CS2_OP_LOOTTRACKER_IGNORESOURCEDEL:
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
 
     /* (int, int, int) -> int : BeginQuery */
     case CS2_OP_LOOTTRACKER_SOURCEQUERY_NEW:
-        if( CS2VM2_PopInt(vm, &int_args[2]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[2]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[1]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[1]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 3;
         break;
 
     /* (int, int) -> (int, int) : RowById */
     case CS2_OP_LOOTTRACKER_LOOTGET_BYID:
-        if( CS2VM2_PopInt(vm, &int_args[1]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[1]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 2;
         break;
 
     /* (string, int) -> (int, int) : RowByName */
     case CS2_OP_LOOTTRACKER_LOOTGET_BYNAME:
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 1;
         break;
 
     /* (int, string) -> () : AuxUpsert2 / 7400 */
     case CS2_OP_STRINGVECTOR_ADD:
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 1;
         break;
@@ -12073,11 +11995,11 @@ CS2VM2_Op_Loot(
     /* (int, string, int) -> () : AuxUpsert / AuxRemove */
     case CS2_OP_STRINGVECTOR_ADDUNIQUE:
     case CS2_OP_STRINGVECTOR_REMOVE:
-        if( CS2VM2_PopInt(vm, &int_args[1]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[1]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 2;
         break;
@@ -12085,11 +12007,11 @@ CS2VM2_Op_Loot(
     /* (vector, index, string) : STRINGVECTOR_INSERT / STRINGVECTOR_SET */
     case CS2_OP_STRINGVECTOR_INSERT:
     case CS2_OP_STRINGVECTOR_SET:
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[1]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[1]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 2;
         break;
@@ -12098,22 +12020,22 @@ CS2VM2_Op_Loot(
     case CS2_OP_STRINGVECTOR_REMOVEAT:
     /* (vector, index) -> string : STRINGVECTOR_GET */
     case CS2_OP_STRINGVECTOR_GET:
-        if( CS2VM2_PopInt(vm, &int_args[1]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[1]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 2;
         break;
 
     /* (int, string, int, int) -> int : AuxLookup */
     case CS2_OP_STRINGVECTOR_CONTAINS:
-        if( CS2VM2_PopInt(vm, &int_args[2]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[2]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[1]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[1]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 3;
         break;
@@ -12121,26 +12043,26 @@ CS2VM2_Op_Loot(
     /* (string, int, int, int) : LOOTTRACKER_SOURCEADD — name, category, level,
      * unique identifier. int_args[0..2] in that order. */
     case CS2_OP_LOOTTRACKER_SOURCEADD:
-        if( CS2VM2_PopInt(vm, &int_args[2]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[2]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[1]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[1]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 3;
         break;
 
     /* (string, int, int, int) -> () : LOOTTRACKER_LOOTADD — name then obj/qty/eventId */
     case CS2_OP_LOOTTRACKER_LOOTADD:
-        if( CS2VM2_PopInt(vm, &int_args[0]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[0]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[1]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[1]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &int_args[2]) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &int_args[2]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         int_arg_count = 3;
         break;
@@ -12206,7 +12128,7 @@ CS2VM2_Op_Loot(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_LOOT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -12218,7 +12140,7 @@ CS2VM2_Op_Hiscores(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     struct CS2VM_HostRequest request;
 
     assert(vm);
@@ -12230,14 +12152,14 @@ CS2VM2_Op_Hiscores(
     {
     /* HISCORE_LOOKUP(name, type): one of each stack. */
     case CS2_OP_HISCORE_LOOKUP:
-        if( CS2VM2_PopInt(vm, &key) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &key) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_HISCORE_GETRANK:
     case CS2_OP_HISCORE_GETVALUE:
     case CS2_OP_HISCORE_GETMEMBERCONTRIBUTEDXP_BYNAME:
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_HISCORE_GETSKILLRANK:
@@ -12247,7 +12169,7 @@ CS2VM2_Op_Hiscores(
     case CS2_OP_HISCORE_SETAPI:
     case CS2_OP_HISCORE_GETBOSSRANK:
     case CS2_OP_HISCORE_GETBOSSKILLS:
-        if( CS2VM2_PopInt(vm, &key) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &key) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     default:
@@ -12284,7 +12206,7 @@ CS2VM2_Op_Hiscores(
         assert(0 && "unexpected hiscores opcode");
         return CS2VM_EXECNO_ERROR;
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -12310,7 +12232,7 @@ CS2VM2_Op_Social(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     struct CS2VM_HostRequest request;
     int index = 0;
     struct CS2VM2_Str* name = NULL;
@@ -12341,14 +12263,14 @@ CS2VM2_Op_Social(
     case CS2_OP_FRIENDLIST_SORT_OWNWORLD_WORLD:
     case CS2_OP_IGNORELIST_SORT_LEGACY:
     case CS2_OP_IGNORELIST_SORT_NAME:
-        if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_FRIEND_GETNAME:
     case CS2_OP_FRIEND_GETWORLD:
     case CS2_OP_FRIEND_GETRANK:
     case CS2_OP_IGNORE_GETNAME:
-        if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_FRIEND_ADD:
@@ -12357,7 +12279,7 @@ CS2VM2_Op_Social(
     case CS2_OP_IGNORE_DEL:
     case CS2_OP_FRIEND_TEST:
     case CS2_OP_IGNORE_TEST:
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     default:
@@ -12410,7 +12332,7 @@ CS2VM2_Op_Social(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_SOCIAL_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -12426,7 +12348,7 @@ CS2VM2_Op_Chat(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     struct CS2VM_HostRequest request;
     int public_mode = 0;
     int private_mode = 0;
@@ -12454,56 +12376,56 @@ CS2VM2_Op_Chat(
     case CS2_OP_STAFFMODLEVEL:
         break;
     case CS2_OP_CHAT_GETHISTORYLENGTH:
-        if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &type) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_CHAT_GETNEXTUID:
     case CS2_OP_CHAT_GETPREVUID:
     case CS2_OP_CHAT_GETHISTORY_BYUID_PRE195:
     case CS2_OP_CHAT_GETHISTORY_BYUID:
-        if( CS2VM2_PopInt(vm, &uid) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &uid) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE_PRE195:
     case CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE:
         /* (chattype, line) in source order, so back to front here. */
-        if( CS2VM2_PopInt(vm, &line) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &line) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &type) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_CHAT_SETMESSAGEFILTER:
     case CS2_OP_MES:
-        if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_CHAT_SETTIMESTAMPS:
-        if( CS2VM2_PopInt(vm, &timestamps) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &timestamps) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_CHAT_SENDCLAN:
         /* (mes, int, int) in source order. No clan channel exists here, so the
          * host drops it -- but the pops are not optional: an opcode that
          * leaves its arguments on the stack corrupts every later one. */
-        if( CS2VM2_PopInt(vm, &private_mode) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &private_mode) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &public_mode) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &public_mode) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_CHAT_SETFILTER:
-        if( CS2VM2_PopInt(vm, &trade_mode) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &trade_mode) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &private_mode) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &private_mode) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &public_mode) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &public_mode) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_CHAT_SENDPRIVATE:
-        if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_CHAT_SENDPUBLIC:
@@ -12519,16 +12441,16 @@ CS2VM2_Op_Chat(
          * strings — pops a string that was never pushed and aborts the submit
          * with the message still in the box.
          */
-        if( CS2VM2_PopInt(vm, &colour_effect) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &colour_effect) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_DOCHEAT:
         /* docheat(text): the chatbox's own "::foo" handler, distinct from
          * app.c's native shortcut — pops the string with "::" already
          * stripped (SUBSTRING in the caller script) and pushes nothing. */
-        if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     default:
@@ -12580,7 +12502,7 @@ CS2VM2_Op_Chat(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CHAT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* OC_SHIFTCLICKIOP: one obj id in, the 1-based inventory op a shift-click runs
@@ -12588,18 +12510,18 @@ CS2VM2_Op_Chat(
 static int
 CS2VM2_Op_OC_ShiftClickIop(struct CS2VM2_Thread* vm)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     int item_id;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
     request.kind = CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP;
     memset(&request.u.OC_SHIFTCLICKIOP, 0, sizeof(request.u.OC_SHIFTCLICKIOP));
     request.u.OC_SHIFTCLICKIOP.item_id = item_id;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* OC_WEARPOS/WEARPOS2/WEARPOS3: no equip slot data exists yet. */
@@ -12608,11 +12530,11 @@ CS2VM2_Op_OC_WearPos(
     struct CS2VM2_Thread* vm,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     int item_id;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -12633,42 +12555,42 @@ CS2VM2_Op_OC_WearPos(
         assert(0 && "unexpected object-wear-position opcode");
         return CS2VM_EXECNO_ERROR;
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* OC_WEIGHT: no weight data exists yet. */
 static int
 CS2VM2_Op_OC_Weight(struct CS2VM2_Thread* vm)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     int item_id;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
     request.kind = CS2VM_HOST_REQUEST_OC_WEIGHT;
     memset(&request.u.OC_WEIGHT, 0, sizeof(request.u.OC_WEIGHT));
     request.u.OC_WEIGHT.item_id = item_id;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* oc_isubop(obj, opIndex, subIndex) -> string. No sub-menu nesting exists yet. */
 static int
 CS2VM2_Op_OC_Isubop(struct CS2VM2_Thread* vm)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     int item_id;
     int op_index;
     int sub_index;
-    if( CS2VM2_PopInt(vm, &sub_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &sub_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &op_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -12677,7 +12599,7 @@ CS2VM2_Op_OC_Isubop(struct CS2VM2_Thread* vm)
     request.u.OC_ISUBOP.item_id = item_id;
     request.u.OC_ISUBOP.op_index = op_index;
     request.u.OC_ISUBOP.sub_index = sub_index;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -12716,7 +12638,7 @@ CS2VM2_Op_InvSize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     (void)operand;
     assert(vm);
@@ -12724,7 +12646,7 @@ CS2VM2_Op_InvSize(
 
     int inv_id;
 
-    if( CS2VM2_PopInt(vm, &inv_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &inv_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -12732,7 +12654,7 @@ CS2VM2_Op_InvSize(
     memset(&request.u.INV_SIZE, 0, sizeof(request.u.INV_SIZE));
     request.u.INV_SIZE.inv_id = inv_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -12745,7 +12667,7 @@ CS2VM2_Op_InvGetObj(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     (void)operand;
     assert(vm);
@@ -12757,9 +12679,9 @@ CS2VM2_Op_InvGetObj(
     // ctx.pushInt(obj ?? -1);
 
     int inv_id, slot;
-    if( CS2VM2_PopInt(vm, &slot) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &slot) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &inv_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &inv_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -12768,7 +12690,7 @@ CS2VM2_Op_InvGetObj(
     request.u.INV_GETOBJ.inv_id = inv_id;
     request.u.INV_GETOBJ.slot = slot;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -12781,16 +12703,16 @@ CS2VM2_Op_InvGetNum(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int inv_id, slot;
-    if( CS2VM2_PopInt(vm, &slot) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &slot) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &inv_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &inv_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -12799,7 +12721,7 @@ CS2VM2_Op_InvGetNum(
     request.u.INV_GETNUM.inv_id = inv_id;
     request.u.INV_GETNUM.slot = slot;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -12812,16 +12734,16 @@ CS2VM2_Op_InvTotal(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int inv_id, item_id;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &inv_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &inv_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -12830,7 +12752,7 @@ CS2VM2_Op_InvTotal(
     request.u.INV_TOTAL.inv_id = inv_id;
     request.u.INV_TOTAL.item_id = item_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -12844,7 +12766,7 @@ CS2VM2_DispatchWidgetSetInt(
     enum CS2VM_WidgetIntField field,
     int value,
     int opcode,
-    struct CS2VM2_YieldMark mark)
+    struct CS2VM2_Took took)
 {
     struct CS2VM_HostRequest request;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
@@ -12893,7 +12815,7 @@ CS2VM2_DispatchWidgetSetInt(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_WIDGET_INT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 static int
@@ -12904,16 +12826,16 @@ CS2VM2_Op_CC_WidgetInt(
     enum CS2VM_WidgetIntField field,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
 
     int value;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     int result = CS2VM2_DispatchWidgetSetInt(
-        vm, CS2VM2_DotOrActiveComponentId(vm, operand), field, value, opcode, mark);
+        vm, CS2VM2_DotOrActiveComponentId(vm, operand), field, value, opcode, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -12925,19 +12847,19 @@ CS2VM2_Op_IF_WidgetInt(
     enum CS2VM_WidgetIntField field,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
     (void)operand;
 
     int component_id;
     int value;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int result = CS2VM2_DispatchWidgetSetInt(vm, component_id, field, value, opcode, mark);
+    int result = CS2VM2_DispatchWidgetSetInt(vm, component_id, field, value, opcode, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -12947,15 +12869,15 @@ CS2VM2_Op_CC_SetScrollPos(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
 
     int scroll_y;
     int scroll_x;
-    if( CS2VM2_PopInt(vm, &scroll_y) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &scroll_y) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &scroll_x) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &scroll_x) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -12965,7 +12887,7 @@ CS2VM2_Op_CC_SetScrollPos(
     request.u.CC_SETSCROLLPOS.scroll_x = scroll_x;
     request.u.CC_SETSCROLLPOS.scroll_y = scroll_y;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -12975,15 +12897,15 @@ CS2VM2_Op_CC_SetScrollSize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
 
     int scroll_height;
     int scroll_width;
-    if( CS2VM2_PopInt(vm, &scroll_height) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &scroll_height) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &scroll_width) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &scroll_width) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -12993,7 +12915,7 @@ CS2VM2_Op_CC_SetScrollSize(
     request.u.CC_SETSCROLLSIZE.scroll_width = scroll_width;
     request.u.CC_SETSCROLLSIZE.scroll_height = scroll_height;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -13003,12 +12925,12 @@ CS2VM2_Op_CC_SetModel(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
 
     int model_id;
-    if( CS2VM2_PopInt(vm, &model_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &model_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -13017,7 +12939,7 @@ CS2VM2_Op_CC_SetModel(
     request.u.CC_SETMODEL.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_SETMODEL.model_id = model_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -13027,16 +12949,16 @@ CS2VM2_Op_IF_SetModel(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
     (void)operand;
 
     int component_id;
     int model_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &model_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &model_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -13045,7 +12967,7 @@ CS2VM2_Op_IF_SetModel(
     request.u.IF_SETMODEL.component_id = component_id;
     request.u.IF_SETMODEL.model_id = model_id;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -13055,7 +12977,7 @@ CS2VM2_Op_CC_SetModelAngle(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
 
@@ -13065,17 +12987,17 @@ CS2VM2_Op_CC_SetModelAngle(
     int angle_x;
     int offset_y;
     int offset_x;
-    if( CS2VM2_PopInt(vm, &zoom) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &zoom) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &angle_z) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &angle_z) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &angle_y) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &angle_y) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &angle_x) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &angle_x) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &offset_y) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &offset_y) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &offset_x) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &offset_x) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -13089,7 +13011,7 @@ CS2VM2_Op_CC_SetModelAngle(
     request.u.CC_SETMODELANGLE.angle_z = angle_z;
     request.u.CC_SETMODELANGLE.zoom = zoom;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -13099,7 +13021,7 @@ CS2VM2_Op_IF_SetModelAngle(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
     (void)operand;
@@ -13111,19 +13033,19 @@ CS2VM2_Op_IF_SetModelAngle(
     int angle_x;
     int offset_y;
     int offset_x;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &zoom) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &zoom) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &angle_z) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &angle_z) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &angle_y) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &angle_y) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &angle_x) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &angle_x) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &offset_y) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &offset_y) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &offset_x) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &offset_x) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -13137,7 +13059,7 @@ CS2VM2_Op_IF_SetModelAngle(
     request.u.IF_SETMODELANGLE.angle_z = angle_z;
     request.u.IF_SETMODELANGLE.zoom = zoom;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -13147,15 +13069,15 @@ CS2VM2_Op_CC_SetArc(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
 
     int arc_end;
     int arc_start;
-    if( CS2VM2_PopInt(vm, &arc_end) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &arc_end) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &arc_start) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &arc_start) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -13165,7 +13087,7 @@ CS2VM2_Op_CC_SetArc(
     request.u.CC_SETARC.arc_start = arc_start;
     request.u.CC_SETARC.arc_end = arc_end;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -13175,7 +13097,7 @@ CS2VM2_Op_IF_SetArc(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
     (void)operand;
@@ -13183,11 +13105,11 @@ CS2VM2_Op_IF_SetArc(
     int component_id;
     int arc_end;
     int arc_start;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &arc_end) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &arc_end) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &arc_start) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &arc_start) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -13197,7 +13119,7 @@ CS2VM2_Op_IF_SetArc(
     request.u.IF_SETARC.arc_start = arc_start;
     request.u.IF_SETARC.arc_end = arc_end;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -13210,14 +13132,14 @@ CS2VM2_Op_CC_SetModelKind(
     bool has_model_id,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
 
     int model_id = -1;
     if( has_model_id )
     {
-        if( CS2VM2_PopInt(vm, &model_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &model_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
@@ -13243,7 +13165,7 @@ CS2VM2_Op_CC_SetModelKind(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CC_MODEL_KIND_CASE
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -13256,18 +13178,18 @@ CS2VM2_Op_IF_SetModelKind(
     bool has_model_id,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
     (void)operand;
 
     int component_id;
     int model_id = -1;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( has_model_id )
     {
-        if( CS2VM2_PopInt(vm, &model_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &model_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
@@ -13291,7 +13213,7 @@ CS2VM2_Op_IF_SetModelKind(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_IF_MODEL_KIND_CASE
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -13308,7 +13230,7 @@ CS2VM2_Op_InputPlaceholderText(
     int operand,
     int if_form)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int component_id;
     struct CS2VM2_Str* text = NULL;
     struct CS2VM_HostRequest request;
@@ -13316,12 +13238,12 @@ CS2VM2_Op_InputPlaceholderText(
     assert(vm);
     if( if_form )
     {
-        if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
     else
         component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
-    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     if( if_form )
@@ -13344,7 +13266,7 @@ CS2VM2_Op_InputPlaceholderText(
         request.u.CC_INPUT_SETPLACEHOLDERTEXT.component_id = component_id;
         request.u.CC_INPUT_SETPLACEHOLDERTEXT.text = text;
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -13358,7 +13280,7 @@ CS2VM2_Op_InputSelection(
     int operand,
     int if_form)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int component_id;
     int start;
     int end;
@@ -13367,14 +13289,14 @@ CS2VM2_Op_InputSelection(
     assert(vm);
     if( if_form )
     {
-        if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
     else
         component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
-    if( CS2VM2_PopInt(vm, &end) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &end) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &start) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &start) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     if( if_form )
@@ -13393,7 +13315,7 @@ CS2VM2_Op_InputSelection(
         request.u.CC_INPUT_SETSELECTION.start = start;
         request.u.CC_INPUT_SETSELECTION.end = end;
     }
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 static int
@@ -13403,12 +13325,12 @@ CS2VM2_Op_CC_InputInt(
     int operand,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(frame);
     (void)frame;
 
     int value;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -13439,7 +13361,7 @@ CS2VM2_Op_CC_InputInt(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CC_INPUT_INT_CASE
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -13449,7 +13371,7 @@ CS2VM2_Op_IF_InputInt(
     struct CS2VM2_Frame* frame,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     int component_id;
     int value;
 
@@ -13457,9 +13379,9 @@ CS2VM2_Op_IF_InputInt(
     (void)frame;
 
     /* IF_INPUT_SET* has (value, component) on the int stack. */
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -13489,7 +13411,7 @@ CS2VM2_Op_IF_InputInt(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_IF_INPUT_INT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /* Fills *int_args / *str_args with the stack values this opcode pops.
@@ -13582,21 +13504,21 @@ CS2VM2_RunOp(
      * or var id, answered from the clan store. */
     case CS2_OP_PUSH_VARCLANSETTING:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_PUSH_VARCLANSETTING;
         memset(&request.u.PUSH_VARCLANSETTING, 0, sizeof(request.u.PUSH_VARCLANSETTING));
         request.u.PUSH_VARCLANSETTING.setting_id = operand;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_PUSH_VARCLAN:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_PUSH_VARCLAN;
         memset(&request.u.PUSH_VARCLAN, 0, sizeof(request.u.PUSH_VARCLAN));
         request.u.PUSH_VARCLAN.var_id = operand;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_PUSH_VAR:
         return CS2VM2_Op_PushVar(vm, frame, operand);
@@ -13906,7 +13828,7 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetArc(vm, frame, operand);
     case CS2_OP_CC_RESUME_PAUSEBUTTON:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         /* No stack args — the active/dot component is the button. Stack
          * signature is {0,0,0,0}; do not route through WidgetInt (which pops
          * a phantom value). */
@@ -13914,7 +13836,7 @@ CS2VM2_RunOp(
         request.kind = CS2VM_HOST_REQUEST_CC_RESUME_PAUSEBUTTON;
         memset(&request.u.CC_RESUME_PAUSEBUTTON, 0, sizeof(request.u.CC_RESUME_PAUSEBUTTON));
         request.u.CC_RESUME_PAUSEBUTTON.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_CC_INPUT_SETSELECTCOLOUR:
         return CS2VM2_Op_CC_InputInt(vm, frame, operand, opcode);
@@ -14003,19 +13925,19 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_InputInt(vm, frame, opcode);
     case CS2_OP_IF_RESUME_PAUSEBUTTON:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         /* One component on the int stack. Stack signature is {1,0,0,0}; do not
          * route through WidgetInt (which also pops a phantom value). */
         struct CS2VM_HostRequest request;
         int component_id;
         memset(&request, 0, sizeof(request));
-        if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         request.kind = CS2VM_HOST_REQUEST_IF_RESUME_PAUSEBUTTON;
         request.u.IF_RESUME_PAUSEBUTTON.component_id = component_id;
         (void)frame;
         (void)operand;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
 
     /* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
@@ -14114,14 +14036,14 @@ CS2VM2_RunOp(
      * the 1-based op index, and drops that op's sub-op labels. */
     case CS2_OP_IF_CLEARSUBOPS:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_IF_CLEARSUBOPS;
         memset(&request.u.IF_CLEARSUBOPS, 0, sizeof(request.u.IF_CLEARSUBOPS));
-        if( CS2VM2_PopInt(vm, &request.u.IF_CLEARSUBOPS.component_id) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &request.u.IF_CLEARSUBOPS.op_index) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.IF_CLEARSUBOPS.component_id) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &request.u.IF_CLEARSUBOPS.op_index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_IF_SETPINCH:
     {
@@ -14451,13 +14373,13 @@ CS2VM2_RunOp(
     /* IF_GETPARENTLAYER (2506): CC_GETPARENTLAYER for a named component. */
     case CS2_OP_IF_GETPARENTLAYER:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_IF_GETPARENTLAYER;
         memset(&request.u.IF_GETPARENTLAYER, 0, sizeof(request.u.IF_GETPARENTLAYER));
-        if( CS2VM2_PopInt(vm, &request.u.IF_GETPARENTLAYER.component_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.IF_GETPARENTLAYER.component_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_IF_GETHIDE:
         return CS2VM2_Op_IF_GetHide(vm, frame, operand);
@@ -14471,13 +14393,13 @@ CS2VM2_RunOp(
      * Statics.java:45064 method8161. */
     case CS2_OP_IF_INPUT_GETFOCUS:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_IF_INPUT_GETFOCUS;
         memset(&request.u.IF_INPUT_GETFOCUS, 0, sizeof(request.u.IF_INPUT_GETFOCUS));
-        if( CS2VM2_PopInt(vm, &request.u.IF_INPUT_GETFOCUS.component_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.IF_INPUT_GETFOCUS.component_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_IF_GETSCROLLX:
         return CS2VM2_Op_IF_GetScrollX(vm, frame, operand);
@@ -14654,7 +14576,7 @@ CS2VM2_RunOp(
      */
     case CS2_OP_IF_CLOSE:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         /*
          * No stack args. Generated meta wrongly treats this like MES (1 string).
          *
@@ -14668,11 +14590,11 @@ CS2VM2_RunOp(
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_IF_CLOSE;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_RESUME_COUNTDIALOG:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         /*
          * resume_countdialog(text): answer a server script parked on
          * P_COUNTDIALOG. One string in, nothing out.
@@ -14690,9 +14612,9 @@ CS2VM2_RunOp(
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG;
-        if( CS2VM2_PopStr(vm, &request.u.RESUME_COUNTDIALOG.text) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &request.u.RESUME_COUNTDIALOG.text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
 
     /* === CS2 opcode group: audio-options (3200..3299) ===
@@ -14772,13 +14694,13 @@ CS2VM2_RunOp(
      * highlight marked the corner of the map. */
     case CS2_OP_DESTINATIONCOORD:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         (void)frame;
         (void)operand;
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST__3330;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_COORDX:
         return CS2VM2_Op_CoordX(vm, frame, operand);
@@ -14794,12 +14716,12 @@ CS2VM2_RunOp(
     case CS2_OP_RUNENERGY_VISIBLE:
     case CS2_OP_RUNWEIGHT_VISIBLE:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = opcode == CS2_OP_RUNENERGY_VISIBLE ? CS2VM_HOST_REQUEST_RUNENERGY_VISIBLE
                                                           : CS2VM_HOST_REQUEST_RUNWEIGHT_VISIBLE;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_INV_SIZE:
         return CS2VM2_Op_InvSize(vm, frame, operand);
@@ -14813,10 +14735,10 @@ CS2VM2_RunOp(
     case CS2_OP_INVOTHER_GETNUM:
     case CS2_OP_INVOTHER_TOTAL:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         int inv_id, value;
-        if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &inv_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &inv_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         struct CS2VM_HostRequest request = { 0 };
         request.kind = (enum CS2VM_HostRequestKind)opcode;
@@ -14835,15 +14757,15 @@ CS2VM2_RunOp(
             request.u.INVOTHER_TOTAL.item_id = value;
             break;
         }
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_CLIENTCLOCK:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_CLIENTCLOCK;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     /*
      * STAT (3305) is the *boosted* level, STAT_BASE (3306) the level the
@@ -14857,11 +14779,11 @@ CS2VM2_RunOp(
     case CS2_OP_STAT_BASE:
     case CS2_OP_STAT_VISIBLE_XP:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         int stat;
 
-        if( CS2VM2_PopInt(vm, &stat) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &stat) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         request.kind = opcode == CS2_OP_STAT        ? CS2VM_HOST_REQUEST_STAT
                        : opcode == CS2_OP_STAT_BASE ? CS2VM_HOST_REQUEST_STAT_BASE
@@ -14884,27 +14806,27 @@ CS2VM2_RunOp(
             assert(0);
             return CS2VM_EXECNO_ERROR;
         }
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_MOUSE_GETX:
     case CS2_OP_MOUSE_GETY:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = opcode == CS2_OP_MOUSE_GETX ? CS2VM_HOST_REQUEST_MOUSE_GETX
                                                    : CS2VM_HOST_REQUEST_MOUSE_GETY;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_STAFFMODLEVEL:
         return CS2VM2_Op_Chat(vm, opcode);
     case CS2_OP_MAP_WORLD:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_MAP_WORLD;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
 
     /* === CS2 opcode group: enum (3400..3499) ===
@@ -15237,13 +15159,13 @@ CS2VM2_RunOp(
     /* OC_BYID (4224): the id, or -1 outside the obj config group. */
     case CS2_OP_OC_BYID:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_OC_BYID;
         memset(&request.u.OC_BYID, 0, sizeof(request.u.OC_BYID));
-        if( CS2VM2_PopInt(vm, &request.u.OC_BYID.item_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.OC_BYID.item_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_OC_NAME:
         return CS2VM2_Op_OC_Name(vm, frame, operand);
@@ -15334,23 +15256,23 @@ CS2VM2_RunOp(
      * rev-239 dispatch: Statics.method6889 -> method4488. */
     case CS2_OP_CAM_SETFOLLOWHEIGHT:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         int height;
-        if( CS2VM2_PopInt(vm, &height) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &height) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         request.kind = CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT;
         memset(&request.u.CAM_SETFOLLOWHEIGHT, 0, sizeof(request.u.CAM_SETFOLLOWHEIGHT));
         request.u.CAM_SETFOLLOWHEIGHT.height = height;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_CAM_GETFOLLOWHEIGHT:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_CAM_GETFOLLOWHEIGHT;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     /* Numeric id 6232 is not SIDEBAR_CLEARWIDTH in rev 239: its cache sites consume
      * one mode int and return nothing. It reaches StackMetaStub below. */
@@ -15363,28 +15285,28 @@ CS2VM2_RunOp(
      * shadowed by this dispatch, and the two eras agree on the signature. */
     case CS2_OP_CAM_FORCEANGLE:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         int angle_x, angle_y;
-        if( CS2VM2_PopInt(vm, &angle_y) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &angle_y) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopInt(vm, &angle_x) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &angle_x) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         request.kind = CS2VM_HOST_REQUEST_CAM_FORCEANGLE;
         memset(&request.u.CAM_FORCEANGLE, 0, sizeof(request.u.CAM_FORCEANGLE));
         request.u.CAM_FORCEANGLE.angle_x = angle_x;
         request.u.CAM_FORCEANGLE.angle_y = angle_y;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_CAM_GETANGLE_XA:
     case CS2_OP_CAM_GETANGLE_YA:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = opcode == CS2_OP_CAM_GETANGLE_XA ? CS2VM_HOST_REQUEST_CAM_GETANGLE_XA
                                                         : CS2VM_HOST_REQUEST_CAM_GETANGLE_YA;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
 
     /* === CS2 opcode group: login (5600..5699) ===
@@ -15398,11 +15320,11 @@ CS2VM2_RunOp(
         return CS2VM2_Op_HostSignature(vm, opcode);
     case CS2_OP_LOGOUT:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_LOGOUT;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
 
     /* === CS2 opcode group: viewport (5700..6299) ===
@@ -15455,15 +15377,15 @@ CS2VM2_RunOp(
         return CS2VM2_Op_OnMobile(vm, frame, operand);
     case CS2_OP_RUNELITE_CALLBACK:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM2_Str* name = NULL;
-        if( CS2VM2_PopStr(vm, &name) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         struct CS2VM_HostRequest request = { .kind = CS2VM_HOST_REQUEST_RUNELITE_CALLBACK };
         request.u.RUNELITE_CALLBACK.name = name ? name : CS2VM2_StrEmpty(vm);
         /* Callback decisions belong to this opcode. Yielding would replay
          * the callback, so only synchronous completion is accepted. */
-        int result = CS2VM2_Ask(vm, &request, mark);
+        int result = CS2VM2_Ask(vm, &request, took);
         return result == CS2VM_EXECNO_OK ? result : CS2VM_EXECNO_ERROR;
     }
     case CS2_OP_CLIENTTYPE:
@@ -15480,32 +15402,32 @@ CS2VM2_RunOp(
      * unmetered, which is what this used to answer for everyone. */
     case CS2_OP_MOBILE_BATTERYLEVEL:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_MOBILE_BATTERYLEVEL;
         memset(&request.u.MOBILE_BATTERYLEVEL, 0, sizeof(request.u.MOBILE_BATTERYLEVEL));
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_MOBILE_BATTERYCHARGING:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_MOBILE_BATTERYCHARGING;
         memset(&request.u.MOBILE_BATTERYCHARGING, 0, sizeof(request.u.MOBILE_BATTERYCHARGING));
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_MOBILE_WIFIAVAILABLE:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_MOBILE_WIFIAVAILABLE;
         memset(&request.u.MOBILE_WIFIAVAILABLE, 0, sizeof(request.u.MOBILE_WIFIAVAILABLE));
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_MOBILE_KEYBOARDSHOWSTRING:
     case CS2_OP_MOBILE_KEYBOARDSHOWINTEGER:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         /* (string text, int limit): the mobile client opens its soft keyboard
          * on the line the script hands it -- the chatbox's "Start chatting"
          * stone passes the message being typed. The host says what a
@@ -15513,9 +15435,9 @@ CS2VM2_RunOp(
         struct CS2VM_HostRequest request;
         struct CS2VM2_Str* text = NULL;
         int limit;
-        if( CS2VM2_PopInt(vm, &limit) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &limit) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( opcode == CS2_OP_MOBILE_KEYBOARDSHOWINTEGER )
         {
@@ -15537,26 +15459,26 @@ CS2VM2_RunOp(
             request.u.MOBILE_KEYBOARDSHOWSTRING.text = text;
             request.u.MOBILE_KEYBOARDSHOWSTRING.limit = limit;
         }
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_MOBILE_KEYBOARDSHOW:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         /* No operands: the keyboard with no line to open on. The rev-239
          * desktop client (Statics opcode 6520) has no keyboard and returns;
          * the mobile client's is the platform's, as for 6522/6523. */
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_MOBILE_KEYBOARDSHOW;
         memset(&request.u.MOBILE_KEYBOARDSHOW, 0, sizeof(request.u.MOBILE_KEYBOARDSHOW));
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_MOBILE_KEYBOARDHIDE:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_MOBILE_KEYBOARDHIDE;
         memset(&request.u.MOBILE_KEYBOARDHIDE, 0, sizeof(request.u.MOBILE_KEYBOARDHIDE));
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
 
     /* === CS2 opcode group: worldmap (6600..6699) ===
@@ -15620,13 +15542,13 @@ CS2VM2_RunOp(
     /* NPC_FINDUID (6758): make the npc a uid names the active npc. */
     case CS2_OP_NPC_FINDUID:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_NPC_FINDUID;
         memset(&request.u.NPC_FINDUID, 0, sizeof(request.u.NPC_FINDUID));
-        if( CS2VM2_PopInt(vm, &request.u.NPC_FINDUID.uid) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.NPC_FINDUID.uid) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     /* CLIENTOP_* (6700..6709): enhanced client-side context-menu hooks. SET pops
      * (slot, scriptId) + string label; DEL pops slot. Host-stubbed for now. */
@@ -15672,14 +15594,14 @@ CS2VM2_RunOp(
      * of that obj on the tile the active obj. */
     case CS2_OP_OBJ_FIND:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_OBJ_FIND;
         memset(&request.u.OBJ_FIND, 0, sizeof(request.u.OBJ_FIND));
-        if( CS2VM2_PopInt(vm, &request.u.OBJ_FIND.obj_id) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &request.u.OBJ_FIND.coord) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.OBJ_FIND.obj_id) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &request.u.OBJ_FIND.coord) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     /* The GROUND-ITEM pile's entry selector and the four getters that read
      * whichever entry it left active. Numbered here because a ground obj is
@@ -15934,19 +15856,19 @@ CS2VM2_RunOp(
 
     case CS2_OP_WORLDENTITY_SETRENDERLIMIT:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request = { 0 };
         request.kind = CS2VM_HOST_REQUEST_WORLDENTITY_SETRENDERLIMIT;
-        if( CS2VM2_PopInt(vm, &request.u.WORLDENTITY_SETRENDERLIMIT.limit) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.WORLDENTITY_SETRENDERLIMIT.limit) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_WORLDENTITY_GETRENDERLIMIT:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request = { 0 };
         request.kind = CS2VM_HOST_REQUEST_WORLDENTITY_GETRENDERLIMIT;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
 
     /* === CS2 opcode group: array (8000..8099) ===
@@ -16057,14 +15979,14 @@ CS2VM2_RunOp(
      * keys as an int array. Statics.java:57736. */
     case CS2_OP_ENUM_GETINPUTS:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
         request.kind = CS2VM_HOST_REQUEST_ENUM_GETINPUTS;
         memset(&request.u.ENUM_GETINPUTS, 0, sizeof(request.u.ENUM_GETINPUTS));
-        if( CS2VM2_PopInt(vm, &request.u.ENUM_GETINPUTS.enum_id) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &request.u.ENUM_GETINPUTS.input_type) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.ENUM_GETINPUTS.enum_id) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &request.u.ENUM_GETINPUTS.input_type) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
 
     /* === CS2 opcode group: typed-data (8100..8599) ===
@@ -16073,61 +15995,61 @@ CS2VM2_RunOp(
     /* The group store (deob Statics.method11273). */
     case CS2_OP_GROUP_CHECK:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
 
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_GROUP_CHECK;
-        if( CS2VM2_PopLong(vm, &request.u.GROUP_CHECK.uid) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &request.u.GROUP_CHECK.type) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeLong(vm, &took, &request.u.GROUP_CHECK.uid) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &request.u.GROUP_CHECK.type) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_GROUP_GET:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
 
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_GROUP_GET;
-        if( CS2VM2_PopInt(vm, &request.u.GROUP_GET.index) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.GROUP_GET.index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_GROUP_GETINDEX:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
 
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_GROUP_GETINDEX;
-        if( CS2VM2_PopLong(vm, &request.u.GROUP_GETINDEX.uid) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeLong(vm, &took, &request.u.GROUP_GETINDEX.uid) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_GROUP_GETVAR:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
 
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_GROUP_GETVAR;
-        if( CS2VM2_PopInt(vm, &request.u.GROUP_GETVAR.var) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopLong(vm, &request.u.GROUP_GETVAR.uid) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.GROUP_GETVAR.var) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeLong(vm, &took, &request.u.GROUP_GETVAR.uid) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
     case CS2_OP_GROUP_GETVAR_SCOPED:
     {
-        struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+        struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
         struct CS2VM_HostRequest request;
 
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_GROUP_GETVAR_SCOPED;
-        if( CS2VM2_PopInt(vm, &request.u.GROUP_GETVAR_SCOPED.var) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopLong(vm, &request.u.GROUP_GETVAR_SCOPED.uid) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.GROUP_GETVAR_SCOPED.var) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeLong(vm, &took, &request.u.GROUP_GETVAR_SCOPED.uid) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_Ask(vm, &request, mark);
+        return CS2VM2_Ask(vm, &request, took);
     }
 
     /* === CS2 opcode group: vm-dialect (9000..9099) ===
@@ -16472,7 +16394,7 @@ CS2VM2_PushCallScript(
      * over them, for every script: the jit overlay's declared-local forms
      * (cs2vm2_run_script_body) index them with no range or mark test, whenever
      * the overlay was attached. Both frame invariants hold: clear zeroed the
-     * previous occupant's [0, mark) and reserve zeroes what it adds, so
+     * previous occupant's [0, took) and reserve zeroes what it adds, so
      * [0, n) reads 0 until written, as it did before. */
     int const declared_ints = script->local_int_count;
     if( declared_ints > 0 && declared_ints <= CS2VM_MAX_LOCALS )
@@ -17139,18 +17061,17 @@ frame_moved:
          * "the fast path that changed nothing" in docs/CS2_OPTIMIZATION_TARGETS.md
          * before rebuilding it. */
 
-        /* The undo log only tracks the in-flight op: reset it here so a yield
-         * rolls back exactly this op's tracked mutations, and committed prior
-         * mutations are never touched. */
-        /* No yield checkpoint: an opcode that can yield takes its own mark
-         * (CS2VM2_PrepareYield) and is unwound where the host said "not
-         * ready" (CS2VM2_Ask). A debug build notes where the instruction
-         * started, which is what a mark must equal. */
+        /* Nothing is saved for a yield: an instruction that can yield puts
+         * back what it took itself (CS2VM2_Ask). A debug build notes where
+         * the instruction started, which is what the stacks must be again if
+         * it yields. */
 #ifndef NDEBUG
         vm->instr_ints_stack_top = vm->ints_stack_top;
         vm->instr_strs_stack_top = vm->strs_stack_top;
         vm->instr_longs_stack_top = vm->longs_stack_top;
         vm->instr_frame_sp = vm->frame_sp;
+        vm->instr_active_component_id = vm->active_component_id;
+        vm->instr_dot_component_id = vm->dot_component_id;
 #endif
 
         result = CS2VM2_RUN_GENERAL_OP(vm, frame, opcode, operand, str_operand_str);
@@ -17186,22 +17107,39 @@ frame_moved:
                 CS2VM2_ClearYieldHalt(vm);
             break;
         case CS2VM_EXECNO_YIELD:
-            /* A yield the opcode's implementation did not unwind: it reached
-             * the host by some door other than CS2VM2_Ask, or returned YIELD
-             * of its own accord. The stacks cannot be trusted; stop here,
-             * where the opcode can be named. */
-            if( !vm->yield_unwound )
+            /* The instruction runs again on resume, so it has to have left
+             * the stacks as it found them: an implementation that yields puts
+             * back what it took (CS2VM2_Ask does it for one that counted with
+             * CS2VM2_Take*). A debug build stops here, where the opcode can be
+             * named, when one did not; a release build does not look. */
+#ifndef NDEBUG
+            if( vm->ints_stack_top != vm->instr_ints_stack_top ||
+                vm->strs_stack_top != vm->instr_strs_stack_top ||
+                vm->longs_stack_top != vm->instr_longs_stack_top ||
+                vm->active_component_id != vm->instr_active_component_id ||
+                vm->dot_component_id != vm->instr_dot_component_id )
             {
                 TORIRS_ERR(
-                    "CS2VM2: opcode %d (script %d, pc %d) yielded without being unwound: its "
-                    "implementation must take a mark (CS2VM2_PrepareYield) and ask through "
-                    "CS2VM2_Ask\n",
+                    "CS2VM2: opcode %d (script %d, pc %d) yielded without restoring what it took: "
+                    "ints %d (was %d), strings %d (was %d), longs %d (was %d), active %d (was %d), "
+                    "dot %d (was %d). Its implementation must put back what it popped "
+                    "(CS2VM2_Take* and CS2VM2_Ask, or CS2VM2_YieldRestore)\n",
                     opcode,
                     frame->script->script_id,
-                    op_pc);
+                    op_pc,
+                    vm->ints_stack_top,
+                    vm->instr_ints_stack_top,
+                    vm->strs_stack_top,
+                    vm->instr_strs_stack_top,
+                    vm->longs_stack_top,
+                    vm->instr_longs_stack_top,
+                    vm->active_component_id,
+                    vm->instr_active_component_id,
+                    vm->dot_component_id,
+                    vm->instr_dot_component_id);
                 abort();
             }
-            vm->yield_unwound = 0;
+#endif
             /* A yielding op pushes and pops no frame (the YIELD contract). */
             assert(vm->frame_sp == vm->instr_frame_sp);
             if( !CS2VM2_CheckYieldHalt(vm, frame, op_pc, opcode) )
@@ -17393,7 +17331,7 @@ CS2VM2_Op_CC_CreateUnderParent(
     int operand,
     enum CS2VM_HostRequestKind kind,
     int parent_is_sibling,
-    struct CS2VM2_YieldMark mark)
+    struct CS2VM2_Took took)
 {
     /* Arm, not union -- see the note on the varbit-read builder above. */
     struct CS2VM_HostRequest request;
@@ -17417,7 +17355,7 @@ CS2VM2_Op_CC_CreateUnderParent(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CC_CREATE_PARENT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -17433,7 +17371,7 @@ CS2VM2_Op_CC_ChildrenFindNext(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -17450,7 +17388,7 @@ CS2VM2_Op_CC_ChildrenFindNext(
     request.u.IF_QUERY_NEXT.sub_id = sub_id;
     request.u.IF_QUERY_NEXT.dot_operand = operand;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
+    int result = CS2VM2_Ask(vm, &request, took);
     if( result == CS2VM_EXECNO_OK )
         vm->children_iter_index++;
     return result;
@@ -17505,7 +17443,7 @@ CS2VM2_Op_IF_QueryRefine(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -17516,7 +17454,7 @@ CS2VM2_Op_IF_QueryRefine(
     memset(&request.u.IF_QUERY_REFINE, 0, sizeof(request.u.IF_QUERY_REFINE));
 
     int base_type;
-    if( CS2VM2_PopInt(vm, &base_type) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &base_type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     request.u.IF_QUERY_REFINE.value_type = base_type;
     switch( base_type )
@@ -17524,33 +17462,35 @@ CS2VM2_Op_IF_QueryRefine(
     case -1:
         break;
     case 0:
-        if( CS2VM2_PopInt(vm, &request.u.IF_QUERY_REFINE.value) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &request.u.IF_QUERY_REFINE.value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     case 2:
-        if( CS2VM2_PopStr(vm, &request.u.IF_QUERY_REFINE.str_value) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &request.u.IF_QUERY_REFINE.str_value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     default:
         TORIRS_LOG("CS2VM2: IF_QUERY_REFINE: unsupported base var type %d\n", base_type);
         return CS2VM_EXECNO_ERROR;
     }
-    if( CS2VM2_PopInt(vm, &request.u.IF_QUERY_REFINE.param_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &request.u.IF_QUERY_REFINE.param_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
-/* One CC_FIND_PARAM value, popped by its base-var-type selector the way the
+/* One CC_FIND_PARAM value, taken (counted in `took`) by its base-var-type selector the way the
  * client's method6560 does: -1 pops nothing (null), 0 an int, 2 a string. 1 is
  * a long, which this VM has no stack for, and the client throws on the rest. */
 static int
 cs2vm2_pop_find_param_value(
     struct CS2VM2_Thread* vm,
+    struct CS2VM2_Took* took,
     int type,
     int* out_value,
     struct CS2VM2_Str** out_str)
 {
     assert(vm);
+    assert(took);
     assert(out_value);
     assert(out_str);
     switch( type )
@@ -17558,9 +17498,9 @@ cs2vm2_pop_find_param_value(
     case -1:
         return CS2VM_EXECNO_OK;
     case 0:
-        return CS2VM2_PopInt(vm, out_value);
+        return CS2VM2_TakeInt(vm, took, out_value);
     case 2:
-        return CS2VM2_PopStr(vm, out_str);
+        return CS2VM2_TakeStr(vm, took, out_str);
     default:
         TORIRS_LOG("CS2VM2: CC_FIND_PARAM: unsupported base var type %d\n", type);
         return CS2VM_EXECNO_ERROR;
@@ -17591,7 +17531,7 @@ CS2VM2_Op_CC_FindParam(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -17601,29 +17541,29 @@ CS2VM2_Op_CC_FindParam(
     memset(&request.u.CC_FIND_PARAM, 0, sizeof(request.u.CC_FIND_PARAM));
     request.u.CC_FIND_PARAM.dot_operand = operand;
 
-    if( CS2VM2_PopInt(vm, &request.u.CC_FIND_PARAM.type2) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &request.u.CC_FIND_PARAM.type2) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &request.u.CC_FIND_PARAM.type1) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &request.u.CC_FIND_PARAM.type1) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( cs2vm2_pop_find_param_value(
-            vm,
+            vm, &took,
             request.u.CC_FIND_PARAM.type2,
             &request.u.CC_FIND_PARAM.value2,
             &request.u.CC_FIND_PARAM.str_value2) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &request.u.CC_FIND_PARAM.param2) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &request.u.CC_FIND_PARAM.param2) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( cs2vm2_pop_find_param_value(
-            vm,
+            vm, &took,
             request.u.CC_FIND_PARAM.type1,
             &request.u.CC_FIND_PARAM.value1,
             &request.u.CC_FIND_PARAM.str_value1) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &request.u.CC_FIND_PARAM.param1) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &request.u.CC_FIND_PARAM.param1) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &request.u.CC_FIND_PARAM.layer_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &request.u.CC_FIND_PARAM.layer_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -17651,7 +17591,7 @@ CS2VM2_Op_CC_FindRelative(
     int operand,
     enum CS2VM_HostRequestKind kind)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
 
     struct CS2VM_HostRequest request;
@@ -17672,7 +17612,7 @@ CS2VM2_Op_CC_FindRelative(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CC_FIND_RELATIVE_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -17681,15 +17621,15 @@ CS2VM2_Op_CC_CreateChild(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int child_index, type;
-    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &child_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     int parent_id = CS2VM2_DotOrActiveComponentId(vm, operand);
@@ -17697,7 +17637,7 @@ CS2VM2_Op_CC_CreateChild(
         return CS2VM_EXECNO_ERROR;
 
     return CS2VM2_Op_CC_CreateUnderParent(
-        vm, parent_id, type, child_index, operand, CS2VM_HOST_REQUEST_CC_CREATE_CHILD, 0, mark);
+        vm, parent_id, type, child_index, operand, CS2VM_HOST_REQUEST_CC_CREATE_CHILD, 0, took);
 }
 
 int
@@ -17706,15 +17646,15 @@ CS2VM2_Op_CC_CreateSibling(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int child_index, type;
-    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &child_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     int current_id = CS2VM2_DotOrActiveComponentId(vm, operand);
@@ -17722,7 +17662,7 @@ CS2VM2_Op_CC_CreateSibling(
         return CS2VM_EXECNO_ERROR;
 
     return CS2VM2_Op_CC_CreateUnderParent(
-        vm, current_id, type, child_index, operand, CS2VM_HOST_REQUEST_CC_CREATE_SIBLING, 1, mark);
+        vm, current_id, type, child_index, operand, CS2VM_HOST_REQUEST_CC_CREATE_SIBLING, 1, took);
 }
 
 int
@@ -17731,7 +17671,7 @@ CS2VM2_Op_StructParam(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -17739,9 +17679,9 @@ CS2VM2_Op_StructParam(
 
     int param_id;
     int struct_id;
-    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &param_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &struct_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &struct_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -17750,7 +17690,7 @@ CS2VM2_Op_StructParam(
     request.u.STRUCT_PARAM.struct_id = struct_id;
     request.u.STRUCT_PARAM.param_id = param_id;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -17766,7 +17706,7 @@ CS2VM2_Op_CC_GetBlendMode(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -17775,7 +17715,7 @@ CS2VM2_Op_CC_GetBlendMode(
     request.kind = CS2VM_HOST_REQUEST_CC_GETBLENDMODE;
     memset(&request.u.CC_GETBLENDMODE, 0, sizeof(request.u.CC_GETBLENDMODE));
     request.u.CC_GETBLENDMODE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -17794,7 +17734,7 @@ CS2VM2_Op_RS2_CC_GetParam(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -17802,14 +17742,14 @@ CS2VM2_Op_RS2_CC_GetParam(
 
     struct CS2VM_HostRequest request;
     int param_id;
-    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &param_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     request.kind = CS2VM_HOST_REQUEST_STRUCT_PARAM;
     memset(&request.u.STRUCT_PARAM, 0, sizeof(request.u.STRUCT_PARAM));
     request.u.STRUCT_PARAM.struct_id = -1;
     request.u.STRUCT_PARAM.param_id = param_id;
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -17818,7 +17758,7 @@ CS2VM2_Op_CC_GetText(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -17828,7 +17768,7 @@ CS2VM2_Op_CC_GetText(
     memset(&request.u.CC_GETTEXT, 0, sizeof(request.u.CC_GETTEXT));
     request.u.CC_GETTEXT.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -17837,7 +17777,7 @@ CS2VM2_Op_CC_GetTrans(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -17847,7 +17787,7 @@ CS2VM2_Op_CC_GetTrans(
     memset(&request.u.CC_GETTRANS, 0, sizeof(request.u.CC_GETTRANS));
     request.u.CC_GETTRANS.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -17867,13 +17807,13 @@ CS2VM2_Op_CC_GetComponentParam(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
 
     int param_id;
-    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &param_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -17882,7 +17822,7 @@ CS2VM2_Op_CC_GetComponentParam(
     request.u.CC_PARAM.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.CC_PARAM.param_id = param_id;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 /*
@@ -17908,7 +17848,7 @@ CS2VM2_Op_IF_GetComponentParam(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -17918,9 +17858,9 @@ CS2VM2_Op_IF_GetComponentParam(
     int component_id;
     int fallback;
 
-    if( CS2VM2_PopInt(vm, &fallback) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK ||
-        CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &fallback) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK ||
+        CS2VM2_TakeInt(vm, &took, &param_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -17930,7 +17870,7 @@ CS2VM2_Op_IF_GetComponentParam(
     request.u.IF_PARAM.param_id = param_id;
     request.u.IF_PARAM.value = fallback;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -17939,7 +17879,7 @@ CS2VM2_Op_CC_SetComponentParam(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)frame;
@@ -17954,16 +17894,16 @@ CS2VM2_Op_CC_SetComponentParam(
      * else is an int. Popping three ints unconditionally — which is what the
      * arity solver's flat signature says — steals an unrelated int from under a
      * string write and leaves the string behind. */
-    if( CS2VM2_PopInt(vm, &kind) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &kind) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( kind == CS2_CC_COMPONENTPARAM_KIND_STRING )
     {
-        if( CS2VM2_PopStr(vm, &str_value) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeStr(vm, &took, &str_value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
-    else if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+    else if( CS2VM2_TakeInt(vm, &took, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &param_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -17975,7 +17915,7 @@ CS2VM2_Op_CC_SetComponentParam(
     request.u.CC_SETPARAM.str_value = str_value;
     request.u.CC_SETPARAM.kind = kind;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -17984,13 +17924,13 @@ CS2VM2_Op_IF_Find(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -17999,7 +17939,7 @@ CS2VM2_Op_IF_Find(
     request.u.IF_FIND.component_id = component_id;
     request.u.IF_FIND.dot_operand = operand;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -18008,14 +17948,14 @@ CS2VM2_Op_IF_GetX(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -18023,7 +17963,7 @@ CS2VM2_Op_IF_GetX(
     memset(&request.u.IF_GETX, 0, sizeof(request.u.IF_GETX));
     request.u.IF_GETX.component_id = component_id;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -18032,14 +17972,14 @@ CS2VM2_Op_IF_GetText(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -18047,7 +17987,7 @@ CS2VM2_Op_IF_GetText(
     memset(&request.u.IF_GETTEXT, 0, sizeof(request.u.IF_GETTEXT));
     request.u.IF_GETTEXT.component_id = component_id;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -18056,14 +17996,14 @@ CS2VM2_Op_IF_GetScrollWidth(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int component_id;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -18071,7 +18011,7 @@ CS2VM2_Op_IF_GetScrollWidth(
     memset(&request.u.IF_GETSCROLLWIDTH, 0, sizeof(request.u.IF_GETSCROLLWIDTH));
     request.u.IF_GETSCROLLWIDTH.component_id = component_id;
 
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 int
@@ -18082,14 +18022,14 @@ CS2VM2_Op_OC_IntParam(
     enum CS2VM_OC_IntField field,
     int opcode)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
 
     int item_id;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_TakeInt(vm, &took, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -18112,7 +18052,7 @@ CS2VM2_Op_OC_IntParam(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_OC_INT_CASE
-    return CS2VM2_Ask(vm, &request, mark);
+    return CS2VM2_Ask(vm, &request, took);
 }
 
 void
@@ -18145,7 +18085,7 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
  *                 the stack writes the slot, and whoever pushes the frame
  *                 memsets its contents.
  *   - stacks    — ints_stack/strs_stack are only read below their _top.
- *   - undo_log, children_iter_indices — only read below their counters.
+ *   - children_iter_indices — only read below their counter.
  *   - arrays[]  — every read is guarded by .defined && index < .size, and
  *                 defining an array initialises its own cells.
  *   - str_pool  — prepared by the caller: fresh blocks Init it, warm blocks
@@ -18190,7 +18130,6 @@ cs2vm2_thread_init_common(
     thread->awaited_id = 0;
     thread->awaited_id2 = 0;
 
-    thread->undo_log_len = 0;
 
     thread->children_iter_count = 0;
     thread->children_iter_index = 0;

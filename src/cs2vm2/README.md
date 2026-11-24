@@ -189,13 +189,12 @@ total.
 
 `CS2VM2_RunScript` runs a fetch-decode-execute loop on the current thread:
 
-1. Read `opcode`, `operand`, and optional `str_operand` from the top frame's script at `pc`.
-2. Save a **yield checkpoint** (stack tops, frame count, component IDs, frame snapshots).
-3. Dispatch to `CS2VM2_RunOp` — VM opcodes execute inline; host opcodes call `thread->vm->host_exec(thread, &request)`.
-4. On `OK`: advance and continue (up to `CS2VM_MAX_CYCLES` = 1,000,000).
-5. On `YIELD`: restore the checkpoint (rollback stack/frames/pc) and return to the host.
-6. On `ERROR`: record `last_error_opcode` / `last_error_pc` / `last_error_script_id` and return.
-7. On `DONE` / empty frame stack: script finished.
+1. Switch on the script's dispatch code for `pc` (`script->run_code`, built at load). A hot or jit code runs as a case of the loop.
+2. Code 0: read `opcode`, `operand` and `str_operand`, and dispatch to `CS2VM2_RunOp` — VM opcodes execute inline; host opcodes ask through `CS2VM2_Ask`, which calls `thread->vm->host_exec(thread, &request)`. Nothing is saved first.
+3. On `OK`: advance and continue (up to `CS2VM_MAX_CYCLES` = 1,000,000).
+4. On `YIELD`: the instruction has put back what it took (below); the loop steps `pc` back and returns to the host.
+5. On `ERROR`: record `last_error_opcode` / `last_error_pc` / `last_error_script_id` and return.
+6. On `DONE` / empty frame stack: script finished.
 
 ### Exec result codes
 
@@ -209,41 +208,38 @@ total.
 ### Yield and checkpoint semantics
 
 When a host opcode needs async work (load script, sprite, font, model, config, etc.),
-the host returns `CS2VM_EXECNO_YIELD`. The interpreter **rolls back** stack tops,
-frame count, and `pc` to the checkpoint saved before that opcode ran.
+the host returns `CS2VM_EXECNO_YIELD`. Nothing was saved before the opcode ran: **the
+instruction restores the stacks itself.** Its implementation counts what it pops in a
+local (`struct CS2VM2_Took`, `CS2VM2_TakeInt` / `_TakeStr` / `_TakeLong` in place of
+the pops) and hands the count to `CS2VM2_Ask`, which moves the tops back by it when
+the host is not ready. A pop does not erase, so the values are still there. The loop
+then steps `pc` back.
 
-**Critical rule:** while handling a yield, the host must **not** partially mutate
-VM stacks or frames. After external work completes, call `CS2VM2_RunScript` again —
-the same opcode re-executes from scratch.
+**Critical rule:** a host function decides it must yield before it changes anything.
+The db commands pop their own arguments before they can know, so they count them the
+same way and call `CS2VM2_YieldRestore` before returning the yield. After external
+work completes, call `CS2VM2_RunScript` again — the same opcode re-executes from
+scratch.
+
+A debug build asserts the count at every ask, and stops at a yield that left a stack
+top or the active/dot component anywhere but where the instruction began. A release
+build checks nothing. `make -C src check-cs2-yield` checks the same rule in the source.
 
 The `yield_halt_*` fields detect double-yields at the same opcode site (error).
 
 #### Rolling back mutations to persistent VM fields
 
-The checkpoint is deliberately **pointer-only** — it restores stack tops, `frame_sp`,
-`pc`, and the component IDs, and copies nothing. That keeps the per-opcode cost near
-zero, which matters because it runs on *every* opcode.
-
-That is sufficient for the stacks (rolling the top back logically discards the
-values), but not for fields that live outside them — an array cell, for instance.
+Putting the count back is sufficient for the stacks (moving a top back restores
+the values), but not for fields that live outside them — an array cell, for instance.
 An opcode that writes such a field and *then* yields would leave the write applied,
 and re-executing the opcode on resume would apply it a second time.
 
-Opcodes that mutate persistent VM fields therefore **opt in** to rollback by routing
-the write through a tracked mutator rather than assigning directly:
-
-```c
-/* instead of: vm->arrays[slot].values[index] = value; */
-CS2VM2_ArrayStore(vm, slot, index, value);
-```
-
-`CS2VM2_ArrayStore` records `(slot, index, old_value)` in `thread->undo_log` before
-writing. `undo_log_len` is reset at each opcode boundary, so the log only ever holds
-the in-flight opcode's mutations; on yield the restore walks it backwards and undoes
-them. Opcodes that touch no persistent field append nothing and pay nothing.
-
-Add new tracked mutators the same way when an opcode gains a persistent side effect
-— do not widen the checkpoint into a bulk snapshot.
+An opcode that would write such a field and then ask the host must ask first, or
+take its own write back before it answers the yield: an instruction that yields
+restores what it changed itself (`struct CS2VM2_Took` in `cs2vm2.h` is how the
+stacks are restored; a debug build stops at a yield that left them moved). No
+opcode writes an array cell before it asks today, and the undo log that covered the
+case (`CS2VM2_ArrayStore`) had no caller and was removed with the yield mark.
 
 ### Active vs dot component
 
@@ -415,8 +411,8 @@ must write `arr[32]=64` — the VM emitted `arr[64]=32`.
 sort does yield mid-way (on `oc_param` loading `spell_levelreq`), which looks damning.
 Snapshotting and restoring *all* candidate state across the yield — frame locals, the
 whole array, the int-stack values — changed nothing, which is what finally exonerated
-it. `CS2VM2_ArrayStore` and the undo log came out of that investigation and are kept:
-they close a real (if latent) replay hole, but they were not this bug.
+it. `CS2VM2_ArrayStore` and an undo log came out of that investigation; nothing ever
+called them, and they were removed when yields stopped taking a mark (2026-11-24).
 
 **Lesson.** For any stack opcode taking two same-typed operands, verify the pop order
 against real bytecode rather than intuition — a transposition is silent on symmetric

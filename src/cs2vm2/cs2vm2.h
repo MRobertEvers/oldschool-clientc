@@ -21,10 +21,10 @@
 #define CS2VM_SCRIPT_ARG_KEY_PRESSED -2147483639
 #define CS2VM_SCRIPT_ARG_OP_SUBINDEX -2147483638
 
-/* On CS2VM_EXECNO_YIELD the opcode's stacks go back to its yield mark (struct
- * CS2VM2_YieldMark, below) and the loop steps the pc back, so RunScript can be
- * re-entered after external host work. The host must not have changed anything
- * else: no frame pushed or popped, no frame contents written. */
+/* On CS2VM_EXECNO_YIELD the opcode has put back what it took off the stacks
+ * (struct CS2VM2_Took, below) and the loop steps the pc back, so RunScript can
+ * be re-entered after external host work. The host must not have changed
+ * anything else: no frame pushed or popped, no frame contents written. */
 #define CS2VM_EXECNO_YIELD -2
 #define CS2VM_EXECNO_ERROR -1
 #define CS2VM_EXECNO_OK 0
@@ -151,10 +151,6 @@ struct CS2VM2_Frame
  * cost two and ten slots.
  */
 #define CS2VM2_ARRAY_CAPACITY 5000
-/* Max array-cell writes a single opcode may make (the undo log only ever holds
- * the in-flight op's stores; it is reset at each op boundary). One bytecode op
- * writes at most one cell today, so this is generous headroom. */
-#define CS2VM2_ARRAY_UNDO_MAX 64
 
 /*
  * A script array. DEFINE_ARRAY carries the element type in the low half of its
@@ -194,29 +190,31 @@ struct CS2VM2_Array
 #define CS2VM2_CHILDREN_ITER_MAX 256
 
 /*
- * THE YIELD MARK. A yield rolls the VM back to the start of the opcode that
- * yielded, and the opcode's own implementation is what makes that possible:
- * before it touches anything it takes a mark (CS2VM2_PrepareYield), and it
- * cannot ask the host without handing the mark over (CS2VM2_Ask), so an
- * implementation that never prepared cannot yield. When the host answers "not
- * ready" the stacks and the two component ids go back to the mark; the loop
- * then steps the pc back and the opcode runs again on resume.
+ * WHAT A YIELD PUTS BACK. An instruction that yields runs again on resume, so
+ * it has to leave the stacks as it found them, and that is the instruction's
+ * own job: whoever pops and then answers "not ready" puts back what it took.
  *
- * Nothing is saved for an instruction that does not yield. The mark is sixteen
- * bytes passed by value, so it lives in two registers; taking it is three
- * reads the implementation's first pop was about to make. The frame stack is
- * not in it: a yielding op must not push or pop a frame (the CS2VM_EXECNO_YIELD
- * contract above), and a debug build checks that at every yield.
+ * Nothing is saved for an instruction that does not yield. An implementation
+ * that can reach the host counts its pops in a local of this type
+ * (CS2VM2_TakeInt and friends in place of CS2VM2_PopInt) and hands the count
+ * to the ask; on "not ready" the tops move back by the count
+ * (CS2VM2_YieldRestore). A pop does not erase, so the values are still there.
+ * A host function that pops for itself before it can know (the db commands)
+ * does the same with its own count before it returns the yield.
+ *
+ * A debug build stops at a yield that left a stack top (or the active or dot
+ * component) anywhere but where the instruction started. A release build does
+ * not check. The frame stack is not covered: a yielding op must not push or
+ * pop a frame (the CS2VM_EXECNO_YIELD contract above), which a debug build
+ * also checks.
  */
-struct CS2VM2_YieldMark
+struct CS2VM2_Took
 {
-    uint16_t ints_stack_top;
-    uint16_t strs_stack_top;
-    uint16_t longs_stack_top;
-    uint16_t unused;
-    int active_component_id;
-    int dot_component_id;
+    int ints;
+    int strs;
+    int longs;
 };
+#define CS2VM2_TOOK_NOTHING { 0, 0, 0 }
 
 /*
  * One. Concurrency in this VM is one script per *block*, not one per thread
@@ -323,33 +321,15 @@ struct CS2VM2_Thread
     int awaited_id;
     int awaited_id2;
 
-    /* Per-op undo log for VM-field mutations (currently array stores). A yielding
-     * op must leave VM state untouched so its replay-on-resume is idempotent
-     * (see CS2VM_EXECNO_YIELD); the pointer-only checkpoint covers the stacks and
-     * frames, but an op that also mutates a persistent field (e.g. an array cell)
-     * would leave that change applied when the op re-runs. Ops opt in by routing
-     * such writes through CS2VM2_ArrayStore, which records the prior value here so
-     * the yield restore can undo them. Reset at the start of every op, so it only
-     * ever holds the in-flight op's mutations — no per-op copying of whole arrays. */
-    struct CS2VM2_ArrayUndo
-    {
-        short slot;
-        int index;
-        int old_value;
-        struct CS2VM2_Str* old_string;
-    } undo_log[CS2VM2_ARRAY_UNDO_MAX];
-    int undo_log_len;
-    /* Set by CS2VM2_Ask when the host's answer was "not ready" and the stacks
-     * went back to the mark. The loop requires it at every yield: a yield that
-     * arrives without it was not unwound, and the client stops there. */
-    int yield_unwound;
-    /* Debug builds only: the stacks and frame depth as the current instruction
-     * found them. CS2VM2_PrepareYield asserts a mark is taken before any of
-     * them moved, every time the instruction runs. */
+    /* Debug builds only: the stacks, frame depth and component ids as the
+     * current instruction found them. CS2VM2_Ask asserts its count accounts
+     * for every pop since, and a yield must find them all back here. */
     int instr_ints_stack_top;
     int instr_strs_stack_top;
     int instr_longs_stack_top;
     int instr_frame_sp;
+    int instr_active_component_id;
+    int instr_dot_component_id;
 
     int children_iter_indices[CS2VM2_CHILDREN_ITER_MAX];
     int children_iter_count;
@@ -603,6 +583,55 @@ CS2VM2_PopStr(
     struct CS2VM2_Str** operand);
 
 /*
+ * The pops of an implementation that may yield (struct CS2VM2_Took): each
+ * counts itself, so the yield can put it back. A pop that failed took nothing.
+ */
+static inline int
+CS2VM2_TakeInt(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2_Took* took,
+    int* operand)
+{
+    int const result = CS2VM2_PopInt(thread, operand);
+    took->ints += result == CS2VM_EXECNO_OK;
+    return result;
+}
+
+static inline int
+CS2VM2_TakeLong(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2_Took* took,
+    int64_t* operand)
+{
+    int const result = CS2VM2_PopLong(thread, operand);
+    took->longs += result == CS2VM_EXECNO_OK;
+    return result;
+}
+
+static inline int
+CS2VM2_TakeStr(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2_Took* took,
+    struct CS2VM2_Str** operand)
+{
+    int const result = CS2VM2_PopStr(thread, operand);
+    took->strs += result == CS2VM_EXECNO_OK;
+    return result;
+}
+
+/* Put back what `took` counts, before answering CS2VM_EXECNO_YIELD. The
+ * values are still on the stacks: nothing may have been pushed since. */
+static inline void
+CS2VM2_YieldRestore(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2_Took took)
+{
+    thread->ints_stack_top += took.ints;
+    thread->strs_stack_top += took.strs;
+    thread->longs_stack_top += took.longs;
+}
+
+/*
  * Push a string the thread's pool allocated (CS2VM2_StrDup / _StrFmt / _StrAlloc
  * below, or one that came off this thread's stack). Ownership stays with the
  * pool: the push does not take it, and popping a string does not hand it over —
@@ -703,18 +732,6 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* thread);
 
 void
 CS2VM2_ClearYieldHalt(struct CS2VM2_Thread* thread);
-
-/* Tracked array store — writes arrays[slot][index] = value and records the prior
- * value in the per-op undo log so a yield restore undoes it (see undo_log). */
-void
-CS2VM2_ArrayStore(
-    struct CS2VM2_Thread* thread, struct CS2VM2_Array* array, int index, int value);
-
-/** The same, for an array declared with string elements. `value` is the
- *  thread's (CS2VM2_StrDup); the cell borrows it and never frees. */
-void
-CS2VM2_ArrayStoreStr(
-    struct CS2VM2_Thread* thread, struct CS2VM2_Array* array, int index, struct CS2VM2_Str* value);
 
 /**
  * A new int array holding a copy of `values[0..count)`, for a host op that

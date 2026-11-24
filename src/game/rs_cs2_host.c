@@ -8484,6 +8484,10 @@ exec_db(
 {
     bool yielded;
     int code;
+    /* The db commands pop their own arguments, here, before the row, table
+     * or index they name is known to be resident: what was taken goes back
+     * before a yield is returned (cs2vm2.h, struct CS2VM2_Took). */
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
 
     switch( opcode )
     {
@@ -8504,7 +8508,7 @@ exec_db(
          * end). It used to be read as a row id and push nothing at all, which
          * left the assignment reading whatever was under it. */
         int index;
-        if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( index < 0 || index >= host->db_find_count || !host->db_find_rows )
             return CS2VM2_PushInt(vm, -1);
@@ -8515,11 +8519,14 @@ exec_db(
     {
         int row_id;
         struct RSCache_Dat2ConfigDbRow* row;
-        if( CS2VM2_PopInt(vm, &row_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &row_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         row = db_row_or_yield(host, vm, exact_request, row_id, &yielded, &code);
         if( yielded )
+        {
+            CS2VM2_YieldRestore(vm, took);
             return code;
+        }
         return CS2VM2_PushInt(vm, row ? row->table_id : -1);
     }
 
@@ -8529,12 +8536,15 @@ exec_db(
         struct RSCache_Dat2ConfigDbRow* row;
         struct RSCache_Dat2ConfigDbTable* dbtable;
         struct RSCache_DbColumn const* col;
-        if( CS2VM2_PopInt(vm, &column) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &row_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &column) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &row_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         row = db_row_or_yield(host, vm, exact_request, row_id, &yielded, &code);
         if( yielded )
+        {
+            CS2VM2_YieldRestore(vm, took);
             return code;
+        }
         db_unpack_column(column, &table, &col_id, &tuple);
         if( row && col_id >= 0 && col_id < row->column_count && row->columns[col_id].present )
             return CS2VM2_PushInt(vm, row->columns[col_id].tuple_count);
@@ -8547,7 +8557,10 @@ exec_db(
                             host, vm, exact_request, table, &yielded, &code)
                       : NULL;
         if( yielded )
+        {
+            CS2VM2_YieldRestore(vm, took);
             return code;
+        }
         col = db_column_of(row, dbtable, col_id);
         return CS2VM2_PushInt(vm, col ? col->tuple_count : 0);
     }
@@ -8559,13 +8572,16 @@ exec_db(
         struct RSCache_Dat2ConfigDbTable* dbtable;
         struct RSCache_DbColumn const* col;
         int arity, base;
-        if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &column) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &row_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &column) != CS2VM_EXECNO_OK ||
+            CS2VM2_TakeInt(vm, &took, &row_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         row = db_row_or_yield(host, vm, exact_request, row_id, &yielded, &code);
         if( yielded )
+        {
+            CS2VM2_YieldRestore(vm, took);
             return code;
+        }
         db_unpack_column(column, &table, &col_id, &tuple);
         /* A DBROW lists only the columns it sets, so a column it omits falls
          * back to the DBTABLE: its default value block if it declares one, and
@@ -8589,7 +8605,10 @@ exec_db(
                                 host, vm, exact_request, table, &yielded, &code)
                           : NULL;
             if( yielded )
+            {
+                CS2VM2_YieldRestore(vm, took);
                 return code;
+            }
             col = db_column_of(row, dbtable, col_id);
             arity = col ? col->type_count : 0;
             /* No column at all in either the row or the table: there is no
@@ -8638,12 +8657,15 @@ exec_db(
         struct ToriRS_DbTableIndex* idx;
         struct RSCache_DbIndexFile* master;
         bool with_count = (opcode == CS2_OP_DB_LISTALL);
-        if( CS2VM2_PopInt(vm, &table_id) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &table_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         idx = db_index_or_yield(
             host, vm, exact_request, table_id, &yielded, &code);
         if( yielded )
+        {
+            CS2VM2_YieldRestore(vm, took);
             return code;
+        }
         db_set_iterator(host, NULL, 0);
         master = ToriRS_DbTableIndex_Master(idx);
         /* The master file has one tuple position; every value entry's rows,
@@ -8694,25 +8716,28 @@ exec_db(
 
         /* Reverse push order: type tag, value, dbcolumn. The tag names the
          * stack the value is on, so nothing here has to wait on the index. */
-        if( CS2VM2_PopInt(vm, &type_tag) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &type_tag) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         value_is_string = (type_tag == 2);
         if( value_is_string )
         {
-            if( CS2VM2_PopStr(vm, &value_str) != CS2VM_EXECNO_OK )
+            if( CS2VM2_TakeStr(vm, &took, &value_str) != CS2VM_EXECNO_OK )
                 return CS2VM_EXECNO_ERROR;
         }
-        else if( CS2VM2_PopInt(vm, &value_int) != CS2VM_EXECNO_OK )
+        else if( CS2VM2_TakeInt(vm, &took, &value_int) != CS2VM_EXECNO_OK )
         {
             return CS2VM_EXECNO_ERROR;
         }
-        if( CS2VM2_PopInt(vm, &column) != CS2VM_EXECNO_OK )
+        if( CS2VM2_TakeInt(vm, &took, &column) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
 
         db_unpack_column(column, &table, &col_id, &tuple);
         idx = db_index_or_yield(host, vm, exact_request, table, &yielded, &code);
         if( yielded )
+        {
+            CS2VM2_YieldRestore(vm, took);
             return code;
+        }
 
         /* Hold the query being narrowed: db_find_value overwrites the iterator,
          * so a filter has to intersect against a copy taken beforehand. */

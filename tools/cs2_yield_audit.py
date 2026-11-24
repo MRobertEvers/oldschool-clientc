@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
 """The CS2 interpreter's yield rule, checked against its source.
 
-The loop saves nothing for a yield (src/cs2vm2/cs2vm2.h, struct
-CS2VM2_YieldMark). An opcode's implementation that can reach the host takes a
-mark before it touches anything, and the host is asked only through
-CS2VM2_Ask, which takes the mark. A debug build asserts a late mark the moment
-the instruction runs and every build aborts on a yield that was not unwound;
-this catches the same mistakes without running anything:
+Nothing is saved for a yield (src/cs2vm2/cs2vm2.h, struct CS2VM2_Took). An
+implementation that can reach the host counts what it pops in a local
+(CS2VM2_TakeInt / _TakeStr / _TakeLong) and hands the count to CS2VM2_Ask,
+which puts it back when the host answers "not ready". A debug build asserts
+the count at every ask and stops at a yield that left a stack moved; a release
+build checks nothing. This catches the same mistakes without running anything:
 
   1. `host_exec` is called from exactly one place, CS2VM2_Ask.
-  2. A function CS2VM2_RunOp dispatches to that reaches CS2VM2_Ask takes its
-     mark as its FIRST statement, before any pop.
-  3. A function that reaches CS2VM2_Ask and is not dispatched to (a helper)
-     takes the mark as a parameter and never makes its own: by the time a
-     helper runs, its caller may have popped.
-  4. Inside CS2VM2_RunOp, a case block that asks takes its mark as the
-     block's first statement.
+  2. A function that calls CS2VM2_Ask has a count in scope at the call: its
+     own (`struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;`, in the function
+     or in the case block that asks) or its caller's (a `struct CS2VM2_Took
+     took` parameter).
+  3. Where a count is in scope nothing pops behind its back before an ask: no
+     CS2VM2_PopInt / _PopStr / _PopLong, no write to a stack top, and no call
+     to a function of this file that pops unless that function is given the
+     count.
+  4. A function given its caller's count does not also start one.
 
     tools/cs2_yield_audit.py          (make -C src check-cs2-yield)
 """
-import collections
 import os
 import re
 import sys
@@ -27,110 +28,150 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE = os.path.join(ROOT, "src", "cs2vm2", "cs2vm2.c")
 
-FUNC_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\(([^;{]*?)\)\s*\n\{\n(.*?)\n\}\n", re.S | re.M)
+FUNC_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\(([^;{]*?)\)\s*\n\{\n", re.M)
 CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(")
-COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
-PREPARE = "struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);"
-MARK_PARAM = "struct CS2VM2_YieldMark mark"
-# The loop and what drives it: they reach CS2VM2_Ask only by running opcodes.
-# cs2vm2_run_op_split and cs2vm2_run_op_outlined are the wasm build's two
-# entries into CS2VM2_RunOp's switch (CS2VM2_RUNOP_SPLIT).
-LOOP_CHAIN = {
-    "CS2VM2_RunOp", "cs2vm2_run_script_body", "cs2vm2_run_script_body_timed", "CS2VM2_RunScript",
-    "CS2VM2_Run", "CS2VM2_ThreadRun", "CS2VM2_ThreadResume",
-    "cs2vm2_run_op_split", "cs2vm2_run_op_outlined",
+OWN = "struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;"
+BY_VALUE = re.compile(r"struct CS2VM2_Took took\b")
+BY_POINTER = re.compile(r"struct CS2VM2_Took\* took\b")
+POP = re.compile(r"\bCS2VM2_Pop(?:Int|Str|Long)\s*\(")
+TAKE = re.compile(r"\bCS2VM2_Take(?:Int|Str|Long)\s*\(")
+TOP_WRITE = re.compile(
+    r"(?:--|\+\+)\s*[A-Za-z_>.\-]*\b(?:ints|strs|longs)_stack_top\b"
+    r"|\b(?:ints|strs|longs)_stack_top\s*(?:--|\+\+|-=|\+=|=(?!=))"
+)
+# The primitives themselves, and the loop, which holds the top in a register.
+MAY_MOVE_TOPS = {
+    "CS2VM2_PopInt", "CS2VM2_PopStr", "CS2VM2_PopLong", "CS2VM2_PushInt", "CS2VM2_PushStr",
+    "CS2VM2_PushLong", "CS2VM2_PushArray", "cs2vm2_run_script_body",
 }
-# Under CS2VM2_RUNOP_SPLIT the switch defined as CS2VM2_RunOp is compiled under
-# this name (a #define), and the two entries call it by it.
-ALIASES = {"cs2vm2_run_op_body": "CS2VM2_RunOp"}
 
 
-def first_statement(body):
-    for line in body.split("\n"):
-        if line.strip():
-            return line.strip()
-    return ""
+def blank(match):
+    return re.sub(r"[^\n]", " ", match.group(0))
 
 
 def main():
     with open(SOURCE, encoding="utf-8") as handle:
         source = handle.read()
+    code = re.sub(r"/\*.*?\*/|//[^\n]*|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'", blank, source, flags=re.S)
+
     functions = {}
-    for match in FUNC_RE.finditer(source):
-        functions[match.group(1)] = (match.group(2), COMMENT_RE.sub("", match.group(3)))
-    assert "CS2VM2_RunOp" in functions and "CS2VM2_Ask" in functions, "cs2vm2.c: loop functions not found"
+    for match in FUNC_RE.finditer(code):
+        start = match.end() - 2
+        depth = 0
+        end = start
+        while True:
+            char = code[end]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            end += 1
+        functions[match.group(1)] = (match.group(2), start, end + 1)
+
+    def line_of(offset):
+        return source.count("\n", 0, offset) + 1
 
     problems = []
-    for name, (_, body) in functions.items():
-        if "host_exec(" in body and name != "CS2VM2_Ask":
-            problems.append("%s calls host_exec itself: the host is asked only through CS2VM2_Ask" % name)
 
-    calls = {name: {ALIASES.get(callee, callee) for callee in CALL_RE.findall(body)} & set(functions)
-             for name, (_, body) in functions.items()}
-    for name in ("cs2vm2_run_op_split", "cs2vm2_run_op_outlined"):
-        if name in functions and "CS2VM2_RunOp" not in calls[name]:
-            problems.append("%s does not reach CS2VM2_RunOp's switch: the audit has lost the dispatch" % name)
-    asks = {name for name, callees in calls.items() if "CS2VM2_Ask" in callees}
-    changed = True
-    while changed:
-        changed = False
-        for name, callees in calls.items():
-            if name not in asks and callees & asks:
-                asks.add(name)
-                changed = True
-    asks -= LOOP_CHAIN
-    callers = collections.defaultdict(set)
-    for name, callees in calls.items():
-        for callee in callees:
-            callers[callee].add(name)
+    # 1. host_exec only in CS2VM2_Ask
+    for match in re.finditer(r"->host_exec\s*\(", code):
+        owner = next((n for n, (_, a, b) in functions.items() if a <= match.start() < b), None)
+        if owner != "CS2VM2_Ask":
+            problems.append(f"{line_of(match.start())}: host_exec is called outside CS2VM2_Ask (in {owner})")
 
-    entries = 0
-    helpers = 0
-    for name in sorted(asks):
-        params, body = functions[name]
-        dispatched = callers[name] == {"CS2VM2_RunOp"}
-        makes_mark = "CS2VM2_PrepareYield(" in body
-        if dispatched:
-            entries += 1
-            if first_statement(body) != PREPARE:
-                problems.append("%s is dispatched to and reaches the host: its first statement must be `%s`"
-                                % (name, PREPARE))
-            if body.count("CS2VM2_PrepareYield(") != 1:
-                problems.append("%s takes more than one mark" % name)
-        else:
-            helpers += 1
-            if MARK_PARAM not in re.sub(r"\s+", " ", params):
-                problems.append("%s reaches the host from a caller's instruction: it must take `%s`"
-                                % (name, MARK_PARAM))
-            if makes_mark:
-                problems.append("%s is a helper and makes its own mark: by then its caller may have popped" % name)
-            if "CS2VM2_RunOp" in callers[name] and len(callers[name]) > 1:
-                problems.append("%s is both dispatched to and called as a helper" % name)
+    # which functions pop, directly
+    pops = set()
+    for name, (_, a, b) in functions.items():
+        body = code[a:b]
+        if POP.search(body) or TAKE.search(body) or TOP_WRITE.search(body):
+            pops.add(name)
 
-    # Case blocks of the dispatch that ask the host themselves.
-    blocks = 0
-    runop = functions["CS2VM2_RunOp"][1]
-    for match in re.finditer(r"CS2VM2_Ask\(vm, &request, ([^)]*(?:\([^)]*\))?)\)", runop):
-        blocks += 1
-        argument = match.group(1)
-        if argument == "CS2VM2_PrepareYield(vm)":
+    asking = given = own_counts = 0
+    for name, (params, a, b) in functions.items():
+        if name == "CS2VM2_Ask":
             continue
-        # The dispatch's own case label (four spaces in), not one of a switch
-        # nested inside the block.
-        head = runop.rfind("\n    case CS2_OP_", 0, match.start()) + 1
-        block = runop[head:match.start()]
-        opened = block.find("{")
-        if argument != "mark" or opened < 0 or first_statement(block[opened + 1:]) != PREPARE:
-            problems.append("CS2VM2_RunOp, %s: a case that asks the host takes its mark as the block's "
-                            "first statement" % runop[head:runop.find(":", head)].strip())
+        body = code[a:b]
+        by_value = bool(BY_VALUE.search(params))
+        by_pointer = bool(BY_POINTER.search(params))
+        owns = [m.start() for m in re.finditer(re.escape(OWN), body)]
+        asks = [m.start() for m in re.finditer(r"\bCS2VM2_Ask\s*\(", body)]
+        if not (asks or owns or by_value):
+            continue
+
+        # the open blocks at each offset of interest
+        stacks = {}
+        stack = []
+        marks = set(owns) | set(asks)
+        marks |= {m.start() for m in POP.finditer(body)} | {m.start() for m in TOP_WRITE.finditer(body)}
+        marks |= {m.start() for m in CALL_RE.finditer(body)}
+        for index, char in enumerate(body):
+            if index in marks:
+                stacks[index] = tuple(stack)
+            if char == "{":
+                stack.append(index)
+            elif char == "}":
+                stack.pop()
+
+        def counted(offset):
+            if by_value or by_pointer:
+                return True
+            here = stacks[offset]
+            return any(own < offset and stacks[own] == here[: len(stacks[own])] for own in owns)
+
+        # A pop after the function's last ask has no yield left to answer for
+        # (GOSUB_WITH_PARAMS moves its arguments once the host pushed the frame).
+        last_ask = max(asks) if asks else len(body)
+
+        def before_an_ask(offset):
+            return by_pointer or offset < last_ask
+
+        # 4.
+        if (by_value or by_pointer) and owns:
+            problems.append(f"{line_of(a)}: {name} is given its caller's count and starts another")
+        if by_value:
+            given += 1
+        own_counts += len(owns)
+
+        # 2.
+        for ask in asks:
+            asking += 1
+            if not counted(ask):
+                problems.append(f"{line_of(a + ask)}: {name} asks the host with no count in scope")
+
+        # 3.
+        for match in POP.finditer(body):
+            if counted(match.start()) and before_an_ask(match.start()):
+                problems.append(
+                    f"{line_of(a + match.start())}: {name} pops with {match.group(0)[:-1].strip()} "
+                    "where a count is in scope; use CS2VM2_Take*")
+        if name not in MAY_MOVE_TOPS:
+            for match in TOP_WRITE.finditer(body):
+                if counted(match.start()) and before_an_ask(match.start()):
+                    problems.append(
+                        f"{line_of(a + match.start())}: {name} writes a stack top where a count is in scope")
+        for match in CALL_RE.finditer(body):
+            callee = match.group(1)
+            if callee == name or callee not in functions or callee not in pops:
+                continue
+            if callee in MAY_MOVE_TOPS or not counted(match.start()) or not before_an_ask(match.start()):
+                continue
+            callee_params = functions[callee][0]
+            if BY_VALUE.search(callee_params) or BY_POINTER.search(callee_params):
+                continue
+            problems.append(
+                f"{line_of(a + match.start())}: {name} calls {callee}, which pops, without giving it the count")
 
     if problems:
+        print("check-cs2-yield: FAIL")
         for problem in problems:
-            print("check-cs2-yield: " + problem)
-        print("check-cs2-yield: FAIL (%d)" % len(problems))
+            print("  src/cs2vm2/cs2vm2.c:" + problem)
         return 1
-    print("check-cs2-yield: PASS (%d dispatched implementations take a mark first, %d helpers take "
-          "their caller's, %d dispatch cases ask in place)" % (entries, helpers, blocks))
+    print(
+        f"check-cs2-yield: PASS ({asking} asks, each with a count in scope: {own_counts} counts started, "
+        f"{given} helpers given their caller's; no pop or stack-top write behind a count)")
     return 0
 
 

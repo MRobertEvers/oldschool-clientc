@@ -2282,6 +2282,15 @@ test-cs2-discard: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/discard_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_discard_ops_test
 
+# What a yield puts back (cs2vm2.h, struct CS2VM2_Took): the instruction's own
+# pops, a host's own pops, and the debug-build stop when neither did. Run it
+# with OPT=0 for the last arm; a release build has no check to test.
+.PHONY: test-cs2-yield-restore
+test-cs2-yield-restore: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_yield_restore_test \
+		cs2vm2/test/yield_restore_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_yield_restore_test
+
 # CHILDREN_FINDNEXTID (214) - the iterator step proc 8490 loops on. Own .PHONY
 # line for the same reason as the targets above it.
 .PHONY: test-cs2-children-findnextid
@@ -5854,11 +5863,12 @@ check-test-builds:
 		--objbase $(TEST_BUILD_OBJ_BASE) --jobs 4
 
 # The CS2 interpreter saves nothing for a yield: an opcode that can yield
-# takes a mark before it touches anything (CS2VM2_PrepareYield) and asks the
-# host only through CS2VM2_Ask, which takes the mark (cs2vm2/cs2vm2.h). This
-# reads cs2vm2.c for the three ways that goes wrong: a call to host_exec
-# outside CS2VM2_Ask, a mark taken anywhere but first, and a helper that makes
-# its own mark instead of taking its caller's.
+# counts what it pops (CS2VM2_Take*) and asks the host only through
+# CS2VM2_Ask, which puts the count back when the host is not ready
+# (cs2vm2/cs2vm2.h, struct CS2VM2_Took). This reads cs2vm2.c for the ways that
+# goes wrong: a call to host_exec outside CS2VM2_Ask, an ask with no count in
+# scope, a pop behind a count's back, and a helper that starts its own count
+# instead of taking its caller's.
 .PHONY: check-cs2-yield
 check-cs2-yield:
 	@python3 $(REPO_ROOT)/tools/cs2_yield_audit.py
