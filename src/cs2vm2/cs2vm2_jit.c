@@ -431,8 +431,7 @@ cs2vm2_jit_plain_code(
     struct CS2VM2_Script const* script,
     int pc)
 {
-    unsigned const op = script->opcodes[pc];
-    return op < CS2VM2_HOT_TABLE_SIZE ? g_cs2vm2_hot_op[op] : CS2VM2_HOT_NONE;
+    return cs2vm2_plain_code_at(script, pc);
 }
 
 /*
@@ -539,9 +538,11 @@ static struct CS2VM2_Jit*
 cs2vm2_jit_alloc(int op_count)
 {
     assert(op_count > 0);
-    struct CS2VM2_Jit* jit =
-        (struct CS2VM2_Jit*)ToriMem_Alloc(ToriMem_Script(), sizeof(struct CS2VM2_Jit) + (size_t)op_count);
+    /* One code past the script's: CS2VM2_JIT_END (cs2vm2_jit_internal.h). */
+    struct CS2VM2_Jit* jit = (struct CS2VM2_Jit*)ToriMem_Alloc(
+        ToriMem_Script(), sizeof(struct CS2VM2_Jit) + (size_t)op_count + 1u);
     assert(jit);
+    jit->code[op_count] = CS2VM2_JIT_END;
     return jit;
 }
 
@@ -757,7 +758,7 @@ CS2VM2_JitCopy(
     assert(src->jit->op_count == src->op_count);
 
     struct CS2VM2_Jit* jit = cs2vm2_jit_alloc(src->op_count);
-    memcpy(jit, src->jit, sizeof(struct CS2VM2_Jit) + (size_t)src->op_count);
+    memcpy(jit, src->jit, sizeof(struct CS2VM2_Jit) + (size_t)src->op_count + 1u);
     /* The copy's strings are its own buffers with the same bytes. */
     CS2VM2_ScriptEnsureConstants(dst); /* the canary hashes what a run reads */
     jit->strings_hash = cs2vm2_jit_strings_hash(dst);
@@ -790,6 +791,7 @@ CS2VM2_JitPlainCodes(
     assert(script->opcodes);
     for( int pc = 0; pc < script->op_count; pc++ )
         out[pc] = (uint8_t)cs2vm2_jit_plain_code(script, pc);
+    out[script->op_count] = CS2VM2_JIT_END;
 }
 
 void

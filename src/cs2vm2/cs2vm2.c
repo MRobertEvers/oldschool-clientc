@@ -5013,9 +5013,10 @@ static int
 CS2VM2_Op_IF_SetOnEventHandler(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
-    enum CS2VM_HostRequestKind kind,
-    struct CS2VM2_Took took)
+    enum CS2VM_HostRequestKind kind)
 {
+    /* Its own count: the opcode functions that call this pop nothing. */
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -5212,9 +5213,10 @@ CS2VM2_Op_CC_SetOnEventHandler(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
     int operand,
-    enum CS2VM_HostRequestKind kind,
-    struct CS2VM2_Took took)
+    enum CS2VM_HostRequestKind kind)
 {
+    /* Its own count: the opcode functions that call this pop nothing. */
+    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)frame;
     assert(vm);
     assert(frame);
@@ -5401,11 +5403,10 @@ CS2VM2_Op_CC_SetOnClick(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCLICK, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCLICK);
 }
 
 int
@@ -5414,11 +5415,10 @@ CS2VM2_Op_CC_SetOnHold(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONHOLD, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONHOLD);
 }
 
 int
@@ -5427,11 +5427,10 @@ CS2VM2_Op_CC_SetOnMouseOver(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER);
 }
 
 int
@@ -5440,11 +5439,10 @@ CS2VM2_Op_CC_SetOnMouseLeave(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE);
 }
 
 static int
@@ -5453,9 +5451,8 @@ CS2VM2_Op_CC_SetOnTargetEnter(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTARGETENTER, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTARGETENTER);
 }
 
 static int
@@ -5464,9 +5461,8 @@ CS2VM2_Op_CC_SetOnTargetLeave(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE);
 }
 
 static int
@@ -5475,9 +5471,8 @@ CS2VM2_Op_CC_SetOnClickRepeat(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT);
 }
 
 static int
@@ -5486,9 +5481,8 @@ CS2VM2_Op_CC_SetOnRelease(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONRELEASE, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONRELEASE);
 }
 
 static int
@@ -5497,9 +5491,8 @@ CS2VM2_Op_CC_SetOnDialogAbort(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT);
 }
 
 static int
@@ -5508,9 +5501,8 @@ CS2VM2_Op_CC_SetOnFriendTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT);
 }
 
 static int
@@ -5519,9 +5511,8 @@ CS2VM2_Op_CC_SetOnChatTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCHATTRANSMIT, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCHATTRANSMIT);
 }
 
 int
@@ -5530,11 +5521,10 @@ CS2VM2_Op_CC_SetOnMouseRepeat(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT);
 }
 
 int
@@ -5543,11 +5533,10 @@ CS2VM2_Op_CC_SetOnDrag(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDRAG, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDRAG);
 }
 
 int
@@ -5556,11 +5545,10 @@ CS2VM2_Op_CC_SetOnScrollWheel(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL);
 }
 
 int
@@ -5569,10 +5557,9 @@ CS2VM2_Op_CC_SetOnKey(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
-    return CS2VM2_Op_CC_SetOnEventHandler(vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEY, took);
+    return CS2VM2_Op_CC_SetOnEventHandler(vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEY);
 }
 
 /* The rev-239 client uses the vendor-named CC_SETONKEYDOWN /
@@ -5583,11 +5570,10 @@ CS2VM2_Op_CC_SetOnKeyDown(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEYDOWN, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEYDOWN);
 }
 
 int
@@ -5596,11 +5582,10 @@ CS2VM2_Op_CC_SetOnKeyUp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEYUP, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEYUP);
 }
 
 int
@@ -5609,10 +5594,9 @@ CS2VM2_Op_CC_SetOnOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
-    return CS2VM2_Op_CC_SetOnEventHandler(vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONOP, took);
+    return CS2VM2_Op_CC_SetOnEventHandler(vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONOP);
 }
 
 int
@@ -5621,11 +5605,10 @@ CS2VM2_Op_CC_SetOnDragComplete(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE);
 }
 
 int
@@ -5634,11 +5617,10 @@ CS2VM2_Op_CC_SetOnResize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONRESIZE, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONRESIZE);
 }
 
 int
@@ -5647,11 +5629,10 @@ CS2VM2_Op_CC_SetOnSubChange(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE);
 }
 
 int
@@ -5795,11 +5776,10 @@ cs2vm2_op_if_set_on_transmit(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
     int operand,
-    enum CS2VM_HostRequestKind kind,
-    struct CS2VM2_Took took)
+    enum CS2VM_HostRequestKind kind)
 {
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, kind, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, kind);
 }
 
 int
@@ -5808,9 +5788,8 @@ CS2VM2_Op_IF_SetOnVarTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return cs2vm2_op_if_set_on_transmit(
-        vm, frame, operand, CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT);
 }
 
 int
@@ -5819,9 +5798,8 @@ CS2VM2_Op_IF_SetOnStatTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return cs2vm2_op_if_set_on_transmit(
-        vm, frame, operand, CS2VM_HOST_REQUEST_IF_SETONSTATTRANSMIT, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_IF_SETONSTATTRANSMIT);
 }
 
 int
@@ -5971,11 +5949,10 @@ CS2VM2_Op_IF_SetOnOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONOP, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONOP);
 }
 
 int
@@ -5984,11 +5961,10 @@ CS2VM2_Op_IF_SetOnClick(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICK, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICK);
 }
 
 int
@@ -5997,11 +5973,10 @@ CS2VM2_Op_IF_SetOnHold(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONHOLD, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONHOLD);
 }
 
 int
@@ -6010,11 +5985,10 @@ CS2VM2_Op_IF_SetOnMouseOver(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER);
 }
 
 int
@@ -6023,11 +5997,10 @@ CS2VM2_Op_IF_SetOnMouseLeave(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE);
 }
 
 static int
@@ -6036,9 +6009,8 @@ CS2VM2_Op_IF_SetOnTargetEnter(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETENTER, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETENTER);
 }
 
 static int
@@ -6047,9 +6019,8 @@ CS2VM2_Op_IF_SetOnTargetLeave(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE);
 }
 
 static int
@@ -6058,9 +6029,8 @@ CS2VM2_Op_IF_SetOnClickRepeat(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT);
 }
 
 static int
@@ -6069,9 +6039,8 @@ CS2VM2_Op_IF_SetOnRelease(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONRELEASE, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONRELEASE);
 }
 
 static int
@@ -6080,9 +6049,8 @@ CS2VM2_Op_IF_SetOnDialogAbort(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT);
 }
 
 int
@@ -6091,11 +6059,10 @@ CS2VM2_Op_IF_SetOnDrag(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAG, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAG);
 }
 
 int
@@ -6104,11 +6071,10 @@ CS2VM2_Op_IF_SetOnDragComplete(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE);
 }
 
 int
@@ -6117,11 +6083,10 @@ CS2VM2_Op_IF_SetOnResize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONRESIZE, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONRESIZE);
 }
 
 int
@@ -6130,11 +6095,10 @@ CS2VM2_Op_IF_SetOnSubChange(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE);
 }
 
 int
@@ -6143,11 +6107,10 @@ CS2VM2_Op_IF_SetOnMouseRepeat(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT);
 }
 
 int
@@ -6156,11 +6119,10 @@ CS2VM2_Op_IF_SetOnTimer(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTIMER, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONTIMER);
 }
 
 int
@@ -6169,11 +6131,10 @@ CS2VM2_Op_IF_SetOnScrollWheel(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL);
 }
 
 int
@@ -6182,11 +6143,10 @@ CS2VM2_Op_IF_SetOnKey(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEY, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEY);
 }
 
 /* IF_SETONKEYDOWN / IF_SETONKEYUP are the IF twins of the CC pair. */
@@ -6196,11 +6156,10 @@ CS2VM2_Op_IF_SetOnKeyDown(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYDOWN, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYDOWN);
 }
 
 int
@@ -6209,11 +6168,10 @@ CS2VM2_Op_IF_SetOnKeyUp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYUP, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYUP);
 }
 
 int
@@ -6222,11 +6180,10 @@ CS2VM2_Op_IF_SetOnMiscTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT);
 }
 
 /*
@@ -6247,12 +6204,11 @@ CS2VM2_Op_IF_SetOnFriendTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
     return CS2VM2_Op_IF_SetOnEventHandler(
-        vm, frame, CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT, took);
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT);
 }
 
 /*
@@ -6272,11 +6228,10 @@ CS2VM2_Op_IF_SetOnChatTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     assert(vm);
     assert(frame);
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT);
 }
 
 int
@@ -10190,9 +10145,8 @@ CS2VM2_Op_IF_SetOnEventDiscard(
     int operand,
     int opcode)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     (void)operand;
-    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, (enum CS2VM_HostRequestKind)opcode, took);
+    return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, (enum CS2VM_HostRequestKind)opcode);
 }
 
 static int
@@ -10202,9 +10156,8 @@ CS2VM2_Op_CC_SetOnEventDiscard(
     int operand,
     int opcode)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, (enum CS2VM_HostRequestKind)opcode, took);
+        vm, frame, operand, (enum CS2VM_HostRequestKind)opcode);
 }
 
 static int
@@ -10213,9 +10166,8 @@ CS2VM2_Op_CC_SetOnTimer(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTIMER, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTIMER);
 }
 
 static int
@@ -10224,9 +10176,8 @@ CS2VM2_Op_CC_SetOnVarTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT);
 }
 
 static int
@@ -10235,9 +10186,8 @@ CS2VM2_Op_CC_SetOnInvTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT);
 }
 
 static int
@@ -10246,9 +10196,8 @@ CS2VM2_Op_CC_SetOnStatTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
     return CS2VM2_Op_CC_SetOnEventHandler(
-        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT, took);
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT);
 }
 
 /* Print the calling script and a window of ops around the current pc when an
@@ -13463,8 +13412,13 @@ CS2VM2_OpArgCounts(
 
 #if CS2VM2_RUNOP_SPLIT
 /* The opcodes cs2vm2_run_op_outlined runs: 3000 and up, except the string
- * group (4100..4199), which is common and never asks the host. */
-#define CS2VM2_RUNOP_OUTLINED(opcode) ((opcode) >= 3000 && ((opcode) < 4100 || (opcode) >= 4200))
+ * group (4100..4199), which is common and never asks the host, and the
+ * client-state group (3300..3399): INV_GETOBJ and INV_GETNUM run once per
+ * bank slot, and the loop function has the room since the yield mark went
+ * (53 KB of JavaScriptCore's 100 KB before this group, measured 2026-11-24). */
+#define CS2VM2_RUNOP_OUTLINED(opcode)                                                              \
+    ((opcode) >= 3000 && !((opcode) >= 3300 && (opcode) < 3400) &&                                 \
+     ((opcode) < 4100 || (opcode) >= 4200))
 /* The definition below is the body both halves inline. */
 #define CS2VM2_RunOp cs2vm2_run_op_body
 static inline __attribute__((always_inline)) int
@@ -16348,17 +16302,16 @@ cs2vm2_script_prepared(struct CS2VM2_Script const* script)
     if( !script->string_constants || !script->run_code )
         return false;
     if( script->jit )
-        return script->run_code == script->jit->code;
+        return script->run_code == script->jit->code &&
+               script->jit->code[script->op_count] == CS2VM2_JIT_END;
     if( script->run_code != script->plain_code )
         return false;
     for( int pc = 0; pc < script->op_count; pc++ )
     {
-        unsigned const op = script->opcodes[pc];
-        unsigned const want = op < CS2VM2_HOT_TABLE_SIZE ? g_cs2vm2_hot_op[op] : CS2VM2_HOT_NONE;
-        if( script->plain_code[pc] != want )
+        if( script->plain_code[pc] != cs2vm2_plain_code_at(script, pc) )
             return false;
     }
-    return true;
+    return script->plain_code[script->op_count] == CS2VM2_JIT_END;
 }
 #endif
 
@@ -16821,6 +16774,8 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
      * and the profile see it. Read again after each handler, the only thing
      * that could have changed it. */
     int observed = g_cs2_profile_on > 0 || CS2VM2_TRACE_ARMED();
+    /* Until this run's first handler instruction has returned OK. */
+    int first_handler = 1;
 
     /*
      * ONE LOOP. Every instruction of the run is dispatched here, on its
@@ -16879,21 +16834,27 @@ frame_moved:
     locals_dirty = frame->int_locals_dirty;
     top = vm->ints_stack_top;
     pc = frame->pc;
+    if( (unsigned)pc > (unsigned)op_count )
+        goto script_end_counted;
     if( observed )
         goto next_observed;
 
     for( ;; )
     {
-        /* The head: at most CS2VM_MAX_CYCLES instructions begin, and none
-         * past the script's end. */
+        /* The head: at most CS2VM_MAX_CYCLES instructions begin. There is no
+         * test for the script's end: the code at index op_count is
+         * CS2VM2_JIT_END, and every way the pc moves keeps it in
+         * [0, op_count] (a hot branch was range-checked when the script was
+         * loaded, cs2vm2_plain_code_at; a handler's pc is checked below). */
         if( cycles >= CS2VM_MAX_CYCLES )
             goto cycle_limit_live;
         cycles++;
-        if( pc >= op_count )
-            goto script_end;
+        assert(pc >= 0 && pc <= op_count);
         {
-            int const operand = args[pc];
-
+/* The instruction's operand, read by the cases that use it (and not for the
+ * end code, which has none: args holds op_count operands). Every case reads
+ * it before it moves the pc. */
+#define operand (args[pc])
             switch( code[pc] )
             {
 #include "cs2vm2_hot_cases.inc"
@@ -17009,9 +16970,12 @@ frame_moved:
             case CS2VM2_JIT_LLBRGT:
                 CS2VM2_JIT_LBR(CS2VM2_JIT_LLBRGT, locals[args[pc + 1]], >);
 
+            case CS2VM2_JIT_END:
+                goto script_end;
             default:
                 goto stop;
             }
+#undef operand
         }
         continue;
 
@@ -17102,9 +17066,17 @@ frame_moved:
         switch( result )
         {
         case CS2VM_EXECNO_OK:
-            if( vm->yield_halt_frame_sp == vm->frame_sp &&
-                vm->yield_halt_script_id == frame->script->script_id && vm->yield_halt_pc == op_pc )
-                CS2VM2_ClearYieldHalt(vm);
+            /* A halt record is the instruction a yield returned from, and a
+             * run resumes on exactly that instruction: only the first handler
+             * of a run can be the one that clears it. */
+            if( first_handler )
+            {
+                first_handler = 0;
+                if( vm->yield_halt_frame_sp == vm->frame_sp &&
+                    vm->yield_halt_script_id == frame->script->script_id &&
+                    vm->yield_halt_pc == op_pc )
+                    CS2VM2_ClearYieldHalt(vm);
+            }
             break;
         case CS2VM_EXECNO_YIELD:
             /* The instruction runs again on resume, so it has to have left
@@ -17177,12 +17149,23 @@ frame_moved:
             goto frame_moved;
         top = vm->ints_stack_top;
         pc = frame->pc;
+        /* A handler moved the pc (a branch or a switch it took): outside the
+         * script ends the run, as running off its end does. */
+        if( (unsigned)pc > (unsigned)op_count )
+            goto script_end_counted;
         locals = frame->int_locals;
         locals_dirty = frame->int_locals_dirty;
         if( observed )
             goto next_observed;
     }
 
+script_end_counted:
+    /* The pc is outside the script and no head has counted an instruction
+     * there: count one, as the head this replaced did, so the totals below
+     * are what they always were. */
+    if( cycles >= CS2VM_MAX_CYCLES )
+        goto cycle_limit_live;
+    cycles++;
 script_end:
     /* The pc ran off the script: the run is over. The instruction the head
      * counted did not exist. */

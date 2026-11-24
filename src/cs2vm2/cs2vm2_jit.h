@@ -309,8 +309,10 @@ CS2VM2_JitFree(struct CS2VM2_Script* script);
 
 /*
  * The plain dispatch code of every instruction of `script`, into
- * out[0 .. op_count): g_cs2vm2_hot_op of its opcode, 0 (CS2VM2_HOT_NONE) for
- * an instruction its handler runs. What a script with no overlay runs
+ * out[0 .. op_count), and the end code at out[op_count] (so `out` holds
+ * op_count + 1): g_cs2vm2_hot_op of its opcode, 0 (CS2VM2_HOT_NONE) for an
+ * instruction its handler runs, which includes a hot branch whose target is
+ * outside the script. What a script with no overlay runs
  * (CS2VM2_ScriptPrepare); an overlay's plain codes are these.
  */
 void

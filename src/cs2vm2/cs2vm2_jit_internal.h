@@ -86,6 +86,12 @@ enum CS2VM2_JitCode
     CS2VM2_JIT_PD = 33,
     /* PUSH_CONSTANT_STRING whose string_operands[pc] is not NULL. */
     CS2VM2_JIT_CSTR = 34,
+    /* Not an instruction and never in a blob: the code at index op_count of
+     * every code array the loop runs (a script's plain codes, an overlay's
+     * codes in memory). Running off the script's last instruction dispatches
+     * it and the run is over, so the loop has no "is the pc past the end"
+     * test of its own. */
+    CS2VM2_JIT_END = 35,
 
     /* The 24 fused groups (docs/CS2_JIT.md 2.1). L = declared-local push,
      * C = constant int push, P = declared-local pop, A = ADD, BR = BRANCH,
@@ -248,6 +254,31 @@ cs2vm2_op_jumps_by_operand(int op)
            op == CS2_OP_LONG_BRANCH_LESS_THAN || op == CS2_OP_LONG_BRANCH_GREATER_THAN ||
            op == CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS ||
            op == CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS || op == CS2_OP_BRANCH_IF_ONE;
+}
+
+/*
+ * The plain code of the instruction at `pc`: g_cs2vm2_hot_op of its opcode,
+ * except that a hot branch whose target is outside [0, op_count] is 0, the
+ * handler's. The loop runs a hot branch with no range test, which is sound
+ * only because every one it can reach was checked here, when the script was
+ * loaded; the handler path checks the pc after each handler instead. (An
+ * overlay is only built for a script all of whose jumps are in range, so this
+ * is the overlay's plain code too.)
+ */
+static inline unsigned
+cs2vm2_plain_code_at(
+    struct CS2VM2_Script const* script,
+    int pc)
+{
+    unsigned const op = script->opcodes[pc];
+    unsigned const code = op < CS2VM2_HOT_TABLE_SIZE ? g_cs2vm2_hot_op[op] : CS2VM2_HOT_NONE;
+    if( code >= CS2VM2_HOT_BRANCH && code <= CS2VM2_HOT_BRANCH_GREATER_THAN_OR_EQUALS )
+    {
+        int64_t const target = (int64_t)pc + 1 + (int64_t)script->int_operands[pc];
+        if( target < 0 || target > (int64_t)script->op_count )
+            return CS2VM2_HOT_NONE;
+    }
+    return code;
 }
 
 #endif /* CS2VM2_JIT_INTERNAL_H */

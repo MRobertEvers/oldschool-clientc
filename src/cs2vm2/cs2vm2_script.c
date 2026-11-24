@@ -230,7 +230,7 @@ CS2VM2_ScriptPrepare(struct CS2VM2_Script* script)
      * hand (a test) is prepared again by calling this again. */
     if( !script->plain_code )
     {
-        script->plain_code = ToriMem_Calloc(ToriMem_Script(), (size_t)script->op_count, 1u);
+        script->plain_code = ToriMem_Calloc(ToriMem_Script(), (size_t)script->op_count + 1u, 1u);
         assert(script->plain_code);
     }
     CS2VM2_JitPlainCodes(script, script->plain_code);
