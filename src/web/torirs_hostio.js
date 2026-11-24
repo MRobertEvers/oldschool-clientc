@@ -575,7 +575,39 @@
          * decides its misses in memory. Kicked, not awaited. */
         scanTable(cacheKey(), table, CACHE_DAT2).catch(() => null);
         scanFiles().catch(() => null);
-        return await this.readArchive(255, table, CACHE_DAT2);
+        /*
+         * readArchive's steps, written out so each can be timed: on a browser
+         * without a JIT the index phase ("Checking for updates") took minutes
+         * (2026-11-23, the Kindle), and ref_table_read says how much of that
+         * was the database and the wire; ref_table_decode (platform_web_api.c)
+         * is the rest. 255 is never scanned, so readArchive would take the
+         * same path: the database, then the producer.
+         */
+        const t0 = performance.now();
+        await awaitReprime(255, table, CACHE_DAT2);
+        const key = cacheKey();
+        const held = await idb.groupGet(key, 255, table, CACHE_DAT2);
+        const t1 = performance.now();
+        let bytes = held;
+        let tNet = t1;
+        if (!held) {
+          const producer = js5();
+          bytes = producer ? await producer.group(255, table) : null;
+          tNet = performance.now();
+          if (bytes) {
+            await idb.groupPut(key, 255, table, CACHE_DAT2, bytes);
+            stored.add(`${key}|255|${CACHE_DAT2}|${table}`);
+          }
+        }
+        const t2 = performance.now();
+        if (typeof globalThis.__torirs_tel === 'function') {
+          globalThis.__torirs_tel('ref_table_read', JSON.stringify({
+            table, from: held ? 'idb' : (bytes ? 'net' : 'none'), bytes: bytes ? bytes.length : 0,
+            idb_get_ms: Math.round(t1 - t0), net_ms: Math.round(tNet - t1),
+            idb_put_ms: Math.round(t2 - tNet), ms: Math.round(t2 - t0),
+          }));
+        }
+        return bytes || null;
       },
 
       /*

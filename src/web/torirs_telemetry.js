@@ -556,7 +556,15 @@
     memTrees++;
     try {
       const got = memTreeProvider();
-      record('mem_tree', { why, heap: heapBytes, used: got.used, tree: got.tree }, urgent);
+      /* `peak`: the most malloc ever held (torirs_heap_peak), world builds
+       * included. `js_heap`: the page's own JavaScript heap, where the
+       * browser says (Chrome and its WebView do) -- on the plain-JavaScript
+       * build the code itself lives there, beside the wasm heap. */
+      const mem = global.performance && global.performance.memory;
+      record('mem_tree', {
+        why, heap: heapBytes, used: got.used, peak: got.peak,
+        js_heap: mem ? mem.usedJSHeapSize : null, tree: got.tree,
+      }, urgent);
     } catch (err) {
       record('telemetry_error', { where: 'mem_tree', msg: String(err && err.message) });
     }

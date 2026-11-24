@@ -29,6 +29,7 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_rscache.h"
 #include "platform/platform_web_io.h"
+#include "platform/platform_web_telemetry.h"
 #include "engine/cs2_jit_cache.h"
 #include <rscache.h>
 
@@ -189,17 +190,63 @@ ToriRS_WebApi_ReferenceTableFromContainer(
     int size,
     int table_id)
 {
+    /* How many times each table has been decoded this session: the client's
+     * copy and the executor's metadata copy are two (platform_web_io.js
+     * refTableDecode), and any more is a decode somebody did not share. */
+    static int decodes[256];
     struct RSCache_Dat2DiskArchive* archive;
     struct RSCache_ReferenceTable* table;
+    double t0, t1, t2;
+    int compression;
+    int unpacked;
 
+    assert(container);
+    assert(table_id >= 0);
+    assert(table_id < 256);
+    compression = size > 0 ? container[0] : -1;
+    t0 = emscripten_get_now();
     /* Never keyed: the master index and the reference tables are plain, and a
      * key applied to plain data corrupts rather than fails. */
     archive = ToriRS_WebApi_ArchiveDecode(container, size, table_id, 255, NULL);
+    t1 = emscripten_get_now();
     if( !archive )
+    {
+        ToriPlatformWeb_Telemetry(
+            "ref_table_decode",
+            "{\"table\":%d,\"ok\":0,\"comp\":%d,\"packed\":%d,\"decompress_ms\":%.1f}",
+            table_id,
+            compression,
+            size,
+            t1 - t0);
         return NULL;
+    }
 
+    unpacked = archive->data_size;
     table = RSCache_ReferenceTableNewDecode(archive->data, archive->data_size);
     RSCache_Dat2DiskArchiveFree(archive);
+    t2 = emscripten_get_now();
+
+    /*
+     * Where a reference table's time goes, per table: decompressing the
+     * container (bzip2 or gzip) and parsing its entries. On a browser
+     * without a JIT both run interpreted and the boot's "Checking for
+     * updates" is mostly these (2026-11-23, the Kindle); the page's
+     * ref_table_read says what the read before them cost.
+     */
+    decodes[table_id]++;
+    ToriPlatformWeb_Telemetry(
+        "ref_table_decode",
+        "{\"table\":%d,\"ok\":%d,\"n\":%d,\"comp\":%d,\"packed\":%d,\"raw\":%d,"
+        "\"groups\":%d,\"decompress_ms\":%.1f,\"parse_ms\":%.1f}",
+        table_id,
+        table ? 1 : 0,
+        decodes[table_id],
+        compression,
+        size,
+        unpacked,
+        table ? table->id_count : 0,
+        t1 - t0,
+        t2 - t1);
     return table;
 }
 

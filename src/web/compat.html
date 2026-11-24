@@ -38,14 +38,21 @@
     aspect-ratio: 765 / 503;
     touch-action: none;
   }
-  #status {
+  /* What the page knows while the game loads (#progress, below) and the
+   * host's own line (#status: cache groups fetched, heap). */
+  #loading {
     position: fixed;
-    left: 6px;
-    top: 4px;
-    font: 13px/1.3 ui-monospace, Menlo, monospace;
-    color: #c8bda4;
+    left: 0;
+    right: 0;
+    top: 0;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #e0d5b8;
+    font: 15px/1.4 ui-monospace, Menlo, monospace;
     pointer-events: none;
   }
+  #progress { font-size: 17px; }
+  #status { display: block; color: #c8bda4; font-size: 13px; }
   #torirs-keyboard {
     position: fixed; left: 0; bottom: 0; width: 1px; height: 1px;
     padding: 0; border: 0; opacity: 0; font-size: 16px; pointer-events: none;
@@ -54,7 +61,7 @@
 </head>
 <body>
 <canvas id="canvas" width="765" height="503" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
-<span id="status">loading&hellip;</span>
+<div id="loading"><div id="progress">Loading&hellip;</div><span id="status"></span></div>
 <input id="torirs-keyboard" type="text" inputmode="none" autocomplete="off" autocorrect="off"
        autocapitalize="none" spellcheck="false" enterkeyhint="send" aria-hidden="true" tabindex="-1">
 <script>
@@ -85,14 +92,93 @@ globalThis.torirsPageKeyboard(document.getElementById('torirs-keyboard'));
 <script src="torirs_host.js"></script>
 <script src="torirs_credentials.js"></script>
 <script>
-/* The client: WebAssembly where the browser has it, else the plain
+/*
+ * The client: WebAssembly where the browser has it, else the plain
  * JavaScript build (torirs_js.js, platform.mk WEB_JS=1) that the cannot-run
- * page's opt-in leads here for -- very slow, but it runs. */
+ * page's opt-in leads here for -- very slow, but it runs.
+ *
+ * And what the page can say while it loads, in #progress: the download in
+ * MB (fetched here, then started from the downloaded copy), the start, and
+ * once the game runs how long its last step held the page. On a JIT-less
+ * browser one step of the game can take seconds, and the game's own loading
+ * bar only moves between them: the step time says it is working, not stuck.
+ */
 (function () {
-  var script = document.createElement('script');
-  script.src = typeof WebAssembly === 'object' ? 'torirs.js' : 'torirs_js.js';
-  script.async = false;
-  document.body.appendChild(script);
+  var progressEl = document.getElementById('progress');
+  var t0 = Date.now();
+  var phase = 'Downloading the game';
+  var detail = '';
+  var running = false;
+  var lastStep = 0;
+  var lastTick = performance.now();
+  function secs(ms) { return ms < 10000 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms / 1000) + ' s'; }
+  function mb(bytes) { return (bytes / 1048576).toFixed(1); }
+  function paint() {
+    var text = phase + (detail ? ': ' + detail : '') + '  \u00b7  ' + secs(Date.now() - t0);
+    if (running && lastStep >= 1000) text += '  \u00b7  last game step ' + secs(lastStep);
+    progressEl.textContent = text;
+  }
+  /* This page's own frames: while the game works the page cannot draw, so
+   * the gap between two of them is how long the game's step held it. */
+  function tick(now) {
+    if (running) lastStep = now - lastTick;
+    lastTick = now;
+    if (!running && window.torirsRuntimeUp) {
+      running = true;
+      phase = 'Running (the game shows its own loading bar)';
+      detail = '';
+    }
+    paint();
+    window.requestAnimationFrame(tick);
+  }
+  window.requestAnimationFrame(tick);
+  window.setInterval(paint, 1000);
+
+  function start(src) {
+    var script = document.createElement('script');
+    script.src = src;
+    script.async = false;
+    document.body.appendChild(script);
+  }
+  if (typeof WebAssembly === 'object') {
+    phase = 'Starting the game';
+    start('torirs.js');
+    return;
+  }
+  /* The JavaScript build is 18 MB: fetched with a count, then started from
+   * the copy. Without streaming fetch, a plain script tag (no count). */
+  if (!(window.fetch && window.ReadableStream && window.URL && URL.createObjectURL)) {
+    detail = '18 MB';
+    start('torirs_js.js');
+    return;
+  }
+  fetch('torirs_js.js').then(function (response) {
+    if (!response.ok || !response.body) throw new Error('HTTP ' + response.status);
+    var total = parseInt(response.headers.get('content-length') || '0', 10);
+    var reader = response.body.getReader();
+    var chunks = [];
+    var got = 0;
+    function pump() {
+      return reader.read().then(function (part) {
+        if (part.done) return;
+        chunks.push(part.value);
+        got += part.value.length;
+        detail = mb(got) + (total ? ' of ' + mb(total) : '') + ' MB';
+        return pump();
+      });
+    }
+    return pump().then(function () { return new Blob(chunks, { type: 'text/javascript' }); });
+  }).then(function (blob) {
+    phase = 'Starting the game (reading 18 MB of JavaScript; the page holds still while it does)';
+    detail = '';
+    paint();
+    /* A frame for that line to show before the read takes the page. */
+    window.requestAnimationFrame(function () { window.setTimeout(function () { start(URL.createObjectURL(blob)); }, 0); });
+  }).catch(function (err) {
+    phase = 'Download failed (' + (err && err.message) + '), loading it directly';
+    detail = '';
+    start('torirs_js.js');
+  });
 })();
 </script>
 </body>

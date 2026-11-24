@@ -24,6 +24,8 @@
 #include "boot_telemetry.h"
 #include "cache/rscache_io.h"
 #include "log/torirs_log.h"
+#include "platform/platform_web_telemetry.h"
+#include "platform/platform_window.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -75,6 +77,8 @@ struct Task_Dat2Preload
      *  draws under; NULL when every table was already resident. */
     struct RS_PreloadStep const* index_step;
     int weight_shown;
+    /** When the first index open was queued, for preload_indices. */
+    uint64_t indices_asked_ms;
     /* The table being filled. Owned by the build cache, so holding the
      * pointer across yields is safe; a local would not be. */
     struct RSCache_ReferenceTable const* fill_ref;
@@ -228,6 +232,9 @@ struct Task_Dat2IndexOpen
     struct Dat2BuildCache* bc;
     enum RSCache_Dat2Table table_id;
     char archive[RS_PRELOAD_NAME_LEN];
+    /** When this open was queued: ref_table_open's span is the wait for the
+     *  read AND the decode, as the bar sees it. */
+    uint64_t asked_ms;
 };
 
 static int
@@ -254,6 +261,13 @@ Task_Dat2IndexOpen_Run(
     }
     /* Never replace a table another task filed while this one was yielded:
      * a replacement frees the old one under any fill that is walking it. */
+    ToriPlatformWeb_Telemetry(
+        "ref_table_open",
+        "{\"table\":%d,\"name\":\"%s\",\"groups\":%d,\"ms\":%llu}",
+        (int)task->table_id,
+        task->archive,
+        table->id_count,
+        (unsigned long long)(PlatformWindow_Ticks64() - task->asked_ms));
     if( dat2_buildcache_reference_table_has(task->bc, task->table_id) )
         RSCache_ReferenceTableFree(table);
     else
@@ -289,6 +303,7 @@ CreateTask_Dat2IndexOpen(
     task->bc = bc;
     task->table_id = table_id;
     strncpy(task->archive, archive, sizeof(task->archive) - 1);
+    task->asked_ms = PlatformWindow_Ticks64();
     PT_INIT(&task->pt);
     return &task->task;
 }
@@ -489,7 +504,10 @@ Task_Dat2Preload_Run(
         if( dat2_buildcache_reference_table_has(task->bc, task->table_id) )
             continue;
         if( !task->index_step )
+        {
             task->index_step = task->step;
+            task->indices_asked_ms = PlatformWindow_Ticks64();
+        }
         if( task->bc->base.asset_queue )
             ToriRS_TaskQueue_AddParallelPoolSubTask(
                 task->bc->base.asset_queue,
@@ -540,7 +558,14 @@ Task_Dat2Preload_Run(
         PT_YIELD(&task->pt);
     }
     if( task->index_step )
+    {
         ToriRS_BootTelemetry_Mark("preload:indices:open");
+        /* The whole "Checking for updates" span, first ask to last table. */
+        ToriPlatformWeb_Telemetry(
+            "preload_indices",
+            "{\"ms\":%llu}",
+            (unsigned long long)(PlatformWindow_Ticks64() - task->indices_asked_ms));
+    }
 
     /*
      * `groups=all`: the whole archive, not just its index.

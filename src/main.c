@@ -8515,6 +8515,17 @@ torirs_heap_in_use(void)
     return (double)(unsigned)info.uordblks;
 }
 
+/* The most the heap's allocator has ever taken from the heap (dlmalloc's
+ * max_footprint, which mallinfo reports as usmblks): the high-water mark of a
+ * boot, world builds included, that a snapshot taken between frames cannot
+ * see. Holes count, because they are pages the device had to hold. */
+EMSCRIPTEN_KEEPALIVE double
+torirs_heap_peak(void)
+{
+    struct mallinfo const info = mallinfo();
+    return (double)(unsigned)info.usmblks;
+}
+
 /* The browser owns the frame clock, so the loop is inverted: instead of the
  * client calling the platform once per iteration, the platform calls the
  * client. Same step function either way. */

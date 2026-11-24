@@ -1440,6 +1440,8 @@
   };
 
   Module.onRuntimeInitialized = () => {
+    /* For a page that shows its own loading line (compat.html). */
+    window.torirsRuntimeUp = true;
     log(`torirs: runtime up, cache in IndexedDB` +
         (cacheKey ? ` (${cacheKey})` : '') +
         `, js5 ${js5Url || `ws://${js5Host}:${js5Port}`}` +
@@ -1461,8 +1463,9 @@
       if (typeof Module._torirs_mem_tree_json === 'function') {
         telemetry.setMemTreeProvider(() => {
           const used = typeof Module._torirs_heap_in_use === 'function' ? Module._torirs_heap_in_use() : null;
+          const peak = typeof Module._torirs_heap_peak === 'function' ? Module._torirs_heap_peak() : null;
           const ptr = Module._torirs_mem_tree_json();
-          try { return { used, tree: JSON.parse(Module.UTF8ToString(ptr)) }; } finally { Module._free(ptr); }
+          try { return { used, peak, tree: JSON.parse(Module.UTF8ToString(ptr)) }; } finally { Module._free(ptr); }
         });
       }
       log(`torirs: telemetry session ${telemetry.sid}`);

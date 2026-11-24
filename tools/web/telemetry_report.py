@@ -11,6 +11,18 @@ holds and when one is sent.
     tools/web/telemetry_report.py --sid 3f9a...       # one session's whole timeline
     tools/web/telemetry_report.py --ua iPad DIR_OR_FILES...
     tools/web/telemetry_report.py --ua iPad --touch   # one line per finger, lost taps marked
+    tools/web/telemetry_report.py --ua Kindle --reftables  # where "Checking for updates" went
+
+--reftables prints, per reference table the boot opened, the three timed steps:
+    read    ref_table_read (torirs_hostio.js): from the database or the wire,
+            the database read, the network wait, the database write
+    decode  ref_table_decode (platform_web_api.c): compression, sizes, groups,
+            decompress and parse time; one row per decode, `n` counts them
+and, on their own line, the tables the bar waited for (ref_table_open,
+task_dat2_preload.c: queued to usable, the read, the decode and any wait behind
+other tables' work) and preload_indices, the whole span the bar showed. Those
+are keyed by the client's table ROLE, which past 15 is not the disk number the
+read and decode rows carry, so they are listed by name, not joined.
 
 --touch reads the input breadcrumbs a touch device sends (touch_js, touch,
 ui_click, menu_use; torirs_telemetry.js) as one row per finger: what the
@@ -375,6 +387,55 @@ def print_touch(s):
     print('    totals', ' '.join(f'{k}={v}' for k, v in sorted(counts.items())))
 
 
+COMPRESSION = {0: 'none', 1: 'bzip2', 2: 'gzip', 3: 'lzma'}
+
+
+def print_reftables(s):
+    reads, decodes, opens, span = {}, defaultdict(list), {}, None
+    for ev in s.timeline():
+        d = ev.get('d')
+        if not isinstance(d, dict):
+            continue
+        k = ev.get('k')
+        if k == 'ref_table_read':
+            reads[d.get('table')] = d
+        elif k == 'ref_table_decode':
+            decodes[d.get('table')].append(d)
+        elif k == 'ref_table_open':
+            opens[d.get('table')] = d
+        elif k == 'preload_indices':
+            span = d
+    tables = sorted(set(reads) | set(decodes), key=lambda t: (t is None, t))
+    if not tables:
+        print('    (no reference table events: a page from before 2026-11-23)')
+        return
+    print(f"    {'table':>5} {'from':4} {'KB':>7} {'idb ms':>7} {'net ms':>7} {'put ms':>7}"
+          f" | {'comp':5} {'raw KB':>7} {'groups':>6} {'decodes':>7} {'unpack ms':>9} {'parse ms':>9}"
+          )
+    tot = defaultdict(float)
+    for t in tables:
+        r = reads.get(t) or {}
+        ds = decodes.get(t) or []
+        first = ds[0] if ds else {}
+        unpack = sum(x.get('decompress_ms') or 0 for x in ds)
+        parse = sum(x.get('parse_ms') or 0 for x in ds)
+        tot['read'] += r.get('ms') or 0
+        tot['unpack'] += unpack
+        tot['parse'] += parse
+        print(f"    {t:>5} {str(r.get('from') or '-'):4}"
+              f" {(r.get('bytes') or first.get('packed') or 0) / 1024:7.1f}"
+              f" {r.get('idb_get_ms', '-'):>7} {r.get('net_ms', '-'):>7} {r.get('idb_put_ms', '-'):>7}"
+              f" | {COMPRESSION.get(first.get('comp'), str(first.get('comp', '-'))):5}"
+              f" {(first.get('raw') or 0) / 1024:7.1f} {first.get('groups', '-'):>6} {len(ds):>7}"
+              f" {unpack:9.0f} {parse:9.0f}")
+    if opens:
+        print('    opened (ms from asked to usable): ' + ', '.join(
+            f"{o.get('name')} {o.get('ms')}" for o in sorted(opens.values(), key=lambda o: -(o.get('ms') or 0))))
+    print(f"    sum: read {tot['read']:.0f} ms (overlapping), decompress {tot['unpack']:.0f} ms,"
+          f" parse {tot['parse']:.0f} ms (both on the main thread, back to back)"
+          + (f"; whole index phase {span.get('ms')} ms" if span else ''))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('paths', nargs='*', default=['logs/telemetry'])
@@ -382,6 +443,8 @@ def main():
     ap.add_argument('--ua', help='only sessions whose user agent contains this')
     ap.add_argument('--incidents', action='store_true', help='timeline before each incident')
     ap.add_argument('--touch', action='store_true', help='one row per finger; lost taps marked')
+    ap.add_argument('--reftables', action='store_true',
+                    help='per reference table: read, decompress, parse and open times')
     a = ap.parse_args()
 
     sessions = build(load(a.paths))
@@ -402,6 +465,8 @@ def main():
         print(summary_line(s))
         if a.touch:
             print_touch(s)
+        if a.reftables:
+            print_reftables(s)
         if a.incidents and (s.blocked or s.unclean or any(is_incident(ev) for ev in s.timeline())):
             print_timeline(s, around=True)
 
