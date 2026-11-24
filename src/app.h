@@ -3095,6 +3095,13 @@ App_WorldDrainEntityRemovedFor(
 void
 App_WorldLoadFinish(struct App* app);
 
+/** TORIRS_SCENE_EXPORT: the scene's geometry and palette for the web device
+ *  bench (app/app_scene_export.c). Returns the element count written. */
+int
+App_SceneExport(
+    struct App* app,
+    char const* path);
+
 /** MAP_BUILD_COMPLETE ack. Sent after a REBUILD_NORMAL-driven load finishes
  * (Client.ts mapBuild / Client.ts:2289). Same-zone skips do not ack. */
 void

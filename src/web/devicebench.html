@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Device Bench</title>
+<!--
+  How long would a software frame of the game take in THIS browser, with no
+  WebAssembly and no WebGL? It draws one: Lumbridge castle's courtyard, the
+  cache's own models as the client lit them (devicebench_lumbridge.tscn.gz,
+  from TORIRS_SCENE_EXPORT -- src/app/app_scene_export.c -- cropped by
+  tools/web/devicebench_crop.py), in plain JavaScript.
+
+  The frame is shaped like the client's software renderer in fixed mode: the
+  512x334 world viewport, the minimum draw distance (25 tiles), every model
+  in range transformed and its faces culled, depth-sorted far to near and
+  filled -- gouraud faces by interpolating their HSL16 colour and looking it
+  up in the client's own palette, flat faces with one lookup, see-through
+  faces blended. Textured faces are filled with their lighting alone, the way
+  a low-detail frame draws textures as flat colour.
+
+  It is still less than the game's frame: no interface, no entities, no game
+  logic (the client runs its 20 ms cycle whatever the frame rate), no map
+  loading. A device that cannot draw this at a few fps cannot run the game;
+  one that can still might not.
+
+  Results go on the page and, behind the site gate, to the black box as a
+  `device_bench` event.
+-->
+<script src="torirs_telemetry.js"></script>
+<style>
+  :root { color-scheme: light dark; --bg: #14100c; --fg: #e0d5b8; --dim: #8f8367; --line: #3a2f22; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg: #fbf8f1; --fg: #241c14; --dim: #6b5f48; --line: #d8ccb3; } }
+  :root[data-theme="dark"] { --bg: #14100c; --fg: #e0d5b8; --dim: #8f8367; --line: #3a2f22; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
+         font: 16px/1.5 ui-monospace, Menlo, monospace; }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  p { margin: 0 0 10px; color: var(--dim); max-width: 46rem; }
+  canvas { display: block; width: 100%; max-width: 768px; border: 1px solid var(--line); image-rendering: pixelated; }
+  table { border-collapse: collapse; margin: 12px 0; font-size: 17px; }
+  td, th { border-bottom: 1px solid var(--line); padding: 6px 14px 6px 0; text-align: left; }
+  th { color: var(--dim); font-weight: normal; }
+  #status { font-size: 18px; margin: 10px 0; }
+  button { font: inherit; font-size: 18px; padding: 8px 18px; }
+</style>
+</head>
+<body>
+<h1>Device bench: Lumbridge</h1>
+<p>Draws Lumbridge castle's courtyard from the game's own models, the way the game's software renderer
+   does, in plain JavaScript (no WebAssembly, no WebGL), and times each frame. Leave the page open until it
+   says Done; on a slow device that can take a few minutes.</p>
+<div id="status">Loading the scene&hellip;</div>
+<canvas id="c" width="512" height="334"></canvas>
+<table id="results"><tr><th>Scene</th><th>Faces drawn</th><th>ms / frame</th><th>fps</th><th>of which fill</th></tr></table>
+<button id="again" type="button" hidden>Run again</button>
+<script>
+(function () {
+  'use strict';
+  var W = 512, H = 334, CX = 256, CY = 167, FOCAL = 512, DRAW_TILES = 25, NEAR = 50;
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var image = ctx.createImageData(W, H);
+  var pixels = new Uint32Array(image.data.buffer);
+  var statusEl = document.getElementById('status');
+  var resultsEl = document.getElementById('results');
+  var HIDDEN = 0xFFFF, FLAT = 0xFF7F;
+
+  /* ------------------------------------------------------------- loading */
+
+  function load() {
+    return fetch('devicebench_lumbridge.tscn.gz').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.arrayBuffer();
+    }).then(function (buf) {
+      /* A proxy that served it with Content-Encoding has inflated it already. */
+      var head = new Uint8Array(buf, 0, 2);
+      if (head[0] !== 0x1f || head[1] !== 0x8b) return buf;
+      if (typeof DecompressionStream !== 'function') throw new Error('this browser has no DecompressionStream');
+      return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    }).then(parse);
+  }
+
+  /* The format is app_scene_export.c's; the header's base is the camera's
+   * point (devicebench_crop.py). Elements are kept as typed-array views. */
+  function parse(buf) {
+    var dv = new DataView(buf), at = 0;
+    function u32() { var v = dv.getUint32(at, true); at += 4; return v; }
+    function i32() { var v = dv.getInt32(at, true); at += 4; return v; }
+    if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) !== 'TSCN') throw new Error('not a scene');
+    at = 4;
+    var version = u32(), focusX = i32(), focusZ = i32(), count = u32();
+    if (version !== 3) throw new Error('scene version ' + version);
+    var els = [], faces = 0;
+    for (var e = 0; e < count; e++) {
+      var x = i32(), y = i32(), z = i32(), yaw = i32(), vc = u32(), fc = u32();
+      var copy = function (Type, n, bytes) { var a = new Type(n); new Uint8Array(a.buffer).set(new Uint8Array(buf, at, n * bytes)); at += n * bytes; return a; };
+      var el = { x: x, y: y, z: z, yaw: yaw, vc: vc, fc: fc,
+        vx: copy(Int16Array, vc, 2), vy: copy(Int16Array, vc, 2), vz: copy(Int16Array, vc, 2),
+        fa: copy(Uint16Array, fc, 2), fb: copy(Uint16Array, fc, 2), fcI: copy(Uint16Array, fc, 2),
+        ca: copy(Uint16Array, fc, 2), cb: copy(Uint16Array, fc, 2), cc: copy(Uint16Array, fc, 2),
+        tex: copy(Int16Array, fc, 2), alpha: copy(Uint8Array, fc, 1),
+        tp: copy(Uint16Array, fc, 2), tm: copy(Uint16Array, fc, 2), tn: copy(Uint16Array, fc, 2) };
+      var r = 0;
+      for (var i = 0; i < vc; i++) { var m = Math.max(Math.abs(el.vx[i]), Math.abs(el.vy[i]), Math.abs(el.vz[i])); if (m > r) r = m; }
+      el.radius = r;
+      el.ground = fc <= 2;
+      /* A ground tile: placed on a tile CORNER at height 0, its heights in
+       * its vertices (a loc stands on a tile centre). The client does not
+       * cull the ground's back faces (a shaped tile's triangles are wound
+       * either way), so neither does this. */
+      el.tile = y === 0 && (x & 127) === 0 && (z & 127) === 0;
+      els.push(el);
+      faces += fc;
+    }
+    /* Palette as the canvas wants it: 0xAABBGGRR on a little-endian host. */
+    var palette = new Uint32Array(65536);
+    for (i = 0; i < 65536; i++) {
+      var rgb = dv.getUint32(at, true); at += 4;
+      palette[i] = 0xff000000 | ((rgb & 0xff) << 16) | (rgb & 0xff00) | ((rgb >> 16) & 0xff);
+    }
+    /* The textures: average colour, and texels (as the canvas wants them,
+     * 0xAABBGGRR) when the client had the texture loaded. */
+    var texCount = u32(), texAvg = new Uint16Array(texCount), texels = [], texOpaque = [];
+    for (i = 0; i < texCount; i++) {
+      texAvg[i] = dv.getUint16(at, true); var size = dv.getUint16(at + 2, true); texOpaque[i] = dv.getUint8(at + 4) === 1; at += 5;
+      if (size === 128) {
+        var tx = new Uint32Array(128 * 128);
+        for (var k = 0; k < 128 * 128; k++) {
+          var rgb = dv.getUint32(at, true); at += 4;
+          tx[k] = rgb === 0 ? 0 : (((rgb & 0xff) << 16) | (rgb & 0xff00) | ((rgb >> 16) & 0xff));
+        }
+        texels[i] = tx;
+      } else { at += 4 * size * size; texels[i] = null; }
+    }
+    /* What is texture-mapped and what is filled: the reference fills a
+     * GROUND tile's texture with its average colour scaled by the tile's light
+     * (Scene.method4560, when Scene.lowDetailTextures) and maps a MODEL's
+     * texture always (drawTexturedTriangleAffine). A model texture this export
+     * has no texels for is filled the same way, as the next best thing. */
+    els.forEach(function (el) {
+      for (var f = 0; f < el.fc; f++) {
+        var t = el.tex[f];
+        if (t < 0 || t >= texCount || el.cc[f] === HIDDEN) { el.tex[f] = -1; continue; }
+        if (!el.tile && texels[t]) continue;
+        el.tex[f] = -1;
+        var avg = texAvg[t], hue = avg & 0xff80, light = avg & 127;
+        var shadeOf = function (l) { var v = (light * (l & 127)) >> 6; return hue | (v > 127 ? 127 : v); };
+        if (el.cc[f] === FLAT) { el.ca[f] = shadeOf(el.ca[f]); continue; }
+        el.ca[f] = shadeOf(el.ca[f]); el.cb[f] = shadeOf(el.cb[f]); el.cc[f] = shadeOf(el.cc[f]);
+      }
+    });
+    /* The camera looks at the ground at the focus: the nearest tile's
+     * height. A ground tile sits at y 0 with its heights in its vertices. */
+    var best = 1e18, focusY = 0;
+    els.forEach(function (el) {
+      if (!el.ground) return;
+      var d = (el.x + 64 - focusX) * (el.x + 64 - focusX) + (el.z + 64 - focusZ) * (el.z + 64 - focusZ);
+      if (d < best) {
+        best = d;
+        var sum = 0;
+        for (var i = 0; i < el.vc; i++) sum += el.vy[i];
+        focusY = el.y + sum / el.vc;
+      }
+    });
+    return { els: els, faces: faces, palette: palette, fx: focusX, fy: focusY, fz: focusZ,
+             texels: texels, texOpaque: texOpaque };
+  }
+
+  /* ------------------------------------------------------------- a frame */
+
+  var MAXV = 1 << 19, MAXF = 1 << 19;
+  var px = new Int32Array(MAXV), py = new Int32Array(MAXV), pz = new Int32Array(MAXV);
+  var vxv = new Float32Array(MAXV), vyv = new Float32Array(MAXV), vzv = new Float32Array(MAXV);
+  var fT = new Int32Array(MAXF), fP = new Int32Array(MAXF), fM = new Int32Array(MAXF), fN = new Int32Array(MAXF);
+  var fA = new Int32Array(MAXF), fB = new Int32Array(MAXF), fC = new Int32Array(MAXF);
+  var fCa = new Int32Array(MAXF), fCb = new Int32Array(MAXF), fCc = new Int32Array(MAXF), fAl = new Int32Array(MAXF);
+  var bucketHead = new Int32Array(8192), bucketNext = new Int32Array(MAXF);
+  var palette;
+
+  /* One frame: camera yaw `yawUnits` (2048 a turn, the client's), pitch and
+   * distance of a standard fixed-mode view. Returns [faces drawn, ms fill]. */
+  function frame(scene, yawUnits, groundOnly) {
+    var yaw = yawUnits * Math.PI / 1024, pitch = 256 * Math.PI / 1024, dist = 2200;
+    var sinY = Math.sin(yaw), cosY = Math.cos(yaw), sinP = Math.sin(pitch), cosP = Math.cos(pitch);
+    var camX = scene.fx + dist * cosP * sinY, camY = scene.fy - dist * sinP, camZ = scene.fz - dist * cosP * cosY;
+    var reach = DRAW_TILES * 128;
+    var nv = 0, nf = 0, i, e;
+    bucketHead.fill(-1);
+    for (e = 0; e < scene.els.length; e++) {
+      var el = scene.els[e];
+      if (groundOnly && !el.tile) continue;
+      if (Math.abs(el.x - scene.fx) > reach || Math.abs(el.z - scene.fz) > reach) continue;
+      /* The model's origin in camera space: behind the camera, or wholly
+       * off the sides, and none of it is drawn (the client's model cull). */
+      var ox = el.x - camX, oy = el.y - camY, oz = el.z - camZ;
+      var t = oz * sinY + ox * cosY; var cz0 = oz * cosY - ox * sinY; var cx0 = t;
+      var cy0 = oy * cosP - cz0 * sinP; cz0 = oy * sinP + cz0 * cosP;
+      if (cz0 + el.radius < NEAR) continue;
+      if (cz0 > NEAR && (Math.abs(cx0) - el.radius) * FOCAL / cz0 > CX + 8) continue;
+      if (cz0 > NEAR && (Math.abs(cy0) - el.radius) * FOCAL / cz0 > CY + 8) continue;
+      var base = nv;
+      var my = el.yaw !== 0, ms = 0, mc = 1;
+      if (my) { ms = Math.sin(el.yaw * Math.PI / 1024); mc = Math.cos(el.yaw * Math.PI / 1024); }
+      for (i = 0; i < el.vc; i++) {
+        var vx = el.vx[i], vz = el.vz[i];
+        if (my) { var rx = vz * ms + vx * mc; vz = vz * mc - vx * ms; vx = rx; }
+        var dx = el.x + vx - camX, dy = el.y + el.vy[i] - camY, dz = el.z + vz - camZ;
+        var tx = dz * sinY + dx * cosY; dz = dz * cosY - dx * sinY; dx = tx;
+        var ty = dy * cosP - dz * sinP; dz = dy * sinP + dz * cosP; dy = ty;
+        pz[nv] = dz | 0; vxv[nv] = dx; vyv[nv] = dy; vzv[nv] = dz;
+        if (dz >= NEAR) { px[nv] = (CX + dx * FOCAL / dz) | 0; py[nv] = (CY + dy * FOCAL / dz) | 0; }
+        nv++;
+      }
+      for (i = 0; i < el.fc; i++) {
+        var c3 = el.cc[i];
+        if (c3 === HIDDEN) continue;
+        var al = el.alpha[i];
+        if (al >= 254) continue;
+        var a = base + el.fa[i], b = base + el.fb[i], c = base + el.fcI[i];
+        if (pz[a] < NEAR || pz[b] < NEAR || pz[c] < NEAR) continue;
+        var area = (px[b] - px[a]) * (py[c] - py[a]) - (py[b] - py[a]) * (px[c] - px[a]);
+        if (area >= 0 && !(el.tile && area !== 0)) continue;
+        if ((px[a] < 0 && px[b] < 0 && px[c] < 0) || (px[a] >= W && px[b] >= W && px[c] >= W) ||
+            (py[a] < 0 && py[b] < 0 && py[c] < 0) || (py[a] >= H && py[b] >= H && py[c] >= H)) continue;
+        fA[nf] = a; fB[nf] = b; fC[nf] = c;
+        fCa[nf] = el.ca[i]; fCb[nf] = el.cb[i]; fCc[nf] = c3; fAl[nf] = al;
+        fT[nf] = el.tex[i];
+        if (fT[nf] >= 0) { fP[nf] = base + el.tp[i]; fM[nf] = base + el.tm[i]; fN[nf] = base + el.tn[i]; }
+        var key = ((pz[a] + pz[b] + pz[c]) / 3) >> 1; if (key > 8191) key = 8191;
+        bucketNext[nf] = bucketHead[key]; bucketHead[key] = nf;
+        nf++;
+      }
+    }
+    var t0 = performance.now();
+    pixels.fill(0xff000000);
+    for (var k = 8191; k >= 0; k--) {
+      for (var f = bucketHead[k]; f !== -1; f = bucketNext[f]) {
+        var p = fA[f], q = fB[f], r = fC[f];
+        if (fT[f] >= 0) {
+          var flatLit = fCc[f] === FLAT;
+          texTri(scene, f, px[p], py[p], fCa[f] & 127, px[q], py[q], (flatLit ? fCa[f] : fCb[f]) & 127,
+                 px[r], py[r], (flatLit ? fCa[f] : fCc[f]) & 127);
+          continue;
+        }
+        if (fCc[f] === FLAT) tri(px[p], py[p], fCa[f], px[q], py[q], fCa[f], px[r], py[r], fCa[f], fAl[f], true);
+        else tri(px[p], py[p], fCa[f], px[q], py[q], fCb[f], px[r], py[r], fCc[f], fAl[f], false);
+      }
+    }
+    var fillMs = performance.now() - t0;
+    ctx.putImageData(image, 0, 0);
+    return [nf, fillMs];
+  }
+
+  /* A triangle the way the client's gouraud raster fills one: sorted by y,
+   * the HSL16 value interpolated down the edges and across each span, the
+   * palette looked up per pixel. A flat face is one lookup per face. */
+  function tri(x0, y0, c0, x1, y1, c1, x2, y2, c2, alpha, flat) {
+    var t;
+    if (y1 < y0) { t = x0; x0 = x1; x1 = t; t = y0; y0 = y1; y1 = t; t = c0; c0 = c1; c1 = t; }
+    if (y2 < y0) { t = x0; x0 = x2; x2 = t; t = y0; y0 = y2; y2 = t; t = c0; c0 = c2; c2 = t; }
+    if (y2 < y1) { t = x1; x1 = x2; x2 = t; t = y1; y1 = y2; y2 = t; t = c1; c1 = c2; c2 = t; }
+    if (y2 === y0) return;
+    var flatPixel = flat ? palette[c0 & 0xffff] : 0;
+    var yStart = y0 < 0 ? 0 : y0, yEnd = y2 > H - 1 ? H - 1 : y2;
+    var inv02 = 1 / (y2 - y0), inv01 = y1 !== y0 ? 1 / (y1 - y0) : 0, inv12 = y2 !== y1 ? 1 / (y2 - y1) : 0;
+    for (var y = yStart; y <= yEnd; y++) {
+      var tA = (y - y0) * inv02;
+      var xa = x0 + (x2 - x0) * tA, ca = c0 + (c2 - c0) * tA, xb, cb;
+      if (y < y1) { var tB = (y - y0) * inv01; xb = x0 + (x1 - x0) * tB; cb = c0 + (c1 - c0) * tB; }
+      else if (y2 !== y1) { var tC = (y - y1) * inv12; xb = x1 + (x2 - x1) * tC; cb = c1 + (c2 - c1) * tC; }
+      else { xb = x1; cb = c1; }
+      if (xb < xa) { t = xa; xa = xb; xb = t; t = ca; ca = cb; cb = t; }
+      var xs = Math.ceil(xa), xe = Math.floor(xb);
+      if (xs < 0) xs = 0; if (xe > W - 1) xe = W - 1;
+      if (xe < xs) continue;
+      var row = y * W, x;
+      if (flat && alpha === 0) { for (x = xs; x <= xe; x++) pixels[row + x] = flatPixel; continue; }
+      var dc = xb > xa ? (cb - ca) / (xb - xa) : 0, col = ca + (xs - xa) * dc;
+      if (alpha === 0) {
+        for (x = xs; x <= xe; x++) { pixels[row + x] = palette[col & 0xffff]; col += dc; }
+      } else {
+        var keep = alpha, take = 256 - alpha;
+        for (x = xs; x <= xe; x++) {
+          var src = flat ? flatPixel : palette[col & 0xffff], dst = pixels[row + x];
+          pixels[row + x] = 0xff000000 |
+            ((((src & 0xff00ff) * take + (dst & 0xff00ff) * keep) >>> 8) & 0xff00ff) |
+            ((((src & 0x00ff00) * take + (dst & 0x00ff00) * keep) >>> 8) & 0x00ff00);
+          col += dc;
+        }
+      }
+    }
+  }
+
+  /* A textured triangle the way the client's model raster maps one
+   * (toridraw rszbuf.texture.perspective.lerp8, from class162.method5170):
+   * the texture plane from the face's P/M/N corners, u and v re-derived
+   * every eight pixels and stepped linearly between, u clamped and v
+   * wrapped, 128-texel textures, each texel lit by the face's light
+   * (rszbuf_shade_texel), a colour-keyed texture's black not drawn. */
+  function texTri(scene, f, x0, y0, l0, x1, y1, l1, x2, y2, l2) {
+    var tex = scene.texels[fT[f]], keyed = !scene.texOpaque[fT[f]], alpha = fAl[f];
+    var P = fP[f], M = fM[f], N = fN[f];
+    var ax = vxv[P], ay = vyv[P], az = vzv[P];
+    var bx = vxv[M] - ax, by = vyv[M] - ay, bz = vzv[M] - az;
+    var cx = vxv[N] - ax, cy = vyv[N] - ay, cz = vzv[N] - az;
+    /* u = r.(C x A) / r.(B x C), v = r.(A x B) / r.(B x C), with the view
+     * ray r = ((sx - CX) / FOCAL, (sy - CY) / FOCAL, 1); scaled to the
+     * client's 7.7 texel units (16256 = texel 127). */
+    var ux = cy * az - cz * ay, uy = cz * ax - cx * az, uz = cx * ay - cy * ax;
+    var vx = ay * bz - az * by, vy = az * bx - ax * bz, vz = ax * by - ay * bx;
+    var wx = by * cz - bz * cy, wy = bz * cx - bx * cz, wz = bx * cy - by * cx;
+    var t;
+    if (y1 < y0) { t = x0; x0 = x1; x1 = t; t = y0; y0 = y1; y1 = t; t = l0; l0 = l1; l1 = t; }
+    if (y2 < y0) { t = x0; x0 = x2; x2 = t; t = y0; y0 = y2; y2 = t; t = l0; l0 = l2; l2 = t; }
+    if (y2 < y1) { t = x1; x1 = x2; x2 = t; t = y1; y1 = y2; y2 = t; t = l1; l1 = l2; l2 = t; }
+    if (y2 === y0) return;
+    var inv02 = 1 / (y2 - y0), inv01 = y1 !== y0 ? 1 / (y1 - y0) : 0, inv12 = y2 !== y1 ? 1 / (y2 - y1) : 0;
+    var yStart = y0 < 0 ? 0 : y0, yEnd = y2 > H - 1 ? H - 1 : y2;
+    for (var y = yStart; y <= yEnd; y++) {
+      var tA = (y - y0) * inv02;
+      var xa = x0 + (x2 - x0) * tA, la = l0 + (l2 - l0) * tA, xb, lb;
+      if (y < y1) { var tB = (y - y0) * inv01; xb = x0 + (x1 - x0) * tB; lb = l0 + (l1 - l0) * tB; }
+      else if (y2 !== y1) { var tC = (y - y1) * inv12; xb = x1 + (x2 - x1) * tC; lb = l1 + (l2 - l1) * tC; }
+      else { xb = x1; lb = l1; }
+      if (xb < xa) { t = xa; xa = xb; xb = t; t = la; la = lb; lb = t; }
+      var xs = Math.ceil(xa), xe = Math.floor(xb);
+      if (xs < 0) xs = 0; if (xe > W - 1) xe = W - 1;
+      if (xe < xs) continue;
+      var ry = (y - CY) / FOCAL;
+      /* Planes at x = xs and their step per pixel. */
+      var rx = (xs - CX) / FOCAL;
+      var uP = (ux * rx + uy * ry + uz) * 128, vP = (vx * rx + vy * ry + vz) * 128, wP = wx * rx + wy * ry + wz;
+      var uD = ux * 128 / FOCAL, vD = vx * 128 / FOCAL, wD = wx / FOCAL;
+      var dl = xb > xa ? (lb - la) / (xb - xa) : 0, light = la + (xs - xa) * dl;
+      var row = y * W, x = xs;
+      var u0 = wP !== 0 ? (uP / wP) * 128 | 0 : 0, v0 = wP !== 0 ? (vP / wP) * 128 | 0 : 0;
+      while (x <= xe) {
+        var n = xe - x + 1; if (n > 8) n = 8;
+        uP += uD * 8; vP += vD * 8; wP += wD * 8;
+        var u1 = wP !== 0 ? (uP / wP) * 128 | 0 : 0, v1 = wP !== 0 ? (vP / wP) * 128 | 0 : 0;
+        var du = (u1 - u0) >> 3, dv = (v1 - v0) >> 3;
+        var shade = (light * 2) | 0; if (shade > 255) shade = 255; else if (shade < 0) shade = 0;
+        var u = u0, v = v0;
+        for (var i = 0; i < n; i++, x++) {
+          var uc = u < 0 ? 0 : (u > 16256 ? 16256 : u);
+          var texel = tex[(uc >> 7) + (v & 0x3F80)];
+          u += du; v += dv;
+          if (keyed && texel === 0) continue;
+          var lit = ((((texel & 0xFF00FF) * shade) & 0xFF00FF00) + (((texel & 0xFF00) * shade) & 0xFF0000)) >>> 8;
+          if (alpha === 0) pixels[row + x] = 0xff000000 | lit;
+          else {
+            var dst = pixels[row + x], take = 256 - alpha;
+            pixels[row + x] = 0xff000000 |
+              ((((lit & 0xff00ff) * take + (dst & 0xff00ff) * alpha) >>> 8) & 0xff00ff) |
+              ((((lit & 0x00ff00) * take + (dst & 0x00ff00) * alpha) >>> 8) & 0x00ff00);
+          }
+        }
+        u0 = u1; v0 = v1; light += dl * 8;
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------- the run */
+
+  /* The full scene last, so the picture left on the page is the full one. */
+  var SCENES = [
+    { name: 'Ground only', ground: true },
+    { name: 'Lumbridge courtyard', ground: false },
+  ];
+  /* Per scene: up to this many frames or this long, whichever ends first; a
+   * slow device still gets two (the first is a warm-up, not counted). */
+  var MAX_FRAMES = 30, MAX_MS = 30000;
+  var results = [], scene = null;
+
+  function next(fn) { requestAnimationFrame(function () { setTimeout(fn, 0); }); }
+
+  function runScene(index) {
+    if (index >= SCENES.length) { finish(); return; }
+    var sc = SCENES[index];
+    var frames = 0, timed = 0, total = 0, fillTotal = 0, drawn = 0, started = performance.now();
+    var step = function () {
+      var t0 = performance.now();
+      var out = frame(scene, 1536 + frames * 24, sc.ground);
+      var ms = performance.now() - t0;
+      frames++;
+      if (frames > 1) { timed++; total += ms; fillTotal += out[1]; drawn = out[0]; }
+      statusEl.textContent = sc.name + ': frame ' + frames + ', ' + Math.round(ms) + ' ms';
+      if ((frames < MAX_FRAMES && performance.now() - started < MAX_MS) || timed < 1) { next(step); return; }
+      var per = total / timed;
+      results.push({ scene: sc.name, faces_drawn: drawn, frames: timed, ms_per_frame: Math.round(per * 10) / 10,
+                     fps: Math.round(1000 / per * 100) / 100, fill_ms: Math.round(fillTotal / timed * 10) / 10 });
+      var row = document.createElement('tr');
+      [sc.name, String(drawn), String(Math.round(per)), (1000 / per).toFixed(2), Math.round(fillTotal / timed) + ' ms']
+        .forEach(function (v) { var td = document.createElement('td'); td.textContent = v; row.appendChild(td); });
+      resultsEl.appendChild(row);
+      runScene(index + 1);
+    };
+    statusEl.textContent = sc.name + ' …';
+    next(step);
+  }
+
+  function finish() {
+    statusEl.textContent = 'Done.';
+    document.getElementById('again').hidden = false;
+    var detail = { results: results, scene_elements: scene.els.length, scene_faces: scene.faces,
+                   wasm: typeof WebAssembly === 'object', cores: navigator.hardwareConcurrency || null,
+                   memory_gb: navigator.deviceMemory || null };
+    if (window.ToriRS_Telemetry) window.ToriRS_Telemetry.record('device_bench', detail, true);
+    window.torirsBenchResults = detail;
+  }
+
+  document.getElementById('again').addEventListener('click', function () {
+    results = [];
+    while (resultsEl.rows.length > 1) resultsEl.deleteRow(1);
+    this.hidden = true;
+    runScene(0);
+  });
+
+  var t0 = performance.now();
+  load().then(function (s) {
+    scene = s;
+    palette = s.palette;
+    statusEl.textContent = 'Loaded ' + s.els.length + ' models (' + s.faces + ' faces) in '
+      + Math.round(performance.now() - t0) + ' ms.';
+    next(function () { runScene(0); });
+  }).catch(function (err) {
+    statusEl.textContent = 'Could not load the scene: ' + (err && err.message);
+  });
+})();
+</script>
+</body>
+</html>

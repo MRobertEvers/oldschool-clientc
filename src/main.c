@@ -7153,6 +7153,23 @@ frame_loop_step(void)
         /* The device lock's report and chat line (app/app_device_lock.h),
          * before the window mode drain so a refused switch never reaches it. */
         App_DeviceLockTick(&app);
+        /* TORIRS_SCENE_EXPORT=<path> (app/app_scene_export.c): the scene's
+         * geometry, once, ~150 frames after the load settles. */
+        {
+            static int scene_export_wait = -1;
+            char const* export_path = torirs_env_scene_export();
+            if( export_path && scene_export_wait != -2 && app.world && app.world->load_complete &&
+                !App_AsyncPending(&app) )
+            {
+                if( scene_export_wait < 0 )
+                    scene_export_wait = 150;
+                else if( --scene_export_wait == 0 )
+                {
+                    App_SceneExport(&app, export_path);
+                    scene_export_wait = -2;
+                }
+            }
+        }
         {
             int new_mode = 0;
             if( App_TakeWindowModeChange(&app, &new_mode) )

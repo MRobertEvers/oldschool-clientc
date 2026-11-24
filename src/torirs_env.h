@@ -93,6 +93,9 @@ TORIRS_ENV_KNOB(torirs_env_device_check_renderer, "TORIRS_DEVICE_CHECK_RENDERER"
 /* The device check's CPU score in tenths, set on every boot the page knows
  * one: the device lock (app/app_device_lock.h) reports it to the server. */
 TORIRS_ENV_KNOB(torirs_env_device_score, "TORIRS_DEVICE_SCORE")
+/* A path: write the loaded scene's geometry there once it has settled, for
+ * the web device bench (app/app_scene_export.c). */
+TORIRS_ENV_KNOB(torirs_env_scene_export, "TORIRS_SCENE_EXPORT")
 /* The LOC_ADD/NPC_ADD trigger trace. Asked once per loc of a rebuilt scene:
  * a getenv there was ~3 ms of every rebuild's finish. */
 TORIRS_ENV_KNOB(torirs_env_trigger_debug, "TORIRS_TRIGGER_DEBUG")
