@@ -109,6 +109,37 @@ static char const* const g_stage_names[TORIRS_PERF_STAGE_COUNT] = {
     "r_raster",
 };
 
+/*
+ * The stages and counters only the CS2 interpreter's profiling module feeds
+ * (src/cs2vm2/cs2vm2_profiling.h). A build without CS2VM2_PROFILING compiles
+ * them out, so the report says "not compiled in" for them instead of printing
+ * zeros that read as "the VM did nothing".
+ */
+#include "cs2vm2/cs2vm2_profiling.h"
+
+static int
+torirs_perf_stage_compiled_in(int stage)
+{
+#if CS2VM2_PROFILING
+    (void)stage;
+    return 1;
+#else
+    return stage != TORIRS_PERF_STAGE_CS2_HOST_OP && stage != TORIRS_PERF_STAGE_CS2_SCRIPT &&
+           stage != TORIRS_PERF_STAGE_CS2_SCRIPT_IN;
+#endif
+}
+
+static int
+torirs_perf_ctr_compiled_in(int ctr)
+{
+#if CS2VM2_PROFILING
+    (void)ctr;
+    return 1;
+#else
+    return ctr < TORIRS_PERF_CTR_CS2_SCRIPTS || ctr > TORIRS_PERF_CTR_CS2_FRAME_LOCALS_BYTES;
+#endif
+}
+
 static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "uitree_find_id",
     "uitree_find_id_probes",
@@ -796,6 +827,11 @@ window_flush(void)
 
     for( i = 0; i < TORIRS_PERF_STAGE_COUNT; i++ )
     {
+        if( !torirs_perf_stage_compiled_in(i) )
+        {
+            fprintf(g_window_csv, "window_not_compiled_in,%s,,,,,,,%d\n", g_stage_names[i], g_window_index);
+            continue;
+        }
         stage_stats_tail((enum TorirsPerfStage)i, n, &mean, &p50, &p95, &mx);
         fprintf(
             g_window_csv,
@@ -836,6 +872,11 @@ window_flush(void)
         int64_t total;
         double per;
         char const* kind;
+        if( !torirs_perf_ctr_compiled_in(i) )
+        {
+            fprintf(g_window_csv, "window_not_compiled_in,%s,,,,,,,%d\n", g_ctr_names[i], g_window_index);
+            continue;
+        }
         ctr_window((enum TorirsPerfCounter)i, n, &total, &per);
         if( total == 0 && per == 0.0 )
             continue;
@@ -1241,6 +1282,11 @@ TorirsPerf_Report(void)
             "p95_ns", "max_ns");
     for( i = 1; i < TORIRS_PERF_STAGE_COUNT; i++ )
     {
+        if( !torirs_perf_stage_compiled_in(i) )
+        {
+            TORIRS_REPORT("%-12s %s\n", g_stage_names[i], CS2VM2_PROFILING_NOT_COMPILED_IN);
+            continue;
+        }
         stage_stats((enum TorirsPerfStage)i, &mean, &p50, &p95, &mx);
         attributed += mean;
         TORIRS_REPORT("%-12s %10llu %10llu %10llu %10llu\n", g_stage_names[i],
@@ -1255,6 +1301,11 @@ TorirsPerf_Report(void)
     {
         int64_t total;
         double per;
+        if( !torirs_perf_ctr_compiled_in(i) )
+        {
+            TORIRS_REPORT("%-32s %s\n", g_ctr_names[i], CS2VM2_PROFILING_NOT_COMPILED_IN);
+            continue;
+        }
         ctr_totals((enum TorirsPerfCounter)i, &total, &per);
         if( total == 0 )
             continue;
@@ -1279,6 +1330,11 @@ TorirsPerf_Report(void)
             fprintf(csv, "meta,eff_fps,,,,,%.3f,\n", fps);
             for( i = 0; i < TORIRS_PERF_STAGE_COUNT; i++ )
             {
+                if( !torirs_perf_stage_compiled_in(i) )
+                {
+                    fprintf(csv, "not_compiled_in,%s,,,,,,\n", g_stage_names[i]);
+                    continue;
+                }
                 stage_stats((enum TorirsPerfStage)i, &mean, &p50, &p95, &mx);
                 fprintf(csv, "stage,%s,%llu,%llu,%llu,%llu,,\n", g_stage_names[i],
                         (unsigned long long)mean, (unsigned long long)p50,
@@ -1311,6 +1367,11 @@ TorirsPerf_Report(void)
             {
                 int64_t total;
                 double per;
+                if( !torirs_perf_ctr_compiled_in(i) )
+                {
+                    fprintf(csv, "not_compiled_in,%s,,,,,,\n", g_ctr_names[i]);
+                    continue;
+                }
                 ctr_totals((enum TorirsPerfCounter)i, &total, &per);
                 fprintf(csv, "counter,%s,,,,,%lld,%.6f\n", g_ctr_names[i],
                         (long long)total, per);

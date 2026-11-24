@@ -5,7 +5,6 @@
 
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
-#include "game/rs_cs2_host_reads.h"
 #include "game/rs_loot_store.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_social.h"
@@ -225,10 +224,12 @@ rs_cs2_yield(
 
 /**
  * One opcode, one yield. `rs_cs2_yield_load` parks a request for the task layer
- * and records what this VM thread is waiting for; `rs_cs2_await_spent` tells
- * the handler on the retry that this exact wait already happened, so a
- * resource that is still missing is genuinely absent and the handler must
- * complete with a default rather than yield again.
+ * and says what this VM thread is waiting for (CS2VM2_AwaitNote);
+ * `rs_cs2_await_spent` tells the handler on the retry that this exact wait
+ * already happened, so a resource that is still missing is genuinely absent
+ * and the handler must complete with a default rather than yield again. The
+ * record itself is the VM's (CS2VM2_AwaitSpent, cs2vm2.h): written on the
+ * yield, retired when the retried instruction completes.
  *
  * The record must be per thread. The host is shared by every queued
  * Task_CS2Run, so a host-global record is overwritten or cleared whenever a
@@ -244,9 +245,7 @@ rs_cs2_await_spent(
     int id,
     int id2)
 {
-    assert(thread);
-    return thread->has_awaited && thread->awaited_kind == kind && thread->awaited_id == id &&
-           thread->awaited_id2 == id2;
+    return CS2VM2_AwaitSpent(thread, kind, id, id2);
 }
 
 static int
@@ -260,10 +259,7 @@ rs_cs2_yield_load(
     assert(host);
     assert(thread);
     assert(request);
-    thread->awaited_kind = request->kind;
-    thread->awaited_id = id;
-    thread->awaited_id2 = id2;
-    thread->has_awaited = true;
+    CS2VM2_AwaitNote(thread, request->kind, id, id2);
     return rs_cs2_yield(host, request);
 }
 
@@ -296,10 +292,10 @@ rs_cs2_yield_if_group_missing(
         return CS2VM_EXECNO_OK;
 
     if( getenv("TORIRS_CS2_MOUNT_DEBUG") )
-        TORIRS_LOG("cs2-automount: group %d requested via component 0x%08x (req kind=%d)\n",
+        TORIRS_LOG("cs2-automount: group %d requested via component 0x%08x (req opcode=%d)\n",
             group_id,
             (unsigned)component_id,
-            (int)request->kind);
+            CS2VM_HostRequestOpcode(request->kind));
     return rs_cs2_yield_load(host, thread, request, group_id, -1);
 }
 
@@ -2699,8 +2695,38 @@ exec_inv_size(
     return CS2VM2_PushInt(thread, 0);
 }
 
-/* INV_GETOBJ / INV_GETNUM are RS_CS2Host_InvGetObj / _InvGetNum
- * (rs_cs2_host_reads.h), shared with the VM's read entry RS_CS2Host_Read. */
+static int
+rs_cs2_inv_get_obj(
+    struct RS_CS2Host* host,
+    int inv_id,
+    int slot)
+{
+    int obj;
+    assert(host);
+    assert(host->invs);
+    if( inv_id < 0 || slot < 0 )
+        return -1;
+    obj = InvManager_GetObj(host->invs, inv_id, slot);
+    /* Scripts expect -1 for empty (reference INV_GETOBJ pushes -1 when the
+     * inv or slot has no item); InvManager's empty sentinel is -1 too, and
+     * obj 0 (Dwarf remains) is a real item. */
+    if( obj <= INV_MANAGER_EMPTY_OBJ_ID )
+        return -1;
+    return obj;
+}
+
+static int
+rs_cs2_inv_get_num(
+    struct RS_CS2Host* host,
+    int inv_id,
+    int slot)
+{
+    assert(host);
+    assert(host->invs);
+    if( inv_id < 0 || slot < 0 )
+        return 0;
+    return InvManager_GetNum(host->invs, inv_id, slot);
+}
 
 static int
 rs_cs2_inv_total(
@@ -2926,7 +2952,8 @@ exec_vars_read_varbit(
     struct CS2VM2_Thread* thread,
     int varbit_id)
 {
-    return CS2VM2_PushInt(thread, RS_CS2Host_VarbitGet(host, varbit_id));
+    assert(host->varps);
+    return CS2VM2_PushInt(thread, VarPManager_GetVarbit(host->varps, varbit_id));
 }
 
 static int
@@ -8187,8 +8214,9 @@ exec_set_on_cc_event(
  * below is the widely-referenced OSRS convention. `tupleIndex == 0xF` is the
  * "whole tuple / all fields" sentinel.
  *
- * Stack convention: arguments are popped in reverse push order, so the LAST
- * source argument is popped first. This was previously guessed the other way
+ * Stack convention (the VM pops them, CS2VM2_Op_Db, into the request's arm):
+ * arguments are popped in reverse push order, so the LAST source argument is
+ * popped first. This was previously guessed the other way
  * round for the find family and it was wrong twice over — see below.
  *
  *   db_find*(dbcolumn, value, type_tag)  pops type_tag, value, dbcolumn
@@ -8263,11 +8291,10 @@ db_yield_load(
     struct CS2VM_HostRequest req = *exact_request;
     switch( req.kind )
     {
-#define RS_CS2_DB_RETRY(name)              \
-    case CS2VM_HOST_REQUEST_##name:        \
-        req.u.name.opcode = (int)req.kind; \
-        req.u.name.load_kind = load_kind;  \
-        req.u.name.load_id = load_id;      \
+#define RS_CS2_DB_RETRY(name)             \
+    case CS2VM_HOST_REQUEST_##name:       \
+        req.u.name.load_kind = load_kind; \
+        req.u.name.load_id = load_id;     \
         break
         RS_CS2_DB_RETRY(DB_FIND);
         RS_CS2_DB_RETRY(DB_FINDNEXT);
@@ -8504,9 +8531,9 @@ db_find_value(
     }
 }
 
-/* Handles the full DB_* opcode family. All stack manipulation happens here so
- * that a value whose int/string type is only known after the index loads can be
- * popped on the retry (see the stack-convention note above). */
+/* Handles the full DB_* opcode family. The VM popped the arguments into the
+ * request's arm (CS2VM2_Op_Db) and puts them back if this answers "not
+ * ready", as for every request. */
 static int
 exec_db(
     struct RS_CS2Host* host,
@@ -8516,10 +8543,6 @@ exec_db(
 {
     bool yielded;
     int code;
-    /* The db commands pop their own arguments, here, before the row, table
-     * or index they name is known to be resident: what was taken goes back
-     * before a yield is returned (cs2vm2.h, struct CS2VM2_Took). */
-    struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;
 
     switch( opcode )
     {
@@ -8539,9 +8562,7 @@ exec_db(
          * is a position in the query and the result is a row id (-1 past the
          * end). It used to be read as a row id and push nothing at all, which
          * left the assignment reading whatever was under it. */
-        int index;
-        if( CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
+        int const index = exact_request->u.DB_FIND_GET.index;
         if( index < 0 || index >= host->db_find_count || !host->db_find_rows )
             return CS2VM2_PushInt(vm, -1);
         return CS2VM2_PushInt(vm, host->db_find_rows[index]);
@@ -8549,34 +8570,25 @@ exec_db(
 
     case CS2_OP_DB_GETROWTABLE:
     {
-        int row_id;
+        int const row_id = exact_request->u.DB_GETROWTABLE.row_id;
         struct RSCache_Dat2ConfigDbRow* row;
-        if( CS2VM2_TakeInt(vm, &took, &row_id) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
         row = db_row_or_yield(host, vm, exact_request, row_id, &yielded, &code);
         if( yielded )
-        {
-            CS2VM2_YieldRestore(vm, took);
             return code;
-        }
         return CS2VM2_PushInt(vm, row ? row->table_id : -1);
     }
 
     case CS2_OP_DB_GETFIELDCOUNT:
     {
-        int column, row_id, table, col_id, tuple;
+        int const column = exact_request->u.DB_GETFIELDCOUNT.column;
+        int const row_id = exact_request->u.DB_GETFIELDCOUNT.row_id;
+        int table, col_id, tuple;
         struct RSCache_Dat2ConfigDbRow* row;
         struct RSCache_Dat2ConfigDbTable* dbtable;
         struct RSCache_DbColumn const* col;
-        if( CS2VM2_TakeInt(vm, &took, &column) != CS2VM_EXECNO_OK ||
-            CS2VM2_TakeInt(vm, &took, &row_id) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
         row = db_row_or_yield(host, vm, exact_request, row_id, &yielded, &code);
         if( yielded )
-        {
-            CS2VM2_YieldRestore(vm, took);
             return code;
-        }
         db_unpack_column(column, &table, &col_id, &tuple);
         if( row && col_id >= 0 && col_id < row->column_count && row->columns[col_id].present )
             return CS2VM2_PushInt(vm, row->columns[col_id].tuple_count);
@@ -8589,31 +8601,24 @@ exec_db(
                             host, vm, exact_request, table, &yielded, &code)
                       : NULL;
         if( yielded )
-        {
-            CS2VM2_YieldRestore(vm, took);
             return code;
-        }
         col = db_column_of(row, dbtable, col_id);
         return CS2VM2_PushInt(vm, col ? col->tuple_count : 0);
     }
 
     case CS2_OP_DB_GETFIELD:
     {
-        int index, column, row_id, table, col_id, tuple;
+        int const index = exact_request->u.DB_GETFIELD.index;
+        int const column = exact_request->u.DB_GETFIELD.column;
+        int const row_id = exact_request->u.DB_GETFIELD.row_id;
+        int table, col_id, tuple;
         struct RSCache_Dat2ConfigDbRow* row;
         struct RSCache_Dat2ConfigDbTable* dbtable;
         struct RSCache_DbColumn const* col;
         int arity, base;
-        if( CS2VM2_TakeInt(vm, &took, &index) != CS2VM_EXECNO_OK ||
-            CS2VM2_TakeInt(vm, &took, &column) != CS2VM_EXECNO_OK ||
-            CS2VM2_TakeInt(vm, &took, &row_id) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
         row = db_row_or_yield(host, vm, exact_request, row_id, &yielded, &code);
         if( yielded )
-        {
-            CS2VM2_YieldRestore(vm, took);
             return code;
-        }
         db_unpack_column(column, &table, &col_id, &tuple);
         /* A DBROW lists only the columns it sets, so a column it omits falls
          * back to the DBTABLE: its default value block if it declares one, and
@@ -8637,10 +8642,7 @@ exec_db(
                                 host, vm, exact_request, table, &yielded, &code)
                           : NULL;
             if( yielded )
-            {
-                CS2VM2_YieldRestore(vm, took);
                 return code;
-            }
             col = db_column_of(row, dbtable, col_id);
             arity = col ? col->type_count : 0;
             /* No column at all in either the row or the table: there is no
@@ -8685,19 +8687,15 @@ exec_db(
     case CS2_OP_DB_LISTALL_PRE228:
     case CS2_OP_DB_LISTALL:
     {
-        int table_id;
+        bool const with_count = (opcode == CS2_OP_DB_LISTALL);
+        int const table_id = with_count ? exact_request->u.DB_LISTALL.table_id
+                                        : exact_request->u.DB_LISTALL_PRE228.table_id;
         struct ToriRS_DbTableIndex* idx;
         struct RSCache_DbIndexFile* master;
-        bool with_count = (opcode == CS2_OP_DB_LISTALL);
-        if( CS2VM2_TakeInt(vm, &took, &table_id) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
         idx = db_index_or_yield(
             host, vm, exact_request, table_id, &yielded, &code);
         if( yielded )
-        {
-            CS2VM2_YieldRestore(vm, took);
             return code;
-        }
         db_set_iterator(host, NULL, 0);
         master = ToriRS_DbTableIndex_Master(idx);
         /* The master file has one tuple position; every value entry's rows,
@@ -8741,35 +8739,37 @@ exec_db(
         bool is_filter =
             (opcode == CS2_OP_DB_FIND_REFINE_PRE228 || opcode == CS2_OP_DB_FIND_REFINE);
         bool value_is_string;
-        int value_int = 0;
-        struct CS2VM2_Str* value_str = NULL;
+        int value_int;
+        struct CS2VM2_Str* value_str;
         int* prior_rows = NULL;
         int prior_count = 0;
 
-        /* Reverse push order: type tag, value, dbcolumn. The tag names the
-         * stack the value is on, so nothing here has to wait on the index. */
-        if( CS2VM2_TakeInt(vm, &took, &type_tag) != CS2VM_EXECNO_OK )
+        /* The four share one shape: dbcolumn, the value, and the type tag that
+         * named the stack the VM popped the value from (CS2VM2_Op_Db). */
+        switch( exact_request->kind )
+        {
+#define RS_CS2_DB_FIND_ARGS(name)                           \
+    case CS2VM_HOST_REQUEST_##name:                         \
+        column = exact_request->u.name.column;              \
+        type_tag = exact_request->u.name.type_tag;          \
+        value_int = exact_request->u.name.value_int;        \
+        value_str = exact_request->u.name.value_str;        \
+        break
+            RS_CS2_DB_FIND_ARGS(DB_FIND);
+            RS_CS2_DB_FIND_ARGS(DB_FIND_REFINE);
+            RS_CS2_DB_FIND_ARGS(DB_FIND_PRE228);
+            RS_CS2_DB_FIND_ARGS(DB_FIND_REFINE_PRE228);
+#undef RS_CS2_DB_FIND_ARGS
+        default:
+            assert(0 && "exec_db: a find opcode with a non-find request");
             return CS2VM_EXECNO_ERROR;
+        }
         value_is_string = (type_tag == 2);
-        if( value_is_string )
-        {
-            if( CS2VM2_TakeStr(vm, &took, &value_str) != CS2VM_EXECNO_OK )
-                return CS2VM_EXECNO_ERROR;
-        }
-        else if( CS2VM2_TakeInt(vm, &took, &value_int) != CS2VM_EXECNO_OK )
-        {
-            return CS2VM_EXECNO_ERROR;
-        }
-        if( CS2VM2_TakeInt(vm, &took, &column) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
 
         db_unpack_column(column, &table, &col_id, &tuple);
         idx = db_index_or_yield(host, vm, exact_request, table, &yielded, &code);
         if( yielded )
-        {
-            CS2VM2_YieldRestore(vm, took);
             return code;
-        }
 
         /* Hold the query being narrowed: db_find_value overwrites the iterator,
          * so a filter has to intersect against a copy taken beforehand. */
@@ -10501,74 +10501,17 @@ exec_widget_drag_pickup(
  * Main dispatcher
  * ========================================================================= */
 
-static int
-rs_cs2_host_exec_dispatch(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest* request);
-
-#ifndef TORIRS_PERF_DISABLE
-/* RS_CS2Host_Exec while TORIRS_PERF is on: the request counted, the outermost
- * dispatch timed. Depth-guarded because a handler may re-enter the VM and reach
- * RS_CS2Host_Exec again (CC_CALLONOP and the trigger dispatchers do), and a
- * stage that begins twice before it ends bills the inner span to the outer one.
- * Only the outermost dispatch is timed, so the stage total stays the
- * wall-clock time `cs2` spends inside host work rather than a sum that can
- * exceed its own parent. Not thread-local on purpose: the VM is pumped from one
- * thread and this is measurement scaffolding, not tree state. */
-static __attribute__((noinline)) int
-rs_cs2_host_exec_measured(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest* request)
-{
-    static int depth = 0;
-    int result;
-    int const timed = (depth++ == 0);
-
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
-    if( timed )
-        TORIRS_PERF_STAGE_BEGIN(TORIRS_PERF_STAGE_CS2_HOST_OP);
-    result = rs_cs2_host_exec_dispatch(vm, request);
-    if( timed )
-        TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_CS2_HOST_OP);
-    depth--;
-    return result;
-}
-#endif
-
+/*
+ * THE HOST'S ONE ENTRY: every request any VM thread bound to this host asks
+ * (CS2VM2_Ask) arrives here and is answered by the switch below, one case per
+ * request kind. The kinds are numbered densely (cs2vm2_host.h), so the switch
+ * is one bounds check and one indirect jump through one table. Nothing is
+ * done around it: the profiling counters are the VM's (CS2VM2_Ask), and the
+ * await record is written only on a yield (rs_cs2_yield_load) and retired by
+ * the VM's loop (CS2VM2_AwaitSpent).
+ */
 int
 RS_CS2Host_Exec(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest* request)
-{
-    int result;
-
-    assert(vm);
-    assert(request);
-
-    /* Asserted, not bound: nothing here dereferences the host, the dispatch
-     * below fetches it again. A local would be dead once -DNDEBUG drops the
-     * assert. */
-    assert(CS2VM_USER(vm) && "CS2VM_USER(thread) must be RS_CS2Host*");
-
-    /* Measurement is one test when it is off, which it is in every run that
-     * is not being profiled: the counter, the depth and the stage are all
-     * inside rs_cs2_host_exec_measured. */
-#ifndef TORIRS_PERF_DISABLE
-    if( g_torirs_perf_enabled )
-        result = rs_cs2_host_exec_measured(vm, request);
-    else
-#endif
-        result = rs_cs2_host_exec_dispatch(vm, request);
-    /* The await record only spans the yield -> load -> retry window: a request
-     * that completes retires it, so a resource evicted later can be awaited
-     * again. */
-    if( result != CS2VM_EXECNO_YIELD )
-        vm->has_awaited = false;
-    return result;
-}
-
-static int
-rs_cs2_host_exec_dispatch(
     struct CS2VM2_Thread* vm,
     struct CS2VM_HostRequest* request)
 {
@@ -12192,7 +12135,6 @@ rs_cs2_host_exec_dispatch(
     }
 
     case CS2VM_HOST_REQUEST_IF_GETTOP:
-        (void)request->u.IF_GETTOP._unused;
         return CS2VM2_PushInt(vm, host->top_interface_id);
 
     case CS2VM_HOST_REQUEST_IF_GETTARGETMASK:
@@ -12220,7 +12162,6 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_CHAT_CASE(MES);
 
     case CS2VM_HOST_REQUEST_IF_CLOSE:
-        (void)request->u.IF_CLOSE._unused;
         host->close_modal_requested = true;
         return CS2VM_EXECNO_OK;
 
@@ -12330,19 +12271,18 @@ rs_cs2_host_exec_dispatch(
     }
 
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
-        (void)request->u.CLIENTCLOCK._unused;
         return CS2VM2_PushInt(vm, host->client_clock);
 
     case CS2VM_HOST_REQUEST_INV_GETOBJ:
         return CS2VM2_PushInt(
             vm,
-            RS_CS2Host_InvGetObj(host, request->u.INV_GETOBJ.inv_id, request->u.INV_GETOBJ.slot));
+            rs_cs2_inv_get_obj(host, request->u.INV_GETOBJ.inv_id, request->u.INV_GETOBJ.slot));
     case CS2VM_HOST_REQUEST_INVOTHER_GETOBJ:
-        return CS2VM2_PushInt(vm, RS_CS2Host_InvGetObj(host,
+        return CS2VM2_PushInt(vm, rs_cs2_inv_get_obj(host,
             (int)((uint32_t)request->u.INVOTHER_GETOBJ.inv_id + 32768u),
             request->u.INVOTHER_GETOBJ.slot));
     case CS2VM_HOST_REQUEST_INVOTHER_GETNUM:
-        return CS2VM2_PushInt(vm, RS_CS2Host_InvGetNum(host,
+        return CS2VM2_PushInt(vm, rs_cs2_inv_get_num(host,
             (int)((uint32_t)request->u.INVOTHER_GETNUM.inv_id + 32768u),
             request->u.INVOTHER_GETNUM.slot));
     case CS2VM_HOST_REQUEST_INVOTHER_TOTAL:
@@ -12353,7 +12293,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_INV_GETNUM:
         return CS2VM2_PushInt(
             vm,
-            RS_CS2Host_InvGetNum(host, request->u.INV_GETNUM.inv_id, request->u.INV_GETNUM.slot));
+            rs_cs2_inv_get_num(host, request->u.INV_GETNUM.inv_id, request->u.INV_GETNUM.slot));
 
     case CS2VM_HOST_REQUEST_INV_TOTAL:
         return CS2VM2_PushInt(
@@ -12371,7 +12311,6 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_STAT_CASE(STAT_VISIBLE_XP, xp)
 
     case CS2VM_HOST_REQUEST_COORD:
-        (void)request->u.COORD._unused;
         /* MINUS ONE when there is no local player, which is the reference's own
          * answer: `Statics.method9635` returns null (or its validity check
          * fails) and opcode 3308 pushes -1 rather than a tile. Zero is a real
@@ -12382,32 +12321,26 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_CHAT_CASE(STAFFMODLEVEL);
 
     case CS2VM_HOST_REQUEST_MAP_WORLD:
-        (void)request->u.MAP_WORLD._unused;
         /* Non-zero, or the friends panel headers read "World 0" and every
          * online friend draws yellow (script 125 compares each friend's world
          * against this to pick the green same-world colour). */
         return CS2VM2_PushInt(vm, host->map_world);
 
     case CS2VM_HOST_REQUEST_RUNENERGY_VISIBLE:
-        (void)request->u.RUNENERGY_VISIBLE._unused;
         assert(host->stats);
         return CS2VM2_PushInt(vm, host->stats->run_energy);
 
     case CS2VM_HOST_REQUEST_RUNWEIGHT_VISIBLE:
-        (void)request->u.RUNWEIGHT_VISIBLE._unused;
         assert(host->stats);
         return CS2VM2_PushInt(vm, host->stats->run_weight);
 
     case CS2VM_HOST_REQUEST_MOUSE_GETX:
-        (void)request->u.MOUSE_GETX._unused;
         return CS2VM2_PushInt(vm, host->mouse_x);
 
     case CS2VM_HOST_REQUEST_MOUSE_GETY:
-        (void)request->u.MOUSE_GETY._unused;
         return CS2VM2_PushInt(vm, host->mouse_y);
 
     case CS2VM_HOST_REQUEST__3330:
-        (void)request->u._3330._unused;
         return CS2VM2_PushInt(vm, host->dest_coord);
 
         RS_CS2_ENUM_CASE(ENUM_STRING);
@@ -12670,11 +12603,9 @@ rs_cs2_host_exec_dispatch(
     }
 
     case CS2VM_HOST_REQUEST_CAM_GETANGLE_XA:
-        (void)request->u.CAM_GETANGLE_XA._unused;
         return CS2VM2_PushInt(vm, host->cam_angle_x);
 
     case CS2VM_HOST_REQUEST_CAM_GETANGLE_YA:
-        (void)request->u.CAM_GETANGLE_YA._unused;
         return CS2VM2_PushInt(vm, host->cam_angle_y);
 
     case CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT:
@@ -12682,16 +12613,13 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CAM_GETFOLLOWHEIGHT:
-        (void)request->u.CAM_GETFOLLOWHEIGHT._unused;
         return CS2VM2_PushInt(vm, host->cam_follow_height);
 
     case CS2VM_HOST_REQUEST_LOGOUT:
-        (void)request->u.LOGOUT._unused;
         host->logout_requested = true;
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_MOBILE_KEYBOARDSHOW:
-        (void)request->u.MOBILE_KEYBOARDSHOW._unused;
         host->keyboard_request = 1;
         return CS2VM_EXECNO_OK;
 
@@ -12708,20 +12636,16 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_MOBILE_KEYBOARDHIDE:
-        (void)request->u.MOBILE_KEYBOARDHIDE._unused;
         host->keyboard_request = -1;
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_MOBILE_BATTERYLEVEL:
-        (void)request->u.MOBILE_BATTERYLEVEL._unused;
         return CS2VM2_PushInt(vm, host->battery_percent);
 
     case CS2VM_HOST_REQUEST_MOBILE_BATTERYCHARGING:
-        (void)request->u.MOBILE_BATTERYCHARGING._unused;
         return CS2VM2_PushInt(vm, host->battery_charging ? 1 : 0);
 
     case CS2VM_HOST_REQUEST_MOBILE_WIFIAVAILABLE:
-        (void)request->u.MOBILE_WIFIAVAILABLE._unused;
         return CS2VM2_PushInt(vm, host->network_kind == RS_CS2_NETWORK_WIFI ? 1 : 0);
 
     case CS2VM_HOST_REQUEST_RUNELITE_CALLBACK:
@@ -13349,7 +13273,15 @@ rs_cs2_host_exec_dispatch(
 #undef RS_CS2_UNMODELED_INPUT_CASE
 
     default:
-        TORIRS_LOG("RS_CS2Host_Exec: UNHANDLED request kind %d\n", (int)request->kind);
+        /* Every kind without a case of its own, and anything that is not a
+         * kind at all: loud, never a silent fall. */
+        if( (unsigned)request->kind < (unsigned)CS2VM_HOST_REQUEST_COUNT )
+            TORIRS_LOG(
+                "RS_CS2Host_Exec: UNHANDLED request kind %d (opcode %d)\n",
+                (int)request->kind,
+                CS2VM_HostRequestOpcode(request->kind));
+        else
+            TORIRS_LOG("RS_CS2Host_Exec: request kind %d is not a kind\n", (int)request->kind);
         return CS2VM_EXECNO_ERROR;
     }
 }

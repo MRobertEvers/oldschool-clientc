@@ -3,16 +3,15 @@
 
 #include <stdio.h>
 
-/* Every manifest suffix must name the same canonical CS2 opcode, and every
- * public request discriminator must retain that opcode's value. Token-pasting
- * here deliberately makes a renamed or family-level request fail to compile. */
+/* Every manifest suffix must name the same canonical CS2 opcode. Token-pasting
+ * here deliberately makes a renamed or family-level request fail to compile.
+ * The discriminators are NOT the opcodes' values: they are dense, 0..COUNT-1
+ * in row order (cs2vm2_host.h), and related to the opcodes only through
+ * CS2VM_HostRequestOpcode / CS2VM_HostRequestKindOf, checked below. */
 #define CS2VM_HOST_REQUEST_KIND(name, opcode, fields)                                          \
     _Static_assert(                                                                             \
         (int)CS2_OP_##name == (int)(opcode),                                                     \
         "host request/opcode name mismatch: " #name);                                           \
-    _Static_assert(                                                                             \
-        (int)CS2VM_HOST_REQUEST_##name == (int)CS2_OP_##name,                                   \
-        "host request/opcode value mismatch: " #name);                                         \
     _Static_assert(                                                                             \
         _Generic(                                                                               \
             &((struct CS2VM_HostRequest*)0)->u.name,                                             \
@@ -41,6 +40,9 @@ enum
 _Static_assert(
     HOST_REQUEST_MANIFEST_COUNT == 912,
     "the CS2VM host-request manifest must contain all 912 host opcodes");
+_Static_assert(
+    (int)CS2VM_HOST_REQUEST_COUNT == HOST_REQUEST_MANIFEST_COUNT,
+    "the request kinds are exactly the manifest's rows");
 
 struct HostRequestKindEntry
 {
@@ -65,14 +67,36 @@ main(void)
     {
         struct HostRequestKindEntry const* entry = &HOST_REQUEST_KINDS[i];
 
-        if( entry->request_kind != entry->opcode )
+        if( entry->request_kind != i )
         {
             fprintf(
                 stderr,
-                "FAIL: %s request kind %d does not equal opcode %d\n",
+                "FAIL: %s request kind %d is not its row %d (kinds are dense, in row order)\n",
                 entry->name,
                 entry->request_kind,
+                i);
+            failures++;
+        }
+        if( CS2VM_HostRequestOpcode((enum CS2VM_HostRequestKind)entry->request_kind) !=
+            entry->opcode )
+        {
+            fprintf(
+                stderr,
+                "FAIL: %s CS2VM_HostRequestOpcode says %d, the opcode is %d\n",
+                entry->name,
+                CS2VM_HostRequestOpcode((enum CS2VM_HostRequestKind)entry->request_kind),
                 entry->opcode);
+            failures++;
+        }
+        if( (int)CS2VM_HostRequestKindOf(entry->opcode) != entry->request_kind )
+        {
+            fprintf(
+                stderr,
+                "FAIL: %s CS2VM_HostRequestKindOf(%d) says %d, the kind is %d\n",
+                entry->name,
+                entry->opcode,
+                (int)CS2VM_HostRequestKindOf(entry->opcode),
+                entry->request_kind);
             failures++;
         }
         if( i > 0 && HOST_REQUEST_KINDS[i - 1].opcode >= entry->opcode )
@@ -95,7 +119,7 @@ main(void)
     }
 
     printf(
-        "host request kind contract: %d exact, unique kinds in opcode order\n",
+        "host request kind contract: %d exact, unique kinds, dense in opcode order, both maps agree\n",
         HOST_REQUEST_MANIFEST_COUNT);
     return 0;
 }

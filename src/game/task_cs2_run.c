@@ -1,4 +1,3 @@
-#include "game/rs_cs2_host_reads.h"
 #include "game/task_cs2_run.h"
 
 #include "cs2vm2/cs2_opcode_meta.h"
@@ -1291,8 +1290,9 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
 
     default:
         TORIRS_LOG(
-            "Task_CS2Run: unhandled yield kind %d (script %d)\n",
+            "Task_CS2Run: unhandled yield kind %d (opcode %d, script %d)\n",
             (int)self->pending->kind,
+            CS2VM_HostRequestOpcode(self->pending->kind),
             self->script_id);
         self->yield_plan = TASK_CS2_YIELD_ABORT;
         break;
@@ -1737,7 +1737,6 @@ Task_CS2Run_Run(
         self->vm = CS2VM2_Acquire();
         assert(self->vm);
         CS2VM2_BindHost(self->vm, self->host, RS_CS2Host_Exec);
-        CS2VM2_BindHostReads(self->vm, RS_CS2Host_Read);
         thread = CS2VM2_ThreadMain(self->vm);
         CS2VM2_ThreadSetCanvas(
             thread,

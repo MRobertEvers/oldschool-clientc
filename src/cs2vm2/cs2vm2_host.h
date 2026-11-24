@@ -67,18 +67,70 @@ CS2VM_WindowModeName(int mode)
     return "unset";
 }
 
+/*
+ * The request kinds: their own dense numbering, 0 .. CS2VM_HOST_REQUEST_COUNT-1
+ * in the .def's row order, not the opcodes' values. An opcode is a number in
+ * the script; a kind is the index of the request it asks, and the host
+ * dispatches on it with one switch over a jump table of exactly
+ * CS2VM_HOST_REQUEST_COUNT entries (912). Numbered by opcode value the same
+ * switch was still one table, but of 8,570 entries, nine in ten of them the
+ * default: measured in the native object and in the WebAssembly module.
+ *
+ * Nothing may assume a kind's value is its opcode's. The two are related only
+ * through the maps below, both generated from the same rows:
+ * CS2VM_HostRequestOpcode (kind -> opcode, for a log line or a record) and
+ * CS2VM_HostRequestKindOf (opcode -> kind, for a VM body that serves a family
+ * of opcodes and has only the running opcode in hand; a body that serves one
+ * opcode names its kind).
+ *
+ * Each row also generates its own exact request struct and union arm. Each row
+ * carries that request's direct field declarations.
+ */
 enum CS2VM_HostRequestKind
 {
-    /*
-     * Host-request discriminators are the originating CS2 opcodes. Every row
-     * also generates its own exact request struct and union arm, in numeric
-     * opcode order. Each row carries that request's direct field declarations.
-     */
-#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) \
-    CS2VM_HOST_REQUEST_##name = CS2_OP_##name,
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) CS2VM_HOST_REQUEST_##name,
 #include "cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
+    CS2VM_HOST_REQUEST_COUNT
 };
+
+/* The opcode a request kind is asked by. */
+static inline int
+CS2VM_HostRequestOpcode(enum CS2VM_HostRequestKind kind)
+{
+    static uint16_t const opcodes[CS2VM_HOST_REQUEST_COUNT] = {
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) (uint16_t)(opcode),
+#include "cs2vm2_host_request_kinds.def"
+#undef CS2VM_HOST_REQUEST_KIND
+    };
+    assert((unsigned)kind < (unsigned)CS2VM_HOST_REQUEST_COUNT);
+    return (int)opcodes[kind];
+}
+
+/*
+ * The request kind an opcode asks, for a VM body that serves several opcodes
+ * and holds only the running one. CS2VM_HOST_REQUEST_COUNT for an opcode that
+ * asks nothing, which is a caller's mistake: it asserts, and a release build's
+ * host answers it through its loud default. One bounds check and one load
+ * (a switch here compiled to a jump table of the same 8,571 entries plus a
+ * return stub per kind); the table holds kind + 1 so that an opcode no row
+ * names reads 0.
+ */
+static inline enum CS2VM_HostRequestKind
+CS2VM_HostRequestKindOf(int opcode)
+{
+    static uint16_t const kind_plus_one[] = {
+#define CS2VM_HOST_REQUEST_KIND(name, opcode_, fields) \
+    [opcode_] = (uint16_t)(CS2VM_HOST_REQUEST_##name + 1),
+#include "cs2vm2_host_request_kinds.def"
+#undef CS2VM_HOST_REQUEST_KIND
+    };
+    if( opcode >= 0 && (size_t)opcode < sizeof(kind_plus_one) / sizeof(kind_plus_one[0]) &&
+        kind_plus_one[opcode] != 0 )
+        return (enum CS2VM_HostRequestKind)(kind_plus_one[opcode] - 1);
+    assert(0 && "CS2VM_HostRequestKindOf: the opcode asks the host nothing");
+    return CS2VM_HOST_REQUEST_COUNT;
+}
 
 /** Friends / ignore accessors + mutators (3600..3609, 3621..3623).
  *  `index` is set for the indexed getters, `name` (borrowed, never owned) for

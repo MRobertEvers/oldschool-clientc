@@ -1395,7 +1395,6 @@ app_plugin_frame_work_us(void* user)
     return App_LastFrameUs(app);
 }
 
-#include "game/rs_cs2_host_reads.h"
 #include "plugin/native_script_hooks.gen.h"
 #include "torirs_env.h"
 struct ToriRS_WidgetRef app_widget_ref(struct UITree const*,int32_t);
@@ -2784,7 +2783,6 @@ app_plugin_script_run(
     vm = CS2VM2_Acquire();
     assert(vm);
     CS2VM2_BindHost(vm, host, RS_CS2Host_Exec);
-    CS2VM2_BindHostReads(vm, RS_CS2Host_Read);
     thread = CS2VM2_ThreadMain(vm);
     CS2VM2_ThreadSetCanvas(
         thread, host->viewport_w > 0 ? host->viewport_w : 765, host->viewport_h > 0 ? host->viewport_h : 503);

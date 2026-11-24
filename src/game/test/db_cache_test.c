@@ -1,7 +1,7 @@
 /*
  * DB_* opcode integration test. Drives the real async load pipeline against the
  * osrs230 cache (DBROW config kind 38 + DBTABLEINDEX cache table 21), then
- * exercises the DB opcodes through RS_CS2Host_Exec and checks the results
+ * exercises the DB opcodes through the VM and RS_CS2Host_Exec and checks the results
  * against values decoded straight from the cache:
  *   - table 0 is the quest list; row 0 = "Animal Magnetism"; row 3997 -> table 80.
  */
@@ -11,6 +11,7 @@
 #include "cs2vm2/cs2_opcode.h"
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_host.h"
+#include "cs2vm2/cs2vm2_script.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "game/rs_cs2_host.h"
@@ -64,80 +65,109 @@ pack_col(
     return (table << 12) | (column << 4) | tuple;
 }
 
+/* One DB instruction, as a script runs it: the VM pops its arguments off the
+ * stacks the caller left (CS2VM2_Op_Db) and asks RS_CS2Host_Exec with them in
+ * the request's arm. A one-instruction script pushed on top of whatever the
+ * thread holds, so the answer lands on the same stacks. */
 static int
 call_db(
     struct CS2VM2_Thread* t,
     int opcode)
 {
-    struct CS2VM_HostRequest req;
-    memset(&req, 0, sizeof(req));
-    req.kind = (enum CS2VM_HostRequestKind)opcode;
-    switch( req.kind )
+    uint16_t opcodes[1] = { (uint16_t)opcode };
+    int operands[1] = { 0 };
+    struct CS2VM2_Script script;
+    int rc;
+
+    CS2VM2_ScriptInit(&script);
+    script.script_id = 990100;
+    script.op_count = 1;
+    script.opcodes = opcodes;
+    script.int_operands = operands;
+    CS2VM2_ScriptPrepare(&script);
+    rc = CS2VM2_PushCallScript(t, &script);
+    if( rc == CS2VM_EXECNO_OK )
+        rc = CS2VM2_RunScript(t);
+    /* The arrays are this function's; the script owns only what Prepare made. */
+    script.opcodes = NULL;
+    script.int_operands = NULL;
+    CS2VM2_ScriptFree(&script);
+    return rc;
+}
+
+/* [enum('i', 'i', enum_id, 0), RETURN]: one ENUM instruction over a missing
+ * enum. */
+static void
+build_enum_script(
+    struct CS2VM2_Script* script,
+    uint16_t* opcodes,
+    int* operands,
+    int enum_id)
+{
+    int const pushed[4] = { 'i', 'i', enum_id, 0 };
+    int n = 0;
+
+    CS2VM2_ScriptInit(script);
+    script->script_id = 990000 + (enum_id & 0xff);
+    for( int i = 0; i < 4; i++ )
     {
-#define SET_DB_OPCODE(name)                                                 \
-    case CS2VM_HOST_REQUEST_##name:                                         \
-        req.u.name.opcode = opcode;                                 \
-        break
-        SET_DB_OPCODE(DB_FIND);
-        SET_DB_OPCODE(DB_FINDNEXT);
-        SET_DB_OPCODE(DB_GETFIELD);
-        SET_DB_OPCODE(DB_GETFIELDCOUNT);
-        SET_DB_OPCODE(DB_LISTALL);
-        SET_DB_OPCODE(DB_GETROWTABLE);
-        SET_DB_OPCODE(DB_FIND_GET);
-        SET_DB_OPCODE(DB_FIND_REFINE);
-        SET_DB_OPCODE(DB_FIND_PRE228);
-        SET_DB_OPCODE(DB_FIND_REFINE_PRE228);
-        SET_DB_OPCODE(DB_LISTALL_PRE228);
-#undef SET_DB_OPCODE
-    default:
-        assert(0 && "call_db: unexpected opcode");
-        return CS2VM_EXECNO_ERROR;
+        operands[n] = pushed[i];
+        opcodes[n++] = CS2_OP_PUSH_CONSTANT_INT;
     }
-    return RS_CS2Host_Exec(t, &req);
+    operands[n] = 0;
+    opcodes[n++] = CS2_OP_ENUM;
+    operands[n] = 0;
+    opcodes[n++] = CS2_OP_RETURN;
+    script->op_count = n;
+    script->opcodes = opcodes;
+    script->int_operands = operands;
+    CS2VM2_ScriptPrepare(script);
 }
 
 /* Two clientscript tasks may yield against one shared host while their IO is
  * in flight. A wait record on RS_CS2Host lets the second task overwrite the
  * first, so both retry as if they had never loaded and violate the VM's
  * one-opcode/one-yield contract. Keep the two missing enum ids distinct so the
- * test specifically catches that cross-thread overwrite. */
+ * test specifically catches that cross-thread overwrite. Run through the VM:
+ * the record is the thread's, filed by the loop with the yield's site
+ * (CS2VM2_AwaitSpent). */
 static void
 test_await_isolation(
     struct RS_CS2Host* host)
 {
     struct CS2VM2 vm_a;
     struct CS2VM2 vm_b;
-    struct CS2VM_HostRequest req_a = { 0 };
-    struct CS2VM_HostRequest req_b = { 0 };
+    struct CS2VM2_Script script_a;
+    struct CS2VM2_Script script_b;
+    struct CS2VM2_ThreadError err;
+    uint16_t opcodes_a[8], opcodes_b[8];
+    int operands_a[8], operands_b[8];
     struct CS2VM2_Thread* a;
     struct CS2VM2_Thread* b;
     int value;
 
+    memset(&err, 0, sizeof(err));
+    build_enum_script(&script_a, opcodes_a, operands_a, 1000000001);
+    build_enum_script(&script_b, opcodes_b, operands_b, 1000000002);
     CS2VM2_Init(&vm_a);
     CS2VM2_Init(&vm_b);
     CS2VM2_BindHost(&vm_a, host, RS_CS2Host_Exec);
     CS2VM2_BindHost(&vm_b, host, RS_CS2Host_Exec);
     a = CS2VM2_ThreadMain(&vm_a);
     b = CS2VM2_ThreadMain(&vm_b);
+    CS2VM2_ThreadStart(a, &script_a);
+    CS2VM2_ThreadStart(b, &script_b);
 
-    req_a.kind = CS2VM_HOST_REQUEST_ENUM;
-    req_a.u.ENUM.enum_id = 1000000001;
-    req_a.u.ENUM.input_type = 'i';
-    req_a.u.ENUM.output_type = 'i';
-    req_b = req_a;
-    req_b.u.ENUM.enum_id = 1000000002;
+    CHECK(CS2VM2_ThreadRun(a, &err) == CS2VM2_THREAD_YIELDED, "thread A parks its enum load");
+    CHECK(CS2VM2_ThreadRun(b, &err) == CS2VM2_THREAD_YIELDED, "thread B parks a distinct enum load");
 
-    CHECK(RS_CS2Host_Exec(a, &req_a) == CS2VM_EXECNO_YIELD, "thread A parks its enum load");
-    CHECK(RS_CS2Host_Exec(b, &req_b) == CS2VM_EXECNO_YIELD, "thread B parks a distinct enum load");
-
-    CHECK(RS_CS2Host_Exec(a, &req_a) == CS2VM_EXECNO_OK,
+    CHECK(CS2VM2_ThreadResume(a, &err) == CS2VM2_THREAD_DONE,
           "thread A retry survives thread B's interleaved wait");
     value = 0;
     CHECK(CS2VM2_PopInt(a, &value) == CS2VM_EXECNO_OK && value == -1,
           "thread A completes a failed load with the enum default");
 
-    CHECK(RS_CS2Host_Exec(b, &req_b) == CS2VM_EXECNO_OK,
+    CHECK(CS2VM2_ThreadResume(b, &err) == CS2VM2_THREAD_DONE,
           "thread B retains its own wait after thread A completes");
     value = 0;
     CHECK(CS2VM2_PopInt(b, &value) == CS2VM_EXECNO_OK && value == -1,
@@ -146,6 +176,12 @@ test_await_isolation(
     host->has_pending = false;
     CS2VM2_Free(&vm_b);
     CS2VM2_Free(&vm_a);
+    script_a.opcodes = NULL;
+    script_a.int_operands = NULL;
+    script_b.opcodes = NULL;
+    script_b.int_operands = NULL;
+    CS2VM2_ScriptFree(&script_a);
+    CS2VM2_ScriptFree(&script_b);
 }
 
 int

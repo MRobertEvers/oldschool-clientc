@@ -593,7 +593,7 @@ call_social(
 {
     struct CS2VM_HostRequest req;
     memset(&req, 0, sizeof(req));
-    req.kind = (enum CS2VM_HostRequestKind)opcode;
+    req.kind = CS2VM_HostRequestKindOf(opcode);
     switch( req.kind )
     {
 #define SET_SOCIAL_REQUEST(name_)                                           \

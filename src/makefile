@@ -164,11 +164,22 @@ ifeq ($(PROFILE),1)
 PROFILE_SUFFIX = _prof
 endif
 endif
+# CS2VM2_PROFILING=1 compiles in the CS2 interpreter's measurements: the
+# per-request and per-instruction counters, the cs2_host_op / cs2_script
+# stages and TORIRS_CS2_PROFILE (src/cs2vm2/cs2vm2_profiling.h). Off by
+# default, where every one of them is an empty inline and the perf report says
+# "not compiled in". It changes CFLAGS for every unit, so it owns its object
+# directory suffix. docs/PERF_HARNESS.md "Build knobs".
+CS2VM2_PROFILING ?= 0
+CS2VM2_PROFILING_SUFFIX =
+ifeq ($(CS2VM2_PROFILING),1)
+CS2VM2_PROFILING_SUFFIX = _cs2prof
+endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(PROFILE_SUFFIX)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(PROFILE_SUFFIX)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)$(CS2VM2_PROFILING_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)$(CS2VM2_PROFILING_SUFFIX)
 O_LEVEL = $(PLATFORM_DEBUG_O_LEVEL)
 endif
 
@@ -435,6 +446,9 @@ CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
 	-I$(REPO_ROOT)/3rd/sqlite \
 	-I$(STB_DIR) \
 	$(RSPROT_HDR_INCLUDES)
+ifeq ($(CS2VM2_PROFILING),1)
+CFLAGS += -DCS2VM2_PROFILING=1
+endif
 
 # Just the two directories holding rsprot's headers, for the main build.
 # Deliberately NOT the full $(RSPROT_INCLUDES): that set also carries -I3rd and
@@ -908,7 +922,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	input/torirs_touch.c input/torirs_gesture.c \
 	input/torirs_input_claims.c input/torirs_world_tap.c input/torirs_frame_modifiers.c \
 	$(BMP_DIR)/bmp.c \
-	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c cs2vm2/cs2vm2_trigger_args.c \
+	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c cs2vm2/cs2vm2_profiling.c cs2vm2/cs2vm2_trigger_args.c \
 	cs2vm2/cs2vm2_strpool.c \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
@@ -999,7 +1013,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/rs_cs2_host_reads.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_group_store.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
+	game/rs_cs2_host.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_group_store.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/task_entity_assets.c game/rs_entity_sync.c game/rs_audio.c \
 	game/rs_entity_apply.c game/rs_loc_tasks.c \
@@ -2292,6 +2306,17 @@ test-cs2-yield-restore: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/yield_restore_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_yield_restore_test
 
+# The await record (cs2vm2.h, CS2VM2_AwaitSpent): a load that failed is not
+# awaited again forever, a resource evicted later is awaited again, and the
+# record is the loop's yield-halt record -- nothing written for a request that
+# neither yields nor is the retry. Own .PHONY line for the same reason as the
+# targets above it.
+.PHONY: test-cs2-await-record
+test-cs2-await-record: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_await_record_test \
+		cs2vm2/test/await_record_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_await_record_test
+
 # Remembered gosub callees (cs2vm2/cs2vm2_callee.h): asked once per site,
 # pushed without the host after that, stale once any script is freed. Own
 # .PHONY line for the same reason as the targets above it.
@@ -3329,7 +3354,7 @@ test-cache-provider-invalidate: $(OBJ_DIR) $(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_
 		engine/torirs_types.c engine/torirs_location_from_rscache.c \
 		engine/torirs_npctype_from_rscache.c engine/torirs_worldmap_from_rscache.c \
 		engine/dat2/dat2_group_cache.c engine/torirs_db.c engine/torirs_component_hook.c \
-		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c \
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c cs2vm2/cs2vm2_profiling.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/hmap.o $(LDFLAGS)
 	./$(OBJ_DIR)/cache_provider_invalidate_test$(PLATFORM_EXE_SUFFIX)
@@ -3346,7 +3371,7 @@ test-cache-provider-obj-index: $(OBJ_DIR) $(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_u
 		engine/torirs_types.c engine/torirs_location_from_rscache.c \
 		engine/torirs_npctype_from_rscache.c engine/torirs_worldmap_from_rscache.c \
 		engine/dat2/dat2_group_cache.c engine/torirs_db.c engine/torirs_component_hook.c \
-		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c \
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c cs2vm2/cs2vm2_profiling.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/hmap.o $(LDFLAGS)
 	./$(OBJ_DIR)/obj_index_memo_test$(PLATFORM_EXE_SUFFIX)
@@ -3496,7 +3521,7 @@ test-cs2-host-request-producers: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_producers_test $(TORIMEM_SRCS) \
 		cs2vm2/test/host_request_producers_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
-		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c perf/torirs_perf.c $(LDFLAGS)
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c cs2vm2/cs2vm2_profiling.c perf/torirs_perf.c $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_host_request_producers_test
 
 .PHONY: test-cs2-array-fill
@@ -3504,7 +3529,7 @@ test-cs2-array-fill: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_fill_test $(TORIMEM_SRCS) \
 		cs2vm2/test/array_fill_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
-		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c perf/torirs_perf.c $(LDFLAGS)
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c cs2vm2/cs2vm2_profiling.c perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_array_fill_test
 
 .PHONY: test-cs2-worldentity-limit
@@ -3524,7 +3549,7 @@ test-cs2-array-bounds: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_bounds_test $(TORIMEM_SRCS) \
 		cs2vm2/test/array_bounds_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
-		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c perf/torirs_perf.c $(LDFLAGS)
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c cs2vm2/cs2vm2_profiling.c perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_array_bounds_test
 
 .PHONY: test-cs2-vm-pool
@@ -3532,7 +3557,7 @@ test-cs2-vm-pool: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_vm_pool_test $(TORIMEM_SRCS) \
 		cs2vm2/test/vm_pool_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
-		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c perf/torirs_perf.c $(LDFLAGS)
+		cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c cs2vm2/cs2vm2_profiling.c perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_vm_pool_test
 
 # The CS2 load-time jit, VM side (docs/CS2_JIT.md section 6): the VM alone,
@@ -3541,7 +3566,7 @@ test-cs2-vm-pool: $(OBJ_DIR)
 # shows. test-cs2-jit runs the four; test-cs2-jit-blob is the one to run
 # under ENABLE_ASAN=1 too (it fuzzes the validator).
 CS2_JIT_TEST_SRCS = $(TORIMEM_SRCS) cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c \
-	cs2vm2/cs2_opcode_meta.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c perf/torirs_perf.c
+	cs2vm2/cs2_opcode_meta.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_jit.c cs2vm2/cs2vm2_callee.c cs2vm2/cs2vm2_profiling.c perf/torirs_perf.c
 # Not $(LDFLAGS): the VM needs no SDL, and an ASan binary that loads SDL2 on
 # macOS stops in SDL's library initializer behind a modal error dialog.
 CS2_JIT_TEST_LDFLAGS = $(filter -fsanitize=%,$(LDFLAGS)) -lm

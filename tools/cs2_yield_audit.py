@@ -8,15 +8,9 @@ which puts it back when the host answers "not ready". A debug build asserts
 the count at every ask and stops at a yield that left a stack moved; a release
 build checks nothing. This catches the same mistakes without running anything:
 
-There are two ways into the host, and both are asks under one rule:
-CS2VM2_Ask (struct CS2VM2's host_exec, every request) and CS2VM2_AskRead
-(its host_read, the cheap reads INV_GETOBJ / INV_GETNUM / PUSH_VARBIT). Every
-check below that names "an ask" means a call to either.
-
-  1. `host_exec` is called from exactly one place, CS2VM2_Ask, and
-     `host_read` from exactly one place, CS2VM2_AskRead; and each of those
-     two puts the count back on a yield (calls CS2VM2_YieldRestore).
-  2. A function that calls an ask has a count in scope at the call: its
+  1. `host_exec` is called from exactly one place, CS2VM2_Ask, which takes
+     the count and puts it back on a yield (calls CS2VM2_YieldRestore).
+  2. A function that calls CS2VM2_Ask has a count in scope at the call: its
      own (`struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;`, in the function
      or in the case block that asks) or its caller's (a `struct CS2VM2_Took
      took` parameter).
@@ -25,6 +19,11 @@ check below that names "an ask" means a call to either.
      to a function of this file that pops unless that function is given the
      count.
   4. A function given its caller's count does not also start one.
+  5. The game side takes nothing off the stacks: no CS2VM2_Take* / _Pop* /
+     CS2VM2_YieldRestore in the files that answer requests. The VM pops every
+     request's arguments into its arm and CS2VM2_Ask puts them back; a host
+     that popped would have to count and restore them itself (DB_* did, until
+     its arguments moved into the request).
 
     tools/cs2_yield_audit.py          (make -C src check-cs2-yield)
 """
@@ -34,6 +33,13 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE = os.path.join(ROOT, "src", "cs2vm2", "cs2vm2.c")
+# The files that answer the client's requests (RS_CS2Host_Exec and the
+# handlers it hands signature-popped requests to).
+HOST_SOURCES = [
+    os.path.join(ROOT, "src", "game", name)
+    for name in ("rs_cs2_host.c", "rs_cs2_client_ops.c", "rs_cs2_social_ops.c", "rs_cs2_market_ops.c")
+]
+HOST_TAKES = re.compile(r"\bCS2VM2_(?:Take(?:Int|Str|Long)|Pop(?:Int|Str|Long)|YieldRestore)\s*\(")
 
 FUNC_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\(([^;{]*?)\)\s*\n\{\n", re.M)
 CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(")
@@ -47,7 +53,6 @@ TOP_WRITE = re.compile(
     r"|\b(?:ints|strs|longs)_stack_top\s*(?:--|\+\+|-=|\+=|=(?!=))"
 )
 # The primitives themselves, and the loop, which holds the top in a register.
-ASKERS = {"CS2VM2_Ask", "CS2VM2_AskRead"}
 MAY_MOVE_TOPS = {
     "CS2VM2_PopInt", "CS2VM2_PopStr", "CS2VM2_PopLong", "CS2VM2_PushInt", "CS2VM2_PushStr",
     "CS2VM2_PushLong", "CS2VM2_PushArray", "cs2vm2_run_script_body",
@@ -84,21 +89,20 @@ def main():
 
     problems = []
 
-    # 1. host_exec only in CS2VM2_Ask, host_read only in CS2VM2_AskRead, and
-    #    each of those puts the count back on a yield
-    for entry, asker in (("host_exec", "CS2VM2_Ask"), ("host_read", "CS2VM2_AskRead")):
-        for match in re.finditer(r"->" + entry + r"\s*\(", code):
-            owner = next((n for n, (_, a, b) in functions.items() if a <= match.start() < b), None)
-            if owner != asker:
-                problems.append(f"{line_of(match.start())}: {entry} is called outside {asker} (in {owner})")
-        if asker not in functions:
-            problems.append(f"0: {asker} is missing")
-            continue
-        params, a, b = functions[asker]
+    # 1. host_exec only in CS2VM2_Ask, which takes the count and puts it back
+    #    on a yield
+    for match in re.finditer(r"->host_exec\s*\(", code):
+        owner = next((n for n, (_, a, b) in functions.items() if a <= match.start() < b), None)
+        if owner != "CS2VM2_Ask":
+            problems.append(f"{line_of(match.start())}: host_exec is called outside CS2VM2_Ask (in {owner})")
+    if "CS2VM2_Ask" not in functions:
+        problems.append("0: CS2VM2_Ask is missing")
+    else:
+        params, a, b = functions["CS2VM2_Ask"]
         if not BY_VALUE.search(params):
-            problems.append(f"{line_of(a)}: {asker} does not take the instruction's count")
+            problems.append(f"{line_of(a)}: CS2VM2_Ask does not take the instruction's count")
         if not re.search(r"\bCS2VM2_YieldRestore\s*\(", code[a:b]):
-            problems.append(f"{line_of(a)}: {asker} does not put the count back on a yield")
+            problems.append(f"{line_of(a)}: CS2VM2_Ask does not put the count back on a yield")
 
     # which functions pop, directly
     pops = set()
@@ -109,13 +113,13 @@ def main():
 
     asking = given = own_counts = 0
     for name, (params, a, b) in functions.items():
-        if name in ASKERS:
+        if name == "CS2VM2_Ask":
             continue
         body = code[a:b]
         by_value = bool(BY_VALUE.search(params))
         by_pointer = bool(BY_POINTER.search(params))
         owns = [m.start() for m in re.finditer(re.escape(OWN), body)]
-        asks = [m.start() for m in re.finditer(r"\bCS2VM2_Ask(?:Read)?\s*\(", body)]
+        asks = [m.start() for m in re.finditer(r"\bCS2VM2_Ask\s*\(", body)]
         if not (asks or owns or by_value):
             continue
 
@@ -182,14 +186,29 @@ def main():
             problems.append(
                 f"{line_of(a + match.start())}: {name} calls {callee}, which pops, without giving it the count")
 
-    if problems:
+    # 5. the game side takes nothing off the stacks
+    host_problems = []
+    for path in HOST_SOURCES:
+        with open(path, encoding="utf-8") as handle:
+            host_source = handle.read()
+        host_code = re.sub(r"/\*.*?\*/|//[^\n]*|\"(?:\\.|[^\"\\])*\"", blank, host_source, flags=re.S)
+        for match in HOST_TAKES.finditer(host_code):
+            host_problems.append(
+                f"{os.path.relpath(path, ROOT)}:{host_source.count(chr(10), 0, match.start()) + 1}: "
+                f"the host takes from the stacks ({match.group(0)[:-1].strip()}); "
+                "the VM pops a request's arguments into its arm")
+
+    if problems or host_problems:
         print("check-cs2-yield: FAIL")
         for problem in problems:
             print("  src/cs2vm2/cs2vm2.c:" + problem)
+        for problem in host_problems:
+            print("  " + problem)
         return 1
     print(
         f"check-cs2-yield: PASS ({asking} asks, each with a count in scope: {own_counts} counts started, "
-        f"{given} helpers given their caller's; no pop or stack-top write behind a count)")
+        f"{given} helpers given their caller's; no pop or stack-top write behind a count; "
+        f"no pop on the game side)")
     return 0
 
 

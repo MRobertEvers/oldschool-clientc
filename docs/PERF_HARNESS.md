@@ -34,6 +34,31 @@ make -C src PLATFORM_OBJ_BASE=build_perf EMBED_SERVER=1 TORIDRAW_OPT=1 torirs
 `TORIDRAW_OPT` follows the existing `COMPRESS_CFLAGS` / `tommath.o` precedent:
 hot kernels get their own flag without forcing a full-client release build.
 
+### The CS2 VM's own numbers: `CS2VM2_PROFILING=1`
+
+```bash
+make -C src PLATFORM_OBJ_BASE=build_perf EMBED_SERVER=1 CS2VM2_PROFILING=1 torirs
+```
+
+The CS2 interpreter's measurements are compiled in only on request
+(`src/cs2vm2/cs2vm2_profiling.h`): the `cs2_host_op`, `cs2_script` and
+`cs2_script_in` stages, the `cs2_scripts` .. `cs2_frame_locals_bytes`
+counters (requests asked, opcodes, cycles, aborts, the VM and frame pools),
+and the `TORIRS_CS2_PROFILE=1` per-entry-script profile and opcode histogram.
+They sit on the path of every instruction and every host request (~85,000
+requests to open the bank), so a default build carries none of them: no test,
+no counter, no load. With the switch they reach the report exactly as before,
+and still only while `TORIRS_PERF=1` (or `TORIRS_CS2_PROFILE=1`) is on at run
+time. It changes CFLAGS for every unit, so it has its own object-directory
+suffix (`_cs2prof`).
+
+A build without it prints `not compiled in (build with CS2VM2_PROFILING=1)`
+on those rows of the text report, writes them as `not_compiled_in,<name>`
+rows in the CSV (`window_not_compiled_in` in the windows CSV), and says so once
+on stderr when `TORIRS_CS2_PROFILE` is set. `tools/perf/compare.py` lists such
+rows as "not compiled in" rather than as zeros; compare two runs built the
+same way.
+
 ## Running scenarios
 
 ```bash

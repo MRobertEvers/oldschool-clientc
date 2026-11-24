@@ -7,11 +7,12 @@ struct HostRequestProducerEntry
 {
     char const* name;
     int opcode;
+    int kind;
 };
 
 static struct HostRequestProducerEntry const HOST_REQUEST_PRODUCERS[] = {
 #define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) \
-    { #name, CS2_OP_##name },
+    { #name, CS2_OP_##name, (int)CS2VM_HOST_REQUEST_##name },
 #include "cs2vm2/cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
 };
@@ -180,9 +181,9 @@ exercise_producer(struct HostRequestProducerEntry const* entry)
                        : CS2VM2_THREAD_ERROR;
 
     bool synchronous=entry->opcode==CS2_OP_RUNELITE_CALLBACK;
-    if( synchronous ? (first_status!=CS2VM2_THREAD_DONE || host.calls!=1 || host.kinds[0]!=entry->opcode)
+    if( synchronous ? (first_status!=CS2VM2_THREAD_DONE || host.calls!=1 || host.kinds[0]!=entry->kind)
         : (first_status != CS2VM2_THREAD_YIELDED || retry_status != CS2VM2_THREAD_DONE ||
-        host.calls != 2 || host.kinds[0] != entry->opcode || host.kinds[1] != entry->opcode) )
+        host.calls != 2 || host.kinds[0] != entry->kind || host.kinds[1] != entry->kind) )
     {
         fprintf(
             stderr,
@@ -215,7 +216,7 @@ exercise_input_set_producer(
     struct CS2VM2_ThreadError error;
     enum CS2VM2_ThreadStatus first_status;
     enum CS2VM2_ThreadStatus retry_status;
-    uint16_t opcode = (uint16_t)kind;
+    uint16_t opcode = (uint16_t)CS2VM_HostRequestOpcode(kind);
     int int_operand = dot_operand;
     char* string_operand = NULL;
     int expected_initial_stack_top;

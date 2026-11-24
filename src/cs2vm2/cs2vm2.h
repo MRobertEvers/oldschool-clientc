@@ -312,11 +312,12 @@ struct CS2VM2_Thread
     int yield_halt_awaited_id;
     int yield_halt_awaited_id2;
 
-    /* Cache-load retry identity belongs to the executing thread, not the
-     * shared game host. Several Task_CS2Run instances can be parked at once;
-     * a host-global marker lets one script erase another's completed wait and
-     * makes the first script yield twice at the same opcode. */
-    bool has_awaited;
+    /* What the host's yield on this thread waits for (CS2VM2_AwaitNote, on
+     * the yield path only). The loop files it with the yield's site in
+     * yield_halt_* and sets it back to none (CS2VM_HOST_REQUEST_COUNT); the
+     * filed copy is the await record CS2VM2_AwaitSpent reads. Per thread, not
+     * per host: several Task_CS2Run instances can be parked at once on the
+     * one shared game host. */
     enum CS2VM_HostRequestKind awaited_kind;
     int awaited_id;
     int awaited_id2;
@@ -380,12 +381,6 @@ struct CS2VM2
     int thread_count;
 
     CS2VM2_HostExec_Fn host_exec;
-    /* The second way into the host: the cheap reads (INV_GETOBJ, INV_GETNUM,
-     * PUSH_VARBIT), asked through CS2VM2_AskRead under the same yield rule
-     * as host_exec. host_exec itself unless the host binds a reader of its
-     * own (CS2VM2_BindHostReads), so a host that does not is asked exactly
-     * as before. */
-    CS2VM2_HostExec_Fn host_read;
     void* user;
 };
 
@@ -535,7 +530,6 @@ CS2VM2_Release(struct CS2VM2* vm);
 void
 CS2VM2_PoolDrain(void);
 
-/* Binds `host_exec` for every request, the reads included (host_read). */
 void
 CS2VM2_BindHost(
     struct CS2VM2* vm,
@@ -543,17 +537,41 @@ CS2VM2_BindHost(
     CS2VM2_HostExec_Fn host_exec);
 
 /*
- * After CS2VM2_BindHost: answer the cheap reads (INV_GETOBJ, INV_GETNUM,
- * PUSH_VARBIT) with `host_read` instead -- a function that knows only those
- * kinds, so a read skips host_exec's entry and its switch over every request
- * kind. It answers exactly as host_exec would (pushes the value and returns
- * CS2VM_EXECNO_OK, or CS2VM_EXECNO_YIELD having put back what it took) and
- * is asked under the same rule (CS2VM2_AskRead).
+ * THE AWAIT RECORD, read by a handler that finds a resource missing.
+ *
+ * True when the instruction asking now is the retry of this thread's last
+ * yield and that yield waited for exactly (kind, id, id2): the load was tried,
+ * so a resource still missing is genuinely absent and the handler completes
+ * with a default instead of yielding again (which CS2VM2_CheckYieldHalt would
+ * stop as a spin). False everywhere else -- for a later instruction, and for a
+ * later run of the same instruction once its retry has completed, so a
+ * resource evicted later is awaited again; and for a request asked with no
+ * script running (a test calling the host directly is no instruction's retry).
+ *
+ * A yield is something an instruction does, and a resumed thread runs the
+ * instruction that yielded first, so "is this the retry" is a question about
+ * where the thread is, which the loop already records: the yield-halt record
+ * (the site of the last yield, and what it waited for). The host writes what
+ * it waits for only on its yield path (CS2VM2_AwaitNote); the loop files it with
+ * the site when the yield returns and retires the record when the retried
+ * instruction completes, once per resumed run. A request that neither yields
+ * nor is that retry writes nothing.
  */
+bool
+CS2VM2_AwaitSpent(
+    struct CS2VM2_Thread const* thread,
+    enum CS2VM_HostRequestKind kind,
+    int id,
+    int id2);
+
+/* Say what the coming yield waits for (the host's yield path, before it
+ * answers CS2VM_EXECNO_YIELD): the loop files it with the yield's site. */
 void
-CS2VM2_BindHostReads(
-    struct CS2VM2* vm,
-    CS2VM2_HostExec_Fn host_read);
+CS2VM2_AwaitNote(
+    struct CS2VM2_Thread* thread,
+    enum CS2VM_HostRequestKind kind,
+    int id,
+    int id2);
 
 void
 CS2VM2_Run(struct CS2VM2* vm);

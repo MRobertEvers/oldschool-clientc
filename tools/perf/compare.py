@@ -113,6 +113,12 @@ def compare_pair(
                 f"{key:<28} {fmt_ns(bv):>10} {fmt_ns(av):>10} "
                 f"{delta * 100:>+8.1f}% {note}"
             )
+        elif kind == "not_compiled_in":
+            # A stage or counter the build compiled out (the CS2 VM's, without
+            # CS2VM2_PROFILING=1): neither side measured it in this CSV.
+            side = "before" if key in before and key not in after else (
+                "after" if key in after and key not in before else "both")
+            print(f"{name:<28} {'not compiled in (' + side + ')':>32}")
         elif kind == "meta":
             bv = b.get("total", 0.0)
             av = a.get("total", 0.0)

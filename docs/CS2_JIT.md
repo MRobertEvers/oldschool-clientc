@@ -232,7 +232,7 @@ copies only in `ScriptCache_Free`.
 | yields | no group contains an opcode that can yield; a resume pc is always a code-0 pc |
 | locals read before written | 0 either way (2.4) |
 | dead stack slots above `top` | not written by some groups. Nothing in the VM or the host reads above `top`; the replay digest does at kind 7505 (`DB_GETROWTABLE`) because it adds `int_in` to `top`, which is a property of the digest |
-| traced or profiled runs | `TORIRS_CS2_TRACE`, trace capture and `TORIRS_CS2_PROFILE` make a run "observed", which never enters either hot loop |
+| traced or profiled runs | `TORIRS_CS2_TRACE`, trace capture and `TORIRS_CS2_PROFILE` make a run "observed", which never enters either hot loop. `TORIRS_CS2_PROFILE` exists only in a `CS2VM2_PROFILING=1` build (docs/PERF_HARNESS.md); elsewhere it says "not compiled in" once |
 
 ### 2.7 Later work, not v1
 
