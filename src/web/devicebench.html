@@ -35,6 +35,8 @@
   body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
          font: 16px/1.5 ui-monospace, Menlo, monospace; }
   h1 { font-size: 20px; margin: 0 0 8px; }
+  nav { margin: 0 0 10px; font-size: 16px; }
+  a { color: var(--fg); }
   p { margin: 0 0 10px; color: var(--dim); max-width: 46rem; }
   canvas { display: block; width: 100%; max-width: 768px; border: 1px solid var(--line); image-rendering: pixelated; }
   table { border-collapse: collapse; margin: 12px 0; font-size: 17px; }
@@ -45,6 +47,7 @@
 </style>
 </head>
 <body>
+<nav><a href="/">&larr; Home</a></nav>
 <h1>Device bench: Lumbridge</h1>
 <p>Draws Lumbridge castle's courtyard from the game's own models, the way the game's software renderer
    does, in plain JavaScript (no WebAssembly, no WebGL), and times each frame. Leave the page open until it

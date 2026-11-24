@@ -365,6 +365,10 @@
     const bench = el('a', { href: 'devicebench.html', text: 'Time how this browser draws the game →' });
     bench.style.fontSize = '16px';
     box.appendChild(el('p', {}, [bench]));
+    /* Back to the site (the account home: "/" without the game's query). */
+    const home = el('a', { href: '/', text: '\u2190 Home' });
+    home.style.fontSize = '16px';
+    box.appendChild(el('p', {}, [home]));
   }
 
   /* The readings, as the player sees them: on the choice panel and on the
