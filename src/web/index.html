@@ -692,6 +692,11 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   let autoFullscreen = mobileDevice;
   function hideBrowserBars() {
     if (!autoFullscreen || fullscreenElement()) { return; }
+    /* Not while the device check (torirs_devicecheck.js) is up: it is outside
+     * `app`, so fullscreen would show an empty game area over it, and a
+     * Kindle's browser then reloads the page instead of following the tap
+     * (the bench link, 2026-11-23). The game is not running yet anyway. */
+    if (document.getElementById('device-check')) { return; }
     const fn = app.requestFullscreen || app.webkitRequestFullscreen;
     if (!fn) { return; }
     try {
