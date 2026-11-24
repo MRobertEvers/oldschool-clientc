@@ -50,7 +50,8 @@ es3z_animation_load(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_AnimLoad* command);
 
-/* enum ES3WorldFacePass and struct ES3MaterialPose are in es3_core.h. */
+/* enum ES3WorldFacePass and struct ES3MaterialPose are in es3_core.h: the
+ * OSRS renderer reads the same classification (es3_zbuffer_material). */
 
 struct ES3MaterialTrack
 {
@@ -957,23 +958,14 @@ es3_zbuffer_reserve_cutout_scratch(struct ES3ZBufferWorld* world, uint32_t neede
     world->cutout_scratch_capacity = capacity;
 }
 
-void
-es3_zbuffer_emit_model(
+const struct ES3MaterialPose*
+es3_zbuffer_material(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     const struct ES3ModelPlacement* placement)
 {
     struct ES3ZBufferWorld* world = es3_zbuffer_state(renderer);
     const struct ES3MaterialPose* material = NULL;
-    /* Indices are absolute in the binding's buffer: there is no page to be
-     * local to, and no 65,535 ceiling to refuse a face over. */
-    const uint32_t vertex_base = placement->absolute_base;
-    uint32_t opaque_written = 0u;
-    uint32_t cutout_written = 0u;
-    int sorted_face_count;
-    const int* face_order;
-    int projected_depth;
-    int face_index;
 
     assert(command);
     assert(placement);
@@ -994,8 +986,27 @@ es3_zbuffer_emit_model(
         es3_material_pose_set(&world->dynamic_material, renderer, command->model) )
         material = &world->dynamic_material;
     if( !material || material->face_count != (uint32_t)placement->face_count )
-        return;
+        return NULL;
+    return material;
+}
 
+void
+es3_zbuffer_queue_opaque(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ES3ModelPlacement* placement,
+    const struct ES3MaterialPose* material)
+{
+    struct ES3ZBufferWorld* world = es3_zbuffer_state(renderer);
+    /* Indices are absolute in the binding's buffer: there is no page to be
+     * local to, and no 65,535 ceiling to refuse a face over. */
+    const uint32_t vertex_base = placement->absolute_base;
+    uint32_t opaque_written = 0u;
+    uint32_t cutout_written = 0u;
+    int face_index;
+
+    assert(placement);
+    assert(material);
+    assert(world);
     /*
      * The common case, and the whole point of this path: every face is opaque
      * or cutout, the pose's triangles are contiguous in its buffer, and the
@@ -1064,6 +1075,30 @@ es3_zbuffer_emit_model(
             cutout_written);
     TORIRS_PERF_COUNT(
         TORIRS_PERF_CTR_GL_Z_OPAQUE_TRIANGLES, (opaque_written + cutout_written) / 3u);
+}
+
+void
+es3_zbuffer_emit_model(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    const struct ES3ModelPlacement* placement)
+{
+    struct ES3ZBufferWorld* world = es3_zbuffer_state(renderer);
+    const struct ES3MaterialPose* material;
+    const uint32_t vertex_base = placement->absolute_base;
+    uint32_t opaque_written;
+    int sorted_face_count;
+    const int* face_order;
+    int projected_depth;
+    int face_index;
+
+    assert(command);
+    assert(placement);
+    assert(world);
+    material = es3_zbuffer_material(renderer, command, placement);
+    if( !material )
+        return;
+    es3_zbuffer_queue_opaque(renderer, placement, material);
 
     /* Only models with true blended faces pay the legacy depth/priority sort.
      * Filter the sorted result so opaque faces never enter the blend pass. */
@@ -1229,8 +1264,8 @@ es3_zbuffer_batch_swapped(struct TRSPK_Renderer_ES3* renderer)
 /* The depth path's record bake: the pose is classified into its build's
  * material table as it is baked, as BATCH3D_*_ADD classified it on arrival
  * before the bake was deferred. */
-static void
-es3z_world_record_bake(
+void
+es3_zbuffer_world_record_bake(
     struct TRSPK_Renderer_ES3* renderer,
     struct TRSPK_WorldSlot* slot,
     int record)
@@ -1266,7 +1301,7 @@ es3z_sequence_issue(
             es3_use_world_program(renderer, item->cutout != 0u);
             program_cutout = (int)item->cutout;
         }
-        if( !es3_bind_stream(renderer, item->binding) )
+        if( !es3_bind_stream_os1(renderer, item->binding) )
         {
             /*
              * The binding has no GPU buffer this frame, so every face in this
@@ -1466,6 +1501,41 @@ es3z_begin_3d(
  * view of the scene, so the element's recorded pose need not be the one the
  * bake reads: no pool there.
  */
+uint32_t
+es3_zbuffer_dynamic_reuse(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ModelGroup* group,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id,
+    struct TRSPK_PoseKey* key,
+    bool* keyed)
+{
+    struct TRSPK_PosePool* pool = &es3_zbuffer_state(renderer)->pose_pool;
+    assert(key);
+    assert(keyed);
+    *keyed = !renderer->model_stage_source && trspk_pose_key_for_command(renderer->scene, command, key);
+    if( !*keyed || pose_id > (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
+        return UINT32_MAX;
+    return trspk_pose_pool_place(pool, key, group->arena, group->vbo_cpu, &group->triangles,
+        command->element_id, pose_id * TRSPK_POSE_TRACK_COUNT + anim_index);
+}
+
+void
+es3_zbuffer_dynamic_keep(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ModelGroup* group,
+    const struct ToriRS_RenderCommand_Model* command,
+    const struct TRSPK_PoseKey* key,
+    bool keyed,
+    uint32_t vertex_base)
+{
+    if( !keyed || vertex_base == UINT32_MAX )
+        return;
+    trspk_pose_pool_store(&es3_zbuffer_state(renderer)->pose_pool, key, group->vbo_cpu,
+        &group->triangles, vertex_base, (uint32_t)trspk_toridraw_face_count(command->model) * 3u);
+}
+
 static uint32_t
 es3z_bake_dynamic(
     struct TRSPK_Renderer_ES3* renderer,
@@ -1474,43 +1544,27 @@ es3z_bake_dynamic(
     int anim_index,
     int pose_id)
 {
-    struct TRSPK_PosePool* pool = &es3_zbuffer_state(renderer)->pose_pool;
     struct TRSPK_PoseKey key;
-    uint32_t vertex_base;
-    bool const keyed = !renderer->model_stage_source &&
-        trspk_pose_key_for_command(renderer->scene, command, &key);
-    if( keyed && pose_id <= (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
-    {
-        vertex_base = trspk_pose_pool_place(pool, &key, group->arena, group->vbo_cpu,
-            &group->triangles, command->element_id, pose_id * TRSPK_POSE_TRACK_COUNT + anim_index);
-        if( vertex_base != UINT32_MAX )
-            return vertex_base;
-    }
-    vertex_base = es3_bake_into_arena_os1(
-        renderer,
-        group,
-        command->element_id,
-        anim_index,
-        pose_id,
-        command->model,
-        &command->world_position,
-        false);
-    if( keyed && vertex_base != UINT32_MAX )
-        trspk_pose_pool_store(pool, &key, group->vbo_cpu, &group->triangles, vertex_base,
-            (uint32_t)trspk_toridraw_face_count(command->model) * 3u);
+    bool keyed;
+    uint32_t vertex_base =
+        es3_zbuffer_dynamic_reuse(renderer, group, command, anim_index, pose_id, &key, &keyed);
+    if( vertex_base != UINT32_MAX )
+        return vertex_base;
+    vertex_base = es3_bake_into_arena_os1(renderer, group, command->element_id, anim_index, pose_id,
+        command->model, &command->world_position, false);
+    es3_zbuffer_dynamic_keep(renderer, group, command, &key, keyed, vertex_base);
     return vertex_base;
 }
 
-void
-es3z_draw_model(
+bool
+es3_zbuffer_place_begin(
     struct TRSPK_Renderer_ES3* renderer,
-    const struct ToriRS_RenderCommand_Model* command)
+    const struct ToriRS_RenderCommand_Model* command,
+    struct ES3ModelPlacement* out)
 {
     struct ToriDraw_Position projected_position;
     struct ES3ModelPlacement placement;
     struct ES3ModelStage stage;
-    struct ES3StaticPrimary static_placement;
-    int static_state;
     bool staged = false;
     const int* face_order;
     bool projected_in_scene;
@@ -1520,17 +1574,10 @@ es3z_draw_model(
     bool dynamic;
     int anim_index;
     int pose_id;
-    uint32_t vertex_base;
-    /* Where the model's bake begins in its binding's CPU copy, and where it
-     * begins in that binding's GPU buffer. Every CPU copy is its whole
-     * buffer, so the two are the same number. */
-    uint32_t chunk_base = 0u;
-    uint32_t absolute_base = 0u;
-    uint32_t binding;
-    uint32_t group;
 
     assert(renderer);
     assert(command);
+    assert(out);
     /* The stage source, when one is installed, is asked about EVERY model
      * command before any early return: it hands results out in dispatch
      * order and pairs them with the asks by count. */
@@ -1538,7 +1585,7 @@ es3z_draw_model(
         staged =
             renderer->model_stage_source->take(renderer->model_stage_source->user, command, &stage);
     if( !renderer->has_3d || !renderer->scene || command->model.kind == TORIDRAWMK_NONE )
-        return;
+        return false;
 #if defined(TORIRS_MODEL_CHAIN_CAPTURE)
     es3_chain_capture(renderer, command);
 #endif
@@ -1551,7 +1598,7 @@ es3z_draw_model(
          * scene); this thread consumes. The pose the source applied is the
          * one the bakes below read -- its results were published after it. */
         if( stage.cull != TORIDRAW_CULL_VISIBLE )
-            return;
+            return false;
         if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
             stage.pick_hit )
             ToriRS_PickHitsAdd(
@@ -1563,7 +1610,7 @@ es3z_draw_model(
                 command->pick_tile_level,
                 command->pick_view);
         if( command->pick_only )
-            return;
+            return false;
         face_count = trspk_toridraw_face_count(command->model);
         sorted_face_count = stage.sorted ? stage.sorted_face_count : 0;
         face_order = stage.sorted ? stage.face_order : NULL;
@@ -1601,7 +1648,7 @@ es3z_draw_model(
                 renderer->pick_mouse_y,
                 pick_wanted && !command->pick_aabb ? &cursor_inside : NULL) !=
             TORIDRAW_CULL_VISIBLE )
-            return;
+            return false;
         face_order = NULL;
         projected_depth = 0;
         projected_in_scene = false;
@@ -1614,7 +1661,7 @@ es3z_draw_model(
                     &renderer->current_3d.view_port,
                     &renderer->current_3d.camera,
                     renderer->kernel) != TORIDRAW_CULL_VISIBLE )
-                return;
+                return false;
             projected_depth = renderer->scene->projected_vertex.z;
             projected_in_scene = true;
             if( command->pick_aabb
@@ -1641,7 +1688,7 @@ es3z_draw_model(
                     command->pick_view);
         }
         if( command->pick_only )
-            return;
+            return false;
 
         /* The depth path classifies per face during emission and needs no
          * order up front. NULL says so: the emit reads a non-NULL order as
@@ -1650,38 +1697,139 @@ es3z_draw_model(
         face_count = trspk_toridraw_face_count(command->model);
     }
     if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
-        return;
+        return false;
     dynamic = command->dynamic || command->element_id < 0;
     anim_index = es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
     pose_id = command->animation && command->anim_frame >= 0 ? command->anim_frame : 0;
     if( command->animation && command->animation->frame_count > 0 &&
         pose_id >= command->animation->frame_count )
         pose_id = 0;
-    group = dynamic ? TRSPK_VBO_GROUP_DYNAMIC : TRSPK_VBO_GROUP_STATIC;
-    binding = group;
+    placement.binding = TRSPK_VBO_GROUP_STATIC;
+    placement.chunk_base = 0u;
+    placement.absolute_base = 0u;
+    placement.face_count = face_count;
+    placement.sorted_face_count = sorted_face_count;
+    placement.anim_index = anim_index;
+    placement.pose_id = pose_id;
+    placement.dynamic = dynamic;
+    placement.face_order = face_order;
+    placement.projected_in_scene = projected_in_scene;
+    placement.staged = staged;
+    placement.projected_depth = projected_depth;
+    *out = placement;
+    return true;
+}
+
+int
+es3_zbuffer_place_static_world(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    struct ES3ModelPlacement* placement,
+    uint32_t* out_vertex_base)
+{
+    struct ES3StaticPrimary static_placement;
+    int static_state;
+
+    assert(placement);
+    assert(out_vertex_base);
+    static_state = es3_static_resolve_recorded(
+        renderer, command->element_id, placement->anim_index, placement->pose_id, &static_placement);
+    if( static_state <= 0 )
+        return static_state;
+    renderer->stat_static_page += 1.0;
+    placement->binding = ES3_WORLD_BINDING;
+    placement->entry_index = static_placement.entry_index;
+    placement->entry_vertex_count = static_placement.vertex_count;
+    placement->chunk_base = static_placement.vertex_base;
+    placement->absolute_base = static_placement.vertex_base;
+    *out_vertex_base = static_placement.vertex_base;
+    return 1;
+}
+
+bool
+es3_zbuffer_place_end(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ModelPlacement* placement,
+    uint32_t binding,
+    uint32_t vertex_base)
+{
+    assert(placement);
+    if( vertex_base == UINT32_MAX )
+        return false;
+    if( !placement->dynamic && binding < ES3_WORLD_BINDING )
+        renderer->stat_static_pose_table += 1.0;
+    /*
+     * An arena's CPU copy IS its GPU buffer's contents, and so is the world
+     * build's, so the two bases are the same number -- the static world
+     * placement has already set them.
+     *
+     * Neither is split against a 64K page. The GLES2 renderer splits both,
+     * because that is the only way a U16 index can name a vertex; here an
+     * index reaches the whole buffer.
+     */
+    placement->binding = binding;
+    if( binding < ES3_WORLD_BINDING )
+    {
+        placement->chunk_base = vertex_base;
+        placement->absolute_base = vertex_base;
+    }
+    /* model_indices is this path's per-model index scratch. */
+    return es3_reserve_model_indices(renderer, (uint32_t)placement->face_count * 3u);
+}
+
+void
+es3_zbuffer_announce_from_draw(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index)
+{
+    struct ToriRS_RenderCommand_AnimLoad load;
+    memset(&load, 0, sizeof(load));
+    load.element_id = command->element_id;
+    load.anim_index = anim_index;
+    load.animation = command->animation;
+    load.model = command->model;
+    load.world_position = command->world_position;
+    es3z_animation_load(renderer, &load);
+}
+
+void
+es3_zbuffer_model_drop(struct TRSPK_Renderer_ES3* renderer, int element_id)
+{
+    /* A model replacement invalidates every pose from the old geometry. */
+    if( es3_model_unload(renderer, element_id) )
+        es3_zbuffer_element_dropped(renderer, element_id);
+}
+
+/*
+ * The depth renderer's draw: es3_zbuffer_place_begin, the os1 bakes, then
+ * es3_zbuffer_place_end. The OSRS renderers do the same with their own bakes.
+ */
+static bool
+es3z_place_model(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    struct ES3ModelPlacement* placement)
+{
+    uint32_t const group = placement->dynamic ? TRSPK_VBO_GROUP_DYNAMIC : TRSPK_VBO_GROUP_STATIC;
+    int const anim_index = placement->anim_index;
+    int const pose_id = placement->pose_id;
+    uint32_t binding = group;
+    uint32_t vertex_base = UINT32_MAX;
+    int world;
+
     /* A pose the drawn build holds but has not baked yet is baked here, on
      * the draw that first needs it. */
-    if( !dynamic )
+    if( !placement->dynamic )
         (void)es3_world_bake_on_draw(
-            renderer, command->element_id, anim_index, pose_id, es3z_world_record_bake);
-    if( dynamic )
+            renderer, command->element_id, anim_index, pose_id, es3_zbuffer_world_record_bake);
+    if( placement->dynamic )
+        vertex_base = es3z_bake_dynamic(renderer, &renderer->groups[group], command, anim_index, pose_id);
+    else if( (world = es3_zbuffer_place_static_world(renderer, command, placement, &vertex_base)) != 0 )
     {
-        vertex_base =
-            es3z_bake_dynamic(renderer, &renderer->groups[group], command, anim_index, pose_id);
-    }
-    else if(
-        (static_state = es3_static_resolve_recorded(
-             renderer, command->element_id, anim_index, pose_id, &static_placement)) != 0 )
-    {
-        if( static_state < 0 )
-            return;
-        renderer->stat_static_page += 1.0;
+        if( world < 0 )
+            return false;
         binding = ES3_WORLD_BINDING;
-        placement.entry_index = static_placement.entry_index;
-        placement.entry_vertex_count = static_placement.vertex_count;
-        vertex_base = static_placement.vertex_base;
-        chunk_base = static_placement.vertex_base;
-        absolute_base = static_placement.vertex_base;
     }
     else if( !trspk_pose_table_get(
                  &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
@@ -1695,14 +1843,7 @@ es3z_draw_model(
         if( command->animation &&
             !es3_bake_track_pose_os1(renderer, command, anim_index, pose_id, &vertex_base, &posed) )
         {
-            struct ToriRS_RenderCommand_AnimLoad load;
-            memset(&load, 0, sizeof(load));
-            load.element_id = command->element_id;
-            load.anim_index = anim_index;
-            load.animation = command->animation;
-            load.model = command->model;
-            load.world_position = command->world_position;
-            es3z_animation_load(renderer, &load);
+            es3_zbuffer_announce_from_draw(renderer, command, anim_index);
             (void)es3_bake_track_pose_os1(renderer, command, anim_index, pose_id, &vertex_base, &posed);
         }
         if( posed )
@@ -1717,56 +1858,27 @@ es3z_draw_model(
         else if( !trspk_pose_table_get(
                      &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
         {
-            vertex_base = es3_bake_into_arena_os1(
-                renderer,
-                &renderer->groups[group],
-                command->element_id,
-                anim_index,
-                pose_id,
-                command->model,
-                &command->world_position,
+            vertex_base = es3_bake_into_arena_os1(renderer, &renderer->groups[group],
+                command->element_id, anim_index, pose_id, command->model, &command->world_position,
                 true);
             if( vertex_base != UINT32_MAX )
                 es3_zbuffer_pose_baked(
                     renderer, command->element_id, anim_index, pose_id, command->model);
         }
     }
-    if( vertex_base == UINT32_MAX )
-        return;
-    if( !dynamic && binding < ES3_WORLD_BINDING )
-        renderer->stat_static_pose_table += 1.0;
+    return es3_zbuffer_place_end(renderer, placement, binding, vertex_base);
+}
 
-    /*
-     * An arena's CPU copy IS its GPU buffer's contents, and so is the world
-     * build's, so the two bases are the same number -- the static branch
-     * above has already set them.
-     *
-     * Neither is split against a 64K page. The GLES2 renderer splits both,
-     * because that is the only way a U16 index can name a vertex; here an
-     * index reaches the whole buffer.
-     */
-    if( binding < ES3_WORLD_BINDING )
-    {
-        chunk_base = vertex_base;
-        absolute_base = vertex_base;
-    }
-    /* model_indices is this path's per-model index scratch. */
-    if( !es3_reserve_model_indices(renderer, (uint32_t)face_count * 3u) )
-        return;
+void
+es3z_draw_model(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command)
+{
+    struct ES3ModelPlacement placement;
 
-    placement.binding = binding;
-    placement.chunk_base = chunk_base;
-    placement.absolute_base = absolute_base;
-    placement.face_count = face_count;
-    placement.sorted_face_count = sorted_face_count;
-    placement.anim_index = anim_index;
-    placement.pose_id = pose_id;
-    placement.dynamic = dynamic;
-    placement.face_order = face_order;
-    placement.projected_in_scene = projected_in_scene;
-    placement.staged = staged;
-    placement.projected_depth = projected_depth;
-    es3_zbuffer_emit_model(renderer, command, &placement);
+    if( es3_zbuffer_place_begin(renderer, command, &placement) &&
+        es3z_place_model(renderer, command, &placement) )
+        es3_zbuffer_emit_model(renderer, command, &placement);
 }
 
 void
@@ -1813,9 +1925,7 @@ es3z_model_load(
     assert(command);
     if( command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
         return;
-    /* A model replacement invalidates every pose from the old geometry. */
-    if( es3_model_unload(renderer, command->element_id) )
-        es3_zbuffer_element_dropped(renderer, command->element_id);
+    es3_zbuffer_model_drop(renderer, command->element_id);
     if( es3_bake_into_arena_os1(
             renderer,
             &renderer->groups[TRSPK_VBO_GROUP_STATIC],
@@ -1871,7 +1981,7 @@ es3z_batch_add(
     const struct ToriRS_RenderCommand_Batch* command,
     bool animated)
 {
-    /* Classified when it is baked (es3z_world_record_bake). */
+    /* Classified when it is baked (es3_zbuffer_world_record_bake). */
     es3_world_add(renderer, command, animated);
 }
 
@@ -1918,8 +2028,8 @@ es3z_batch_swap(
 
 /* ---- dispatch ------------------------------------------------------------------------ */
 
-static void
-es3z_dispatch(
+void
+es3_zbuffer_dispatch_retained(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand* command)
 {
@@ -1928,10 +2038,12 @@ es3z_dispatch(
     switch( command->kind )
     {
     case TORIRSRC_BEGIN_3D:
-        es3z_begin_3d(renderer, &command->u.begin_3d);
-        break;
     case TORIRSRC_END_3D:
-        es3z_end_3d(renderer);
+    case TORIRSRC_DRAW_MODEL:
+    case TORIRSRC_MODEL_LOAD:
+        /* The world pass, and the bake of a loaded model into the renderer's
+         * own vertex, are the composing renderer's own. */
+        assert(0 && "es3_zbuffer_dispatch_retained: a command the renderer handles");
         break;
     case TORIRSRC_BEGIN_2D:
         es3_begin_2d(renderer);
@@ -1946,9 +2058,6 @@ es3z_dispatch(
         break;
     case TORIRSRC_TEX_UNLOAD:
         es3_unload_texture(renderer, command->u.tex_load.texture_id);
-        break;
-    case TORIRSRC_MODEL_LOAD:
-        es3z_model_load(renderer, &command->u.model_load);
         break;
     case TORIRSRC_MODEL_UNLOAD:
         /* The material table is keyed by the same pose keys the arena is,
@@ -1993,10 +2102,6 @@ es3z_dispatch(
             es3_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
         }
         break;
-    case TORIRSRC_DRAW_MODEL:
-        es3z_draw_model(renderer, &command->u.model);
-        break;
-
     case TORIRSRC_CLEAR_RECT:
         es3_ui_draw_clear_rect(renderer, &command->u.clear_rect);
         break;
@@ -2047,6 +2152,25 @@ es3z_dispatch(
     case TORIRSRC_NONE:
         break;
     }
+}
+
+static void
+es3z_dispatch(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand* command)
+{
+    assert(renderer);
+    assert(command);
+    if( command->kind == TORIRSRC_BEGIN_3D )
+        es3z_begin_3d(renderer, &command->u.begin_3d);
+    else if( command->kind == TORIRSRC_END_3D )
+        es3z_end_3d(renderer);
+    else if( command->kind == TORIRSRC_DRAW_MODEL )
+        es3z_draw_model(renderer, &command->u.model);
+    else if( command->kind == TORIRSRC_MODEL_LOAD )
+        es3z_model_load(renderer, &command->u.model_load);
+    else
+        es3_zbuffer_dispatch_retained(renderer, command);
 }
 
 
@@ -2193,7 +2317,7 @@ TRSPK_Renderer_ES3_ZBufferRenderFrame(
     es3z_render_frame_end(renderer);
     /* The frame is drawn: what is left of the world builds' bake takes its
      * slice now, and goes to the GPU with the next frame's upload. */
-    es3_world_prefill(renderer, render_start_us, es3z_world_record_bake);
+    es3_world_prefill(renderer, render_start_us, es3_zbuffer_world_record_bake);
 }
 
 /* ---- lifetime ------------------------------------------------------------------------ */
@@ -2218,6 +2342,7 @@ TRSPK_Renderer_ES3_ZBufferInit(
     es3_zbuffer_destroy(renderer);
     if( !es3_zbuffer_create(renderer) )
         return false;
+    es3_set_world_shaders(renderer, &es3_world_shaders_os1);
     if( !es3_init_gl(renderer, window, scene, 16, "depth-buffered") )
     {
         es3_zbuffer_destroy(renderer);

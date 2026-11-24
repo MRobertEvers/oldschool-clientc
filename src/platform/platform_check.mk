@@ -191,7 +191,8 @@ LANE_FORBIDDEN_PRESENT = $(strip $(foreach f,$(CHROME_EXEC_FORBID_LEGACY) \
 
 # Lanes needing more than a flag comparison name an extra target here.
 LANE_EXTRA_CHECKS_win32 := lane-check-toolchain-win32 lane-check-fixed-function-win32
-LANE_EXTRA_CHECKS_win64 := lane-check-toolchain-win64 lane-check-fixed-function-win32
+LANE_EXTRA_CHECKS_win64 := lane-check-toolchain-win64 lane-check-fixed-function-win32 \
+                           lane-check-no-shader-compiler-win64
 # The android lane's flag contract says SDL is not on the command line. This
 # proves it of the ARTIFACT: a linked library with an SDL symbol in it would
 # mean SDL arrived some way the flags do not show.
@@ -203,7 +204,8 @@ LANE_EXTRA_CHECKS_android := lane-check-no-sdl-android lane-check-webgl1-es2 \
 
 .PHONY: lane-check lane-check-flags lane-check-all lane-check-artifact \
         lane-check-toolchain-win32 lane-check-toolchain-win64 \
-        lane-check-fixed-function-win32 lane-check-no-sdl-android \
+        lane-check-fixed-function-win32 lane-check-no-shader-compiler-win64 \
+        lane-check-no-sdl-android \
         lane-check-webgl1-es2 lane-check-webgl2-no-extensions
 
 lane-check: lane-check-flags $(LANE_EXTRA_CHECKS_$(PLATFORM))
@@ -257,6 +259,8 @@ ES3_CORE_SRCS := platform/platform_androidarmv7_renderer_opengles3_core.c \
                  platform/platform_androidarmv7_renderer_opengles3_ui.c \
                  platform/platform_androidarmv7_renderer_opengles3_painter.c \
                  platform/platform_androidarmv7_renderer_opengles3_zbuffer.c \
+                 platform/platform_androidarmv7_renderer_opengles3_os235sailing.c \
+                 platform/platform_androidarmv7_renderer_opengles3_os241tfa.c \
                  platform/platform_web_renderer_webgl2_core.c \
                  platform/platform_web_renderer_webgl2_ui.c \
                  platform/platform_web_renderer_webgl2_painter.c \
@@ -302,6 +306,14 @@ lane-check-fixed-function-win32:
 	@if grep -En 'Direct3DCreate9Ex[[:space:]]*\(|IDirect3D(9Ex|Device9Ex)|IDirect3DDevice9_Create(Vertex|Pixel)Shader[[:space:]]*\(|D3DX[A-Za-z0-9_]*[[:space:]]*\(|D3D(Compile|Disassemble)[A-Za-z0-9_]*[[:space:]]*\(' \
 		platform/platform_win32_renderer_d3d9*.c; then \
 		echo "lane-check: Windows D3D9 renderer uses a forbidden 9Ex, shader, or D3DX API" >&2; exit 1; fi
+
+# Win64's OSRS renderers (platform_win64_renderer_d3d9sm3_*.c) create shaders
+# from bytecode compiled offline (tools/d3d9_shaderc): no compiler, no D3DX and
+# no 9Ex at run time, here either.
+lane-check-no-shader-compiler-win64:
+	@if grep -En 'Direct3DCreate9Ex[[:space:]]*\(|IDirect3D(9Ex|Device9Ex)|D3DX[A-Za-z0-9_]*[[:space:]]*\(|D3D(Compile|Disassemble)[A-Za-z0-9_]*[[:space:]]*\(|d3dcompiler' \
+		platform/platform_win64_renderer_d3d9*.c; then \
+		echo "lane-check: win64 D3D9 shader renderer uses a forbidden 9Ex, D3DX or shader-compiler API" >&2; exit 1; fi
 
 # Post-link probes read the ABI and imports back off each Windows artifact.
 # Other platforms have no artifact-only contract yet and pass trivially.

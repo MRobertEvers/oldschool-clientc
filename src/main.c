@@ -864,7 +864,7 @@ interactive_render_present(
 
     /* Read only inside the D3D9, GLES2 and WebGL2 blocks below; a build
      * with none of those families (the macOS GL3 client) never looks at it.
-     * `world_osrs` names the WebGL2 handle's OSRS renderer, read there alone. */
+     * `world_osrs` names the OSRS renderer on the lanes that have them. */
     (void)world_depth;
     (void)world_osrs;
 
@@ -935,7 +935,12 @@ interactive_render_present(
                 uint64_t const t_rf = FrameStats_Now();
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
                 {
-                    ToriPlatformWin32_Renderer_D3D9_RenderFrame(d3d9, &frame);
+                    if( world_osrs == MAIN_OS241TFA )
+                        ToriPlatformWin32_Renderer_D3D9_Os241TfaRenderFrame(d3d9, &frame);
+                    else if( world_osrs == MAIN_OS235SAILING )
+                        ToriPlatformWin32_Renderer_D3D9_Os235SailingRenderFrame(d3d9, &frame);
+                    else
+                        ToriPlatformWin32_Renderer_D3D9_RenderFrame(d3d9, &frame);
                 }
                 FrameStats_Span(FRAME_STATS_RENDER, t_rf);
             }
@@ -1241,7 +1246,13 @@ interactive_render_present(
             int caption_font_id = -1;
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
-            if( world_depth )
+            if( world_osrs == MAIN_OS241TFA )
+                ToriPlatformAndroid_Renderer_GLES3_Os241TfaDrawBootBar(
+                    gles3, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            else if( world_osrs == MAIN_OS235SAILING )
+                ToriPlatformAndroid_Renderer_GLES3_Os235SailingDrawBootBar(
+                    gles3, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            else if( world_depth )
                 ToriPlatformAndroid_Renderer_GLES3_ZBufferDrawBootBar(
                     gles3, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
             else
@@ -1260,7 +1271,11 @@ interactive_render_present(
                 gles3, PlatformWindow_TicksUs() - main_pacing.s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
-                if( world_depth )
+                if( world_osrs == MAIN_OS241TFA )
+                    ToriPlatformAndroid_Renderer_GLES3_Os241TfaRenderFrame(gles3, &frame);
+                else if( world_osrs == MAIN_OS235SAILING )
+                    ToriPlatformAndroid_Renderer_GLES3_Os235SailingRenderFrame(gles3, &frame);
+                else if( world_depth )
                     ToriPlatformAndroid_Renderer_GLES3_ZBufferRenderFrame(gles3, &frame);
                 else
                     ToriPlatformAndroid_Renderer_GLES3_PainterRenderFrame(gles3, &frame);
@@ -1646,17 +1661,21 @@ renderer_active_is_depth(void)
 }
 /*
  * Which OSRS z-buffer renderer is live, if any: Sailing or Post-TFA, on either
- * family. Each is its own set of entry points, on the WebGL2 handle and on
- * GL3. Asked where renderer_active_is_depth is, and nowhere else.
+ * family. Each is its own set of entry points on every lane's handle. Asked
+ * where renderer_active_is_depth is, and nowhere else.
  */
 static enum MainOsrsRenderer
 renderer_active_osrs(void)
 {
     if( renderer_active == TORIRS_RENDERER_KIND_WEBGL2_OS241TFA ||
-        renderer_active == TORIRS_RENDERER_KIND_OPENGL3_OS241TFA )
+        renderer_active == TORIRS_RENDERER_KIND_OPENGL3_OS241TFA ||
+        renderer_active == TORIRS_RENDERER_KIND_GLES3_OS241TFA ||
+        renderer_active == TORIRS_RENDERER_KIND_D3D9_OS241TFA )
         return MAIN_OS241TFA;
     if( renderer_active == TORIRS_RENDERER_KIND_WEBGL2_OS235SAILING ||
-        renderer_active == TORIRS_RENDERER_KIND_OPENGL3_OS235SAILING )
+        renderer_active == TORIRS_RENDERER_KIND_OPENGL3_OS235SAILING ||
+        renderer_active == TORIRS_RENDERER_KIND_GLES3_OS235SAILING ||
+        renderer_active == TORIRS_RENDERER_KIND_D3D9_OS235SAILING )
         return MAIN_OS235SAILING;
     return MAIN_OSRS_NONE;
 }
@@ -1752,9 +1771,13 @@ renderer_present(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_WEBGL1_DEPTH:
     case TORIRS_RENDERER_KIND_GLES3:
     case TORIRS_RENDERER_KIND_GLES3_DEPTH:
+    case TORIRS_RENDERER_KIND_GLES3_OS235SAILING:
+    case TORIRS_RENDERER_KIND_GLES3_OS241TFA:
         return PLATFORM_PRESENT_GL;
     case TORIRS_RENDERER_KIND_D3D9:
     case TORIRS_RENDERER_KIND_D3D9_DEPTH:
+    case TORIRS_RENDERER_KIND_D3D9_OS235SAILING:
+    case TORIRS_RENDERER_KIND_D3D9_OS241TFA:
         return PLATFORM_PRESENT_NATIVE;
     case TORIRS_RENDERER_KIND_COUNT:
         break;
@@ -1793,6 +1816,8 @@ renderer_built(enum ToriRS_RendererKind kind)
 #endif
     case TORIRS_RENDERER_KIND_D3D9:
     case TORIRS_RENDERER_KIND_D3D9_DEPTH:
+    case TORIRS_RENDERER_KIND_D3D9_OS235SAILING:
+    case TORIRS_RENDERER_KIND_D3D9_OS241TFA:
 #if defined(TORIRS_HAVE_D3D9)
         return true;
 #else
@@ -1816,6 +1841,8 @@ renderer_built(enum ToriRS_RendererKind kind)
 #endif
     case TORIRS_RENDERER_KIND_GLES3:
     case TORIRS_RENDERER_KIND_GLES3_DEPTH:
+    case TORIRS_RENDERER_KIND_GLES3_OS235SAILING:
+    case TORIRS_RENDERER_KIND_GLES3_OS241TFA:
 #if defined(TORIRS_HAVE_GLES3)
         return true;
 #else
@@ -2059,13 +2086,25 @@ renderer_start_kind(enum ToriRS_RendererKind kind)
 #if defined(TORIRS_HAVE_GLES3)
     case TORIRS_RENDERER_KIND_GLES3:
     case TORIRS_RENDERER_KIND_GLES3_DEPTH:
+    case TORIRS_RENDERER_KIND_GLES3_OS235SAILING:
+    case TORIRS_RENDERER_KIND_GLES3_OS241TFA:
     {
         bool const depth = kind == TORIRS_RENDERER_KIND_GLES3_DEPTH;
-        gles3 = ToriPlatformAndroid_Renderer_GLES3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        bool const sailing = kind == TORIRS_RENDERER_KIND_GLES3_OS235SAILING;
+        bool const tfa = kind == TORIRS_RENDERER_KIND_GLES3_OS241TFA;
+        bool started;
+        /* Each OSRS renderer bakes the world in its own vertex, so its handle
+         * is made for it. Its world is the painter's (TORIRS_WORLD_PAINTER):
+         * the translucent pass replays that order. */
+        gles3 = tfa       ? ToriPlatformAndroid_Renderer_GLES3_NewOs241Tfa(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H)
+                : sailing ? ToriPlatformAndroid_Renderer_GLES3_NewOs235Sailing(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H)
+                          : ToriPlatformAndroid_Renderer_GLES3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         assert(gles3);
-        if( !(depth ? ToriPlatformAndroid_Renderer_GLES3_ZBufferInit(gles3, PlatformWindow_GLWindow(platform), app.scene)
-                    : ToriPlatformAndroid_Renderer_GLES3_PainterInit(
-                          gles3, PlatformWindow_GLWindow(platform), app.scene)) )
+        started = tfa       ? ToriPlatformAndroid_Renderer_GLES3_Os241TfaInit(gles3, PlatformWindow_GLWindow(platform), app.scene)
+                  : sailing ? ToriPlatformAndroid_Renderer_GLES3_Os235SailingInit(gles3, PlatformWindow_GLWindow(platform), app.scene)
+                  : depth   ? ToriPlatformAndroid_Renderer_GLES3_ZBufferInit(gles3, PlatformWindow_GLWindow(platform), app.scene)
+                            : ToriPlatformAndroid_Renderer_GLES3_PainterInit(gles3, PlatformWindow_GLWindow(platform), app.scene);
+        if( !started )
         {
             TORIRS_ERR("GLES3 renderer init failed\n");
             ToriPlatformAndroid_Renderer_GLES3_Free(gles3);
@@ -2117,11 +2156,22 @@ renderer_start_kind(enum ToriRS_RendererKind kind)
 #if defined(TORIRS_HAVE_D3D9)
     case TORIRS_RENDERER_KIND_D3D9:
     case TORIRS_RENDERER_KIND_D3D9_DEPTH:
+    case TORIRS_RENDERER_KIND_D3D9_OS235SAILING:
+    case TORIRS_RENDERER_KIND_D3D9_OS241TFA:
     {
         bool const depth = kind == TORIRS_RENDERER_KIND_D3D9_DEPTH;
+        bool const sailing = kind == TORIRS_RENDERER_KIND_D3D9_OS235SAILING;
+        bool const tfa = kind == TORIRS_RENDERER_KIND_D3D9_OS241TFA;
+        void* const window = PlatformWindow_NativeWindowHandle(platform);
+        bool started;
         d3d9 = ToriPlatformWin32_Renderer_D3D9_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        if( !d3d9 ||
-            !ToriPlatformWin32_Renderer_D3D9_Init(d3d9, PlatformWindow_NativeWindowHandle(platform), app.scene, depth) )
+        assert(d3d9);
+        /* The OSRS renderers' world is the painter's (TORIRS_WORLD_PAINTER):
+         * the translucent pass replays that order. */
+        started = tfa       ? ToriPlatformWin32_Renderer_D3D9_Os241TfaInit(d3d9, window, app.scene)
+                  : sailing ? ToriPlatformWin32_Renderer_D3D9_Os235SailingInit(d3d9, window, app.scene)
+                            : ToriPlatformWin32_Renderer_D3D9_Init(d3d9, window, app.scene, depth);
+        if( !started )
         {
             TORIRS_ERR("D3D9 fixed-function renderer init failed\n");
             ToriPlatformWin32_Renderer_D3D9_Free(d3d9);
@@ -8670,7 +8720,8 @@ struct MainArgState
     int use_webgl1;
     int webgl1_zbuffer;
     /* Android's OpenGL ES 3 renderer (--gles3 / --gles3-zbuffer): the same
-     * ES3 core the browser runs as --webgl2, on EGL. */
+     * ES3 core the browser runs as --webgl2, on EGL. 2 is Sailing OSRS
+     * (--gles3-os235sailing), 3 Post-TFA OSRS (--gles3-os241tfa). */
     int use_gles3;
     int gles3_zbuffer;
     /* Soft3D on a frame-wide z-buffer (--soft3d-zbuffer) rather than the
@@ -8705,8 +8756,9 @@ main_print_usage(char const* program)
         "[--agent-port N] [--agent-port-file <path>] "
         "[--opengl3|--opengl3-zbuffer|--opengl3-os235sailing|--opengl3-os241tfa|--webgl1|--webgl1-zbuffer|"
         "--webgl2|--webgl2-zbuffer|--webgl2-os235sailing|--webgl2-os241tfa|--gles2|--gles2-zbuffer|--gles3|--gles3-zbuffer|"
+        "--gles3-os235sailing|--gles3-os241tfa|"
         "--gles2-dualcore|--gles2-dualcore-zbuffer|"
-        "--d3d9|--d3d9-zbuffer|--soft3d|--soft3d-zbuffer|--soft3d-rszbuffer]\n",
+        "--d3d9|--d3d9-zbuffer|--d3d9-os235sailing|--d3d9-os241tfa|--soft3d|--soft3d-zbuffer|--soft3d-rszbuffer]\n",
         program);
 }
 
@@ -9183,9 +9235,13 @@ main_parse_argument_layer(
             return 0;
 #endif
         }
-        if( strcmp(argv[argi], "--gles3") == 0 || strcmp(argv[argi], "--gles3-zbuffer") == 0 )
+        if( strcmp(argv[argi], "--gles3") == 0 || strcmp(argv[argi], "--gles3-zbuffer") == 0 ||
+            strcmp(argv[argi], "--gles3-os235sailing") == 0 || strcmp(argv[argi], "--gles3-os241tfa") == 0 )
         {
-            int const zbuffer = strcmp(argv[argi], "--gles3-zbuffer") == 0;
+            int const zbuffer = strcmp(argv[argi], "--gles3-zbuffer") == 0        ? 1
+                                : strcmp(argv[argi], "--gles3-os235sailing") == 0 ? 2
+                                : strcmp(argv[argi], "--gles3-os241tfa") == 0     ? 3
+                                                                                  : 0;
             /* Read in every branch below but the "not built here" one. */
             (void)zbuffer;
 #if defined(TORIRS_HAVE_GLES3)
@@ -9208,7 +9264,7 @@ main_parse_argument_layer(
             TORIRS_ERR(
                 "torirs: %s is the Android build's flag — use --webgl2%s\n",
                 argv[argi],
-                zbuffer ? "-zbuffer" : "");
+                zbuffer == 3 ? "-os241tfa" : zbuffer == 2 ? "-os235sailing" : zbuffer ? "-zbuffer" : "");
             return 0;
 #else
             TORIRS_ERR(
@@ -9258,17 +9314,20 @@ main_parse_argument_layer(
             return 0;
 #endif
         }
-        if( strcmp(argv[argi], "--d3d9-zbuffer") == 0 )
+        if( strcmp(argv[argi], "--d3d9-zbuffer") == 0 || strcmp(argv[argi], "--d3d9-os235sailing") == 0 ||
+            strcmp(argv[argi], "--d3d9-os241tfa") == 0 )
         {
 #if defined(TORIRS_HAVE_D3D9)
             state->use_d3d9 = 1;
             state->renderer_flag = 1;
             state->use_opengl3 = 0;
             state->use_gles2 = 0;
-            state->d3d9_zbuffer = 1;
+            state->d3d9_zbuffer = strcmp(argv[argi], "--d3d9-os235sailing") == 0 ? 2
+                                  : strcmp(argv[argi], "--d3d9-os241tfa") == 0  ? 3
+                                                                                : 1;
             continue;
 #else
-            TORIRS_LOG("torirs: --d3d9-zbuffer is not available in this build\n");
+            TORIRS_LOG("torirs: %s is not available in this build\n", argv[argi]);
             return 0;
 #endif
         }
@@ -11070,8 +11129,10 @@ main(
             renderer_launch =
                 webgl1_zbuffer ? TORIRS_RENDERER_KIND_WEBGL1_DEPTH : TORIRS_RENDERER_KIND_WEBGL1;
         else if( use_gles3 )
-            renderer_launch =
-                gles3_zbuffer ? TORIRS_RENDERER_KIND_GLES3_DEPTH : TORIRS_RENDERER_KIND_GLES3;
+            renderer_launch = gles3_zbuffer == 3 ? TORIRS_RENDERER_KIND_GLES3_OS241TFA
+                              : gles3_zbuffer == 2 ? TORIRS_RENDERER_KIND_GLES3_OS235SAILING
+                              : gles3_zbuffer    ? TORIRS_RENDERER_KIND_GLES3_DEPTH
+                                                 : TORIRS_RENDERER_KIND_GLES3;
         else if( use_gles2 )
             renderer_launch =
                 gles2_zbuffer ? TORIRS_RENDERER_KIND_GLES2_DEPTH : TORIRS_RENDERER_KIND_GLES2;
@@ -11082,7 +11143,10 @@ main(
                                                : TORIRS_RENDERER_KIND_OPENGL3;
         else if( use_d3d9 )
             renderer_launch =
-                d3d9_zbuffer ? TORIRS_RENDERER_KIND_D3D9_DEPTH : TORIRS_RENDERER_KIND_D3D9;
+                d3d9_zbuffer == 3   ? TORIRS_RENDERER_KIND_D3D9_OS241TFA
+                : d3d9_zbuffer == 2 ? TORIRS_RENDERER_KIND_D3D9_OS235SAILING
+                : d3d9_zbuffer      ? TORIRS_RENDERER_KIND_D3D9_DEPTH
+                                    : TORIRS_RENDERER_KIND_D3D9;
         /* No flag, on a lane whose window is made for one present for good:
          * make it for the saved pick, which could not be switched to later. */
         if( !renderer_launch_flagged )

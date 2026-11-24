@@ -73,6 +73,10 @@ They sit beside the plain depth renderers, which are unchanged:
 | OpenGL (Sailing OSRS) | `--opengl3-os235sailing` | 16 | `TRSPK_VertexOpenGl3Os1`, the plain GL3 vertex (`position.w` holds the bias) |
 | WebGL 2 (Post-TFA OSRS) | `--webgl2-os241tfa` | 17 | `es3_os241tfa_vertex.h` (Sailing + projector, 52 bytes) |
 | OpenGL (Post-TFA OSRS) | `--opengl3-os241tfa` | 18 | `TRSPK_VertexOpenGl3Os241Tfa` (GL3 + projector, 84 bytes) |
+| OpenGL ES 3 (Sailing OSRS) | `--gles3-os235sailing` | 19 | `es3_os235sailing_vertex.h`, as WebGL 2 |
+| OpenGL ES 3 (Post-TFA OSRS) | `--gles3-os241tfa` | 20 | `es3_os241tfa_vertex.h`, as WebGL 2 |
+| Direct3D 9 (Sailing OSRS) | `--d3d9-os235sailing` | 21 | `TRSPK_VertexD3D9` (`texdata[1]` holds the bias) |
+| Direct3D 9 (Post-TFA OSRS) | `--d3d9-os241tfa` | 22 | `TRSPK_VertexD3D9`; projected faces drawn as runs |
 
 Each is a file of its own, with its own dispatch, frame, world pass entry
 points and bake chain, composed from shared steps that do not ask which
@@ -95,6 +99,33 @@ the os1 chain the painter and depth pass share. All four do:
   order after the opaque pass. Each one's blended faces are sorted by depth
   bucket, far to near, with no priorities, and blend while writing depth. The
   world is collected as `TORIRS_WORLD_PAINTER`.
+
+Android's two (`platform_androidarmv7_renderer_opengles3_os235sailing.c`,
+`_os241tfa.c`) are the WebGL 2 renderers on the lane's own fork of the ES3
+core, which carries the same shared steps.
+
+Direct3D 9 has two lanes, and each links its own pair under the same entry
+points (`ToriPlatformWin32_Renderer_D3D9_Os235Sailing*`, `_Os241Tfa*`). Both
+queue the same runs (`platform_win32_renderer_d3d9_rev241.c`): two-pass
+models, translucent models, a run per bias value, and Post-TFA's projected
+faces -- only faces whose P/M/N plane is not their own plane, since every
+other face's baked texcoords are already the eye-ray texel.
+
+- **Win64** (`platform_win64_renderer_d3d9sm3_*.c`): vs_3_0/ps_3_0 programs
+  (`3rd/trspk/d3d9/shaders/rev241.hlsl`), compiled OFFLINE by
+  `tools/d3d9_shaderc` (D3DCompile from Windows' own `d3dcompiler_47.dll`) into
+  the checked-in `d3d9_rev241_shaders.h`; nothing compiles at run time
+  (`lane-check-no-shader-compiler-win64`). The key, the bias and the tie rule
+  exactly as on GL3; a projected run's texcoords come from a per-run matrix and
+  `tex2Dproj`.
+- **XP** (`platform_win32_renderer_d3d9ff_*.c`): no programmable stage, so as
+  close as fixed function gets. Exact: the tie rule (clear to 1, `LESS`),
+  two-pass models, the translucent order, and the eye-ray texel (camera-space
+  texcoord generation through a projective texture matrix, divided per pixel,
+  on the texture on its own so `u` clamps and `v` wraps). Approximated: the key
+  (the hardware's depth orders the same but interpolates its own curve) and the
+  bias (one `D3DRS_DEPTHBIAS` per bias run, converted at the model's depth; none
+  on a device without the cap).
 
 Post-TFA OSRS adds the client's texel lookup [`class171.method5476`]: a
 textured pixel's texel is where the EYE RAY through it meets the face's P/M/N

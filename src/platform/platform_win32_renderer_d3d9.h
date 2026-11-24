@@ -139,6 +139,43 @@ ToriPlatformWin32_Renderer_D3D9_DrawBootBar(
 void
 ToriPlatformWin32_Renderer_D3D9_RenderFrame(struct ToriPlatformWin32_Renderer_D3D9* d3d9, struct ToriRS_Frame* frame);
 
+/*
+ * "Direct3D 9 (Sailing OSRS)" and "Direct3D 9 (Post-TFA OSRS)": the rev-241
+ * client's world pass (platform_win32_renderer_d3d9_rev241.h), each on a
+ * New handle and driven only through its own Init, Execute and RenderFrame
+ * (DrawBootBar, the setters and Free are the handle's). Win64 runs them
+ * through vertex and pixel shaders (platform_win64_renderer_d3d9sm3_*.c); XP's
+ * fixed-function pipeline gets as close as it can
+ * (platform_win32_renderer_d3d9ff_*.c). The caller puts the app into
+ * TORIRS_WORLD_PAINTER: the translucent pass replays the painter's order.
+ */
+bool
+ToriPlatformWin32_Renderer_D3D9_Os235SailingInit(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
+    void* native_window,
+    struct ToriDraw_Scene* scene);
+void
+ToriPlatformWin32_Renderer_D3D9_Os235SailingExecute(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
+    struct ToriRS_RenderCommand const* command);
+void
+ToriPlatformWin32_Renderer_D3D9_Os235SailingRenderFrame(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
+    struct ToriRS_Frame* frame);
+bool
+ToriPlatformWin32_Renderer_D3D9_Os241TfaInit(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
+    void* native_window,
+    struct ToriDraw_Scene* scene);
+void
+ToriPlatformWin32_Renderer_D3D9_Os241TfaExecute(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
+    struct ToriRS_RenderCommand const* command);
+void
+ToriPlatformWin32_Renderer_D3D9_Os241TfaRenderFrame(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
+    struct ToriRS_Frame* frame);
+
 void
 ToriPlatformWin32_Renderer_D3D9_Present(struct ToriPlatformWin32_Renderer_D3D9* d3d9);
 

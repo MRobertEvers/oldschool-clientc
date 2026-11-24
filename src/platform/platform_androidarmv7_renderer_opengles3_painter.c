@@ -238,7 +238,7 @@ es3p_sequence_issue(
             es3_use_world_program(renderer, item->cutout != 0u);
             program_cutout = (int)item->cutout;
         }
-        if( !es3_bind_stream(renderer, item->binding) )
+        if( !es3_bind_stream_os1(renderer, item->binding) )
         {
             /*
              * The binding has no GPU buffer this frame, so every face in this
@@ -1215,5 +1215,6 @@ TRSPK_Renderer_ES3_PainterInit(
     assert(renderer);
     assert(window);
     assert(scene);
+    es3_set_world_shaders(renderer, &es3_world_shaders_os1);
     return es3_init_gl(renderer, window, scene, 0, "painter");
 }

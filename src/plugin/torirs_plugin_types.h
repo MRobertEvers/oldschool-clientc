@@ -1262,6 +1262,11 @@ enum ToriRS_Renderer
      *  Archive effects). */
     TORIRS_RENDERER_WEBGL2_OS241TFA,
     TORIRS_RENDERER_OPENGL3_OS241TFA,
+    /** Android's OpenGL ES 3 and Direct3D 9, the same two ways. */
+    TORIRS_RENDERER_GLES3_OS235SAILING,
+    TORIRS_RENDERER_GLES3_OS241TFA,
+    TORIRS_RENDERER_D3D9_OS235SAILING,
+    TORIRS_RENDERER_D3D9_OS241TFA,
     TORIRS_RENDERER_COUNT
 };
 
@@ -1295,7 +1300,11 @@ enum ToriRS_Renderer
         "WebGL 2 (Sailing OSRS)",                                              \
         "OpenGL (Sailing OSRS)",                                               \
         "WebGL 2 (Post-TFA OSRS)",                                             \
-        "OpenGL (Post-TFA OSRS)"                                               \
+        "OpenGL (Post-TFA OSRS)",                                              \
+        "OpenGL ES 3 (Sailing OSRS)",                                          \
+        "OpenGL ES 3 (Post-TFA OSRS)",                                         \
+        "Direct3D 9 (Sailing OSRS)",                                           \
+        "Direct3D 9 (Post-TFA OSRS)"                                           \
     }
 
 /** TORIRS_DISPLAY_SCALE_ADJUSTED bits. */

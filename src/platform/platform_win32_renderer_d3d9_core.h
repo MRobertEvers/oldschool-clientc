@@ -270,6 +270,20 @@ struct D3D9ModelGroup
 };
 
 struct D3D9ZBufferWorld;
+struct D3D9Rev241World;
+
+/* How the depth pass classifies a face (d3d9_zbuffer_face_passes). */
+enum D3D9WorldFacePass
+{
+    D3D9_WORLD_FACE_SKIP = 0,
+    D3D9_WORLD_FACE_OPAQUE = 1,
+    D3D9_WORLD_FACE_CUTOUT = 2,
+    D3D9_WORLD_FACE_BLENDED = 3,
+};
+
+/* The vertex shader register d3d9_bind_world_config writes the bound
+ * texture's scroll to (xy), for the win64 OSRS renderers' vertex shader. */
+#define D3D9_VS_TEXTURE_SCROLL_REGISTER 5u
 
 struct ToriPlatformWin32_Renderer_D3D9
 {
@@ -291,6 +305,9 @@ struct ToriPlatformWin32_Renderer_D3D9
      * it needs no state of its own.  The type is opaque outside
      * platform_win32_renderer_d3d9_zbuffer.c. */
     struct D3D9ZBufferWorld* zbuffer;
+    /* The OSRS renderers' world (platform_win32_renderer_d3d9_rev241.h), or
+     * NULL. They make the depth state too, for its material tables. */
+    struct D3D9Rev241World* rev241;
 
     int width;
     int height;
@@ -410,6 +427,8 @@ struct ToriPlatformWin32_Renderer_D3D9
     bool has_3d;
     bool in3d;
     double frame_clock;
+    /* The bound world texture's scroll, as D3DTS_TEXTURE0 offsets it. */
+    float texture_scroll[2];
 
     bool in2d;
 
@@ -628,5 +647,129 @@ d3d9_draw_retained(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct TRSPK_IBOChain* chain,
     bool blended_pass);
+
+/*
+ * The pieces every D3D9 renderer is built from. The painter and the depth pass
+ * (this core) and the OSRS renderers (platform_win32_renderer_d3d9ff_os*.c on
+ * XP, platform_win64_renderer_d3d9sm3_os*.c on win64) each compose their own
+ * frame and world pass from these; none of them asks which is running.
+ */
+
+/** The device and its resources; D3DFMT_UNKNOWN: no depth buffer. */
+bool
+d3d9_init_device(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    void* native_window,
+    struct ToriDraw_Scene* scene,
+    D3DFORMAT depth_format);
+/** The first of `wanted` the adapter takes as a depth buffer, else D16. */
+D3DFORMAT
+d3d9_pick_depth_format(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const D3DFORMAT* wanted,
+    uint32_t wanted_count);
+
+/** One command as the painter and the depth pass take it. */
+void
+d3d9_dispatch(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand* command);
+
+bool
+d3d9_frame_begin(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct ToriRS_Frame* frame,
+    uint64_t* out_render_start_us);
+void
+d3d9_frame_finish(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    uint64_t render_start_us);
+
+/* BEGIN_3D: viewport, the pass's depth clear, matrices, the pass's projection
+ * depth, transforms. */
+bool
+d3d9_begin_3d_viewport(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Begin3D* command);
+void
+d3d9_begin_3d_matrices(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Begin3D* command);
+void
+d3d9_begin_3d_transforms(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+
+/* DRAW_MODEL: begin, the pass's cull, the pass's face count, place, emit. */
+bool
+d3d9_model_begin(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command);
+bool
+d3d9_model_cull_depth(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    bool* projected);
+bool
+d3d9_model_place(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int face_count,
+    int sorted_face_count,
+    bool projected_in_scene,
+    struct D3D9ModelPlacement* placement);
+
+/* END_3D: begin (false: draw nothing), the pass's draws, close. */
+bool
+d3d9_end_3d_begin(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+void
+d3d9_end_3d_close(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+
+/* A chain drawn: prepare (false: nothing to draw), the world states, the
+ * pass's own states, then the ranges with their own textures or with the one
+ * the caller bound. */
+bool
+d3d9_retained_prepare(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct TRSPK_IBOChain* chain);
+void
+d3d9_set_world_states(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+void
+d3d9_draw_ranges_configured(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+void
+d3d9_draw_ranges_bound(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+
+/** `tex_id` as its own texture in `*destination`, made once. */
+bool
+d3d9_texture_standalone(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    int tex_id,
+    IDirect3DTexture9** destination);
+
+/** A placed model's per-face D3D9_WORLD_FACE_* (face_count of them) and its
+ *  blended count, from the depth state's tables; NULL: none to give. */
+const uint8_t*
+d3d9_zbuffer_face_passes(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    const struct D3D9ModelPlacement* placement,
+    uint32_t* out_blended_count);
+/** Opaque indices into the depth state's per-page buckets
+ *  (d3d9_zbuffer_flush_opaque puts them on the core's chain). */
+void
+d3d9_zbuffer_queue_opaque(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct D3D9ModelPlacement* placement,
+    const uint16_t* indices,
+    uint32_t index_count);
+
+/** `tex_id`'s scroll this frame, as D3DTS_TEXTURE0 offsets an animated one. */
+void
+d3d9_texture_scroll_of(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    int tex_id,
+    float out_scroll[2]);
+
+/** Release ::rev241 (platform_win32_renderer_d3d9_rev241.c); NULL-safe. */
+void
+d3d9_rev241_destroy(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 #endif

@@ -36,13 +36,8 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
-enum D3D9WorldFacePass
-{
-    D3D9_WORLD_FACE_SKIP = 0,
-    D3D9_WORLD_FACE_OPAQUE = 1,
-    D3D9_WORLD_FACE_CUTOUT = 2,
-    D3D9_WORLD_FACE_BLENDED = 3,
-};
+/* enum D3D9WorldFacePass is in platform_win32_renderer_d3d9_core.h: the OSRS
+ * renderers read the same classification (d3d9_zbuffer_face_passes). */
 
 struct D3D9MaterialPose
 {
@@ -962,22 +957,17 @@ d3d9_zbuffer_apply_pass_states(struct ToriPlatformWin32_Renderer_D3D9* renderer,
         blended_pass ? TRUE : FALSE);
 }
 
-void
-d3d9_zbuffer_emit_model(
+/* A placed model's face classification, or NULL when it has none to give:
+ * classified once per baked pose, except a dynamic model (or one baked
+ * before the table knew it), whose faces' alphas can change under one key. */
+static const struct D3D9MaterialPose*
+d3d9_zbuffer_model_material(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct D3D9ZBufferWorld* world,
     const struct ToriRS_RenderCommand_Model* command,
     const struct D3D9ModelPlacement* placement)
 {
-    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     const struct D3D9MaterialPose* material = NULL;
-    const uint32_t local_base = placement->local_base;
-    uint32_t written = 0u;
-    int sorted_face_count;
-    int* face_order;
-    int i;
-
-    if( !world )
-        return;
     if( placement->dynamic )
     {
         if( d3d9_material_pose_set(
@@ -996,6 +986,57 @@ d3d9_zbuffer_emit_model(
             &world->dynamic_material, renderer, command->model) )
         material = &world->dynamic_material;
     if( !material || material->face_count != (uint32_t)placement->face_count )
+        return NULL;
+    return material;
+}
+
+const uint8_t*
+d3d9_zbuffer_face_passes(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    const struct D3D9ModelPlacement* placement,
+    uint32_t* out_blended_count)
+{
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
+    const struct D3D9MaterialPose* material;
+    assert(world);
+    material = d3d9_zbuffer_model_material(renderer, world, command, placement);
+    if( !material )
+        return NULL;
+    *out_blended_count = material->blended_count;
+    return material->face_passes;
+}
+
+void
+d3d9_zbuffer_queue_opaque(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct D3D9ModelPlacement* placement,
+    const uint16_t* indices,
+    uint32_t index_count)
+{
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
+    assert(world);
+    d3d9_queue_opaque_indices(world, placement->binding, placement->page_base, indices, index_count);
+}
+
+void
+d3d9_zbuffer_emit_model(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    const struct D3D9ModelPlacement* placement)
+{
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
+    const struct D3D9MaterialPose* material;
+    const uint32_t local_base = placement->local_base;
+    uint32_t written = 0u;
+    int sorted_face_count;
+    int* face_order;
+    int i;
+
+    if( !world )
+        return;
+    material = d3d9_zbuffer_model_material(renderer, world, command, placement);
+    if( !material )
         return;
 
     /* Opaque and binary-cutout faces are depth-order independent, so they go

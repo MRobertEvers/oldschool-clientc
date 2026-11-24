@@ -1,0 +1,67 @@
+/*
+ * "Direct3D 9 (Post-TFA OSRS)" on win64, --d3d9-os241tfa: Sailing OSRS plus the client's eye-ray texel
+ * on projected faces (the Ocellus void),
+ * through the shader rev-241 world pass
+ * (platform_win64_renderer_d3d9sm3_rev241.c). Its own dispatch and frame; the
+ * rest of the commands go through the core's (d3d9_dispatch). On XP the same
+ * renderer is platform_win32_renderer_d3d9ff_os241tfa.c, without shaders.
+ */
+
+#include "platform/platform_win64_renderer_d3d9sm3_rev241.h"
+
+#include <assert.h>
+
+static void
+d3d9sm3_os241_dispatch(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand* command)
+{
+    struct D3D9ModelPlacement placement;
+    if( command->kind == TORIRSRC_BEGIN_3D )
+        d3d9sm3_rev241_begin_3d(renderer, &command->u.begin_3d);
+    else if( command->kind == TORIRSRC_END_3D )
+        d3d9sm3_rev241_end_3d(renderer);
+    else if( command->kind == TORIRSRC_DRAW_MODEL )
+    {
+        if( d3d9_rev241_place(renderer, &command->u.model, &placement) )
+            d3d9_rev241_emit_model_projected(renderer, &command->u.model, &placement);
+    }
+    else
+        d3d9_dispatch(renderer, command);
+}
+
+bool
+ToriPlatformWin32_Renderer_D3D9_Os241TfaInit(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    void* native_window,
+    struct ToriDraw_Scene* scene)
+{
+    return d3d9sm3_rev241_init(renderer, native_window, scene);
+}
+
+void
+ToriPlatformWin32_Renderer_D3D9_Os241TfaExecute(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct ToriRS_RenderCommand const* command)
+{
+    assert(renderer);
+    assert(command);
+    d3d9sm3_os241_dispatch(renderer, command);
+}
+
+void
+ToriPlatformWin32_Renderer_D3D9_Os241TfaRenderFrame(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct ToriRS_Frame* frame)
+{
+    struct ToriRS_RenderCommand command;
+    uint64_t render_start_us;
+    if( !d3d9_frame_begin(renderer, frame, &render_start_us) )
+        return;
+    while( ToriRS_FrameNextCommand(frame, &command) )
+        d3d9sm3_os241_dispatch(renderer, &command);
+    ToriRS_FrameEnd(frame);
+    if( renderer->in3d )
+        d3d9sm3_rev241_end_3d(renderer);
+    d3d9_frame_finish(renderer, render_start_us);
+}

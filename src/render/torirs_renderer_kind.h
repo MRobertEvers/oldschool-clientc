@@ -71,6 +71,16 @@ enum ToriRS_RendererKind
     TORIRS_RENDERER_KIND_WEBGL2_OS241TFA,
     /** "OpenGL (Post-TFA OSRS)": the same on desktop GL 3.2. */
     TORIRS_RENDERER_KIND_OPENGL3_OS241TFA,
+    /** "OpenGL ES 3 (Sailing OSRS)" / "(Post-TFA OSRS)": Android's ES 3.0
+     *  renderer the same two ways
+     *  (platform_androidarmv7_renderer_opengles3_os235sailing.c, _os241tfa.c). */
+    TORIRS_RENDERER_KIND_GLES3_OS235SAILING,
+    TORIRS_RENDERER_KIND_GLES3_OS241TFA,
+    /** "Direct3D 9 (Sailing OSRS)" / "(Post-TFA OSRS)": the Windows lanes'.
+     *  Win64 runs them through vertex and pixel shaders; XP's fixed-function
+     *  pipeline gets as close as it can (platform_win32_renderer_d3d9_os*). */
+    TORIRS_RENDERER_KIND_D3D9_OS235SAILING,
+    TORIRS_RENDERER_KIND_D3D9_OS241TFA,
 
     TORIRS_RENDERER_KIND_COUNT
 };

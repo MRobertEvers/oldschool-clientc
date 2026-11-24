@@ -412,7 +412,7 @@ d3d9_disable_texture_transform(IDirect3DDevice9* device)
     IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_TEXCOORDINDEX, 0u);
 }
 
-static void
+void
 d3d9_set_world_states(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DDevice9* device = renderer->device;
@@ -552,6 +552,27 @@ d3d9_bind_animated(struct ToriPlatformWin32_Renderer_D3D9* renderer, int tex_id)
         amount_v != 0.0f ? D3DTADDRESS_WRAP : D3DTADDRESS_CLAMP);
     d3d9_apply_texture_scroll(
         renderer->device, amount_u, amount_v, (float)renderer->frame_clock);
+    renderer->texture_scroll[0] = fmodf((float)renderer->frame_clock * amount_u, 1.0f);
+    renderer->texture_scroll[1] = fmodf((float)renderer->frame_clock * amount_v, 1.0f);
+}
+
+void
+d3d9_texture_scroll_of(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    int tex_id,
+    float out_scroll[2])
+{
+    struct ToriDraw_Texture* texture = NULL;
+    float amount_u = 0.0f;
+    float amount_v = 0.0f;
+    if( tex_id >= 0 && tex_id < TORIDRAW_TEXTURE_ID_CAPACITY && renderer->scene )
+        texture = ToriDraw_TextureMapGet(
+            &ToriDraw_SceneTexState(renderer->scene)->texture_map, tex_id);
+    if( texture )
+        d3d9_texture_animation_offsets(
+            texture->animation_direction, texture->animation_speed, &amount_u, &amount_v);
+    out_scroll[0] = fmodf((float)renderer->frame_clock * amount_u, 1.0f);
+    out_scroll[1] = fmodf((float)renderer->frame_clock * amount_v, 1.0f);
 }
 
 static bool
@@ -3881,6 +3902,32 @@ d3d9_ensure_animated_texture(struct ToriPlatformWin32_Renderer_D3D9* renderer, i
            d3d9_load_texture_object(renderer, tex_id, texture);
 }
 
+/* `tex_id` as a texture of its own in `*destination` (made once; kept until
+ * the caller releases it), so a sampler can clamp and wrap it as the texture
+ * it is rather than as a tile of the atlas. */
+bool
+d3d9_texture_standalone(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    int tex_id,
+    IDirect3DTexture9** destination)
+{
+    static uint8_t rgba[TRSPK_ATLAS_TILE * TRSPK_ATLAS_TILE * 4u];
+    struct ToriDraw_Texture* texture;
+    assert(destination);
+    if( *destination )
+        return true;
+    if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY || !renderer->scene ||
+        !renderer->device )
+        return false;
+    texture = ToriDraw_TextureMapGet(
+        &ToriDraw_SceneTexState(renderer->scene)->texture_map, tex_id);
+    if( !texture || !texture->texels )
+        return false;
+    d3d9_decode_texture_rgba(texture, TRSPK_ATLAS_TILE, rgba);
+    return d3d9_upload_rgba_texture(
+        renderer, destination, rgba, TRSPK_ATLAS_TILE, TRSPK_ATLAS_TILE);
+}
+
 static void
 d3d9_unload_texture(struct ToriPlatformWin32_Renderer_D3D9* renderer, int tex_id)
 {
@@ -4987,6 +5034,18 @@ d3d9_bake_pose_vertices(
         trspk_vbo_write_vertex_d3d9_argb(
             vbo, vertex + 2u, face.wx_c, face.wy_c, face.wz_c, face.argb_c, uc, vc,
             tex_id_f);
+        /* texdata[1]: twice the face's rev-241 depth bias [class174.field2408],
+         * which the win64 OSRS renderers' vertex shader keys depth with (and
+         * no fixed-function stage reads: D3D9_WORLD_FVF has one texcoord). */
+        if( ToriDraw_ModelKindIsFull(model_handle.kind) &&
+            model_handle.u.model.model->face_z_offsets )
+        {
+            float const depth_bias =
+                2.0f * (float)model_handle.u.model.model->face_z_offsets[face_index];
+            vbo->vertices.as_d3d9[vertex].texdata[1] = depth_bias;
+            vbo->vertices.as_d3d9[vertex + 1u].texdata[1] = depth_bias;
+            vbo->vertices.as_d3d9[vertex + 2u].texdata[1] = depth_bias;
+        }
     }
 
     /* Once for the model rather than three times per face -- and as a
@@ -5341,8 +5400,13 @@ d3d9_reserve_model_indices(struct ToriPlatformWin32_Renderer_D3D9* renderer, uin
     return true;
 }
 
-static void
-d3d9_begin_3d(
+/*
+ * BEGIN_3D's camera and viewport. False: no device, and no pass. The world
+ * passes compose this, their depth clear, d3d9_begin_3d_matrices, their
+ * projection depth, then d3d9_begin_3d_transforms.
+ */
+bool
+d3d9_begin_3d_viewport(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Begin3D* command)
 {
@@ -5352,13 +5416,9 @@ d3d9_begin_3d(
     int logical_x;
     int logical_y;
     D3DVIEWPORT9 d3d_viewport;
-    D3DMATRIX view;
-    D3DMATRIX projection;
-    D3DMATRIX world;
-    uint32_t group;
 
     if( !renderer->device )
-        return;
+        return false;
     assert(command);
     if( renderer->ibo_chain )
         trspk_ibochain_reset(renderer->ibo_chain);
@@ -5401,10 +5461,19 @@ d3d9_begin_3d(
     d3d_viewport.MinZ = 0.0f;
     d3d_viewport.MaxZ = 1.0f;
     IDirect3DDevice9_SetViewport(renderer->device, &d3d_viewport);
-    if( renderer->zbuffer )
-        d3d9_zbuffer_begin_pass(renderer);
-    trspk_pose_pool_tick(&renderer->pose_pool);
+    return true;
+}
 
+/* The pass's view and projection from its camera (renderer->view, ->proj). */
+void
+d3d9_begin_3d_matrices(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Begin3D* command)
+{
+    const struct ToriDraw_ViewPort* viewport = &renderer->cur_3d.view_port;
+    int const pass_w = viewport->width > 0 ? viewport->width : renderer->width;
+    int const pass_h = viewport->height > 0 ? viewport->height : renderer->height;
+    trspk_pose_pool_tick(&renderer->pose_pool);
     trspk_compute_pass_matrices(
         renderer->view,
         renderer->proj,
@@ -5421,10 +5490,16 @@ d3d9_begin_3d(
         command->camera.projection_scale,
         command->camera.fov_rpi2048,
         command->camera.parallel_zoom16);
-    if( renderer->zbuffer )
-        d3d9_zbuffer_setup_projection(renderer, command);
-    else
-        d3d9_painter_setup_projection(renderer);
+}
+
+/* The pass's matrices to the device, and the per-frame groups emptied. */
+void
+d3d9_begin_3d_transforms(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    D3DMATRIX view;
+    D3DMATRIX projection;
+    D3DMATRIX world;
+    uint32_t group;
     d3d9_float16_to_matrix(renderer->view, &view);
     d3d9_float16_to_matrix(renderer->proj, &projection);
     d3d9_identity(&world);
@@ -5435,6 +5510,23 @@ d3d9_begin_3d(
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
         if( renderer->groups[group].reset_each_frame )
             d3d9_reset_group(&renderer->groups[group]);
+}
+
+static void
+d3d9_begin_3d(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Begin3D* command)
+{
+    if( !d3d9_begin_3d_viewport(renderer, command) )
+        return;
+    if( renderer->zbuffer )
+        d3d9_zbuffer_begin_pass(renderer);
+    d3d9_begin_3d_matrices(renderer, command);
+    if( renderer->zbuffer )
+        d3d9_zbuffer_setup_projection(renderer, command);
+    else
+        d3d9_painter_setup_projection(renderer);
+    d3d9_begin_3d_transforms(renderer);
 }
 
 /*
@@ -5509,16 +5601,85 @@ d3d9_pick_test(
             command->pick_view);
 }
 
-static void
-d3d9_draw_model(
+/* A draw's model up to the point a world pass takes over: false when there
+ * is nothing to draw. Applies the element's animation to the scene's copy. */
+bool
+d3d9_model_begin(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Model* command)
 {
-    struct ToriDraw_Position projected_position;
-    struct D3D9ModelPlacement placement;
-    bool projected_in_scene = false;
-    int face_count;
-    int sorted_face_count = 0;
+    if( !renderer->has_3d || !renderer->scene || !renderer->ibo_chain || !command ||
+        command->model.kind == TORIDRAWMK_NONE )
+        return false;
+    if( command->animation && command->element_id >= 0 )
+        ToriDraw_SceneElementApplyAnimation(
+            renderer->scene,
+            command->element_id,
+            command->anim_index == 0,
+            command->anim_frame);
+    return true;
+}
+
+/*
+ * A depth-buffered pass's cull and pick. The pass draws the baked vertices and
+ * lets the GPU test depth, so the software projection is wanted for the pick
+ * only (and a blended model's face sort, which the emitter projects for
+ * itself). The cylinder cull decides visibility without projecting a vertex
+ * and says whether the cursor could be on the model; only then -- or for a
+ * box pick, whose box can outgrow a small model -- is it projected. False:
+ * not visible. `projected`: the scene's bench holds this model's projection.
+ */
+bool
+d3d9_model_cull_depth(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    bool* projected)
+{
+    struct ToriDraw_Position projected_position = command->position;
+    bool const pick_wanted =
+        renderer->pick_enabled && command->pickable && command->element_id >= 0;
+    bool cursor_inside = false;
+    *projected = false;
+    if( ToriDraw_RenderModel1CullPoint(
+            command->model,
+            renderer->scene,
+            &projected_position,
+            &renderer->cur_3d.view_port,
+            &renderer->cur_3d.camera,
+            renderer->pick_mouse_x,
+            renderer->pick_mouse_y,
+            pick_wanted && !command->pick_aabb ? &cursor_inside : NULL) !=
+        TORIDRAW_CULL_VISIBLE )
+        return false;
+    if( pick_wanted && (command->pick_aabb || cursor_inside) )
+    {
+        if( ToriDraw_RenderModel1ProjectWithTable(
+                command->model,
+                renderer->scene,
+                &projected_position,
+                &renderer->cur_3d.view_port,
+                &renderer->cur_3d.camera,
+                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+            return false;
+        *projected = true;
+        d3d9_pick_test(renderer, command);
+    }
+    return true;
+}
+
+/*
+ * Where a draw's pose is, baked on the first draw that needs it: its binding,
+ * page and local base, with the model indices sized for it. False: nowhere.
+ */
+bool
+d3d9_model_place(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int face_count,
+    int sorted_face_count,
+    bool projected_in_scene,
+    struct D3D9ModelPlacement* placement)
+{
     bool dynamic;
     int anim_index;
     int pose_id;
@@ -5529,79 +5690,6 @@ d3d9_draw_model(
     uint32_t group;
     uint32_t index_count;
 
-    if( !renderer->has_3d || !renderer->scene || !renderer->ibo_chain || !command ||
-        command->model.kind == TORIDRAWMK_NONE )
-        return;
-    if( command->animation && command->element_id >= 0 )
-        ToriDraw_SceneElementApplyAnimation(
-            renderer->scene,
-            command->element_id,
-            command->anim_index == 0,
-            command->anim_frame);
-    projected_position = command->position;
-    if( renderer->zbuffer )
-    {
-        /*
-         * The depth pass draws the baked vertices and lets the GPU test depth,
-         * so the software projection is wanted for the pick only (and a
-         * blended model's face sort, which d3d9_zbuffer_emit_model projects
-         * for itself). The cylinder cull decides visibility without
-         * projecting a vertex and says whether the cursor could be on the
-         * model; only then -- or for a box pick, whose box can outgrow a small
-         * model -- is it projected. The painter path sorts every model's
-         * faces, so it projects every one.
-         */
-        bool const pick_wanted =
-            renderer->pick_enabled && command->pickable && command->element_id >= 0;
-        bool cursor_inside = false;
-        if( ToriDraw_RenderModel1CullPoint(
-                command->model,
-                renderer->scene,
-                &projected_position,
-                &renderer->cur_3d.view_port,
-                &renderer->cur_3d.camera,
-                renderer->pick_mouse_x,
-                renderer->pick_mouse_y,
-                pick_wanted && !command->pick_aabb ? &cursor_inside : NULL) !=
-            TORIDRAW_CULL_VISIBLE )
-            return;
-        if( pick_wanted && (command->pick_aabb || cursor_inside) )
-        {
-            if( ToriDraw_RenderModel1ProjectWithTable(
-                    command->model,
-                    renderer->scene,
-                    &projected_position,
-                    &renderer->cur_3d.view_port,
-                    &renderer->cur_3d.camera,
-                    renderer->kernel) != TORIDRAW_CULL_VISIBLE )
-                return;
-            projected_in_scene = true;
-            d3d9_pick_test(renderer, command);
-        }
-    }
-    else
-    {
-        if( ToriDraw_RenderModel1ProjectWithTable(
-                command->model,
-                renderer->scene,
-                &projected_position,
-                &renderer->cur_3d.view_port,
-                &renderer->cur_3d.camera,
-                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
-            return;
-        projected_in_scene = true;
-        d3d9_pick_test(renderer, command);
-    }
-
-    if( command->pick_only )
-        return;
-    /* The depth path classifies per face during emission and needs no order
-     * up front; the painter path must sort before it can count. */
-    face_count = renderer->zbuffer
-                     ? trspk_toridraw_face_count(command->model)
-                     : d3d9_painter_sort_faces(renderer, command, &sorted_face_count);
-    if( face_count <= 0 )
-        return;
     dynamic = command->dynamic || command->element_id < 0;
     anim_index = d3d9_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
     pose_id = command->animation && command->anim_frame >= 0
@@ -5629,11 +5717,11 @@ d3d9_draw_model(
     {
         uint32_t chunk_index;
         if( (vertex_base & D3D9_BATCH_POSE_FLAG) == 0u )
-            return;
+            return false;
         /* The drawn build's page, in its side's buffer. */
         chunk_index = (vertex_base >> 16u) & D3D9_BATCH_POSE_PAGE_MASK;
         if( !d3d9_resolve_static_page(renderer, chunk_index, NULL, NULL, NULL) )
-            return;
+            return false;
         binding = D3D9_STATIC_PAGE_BINDING_BASE;
         page_base = chunk_index * D3D9_VBO_PAGE;
         vertex_base &= D3D9_BATCH_POSE_BASE_MASK;
@@ -5685,7 +5773,7 @@ d3d9_draw_model(
                 true);
     }
     if( vertex_base == UINT32_MAX )
-        return;
+        return false;
 
     if( binding < D3D9_STATIC_PAGE_BINDING_BASE )
     {
@@ -5695,20 +5783,67 @@ d3d9_draw_model(
     else
         local_base = vertex_base;
     if( (uint32_t)face_count > UINT32_MAX / 3u )
-        return;
+        return false;
     index_count = (uint32_t)face_count * 3u;
     if( !d3d9_reserve_model_indices(renderer, index_count) )
-        return;
+        return false;
 
-    placement.binding = binding;
-    placement.page_base = page_base;
-    placement.local_base = local_base;
-    placement.face_count = face_count;
-    placement.sorted_face_count = sorted_face_count;
-    placement.anim_index = anim_index;
-    placement.pose_id = pose_id;
-    placement.dynamic = dynamic;
-    placement.projected_in_scene = projected_in_scene;
+    placement->binding = binding;
+    placement->page_base = page_base;
+    placement->local_base = local_base;
+    placement->face_count = face_count;
+    placement->sorted_face_count = sorted_face_count;
+    placement->anim_index = anim_index;
+    placement->pose_id = pose_id;
+    placement->dynamic = dynamic;
+    placement->projected_in_scene = projected_in_scene;
+    return true;
+}
+
+static void
+d3d9_draw_model(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command)
+{
+    struct D3D9ModelPlacement placement;
+    bool projected_in_scene = false;
+    int face_count;
+    int sorted_face_count = 0;
+
+    if( !d3d9_model_begin(renderer, command) )
+        return;
+    if( renderer->zbuffer )
+    {
+        if( !d3d9_model_cull_depth(renderer, command, &projected_in_scene) )
+            return;
+    }
+    else
+    {
+        struct ToriDraw_Position projected_position = command->position;
+        if( ToriDraw_RenderModel1ProjectWithTable(
+                command->model,
+                renderer->scene,
+                &projected_position,
+                &renderer->cur_3d.view_port,
+                &renderer->cur_3d.camera,
+                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+            return;
+        projected_in_scene = true;
+        d3d9_pick_test(renderer, command);
+    }
+
+    if( command->pick_only )
+        return;
+    /* The depth path classifies per face during emission and needs no order
+     * up front; the painter path must sort before it can count. */
+    face_count = renderer->zbuffer
+                     ? trspk_toridraw_face_count(command->model)
+                     : d3d9_painter_sort_faces(renderer, command, &sorted_face_count);
+    if( face_count <= 0 )
+        return;
+    if( !d3d9_model_place(
+            renderer, command, face_count, sorted_face_count, projected_in_scene, &placement) )
+        return;
     if( renderer->zbuffer )
         d3d9_zbuffer_emit_model(renderer, command, &placement);
     else
@@ -5921,6 +6056,8 @@ d3d9_build_draw_ranges16(
 static void
 d3d9_bind_world_config(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t config_idx)
 {
+    renderer->texture_scroll[0] = 0.0f;
+    renderer->texture_scroll[1] = 0.0f;
     if( config_idx == 0u )
         d3d9_bind_atlas(renderer);
     else
@@ -5935,34 +6072,42 @@ d3d9_bind_world_config(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_
             d3d9_set_no_texture(renderer->device);
         }
     }
+    /* The scroll again, for a vertex shader: one bound in place of the fixed
+     * pipeline ignores D3DTS_TEXTURE0 (the win64 OSRS renderers' reads this
+     * register). Under the fixed pipeline it is an unread constant. */
+    {
+        float const scroll[4] = { renderer->texture_scroll[0], renderer->texture_scroll[1], 0.0f, 0.0f };
+        IDirect3DDevice9_SetVertexShaderConstantF(
+            renderer->device, D3D9_VS_TEXTURE_SCROLL_REGISTER, scroll, 1u);
+    }
 }
 
-void
-d3d9_draw_retained(
+/*
+ * One chain's indices into the frame's index buffer and its draw ranges, the
+ * groups' and the static batches' dirty spans uploaded first. False: nothing
+ * to draw. The ranges are then drawn by d3d9_draw_ranges_configured (each
+ * range's own texture) or d3d9_draw_ranges_bound (the texture the caller
+ * bound), after the world states and the pass's own.
+ */
+bool
+d3d9_retained_prepare(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
-    struct TRSPK_IBOChain* chain,
-    bool blended_pass)
+    struct TRSPK_IBOChain* chain)
 {
     uint32_t total_indices = 0u;
     uint32_t chain_nodes = 0u;
     uint32_t page_switches = 0u;
-    uint32_t draw_calls = 0u;
-    uint32_t texture_switches = 0u;
-    uint32_t stream_switches = 0u;
     void* locked = NULL;
     uint32_t built;
-    const struct TRSPK_DrawRange* range;
-    uint32_t last_binding = UINT32_MAX;
-    uint32_t last_config = UINT32_MAX;
     uint32_t group;
 
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
         if( !d3d9_upload_group(renderer, &renderer->groups[group]) )
-            return;
+            return false;
     if( !d3d9_upload_dirty_static_batches(renderer) )
-        return;
+        return false;
     if( !chain || !chain->head )
-        return;
+        return false;
     if( !d3d9_measure_ibo_chain(
             chain,
             &total_indices,
@@ -5970,14 +6115,14 @@ d3d9_draw_retained(
             &page_switches) ||
         total_indices == 0u || !d3d9_ensure_ibo(renderer, total_indices) ||
         !d3d9_grow_draw_ranges(renderer, total_indices / 3u + 1u) )
-        return;
+        return false;
     if( FAILED(IDirect3DIndexBuffer9_Lock(
             renderer->ibo,
             0u,
             (UINT)(total_indices * sizeof(uint16_t)),
             &locked,
             D3DLOCK_DISCARD)) )
-        return;
+        return false;
 
     built = d3d9_build_draw_ranges16(renderer, chain, (uint16_t*)locked);
     IDirect3DIndexBuffer9_Unlock(renderer->ibo);
@@ -5986,74 +6131,93 @@ d3d9_draw_retained(
         (int64_t)((uint64_t)total_indices * sizeof(uint16_t)));
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_IBO_UPLOADS, 1);
     if( built != total_indices )
-        return;
+        return false;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_IBO_INDICES, total_indices);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_IBO_CHAIN_NODES, chain_nodes);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_DRAW_RANGES, renderer->draw_ranges->count);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_PAGE_SWITCHES, page_switches);
-
-    d3d9_set_world_states(renderer);
-    if( renderer->zbuffer )
-        d3d9_zbuffer_apply_pass_states(renderer, blended_pass);
     IDirect3DDevice9_SetIndices(renderer->device, renderer->ibo);
-    range = trspk_drawrangelist_head(renderer->draw_ranges);
+    return true;
+}
+
+/* One range's stream (when it changed) and its draws. False: the range's
+ * buffer is gone, and it is skipped. */
+static bool
+d3d9_draw_range(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct TRSPK_DrawRange* range,
+    uint32_t* last_binding,
+    uint32_t* draw_calls,
+    uint32_t* stream_switches)
+{
+    uint32_t const index_count = range->end - range->start;
+    if( range->group != *last_binding )
+    {
+        IDirect3DVertexBuffer9* vbo = NULL;
+        if( range->group < TRSPK_VBO_GROUP_COUNT )
+            vbo = renderer->groups[range->group].vbo_gpu;
+        else if( range->group == D3D9_STATIC_PAGE_BINDING_BASE )
+            /* Only the drawn build is drawn. */
+            vbo = renderer->static_batches[renderer->world_side].gpu_vbo;
+        if( !vbo )
+            return false;
+        IDirect3DDevice9_SetStreamSource(
+            renderer->device,
+            0u,
+            vbo,
+            0u,
+            (UINT)sizeof(struct TRSPK_VertexD3D9));
+        *last_binding = range->group;
+        (*stream_switches)++;
+    }
+    {
+        uint32_t first_index = range->start;
+        uint32_t primitives_left = index_count / 3u;
+        uint32_t primitive_cap = renderer->caps.MaxPrimitiveCount;
+        if( primitive_cap == 0u )
+            primitive_cap = primitives_left;
+        while( primitives_left > 0u )
+        {
+            uint32_t primitive_count = primitives_left < primitive_cap
+                ? primitives_left
+                : primitive_cap;
+            IDirect3DDevice9_DrawIndexedPrimitive(
+                renderer->device,
+                D3DPT_TRIANGLELIST,
+                (INT)range->base_offset,
+                (UINT)range->min_vertex,
+                (UINT)(range->max_vertex - range->min_vertex + 1u),
+                (UINT)first_index,
+                (UINT)primitive_count);
+            (*draw_calls)++;
+            first_index += primitive_count * 3u;
+            primitives_left -= primitive_count;
+        }
+    }
+    return true;
+}
+
+/* The prepared ranges, each with its own texture (atlas or animated). */
+void
+d3d9_draw_ranges_configured(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    uint32_t draw_calls = 0u;
+    uint32_t texture_switches = 0u;
+    uint32_t stream_switches = 0u;
+    uint32_t last_binding = UINT32_MAX;
+    uint32_t last_config = UINT32_MAX;
+    const struct TRSPK_DrawRange* range = trspk_drawrangelist_head(renderer->draw_ranges);
     while( range )
     {
-        uint32_t index_count = range->end - range->start;
-        if( index_count >= 3u )
+        if( range->end - range->start >= 3u )
         {
-            if( range->group != last_binding )
-            {
-                IDirect3DVertexBuffer9* vbo = NULL;
-                if( range->group < TRSPK_VBO_GROUP_COUNT )
-                    vbo = renderer->groups[range->group].vbo_gpu;
-                else if( range->group == D3D9_STATIC_PAGE_BINDING_BASE )
-                    /* Only the drawn build is drawn. */
-                    vbo = renderer->static_batches[renderer->world_side].gpu_vbo;
-                if( !vbo )
-                {
-                    range = trspk_drawrangelist_next(renderer->draw_ranges, range);
-                    continue;
-                }
-                IDirect3DDevice9_SetStreamSource(
-                    renderer->device,
-                    0u,
-                    vbo,
-                    0u,
-                    (UINT)sizeof(struct TRSPK_VertexD3D9));
-                last_binding = range->group;
-                stream_switches++;
-            }
             if( range->config_idx != last_config )
             {
                 d3d9_bind_world_config(renderer, range->config_idx);
                 last_config = range->config_idx;
                 texture_switches++;
             }
-            {
-                uint32_t first_index = range->start;
-                uint32_t primitives_left = index_count / 3u;
-                uint32_t primitive_cap = renderer->caps.MaxPrimitiveCount;
-                if( primitive_cap == 0u )
-                    primitive_cap = primitives_left;
-                while( primitives_left > 0u )
-                {
-                    uint32_t primitive_count = primitives_left < primitive_cap
-                        ? primitives_left
-                        : primitive_cap;
-                    IDirect3DDevice9_DrawIndexedPrimitive(
-                        renderer->device,
-                        D3DPT_TRIANGLELIST,
-                        (INT)range->base_offset,
-                        (UINT)range->min_vertex,
-                        (UINT)(range->max_vertex - range->min_vertex + 1u),
-                        (UINT)first_index,
-                        (UINT)primitive_count);
-                    draw_calls++;
-                    first_index += primitive_count * 3u;
-                    primitives_left -= primitive_count;
-                }
-            }
+            (void)d3d9_draw_range(renderer, range, &last_binding, &draw_calls, &stream_switches);
         }
         range = trspk_drawrangelist_next(renderer->draw_ranges, range);
     }
@@ -6063,27 +6227,58 @@ d3d9_draw_retained(
     d3d9_disable_texture_transform(renderer->device);
 }
 
-static void
-d3d9_end_3d(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+/* The prepared ranges, all with the texture the caller bound. */
+void
+d3d9_draw_ranges_bound(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
-    uint32_t active_pages = 0u;
-    uint32_t page;
+    uint32_t draw_calls = 0u;
+    uint32_t stream_switches = 0u;
+    uint32_t last_binding = UINT32_MAX;
+    const struct TRSPK_DrawRange* range = trspk_drawrangelist_head(renderer->draw_ranges);
+    while( range )
+    {
+        if( range->end - range->start >= 3u )
+            (void)d3d9_draw_range(renderer, range, &last_binding, &draw_calls, &stream_switches);
+        range = trspk_drawrangelist_next(renderer->draw_ranges, range);
+    }
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_DRAW_CALLS, draw_calls);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STREAM_SWITCHES, stream_switches);
+    d3d9_disable_texture_transform(renderer->device);
+}
+
+void
+d3d9_draw_retained(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct TRSPK_IBOChain* chain,
+    bool blended_pass)
+{
+    if( !d3d9_retained_prepare(renderer, chain) )
+        return;
+    d3d9_set_world_states(renderer);
+    if( renderer->zbuffer )
+        d3d9_zbuffer_apply_pass_states(renderer, blended_pass);
+    d3d9_draw_ranges_configured(renderer);
+}
+
+/* END_3D's atlas upload. False: no pass, or the atlas could not go up. */
+bool
+d3d9_end_3d_begin(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
     /* The prepared block describes a camera that is about to go out of scope;
      * unpublishing it is what stops a later pass reading a stale one. */
     if( renderer->scene )
         ToriDraw_SceneClearProjectionCamera(renderer->scene);
     if( !renderer->has_3d )
-        goto done;
-    if( trspk_atlas_is_dirty(&renderer->atlas) && !d3d9_upload_atlas(renderer) )
-        goto done;
-    if( renderer->zbuffer )
-        d3d9_zbuffer_flush_opaque(renderer);
-    if( renderer->ibo_chain && renderer->ibo_chain->head )
-        d3d9_draw_retained(renderer, renderer->ibo_chain, false);
-    if( renderer->zbuffer )
-        d3d9_zbuffer_end_pass(renderer);
+        return false;
+    return !trspk_atlas_is_dirty(&renderer->atlas) || d3d9_upload_atlas(renderer);
+}
 
-done:
+/* The pass closed, drawn or not. The world pass resets its own queues. */
+void
+d3d9_end_3d_close(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    uint32_t active_pages = 0u;
+    uint32_t page;
     for( page = 0u; page < renderer->static_page_count; page++ )
         if( renderer->static_pages[page].valid )
             active_pages++;
@@ -6093,9 +6288,24 @@ done:
     renderer->in3d = false;
     if( renderer->ibo_chain )
         trspk_ibochain_reset(renderer->ibo_chain);
+    d3d9_set_full_viewport(renderer);
+}
+
+static void
+d3d9_end_3d(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    if( d3d9_end_3d_begin(renderer) )
+    {
+        if( renderer->zbuffer )
+            d3d9_zbuffer_flush_opaque(renderer);
+        if( renderer->ibo_chain && renderer->ibo_chain->head )
+            d3d9_draw_retained(renderer, renderer->ibo_chain, false);
+        if( renderer->zbuffer )
+            d3d9_zbuffer_end_pass(renderer);
+    }
+    d3d9_end_3d_close(renderer);
     if( renderer->zbuffer )
         d3d9_zbuffer_reset_pass(renderer);
-    d3d9_set_full_viewport(renderer);
 }
 
 /* ---- interface layer --------------------------------------------------- */
@@ -6719,7 +6929,9 @@ d3d9_world_stage_prepared(struct ToriPlatformWin32_Renderer_D3D9* renderer)
     renderer->stage_prepared_said = true;
 }
 
-static void
+/* One command, as the painter and the depth pass take it. The OSRS
+ * renderers take their world commands themselves and the rest through this. */
+void
 d3d9_dispatch(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand* command)
@@ -7293,6 +7505,7 @@ ToriPlatformWin32_Renderer_D3D9_Free(struct ToriPlatformWin32_Renderer_D3D9* ren
     trspk_pose_table_free(&renderer->stage_batch_poses);
     trspk_pose_pool_free(&renderer->pose_pool);
     d3d9_zbuffer_destroy(renderer);
+    d3d9_rev241_destroy(renderer);
     /* The sides' pages are the build's (trspk_world_build_free). */
     trspk_world_build_free(&renderer->build);
     trspk_anim_tracks_free(&renderer->anim_tracks);
@@ -7321,21 +7534,74 @@ ToriPlatformWin32_Renderer_D3D9_Init(
     struct ToriDraw_Scene* scene,
     bool z_buffer_enabled)
 {
-    DWORD behavior;
-    HRESULT hr;
-    int width;
-    int height;
     assert(renderer);
     if( renderer->device )
         return false;
-    assert(native_window);
-    assert(scene);
-    /* This is the one place the two world implementations are chosen between.
+    /* This is the one place the painter and the depth pass are chosen between.
      * Creating the depth state selects d3d9_zbuffer_*; leaving it NULL selects
      * d3d9_painter_*, which has nothing to allocate. */
     d3d9_zbuffer_destroy(renderer);
     if( z_buffer_enabled && !d3d9_zbuffer_create(renderer) )
         return false;
+    return d3d9_init_device(
+        renderer, native_window, scene, z_buffer_enabled ? D3DFMT_D16 : D3DFMT_UNKNOWN);
+}
+
+/* The deepest depth format among `wanted` (best first) this adapter takes
+ * beside its display format; D3DFMT_D16, which every D3D9 device has, when
+ * none is. */
+D3DFORMAT
+d3d9_pick_depth_format(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const D3DFORMAT* wanted,
+    uint32_t wanted_count)
+{
+    D3DDISPLAYMODE mode;
+    IDirect3D9* d3d = Direct3DCreate9(D3D_SDK_VERSION);
+    D3DFORMAT picked = D3DFMT_D16;
+    (void)renderer;
+    if( !d3d )
+        return picked;
+    if( SUCCEEDED(IDirect3D9_GetAdapterDisplayMode(d3d, D3DADAPTER_DEFAULT, &mode)) )
+    {
+        for( uint32_t i = 0u; i < wanted_count; i++ )
+        {
+            if( SUCCEEDED(IDirect3D9_CheckDeviceFormat(
+                    d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, mode.Format, D3DUSAGE_DEPTHSTENCIL,
+                    D3DRTYPE_SURFACE, wanted[i])) &&
+                SUCCEEDED(IDirect3D9_CheckDepthStencilMatch(
+                    d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, mode.Format, mode.Format,
+                    wanted[i])) )
+            {
+                picked = wanted[i];
+                break;
+            }
+        }
+    }
+    IDirect3D9_Release(d3d);
+    return picked;
+}
+
+/*
+ * The device on `native_window` and every resource the core draws with. A
+ * depth buffer of `depth_format`; D3DFMT_UNKNOWN means none (the painter).
+ * Each renderer's Init creates its world state first, then calls this.
+ */
+bool
+d3d9_init_device(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    void* native_window,
+    struct ToriDraw_Scene* scene,
+    D3DFORMAT depth_format)
+{
+    DWORD behavior;
+    HRESULT hr;
+    int width;
+    int height;
+    assert(renderer);
+    assert(!renderer->device);
+    assert(native_window);
+    assert(scene);
     renderer->hwnd = (HWND)native_window;
     renderer->scene = scene;
     renderer->kernel = ToriDraw_KernelGetGpu();
@@ -7370,8 +7636,9 @@ ToriPlatformWin32_Renderer_D3D9_Init(
     renderer->present.SwapEffect = D3DSWAPEFFECT_DISCARD;
     renderer->present.hDeviceWindow = renderer->hwnd;
     renderer->present.Windowed = TRUE;
-    renderer->present.EnableAutoDepthStencil = z_buffer_enabled ? TRUE : FALSE;
-    renderer->present.AutoDepthStencilFormat = D3DFMT_D16;
+    renderer->present.EnableAutoDepthStencil = depth_format != D3DFMT_UNKNOWN ? TRUE : FALSE;
+    renderer->present.AutoDepthStencilFormat =
+        depth_format != D3DFMT_UNKNOWN ? depth_format : D3DFMT_D16;
     /* The client loop owns the 50 Hz deadline.  A second 60 Hz D3D wait
      * quantizes capped frames onto alternating refreshes (visible judder) and
      * makes --uncapped profiles advance game time while blocked in Present.
@@ -7590,22 +7857,44 @@ ToriPlatformWin32_Renderer_D3D9_RenderFrame(struct ToriPlatformWin32_Renderer_D3
 {
     struct ToriRS_RenderCommand command;
     uint64_t render_start_us;
-    bool baked;
-    assert(renderer);
-    render_start_us = PlatformWindow_TicksUs();
-    if( !d3d9_begin_frame_scene(renderer) )
+    if( !d3d9_frame_begin(renderer, frame, &render_start_us) )
         return;
-    assert(frame);
-    renderer->has_3d = false;
-    renderer->in3d = false;
-    renderer->in2d = false;
-    renderer->frame_clock += 1.0;
-    ToriRS_FrameBegin(frame);
     while( ToriRS_FrameNextCommand(frame, &command) )
         d3d9_dispatch(renderer, &command);
     ToriRS_FrameEnd(frame);
     if( renderer->in3d )
         d3d9_end_3d(renderer);
+    d3d9_frame_finish(renderer, render_start_us);
+}
+
+/* A frame up to its first command. False: the device cannot draw this frame. */
+bool
+d3d9_frame_begin(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct ToriRS_Frame* frame,
+    uint64_t* out_render_start_us)
+{
+    assert(renderer);
+    assert(frame);
+    *out_render_start_us = PlatformWindow_TicksUs();
+    if( !d3d9_begin_frame_scene(renderer) )
+        return false;
+    renderer->has_3d = false;
+    renderer->in3d = false;
+    renderer->in2d = false;
+    renderer->frame_clock += 1.0;
+    ToriRS_FrameBegin(frame);
+    return true;
+}
+
+/* A frame after its commands and its world pass: the 2D pass closed, the
+ * scene ended, and the world builds' prefill slice. */
+void
+d3d9_frame_finish(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    uint64_t render_start_us)
+{
+    bool baked;
     if( renderer->in2d )
     {
         struct ToriRS_RenderCommand end_command;

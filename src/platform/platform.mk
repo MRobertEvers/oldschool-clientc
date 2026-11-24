@@ -183,7 +183,11 @@ else ifeq ($(PLATFORM),win32)
                        platform/platform_win32_mshtml.c \
                        platform/platform_win32_renderer_d3d9_core.c \
                        platform/platform_win32_renderer_d3d9_painter.c \
-                       platform/platform_win32_renderer_d3d9_zbuffer.c
+                       platform/platform_win32_renderer_d3d9_zbuffer.c \
+                       platform/platform_win32_renderer_d3d9_rev241.c \
+                       platform/platform_win32_renderer_d3d9ff_rev241.c \
+                       platform/platform_win32_renderer_d3d9ff_os235sailing.c \
+                       platform/platform_win32_renderer_d3d9ff_os241tfa.c
   # Keep the executor-side JS5 producer native-only. The wildcard is
   # deliberately non-recursive so server and test mains cannot enter the client.
   JS5_SRCS          := $(wildcard js5/*.c)
@@ -291,8 +295,9 @@ else ifeq ($(PLATFORM),win32)
 
 else ifeq ($(PLATFORM),win64)
   # Modern Windows 10/11, x86_64. This deliberately shares the proven raw
-  # Win32 + fixed-function D3D9/GDI backends with XP; the platform difference
-  # is the ABI/toolchain contract, not a second window or renderer stack.
+  # Win32 + D3D9/GDI backends with XP; the platform difference is the
+  # ABI/toolchain contract, plus the OSRS renderers, which run through shaders
+  # here and fixed function on XP (docs/toridraw_rszbuffer.md).
   PLATFORM_CC       := $(if $(filter default,$(origin CC)),gcc,$(CC))
   PLATFORM_OBJ_BASE := build_win64
   # Keep the source artifact distinct from XP's tracked src/torirs.exe. The
@@ -307,7 +312,11 @@ else ifeq ($(PLATFORM),win64)
                        platform/platform_win32_webview2.c \
                        platform/platform_win32_renderer_d3d9_core.c \
                        platform/platform_win32_renderer_d3d9_painter.c \
-                       platform/platform_win32_renderer_d3d9_zbuffer.c
+                       platform/platform_win32_renderer_d3d9_zbuffer.c \
+                       platform/platform_win32_renderer_d3d9_rev241.c \
+                       platform/platform_win64_renderer_d3d9sm3_rev241.c \
+                       platform/platform_win64_renderer_d3d9sm3_os235sailing.c \
+                       platform/platform_win64_renderer_d3d9sm3_os241tfa.c
   # Keep the executor-side JS5 producer native-only. The wildcard is
   # deliberately non-recursive so server and test mains cannot enter the client.
   JS5_SRCS          := $(wildcard js5/*.c)
@@ -316,8 +325,10 @@ else ifeq ($(PLATFORM),win64)
   PLATFORM_WINDOW_SRC := platform/platform_win32gdi.c
 
   # Explicit modern ABI floor: x86_64 Windows 10/11. The source remains pure C
-  # and fixed-function D3D9; D3D9Ex/D3DX/shader compilers are not introduced
-  # just because the OS floor is newer. win32_compat.h supplies the embedded
+  # and D3D9; D3D9Ex/D3DX/shader compilers are not introduced just because the
+  # OS floor is newer. The one programmable part is the OSRS renderers'
+  # (platform_win64_renderer_d3d9sm3_*.c), whose shaders are bytecode compiled
+  # offline (tools/d3d9_shaderc); lane-check-no-shader-compiler-win64. win32_compat.h supplies the embedded
   # server's POSIX setenv/unsetenv names on MinGW.
   PLATFORM_BASE_CFLAGS := -DTORIRS_HAVE_D3D9=1 -DD3D_DISABLE_9EX=1 \
                           -DTORIRS_NO_D3D8=1 -DTORIRS_NO_D3D11=1 \
@@ -764,6 +775,8 @@ else ifeq ($(PLATFORM),android)
                        platform/platform_androidarmv7_renderer_opengles3_ui.c \
                        platform/platform_androidarmv7_renderer_opengles3_painter.c \
                        platform/platform_androidarmv7_renderer_opengles3_zbuffer.c \
+                       platform/platform_androidarmv7_renderer_opengles3_os235sailing.c \
+                       platform/platform_androidarmv7_renderer_opengles3_os241tfa.c \
                        platform/platform_androidarmv7_renderer_opengles3.c
   PLATFORM_WINDOW_SRC := platform/platform_android.c
   JS5_SRCS          := $(wildcard js5/*.c)

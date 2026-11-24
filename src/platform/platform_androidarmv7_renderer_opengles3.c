@@ -165,3 +165,89 @@ ToriPlatformAndroid_Renderer_GLES3_RotmaskSourceChanged(void)
 {
     TRSPK_Renderer_ES3_RotmaskSourceChanged();
 }
+
+/* ---- Sailing OSRS and Post-TFA OSRS: each its own handle and entry points -- */
+
+struct ToriPlatformAndroid_Renderer_GLES3*
+ToriPlatformAndroid_Renderer_GLES3_NewOs235Sailing(int width, int height)
+{
+    return (struct ToriPlatformAndroid_Renderer_GLES3*)TRSPK_Renderer_ES3_NewOs235Sailing(
+        width, height, "GLES3");
+}
+
+struct ToriPlatformAndroid_Renderer_GLES3*
+ToriPlatformAndroid_Renderer_GLES3_NewOs241Tfa(int width, int height)
+{
+    return (struct ToriPlatformAndroid_Renderer_GLES3*)TRSPK_Renderer_ES3_NewOs241Tfa(
+        width, height, "GLES3");
+}
+
+bool
+ToriPlatformAndroid_Renderer_GLES3_Os235SailingInit(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene)
+{
+    return TRSPK_Renderer_ES3_Os235SailingInit((struct TRSPK_Renderer_ES3*)renderer, window, scene);
+}
+
+void
+ToriPlatformAndroid_Renderer_GLES3_Os235SailingExecute(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    struct ToriRS_RenderCommand const* command)
+{
+    TRSPK_Renderer_ES3_Os235SailingExecute((struct TRSPK_Renderer_ES3*)renderer, command);
+}
+
+void
+ToriPlatformAndroid_Renderer_GLES3_Os235SailingDrawBootBar(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption)
+{
+    TRSPK_Renderer_ES3_Os235SailingDrawBootBar((struct TRSPK_Renderer_ES3*)renderer, progress, caption_font_id, caption);
+}
+
+void
+ToriPlatformAndroid_Renderer_GLES3_Os235SailingRenderFrame(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    struct ToriRS_Frame* frame)
+{
+    TRSPK_Renderer_ES3_Os235SailingRenderFrame((struct TRSPK_Renderer_ES3*)renderer, frame);
+}
+
+bool
+ToriPlatformAndroid_Renderer_GLES3_Os241TfaInit(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene)
+{
+    return TRSPK_Renderer_ES3_Os241TfaInit((struct TRSPK_Renderer_ES3*)renderer, window, scene);
+}
+
+void
+ToriPlatformAndroid_Renderer_GLES3_Os241TfaExecute(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    struct ToriRS_RenderCommand const* command)
+{
+    TRSPK_Renderer_ES3_Os241TfaExecute((struct TRSPK_Renderer_ES3*)renderer, command);
+}
+
+void
+ToriPlatformAndroid_Renderer_GLES3_Os241TfaDrawBootBar(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption)
+{
+    TRSPK_Renderer_ES3_Os241TfaDrawBootBar((struct TRSPK_Renderer_ES3*)renderer, progress, caption_font_id, caption);
+}
+
+void
+ToriPlatformAndroid_Renderer_GLES3_Os241TfaRenderFrame(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    struct ToriRS_Frame* frame)
+{
+    TRSPK_Renderer_ES3_Os241TfaRenderFrame((struct TRSPK_Renderer_ES3*)renderer, frame);
+}

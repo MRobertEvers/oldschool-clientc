@@ -143,4 +143,56 @@ ToriPlatformAndroid_Renderer_GLES3_ReadPixels(
 void
 ToriPlatformAndroid_Renderer_GLES3_RotmaskSourceChanged(void);
 
+/*
+ * "OpenGL ES 3 (Sailing OSRS)" and "OpenGL ES 3 (Post-TFA OSRS)": the rev-241
+ * client's depth rules (platform_androidarmv7_renderer_opengles3_os235sailing.c,
+ * _os241tfa.c), each on a handle made in its own vertex by its own New and
+ * driven only through its own entry points. The world is collected in the
+ * painter's order (TORIRS_WORLD_PAINTER).
+ */
+struct ToriPlatformAndroid_Renderer_GLES3*
+ToriPlatformAndroid_Renderer_GLES3_NewOs235Sailing(int width, int height);
+struct ToriPlatformAndroid_Renderer_GLES3*
+ToriPlatformAndroid_Renderer_GLES3_NewOs241Tfa(int width, int height);
+
+bool
+ToriPlatformAndroid_Renderer_GLES3_Os235SailingInit(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+void
+ToriPlatformAndroid_Renderer_GLES3_Os235SailingExecute(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    struct ToriRS_RenderCommand const* command);
+void
+ToriPlatformAndroid_Renderer_GLES3_Os235SailingDrawBootBar(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption);
+void
+ToriPlatformAndroid_Renderer_GLES3_Os235SailingRenderFrame(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    struct ToriRS_Frame* frame);
+
+bool
+ToriPlatformAndroid_Renderer_GLES3_Os241TfaInit(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+void
+ToriPlatformAndroid_Renderer_GLES3_Os241TfaExecute(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    struct ToriRS_RenderCommand const* command);
+void
+ToriPlatformAndroid_Renderer_GLES3_Os241TfaDrawBootBar(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption);
+void
+ToriPlatformAndroid_Renderer_GLES3_Os241TfaRenderFrame(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    struct ToriRS_Frame* frame);
+
 #endif
