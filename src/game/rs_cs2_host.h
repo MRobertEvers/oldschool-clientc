@@ -1191,6 +1191,12 @@ struct RS_CS2Host
      *  player's saved setting. */
     bool default_window_mode_from_script;
     bool window_mode_dirty;
+    /** The device lock (app/app_device_lock.c): the server said this device
+     *  stays in fixed mode, so a script's request for resizable -- SET- or
+     *  SETDEFAULTWINDOWMODE, or the Display dropdown's layout -- is refused
+     *  here and `window_mode_refused` raised for the App to say so. */
+    bool window_mode_locked_fixed;
+    bool window_mode_refused;
     /** Display-panel client layout mode 0/1/2 (Fixed / Classic / Modern).
      *  Stashed when [clientscript,settings_client_mode] (cache script_3998)
      *  calls setwindowmode; drained to WINDOW_STATUS so the server remounts. */

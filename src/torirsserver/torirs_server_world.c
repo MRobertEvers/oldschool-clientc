@@ -53,6 +53,7 @@
 #include "net/jbase37.h"
 #include "net/rev/pktnames.h"
 #include "net/chat_huffman.h"
+#include "net/torirs_control.h"
 
 #include "rsprot_buf.h"
 
@@ -15136,6 +15137,9 @@ handle_chat_setmode(
                 public_mode, private_mode, trade_mode);
 }
 
+static void
+world_device_send_policy(struct ToriRSServerPlayer* player);
+
 /*
  * Revision-239 WINDOW_STATUS: p1 windowMode (1 fixed / 2 resizable), then
  * p2 width and p2 height.  Classic and Modern are deliberately indistinct on
@@ -15180,6 +15184,15 @@ handle_window_status(
     {
         if( window_mode != 1 && window_mode != 2 )
             return;
+        /* A locked device stays in Fixed (the device lock, above): refused,
+         * and the policy restated so the client goes back to Fixed. */
+        if( window_mode == 2 && player->device_locked )
+        {
+            world_device_send_policy(player);
+            ToriRSServer_SendMessage(player, "This device is too slow for resizable mode: it "
+                                             "stays in fixed mode.");
+            return;
+        }
         if( window_mode == 1 )
             layout_mode = 0;
         /* The All Settings row (see handle_if_button) — newer than the belief
@@ -17374,6 +17387,8 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     /* Display-panel layout: Resizable Classic. The save overlays this; login
      * must not reset it after load. */
     player->client_layout_mode = 1;
+    /* No device report yet: not locked (TORIRS_CONTROL_DEVICE_REPORT). */
+    player->device_score_x10 = -1;
     /* -1 is "no dropdown selection pending", and 0 is a real choice (Fixed),
      * so this cannot be left at the memset default. */
     player->settings_dropdown_choice = -1;
@@ -18819,6 +18834,109 @@ enum
     WORLD_INPUT_HEADER = 2 * (int)sizeof(int)
 };
 
+/*
+ * The device lock (net/torirs_control.h, DEVICE_POLICY..SETTING_REQUEST).
+ *
+ * The client reports the web page's device score once per connection; below
+ * TORIRS_DEVICE_LOW_SCORE_X10 the device is locked to fixed mode at rs289's
+ * 765x503, and this server -- not the client -- is what refuses the way out:
+ * a WINDOW_STATUS asking for resizable (handle_window_status) and a
+ * SETTING_REQUEST for a different render size (below).
+ */
+static void
+world_device_send_policy(struct ToriRSServerPlayer* player)
+{
+    uint8_t payload[TORIRS_CONTROL_DEVICE_POLICY_BYTES];
+    int const locked = player->device_locked;
+    int const len = torirs_control_device_policy_encode(
+        locked, locked ? TORIRS_DEVICE_LOCK_WIDTH : 0, locked ? TORIRS_DEVICE_LOCK_HEIGHT : 0,
+        payload);
+
+    ToriRSServer_SendControl(player, TORIRS_CONTROL_DEVICE_POLICY, payload, len);
+}
+
+/* In the tick (phase_clients_in), where the gameframe may change. A locked
+ * player in Resizable is moved to Fixed. The mode is the player's saved
+ * Display choice (client_layout_mode), so a locked device's Fixed is what the
+ * save keeps; a faster device's player picks Resizable again there. During
+ * the login scene the latch is enough: WorldLoginFinish opens the gameframe
+ * the mode names. */
+static void
+world_device_apply(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    int32_t args[1];
+
+    player->device_report_pending = 0;
+    player->device_locked = torirs_device_locked(player->device_score_x10);
+    if( srv->verbose )
+        fprintf(stderr, "torirsserver: device score %d.%d: %s\n", player->device_score_x10 / 10,
+                player->device_score_x10 % 10, player->device_locked ? "locked" : "free");
+    world_device_send_policy(player);
+    if( !player->device_locked || player->client_layout_mode == 0 )
+        return;
+    player->client_layout_mode = 0;
+    if( player->login_scene_pending || player->rebuild_scene_pending )
+        return;
+    ToriRSServer_WorldSetActive(srv, player);
+    args[0] = 0;
+    ToriRSServer_ScriptsRunProc(srv, "[proc,gameframe_set_mode]", args, 1);
+}
+
+/* A SETTING_REQUEST: the render size (device options 31 and 35) is what the
+ * lock covers. Anything else, or any request from a device that is not
+ * locked, is allowed -- the client asks only while it believes itself locked,
+ * and the answer is the server's either way. */
+static void
+world_device_setting_request(
+    struct ToriRSServerPlayer* player,
+    int option,
+    int value)
+{
+    uint8_t payload[TORIRS_CONTROL_SETTING_VERDICT_BYTES];
+    int allowed = 1;
+
+    if( player->device_locked && (option == 31 || option == 35) )
+    {
+        int const wanted = option == 35 ? TORIRS_DEVICE_LOCK_WIDTH : TORIRS_DEVICE_LOCK_HEIGHT;
+        allowed = value == wanted;
+    }
+    ToriRSServer_SendControl(player, TORIRS_CONTROL_SETTING_VERDICT, payload,
+                             torirs_control_setting_verdict_encode(option, value, allowed, payload));
+    if( !allowed )
+        ToriRSServer_SendMessage(player, "This device is too slow for a larger screen: it stays "
+                                         "at 765x503.");
+}
+
+void
+ToriRSServer_WorldControlIn(
+    struct ToriRSServerPlayer* player,
+    int type,
+    const uint8_t* payload,
+    int len)
+{
+    assert(player);
+    assert(len >= 0);
+    assert(len == 0 || payload);
+    if( type == TORIRS_CONTROL_DEVICE_REPORT && len == TORIRS_CONTROL_DEVICE_REPORT_BYTES )
+    {
+        uint32_t const score = torirs_control_get_u32(payload);
+
+        player->device_score_x10 = score > 100000u ? 100000 : (int)score;
+        player->device_report_pending = 1;
+        return;
+    }
+    if( type == TORIRS_CONTROL_SETTING_REQUEST && len == TORIRS_CONTROL_SETTING_REQUEST_BYTES )
+    {
+        world_device_setting_request(player, (int)torirs_control_get_u32(payload),
+                                     (int)torirs_control_get_u32(payload + 4));
+        return;
+    }
+    fprintf(stderr, "torirsserver: <- control %s (%d) of %d bytes not understood; dropped\n",
+            torirs_control_type_name(type), type, len);
+}
+
 int
 ToriRSServer_WorldInputRoom(
     const struct ToriRSServerPlayer* player,
@@ -18888,6 +19006,8 @@ phase_clients_in(struct ToriRSServer* srv)
         int const len = player->input_queue_len;
         int at = 0;
 
+        if( player->active && player->device_report_pending )
+            world_device_apply(srv, player);
         if( !player->active || len == 0 )
             continue;
         /* Take this tick's records off the player before handling them. A

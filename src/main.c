@@ -7150,6 +7150,9 @@ frame_loop_step(void)
                 }
             }
         }
+        /* The device lock's report and chat line (app/app_device_lock.h),
+         * before the window mode drain so a refused switch never reaches it. */
+        App_DeviceLockTick(&app);
         {
             int new_mode = 0;
             if( App_TakeWindowModeChange(&app, &new_mode) )

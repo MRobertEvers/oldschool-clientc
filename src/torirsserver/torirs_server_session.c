@@ -1124,6 +1124,37 @@ step_online(
             consume(session, 1);
         }
 
+        /* Not an opcode: a ToriRS client's control frame follows
+         * (net/torirs_control.h, client to server). Only from a session whose
+         * login carried the flag -- any other client's 0xFF is its own. */
+        if( session->torirs_control && session->pending_opcode == TORIRS_CONTROL_CLIENT_ESCAPE )
+        {
+            int type;
+            int length;
+
+            if( session->in_len < TORIRS_CONTROL_HEADER_BYTES )
+                break; /* header still in flight; the escape stays parked */
+            length = (int)torirs_control_get_u32(session->in + 8);
+            if( !torirs_control_magic_ok(session->in) || length < 0 ||
+                length > TORIRS_CONTROL_CLIENT_PAYLOAD_MAX )
+            {
+                fprintf(stderr, "torirsserver: <- control frame out of step (length %d); "
+                                "dropping the session\n", length);
+                ToriRSServer_SessionKill(session);
+                return progressed;
+            }
+            if( session->in_len < TORIRS_CONTROL_HEADER_BYTES + length )
+                break;
+            type = (int)torirs_control_get_u32(session->in + 4);
+            if( session->player )
+                ToriRSServer_WorldControlIn(session->player, type,
+                                            session->in + TORIRS_CONTROL_HEADER_BYTES, length);
+            consume(session, TORIRS_CONTROL_HEADER_BYTES + length);
+            session->pending_opcode = -1;
+            progressed = 1;
+            continue;
+        }
+
         size = wire->packetout_size(session->pending_opcode);
         if( size == PKTOUT_LENGTH_VARU8 )
             len_bytes = 1;

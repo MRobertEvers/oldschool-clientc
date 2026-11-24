@@ -565,6 +565,7 @@ loginproto_drive(struct ToriRS_Network* net)
         /* A new game stream: no group is open on it. */
         net->group_open = 0;
         net->group_left = 0;
+        net->game_stream_serial++;
         net->state = TORIRS_NET_GAME;
     }
     else if( poll_result == LOGINPROTO_ERROR )

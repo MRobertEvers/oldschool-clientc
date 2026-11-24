@@ -673,7 +673,12 @@ Task_AppBoot_Run(
      * what is already on disk and lost at the next boot. It also lands after
      * the restore and the phone's default cap, both of which it overrides. */
     if( !RS_BootState_ConfigReady(&app->boot) )
+    {
         app_boot_apply_device_check(app);
+        /* The device lock's provisional half (app/app_device_lock.h): after
+         * the check's picks, which a locked device's size overrides. */
+        App_DeviceLockBoot(app);
+    }
     if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
         TORIRS_LOG(
             "audio: seeded volume varps master(%d)=%d music(%d)=%d "

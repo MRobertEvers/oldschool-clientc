@@ -52,6 +52,25 @@
 /** The opcode value that announces a control frame (pSmart1Or2's largest). */
 #define TORIRS_CONTROL_ESCAPE 0x7FFF
 
+/*
+ * THE OTHER DIRECTION: client to server.
+ *
+ * A client packet's opcode is ONE cipher byte in every OldSchool revision
+ * (net_out_opcode), so the client's escape is a one-byte value: 0xFF, which no
+ * revision's client table uses (the highest is 116, osrs237..240; the
+ * revision tables in 3rd/rsprot/gen say so). After it the frame is the same
+ * as the server's -- magic, u32 type, u32 length, payload -- and the server
+ * reads it only from a session whose login carried the ToriRS subVersion
+ * (torirs_server_session.c step_online). A server that is not ours would read
+ * 0xFF as an unknown opcode, so the client sends one only where it logged in
+ * with that flag: a revision with `opcode_smart2` (login_osrs.c).
+ *
+ * Client frames are small (TORIRS_CONTROL_CLIENT_PAYLOAD_MAX); a longer
+ * length is a stream out of step and the server drops the session.
+ */
+#define TORIRS_CONTROL_CLIENT_ESCAPE 0xFF
+#define TORIRS_CONTROL_CLIENT_PAYLOAD_MAX 64
+
 /** The frame's first four bytes after the escape. */
 #define TORIRS_CONTROL_MAGIC_0 'T'
 #define TORIRS_CONTROL_MAGIC_1 'O'
@@ -167,7 +186,55 @@ enum TorirsControlType
      * Payload `u32 mode`: 1 fixed, 2 resizable (WINDOW_STATUS's values).
      */
     TORIRS_CONTROL_REPLAY_WINDOW = 6,
+
+    /*
+     * The device lock (7..10). The web page's device check measures a CPU
+     * score (src/web/torirs_devicecheck.js); the client reports it after
+     * login, and the SERVER decides what a device that slow may do: below
+     * TORIRS_DEVICE_LOW_SCORE_X10 it stays in fixed mode with the frame
+     * rendered at TORIRS_DEVICE_LOCK_WIDTH x _HEIGHT (rs289's 765x503), and
+     * the server refuses both a switch to resizable (WINDOW_STATUS) and a
+     * change of the render size (SETTING_REQUEST).
+     */
+
+    /**
+     * Server -> client: what this device may do, in answer to a
+     * DEVICE_REPORT, and again whenever the server refuses a WINDOW_STATUS.
+     * Payload `u32 locked, u32 max_width, u32 max_height` (sizes 0 when not
+     * locked). The client applies it at once (app/app_device_lock.c).
+     */
+    TORIRS_CONTROL_DEVICE_POLICY = 7,
+
+    /**
+     * Server -> client: the answer to a SETTING_REQUEST.
+     * Payload `u32 option, u32 value, u32 allowed`: the device option and
+     * value asked for, and 1 when the client may apply it.
+     */
+    TORIRS_CONTROL_SETTING_VERDICT = 8,
+
+    /**
+     * Client -> server, once per connection after login: the page's device
+     * score, in tenths (`u32 score_x10`). No report: no lock.
+     */
+    TORIRS_CONTROL_DEVICE_REPORT = 9,
+
+    /**
+     * Client -> server: a locked client asks before it changes a device
+     * option the lock covers (the render size, options 31 and 35).
+     * Payload `u32 option, u32 value`. Answered by SETTING_VERDICT.
+     */
+    TORIRS_CONTROL_SETTING_REQUEST = 10,
 };
+
+/** Below this device score (tenths: 5.0) the server locks the device. */
+#define TORIRS_DEVICE_LOW_SCORE_X10 50
+/** The locked device's frame: rs289's fixed canvas, which is OSRS fixed mode's. */
+#define TORIRS_DEVICE_LOCK_WIDTH 765
+#define TORIRS_DEVICE_LOCK_HEIGHT 503
+#define TORIRS_CONTROL_DEVICE_POLICY_BYTES 12
+#define TORIRS_CONTROL_SETTING_VERDICT_BYTES 12
+#define TORIRS_CONTROL_DEVICE_REPORT_BYTES 4
+#define TORIRS_CONTROL_SETTING_REQUEST_BYTES 8
 
 /** Room for a replay name, its NUL included (a name is at most 12 characters;
  *  the room is the scrubber's). */
@@ -218,6 +285,14 @@ torirs_control_type_name(int type)
         return "REPLAY_DIALOG";
     if( type == TORIRS_CONTROL_REPLAY_WINDOW )
         return "REPLAY_WINDOW";
+    if( type == TORIRS_CONTROL_DEVICE_POLICY )
+        return "DEVICE_POLICY";
+    if( type == TORIRS_CONTROL_SETTING_VERDICT )
+        return "SETTING_VERDICT";
+    if( type == TORIRS_CONTROL_DEVICE_REPORT )
+        return "DEVICE_REPORT";
+    if( type == TORIRS_CONTROL_SETTING_REQUEST )
+        return "SETTING_REQUEST";
     return "?";
 }
 
@@ -602,6 +677,108 @@ torirs_control_replay_window_decode(
         return 0;
     *mode = (int)torirs_control_get_u32(frame->payload);
     return *mode == 1 || *mode == 2;
+}
+
+/* -- the device lock ------------------------------------------------------ */
+
+/** 1 when a device of this score (tenths) is locked; an unknown score (< 0)
+ *  is not. The one rule, for the server and the client's provisional lock. */
+static inline int
+torirs_device_locked(int score_x10)
+{
+    return score_x10 >= 0 && score_x10 < TORIRS_DEVICE_LOW_SCORE_X10;
+}
+
+/**
+ * A client frame on the wire: escape byte (enciphered by the caller's
+ * keystream byte `key`), the 12 header bytes, the payload. Returns the bytes
+ * written into `out`, which holds at least 13 + length.
+ */
+static inline int
+torirs_control_client_frame(
+    uint8_t key,
+    int type,
+    uint8_t const* payload,
+    int length,
+    uint8_t* out)
+{
+    assert(out);
+    assert(length >= 0);
+    assert(length <= TORIRS_CONTROL_CLIENT_PAYLOAD_MAX);
+    if( length > 0 )
+        assert(payload);
+    out[0] = (uint8_t)((TORIRS_CONTROL_CLIENT_ESCAPE + key) & 0xff);
+    torirs_control_put_header(out + 1, type, length);
+    if( length > 0 )
+        memcpy(out + 1 + TORIRS_CONTROL_HEADER_BYTES, payload, (size_t)length);
+    return 1 + TORIRS_CONTROL_HEADER_BYTES + length;
+}
+
+static inline int
+torirs_control_device_policy_encode(
+    int locked,
+    int max_width,
+    int max_height,
+    uint8_t* out)
+{
+    assert(out);
+    torirs_control_put_u32(out, (uint32_t)(locked ? 1 : 0));
+    torirs_control_put_u32(out + 4, (uint32_t)max_width);
+    torirs_control_put_u32(out + 8, (uint32_t)max_height);
+    return TORIRS_CONTROL_DEVICE_POLICY_BYTES;
+}
+
+/** 0 when the payload is not one a server can have written. */
+static inline int
+torirs_control_device_policy_decode(
+    struct TorirsControlFrame const* frame,
+    int* locked,
+    int* max_width,
+    int* max_height)
+{
+    assert(frame);
+    assert(locked);
+    assert(max_width);
+    assert(max_height);
+    if( frame->length != TORIRS_CONTROL_DEVICE_POLICY_BYTES )
+        return 0;
+    *locked = (int)torirs_control_get_u32(frame->payload);
+    *max_width = (int)torirs_control_get_u32(frame->payload + 4);
+    *max_height = (int)torirs_control_get_u32(frame->payload + 8);
+    return *locked == 0 || *locked == 1;
+}
+
+static inline int
+torirs_control_setting_verdict_encode(
+    int option,
+    int value,
+    int allowed,
+    uint8_t* out)
+{
+    assert(out);
+    torirs_control_put_u32(out, (uint32_t)option);
+    torirs_control_put_u32(out + 4, (uint32_t)value);
+    torirs_control_put_u32(out + 8, (uint32_t)(allowed ? 1 : 0));
+    return TORIRS_CONTROL_SETTING_VERDICT_BYTES;
+}
+
+static inline int
+torirs_control_setting_verdict_decode(
+    struct TorirsControlFrame const* frame,
+    int* option,
+    int* value,
+    int* allowed)
+{
+    assert(frame);
+    assert(option);
+    assert(value);
+    assert(allowed);
+    if( frame->length != TORIRS_CONTROL_SETTING_VERDICT_BYTES )
+        return 0;
+    *option = (int)torirs_control_get_u32(frame->payload);
+    *value = (int)torirs_control_get_u32(frame->payload + 4);
+    *allowed = (int)torirs_control_get_u32(frame->payload + 8);
+    return *allowed == 0 || *allowed == 1;
 }
 
 #endif

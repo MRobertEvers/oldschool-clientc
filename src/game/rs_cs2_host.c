@@ -4176,6 +4176,12 @@ rs_cs2_settings_apply_client_layout(
         return;
 
     want_mode = layout == 0 ? CS2VM_WINDOW_MODE_FIXED : CS2VM_WINDOW_MODE_RESIZABLE;
+    /* A locked device (window_mode_locked_fixed) keeps Fixed and its layout. */
+    if( want_mode == CS2VM_WINDOW_MODE_RESIZABLE && host->window_mode_locked_fixed )
+    {
+        host->window_mode_refused = true;
+        return;
+    }
     if( host->window_mode != want_mode )
     {
         host->window_mode = want_mode;
@@ -12509,6 +12515,14 @@ rs_cs2_host_exec_dispatch(
         if( request->u.SETWINDOWMODE.mode != CS2VM_WINDOW_MODE_FIXED &&
             request->u.SETWINDOWMODE.mode != CS2VM_WINDOW_MODE_RESIZABLE )
             return CS2VM_EXECNO_OK;
+        /* A locked device keeps Fixed, and the Display dropdown's layout with
+         * it: no WINDOW_STATUS leaves for a change that did not happen. */
+        if( request->u.SETWINDOWMODE.mode == CS2VM_WINDOW_MODE_RESIZABLE &&
+            host->window_mode_locked_fixed )
+        {
+            host->window_mode_refused = true;
+            return CS2VM_EXECNO_OK;
+        }
         if( host->window_mode != request->u.SETWINDOWMODE.mode )
         {
             host->window_mode = request->u.SETWINDOWMODE.mode;
@@ -12537,6 +12551,9 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_SETDEFAULTWINDOWMODE:
         if( request->u.SETDEFAULTWINDOWMODE.mode != CS2VM_WINDOW_MODE_FIXED &&
             request->u.SETDEFAULTWINDOWMODE.mode != CS2VM_WINDOW_MODE_RESIZABLE )
+            return CS2VM_EXECNO_OK;
+        if( request->u.SETDEFAULTWINDOWMODE.mode == CS2VM_WINDOW_MODE_RESIZABLE &&
+            host->window_mode_locked_fixed )
             return CS2VM_EXECNO_OK;
         host->default_window_mode = request->u.SETDEFAULTWINDOWMODE.mode;
         /* A script chose it, so it is the player's setting and outlives the

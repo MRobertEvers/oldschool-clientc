@@ -3895,6 +3895,10 @@ app_plugin_display_setting_set(void* user, int setting, int value)
         /* Includes every read-only readout. */
         return 0;
     }
+    /* A locked device asks the server before it changes the render size
+     * (app/app_device_lock.h); the verdict applies it. */
+    if( !App_DeviceLockSettingAllowed(app, option, value) )
+        return 0;
     /* Clamped by the store rather than refused here, which is what every other
      * writer of these two gets -- the cache's own settings scripts included.
      * @see RS_CS2Host_SetOption. */

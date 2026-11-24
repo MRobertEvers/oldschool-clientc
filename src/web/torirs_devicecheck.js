@@ -45,6 +45,13 @@
 
   const STORE_KEY = 'torirs.device_check';
   const TAB_KEY = 'torirs.device_check_tab';
+  /* The last CPU score measured here, kept for the boots that do not measure
+   * (Don't ask again, a reload in the same tab): the client reports it to the
+   * server, which locks a device below LOW_SCORE (net/torirs_control.h,
+   * TORIRS_DEVICE_LOW_SCORE_X10 -- the server's line, mirrored here only to
+   * say so on the panel). */
+  const SCORE_KEY = 'torirs.device_score';
+  const LOW_SCORE = 5;
   /* The CPU kernel's units per millisecond that scores 100 (an M4 Mac, V8). */
   const CPU_REFERENCE_UNITS_PER_MS = 140;
 
@@ -236,7 +243,9 @@
     while (performance.now() - t0 < budgetMs * 0.75) { unit(k++); units++; }
     const ms = performance.now() - t0;
     const perMs = units / ms;
-    return { units_per_ms: Math.round(perMs * 10) / 10, score: Math.round(perMs / CPU_REFERENCE_UNITS_PER_MS * 100), acc };
+    /* One decimal below 10: a JIT-less browser scores well under 1. */
+    const score = perMs / CPU_REFERENCE_UNITS_PER_MS * 100;
+    return { units_per_ms: Math.round(perMs * 100) / 100, score: score < 10 ? Math.round(score * 10) / 10 : Math.round(score), acc };
   }
 
   /* ------------------------------------------------------- recommendation */
@@ -324,7 +333,7 @@
     box.appendChild(el('p', { text: 'A moment: this picks a renderer and a frame rate that suit it.' }));
   }
 
-  function showUnsupported(wasm) {
+  function showUnsupported(wasm, found) {
     const box = panel();
     box.appendChild(el('h2', { id: 'device-check-title', text: 'This browser cannot run ToriRS' }));
     if (!wasm.wasm) {
@@ -338,22 +347,33 @@
     }
     box.appendChild(el('p', { text: 'Open this page in Chrome, Edge, Firefox or Safari with their usual '
       + 'settings, on a computer, phone or tablet.' }));
+    box.appendChild(el('h3', { text: 'What this browser has' }));
+    box.appendChild(factList(wasm, found));
   }
 
-  function showChoice(found, rec, fps, onOk) {
-    const box = panel();
-    box.appendChild(el('h2', { id: 'device-check-title', text: 'Device check' }));
-
+  /* The readings, as the player sees them: on the choice panel and on the
+   * cannot-run panel alike, so a device that cannot play still says what
+   * it is (and the black box gets the same numbers). */
+  function factList(wasm, found) {
     const facts = el('dl', {});
     const fact = (term, value) => { facts.appendChild(el('dt', { text: term })); facts.appendChild(el('dd', { text: value })); };
     const glText = g => (!g.available ? 'not available'
       : g.usable ? `yes — ${g.name || 'GPU'}`
       : g.software ? `software only — ${g.name || 'no GPU'}` : `does not draw correctly — ${g.name || ''}`);
+    fact('WebAssembly', wasm.wasm ? 'yes' : 'no');
+    fact('Wasm SIMD', wasm.wasm ? (wasm.simd ? 'yes' : 'no') : '—');
     fact('WebGL 2', glText(found.gl2));
     fact('WebGL 1', glText(found.gl1));
     fact('CPU score', `${found.cpu.score} (a recent fast desktop is about 100)`);
+    if (found.cores) { fact('CPU cores', String(found.cores)); }
     if (found.memory_gb) { fact('Memory', `${found.memory_gb} GB reported`); }
-    box.appendChild(facts);
+    return facts;
+  }
+
+  function showChoice(wasm, found, rec, fps, onOk) {
+    const box = panel();
+    box.appendChild(el('h2', { id: 'device-check-title', text: 'Device check' }));
+    box.appendChild(factList(wasm, found));
 
     const rendererSelect = el('select', { id: 'device-check-renderer' });
     RENDERERS.forEach(r => {
@@ -369,6 +389,11 @@
       if (f.fps === fps.fps) { option.selected = true; }
       fpsSelect.appendChild(option);
     });
+    if (found.cpu.score < LOW_SCORE) {
+      box.appendChild(el('p', { class: 'lock', text: `This device is slow for the game (CPU score `
+        + `${found.cpu.score}, under ${LOW_SCORE}): it plays in fixed mode at 765\u00d7503, the classic `
+        + 'size, and the server keeps it there.' }));
+    }
     box.appendChild(el('label', {}, [el('span', { text: 'Renderer' }), rendererSelect]));
     box.appendChild(el('p', { class: 'why', text: rec.why }));
     box.appendChild(el('label', {}, [el('span', { text: 'Limit framerate' }), fpsSelect]));
@@ -425,15 +450,17 @@
 
   async function run() {
     const wasm = probeWasm();
-    if (!wasm.wasm || !wasm.simd) {
-      record('device_check', { verdict: 'unsupported', wasm: wasm.wasm, simd: wasm.simd }, true);
-      showUnsupported(wasm);
-      return new Promise(() => {});
-    }
-    const skip = skipReason();
+    const supported = wasm.wasm && wasm.simd;
+    const skip = supported ? skipReason() : null;
     if (skip) {
       record('device_check', { verdict: 'skipped', why: skip });
-      return null;
+      /* No question asked, but the score measured here before still goes to
+       * the server (a boot that is not the player's own -- automation, a
+       * replay, an editor, a frame -- sends none). */
+      let stored = null;
+      try { stored = JSON.parse(read('localStorage', SCORE_KEY) || 'null'); } catch (err) { stored = null; }
+      const own = skip === 'don\u2019t ask again' || skip === 'already asked in this tab' || skip === '?devicecheck=0';
+      return own && stored && typeof stored.score === 'number' ? { renderer: null, fps: null, score: stored.score } : null;
     }
 
     showChecking();
@@ -447,11 +474,18 @@
       cores: window.navigator.hardwareConcurrency || null,
       mobile,
     };
+    const reported = Object.assign({}, found, { cpu: { score: found.cpu.score, units_per_ms: found.cpu.units_per_ms } });
+    write('localStorage', SCORE_KEY, JSON.stringify({ score: found.cpu.score, at: Date.now() }));
+    if (!supported) {
+      record('device_check', { verdict: 'unsupported', wasm: wasm.wasm, simd: wasm.simd, found: reported }, true);
+      showUnsupported(wasm, found);
+      return new Promise(() => {});
+    }
     const rec = recommendRenderer(found.gl2, found.gl1, found.memory_gb);
     const fps = recommendFps(found.cpu.score, rec.kind, mobile);
 
     return new Promise(resolve => {
-      showChoice(found, rec, fps, picked => {
+      showChoice(wasm, found, rec, fps, picked => {
         hide();
         write('sessionStorage', TAB_KEY, '1');
         if (picked.dont_ask) {
@@ -463,10 +497,10 @@
          * (torirs_host.js rendererMemory), so the note goes either way. */
         write('localStorage', 'torirs.renderer_fallback', null);
         record('device_check', {
-          verdict: 'ok', found: Object.assign({}, found, { cpu: { score: found.cpu.score, units_per_ms: found.cpu.units_per_ms } }),
+          verdict: 'ok', found: reported,
           suggested: { renderer: rec.kind, fps: fps.fps }, picked,
         }, true);
-        resolve({ renderer: picked.renderer, fps: picked.fps });
+        resolve({ renderer: picked.renderer, fps: picked.fps, score: found.cpu.score });
       });
     });
   }

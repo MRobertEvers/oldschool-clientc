@@ -9,6 +9,7 @@
  * exists for exactly this pair of files.
  */
 #include "torirs_server.h"
+#include "net/torirs_control.h"
 #include "net/rev/gameproto_revisions.h"
 #include "mem/torirs_mem.h"
 #include "torirs_server_gwd_manifest.gen.h"
@@ -5792,6 +5793,110 @@ selftest_hpbar_reshow(
     player->hpbar_npc_uid = 0;
 }
 
+/* The last control frame of `type` in `cap`, or NULL. */
+static const struct ToriRSServerCapturedPacket*
+selftest_capture_control(
+    const struct ToriRSServerCapture* cap,
+    int type)
+{
+    const struct ToriRSServerCapturedPacket* found = NULL;
+
+    for( int i = 0; i < cap->count; i++ )
+        if( cap->packets[i].control_type == type )
+            found = &cap->packets[i];
+    return found;
+}
+
+/*
+ * The device lock (net/torirs_control.h DEVICE_*, torirs_server_world.c
+ * world_device_*): a client below TORIRS_DEVICE_LOW_SCORE_X10 is told it is
+ * locked, put in Fixed, refused Resizable and refused another render size; a
+ * faster report frees it. TORIRSSERVER_SELFTEST_DEVICE_LOCK_ONLY=1 runs this
+ * alone.
+ */
+static void
+selftest_device_lock(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    static struct ToriRSServerCapture cap;
+    const struct ToriRSServerCapturedPacket* pkt;
+    uint8_t report[TORIRS_CONTROL_DEVICE_REPORT_BYTES];
+    uint8_t request[TORIRS_CONTROL_SETTING_REQUEST_BYTES];
+    uint8_t status[5] = { 2, 3, 0, 1, 247 }; /* resizable, 768x503 */
+    int const saved_layout = player->client_layout_mode;
+
+    fprintf(stderr, "ToriRSServer selftest: device lock\n");
+    player->login_scene_pending = 0;
+    player->rebuild_scene_pending = 0;
+    player->client_layout_mode = 1;
+    SELFTEST_CHECK(player->device_score_x10 == -1 && !player->device_locked,
+                   "a fresh player has no device report and no lock");
+
+    /* 2.0: below the line. */
+    torirs_control_put_u32(report, 20);
+    ToriRSServer_CaptureBegin(srv, &cap);
+    ToriRSServer_WorldControlIn(player, TORIRS_CONTROL_DEVICE_REPORT, report, (int)sizeof(report));
+    selftest_tick(srv);
+    ToriRSServer_CaptureEnd(srv);
+    SELFTEST_CHECK(player->device_locked, "score 2.0 should lock the device");
+    SELFTEST_CHECK(player->client_layout_mode == 0,
+                   "a locked device should be moved to Fixed, layout %d", player->client_layout_mode);
+    pkt = selftest_capture_control(&cap, TORIRS_CONTROL_DEVICE_POLICY);
+    SELFTEST_CHECK(pkt && pkt->len == TORIRS_CONTROL_DEVICE_POLICY_BYTES &&
+                       torirs_control_get_u32(pkt->data) == 1 &&
+                       torirs_control_get_u32(pkt->data + 4) == TORIRS_DEVICE_LOCK_WIDTH &&
+                       torirs_control_get_u32(pkt->data + 8) == TORIRS_DEVICE_LOCK_HEIGHT,
+                   "the report should be answered with DEVICE_POLICY locked 765x503");
+
+    /* Resizable is refused, and the policy restated. */
+    ToriRSServer_CaptureBegin(srv, &cap);
+    ToriRSServer_WorldHandle(player, PKTOUT_NAME_WINDOW_STATUS, status, 5);
+    ToriRSServer_CaptureEnd(srv);
+    SELFTEST_CHECK(player->client_layout_mode == 0,
+                   "WINDOW_STATUS resizable must be refused while locked, layout %d",
+                   player->client_layout_mode);
+    SELFTEST_CHECK(selftest_capture_control(&cap, TORIRS_CONTROL_DEVICE_POLICY) != NULL,
+                   "a refused WINDOW_STATUS restates DEVICE_POLICY");
+
+    /* A larger render width is refused; the lock's own is allowed; an option
+     * the lock does not cover is allowed. */
+    {
+        static const int cases[3][3] = { { 35, 1280, 0 }, { 35, 765, 1 }, { 14, 50, 1 } };
+
+        for( int i = 0; i < 3; i++ )
+        {
+            torirs_control_put_u32(request, (uint32_t)cases[i][0]);
+            torirs_control_put_u32(request + 4, (uint32_t)cases[i][1]);
+            ToriRSServer_CaptureBegin(srv, &cap);
+            ToriRSServer_WorldControlIn(player, TORIRS_CONTROL_SETTING_REQUEST, request,
+                                        (int)sizeof(request));
+            ToriRSServer_CaptureEnd(srv);
+            pkt = selftest_capture_control(&cap, TORIRS_CONTROL_SETTING_VERDICT);
+            SELFTEST_CHECK(pkt && pkt->len == TORIRS_CONTROL_SETTING_VERDICT_BYTES &&
+                               (int)torirs_control_get_u32(pkt->data) == cases[i][0] &&
+                               (int)torirs_control_get_u32(pkt->data + 4) == cases[i][1] &&
+                               (int)torirs_control_get_u32(pkt->data + 8) == cases[i][2],
+                           "SETTING_REQUEST option %d = %d should be answered allowed=%d",
+                           cases[i][0], cases[i][1], cases[i][2]);
+        }
+    }
+
+    /* 6.0: free again. */
+    torirs_control_put_u32(report, 60);
+    ToriRSServer_CaptureBegin(srv, &cap);
+    ToriRSServer_WorldControlIn(player, TORIRS_CONTROL_DEVICE_REPORT, report, (int)sizeof(report));
+    selftest_tick(srv);
+    ToriRSServer_CaptureEnd(srv);
+    pkt = selftest_capture_control(&cap, TORIRS_CONTROL_DEVICE_POLICY);
+    SELFTEST_CHECK(!player->device_locked && pkt && torirs_control_get_u32(pkt->data) == 0,
+                   "score 6.0 should unlock, with DEVICE_POLICY locked=0");
+
+    player->device_score_x10 = -1;
+    player->device_locked = 0;
+    player->client_layout_mode = saved_layout;
+}
+
 int
 ToriRSServer_WorldSelftest(void)
 {
@@ -5933,6 +6038,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer sailing selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("sailing");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_DEVICE_LOCK_ONLY") )
+    {
+        selftest_device_lock(srv, player);
+        fprintf(stderr, "ToriRSServer device lock selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("device_lock");
         return g_selftest_failures;
     }
 

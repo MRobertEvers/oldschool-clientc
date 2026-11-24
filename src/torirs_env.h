@@ -90,6 +90,9 @@ TORIRS_ENV_KNOB(torirs_env_low_memory, "TORIRS_LOW_MEMORY")
  * the option store after preferences load, as picking them in game would. */
 TORIRS_ENV_KNOB(torirs_env_device_check_fps, "TORIRS_DEVICE_CHECK_FPS")
 TORIRS_ENV_KNOB(torirs_env_device_check_renderer, "TORIRS_DEVICE_CHECK_RENDERER")
+/* The device check's CPU score in tenths, set on every boot the page knows
+ * one: the device lock (app/app_device_lock.h) reports it to the server. */
+TORIRS_ENV_KNOB(torirs_env_device_score, "TORIRS_DEVICE_SCORE")
 /* The LOC_ADD/NPC_ADD trigger trace. Asked once per loc of a rebuilt scene:
  * a getenv there was ~3 ms of every rebuild's finish. */
 TORIRS_ENV_KNOB(torirs_env_trigger_debug, "TORIRS_TRIGGER_DEBUG")

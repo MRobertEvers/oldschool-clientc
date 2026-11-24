@@ -1867,6 +1867,24 @@ exec_trace_native_ui(void)
     return on;
 }
 
+/* DEVICE_POLICY and SETTING_VERDICT, the device lock's server half
+ * (app/app_device_lock.h). */
+static void
+exec_control_device_policy(
+    struct AppGameProtoCtx const* ctx,
+    struct TorirsControlFrame const* frame)
+{
+    App_DeviceLockPolicy(ctx->app, frame);
+}
+
+static void
+exec_control_setting_verdict(
+    struct AppGameProtoCtx const* ctx,
+    struct TorirsControlFrame const* frame)
+{
+    App_DeviceLockVerdict(ctx->app, frame);
+}
+
 static void
 exec_control(
     struct AppGameProtoCtx const* ctx,
@@ -1875,6 +1893,16 @@ exec_control(
     if( frame->type == TORIRS_CONTROL_CACHE_INVALIDATE )
     {
         exec_control_cache_invalidate(ctx, frame);
+        return;
+    }
+    if( frame->type == TORIRS_CONTROL_DEVICE_POLICY )
+    {
+        exec_control_device_policy(ctx, frame);
+        return;
+    }
+    if( frame->type == TORIRS_CONTROL_SETTING_VERDICT )
+    {
+        exec_control_setting_verdict(ctx, frame);
         return;
     }
     if( torirs_control_type_is_replay(frame->type) )

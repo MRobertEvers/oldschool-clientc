@@ -109,6 +109,10 @@ struct ToriRS_Network
      */
     int group_open;
     int group_left;
+    /** Counts the logins that reached TORIRS_NET_GAME on this network, the
+     *  reconnects included: something owed once per game stream (the device
+     *  report, app/app_device_lock.c) is owed again when this moves. */
+    int game_stream_serial;
 
     int conn_status;
 

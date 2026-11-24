@@ -4324,6 +4324,14 @@ struct ToriRSServerPlayer
     /** Last Display-panel clientMode (0/1/2) from WINDOW_STATUS.
      *  Persisted in the player save; login restores via ~gameframe_set_mode. */
     int client_layout_mode;
+    /** The device score this connection's client reported, in tenths
+     *  (TORIRS_CONTROL_DEVICE_REPORT); -1 until one arrives. */
+    int device_score_x10;
+    /** A report arrived and the tick has not applied it yet. */
+    int device_report_pending;
+    /** The device is locked: fixed mode at TORIRS_DEVICE_LOCK_WIDTH x _HEIGHT,
+     *  and WINDOW_STATUS / SETTING_REQUEST changes are refused. */
+    int device_locked;
     /** The three chat filter modes as the save recorded them, and nothing
      *  else. The live copy belongs to the friend service, keyed by name37
      *  (torirs_server_friends.h §5.3 decision 4): CHAT_SETMODE writes it there
@@ -7304,6 +7312,19 @@ void
 ToriRSServer_WorldInput(
     struct ToriRSServerPlayer* player,
     int name,
+    const uint8_t* payload,
+    int len);
+
+/**
+ * A ToriRS client's control frame (net/torirs_control.h, client to server),
+ * as the session read it. DEVICE_REPORT is latched here and applied in the
+ * tick (phase_clients_in), where the gameframe can change; SETTING_REQUEST is
+ * answered at once. Any other type is logged and dropped.
+ */
+void
+ToriRSServer_WorldControlIn(
+    struct ToriRSServerPlayer* player,
+    int type,
     const uint8_t* payload,
     int len);
 

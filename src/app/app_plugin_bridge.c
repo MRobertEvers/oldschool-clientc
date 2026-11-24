@@ -16,4 +16,5 @@
 #include "plugin/porcelain/torirs_porcelain.h"
 
 #include "mem/torirs_mem.h"
+#include "app/app_device_lock.h"
 #include "plugin/torirs_plugin_bridge.u.c"

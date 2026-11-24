@@ -41,6 +41,7 @@
 #include "ui/minimap_view.h"
 #include "ui/tree_refresh.h"
 #include "ui/target_select.h"
+#include "app/app_device_lock.h"
 #include "game/rs_ground_items_dirty.h"
 #include "engine/title_flames.h"
 #include "game/rs_login_replies.h"
@@ -935,6 +936,9 @@ struct App
     struct LootStore loot;
     struct RS_PlayerStats stats;
     struct RS_CS2Host host;
+    /** Fixed mode at 765x503 for a device too slow for more, as the server
+     *  decides it (app/app_device_lock.h). */
+    struct AppDeviceLock device_lock;
     struct RS_CS1Host cs1_host;
     /** Runtime interface slots (tabs, modals, chat) — reference Client-TS
      *  mainModalId/sideOverlayId/sideTab fields — and the component the last

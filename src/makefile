@@ -762,6 +762,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	$(TORIMEM_SRCS) \
 	app/app_audio.c \
 	app/app_boot.c \
+	app/app_device_lock.c \
 	app/app_camera.c \
 	app/app_canvas_layout.c \
 	app/app_chat_focus.c \
