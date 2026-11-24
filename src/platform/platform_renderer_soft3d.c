@@ -76,6 +76,9 @@ struct ToriPlatform_Renderer_Soft3D_Scratch
 {
     uint32_t* blit;
     size_t blit_cap;
+    /* The half-resolution world's buffer (soft3d_half_begin), grown to fit. */
+    int* half;
+    size_t half_cap;
     /* Layout-sized canvas for the pieces drawn at layout resolution and then
      * scaled into the buffer. @see soft3d_layer_begin. */
     int* layer;
@@ -1566,6 +1569,143 @@ soft3d_scale_world(struct ToriPlatform_Renderer_Soft3D* soft)
     }
 }
 
+/*
+ * The half-resolution world, compatibility mode's other half (the flat
+ * kernel being the first, ToriDraw_RasterGetCompat): a device too slow for
+ * the game draws the 3D view at half its size each way, a quarter of the
+ * pixels, and the frame doubles it. The interface is not touched -- it draws
+ * after END_3D at full resolution, so text stays readable.
+ *
+ * BEGIN_3D, after the viewport is at the buffer's scale: the viewport becomes
+ * a half-size one at the origin of scratch->half, the projection is halved
+ * with it, and the buffer fields and the pick point are swapped to that
+ * buffer so every draw and hit test of the pass works in it unchanged.
+ * END_3D (soft3d_half_end) puts them back and doubles the half buffer into
+ * the viewport's rectangle, inside its clip. Painter worlds only: a depth
+ * world sizes its z-buffer from the buffer.
+ */
+static void
+soft3d_half_begin(struct ToriPlatform_Renderer_Soft3D* soft)
+{
+    struct ToriDraw_ViewPort* vp = &soft->view_port_3d;
+    struct ToriDraw_Camera* camera = &soft->camera_3d;
+    int const left = vp->x_center - vp->width / 2;
+    int const top = vp->y_center - vp->height / 2;
+    int const hw = (vp->width + 1) / 2;
+    int const hh = (vp->height + 1) / 2;
+    size_t const need = (size_t)hw * (size_t)hh;
+
+    if( hw <= 0 || hh <= 0 )
+        return;
+    if( soft->scratch->half_cap < need )
+    {
+        ToriMem_Free(ToriMem_Render(), soft->scratch->half);
+        soft->scratch->half = ToriMem_Calloc(ToriMem_Render(), need, sizeof(int));
+        assert(soft->scratch->half);
+        soft->scratch->half_cap = need;
+    }
+    /* The world's background, as a clear of the viewport writes it. */
+    for( size_t i = 0; i < need; i++ )
+        soft->scratch->half[i] = (int)TORIRS_SOFT3D_BG;
+
+    soft->half_pass = true;
+    soft->half_left = left;
+    soft->half_top = top;
+    soft->half_w = vp->width;
+    soft->half_h = vp->height;
+    soft->half_clip_left = vp->clip_left;
+    soft->half_clip_top = vp->clip_top;
+    soft->half_clip_right = vp->clip_right;
+    soft->half_clip_bottom = vp->clip_bottom;
+    soft->half_saved_pixels = soft->pixels;
+    soft->half_saved_width = soft->width;
+    soft->half_saved_height = soft->height;
+    soft->half_saved_stride = soft->stride;
+    soft->half_saved_pick_x = soft->pick_mouse_x;
+    soft->half_saved_pick_y = soft->pick_mouse_y;
+
+    vp->x_center = (vp->x_center - left) / 2;
+    vp->y_center = (vp->y_center - top) / 2;
+    vp->width = hw;
+    vp->height = hh;
+    vp->clip_left = 0;
+    vp->clip_top = 0;
+    vp->clip_right = hw;
+    vp->clip_bottom = hh;
+    vp->stride = hw;
+    soft->pixels = soft->scratch->half;
+    soft->width = hw;
+    soft->height = hh;
+    soft->stride = hw;
+    soft->pick_mouse_x = (soft->pick_mouse_x - left) / 2;
+    soft->pick_mouse_y = (soft->pick_mouse_y - top) / 2;
+
+    switch( camera->projection_mode )
+    {
+    case TORIDRAW_PROJECTION_MODE_PARALLEL:
+        camera->parallel_zoom16 /= 2;
+        break;
+    case TORIDRAW_PROJECTION_MODE_FOV:
+    {
+        int const cot16 = toridraw_projection_cot16_from_fov(camera->fov_rpi2048);
+        camera->projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+        camera->projection_scale = (cot16 / 2) >> TORIDRAW_PROJECTION_COT16_SHIFT;
+        break;
+    }
+    default:
+    {
+        int const scale = camera->projection_scale > 0 ? camera->projection_scale
+                                                       : TORIDRAW_PROJECTION_SCALE_DEFAULT;
+        camera->projection_scale = scale / 2;
+        break;
+    }
+    }
+}
+
+static void
+soft3d_half_end(struct ToriPlatform_Renderer_Soft3D* soft)
+{
+    int const* const src = soft->scratch->half;
+    int const hw = soft->width;
+    int x0;
+    int x1;
+    int y0;
+    int y1;
+
+    assert(soft->half_pass);
+    soft->pixels = soft->half_saved_pixels;
+    soft->width = soft->half_saved_width;
+    soft->height = soft->half_saved_height;
+    soft->stride = soft->half_saved_stride;
+    soft->pick_mouse_x = soft->half_saved_pick_x;
+    soft->pick_mouse_y = soft->half_saved_pick_y;
+    soft->half_pass = false;
+
+    x0 = soft->half_left > soft->half_clip_left ? soft->half_left : soft->half_clip_left;
+    y0 = soft->half_top > soft->half_clip_top ? soft->half_top : soft->half_clip_top;
+    x1 = soft->half_left + soft->half_w;
+    y1 = soft->half_top + soft->half_h;
+    if( x1 > soft->half_clip_right )
+        x1 = soft->half_clip_right;
+    if( y1 > soft->half_clip_bottom )
+        y1 = soft->half_clip_bottom;
+    if( x1 > soft->width )
+        x1 = soft->width;
+    if( y1 > soft->height )
+        y1 = soft->height;
+    if( x0 < 0 )
+        x0 = 0;
+    if( y0 < 0 )
+        y0 = 0;
+    for( int y = y0; y < y1; y++ )
+    {
+        int const* row = src + ((y - soft->half_top) >> 1) * hw;
+        int* out = soft->pixels + y * soft->stride;
+        for( int x = x0; x < x1; x++ )
+            out[x] = row[(x - soft->half_left) >> 1];
+    }
+}
+
 struct ToriPlatform_Renderer_Soft3D*
 ToriPlatform_Renderer_Soft3D_New(void)
 {
@@ -1596,6 +1736,7 @@ ToriPlatform_Renderer_Soft3D_Free(struct ToriPlatform_Renderer_Soft3D* soft)
         ToriMem_Free(ToriMem_Render(), soft->scratch->column_sums);
         ToriMem_Free(ToriMem_Render(), soft->scratch->rszbuffer_models);
         ToriMem_Free(ToriMem_Render(), soft->scratch->depth_translucent);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->half);
         for( int i = 0; i < SOFT3D_SEGMENT_CACHES; i++ )
         {
             ToriMem_Free(ToriMem_Render(), soft->scratch->segment_caches[i].encoded);
@@ -1692,6 +1833,15 @@ ToriPlatform_Renderer_Soft3D_SetPick(
     /* A layout point, tested against a world drawn at the buffer's pixels. */
     soft->pick_mouse_x = soft3d_mx(soft, mouse_x);
     soft->pick_mouse_y = soft3d_my(soft, mouse_y);
+    /* Set inside a half-resolution pass: the point the pass tests is the
+     * half buffer's, and the full one is what END_3D puts back. */
+    if( soft->half_pass )
+    {
+        soft->half_saved_pick_x = soft->pick_mouse_x;
+        soft->half_saved_pick_y = soft->pick_mouse_y;
+        soft->pick_mouse_x = (soft->pick_mouse_x - soft->half_left) / 2;
+        soft->pick_mouse_y = (soft->pick_mouse_y - soft->half_top) / 2;
+    }
     ToriRS_PickHitsReset(&soft->pick_hits);
 }
 
@@ -1764,6 +1914,15 @@ ToriPlatform_Renderer_Soft3D_Execute(
         ToriDraw_ScenePrepareProjectionCamera(soft->scene, &soft->camera_3d);
         if( soft->view_port_3d.stride <= 0 || soft->scaled )
             soft->view_port_3d.stride = soft->stride;
+        /* Compatibility mode draws a painter world at half size
+         * (soft3d_half_begin); the projection was prepared above at full
+         * size, so it is prepared again for the halved camera. */
+        if( ToriDraw_RasterGetCompat() && !soft->depth && !soft->rszbuffer )
+        {
+            soft3d_half_begin(soft);
+            if( soft->half_pass )
+                ToriDraw_ScenePrepareProjectionCamera(soft->scene, &soft->camera_3d);
+        }
         /* One buffer for the whole pass, cleared here and nowhere else: the
          * models of a depth world are unordered, so each must see the depths
          * every earlier one wrote. */
@@ -1793,6 +1952,8 @@ ToriPlatform_Renderer_Soft3D_Execute(
         if( soft->depth || soft->rszbuffer )
             ToriDraw_SceneZBufferEndPass(soft->scene);
         ToriDraw_SceneClearProjectionCamera(soft->scene);
+        if( soft->half_pass )
+            soft3d_half_end(soft);
         soft->has_3d = false;
         break;
 

@@ -62,8 +62,21 @@
   var W = 512, H = 334, CX = 256, CY = 167, FOCAL = 512, DRAW_TILES = 25, NEAR = 50;
   var canvas = document.getElementById('c');
   var ctx = canvas.getContext('2d');
-  var image = ctx.createImageData(W, H);
-  var pixels = new Uint32Array(image.data.buffer);
+  /* Two targets: the full 512x334 view, and compatibility mode's half-size
+   * one (the client's soft3d_half_begin), drawn at 256x167 with the
+   * projection halved and doubled onto the canvas. */
+  function makeTarget(w, h) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var cx2 = c.getContext('2d'), img = cx2.createImageData(w, h);
+    return { w: w, h: h, canvas: c, ctx: cx2, image: img, pixels: new Uint32Array(img.data.buffer) };
+  }
+  var fullTarget = makeTarget(512, 334), halfTarget = makeTarget(256, 167);
+  var image, pixels, target;
+  function useTarget(t) {
+    target = t; W = t.w; H = t.h; CX = t.w >> 1; CY = t.h >> 1; FOCAL = t.w;
+    image = t.image; pixels = t.pixels;
+  }
+  useTarget(fullTarget);
   var statusEl = document.getElementById('status');
   var resultsEl = document.getElementById('results');
   var HIDDEN = 0xFFFF, FLAT = 0xFF7F;
@@ -307,7 +320,12 @@
       }
     }
     var fillMs = performance.now() - t0;
-    ctx.putImageData(image, 0, 0);
+    if (target === fullTarget) ctx.putImageData(image, 0, 0);
+    else {
+      target.ctx.putImageData(image, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(target.canvas, 0, 0, 512, 334);
+    }
     return [nf, fillMs];
   }
 
@@ -426,6 +444,7 @@
   var SCENES = [
     { name: 'Ground only', ground: true },
     { name: 'Compatibility: flat, no textures', ground: false, compat: true },
+    { name: 'Compatibility, half size', ground: false, compat: true, half: true },
     { name: 'Lumbridge courtyard', ground: false },
   ];
   /* Per scene: up to this many frames or this long, whichever ends first; a
@@ -441,6 +460,7 @@
     var frames = 0, timed = 0, total = 0, fillTotal = 0, drawn = 0, started = performance.now();
     var step = function () {
       var t0 = performance.now();
+      useTarget(sc.half ? halfTarget : fullTarget);
       var out = frame(scene, 1536 + frames * 24, sc.ground, sc.compat);
       var ms = performance.now() - t0;
       frames++;

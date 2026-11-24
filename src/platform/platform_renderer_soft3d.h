@@ -93,6 +93,27 @@ struct ToriPlatform_Renderer_Soft3D
     struct ToriDraw_ViewPort view_port_3d;
     struct ToriDraw_Camera camera_3d;
 
+    /* The half-resolution world (compatibility mode, ToriDraw_RasterGetCompat):
+     * between BEGIN_3D and END_3D the pass draws into scratch->half at half
+     * the world viewport's size, and END_3D doubles it into the buffer. The
+     * buffer fields and the pick point are swapped for the pass and put back.
+     * @see soft3d_half_begin. */
+    bool half_pass;
+    int half_left;
+    int half_top;
+    int half_w;
+    int half_h;
+    int half_clip_left;
+    int half_clip_top;
+    int half_clip_right;
+    int half_clip_bottom;
+    int* half_saved_pixels;
+    int half_saved_width;
+    int half_saved_height;
+    int half_saved_stride;
+    int half_saved_pick_x;
+    int half_saved_pick_y;
+
     /* Render-time world hittest (see torirs_pick.h): pickable DRAW_MODELs
      * that project VISIBLE and contain the mouse point land in pick_hits. */
     bool pick_enabled;
