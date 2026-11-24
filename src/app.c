@@ -421,6 +421,10 @@ App_Init(
         app->cfg.revconfig_inline_ini);
 
     ToriDraw_Init();
+    /* Compatibility mode (TORIRS_COMPAT): before any renderer takes its table
+     * (ToriDraw_KernelGetStock), so the software renderer is the flat one. */
+    if( torirs_env_compat() && atoi(torirs_env_compat()) != 0 )
+        ToriDraw_RasterSetCompat(true);
 
     /* Phase 1: task runtime + disk. The runner owns the frame queue every
      * other phase loads through. */
@@ -756,10 +760,15 @@ App_Init(
     {
         char const* plugins_env = getenv("TORIRS_PLUGINS");
         int want_plugins = cfg->plugins >= 0;
+        /* Compatibility mode registers NO plugin, the builtins included: the
+         * host is built (callers hold it) and runs empty. */
+        bool const compat = torirs_env_compat() && atoi(torirs_env_compat()) != 0;
         struct ToriRS_PluginEngine engine = app_plugin_engine(app);
 
         if( plugins_env )
             want_plugins = atoi(plugins_env) != 0;
+        if( compat )
+            want_plugins = 0;
         PluginBootConfig_SetUserPlugins(&app->plugin_boot, want_plugins);
         app->plugin_win = PluginPanel_Create();
         /* The client is what LINKS Porcelain; the host only carries the
@@ -767,7 +776,9 @@ App_Init(
         PluginHost_SetPorcelain(ToriRS_PorcelainApiTable());
         app->plugins = PluginHost_New(&engine);
         PluginBootConfig_SetPrefsPath(&app->plugin_boot, PluginPrefs_Path());
-        if( !want_plugins )
+        if( compat )
+            TORIRS_REPORT("plugins: none (compatibility mode)\n");
+        else if( !want_plugins )
             PluginRegistry_RegisterBuiltins(app->plugins);
         else
         {

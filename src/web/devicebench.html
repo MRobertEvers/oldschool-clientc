@@ -132,6 +132,42 @@
         texels[i] = tx;
       } else { at += 4 * size * size; texels[i] = null; }
     }
+    /* Compatibility mode's colours (toridraw kernels/sd.compat_flat.u.c),
+     * worked out once: every face ONE flat fill. Untextured: the face's lit
+     * colour, a gouraud face's three lightnesses averaged. Textured: the
+     * texture's average over the texels it draws, lit by the face
+     * (Scene.adjustHslLightness), and a see-through texture at its coverage. */
+    var compatTex = [];
+    for (i = 0; i < texCount; i++) {
+      var tx2 = texels[i];
+      if (!tx2) { compatTex[i] = { hsl: texAvg[i], keep: 0 }; continue; }
+      var rs = 0, gs = 0, bs = 0, drawn = 0;
+      for (var j = 0; j < tx2.length; j++) {
+        var px32 = tx2[j];
+        if (!texOpaque[i] && px32 === 0) continue;
+        rs += px32 & 0xff; gs += (px32 >> 8) & 0xff; bs += (px32 >> 16) & 0xff; drawn++;
+      }
+      compatTex[i] = drawn === 0 ? { hsl: 0, keep: 256 }
+        : { hsl: rgbToHsl16(((rs / drawn) << 16) | ((gs / drawn) << 8) | (bs / drawn)),
+            keep: texOpaque[i] ? 0 : 255 - ((drawn * 255 / tx2.length) | 0) };
+    }
+    els.forEach(function (el) {
+      el.compCol = new Uint16Array(el.fc); el.compKeep = new Int16Array(el.fc);
+      for (var f = 0; f < el.fc; f++) {
+        var a3 = el.ca[f], b3 = el.cb[f], c3 = el.cc[f], t = el.tex[f];
+        if (c3 === HIDDEN) { el.compKeep[f] = 256; continue; }
+        var flat = c3 === FLAT;
+        if (t >= 0 && t < texCount) {
+          var light = flat ? (a3 & 127) : (((a3 & 127) + (b3 & 127) + (c3 & 127)) / 3) | 0;
+          var ct = compatTex[t], l = ((ct.hsl & 127) * light) >> 7;
+          el.compCol[f] = (ct.hsl & 0xff80) + (l < 2 ? 2 : l > 126 ? 126 : l);
+          el.compKeep[f] = ct.keep;
+        } else {
+          el.compCol[f] = flat ? a3 : (a3 & 0xff80) | ((((a3 & 127) + (b3 & 127) + (c3 & 127)) / 3) | 0);
+          el.compKeep[f] = el.alpha[f];
+        }
+      }
+    });
     /* What is texture-mapped and what is filled: the reference fills a
      * GROUND tile's texture with its average colour scaled by the tile's light
      * (Scene.method4560, when Scene.lowDetailTextures) and maps a MODEL's
@@ -179,7 +215,24 @@
 
   /* One frame: camera yaw `yawUnits` (2048 a turn, the client's), pitch and
    * distance of a standard fixed-mode view. Returns [faces drawn, ms fill]. */
-  function frame(scene, yawUnits, groundOnly) {
+  /* toridraw's palette_rgb_to_hsl16 (osrs/palette.c), for a texture's
+   * average colour. */
+  function rgbToHsl16(rgb) {
+    var r = ((rgb >> 16) & 255) / 256, g = ((rgb >> 8) & 255) / 256, b = (rgb & 255) / 256;
+    var mn = Math.min(r, g, b), mx = Math.max(r, g, b), hue = 0, sat = 0, li = (mx + mn) / 2;
+    if (mn !== mx) {
+      sat = li < 0.5 ? (mx - mn) / (mx + mn) : (mx - mn) / (2 - mx - mn);
+      if (r === mx) hue = (g - b) / (mx - mn);
+      else if (g === mx) hue = 2 + (b - r) / (mx - mn);
+      else hue = 4 + (r - g) / (mx - mn);
+    }
+    hue /= 6;
+    var s = Math.max(0, Math.min(255, (sat * 256) | 0)), l = Math.max(0, Math.min(255, (li * 256) | 0)), h = (hue * 256) | 0;
+    if (l > 179) s >>= 1; if (l > 192) s >>= 1; if (l > 217) s >>= 1; if (l > 243) s >>= 1;
+    return (((h / 4) | 0) * 1024 + ((s / 32) | 0) * 128 + ((l / 2) | 0)) & 0xffff;
+  }
+
+  function frame(scene, yawUnits, groundOnly, compat) {
     var yaw = yawUnits * Math.PI / 1024, pitch = 256 * Math.PI / 1024, dist = 2200;
     var sinY = Math.sin(yaw), cosY = Math.cos(yaw), sinP = Math.sin(pitch), cosP = Math.cos(pitch);
     var camX = scene.fx + dist * cosP * sinY, camY = scene.fy - dist * sinP, camZ = scene.fz - dist * cosP * cosY;
@@ -225,6 +278,10 @@
         fA[nf] = a; fB[nf] = b; fC[nf] = c;
         fCa[nf] = el.ca[i]; fCb[nf] = el.cb[i]; fCc[nf] = c3; fAl[nf] = al;
         fT[nf] = el.tex[i];
+        if (compat) {
+          if (el.compKeep[i] >= 256) continue;
+          fCa[nf] = el.compCol[i]; fCc[nf] = FLAT; fAl[nf] = el.compKeep[i]; fT[nf] = -1;
+        }
         if (fT[nf] >= 0) { fP[nf] = base + el.tp[i]; fM[nf] = base + el.tm[i]; fN[nf] = base + el.tn[i]; }
         var key = ((pz[a] + pz[b] + pz[c]) / 3) >> 1; if (key > 8191) key = 8191;
         bucketNext[nf] = bucketHead[key]; bucketHead[key] = nf;
@@ -365,6 +422,7 @@
   /* The full scene last, so the picture left on the page is the full one. */
   var SCENES = [
     { name: 'Ground only', ground: true },
+    { name: 'Compatibility: flat, no textures', ground: false, compat: true },
     { name: 'Lumbridge courtyard', ground: false },
   ];
   /* Per scene: up to this many frames or this long, whichever ends first; a
@@ -380,7 +438,7 @@
     var frames = 0, timed = 0, total = 0, fillTotal = 0, drawn = 0, started = performance.now();
     var step = function () {
       var t0 = performance.now();
-      var out = frame(scene, 1536 + frames * 24, sc.ground);
+      var out = frame(scene, 1536 + frames * 24, sc.ground, sc.compat);
       var ms = performance.now() - t0;
       frames++;
       if (frames > 1) { timed++; total += ms; fillTotal += out[1]; drawn = out[0]; }

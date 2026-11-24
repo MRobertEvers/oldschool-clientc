@@ -56,7 +56,16 @@
   const CPU_REFERENCE_UNITS_PER_MS = 140;
 
   /* enum ToriRS_RendererKind, as torirs_host.js rendererMemory knows them. */
+  /* Compatibility mode: the software renderer with every face one flat fill
+   * (TORIRS_COMPAT, toridraw kernels/sd.compat_flat.u.c), no plugins, and a
+   * page that mounts only the canvas (compat.html). Not a client renderer
+   * kind: it boots Software (0). Kept per browser in COMPAT_KEY, so every
+   * boot goes to compat.html, asked or not; ?compat=0 on the game page turns
+   * it off, as picking another renderer here does. */
+  const COMPAT = -2;
+  const COMPAT_KEY = 'torirs.compat';
   const RENDERERS = [
+    { kind: COMPAT, gl: 0, name: 'Compatibility (flat colour, no textures)' },
     { kind: 7, gl: 2, name: 'WebGL 2' },
     { kind: 8, gl: 2, name: 'WebGL 2 (z-buffer)' },
     { kind: 15, gl: 2, name: 'WebGL 2 (Sailing OSRS)' },
@@ -488,7 +497,10 @@
       showUnsupported(wasm, found);
       return new Promise(() => {});
     }
-    const rec = recommendRenderer(found.gl2, found.gl1, found.memory_gb);
+    const rec = found.cpu.score < LOW_SCORE
+      ? { kind: COMPAT, why: `A CPU this slow (score ${found.cpu.score}) is best given the least to draw: `
+          + 'flat colours, no textures, no plugins, and only the game on the page.' }
+      : recommendRenderer(found.gl2, found.gl1, found.memory_gb);
     const fps = recommendFps(found.cpu.score, rec.kind, mobile);
 
     return new Promise(resolve => {
@@ -507,10 +519,16 @@
           verdict: 'ok', found: reported,
           suggested: { renderer: rec.kind, fps: fps.fps }, picked,
         }, true);
+        if (picked.renderer === COMPAT) {
+          write('localStorage', COMPAT_KEY, '1');
+          resolve({ renderer: 0, fps: picked.fps, score: found.cpu.score, compat: true });
+          return;
+        }
+        write('localStorage', COMPAT_KEY, null);
         resolve({ renderer: picked.renderer, fps: picked.fps, score: found.cpu.score });
       });
     });
   }
 
-  window.ToriRS_DeviceCheck = { STORE_KEY, run };
+  window.ToriRS_DeviceCheck = { STORE_KEY, COMPAT_KEY, SCORE_KEY, run };
 })();

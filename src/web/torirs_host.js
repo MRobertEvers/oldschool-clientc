@@ -1403,6 +1403,8 @@
     /* The CPU score in tenths, for the device lock: the client reports it to
      * the server after login (app/app_device_lock.h). */
     if (choice && typeof choice.score === 'number') { ENV.TORIRS_DEVICE_SCORE = String(Math.round(choice.score * 10)); }
+    /* Compatibility mode (compat.html): flat software raster, no plugins. */
+    if (choice && choice.compat) { ENV.TORIRS_COMPAT = '1'; }
     readEnv().forEach(pair => { ENV[pair[0]] = pair[1]; });
   }];
 

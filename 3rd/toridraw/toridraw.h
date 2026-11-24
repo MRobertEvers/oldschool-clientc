@@ -54,6 +54,20 @@ bool
 ToriDraw_RasterGetScanline(void);
 
 /**
+ * Compatibility rendering: ToriDraw_KernelGetStock hands software renderers
+ * the "software-compat" table, every face one flat fill -- the lit colour, a
+ * texture's average colour lit by the face, a see-through texture at its
+ * average coverage (kernels/sd.compat_flat.u.c). Off by default;
+ * ToriDraw_Init() also honours TORIDRAW_RASTER_COMPAT=1. Takes effect when a
+ * renderer next takes its table.
+ */
+void
+ToriDraw_RasterSetCompat(bool enabled);
+
+bool
+ToriDraw_RasterGetCompat(void);
+
+/**
  * Prepare camera-only projection constants once for a run of models using the
  * same camera object. Call again after changing that camera or the selected
  * sine/cosine tables, and clear it when the run ends. Other camera objects use

@@ -505,6 +505,7 @@ ToriDraw_RasterWalkPerFace(
 #include "kernels/sd.rszbuffered.u.c"
 #include "kernels/sd.branching.u.c"
 #include "kernels/sd.branching_perface.u.c"
+#include "kernels/sd.compat_flat.u.c"
 #include "kernels/sd.scanline.u.c"
 #include "kernels/sd.smooth_branching.u.c"
 #include "kernels/sd.smooth_scanline.u.c"

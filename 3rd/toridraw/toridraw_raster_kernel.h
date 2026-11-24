@@ -834,6 +834,14 @@ ToriDraw_KernelGetSoftwarePainter(void);
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSoftwareScanline(void);
 
+/** Compatibility: every face one flat fill (kernels/sd.compat_flat.u.c). What
+ *  ToriDraw_KernelGetStock returns while ToriDraw_RasterSetCompat is on. */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetSoftwareCompat(void);
+
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetCompatFlat(void);
+
 /** Depth-resolved models. Stage 2 does not run at all: faces draw in model
  *  order and the buffer decides. */
 const struct ToriDraw_Kernel*

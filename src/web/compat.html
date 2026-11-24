@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>ToriRS</title>
+<!--
+  Compatibility mode: the game and nothing else, for a device too slow for
+  the full page (torirs_devicecheck.js COMPAT; index.html sends this browser
+  here before it builds anything of its own). The canvas, a status line and
+  the soft keyboard's hidden field: no header, no log panels, no plugin
+  chrome (torirs_chrome.js is not loaded, and the client registers no plugin
+  under TORIRS_COMPAT). The client draws with the flat software raster
+  (toridraw kernels/sd.compat_flat.u.c) in fixed mode.
+
+  ?compat=0 goes back to the full page and turns compatibility mode off.
+-->
+<script src="torirs_telemetry.js"></script>
+<script src="torirs_pagecore.js"></script>
+<script>
+(function () {
+  var q = new URLSearchParams(window.location.search);
+  if (q.get('compat') === '0') {
+    try { window.localStorage.removeItem('torirs.compat'); } catch (err) { /* private mode */ }
+    window.location.replace('./' + window.location.search);
+  }
+})();
+</script>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; }
+  /* The fixed-mode frame, scaled to fit the screen with its own shape. */
+  #canvas {
+    display: block;
+    width: min(100vw, calc(100vh * 765 / 503));
+    height: auto;
+    aspect-ratio: 765 / 503;
+    touch-action: none;
+  }
+  #status {
+    position: fixed;
+    left: 6px;
+    top: 4px;
+    font: 13px/1.3 ui-monospace, Menlo, monospace;
+    color: #c8bda4;
+    pointer-events: none;
+  }
+  #torirs-keyboard {
+    position: fixed; left: 0; bottom: 0; width: 1px; height: 1px;
+    padding: 0; border: 0; opacity: 0; font-size: 16px; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="765" height="503" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+<span id="status">loading&hellip;</span>
+<input id="torirs-keyboard" type="text" inputmode="none" autocomplete="off" autocorrect="off"
+       autocapitalize="none" spellcheck="false" enterkeyhint="send" aria-hidden="true" tabindex="-1">
+<script>
+globalThis.torirsPageKeyboard(document.getElementById('torirs-keyboard'));
+/* What the device check decided, for torirs_host.js: Software, compatibility
+ * on, and the score (the server's lock reads it). The check's own picks
+ * (its frame rate) come across once, from the boot that asked. */
+(function () {
+  var once = null, score = null;
+  try {
+    once = JSON.parse(window.sessionStorage.getItem('torirs.compat_choice') || 'null');
+    window.sessionStorage.removeItem('torirs.compat_choice');
+    var stored = JSON.parse(window.localStorage.getItem('torirs.device_score') || 'null');
+    if (stored && typeof stored.score === 'number') { score = stored.score; }
+  } catch (err) { /* private mode: no stored score, no lock */ }
+  window.torirsDeviceChoice = {
+    renderer: 0,
+    fps: once && Number.isInteger(once.fps) ? once.fps : null,
+    score: once && typeof once.score === 'number' ? once.score : score,
+    compat: true,
+  };
+})();
+</script>
+<script src="torirs_idb.js"></script>
+<script src="torirs_js5.js"></script>
+<script src="torirs_ondemand.js"></script>
+<script src="torirs_hostio.js"></script>
+<script src="torirs_host.js"></script>
+<script src="torirs_credentials.js"></script>
+<script src="torirs.js"></script>
+</body>
+</html>

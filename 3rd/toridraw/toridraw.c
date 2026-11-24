@@ -1072,6 +1072,9 @@ ToriDraw_SceneScratchViewFree(struct ToriDraw_Scene* view)
 
 /* Raster family selector; see graphics/raster/scanline/scanline_select.h. */
 int g_toridraw_raster_scanline = 0;
+/* ToriDraw_RasterSetCompat: the stock software table is the compatibility
+ * one (every face one flat fill, kernels/sd.compat_flat.u.c). */
+int g_toridraw_raster_compat = 0;
 
 // clang-format off
 #include "impl/raster/dispatch/tri.clip.u.c"
@@ -1238,6 +1241,9 @@ ToriDraw_Init(void)
     const char* scanline_env = getenv("TORIDRAW_RASTER_SCANLINE");
     if( scanline_env )
         g_toridraw_raster_scanline = (scanline_env[0] != '0' && scanline_env[0] != '\0');
+    const char* compat_env = getenv("TORIDRAW_RASTER_COMPAT");
+    if( compat_env )
+        g_toridraw_raster_compat = (compat_env[0] != '0' && compat_env[0] != '\0');
 }
 
 int g_toridraw_raster_batch_override = -1;
@@ -1258,6 +1264,18 @@ bool
 ToriDraw_RasterGetScanline(void)
 {
     return g_toridraw_raster_scanline != 0;
+}
+
+void
+ToriDraw_RasterSetCompat(bool enabled)
+{
+    g_toridraw_raster_compat = enabled ? 1 : 0;
+}
+
+bool
+ToriDraw_RasterGetCompat(void)
+{
+    return g_toridraw_raster_compat != 0;
 }
 
 /*
@@ -1374,6 +1392,7 @@ sd_kernel_zbuffered_variant(const struct ToriDraw_RasterKernelSD* kernel)
  * immutable statics rather than rebuilt on every call. */
 #include "kernels/table.software_painter.u.c"
 #include "kernels/table.software_scanline.u.c"
+#include "kernels/table.software_compat.u.c"
 #include "kernels/table.software_zbuffered.u.c"
 #include "kernels/table.software_rszbuffered.u.c"
 #include "kernels/table.gpu.u.c"
@@ -1741,6 +1760,8 @@ ToriDraw_KernelEnsureScratch(
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetStock(void)
 {
+    if( ToriDraw_RasterGetCompat() )
+        return ToriDraw_KernelGetSoftwareCompat();
     return ToriDraw_RasterGetScanline() ? ToriDraw_KernelGetSoftwareScanline()
                                         : ToriDraw_KernelGetSoftwarePainter();
 }
