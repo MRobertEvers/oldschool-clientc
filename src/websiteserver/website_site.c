@@ -1339,7 +1339,33 @@ page_account(
                  "is yours. After linking, that password stops working: the account plays "
                  "through this login. Use this for an account made in the game; a new one is "
                  "made above.</p>"
-                 "</section></div>\n</div>\n");
+                 "</section>\n");
+    /* The game page's device check (src/web/torirs_devicecheck.js) keeps its
+     * "Don't ask again" in this browser's localStorage, which this page shares
+     * with the game (one origin), so the way back is a button here, not a
+     * form: the server never knows the setting. The key is the check's
+     * STORE_KEY; the tab key is cleared too, so the next game tab asks. */
+    buf_puts(&b, "<section class=\"panel\"><h2>Device check</h2>"
+                 "<p id=\"devcheck-state\">Checking this browser&hellip;</p>"
+                 "<button class=\"btn\" id=\"devcheck-reset\" type=\"button\" disabled>"
+                 "Ask again next time</button>"
+                 "<p class=\"note\" style=\"margin-top:12px\">Before the game loads it looks at "
+                 "this device and suggests a renderer and a frame rate limit. This setting "
+                 "belongs to this browser only.</p></section></div>\n</div>\n"
+                 "<script>(function(){\n"
+                 "var KEY='torirs.device_check',state=document.getElementById('devcheck-state'),"
+                 "btn=document.getElementById('devcheck-reset');\n"
+                 "function rec(){try{return JSON.parse(localStorage.getItem(KEY)||'null');}"
+                 "catch(e){return null;}}\n"
+                 "function show(){var r=rec();if(r&&r.dont_ask){state.textContent='Off in this "
+                 "browser: you chose \\u201cDon\\u2019t ask again\\u201d'+(r.at?' on '+new "
+                 "Date(r.at).toLocaleDateString():'')+'.';btn.disabled=false;}else{state."
+                 "textContent='On: the game asks each time you open it in a new tab.';btn."
+                 "disabled=true;}}\n"
+                 "btn.addEventListener('click',function(){try{localStorage.removeItem(KEY);"
+                 "sessionStorage.removeItem('torirs.device_check_tab');}catch(e){}show();"
+                 "state.textContent+=' The next game tab will ask.';});\n"
+                 "show();})();</script>\n");
     ToriMem_Free(ToriMem_Net(), mine);
     page_send(&b, res, status);
 }

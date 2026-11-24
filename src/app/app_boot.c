@@ -35,6 +35,8 @@ struct Task_OpenSubRefresh
 };
 
 /* Private to this unit, declared up front so definition order is free. */
+static void
+app_boot_apply_device_check(struct App* app);
 static int
 app_boot_bake_is_quiet(struct App const* app);
 static int
@@ -664,6 +666,14 @@ Task_AppBoot_Run(
         RS_Prefs_CaptureFromHost(&app->prefs, &app->host);
         RS_SaveDebounce_Clear(&app->prefs_save);
     }
+    /* The web page's device check, when the player just confirmed one.
+     * AFTER that baseline, on purpose: it is a choice to save, like a row
+     * picked in Settings, and the next tick's capture sees it as a change
+     * and writes it (app_tick.c). Before the baseline it would be taken for
+     * what is already on disk and lost at the next boot. It also lands after
+     * the restore and the phone's default cap, both of which it overrides. */
+    if( !RS_BootState_ConfigReady(&app->boot) )
+        app_boot_apply_device_check(app);
     if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
         TORIRS_LOG(
             "audio: seeded volume varps master(%d)=%d music(%d)=%d "
@@ -1872,3 +1882,54 @@ App_MoveSubInterface(
     app_enqueue_mount(app, dest_uid, group_id, type, source_uid);
 }
 
+
+/*
+ * What the web page's device check chose, confirmed by the player with OK
+ * (src/web/torirs_devicecheck.js; the page sets these for that boot alone).
+ *
+ * Written INTO the option store, exactly as the Limit Framerate row and
+ * Client Settings write them, so the pacer, the Settings panel's read-back
+ * and preferences.ini all hold the one value -- and a later boot with no
+ * check (the player ticked "Don't ask again") keeps it. The renderer: this
+ * boot already runs it (the page put its flag on the command line, so the
+ * launch is flagged and the stored pick does not move it); storing it makes
+ * it the renderer an unflagged launch starts with next time.
+ *
+ * A value the page cannot produce is reported and left alone: the check is
+ * a suggestion the player accepted, not a reason to stop the client.
+ */
+static void
+app_boot_apply_device_check(struct App* app)
+{
+    char const* fps_text = torirs_env_device_check_fps();
+    char const* renderer_text = torirs_env_device_check_renderer();
+
+    assert(app);
+    if( fps_text )
+    {
+        long const fps = strtol(fps_text, NULL, 10);
+        if( fps == 5 || fps == 15 || fps == 20 || fps == 30 || fps == 60 || fps == 999 )
+        {
+            RS_CS2Host_SetOption(
+                &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_FPS_CAP, (int)fps);
+            RS_CS2Host_SetOption(
+                &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_FPS_CAP_BACKGROUND,
+                (int)fps);
+            TORIRS_REPORT("frame: device check cap %ld fps\n", fps);
+        }
+        else
+            TORIRS_ERR("frame: TORIRS_DEVICE_CHECK_FPS=%s is not a Limit Framerate row\n", fps_text);
+    }
+    if( renderer_text )
+    {
+        long const value = strtol(renderer_text, NULL, 10);
+        if( value > RS_CS2_RENDERER_LAUNCH_DEFAULT && value <= RS_CS2_RENDERER_MAX )
+        {
+            RS_CS2Host_SetOption(
+                &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_RENDERER, (int)value);
+            TORIRS_REPORT("renderer: device check pick %ld stored\n", value - 1);
+        }
+        else
+            TORIRS_ERR("renderer: TORIRS_DEVICE_CHECK_RENDERER=%s is out of range\n", renderer_text);
+    }
+}

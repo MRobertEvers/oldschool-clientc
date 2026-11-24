@@ -367,6 +367,54 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   }
   #fullscreen-hint p { margin: 0 0 0.5rem; }
   #fullscreen-hint button { float: right; }
+  /* The device check (torirs_devicecheck.js): shown over the page before the
+     client loads, so it is the only thing on screen. */
+  #device-check {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+    padding: calc(env(safe-area-inset-top, 0px) + 2.5rem) 1rem 2rem;
+    background: rgba(20, 16, 12, 0.97);
+  }
+  #device-check .device-check-box {
+    width: min(30rem, 100%);
+    padding: 1rem 1.1rem;
+    border: 1px solid #6b5426;
+    background: #0d0a07;
+    color: #e0d5b8;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  #device-check h2 { margin: 0 0 0.6rem; font-size: 15px; font-weight: 600; }
+  #device-check p { margin: 0 0 0.6rem; }
+  #device-check p.why { color: #8f8367; margin-top: -0.2rem; }
+  #device-check dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.15rem 0.8rem;
+    margin: 0 0 0.9rem;
+  }
+  #device-check dt { color: #8f8367; }
+  #device-check dd { margin: 0; overflow-wrap: anywhere; }
+  #device-check label { display: flex; gap: 0.6rem; align-items: center; margin: 0 0 0.4rem; }
+  #device-check label > span:first-child { min-width: 8.5rem; }
+  #device-check label.check > span { min-width: 0; }
+  #device-check select, #device-check button {
+    font: inherit;
+    font-size: 14px;
+    color: #e0d5b8;
+    background: #241c14;
+    border: 1px solid #3a2f22;
+    padding: 0.25rem 0.5rem;
+  }
+  #device-check input[type="checkbox"] { width: 1.1rem; height: 1.1rem; margin: 0; }
+  #device-check .actions { display: flex; justify-content: flex-end; margin-top: 0.8rem; }
+  #device-check button { min-width: 6rem; padding: 0.4rem 1rem; cursor: pointer; }
+  #device-check button:hover { background: #32271b; }
   .panel {
     display: flex;
     flex-direction: column;
@@ -953,9 +1001,29 @@ window.torirsAnnounceReady = () => {
 <script src="torirs_js5.js"></script>
 <script src="torirs_ondemand.js"></script>
 <script src="torirs_hostio.js"></script>
-<script src="torirs_host.js"></script>
-<!-- The login form for the browser's password manager; needs Module. -->
-<script src="torirs_credentials.js"></script>
-<script src="torirs.js"></script>
+<!-- The device check comes first and decides when the rest loads: the host
+     sizes the heap for the renderer the moment it runs, and torirs.js cannot
+     start on a browser without WebAssembly (torirs_devicecheck.js). The three
+     load in this order (async = false keeps inserted scripts in order). The
+     credentials form is the browser password manager's; it needs Module. -->
+<script src="torirs_devicecheck.js"></script>
+<script>
+/* A check that throws is a check that did not happen: the game still loads,
+ * as it did before there was one. */
+Promise.resolve().then(() => window.ToriRS_DeviceCheck.run()).catch(err => {
+  console.error('[torirs] device check failed:', err);
+  const panel = document.getElementById('device-check');
+  if (panel) { panel.remove(); }
+  return null;
+}).then(choice => {
+  window.torirsDeviceChoice = choice;
+  ['torirs_host.js', 'torirs_credentials.js', 'torirs.js'].forEach(src => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = false;
+    document.body.appendChild(script);
+  });
+});
+</script>
 </body>
 </html>

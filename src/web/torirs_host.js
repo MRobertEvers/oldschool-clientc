@@ -1151,9 +1151,15 @@
     const stored = parseInt(read(ACTIVE_KEY) || '', 10);
     let fallback = null;
     try { fallback = JSON.parse(read(FALLBACK_KEY) || 'null'); } catch (err) { fallback = null; }
+    /* The renderer the device check's OK just confirmed (torirs_devicecheck.js
+     * window.torirsDeviceChoice; null when it did not ask). The player saw
+     * the failure note and the last session's death there, and chose anyway,
+     * so neither turns this boot into software behind their back. */
+    const checked = window.torirsDeviceChoice && Number.isInteger(window.torirsDeviceChoice.renderer)
+      ? window.torirsDeviceChoice.renderer : null;
     /* The last session died with a GPU renderer running. */
     const death = window.ToriRS_Telemetry ? window.ToriRS_Telemetry.previousDeath : null;
-    if (!fallback && death && GPU[stored]) {
+    if (!fallback && death && GPU[stored] && checked === null) {
       fallback = { kind: stored, why: death === 'abort' ? 'the client aborted' : 'the tab was killed', at: Date.now() };
       write(FALLBACK_KEY, JSON.stringify(fallback));
     }
@@ -1161,6 +1167,18 @@
     /* The renderer flag the command line ends on, if it names one. */
     let flagged = null;
     args.forEach(argument => { if (Object.prototype.hasOwnProperty.call(FLAGS, argument)) { flagged = FLAGS[argument]; } });
+    /* No flag of its own: the device check's pick boots, as a flag, so the
+     * heap below is sized for it and the saved pick does not move it
+     * (RS_CS2Host_RendererRequest). app_boot.c stores it as the pick. */
+    let checkedApplied = false;
+    if (flagged === null && checked !== null) {
+      const flag = Object.keys(FLAGS).find(name => FLAGS[name] === checked);
+      if (flag) {
+        args.push(flag);
+        flagged = checked;
+        checkedApplied = true;
+      }
+    }
 
     let boot;
     let why;
@@ -1171,7 +1189,7 @@
       why = `software: ${GPU[fallback.kind] || fallback.kind} failed (${fallback.why})`;
     } else if (flagged !== null) {
       boot = flagged;
-      why = 'the command line';
+      why = checkedApplied ? 'the device check' : 'the command line';
     } else if (!Number.isNaN(stored)) {
       boot = stored;
       why = 'the renderer last run here';
@@ -1183,7 +1201,7 @@
     let active = null;
     let pageAsked = false;
     const self = {
-      boot, why, fallback,
+      boot, why, fallback, checkedApplied,
       isGpu: kind => !!GPU[kind],
       name: kind => GPU[kind] || (kind === null ? 'unknown' : 'software'),
       active: () => active,
@@ -1376,6 +1394,12 @@
    * used to live here had to move -- see Module.noInitialRun above. */
   Module.preRun = [() => {
     if (lowMemory.on) { ENV.TORIRS_LOW_MEMORY = '1'; }
+    /* The device check's OK (torirs_devicecheck.js), for app_boot.c to store
+     * as the Limit Framerate and renderer picks. The renderer only when its
+     * flag is the one booting: a command-line flag outranks the check. */
+    const choice = window.torirsDeviceChoice;
+    if (choice && Number.isInteger(choice.fps)) { ENV.TORIRS_DEVICE_CHECK_FPS = String(choice.fps); }
+    if (choice && rendererMemory.checkedApplied) { ENV.TORIRS_DEVICE_CHECK_RENDERER = String(choice.renderer + 1); }
     readEnv().forEach(pair => { ENV[pair[0]] = pair[1]; });
   }];
 

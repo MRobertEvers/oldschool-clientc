@@ -83,6 +83,13 @@ TORIRS_ENV_KNOB(torirs_env_rebuild_timing, "TORIRS_REBUILD_TIMING")
  * prebake a stage beside the drawn build and give the retired build's GPU
  * buffer back at the swap, so one build's storage is resident, not two. */
 TORIRS_ENV_KNOB(torirs_env_low_memory, "TORIRS_LOW_MEMORY")
+/* What the web page's device check (src/web/torirs_devicecheck.js) chose and
+ * the player confirmed with OK, set for that one boot only. FPS is the Limit
+ * Framerate value (5/15/20/30/60, 999 = Unlimited); RENDERER is the Client
+ * Settings value (enum ToriRS_RendererKind + 1). app_boot.c writes both into
+ * the option store after preferences load, as picking them in game would. */
+TORIRS_ENV_KNOB(torirs_env_device_check_fps, "TORIRS_DEVICE_CHECK_FPS")
+TORIRS_ENV_KNOB(torirs_env_device_check_renderer, "TORIRS_DEVICE_CHECK_RENDERER")
 /* The LOC_ADD/NPC_ADD trigger trace. Asked once per loc of a rebuilt scene:
  * a getenv there was ~3 ms of every rebuild's finish. */
 TORIRS_ENV_KNOB(torirs_env_trigger_debug, "TORIRS_TRIGGER_DEBUG")

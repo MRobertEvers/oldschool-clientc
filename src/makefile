@@ -1666,7 +1666,8 @@ WEB_ASSETS = $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js \
 	$(SRC_DIR)/web/torirs_js5.js $(SRC_DIR)/web/torirs_ondemand.js \
 	$(SRC_DIR)/web/torirs_chrome.js \
 	$(SRC_DIR)/web/torirs_channel.js $(SRC_DIR)/web/panel.html \
-	$(SRC_DIR)/web/torirs_credentials.js $(SRC_DIR)/web/torirs_telemetry.js
+	$(SRC_DIR)/web/torirs_credentials.js $(SRC_DIR)/web/torirs_telemetry.js \
+	$(SRC_DIR)/web/torirs_devicecheck.js
 # The page's icons, generated from res/torirs_icon.jpg by
 # tools/make_app_icons.py. index.html links the first four by name and
 # site.webmanifest names the last three, so every one of them has to land
@@ -8077,14 +8078,24 @@ torirsserver-cache-summoning: check-crystal-set-contract test-summoning-isolatio
 		echo "torirsserver-cache-summoning: verified 9 clientscript archives"
 
 # The torirslive lane: the cache the live world serves (torirs.mrobertevers.com).
-# Its `cache/` tree holds assets only -- the ordinary login screen, from OpenRS2
-# cache 2740 (ported/torirslive/PROVENANCE.md) -- so it is written over a copy of
-# the base with --asset-only; every group it does not name keeps the base's bytes.
 # tools/deploy/build_osrs239_package.py --lane torirslive ships the result in
-# place of cache.osrs242.
+# place of cache.osrs242. Three passes over a copy of the base, each leaving
+# every record and group it does not name with the base's bytes:
+#
+#   1. configs/  the lane's config blocks (enum_3504: Limit Framerate with a
+#                5 fps row), packed with --base -- the pass that copies it;
+#   2. scripts/  the lane's CS2 (torirs_fps_cap_index/_set, the rows' rates),
+#                compiled against the whole tree's scripts and imported by
+#                archive list (tools/stage_torirslive_overlay.py stages both);
+#   3. cache/    assets only -- the ordinary login screen, from OpenRS2 cache
+#                2740 (ported/torirslive/PROVENANCE.md).
+#
+# Passes 2 and 3 are --asset-only IN PLACE: no --base, which would copy the
+# pristine cache over pass 1.
 TORIRSLIVE_LANE = $(TORIRSSERVER_CONTENT_DIR)/ported/torirslive
 TORIRSLIVE_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs242
 TORIRSLIVE_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs242.torirslive
+TORIRSLIVE_OVERLAY_DIR ?= $(REPO_ROOT)/build/torirslive-overlay
 
 .PHONY: torirsserver-cache-torirslive
 torirsserver-cache-torirslive:
@@ -8096,9 +8107,17 @@ torirsserver-cache-torirslive:
 		"$(abspath $(TORIRSLIVE_CACHE_DIR))" != "/" || { \
 		echo "torirsserver-cache-torirslive: unsafe output $(TORIRSLIVE_CACHE_DIR)" >&2; exit 1; }
 	rm -rf "$(TORIRSLIVE_CACHE_DIR)"
+	@cd $(REPO_ROOT) && python3 tools/stage_torirslive_overlay.py \
+		--tree $(TORIRSSERVER_CONTENT_DIR) --out $(TORIRSLIVE_OVERLAY_DIR)
+	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack --src $(TORIRSLIVE_OVERLAY_DIR) \
+		--base $(TORIRSLIVE_CACHE_BASE) --out $(TORIRSLIVE_CACHE_DIR) --rev osrs242
+	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack --src $(TORIRSLIVE_OVERLAY_DIR) \
+		--out $(TORIRSLIVE_CACHE_DIR) --rev osrs242 --asset-only --assets=scripts \
+		--archive-list $(TORIRSLIVE_OVERLAY_DIR)/archives.txt
 	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack --src $(TORIRSLIVE_LANE)/cache \
-		--base $(TORIRSLIVE_CACHE_BASE) --out $(TORIRSLIVE_CACHE_DIR) \
+		--out $(TORIRSLIVE_CACHE_DIR) \
 		--rev osrs242 --asset-only --assets=binary,sprites,songs
+	rm -rf "$(TORIRSLIVE_OVERLAY_DIR)"
 
 # Both marked lanes in one cache, for manifests/manifest_osrs239_rs2012_summoning.ini.
 #
@@ -9460,6 +9479,7 @@ clean:
 		$(REPO_ROOT)/build-web/torirs_channel.js $(REPO_ROOT)/build-web/torirs_chrome.js \
 		$(REPO_ROOT)/build-web/torirs_credentials.js \
 		$(REPO_ROOT)/build-web/torirs_telemetry.js \
+		$(REPO_ROOT)/build-web/torirs_devicecheck.js \
 		$(REPO_ROOT)/build-web/panel.html \
 		$(REPO_ROOT)/build-web/viewer.html \
 		$(REPO_ROOT)/build-web/favicon.ico $(REPO_ROOT)/build-web/icon-16.png \
