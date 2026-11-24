@@ -445,6 +445,7 @@ uitree_all_sets_free(struct UITree* tree)
         ToriMem_Free(ToriMem_Ui(), tree->group_map);
         tree->group_map = NULL;
         tree->group_map_cap = 0;
+        tree->group_map_live = 0;
     }
 }
 
@@ -471,6 +472,7 @@ uitree_all_sets_clear(struct UITree* tree)
             UITreeNodeSet_Free(&tree->group_map[i].nodes);
             tree->group_map[i].group_id = -1;
         }
+        tree->group_map_live = 0;
     }
     tree->world_index = -1;
     tree->worldmap_index = -1;
@@ -484,6 +486,40 @@ uitree_group_hash(int group_id)
     return (uint32_t)group_id * 2654435761u;
 }
 
+/* Double the group map and re-seat every live bucket. */
+static void
+uitree_group_map_grow(struct UITree* tree)
+{
+    uint32_t i;
+    uint32_t const ncap = tree->group_map_cap * 2u;
+    struct UITreeGroupBucket* nmap =
+        (struct UITreeGroupBucket*)ToriMem_Calloc(ToriMem_Ui(), ncap, sizeof(*nmap));
+    assert(nmap);
+    for( i = 0; i < ncap; i++ )
+        nmap[i].group_id = -1;
+    for( i = 0; i < tree->group_map_cap; i++ )
+    {
+        if( tree->group_map[i].group_id < 0 )
+            continue;
+        uint32_t j = uitree_group_hash(tree->group_map[i].group_id) & (ncap - 1u);
+        while( nmap[j].group_id >= 0 )
+            j = (j + 1u) & (ncap - 1u);
+        nmap[j] = tree->group_map[i];
+    }
+    ToriMem_Free(ToriMem_Ui(), tree->group_map);
+    tree->group_map = nmap;
+    tree->group_map_cap = ncap;
+}
+
+/*
+ * The bucket for `group_id`, claimed when `create` and there is none.
+ *
+ * A create costs a probe: the map is grown only when a bucket is about to be
+ * CLAIMED and that would take it past half full, read off group_map_live. It
+ * used to count the live buckets on every call with `create` -- every
+ * cc_create, 1,491 of them per bank open, each a walk of the whole map to
+ * learn that a group the tree already holds still fits.
+ */
 static struct UITreeGroupBucket*
 uitree_group_bucket(
     struct UITree* tree,
@@ -508,61 +544,44 @@ uitree_group_bucket(
             map[i].group_id = -1;
         tree->group_map = map;
         tree->group_map_cap = cap;
+        tree->group_map_live = 0;
     }
 
-    if( create )
-    {
-        uint32_t live = 0;
-        for( i = 0; i < tree->group_map_cap; i++ )
-            if( tree->group_map[i].group_id >= 0 )
-                live++;
-        if( live * 2u >= tree->group_map_cap )
-        {
-            uint32_t ncap = tree->group_map_cap * 2u;
-            struct UITreeGroupBucket* nmap =
-                (struct UITreeGroupBucket*)ToriMem_Calloc(ToriMem_Ui(), ncap, sizeof(*nmap));
-            assert(nmap);
-            for( i = 0; i < ncap; i++ )
-                nmap[i].group_id = -1;
-            for( i = 0; i < tree->group_map_cap; i++ )
-            {
-                if( tree->group_map[i].group_id < 0 )
-                    continue;
-                {
-                    uint32_t j =
-                        uitree_group_hash(tree->group_map[i].group_id) & (ncap - 1u);
-                    while( nmap[j].group_id >= 0 )
-                        j = (j + 1u) & (ncap - 1u);
-                    nmap[j] = tree->group_map[i];
-                }
-            }
-            ToriMem_Free(ToriMem_Ui(), tree->group_map);
-            tree->group_map = nmap;
-            tree->group_map_cap = ncap;
-        }
-    }
-
-    cap = tree->group_map_cap;
-    start = uitree_group_hash(group_id) & (cap - 1u);
-    i = start;
     for( ;; )
     {
-        struct UITreeGroupBucket* b = &tree->group_map[i];
-        if( b->group_id == group_id )
-            return b;
-        if( b->group_id < 0 )
+        cap = tree->group_map_cap;
+        start = uitree_group_hash(group_id) & (cap - 1u);
+        i = start;
+        for( ;; )
         {
-            if( !create )
-                return NULL;
+            struct UITreeGroupBucket* b = &tree->group_map[i];
+            if( b->group_id == group_id )
+                return b;
+            if( b->group_id < 0 )
+                break;
+            i = (i + 1u) & (cap - 1u);
+            assert(i != start && "group map full");
+        }
+        if( !create )
+            return NULL;
+        /* The load the probe above was written for: a map already half full
+         * is doubled before it takes another (the old test, made at the
+         * claim). Grown, the free slot moved: probe again. */
+        if( tree->group_map_live * 2u >= cap )
+        {
+            uitree_group_map_grow(tree);
+            continue;
+        }
+        {
+            struct UITreeGroupBucket* b = &tree->group_map[i];
             b->group_id = group_id;
             b->close_serial = 0;
             UITreeNodeSet_Init(&b->nodes);
             if( tree->component_capacity > 0 )
                 UITreeNodeSet_EnsurePosCap(&b->nodes, tree->component_capacity);
+            tree->group_map_live++;
             return b;
         }
-        i = (i + 1u) & (cap - 1u);
-        assert(i != start && "group map full");
     }
 }
 
@@ -855,7 +874,7 @@ UITree_MenuSubmenuEntry(
         return "";
     if( entry_index < 1 || entry_index > UITREE_SUBMENU_ENTRY_SLOTS )
         return "";
-    return opts->submenus->ops[op_index - 1][entry_index - 1];
+    return UITree_StringText(&opts->submenus->ops[op_index - 1][entry_index - 1]);
 }
 
 bool
@@ -863,7 +882,8 @@ UITree_MenuSubmenuSetEntry(
     struct UITreeMenuOptions* opts,
     int op_index,
     int entry_index,
-    char const* text)
+    char const* text,
+    size_t len)
 {
     assert(opts);
     if( op_index < 1 || op_index > UITREE_SUBMENU_OP_SLOTS )
@@ -875,11 +895,7 @@ UITree_MenuSubmenuSetEntry(
         opts->submenus = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*opts->submenus));
         assert(opts->submenus);
     }
-    strncpy(
-        opts->submenus->ops[op_index - 1][entry_index - 1],
-        text ? text : "",
-        UITREE_MENU_OPTION_LEN - 1);
-    opts->submenus->ops[op_index - 1][entry_index - 1][UITREE_MENU_OPTION_LEN - 1] = '\0';
+    UITree_StringSet(&opts->submenus->ops[op_index - 1][entry_index - 1], text, len);
     return true;
 }
 
@@ -900,7 +916,7 @@ UITree_MenuSubmenuClear(
     if( op_index > UITREE_SUBMENU_OP_SLOTS )
         return;
     for( int i = 0; i < UITREE_SUBMENU_ENTRY_SLOTS; i++ )
-        opts->submenus->ops[op_index - 1][i][0] = '\0';
+        UITree_StringClear(&opts->submenus->ops[op_index - 1][i]);
 }
 
 void
@@ -1076,6 +1092,25 @@ UITree_HooksReleaseTo(
         ToriMem_Free(ToriMem_Ui(), hooks);
 }
 
+/* An empty options block, in the stores that make it one: every text a zero
+ * length (a UITree_String's bytes past its length are not part of it), every
+ * action 0, no submenus. A released block came back with its submenus freed
+ * (UITree_MenuOptionsReleaseTo), so this is the whole of what a ~900-byte
+ * memset did, in about a tenth of the stores: the first cc_setop of every
+ * row a bank build creates takes one. */
+static void
+uitree_menu_options_empty(struct UITreeMenuOptions* opts)
+{
+    UITree_StringClear(&opts->option);
+    UITree_StringClear(&opts->target_verb);
+    UITree_StringClear(&opts->target_base);
+    for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+        UITree_StringClear(&opts->ops[i]);
+    opts->option_action = 0;
+    memset(opts->op_actions, 0, sizeof(opts->op_actions));
+    opts->submenus = NULL;
+}
+
 struct UITreeMenuOptions*
 UITree_MenuOptionsMutIn(
     struct UITree* tree,
@@ -1085,9 +1120,14 @@ UITree_MenuOptionsMutIn(
     assert(component);
     if( !component->menu_options )
     {
-        component->menu_options = (struct UITreeMenuOptions*)UITreeBlockPool_Take(
-            &tree->menu_options_pool, sizeof(struct UITreeMenuOptions));
-        if( !component->menu_options )
+        struct UITreeMenuOptions* recycled =
+            (struct UITreeMenuOptions*)UITreeBlockPool_TakeUncleared(&tree->menu_options_pool);
+        if( recycled )
+        {
+            uitree_menu_options_empty(recycled);
+            component->menu_options = recycled;
+        }
+        else
             (void)UITree_MenuOptionsMut(component);
         assert(component->menu_options);
     }
@@ -5226,13 +5266,13 @@ UITree_ActionSignatureAt(struct UITree const* tree, int32_t idx)
      * action label/target from the text, even without an explicit opbase. */
     if( c->type == UIELEM_RS_TEXT )
         hash = action_hash_text(hash, c->u.rs_text.text);
-    hash = action_hash_text(hash, options->option);
-    hash = action_hash_text(hash, options->target_verb);
-    hash = action_hash_text(hash, options->target_base);
+    hash = action_hash_text(hash, UITree_StringText(&options->option));
+    hash = action_hash_text(hash, UITree_StringText(&options->target_verb));
+    hash = action_hash_text(hash, UITree_StringText(&options->target_base));
     hash = action_hash_int(hash, options->option_action);
     for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; ++i )
     {
-        hash = action_hash_text(hash, options->ops[i]);
+        hash = action_hash_text(hash, UITree_StringText(&options->ops[i]));
         hash = action_hash_int(hash, options->op_actions[i]);
     }
     if( options->submenus )
@@ -6200,7 +6240,7 @@ bool UITree_WidgetSetOperation(struct UITree* tree,struct UITreeNodeRef ref,uint
     struct UITreeComponent* c=&tree->components[idx];
     struct UITreeMenuOptions* options=UITree_MenuOptionsMut(c);
     if( !options ) return false;
-    snprintf(options->ops[op-1],sizeof(options->ops[op-1]),"%s",label);
+    UITree_StringSetC(&options->ops[op-1],label);
     c->plugin_op_serial=serial;
     uitree_note_mutation(tree,idx,UITREE_IMPACT_EMIT_SELF|UITREE_IMPACT_REACHABILITY);
     return true;
@@ -7617,9 +7657,55 @@ UITree_ApplyRuntimeHook(
     /* Clamping and the tail allocations both belong to the slot type — see
      * ui/uitree_hook.h for why they are no longer inline arrays. */
     UITree_HookSetIn(&tree->hook_argv_pool, slot, script_id, argv, argc, str_mask, strs, str_argc);
-    uitree_sync_hook_sets(tree, idx);
+    /* The hook sets are a function of seven slots (uitree_sync_hook_sets);
+     * any other slot -- the drag pair the bank arms on every cell, the clicks,
+     * the ops -- cannot move a membership, so the five set updates are not
+     * redone for it. */
+    if( slot == &hooks->on_timer || slot == &hooks->on_key || slot == &hooks->on_key_down ||
+        slot == &hooks->on_key_up || slot == &hooks->on_scroll_wheel ||
+        slot == &hooks->on_resize || slot == &hooks->on_sub_change )
+        uitree_sync_hook_sets(tree, idx);
     uitree_note_mutation(tree, idx, UITREE_IMPACT_REACHABILITY);
     return true;
+}
+
+/* CC/IF_SETOPBASE and CC/IF_SETTARGETVERB: `len` bytes of `text`. Texts
+ * that differ only past UITREE_STRING_CAP land on the same stored string, so
+ * they compare equal here too (UITree_StringEqualsBytes truncates alike). */
+static bool
+uitree_apply_menu_text(
+    struct UITree* tree,
+    int component_id,
+    size_t field_offset,
+    char const* text,
+    size_t len)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    struct UITreeMenuOptions const* now = UITree_MenuOptions(&tree->components[idx]);
+    if( UITree_StringEqualsBytes(
+            (struct UITree_String const*)((char const*)now + field_offset), text, len) )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    struct UITreeMenuOptions* opts = UITree_MenuOptionsMutIn(tree, &tree->components[idx]);
+    UITree_StringSet((struct UITree_String*)((char*)opts + field_offset), text, len);
+    UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
+bool
+UITree_ApplyOpBaseLen(
+    struct UITree* tree,
+    int component_id,
+    char const* text,
+    size_t len)
+{
+    return uitree_apply_menu_text(
+        tree, component_id, offsetof(struct UITreeMenuOptions, option), text, len);
 }
 
 bool
@@ -7628,28 +7714,18 @@ UITree_ApplyOpBase(
     int component_id,
     char const* text)
 {
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
-        return false;
-    if( !text )
-        text = "";
-    /* strncmp to the same bound the copy uses: two texts that differ only past
-     * the truncation point land on the same stored option, so they are equal
-     * here too. */
-    if( strncmp(
-            UITree_MenuOptions(&tree->components[idx])->option,
-            text,
-            UITREE_MENU_OPTION_LEN - 1) == 0 )
-    {
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
-        return true;
-    }
-    strncpy(
-        UITree_MenuOptionsMutIn(tree, &tree->components[idx])->option, text, UITREE_MENU_OPTION_LEN - 1);
-    UITree_MenuOptionsMutIn(tree, &tree->components[idx])->option[UITREE_MENU_OPTION_LEN - 1] = '\0';
-    UITree_MarkNodeDirty(tree, idx);
-    return true;
+    return UITree_ApplyOpBaseLen(tree, component_id, text, text ? strlen(text) : 0);
+}
+
+bool
+UITree_ApplyTargetVerbLen(
+    struct UITree* tree,
+    int component_id,
+    char const* text,
+    size_t len)
+{
+    return uitree_apply_menu_text(
+        tree, component_id, offsetof(struct UITreeMenuOptions, target_verb), text, len);
 }
 
 bool
@@ -7658,28 +7734,7 @@ UITree_ApplyTargetVerb(
     int component_id,
     char const* text)
 {
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
-        return false;
-    if( !text )
-        text = "";
-    if( strncmp(
-            UITree_MenuOptions(&tree->components[idx])->target_verb,
-            text,
-            UITREE_MENU_OPTION_LEN - 1) == 0 )
-    {
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
-        return true;
-    }
-    strncpy(
-        UITree_MenuOptionsMutIn(tree, &tree->components[idx])->target_verb,
-        text,
-        UITREE_MENU_OPTION_LEN - 1);
-    UITree_MenuOptionsMutIn(tree, &tree->components[idx])->target_verb[UITREE_MENU_OPTION_LEN - 1] =
-        '\0';
-    UITree_MarkNodeDirty(tree, idx);
-    return true;
+    return UITree_ApplyTargetVerbLen(tree, component_id, text, text ? strlen(text) : 0);
 }
 
 /* Op-key bindings have no visual effect, so unlike the op/text mutators these
@@ -7920,7 +7975,7 @@ UITree_ComponentHasMenuOptions(struct UITreeComponent const* component)
     assert(component);
     for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
     {
-        if( UITree_MenuOptions(component)->ops[i][0] != '\0' )
+        if( !UITree_StringEmpty(&UITree_MenuOptions(component)->ops[i]) )
             return true;
     }
     return false;

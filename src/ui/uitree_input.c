@@ -73,11 +73,11 @@ rs_node_is_decorative_passthrough(struct UITreeComponent const* component)
         return false;
     if( component->behavior.click_mask != 0 )
         return false;
-    if( UITree_MenuOptions(component)->option[0] != '\0' )
+    if( !UITree_StringEmpty(&UITree_MenuOptions(component)->option) )
         return false;
     for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
     {
-        if( UITree_MenuOptions(component)->ops[i][0] != '\0' )
+        if( !UITree_StringEmpty(&UITree_MenuOptions(component)->ops[i]) )
             return false;
     }
     return true;
@@ -154,11 +154,11 @@ UITree_ComponentIsPassThrough(
          */
         if( component->behavior.click_mask != 0 )
             return false;
-        if( UITree_MenuOptions(component)->option[0] != '\0' )
+        if( !UITree_StringEmpty(&UITree_MenuOptions(component)->option) )
             return false;
         for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
         {
-            if( UITree_MenuOptions(component)->ops[i][0] != '\0' )
+            if( !UITree_StringEmpty(&UITree_MenuOptions(component)->ops[i]) )
                 return false;
         }
         return true;
@@ -717,7 +717,7 @@ collect_nodes_recursive(
          * pass-through (reference collects any widget with option strings).
          * Chat panels carry social-op templates in their chat config. */
         bool const has_ops = UITree_ComponentHasMenuOptions(component) ||
-                             UITree_MenuOptions(component)->option[0] != '\0' ||
+                             !UITree_StringEmpty(&UITree_MenuOptions(component)->option) ||
                              component->type == UIELEM_BUILTIN_CHAT;
         /* A script-created cell holding an obj is a menu target on the strength
          * of the obj alone. It carries no ops and no hook of its own — the

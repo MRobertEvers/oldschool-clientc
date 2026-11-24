@@ -6,6 +6,7 @@
 #include "cs2vm2.h"
 
 #include "cs2_opcode.h"
+#include "cs2vm2_callee.h"
 #include "cs2_opcode_meta.h"
 #include "cs2vm2_dialect.h"
 #include "cs2vm2_jit_internal.h"
@@ -553,6 +554,33 @@ CS2VM2_Ask(
     return result;
 }
 
+/* The second call to the host, for the cheap reads (struct CS2VM2's
+ * host_read): the same count, the same checks and the same put-back as
+ * CS2VM2_Ask, so a read is under the yield rule like any other ask. */
+static inline int
+CS2VM2_AskRead(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest* request,
+    struct CS2VM2_Took took)
+{
+    int result;
+
+    assert(vm);
+    assert(request);
+    assert(request->kind == CS2VM_HOST_REQUEST_INV_GETOBJ ||
+           request->kind == CS2VM_HOST_REQUEST_INV_GETNUM ||
+           request->kind == CS2VM_HOST_REQUEST_PUSH_VARBIT);
+    assert(cs2vm2_took_accounts_for_the_instruction(vm, took));
+
+    result = vm->vm->host_read(vm, request);
+    if( result == CS2VM_EXECNO_YIELD )
+    {
+        assert(cs2vm2_took_accounts_for_the_instruction(vm, took));
+        CS2VM2_YieldRestore(vm, took);
+    }
+    return result;
+}
+
 /*
  * Make sure `array` can hold `count` cells, growing geometrically and keeping
  * whatever it already had. Slots are pointer-wide whichever arm is live (see
@@ -934,6 +962,18 @@ CS2VM2_BindHost(
     assert(host_exec);
     vm->user = user;
     vm->host_exec = host_exec;
+    vm->host_read = host_exec;
+}
+
+void
+CS2VM2_BindHostReads(
+    struct CS2VM2* vm,
+    CS2VM2_HostExec_Fn host_read)
+{
+    assert(vm);
+    assert(vm->host_exec);
+    assert(host_read);
+    vm->host_read = host_read;
 }
 
 int
@@ -1348,7 +1388,7 @@ CS2VM2_Op_PushVarbit(
     memset(&request.u.PUSH_VARBIT, 0, sizeof(request.u.PUSH_VARBIT));
     request.u.PUSH_VARBIT.varbit_id = operand;
 
-    int result = CS2VM2_Ask(vm, &request, took);
+    int result = CS2VM2_AskRead(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -2094,14 +2134,29 @@ CS2VM2_Op_GosubWithParams(
     caller->return_pc = caller->pc;
     caller->return_frame = vm->frame_sp - 1;
 
-    /* Arm, not union -- see the note on the varbit-read builder above. This is
-     * the single hottest source line in the interpreter's profile. */
-    struct CS2VM_HostRequest request;
-    request.kind = CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS;
-    memset(&request.u.GOSUB_WITH_PARAMS, 0, sizeof(request.u.GOSUB_WITH_PARAMS));
-    request.u.GOSUB_WITH_PARAMS.script_id = operand;
+    /* The callee this gosub pushed before, if no script has been freed since
+     * (cs2vm2_callee.h): pushed here, without a trip to the host. The
+     * instruction is at pc - 1 (the loop moved the pc past it). */
+    struct CS2VM2_Script* const known = CS2VM2_CalleeRemembered(caller->script, caller->pc - 1);
+    int result;
+    if( known )
+        result = CS2VM2_PushCallScript(vm, known);
+    else
+    {
+        int const caller_sp = vm->frame_sp;
 
-    int result = CS2VM2_Ask(vm, &request, took);
+        /* Arm, not union -- see the note on the varbit-read builder above. */
+        struct CS2VM_HostRequest request;
+        request.kind = CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS;
+        memset(&request.u.GOSUB_WITH_PARAMS, 0, sizeof(request.u.GOSUB_WITH_PARAMS));
+        request.u.GOSUB_WITH_PARAMS.script_id = operand;
+
+        result = CS2VM2_Ask(vm, &request, took);
+        /* A host that answered by pushing the callee: that is the answer
+         * for this instruction from now on. A yield pushed nothing. */
+        if( result == CS2VM_EXECNO_OK && vm->frame_sp == caller_sp + 1 )
+            CS2VM2_CalleeRemember(caller->script, caller->pc - 1, CS2VM_FRAME(vm)->script);
+    }
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -12639,7 +12694,7 @@ CS2VM2_Op_InvGetObj(
     request.u.INV_GETOBJ.inv_id = inv_id;
     request.u.INV_GETOBJ.slot = slot;
 
-    int result = CS2VM2_Ask(vm, &request, took);
+    int result = CS2VM2_AskRead(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -12670,7 +12725,7 @@ CS2VM2_Op_InvGetNum(
     request.u.INV_GETNUM.inv_id = inv_id;
     request.u.INV_GETNUM.slot = slot;
 
-    int result = CS2VM2_Ask(vm, &request, took);
+    int result = CS2VM2_AskRead(vm, &request, took);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -18157,6 +18212,7 @@ CS2VM2_Init(struct CS2VM2* vm)
     assert(vm);
     vm->thread_count = CS2VM2_MAX_THREADS;
     vm->host_exec = NULL;
+    vm->host_read = NULL;
     vm->user = NULL;
     for( int i = 0; i < CS2VM2_MAX_THREADS; i++ )
         cs2vm2_thread_init(&vm->threads[i], vm);
@@ -18180,6 +18236,7 @@ cs2vm2_init_warm(struct CS2VM2* vm)
     assert(vm);
     vm->thread_count = CS2VM2_MAX_THREADS;
     vm->host_exec = NULL;
+    vm->host_read = NULL;
     vm->user = NULL;
     for( int i = 0; i < CS2VM2_MAX_THREADS; i++ )
     {

@@ -13,6 +13,32 @@ if_store_grow(int cap)
     return cap ? cap * 2 : 64;
 }
 
+/* The filter bit for `com_id` (UIIfIntStore::filter). */
+static inline uint32_t
+if_store_filter_bit(int com_id)
+{
+    return ((uint32_t)com_id * 2654435761u) >> 24;
+}
+
+static inline void
+if_store_filter_add(
+    struct UIIfIntStore* store,
+    int com_id)
+{
+    uint32_t const bit = if_store_filter_bit(com_id);
+    store->filter[bit >> 6] |= UINT64_C(1) << (bit & 63u);
+}
+
+/* False only when `com_id` is certainly not held. */
+static inline bool
+if_store_filter_may_hold(
+    struct UIIfIntStore const* store,
+    int com_id)
+{
+    uint32_t const bit = if_store_filter_bit(com_id);
+    return (store->filter[bit >> 6] >> (bit & 63u)) & 1u;
+}
+
 void
 UIIfIntStore_Set(
     struct UIIfIntStore* store,
@@ -36,6 +62,7 @@ UIIfIntStore_Set(
         }
         store->entries[index].com_id = com_id;
         store->count++;
+        if_store_filter_add(store, com_id);
     }
     store->entries[index].value = value;
 }
@@ -47,6 +74,8 @@ UIIfIntStore_Update(
     int value)
 {
     assert(store);
+    if( !if_store_filter_may_hold(store, com_id) )
+        return false;
     for( int i = 0; i < store->count; i++ )
     {
         if( store->entries[i].com_id == com_id )
@@ -65,6 +94,8 @@ UIIfIntStore_Get(
     int fallback)
 {
     assert(store);
+    if( !if_store_filter_may_hold(store, com_id) )
+        return fallback;
     for( int i = 0; i < store->count; i++ )
         if( store->entries[i].com_id == com_id )
             return store->entries[i].value;
@@ -79,10 +110,12 @@ UIIfIntStore_DropGroup(
     int kept = 0;
 
     assert(store);
+    memset(store->filter, 0, sizeof(store->filter));
     for( int i = 0; i < store->count; i++ )
     {
         if( ((store->entries[i].com_id >> 16) & 0xffff) == group_id )
             continue;
+        if_store_filter_add(store, store->entries[i].com_id);
         store->entries[kept++] = store->entries[i];
     }
     store->count = kept;
@@ -97,6 +130,7 @@ UIIfIntStore_Free(struct UIIfIntStore* store)
     store->count = 0;
     store->cap = 0;
     store->applied_generation = 0;
+    memset(store->filter, 0, sizeof(store->filter));
 }
 
 void

@@ -77,6 +77,12 @@ struct CS2VM2_Script
      * how to run it. */
     uint8_t* plain_code;
     uint8_t const* run_code;
+    /* Remembered gosub callees (cs2vm2_callee.h): per pc, the script the
+     * gosub there pushed last, good while callees_epoch is the process's
+     * script epoch. NULL for a script with no GOSUB_WITH_PARAMS. Made by
+     * CS2VM2_ScriptPrepare, freed by CS2VM2_ScriptFree. */
+    struct CS2VM2_Script** callees;
+    uint32_t callees_epoch;
 };
 
 void

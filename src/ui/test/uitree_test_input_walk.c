@@ -405,7 +405,7 @@ collect_nodes_recursive(
          * pass-through (reference collects any widget with option strings).
          * Chat panels carry social-op templates in their chat config. */
         bool const has_ops = UITree_ComponentHasMenuOptions(component) ||
-                             UITree_MenuOptions(component)->option[0] != '\0' ||
+                             UITree_MenuOptions(component)->option.len != 0 ||
                              component->type == UIELEM_BUILTIN_CHAT;
         /* A script-created cell holding an obj is a menu target on the strength
          * of the obj alone. It carries no ops and no hook of its own — the
@@ -1114,8 +1114,7 @@ scene_build(struct WalkScene* scene, uint32_t seed, int allow_minimenu, struct W
 
         /* Cache ops / a click mask are what stop a node being decoration. */
         if( walk_chance(&rng, 25) )
-            snprintf(spec.menu_options.ops[walk_range(&rng, 0, 1)],
-                     UITREE_MENU_OPTION_LEN, "Use");
+            UITree_StringSetC(&spec.menu_options.ops[walk_range(&rng, 0, 1)], "Use");
         node = UITree_Push(scene->tree, parent, &spec);
         assert(node >= 0);
         scene->nodes[scene->node_count++] = node;

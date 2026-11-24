@@ -51,13 +51,16 @@ struct UITreeBlockPool
     uint32_t count;
 };
 
-/** A zeroed block of `size` bytes, or NULL when the pool is empty. */
+/** A released block AS IT WAS RELEASED (not zeroed), or NULL when the pool
+ *  is empty. For a block type that empties itself in fewer stores than its
+ *  size -- the menu-options block, whose texts are UITree_Strings and empty
+ *  at a zero length (uitree_menu_options_empty in uitree.c). The caller must
+ *  make every field it reads valid before anyone reads it. */
 static inline void*
-UITreeBlockPool_Take(struct UITreeBlockPool* pool, size_t size)
+UITreeBlockPool_TakeUncleared(struct UITreeBlockPool* pool)
 {
     void* block;
     assert(pool);
-    assert(size >= sizeof(void*));
     block = pool->head;
     if( !block )
         return NULL;
@@ -67,7 +70,18 @@ UITreeBlockPool_Take(struct UITreeBlockPool* pool, size_t size)
      * rebuild takes hundreds in a row: ask for the next one now. */
     if( pool->head )
         __builtin_prefetch(pool->head, 1);
-    memset(block, 0, size);
+    return block;
+}
+
+/** A zeroed block of `size` bytes, or NULL when the pool is empty. */
+static inline void*
+UITreeBlockPool_Take(struct UITreeBlockPool* pool, size_t size)
+{
+    void* block;
+    assert(size >= sizeof(void*));
+    block = UITreeBlockPool_TakeUncleared(pool);
+    if( block )
+        memset(block, 0, size);
     return block;
 }
 

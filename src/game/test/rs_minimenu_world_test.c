@@ -111,7 +111,7 @@ test_dat1_continue_is_not_a_numbered_op(void)
     spec.behavior = &behavior;
     spec.u.rs_text.text = "Click here to continue";
     /* What the dat1 decoder leaves for an empty `option=` on a pause button. */
-    snprintf(spec.menu_options.option, sizeof(spec.menu_options.option), "Continue");
+    UITree_StringSetC(&spec.menu_options.option, "Continue");
     TEST_ASSERT(UITree_Push(tree, -1, &spec) >= 0, "dat1 continue fixture pushed");
     UITree_LayoutResolve(tree, 0, 0, 400, 100);
     RS_Minimenu_Build(&ctx, 10, 10, &menu);
@@ -198,8 +198,8 @@ test_if3_item_uses_only_scripted_ops(void)
     child.height = 32;
     child.u.cc_obj.obj_id = 1;
     child.u.cc_obj.obj_count = 1;
-    snprintf(child.menu_options.ops[0], sizeof(child.menu_options.ops[0]), "Script op");
-    snprintf(child.menu_options.ops[9], sizeof(child.menu_options.ops[9]), "Terminal op");
+    UITree_StringSetC(&child.menu_options.ops[0], "Script op");
+    UITree_StringSetC(&child.menu_options.ops[9], "Terminal op");
     {
         int32_t child_index = UITree_Push(tree, parent_index, &child);
         TEST_ASSERT(child_index >= 0, "IF3 item child pushed");
@@ -246,8 +246,7 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
     parent.component_id = events.component_id;
     parent.width = 64;
     parent.height = 64;
-    snprintf(
-        parent.menu_options.target_verb, sizeof(parent.menu_options.target_verb), "Use");
+    UITree_StringSetC(&parent.menu_options.target_verb, "Use");
     parent_index = UITree_Push(tree, -1, &parent);
     TEST_ASSERT(parent_index >= 0, "rev239 item parent pushed");
     if( parent_index >= 0 )
@@ -261,8 +260,8 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
     child.height = 32;
     child.u.cc_obj.obj_id = obj->id;
     child.u.cc_obj.obj_count = 1;
-    snprintf(child.menu_options.ops[0], sizeof(child.menu_options.ops[0]), "Wear");
-    snprintf(child.menu_options.ops[9], sizeof(child.menu_options.ops[9]), "Examine");
+    UITree_StringSetC(&child.menu_options.ops[0], "Wear");
+    UITree_StringSetC(&child.menu_options.ops[9], "Examine");
     {
         int32_t child_index = UITree_Push(tree, parent_index, &child);
         TEST_ASSERT(child_index >= 0, "rev239 item child pushed");
@@ -351,10 +350,7 @@ test_if3_script_button_target_row_uses_declared_events(void)
     child.dynamic_child_index = 0;
     child.width = 120;
     child.height = 30;
-    snprintf(
-        child.menu_options.target_verb,
-        sizeof(child.menu_options.target_verb),
-        "Edit-navigator");
+    UITree_StringSetC(&child.menu_options.target_verb, "Edit-navigator");
     child_index = UITree_Push(tree, parent_index, &child);
     TEST_ASSERT(child_index >= 0, "Edit navigator fixture pushed");
     if( child_index < 0 )
@@ -470,11 +466,10 @@ test_if3_target_row_after_reset_sits_at_slot_four(void)
     spec.component_id = events.component_id;
     spec.width = 120;
     spec.height = 30;
-    snprintf(
-        spec.menu_options.target_verb, sizeof(spec.menu_options.target_verb), "Grant");
-    snprintf(spec.menu_options.option, sizeof(spec.menu_options.option), "Helm");
-    snprintf(spec.menu_options.ops[3], sizeof(spec.menu_options.ops[3]), "Below");
-    snprintf(spec.menu_options.ops[5], sizeof(spec.menu_options.ops[5]), "Above");
+    UITree_StringSetC(&spec.menu_options.target_verb, "Grant");
+    UITree_StringSetC(&spec.menu_options.option, "Helm");
+    UITree_StringSetC(&spec.menu_options.ops[3], "Below");
+    UITree_StringSetC(&spec.menu_options.ops[5], "Above");
     index = UITree_Push(tree, -1, &spec);
     TEST_ASSERT(index >= 0, "reset-placement fixture pushed");
     if( index < 0 )
@@ -1747,8 +1742,8 @@ static void test_checked_widget_native_actions(void)
         struct UITreeBehavior behavior={.button_type=if3 ? 0 : REVCONFIG_BUTTON_TYPE_SELECT};
         struct UITreeNodeSpec spec={.type=UIELEM_RS_TEXT,.component_id=101,.width=80,.height=20,.behavior=&behavior};
         spec.u.rs_text.text="Control";
-        if( if3 ) snprintf(spec.menu_options.ops[1],sizeof(spec.menu_options.ops[1]),"Activate");
-        else snprintf(spec.menu_options.option,sizeof(spec.menu_options.option),"Activate");
+        if( if3 ) UITree_StringSetC(&spec.menu_options.ops[1], "Activate");
+        else UITree_StringSetC(&spec.menu_options.option, "Activate");
         int node=UITree_Push(tree,-1,&spec);
         tree->components[node].if3=if3;
         UITree_LayoutResolve(tree,0,0,200,100);
@@ -1917,7 +1912,7 @@ test_owned_widget_row_over_native_button(void)
     button.height = 30;
     button.behavior = &behavior;
     button.u.rs_text.text = "Native";
-    snprintf(button.menu_options.option, sizeof(button.menu_options.option), "Continue");
+    UITree_StringSetC(&button.menu_options.option, "Continue");
     int native = UITree_Push(tree, root, &button);
     int own = UITree_WidgetCreateText(tree, UITree_RefAt(tree, root), 3, "cover", 0);
     TEST_ASSERT(root >= 0 && native >= 0 && own >= 0, "cover fixture pushed");

@@ -46,12 +46,12 @@ static int
 menu_options_is_empty(struct UITreeMenuOptions const* opts)
 {
     assert(opts);
-    if( opts->option[0] || opts->target_verb[0] || opts->target_base[0] )
+    if( opts->option.len || opts->target_verb.len || opts->target_base.len )
         return 0;
     if( opts->option_action || opts->submenus )
         return 0;
     for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
-        if( opts->ops[i][0] || opts->op_actions[i] )
+        if( opts->ops[i].len || opts->op_actions[i] )
             return 0;
     return 1;
 }

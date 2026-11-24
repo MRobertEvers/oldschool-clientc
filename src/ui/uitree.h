@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include "ui/uitree_pool.h"
+#include "ui/uitree_string.h"
 #include "ui/uitree_component_options.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_hook.h"
@@ -392,20 +393,24 @@ struct UITreeBehavior
     int active_over_color;
 };
 
+/* Every text below is a UITree_String (ui/uitree_string.h): it carries its
+ * length, so a write copies what it was given and a read does not measure.
+ * UITREE_STRING_CAP is UITREE_MENU_OPTION_LEN less the NUL. */
+_Static_assert(UITREE_STRING_CAP + 1 == UITREE_MENU_OPTION_LEN, "menu option text capacity");
 struct UITreeMenuSubmenuOptions
 {
-    char ops[UITREE_SUBMENU_OP_SLOTS][UITREE_SUBMENU_ENTRY_SLOTS][UITREE_MENU_OPTION_LEN];
+    struct UITree_String ops[UITREE_SUBMENU_OP_SLOTS][UITREE_SUBMENU_ENTRY_SLOTS];
 };
 
 struct UITreeMenuOptions
 {
-    char option[UITREE_MENU_OPTION_LEN];
-    char ops[UITREE_MENU_OPTION_SLOTS][UITREE_MENU_OPTION_LEN];
+    struct UITree_String option;
+    struct UITree_String ops[UITREE_MENU_OPTION_SLOTS];
     /** BUTTON_TARGET spell strings (reference IfType.targetVerb/targetBase):
      * "Cast" + "Wind Strike" → the "Cast Wind Strike ..." target-mode verb.
      * Empty for non-spell components. */
-    char target_verb[UITREE_MENU_OPTION_LEN];
-    char target_base[UITREE_MENU_OPTION_LEN];
+    struct UITree_String target_verb;
+    struct UITree_String target_base;
     int option_action;
     int op_actions[UITREE_MENU_OPTION_SLOTS];
     /** CC/IF_SETOPSUBMENU rows, owned by the component, NULL until one is set.
@@ -423,14 +428,15 @@ UITree_MenuSubmenuEntry(
     int op_index,
     int entry_index);
 
-/** Set one submenu label, allocating the block on first use. False if the
- *  indices are out of range or the allocation failed. */
+/** Set one submenu label (`len` bytes of `text`), allocating the block on
+ *  first use. False if the indices are out of range. */
 bool
 UITree_MenuSubmenuSetEntry(
     struct UITreeMenuOptions* opts,
     int op_index,
     int entry_index,
-    char const* text);
+    char const* text,
+    size_t len);
 
 /** Clear the labels of one op (1-based), or of every op when op_index <= 0. */
 void
@@ -1827,6 +1833,11 @@ struct UITree
     /** Open-addressed group_id -> nodes with that component_id high half. */
     struct UITreeGroupBucket* group_map;
     uint32_t group_map_cap;
+    /** Buckets of group_map holding a group (group_id >= 0). A bucket is
+     *  claimed once and released only by uitree_all_sets_clear, which empties
+     *  them all, so this is what the load test reads instead of counting the
+     *  buckets on every create. */
+    uint32_t group_map_live;
     /** Bumped once per interface close; see UITree_GroupCloseSerial. */
     uint32_t group_close_serial;
     /** Retained widget anchor edits alive on this tree; the cheap depth gate. */
@@ -3107,11 +3118,27 @@ UITree_ApplyRuntimeHook(
     char const* const* strs,
     int str_argc);
 
+/* CC/IF_SETOPBASE: `len` bytes of `text` (a CS2VM2_Str's text and len). The
+ * C-string form measures; a caller that holds a length uses the Len form. */
+bool
+UITree_ApplyOpBaseLen(
+    struct UITree* tree,
+    int component_id,
+    char const* text,
+    size_t len);
+
 bool
 UITree_ApplyOpBase(
     struct UITree* tree,
     int component_id,
     char const* text);
+
+bool
+UITree_ApplyTargetVerbLen(
+    struct UITree* tree,
+    int component_id,
+    char const* text,
+    size_t len);
 
 bool
 UITree_ApplyTargetVerb(

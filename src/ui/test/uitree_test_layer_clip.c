@@ -64,7 +64,7 @@ void test_layer_clip_compounds(void)
     {
         struct UITreeMenuOptions* opts = UITree_MenuOptionsMut(&tree->components[box]);
         assert(opts);
-        snprintf(opts->option, sizeof(opts->option), "Check");
+        UITree_StringSetC(&opts->option, "Check");
     }
     UITree_TestHostInit(&host, &state);
     UITree_EmitBufferInit(&buffer);

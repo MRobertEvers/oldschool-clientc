@@ -1,3 +1,4 @@
+#include "game/rs_cs2_host_reads.h"
 #include "game/task_cs2_run.h"
 
 #include "cs2vm2/cs2_opcode_meta.h"
@@ -1736,6 +1737,7 @@ Task_CS2Run_Run(
         self->vm = CS2VM2_Acquire();
         assert(self->vm);
         CS2VM2_BindHost(self->vm, self->host, RS_CS2Host_Exec);
+        CS2VM2_BindHostReads(self->vm, RS_CS2Host_Read);
         thread = CS2VM2_ThreadMain(self->vm);
         CS2VM2_ThreadSetCanvas(
             thread,
@@ -1788,7 +1790,7 @@ Task_CS2Run_Run(
                         int32_t opb =
                             UITree_FindByComponentId(self->host->tree, self->active_component_id);
                         if( opb >= 0 )
-                            s = UITree_MenuOptions(&self->host->tree->components[opb])->option;
+                            s = UITree_MenuOptions(&self->host->tree->components[opb])->option.text;
                     }
                     (void)CS2VM2_SetStringCurrentFrameLocal(thread, str_i, s);
                     str_i++;

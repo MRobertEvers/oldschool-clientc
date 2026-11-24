@@ -380,6 +380,12 @@ struct CS2VM2
     int thread_count;
 
     CS2VM2_HostExec_Fn host_exec;
+    /* The second way into the host: the cheap reads (INV_GETOBJ, INV_GETNUM,
+     * PUSH_VARBIT), asked through CS2VM2_AskRead under the same yield rule
+     * as host_exec. host_exec itself unless the host binds a reader of its
+     * own (CS2VM2_BindHostReads), so a host that does not is asked exactly
+     * as before. */
+    CS2VM2_HostExec_Fn host_read;
     void* user;
 };
 
@@ -529,11 +535,25 @@ CS2VM2_Release(struct CS2VM2* vm);
 void
 CS2VM2_PoolDrain(void);
 
+/* Binds `host_exec` for every request, the reads included (host_read). */
 void
 CS2VM2_BindHost(
     struct CS2VM2* vm,
     void* user,
     CS2VM2_HostExec_Fn host_exec);
+
+/*
+ * After CS2VM2_BindHost: answer the cheap reads (INV_GETOBJ, INV_GETNUM,
+ * PUSH_VARBIT) with `host_read` instead -- a function that knows only those
+ * kinds, so a read skips host_exec's entry and its switch over every request
+ * kind. It answers exactly as host_exec would (pushes the value and returns
+ * CS2VM_EXECNO_OK, or CS2VM_EXECNO_YIELD having put back what it took) and
+ * is asked under the same rule (CS2VM2_AskRead).
+ */
+void
+CS2VM2_BindHostReads(
+    struct CS2VM2* vm,
+    CS2VM2_HostExec_Fn host_read);
 
 void
 CS2VM2_Run(struct CS2VM2* vm);

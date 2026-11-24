@@ -566,7 +566,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
         spec.y = 400;
         spec.width = 40;
         spec.height = 40;
-        strncpy(spec.menu_options.ops[0], "Toggle", sizeof(spec.menu_options.ops[0]) - 1);
+        UITree_StringSetC(&spec.menu_options.ops[0], "Toggle");
         control = UITree_Push(tree, root, &spec);
     }
     /* A bare root-group layer the toplevel keeps for its clientscripts to draw

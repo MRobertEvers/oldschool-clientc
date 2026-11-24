@@ -195,7 +195,7 @@ copy_menu_options(
 {
     assert(op && dst);
     memset(dst, 0, sizeof(*dst));
-    strncpy(dst->option, op->option, sizeof(dst->option) - 1);
+    UITree_StringSetC(&dst->option, op->option);
     dst->option_action = op->option_action;
     /* The two sides do not agree on a slot count: the manifest op carries
      * REVCONFIG_MENU_OPTION_SLOTS (5), the runtime widget UITREE_MENU_OPTION_SLOTS
@@ -208,7 +208,7 @@ copy_menu_options(
         "manifest menu ops must fit the runtime widget's slots");
     for( int i = 0; i < REVCONFIG_MENU_OPTION_SLOTS; i++ )
     {
-        strncpy(dst->ops[i], op->ops[i], sizeof(dst->ops[i]) - 1);
+        UITree_StringSetC(&dst->ops[i], op->ops[i]);
         dst->op_actions[i] = op->op_actions[i];
     }
 }

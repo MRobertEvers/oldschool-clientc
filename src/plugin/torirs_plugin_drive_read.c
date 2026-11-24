@@ -515,13 +515,13 @@ lua_drive_widget_find_op(struct lua_State* L)
         {
             struct UITreeMenuOptions const* opts = UITree_MenuOptions(c);
             char option[UITREE_MENU_OPTION_LEN];
-            drive_read_plain(opts->option, option, sizeof(option));
+            drive_read_plain(opts->option.text, option, sizeof(option));
             /* What a miss reports: each op on offer, "op:option". */
             for( int i = 0; i < UITREE_MENU_OPTION_SLOTS && seen_len + 1 < sizeof(seen); i++ )
             {
                 char label[UITREE_MENU_OPTION_LEN];
                 int wrote;
-                drive_read_plain(opts->ops[i], label, sizeof(label));
+                drive_read_plain(opts->ops[i].text, label, sizeof(label));
                 if( label[0] == '\0' )
                     continue;
                 wrote = snprintf(seen + seen_len, sizeof(seen) - seen_len, "%s%s:%s", seen_len ? " | " : "",
@@ -535,7 +535,7 @@ lua_drive_widget_find_op(struct lua_State* L)
                 char label[UITREE_MENU_OPTION_LEN];
                 int x = 0, y = 0, w = 0, h = 0;
                 int64_t handle;
-                drive_read_plain(opts->ops[i], label, sizeof(label));
+                drive_read_plain(opts->ops[i].text, label, sizeof(label));
                 if( label[0] == '\0' || strcmp(label, op) != 0 )
                     continue;
                 if( name && !strstr(option, name) )
@@ -623,13 +623,13 @@ lua_drive_widget_ops_at(struct lua_State* L)
         lua_setfield(L, -2, "node");
         lua_pushinteger(L, c->component_id);
         lua_setfield(L, -2, "component_id");
-        drive_read_plain(opts->option, text, sizeof(text));
+        drive_read_plain(opts->option.text, text, sizeof(text));
         lua_pushstring(L, text);
         lua_setfield(L, -2, "option");
         lua_createtable(L, UITREE_MENU_OPTION_SLOTS, 0);
         for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
         {
-            drive_read_plain(opts->ops[i], text, sizeof(text));
+            drive_read_plain(opts->ops[i].text, text, sizeof(text));
             lua_pushstring(L, text);
             lua_rawseti(L, -2, i + 1);
         }

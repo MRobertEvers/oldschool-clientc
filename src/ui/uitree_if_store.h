@@ -25,6 +25,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 struct UIIfIntEntry
 {
@@ -38,6 +39,13 @@ struct UIIfIntStore
     struct UIIfIntEntry* entries;
     int count;
     int cap;
+    /** A one-hash filter over the ids held: bit (hash(com_id) & 255) is set
+     *  for every id stored. A clear bit answers "not held" without scanning
+     *  `entries` -- what a script's if_sethide asks of this store on every
+     *  write (UIIfIntStore_Update, 8,500 times a bank open, for dynamic rows
+     *  the server never set). Set by UIIfIntStore_Set, rebuilt by
+     *  _DropGroup, cleared by _Free; a set bit only means "scan". */
+    uint64_t filter[4];
     /** Tree generation these were last applied against; a mismatch means the
      *  nodes have been replaced and every entry has to be applied again. */
     unsigned int applied_generation;

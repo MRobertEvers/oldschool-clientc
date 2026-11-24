@@ -1614,6 +1614,19 @@ struct RS_CS2Host
      *  per logic tick by RS_CS2_PumpTransmits; per-hook last_seen_serial gating
      *  keeps already-fired hooks from re-running. */
     int widgets_loaded_dirty;
+    /** cc_find's last parent (exec_cc_find): `find_parent_id` resolved to node
+     *  `find_parent_idx` of the tree whose instance_id is `find_tree_instance`
+     *  (a process-wide serial, so a later tree at the same address is another
+     *  tree), its interface group mounted, while the tree's id_generation was
+     *  `find_id_generation`. Good while all three
+     *  hold: no id was assigned or reclaimed since, so the parent is where it
+     *  was and its group root is still there. A run of cc_finds under one
+     *  container then skips the group test and the parent lookup. Only a found
+     *  parent is kept; a miss takes the full path (it yields or answers 0). */
+    uint64_t find_tree_instance;
+    int find_parent_id;
+    int32_t find_parent_idx;
+    uint32_t find_id_generation;
     /** Set when a varp/varc value actually changed this tick (via
      *  RS_CS2Host_NotifyVarChanged, wired to the var managers' change callbacks).
      *  RS_CS2_PumpTransmits consumes it once per tick to re-dispatch var-transmit

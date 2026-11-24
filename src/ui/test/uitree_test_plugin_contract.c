@@ -514,10 +514,10 @@ void test_owned_widget_operations(void)
     TEST_ASSERT(!UITree_WidgetSetOperation(t, ref, 1, 5, UITREE_MENU_OPTION_SLOTS+1, "Toggle"),
         "an operation past the last slot is refused");
     TEST_ASSERT(!UITree_WidgetSetOperation(t, ref, 1, 5, 1, too_long),"the label must fit native menu option storage");
-    TEST_ASSERT(!t->components[own].plugin_op_serial && !UITree_MenuOptions(&t->components[own])->ops[0][0],
+    TEST_ASSERT(!t->components[own].plugin_op_serial && UITree_StringEmpty(&UITree_MenuOptions(&t->components[own])->ops[0]),
         "rejected arming leaves the control unarmed");
     TEST_ASSERT(UITree_WidgetSetOperation(t, ref, 1, 5, 1, "Toggle"),"the owner arms its control");
-    TEST_ASSERT(strcmp(UITree_MenuOptions(&t->components[own])->ops[0],"Toggle")==0 && t->components[own].plugin_op_serial==5,
+    TEST_ASSERT(strcmp(UITree_MenuOptions(&t->components[own])->ops[0].text,"Toggle")==0 && t->components[own].plugin_op_serial==5,
         "operation label and registration are stored on the node, in the slot the op names");
     uint64_t armed=UITree_ActionSignatureAt(t,own);
     TEST_ASSERT(armed!=unarmed,"arming changes the native action signature");
@@ -534,22 +534,22 @@ void test_owned_widget_operations(void)
      * used to go and where only one of them could ever fit.
      */
     TEST_ASSERT(UITree_WidgetSetOperation(t, ref, 1, 6, 2, "Setup"),"the owner arms a second operation");
-    TEST_ASSERT(strcmp(UITree_MenuOptions(&t->components[own])->ops[0],"Toggle")==0 &&
-                strcmp(UITree_MenuOptions(&t->components[own])->ops[1],"Setup")==0,
+    TEST_ASSERT(strcmp(UITree_MenuOptions(&t->components[own])->ops[0].text,"Toggle")==0 &&
+                strcmp(UITree_MenuOptions(&t->components[own])->ops[1].text,"Setup")==0,
         "both rows stand, each in its own slot");
     TEST_ASSERT(UITree_WidgetSetOperation(t, ref, 1, 6, 2, ""),"an empty label clears that one slot");
-    TEST_ASSERT(!UITree_MenuOptions(&t->components[own])->ops[1][0] &&
-                strcmp(UITree_MenuOptions(&t->components[own])->ops[0],"Toggle")==0 &&
+    TEST_ASSERT(UITree_StringEmpty(&UITree_MenuOptions(&t->components[own])->ops[1]) &&
+                strcmp(UITree_MenuOptions(&t->components[own])->ops[0].text,"Toggle")==0 &&
                 t->components[own].plugin_op_serial==6,
         "clearing one row leaves the other armed and the control registered");
     TEST_ASSERT(UITree_WidgetSetOperation(t, ref, 1, 0, 1, ""),"the owner removes its operation");
-    TEST_ASSERT(!UITree_MenuOptions(&t->components[own])->ops[0][0] && !t->components[own].plugin_op_serial,
+    TEST_ASSERT(UITree_StringEmpty(&UITree_MenuOptions(&t->components[own])->ops[0]) && !t->components[own].plugin_op_serial,
         "removal clears label and registration");
     TEST_ASSERT(UITree_ActionSignatureAt(t,own)==unarmed,"a disarmed control has its original signature");
     UITree_WidgetRemove(t,ref,1);
     TEST_ASSERT(!UITree_WidgetSetOperation(t, ref, 1, 7, 1, "Toggle"),"a stale reference cannot be armed");
     int again=UITree_WidgetCreateText(t,UITree_RefAt(t,root),1,"button",1);
-    TEST_ASSERT(again>=0 && !t->components[again].plugin_op_serial && !UITree_MenuOptions(&t->components[again])->ops[0][0],
+    TEST_ASSERT(again>=0 && !t->components[again].plugin_op_serial && UITree_StringEmpty(&UITree_MenuOptions(&t->components[again])->ops[0]),
         "a recreated control starts unarmed");
     UITree_Free(t);
 }

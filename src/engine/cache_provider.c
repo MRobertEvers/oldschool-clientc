@@ -94,6 +94,15 @@ cache_provider_ui_assets_changed(struct CacheProvider* provider)
         provider->ui_asset_revision++;
 }
 
+/* A resident objtype, model or texture is leaving or being replaced: whatever
+ * was remembered about it (CacheProvider_AssetDropRevision) is stale. */
+static void
+cache_provider_assets_dropped(struct CacheProvider* provider)
+{
+    assert(provider);
+    provider->asset_drop_revision++;
+}
+
 uint64_t
 CacheProvider_UIAssetRevision(struct CacheProvider const* provider)
 {
@@ -210,6 +219,20 @@ struct MapEntry_ProviderObjtype
     int id;
     struct ToriRS_Objtype* objtype;
 };
+
+/* The resident objtype for `obj_id`: the index for the ids it covers, the map
+ * for any other. No cert or placeholder patch (CacheProvider_ObjtypeGet). */
+static struct ToriRS_Objtype*
+cache_provider_objtype_resident(
+    struct CacheProvider* provider,
+    int obj_id)
+{
+    if( CacheProvider_ObjIndexCovers(obj_id) )
+        return CacheProvider_ObjIndexGet(&provider->objtype_index, obj_id);
+    struct MapEntry_ProviderObjtype* entry = (struct MapEntry_ProviderObjtype*)hmap_search(
+        provider->objtype_cache, &obj_id, HMAP_FIND);
+    return entry ? entry->objtype : NULL;
+}
 
 struct MapEntry_ProviderObjtypeName
 {
@@ -550,6 +573,7 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     memset(provider->clientscript_front, 0, sizeof(provider->clientscript_front));
     cache_provider_hmap_free(provider->objtype_cache);
     provider->objtype_cache = NULL;
+    CacheProvider_ObjIndexFree(&provider->objtype_index);
     cache_provider_hmap_free(provider->npctype_cache);
     provider->npctype_cache = NULL;
     cache_provider_hmap_free(provider->spotanimtype_cache);
@@ -621,7 +645,10 @@ CacheProvider_ModelAdd(
     entry->id = model_id;
     /* Replacing a cached value: the map owns the old one. */
     if( entry->model && entry->model != model )
+    {
         ToriRS_ModelFree(entry->model);
+        cache_provider_assets_dropped(provider);
+    }
     entry->model = model;
     entry->last_used = ++provider->derived_clock;
     cache_provider_ui_assets_changed(provider);
@@ -753,7 +780,10 @@ cache_provider_trim_models(struct CacheProvider* provider, size_t keep)
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_MODEL_EVICT, doomed_count);
     if( doomed_count > 0 )
+    {
         cache_provider_ui_assets_changed(provider);
+        cache_provider_assets_dropped(provider);
+    }
     ToriMem_Free(ToriMem_Assets(), doomed);
 }
 
@@ -940,7 +970,10 @@ CacheProvider_ModelsCleanup(struct CacheProvider* provider)
     provider->model_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderModel), CACHE_PROVIDER_MODEL_CAPACITY);
     if( changed )
+    {
         cache_provider_ui_assets_changed(provider);
+        cache_provider_assets_dropped(provider);
+    }
 }
 
 void
@@ -1995,6 +2028,9 @@ cache_provider_evict_objtypes(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->objtype_cache);
     provider->objtype_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderObjtype), CACHE_PROVIDER_OBJTYPE_CAPACITY);
+    CacheProvider_ObjIndexReset(&provider->objtype_index);
+    if( evicted > 0 )
+        cache_provider_assets_dropped(provider);
     /* The name index holds ids into objtype_cache: reset in lockstep, as
      * CacheProvider_ObjtypesCleanup does. */
     if( provider->objtype_name_cache )
@@ -2087,6 +2123,8 @@ CacheProvider_ObjtypeReplace(
         cache_provider_retire((void***)&provider->retired_objtypes, &provider->retired_objtype_count,
             &provider->retired_objtype_capacity, entry->objtype);
         entry->objtype = NULL;
+        CacheProvider_ObjIndexDrop(&provider->objtype_index, obj_id);
+        cache_provider_assets_dropped(provider);
     }
     /* Asked for before it existed (the loader's "not in this cache"): it
      * exists now, and the icon loader must ask again. */
@@ -2135,7 +2173,9 @@ CacheProvider_RecordRetire(
             &provider->retired_objtype_capacity, entry->objtype);
         entry->objtype = NULL;
         (void)hmap_search(provider->objtype_cache, &id, HMAP_REMOVE);
+        CacheProvider_ObjIndexDrop(&provider->objtype_index, id);
         cache_provider_ui_assets_changed(provider);
+        cache_provider_assets_dropped(provider);
         return 1;
     }
 }
@@ -2521,8 +2561,12 @@ CacheProvider_ObjtypeAdd(
     entry->id = obj_id;
     /* Replacing a cached value: the map owns the old one. */
     if( entry->objtype && entry->objtype != objtype )
+    {
         ToriRS_ObjtypeFree(entry->objtype);
+        cache_provider_assets_dropped(provider);
+    }
     entry->objtype = objtype;
+    CacheProvider_ObjIndexPut(&provider->objtype_index, obj_id, objtype);
 
     /* Mirror the insert into the name index so CacheProvider_ObjtypeIdByName and
      * the OC_FIND search resolve by name. Skip nameless entries and the "null"
@@ -2569,24 +2613,22 @@ CacheProvider_ObjtypeGet(
     struct CacheProvider* provider,
     int obj_id)
 {
-    struct MapEntry_ProviderObjtype* entry;
     struct ToriRS_Objtype* objtype;
     bool changed = false;
 
     assert(provider);
 
-    entry = (struct MapEntry_ProviderObjtype*)hmap_search(
-        provider->objtype_cache, &obj_id, HMAP_FIND);
-    if( !entry )
+    /* By id, not hashed (cache_provider_obj_index.h). */
+    objtype = cache_provider_objtype_resident(provider, obj_id);
+    if( !objtype )
         return NULL;
-    objtype = entry->objtype;
 
     /* Lazy genCert (reference ObjType.list runs genCert in the getter): a bank
      * note is always stackable and takes its display name from the cert_link
      * base item — the raw cache config carries neither. The link loads async
      * here (ObjModelLoad pulls it in), so patch whenever it has become
      * resident; a non-empty name marks the copy as already done. */
-    if( objtype && objtype->cert_template > 0 )
+    if( objtype->cert_template > 0 )
     {
         if( !objtype->stackable )
         {
@@ -2595,13 +2637,11 @@ CacheProvider_ObjtypeGet(
         }
         if( objtype_name_is_unset(objtype->name) && objtype->cert_link >= 0 )
         {
-            struct MapEntry_ProviderObjtype* link_entry =
-                (struct MapEntry_ProviderObjtype*)hmap_search(
-                    provider->objtype_cache, &objtype->cert_link, HMAP_FIND);
-            if( link_entry && link_entry->objtype &&
-                !objtype_name_is_unset(link_entry->objtype->name) )
+            struct ToriRS_Objtype const* link =
+                cache_provider_objtype_resident(provider, objtype->cert_link);
+            if( link && !objtype_name_is_unset(link->name) )
             {
-                char const* link_name = link_entry->objtype->name;
+                char const* link_name = link->name;
                 memcpy(objtype->name, link_name, sizeof(objtype->name));
                 /* genCert also synthesizes the examine (reference ObjType.genCert):
                  * "Swap this note at any bank for a/an <base item>.", the article
@@ -2617,7 +2657,7 @@ CacheProvider_ObjtypeGet(
                 snprintf(objtype->desc, sizeof(objtype->desc),
                          "Swap this note at any bank for %s %s.", article, link_name);
                 /* genCert copies the base item's members flag too. */
-                objtype->members = link_entry->objtype->members;
+                objtype->members = link->members;
                 changed = true;
             }
         }
@@ -2635,19 +2675,17 @@ CacheProvider_ObjtypeGet(
      * Stackability is not forced either — a placeholder holds a count of 0 and
      * draws no number.
      */
-    if( objtype && objtype->placeholder_template >= 0 &&
+    if( objtype->placeholder_template >= 0 &&
         objtype_name_is_unset(objtype->name) && objtype->placeholder_link >= 0 )
     {
-        struct MapEntry_ProviderObjtype* link_entry =
-            (struct MapEntry_ProviderObjtype*)hmap_search(
-                provider->objtype_cache, &objtype->placeholder_link, HMAP_FIND);
-        if( link_entry && link_entry->objtype &&
-            !objtype_name_is_unset(link_entry->objtype->name) )
+        struct ToriRS_Objtype const* link =
+            cache_provider_objtype_resident(provider, objtype->placeholder_link);
+        if( link && !objtype_name_is_unset(link->name) )
         {
-            memcpy(objtype->name, link_entry->objtype->name, sizeof(objtype->name));
-            memcpy(objtype->desc, link_entry->objtype->desc, sizeof(objtype->desc));
+            memcpy(objtype->name, link->name, sizeof(objtype->name));
+            memcpy(objtype->desc, link->desc, sizeof(objtype->desc));
             /* The reference's placeholder takes the item's members flag. */
-            objtype->members = link_entry->objtype->members;
+            objtype->members = link->members;
             changed = true;
         }
     }
@@ -2687,6 +2725,9 @@ CacheProvider_ObjtypesCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->objtype_cache);
     provider->objtype_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderObjtype), CACHE_PROVIDER_OBJTYPE_CAPACITY);
+    CacheProvider_ObjIndexReset(&provider->objtype_index);
+    if( changed )
+        cache_provider_assets_dropped(provider);
 
     /* The name index only holds ids into objtype_cache, so it must be reset in
      * lockstep; the full-scan flag is likewise no longer true. */
@@ -3703,7 +3744,10 @@ CacheProvider_TexturesCleanup(struct CacheProvider* provider)
     }
     hmap_iter_free(iter);
 
+    bool const dropped = provider->texture_cache->size > 0;
     cache_provider_hmap_free(provider->texture_cache);
     provider->texture_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderTexture), CACHE_PROVIDER_TEXTURE_CAPACITY);
+    if( dropped )
+        cache_provider_assets_dropped(provider);
 }

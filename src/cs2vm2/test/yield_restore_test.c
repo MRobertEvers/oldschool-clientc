@@ -12,6 +12,9 @@
  *   2. DB_GETFIELD pops nothing in the VM: the host pops its three arguments
  *      for itself before it can know the row is resident. It counts them and
  *      puts them back (CS2VM2_YieldRestore) before it yields.
+ *   1b. The same through the host's second door, a reader bound with
+ *      CS2VM2_BindHostReads (CS2VM2_AskRead): the same put-back, and the
+ *      request never reaches host_exec.
  *   3. A host that pops and yields WITHOUT putting back stops a debug build
  *      (the run aborts). A release build does not check, so that arm is only
  *      compiled with asserts on.
@@ -60,6 +63,7 @@ struct Host
 {
     enum HostMode mode;
     int calls;
+    int reads;
     int seen[3];
 };
 
@@ -103,6 +107,17 @@ host_exec(
     return CS2VM_EXECNO_ERROR;
 }
 
+/* The reader door (CS2VM2_BindHostReads): counted apart, answered alike. */
+static int
+host_read(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest* request)
+{
+    struct Host* host = (struct Host*)CS2VM_USER(thread);
+    host->reads++;
+    return host_exec(thread, request);
+}
+
 /* [push sentinel, push a.., OP, RETURN] */
 static void
 build(
@@ -137,6 +152,7 @@ build(
 static void
 run_yield_then_answer(
     enum HostMode mode,
+    int bind_reader,
     int opcode,
     int const* args,
     int arg_count,
@@ -157,6 +173,8 @@ run_yield_then_answer(
     build(&script, opcodes, operands, opcode, args, arg_count);
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, host_exec);
+    if( bind_reader )
+        CS2VM2_BindHostReads(&vm, host_read);
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
     CHECK_INT(CS2VM2_ThreadStart(thread, &script), CS2VM_EXECNO_OK, "start");
 
@@ -175,6 +193,7 @@ run_yield_then_answer(
     CHECK_INT(thread->ints_stack_top, 2, "the arguments are gone and the answer is pushed");
     CHECK_INT(thread->ints_stack[1], answer, "the answer");
     CHECK_INT(thread->ints_stack[0], -99, "the sentinel is still under it");
+    CHECK_INT(host.reads, bind_reader ? 2 : 0, "the reader door was asked when bound, never otherwise");
 
     CS2VM2_Free(&vm);
     /* The opcode and operand arrays are this function's; the script owns
@@ -236,13 +255,23 @@ main(void)
 
     run_yield_then_answer(
         HOST_YIELDS_ONCE,
+        0,
         CS2_OP_INV_GETOBJ,
         inv_args,
         2,
         4151,
         "an instruction that popped two ints and was told not-ready puts them back");
     run_yield_then_answer(
+        HOST_YIELDS_ONCE,
+        1,
+        CS2_OP_INV_GETOBJ,
+        inv_args,
+        2,
+        4151,
+        "the same through a bound reader (CS2VM2_AskRead) puts them back too");
+    run_yield_then_answer(
         HOST_POPS_AND_RESTORES,
+        0,
         CS2_OP_DB_GETFIELD,
         db_args,
         3,

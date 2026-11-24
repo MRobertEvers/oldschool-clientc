@@ -48,12 +48,11 @@ UITree_PushBuildComponent(
 
     /* Cache-decoded verb strings ride onto the node; op_actions stay 0 so the
      * menu builder derives default action ids from the slot index. */
-    memcpy(spec.menu_options.option, comp->option, sizeof(spec.menu_options.option));
-    memcpy(spec.menu_options.ops, comp->ops, sizeof(spec.menu_options.ops));
-    memcpy(
-        spec.menu_options.target_verb, comp->target_verb, sizeof(spec.menu_options.target_verb));
-    memcpy(
-        spec.menu_options.target_base, comp->target_base, sizeof(spec.menu_options.target_base));
+    UITree_StringSetC(&spec.menu_options.option, comp->option);
+    for( int op = 0; op < UITREE_MENU_OPTION_SLOTS; op++ )
+        UITree_StringSetC(&spec.menu_options.ops[op], comp->ops[op]);
+    UITree_StringSetC(&spec.menu_options.target_verb, comp->target_verb);
+    UITree_StringSetC(&spec.menu_options.target_base, comp->target_base);
 
     int scene_id = -1;
     int scene_id_active = -1;

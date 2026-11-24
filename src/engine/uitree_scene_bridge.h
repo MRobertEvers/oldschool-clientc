@@ -2,6 +2,7 @@
 #define UITREE_SCENE_BRIDGE_H
 
 #include "engine/static_sprites.h"
+#include "engine/obj_icon_memo.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -83,6 +84,11 @@ struct UITreeSceneBridge
      * equivalent). Collection-log / bank cell grids use this so Soft3D does
      * not re-outline every unique icon every frame. */
     struct HMap* obj_icon_border_map;
+    /** "Everything this (obj, count) draws is resident and its obj_icon_map
+     *  icon is baked", per item (engine/obj_icon_memo.h). Written and read by
+     *  cc_setobject through UITreeSceneBridge_ObjIconRemember / _Remembered;
+     *  stale once the provider's CacheProvider_AssetDropRevision moves. */
+    struct ObjIconMemo obj_icon_memo;
 
     /**
      * Client-hardcoded sprites (compass, hitmarks, cross, scrollbar arrows, …)
@@ -845,6 +851,31 @@ UITreeSceneBridge_EnsureObjIcon(
     struct UITreeSceneBridge* bridge,
     int obj_id,
     int count);
+
+/**
+ * The shadow icon UITreeSceneBridge_EnsureObjIcon(obj_id, count) returned when
+ * a caller last said, with UITreeSceneBridge_ObjIconRemember, that everything
+ * the item draws was resident -- or 0 when nothing is remembered or something
+ * the item reads has since left the provider (engine/obj_icon_memo.h).
+ */
+int
+UITreeSceneBridge_ObjIconRemembered(
+    struct UITreeSceneBridge const* bridge,
+    int obj_id,
+    int count);
+
+/**
+ * Remember (obj_id, count) as ready with icon `scene_id` (> 0), as of the
+ * provider's asset drop revision `revision` -- read BEFORE the readiness test
+ * that established it, so a drop during the test leaves the entry stale.
+ */
+void
+UITreeSceneBridge_ObjIconRemember(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count,
+    uint64_t revision,
+    int scene_id);
 
 /**
  * Rasterize the white-outlined variant of an obj icon (reference

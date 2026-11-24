@@ -1395,6 +1395,7 @@ app_plugin_frame_work_us(void* user)
     return App_LastFrameUs(app);
 }
 
+#include "game/rs_cs2_host_reads.h"
 #include "plugin/native_script_hooks.gen.h"
 #include "torirs_env.h"
 struct ToriRS_WidgetRef app_widget_ref(struct UITree const*,int32_t);
@@ -2783,6 +2784,7 @@ app_plugin_script_run(
     vm = CS2VM2_Acquire();
     assert(vm);
     CS2VM2_BindHost(vm, host, RS_CS2Host_Exec);
+    CS2VM2_BindHostReads(vm, RS_CS2Host_Read);
     thread = CS2VM2_ThreadMain(vm);
     CS2VM2_ThreadSetCanvas(
         thread, host->viewport_w > 0 ? host->viewport_w : 765, host->viewport_h > 0 ? host->viewport_h : 503);
@@ -7088,11 +7090,11 @@ app_widget_detail(struct App* app, int32_t idx, struct ToriRS_WidgetDetail* d)
     }
     {
         struct UITreeMenuOptions const* opts = UITree_MenuOptions(c);
-        snprintf(d->name, sizeof(d->name), "%s", opts->option);
+        snprintf(d->name, sizeof(d->name), "%s", opts->option.text);
         for( int i = 0; i < TORIRS_WIDGET_DETAIL_ACTIONS && i < UITREE_MENU_OPTION_SLOTS; i++ )
         {
-            snprintf(d->actions[i], sizeof(d->actions[i]), "%s", opts->ops[i]);
-            if( opts->ops[i][0] )
+            snprintf(d->actions[i], sizeof(d->actions[i]), "%s", opts->ops[i].text);
+            if( opts->ops[i].len )
                 d->action_count = i + 1;
         }
     }

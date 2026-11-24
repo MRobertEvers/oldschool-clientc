@@ -8063,7 +8063,7 @@ frame_loop_teardown(void)
                     bool has_op = false;
                     if( item->menu_options )
                         for( int op = 0; op < UITREE_MENU_OPTION_SLOTS; ++op )
-                            has_op |= item->menu_options->ops[op][0] != 0;
+                            has_op |= item->menu_options->ops[op].len != 0;
                     if( has_op )
                     {
                         ++buttons;
@@ -10624,21 +10624,21 @@ main(
         {
             struct UITreeComponent const* c = &app.tree->components[oi];
             struct UITreeMenuOptions const* mo = UITree_MenuOptions(c);
-            int has_ops = mo->option[0] != '\0';
+            int has_ops = mo->option.len != 0;
             for( int s = 0; s < UITREE_MENU_OPTION_SLOTS; s++ )
-                if( mo->ops[s][0] != '\0' )
+                if( mo->ops[s].len != 0 )
                     has_ops = 1;
             if( c->freed || !has_ops )
                 continue;
             TORIRS_LOG(
                 "OPSDUMP com=0x%08x option=\"%s\" ops=[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"]\n",
                 c->component_id,
-                mo->option,
-                mo->ops[0],
-                mo->ops[1],
-                mo->ops[2],
-                mo->ops[3],
-                mo->ops[4]);
+                mo->option.text,
+                mo->ops[0].text,
+                mo->ops[1].text,
+                mo->ops[2].text,
+                mo->ops[3].text,
+                mo->ops[4].text);
         }
     }
 

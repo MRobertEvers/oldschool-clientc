@@ -8,8 +8,15 @@ which puts it back when the host answers "not ready". A debug build asserts
 the count at every ask and stops at a yield that left a stack moved; a release
 build checks nothing. This catches the same mistakes without running anything:
 
-  1. `host_exec` is called from exactly one place, CS2VM2_Ask.
-  2. A function that calls CS2VM2_Ask has a count in scope at the call: its
+There are two ways into the host, and both are asks under one rule:
+CS2VM2_Ask (struct CS2VM2's host_exec, every request) and CS2VM2_AskRead
+(its host_read, the cheap reads INV_GETOBJ / INV_GETNUM / PUSH_VARBIT). Every
+check below that names "an ask" means a call to either.
+
+  1. `host_exec` is called from exactly one place, CS2VM2_Ask, and
+     `host_read` from exactly one place, CS2VM2_AskRead; and each of those
+     two puts the count back on a yield (calls CS2VM2_YieldRestore).
+  2. A function that calls an ask has a count in scope at the call: its
      own (`struct CS2VM2_Took took = CS2VM2_TOOK_NOTHING;`, in the function
      or in the case block that asks) or its caller's (a `struct CS2VM2_Took
      took` parameter).
@@ -40,6 +47,7 @@ TOP_WRITE = re.compile(
     r"|\b(?:ints|strs|longs)_stack_top\s*(?:--|\+\+|-=|\+=|=(?!=))"
 )
 # The primitives themselves, and the loop, which holds the top in a register.
+ASKERS = {"CS2VM2_Ask", "CS2VM2_AskRead"}
 MAY_MOVE_TOPS = {
     "CS2VM2_PopInt", "CS2VM2_PopStr", "CS2VM2_PopLong", "CS2VM2_PushInt", "CS2VM2_PushStr",
     "CS2VM2_PushLong", "CS2VM2_PushArray", "cs2vm2_run_script_body",
@@ -76,11 +84,21 @@ def main():
 
     problems = []
 
-    # 1. host_exec only in CS2VM2_Ask
-    for match in re.finditer(r"->host_exec\s*\(", code):
-        owner = next((n for n, (_, a, b) in functions.items() if a <= match.start() < b), None)
-        if owner != "CS2VM2_Ask":
-            problems.append(f"{line_of(match.start())}: host_exec is called outside CS2VM2_Ask (in {owner})")
+    # 1. host_exec only in CS2VM2_Ask, host_read only in CS2VM2_AskRead, and
+    #    each of those puts the count back on a yield
+    for entry, asker in (("host_exec", "CS2VM2_Ask"), ("host_read", "CS2VM2_AskRead")):
+        for match in re.finditer(r"->" + entry + r"\s*\(", code):
+            owner = next((n for n, (_, a, b) in functions.items() if a <= match.start() < b), None)
+            if owner != asker:
+                problems.append(f"{line_of(match.start())}: {entry} is called outside {asker} (in {owner})")
+        if asker not in functions:
+            problems.append(f"0: {asker} is missing")
+            continue
+        params, a, b = functions[asker]
+        if not BY_VALUE.search(params):
+            problems.append(f"{line_of(a)}: {asker} does not take the instruction's count")
+        if not re.search(r"\bCS2VM2_YieldRestore\s*\(", code[a:b]):
+            problems.append(f"{line_of(a)}: {asker} does not put the count back on a yield")
 
     # which functions pop, directly
     pops = set()
@@ -91,13 +109,13 @@ def main():
 
     asking = given = own_counts = 0
     for name, (params, a, b) in functions.items():
-        if name == "CS2VM2_Ask":
+        if name in ASKERS:
             continue
         body = code[a:b]
         by_value = bool(BY_VALUE.search(params))
         by_pointer = bool(BY_POINTER.search(params))
         owns = [m.start() for m in re.finditer(re.escape(OWN), body)]
-        asks = [m.start() for m in re.finditer(r"\bCS2VM2_Ask\s*\(", body)]
+        asks = [m.start() for m in re.finditer(r"\bCS2VM2_Ask(?:Read)?\s*\(", body)]
         if not (asks or owns or by_value):
             continue
 

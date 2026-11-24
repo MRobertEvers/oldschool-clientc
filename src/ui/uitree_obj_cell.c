@@ -33,7 +33,7 @@ menu_has_ops(struct UITreeMenuOptions const* opts)
 {
     for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
     {
-        if( opts->ops[i][0] != '\0' )
+        if( !UITree_StringEmpty(&opts->ops[i]) )
             return true;
     }
     return false;

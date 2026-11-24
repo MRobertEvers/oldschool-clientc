@@ -184,13 +184,13 @@ add_menu_ops_rows(
 
     for( int i = UITREE_MENU_OPTION_SLOTS - 1; i >= 0; i-- )
     {
-        if( opts->ops[i][0] == '\0' )
+        if( opts->ops[i].len == 0 )
             continue;
 
         if( target_suffix && target_suffix[0] != '\0' )
-            snprintf(text, sizeof(text), "%s %s", opts->ops[i], target_suffix);
+            snprintf(text, sizeof(text), "%s %s", opts->ops[i].text, target_suffix);
         else
-            snprintf(text, sizeof(text), "%s", opts->ops[i]);
+            snprintf(text, sizeof(text), "%s", opts->ops[i].text);
 
         {
             int action = default_actions[i];
@@ -382,14 +382,14 @@ add_obj_cell_rows(
             &ctx->tree->components[cell->ops_node_index];
         struct UITreeRuntimeHooks const* hooks = UITree_Hooks(ops_node);
         int const has_on_op = hooks->on_op.script_id > 0;
-        char const* target_verb = component_ops.target_verb;
+        char const* target_verb = component_ops.target_verb.text;
         int target_priority = ops_node->target_priority;
         int32_t target_ancestor = ops_node->parent;
         while( target_verb[0] == '\0' && target_ancestor >= 0 )
         {
             struct UITreeComponent const* ancestor =
                 &ctx->tree->components[target_ancestor];
-            target_verb = UITree_MenuOptions(ancestor)->target_verb;
+            target_verb = UITree_MenuOptions(ancestor)->target_verb.text;
             target_priority = ancestor->target_priority;
             target_ancestor = ancestor->parent;
         }
@@ -404,7 +404,7 @@ add_obj_cell_rows(
             for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
             {
                 if( (ev & (1 << (i + 1))) == 0 )
-                    component_ops.ops[i][0] = '\0';
+                    UITree_StringClear(&component_ops.ops[i]);
             }
         }
 
@@ -415,11 +415,9 @@ add_obj_cell_rows(
          * the ObjType rows. The target verb identifies this item-use container;
          * bank/worn children have their own component operation vocabulary. */
         if( target_verb[0] != '\0' && obj &&
-            obj->inv_actions[4][0] == '\0' && component_ops.ops[6][0] == '\0' )
+            obj->inv_actions[4][0] == '\0' && component_ops.ops[6].len == 0 )
         {
-            snprintf(
-                component_ops.ops[6], sizeof(component_ops.ops[6]), "%s",
-                k_default_drop_verb);
+            UITree_StringSetC(&component_ops.ops[6], k_default_drop_verb);
         }
 
         /* Official method5229 walks op slots high-to-low and inserts the target
@@ -439,7 +437,7 @@ add_obj_cell_rows(
                 UIMinimenu_AddOption(
                     menu, target_text, REVCONFIG_MINIMENU_OPHELDT_START, 0, pick);
             }
-            if( component_ops.ops[i][0] != '\0' )
+            if( component_ops.ops[i].len != 0 )
             {
                 char op_text[UITREE_MINIMENU_OPTION_LEN];
                 int action = component_ops.op_actions[i] != 0
@@ -448,7 +446,7 @@ add_obj_cell_rows(
                 if( i > target_priority )
                     action = UIMinimenu_ActionDeprioritize(action);
                 snprintf(
-                    op_text, sizeof(op_text), "%s %s", component_ops.ops[i], suffix);
+                    op_text, sizeof(op_text), "%s %s", component_ops.ops[i].text, suffix);
                 UIMinimenu_AddOption(menu, op_text, action, i, pick);
             }
         }
@@ -739,15 +737,15 @@ add_target_button_row(
 
     if( node->behavior.button_type != REVCONFIG_BUTTON_TYPE_TARGET )
         return false;
-    if( opts->target_verb[0] == '\0' )
+    if( opts->target_verb.len == 0 )
         return false;
 
-    snprintf(verb, sizeof(verb), "%s", opts->target_verb);
+    snprintf(verb, sizeof(verb), "%s", opts->target_verb.text);
     space = strchr(verb, ' ');
     if( space )
         verb[space - verb] = '\0';
 
-    snprintf(text, sizeof(text), "%s @gre@%s", verb, opts->target_base);
+    snprintf(text, sizeof(text), "%s @gre@%s", verb, opts->target_base.text);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick);
     return true;
 }
@@ -818,7 +816,7 @@ component_offers_if3_target(
 {
     return node->behavior.button_type != REVCONFIG_BUTTON_TYPE_TARGET &&
            component_effective_target_mask(node, events) != 0 &&
-            UITree_MenuOptions(node)->target_verb[0] != '\0';
+            UITree_MenuOptions(node)->target_verb.len != 0;
 }
 
 /*
@@ -846,7 +844,7 @@ add_if3_target_op_rows(
     /* IF3 has no targetText: the row's target is the component's opBase, which
      * is the same string its op rows are suffixed with and which the spellbook
      * fills in already coloured (`<col=00ff00>Wind Strike</col>`). */
-    char const* base = opts->option;
+    char const* base = opts->option.text;
     char text[UITREE_MINIMENU_OPTION_LEN];
     /* The reference walks 32 operation slots; this tree stores 10. A priority
      * past the end still has to produce its row, so it lands on the first slot
@@ -876,12 +874,12 @@ add_if3_target_op_rows(
              * a script-built button (the crew panel's) carries a target verb
              * and no opBase at all, and its row is just the verb. */
             if( base[0] != '\0' )
-                snprintf(text, sizeof(text), "%s %s", opts->target_verb, base);
+                snprintf(text, sizeof(text), "%s %s", opts->target_verb.text, base);
             else
-                snprintf(text, sizeof(text), "%s", opts->target_verb);
+                snprintf(text, sizeof(text), "%s", opts->target_verb.text);
             UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick);
         }
-        if( !rows || rows->ops[i][0] == '\0' )
+        if( !rows || rows->ops[i].len == 0 )
             continue;
         {
             int action =
@@ -889,9 +887,9 @@ add_if3_target_op_rows(
             if( i > priority )
                 action = UIMinimenu_ActionDeprioritize(action);
             if( base[0] != '\0' )
-                snprintf(text, sizeof(text), "%s %s", rows->ops[i], base);
+                snprintf(text, sizeof(text), "%s %s", rows->ops[i].text, base);
             else
-                snprintf(text, sizeof(text), "%s", rows->ops[i]);
+                snprintf(text, sizeof(text), "%s", rows->ops[i].text);
             UIMinimenu_AddOption(menu, text, action, i, pick);
         }
     }
@@ -944,10 +942,10 @@ add_component_rows(
             for( int i = UITREE_MENU_OPTION_SLOTS - 1; i >= 0; i-- )
             {
                 struct UIMinimenuPick owned=pick;
-                if( opts->ops[i][0] == '\0' )
+                if( opts->ops[i].len == 0 )
                     continue;
                 UITree_StampMenuPick(ctx->tree,(int32_t)(node-ctx->tree->components),&owned);
-                UIMinimenu_AddOption(menu,opts->ops[i],RS_MINIMENU_ACTION_PLUGIN_WIDGET,i,owned);
+                UIMinimenu_AddOption(menu,opts->ops[i].text,RS_MINIMENU_ACTION_PLUGIN_WIDGET,i,owned);
             }
         return menu->option_count-before;
     }
@@ -980,8 +978,8 @@ add_component_rows(
         for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
         {
             if( (events & (1 << (i + 1))) == 0 )
-                filtered.ops[i][0] = '\0';
-            else if( filtered.ops[i][0] != '\0' )
+                UITree_StringClear(&filtered.ops[i]);
+            else if( filtered.ops[i].len != 0 )
                 any = 1;
         }
         if( !any )
@@ -1002,7 +1000,7 @@ add_component_rows(
             (node->component_id >> 16) & 0xFFFF, node->component_id & 0xFFFF,
             (int)node->if3, (unsigned)events,
             (unsigned)component_effective_target_mask(node, events),
-            node->target_priority, UITree_MenuOptions(node)->target_verb, opts->option);
+            node->target_priority, UITree_MenuOptions(node)->target_verb.text, opts->option.text);
 
     /* An IF3 target component's verb and its ops are ONE ordered walk, not two
      * competing branches: High Alchemy carries "Animation" and "Warnings"
@@ -1020,14 +1018,14 @@ add_component_rows(
     if( rows )
     {
         ops_added = add_menu_ops_rows(
-            menu, rows, pick, rows->option[0] != '\0' ? rows->option : NULL,
+            menu, rows, pick, rows->option.len != 0 ? rows->option.text : NULL,
             k_inv_button_action);
         if( ops_added > 0 )
             return menu->option_count - before;
     }
 
-    if( opts->option[0] != '\0' )
-        label = opts->option;
+    if( opts->option.len != 0 )
+        label = opts->option.text;
     else if( node->behavior.button_type == REVCONFIG_BUTTON_TYPE_CLOSE )
         label = "Close";
     else if(

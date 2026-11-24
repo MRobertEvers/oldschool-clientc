@@ -5,6 +5,7 @@
 
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/rs_cs2_host_reads.h"
 #include "game/rs_loot_store.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_social.h"
@@ -451,26 +452,27 @@ rs_cs2_npc_head_ready(
     return true;
 }
 
+/* CC/IF_SETOP: the op text arrives as the VM's string, length and all, and is
+ * stored as a UITree_String -- copied, not measured, not padded. */
 static void
 rs_cs2_apply_op(
     struct UITree* tree,
     int component_id,
     int index,
-    char const* text)
+    struct CS2VM2_Str const* str)
 {
     int32_t idx;
+    char const* const text = CS2VM2_StrText(str);
     assert(tree);
     if( index < 1 || index > UITREE_MENU_OPTION_SLOTS )
         return;
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 )
         return;
-    strncpy(
-        UITree_MenuOptionsMutIn(tree, &tree->components[idx])->ops[index - 1],
-        text ? text : "",
-        UITREE_MENU_OPTION_LEN - 1);
-    UITree_MenuOptionsMutIn(tree, &tree->components[idx])->ops[index - 1][UITREE_MENU_OPTION_LEN - 1] =
-        '\0';
+    UITree_StringSet(
+        &UITree_MenuOptionsMutIn(tree, &tree->components[idx])->ops[index - 1],
+        text,
+        CS2VM2_StrLen(str));
     /* TORIRS_OPS_DEBUG=1: which script wrote which verb onto which component.
      * The rev-230 inventory's rows are entirely script-assigned, so a wrong or
      * missing verb there is invisible until the menu is opened. */
@@ -483,7 +485,7 @@ rs_cs2_apply_op(
             (component_id >> 16) & 0xFFFF,
             component_id & 0xFFFF,
             index,
-            text ? text : "");
+            text);
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -502,12 +504,19 @@ rs_cs2_clear_ops(
      * only to be cleared is 888 bytes of zeroes the node then keeps: a
      * container rebuild clears the ops of every row it creates, before it
      * knows which rows will be given any. */
-    if( UITree_HasMenuOptions(&tree->components[idx]) )
+    if( !UITree_HasMenuOptions(&tree->components[idx]) )
+    {
+        /* Nothing to clear, so nothing changed: the node is not marked
+         * dirty either, as every applier that compares first leaves it
+         * (UITree_SetHideAt). 4,187 cc_clearops a bank open, on rows that
+         * have just been created. */
+        return;
+    }
     {
         struct UITreeMenuOptions* const options = UITree_MenuOptionsMutIn(tree, &tree->components[idx]);
         for( i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
-            options->ops[i][0] = '\0';
-        options->option[0] = '\0';
+            UITree_StringClear(&options->ops[i]);
+        UITree_StringClear(&options->option);
         UITree_MenuSubmenuClear(options, 0);
     }
     UITree_MarkNodeDirty(tree, idx);
@@ -519,7 +528,7 @@ rs_cs2_apply_op_submenu(
     int component_id,
     int op_index,
     int sub_index,
-    char const* text)
+    struct CS2VM2_Str const* text)
 {
     int32_t idx;
     assert(tree);
@@ -532,7 +541,11 @@ rs_cs2_apply_op_submenu(
     if( idx < 0 )
         return;
     UITree_MenuSubmenuSetEntry(
-        UITree_MenuOptionsMutIn(tree, &tree->components[idx]), op_index, sub_index, text ? text : "");
+        UITree_MenuOptionsMutIn(tree, &tree->components[idx]),
+        op_index,
+        sub_index,
+        CS2VM2_StrText(text),
+        CS2VM2_StrLen(text));
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -2686,38 +2699,8 @@ exec_inv_size(
     return CS2VM2_PushInt(thread, 0);
 }
 
-static int
-rs_cs2_inv_get_obj(
-    struct RS_CS2Host* host,
-    int inv_id,
-    int slot)
-{
-    int obj;
-    assert(host);
-    assert(host->invs);
-    if( inv_id < 0 || slot < 0 )
-        return -1;
-    obj = InvManager_GetObj(host->invs, inv_id, slot);
-    /* Scripts expect -1 for empty (reference INV_GETOBJ pushes -1 when the
-     * inv or slot has no item); InvManager's empty sentinel is -1 too, and
-     * obj 0 (Dwarf remains) is a real item. */
-    if( obj <= INV_MANAGER_EMPTY_OBJ_ID )
-        return -1;
-    return obj;
-}
-
-static int
-rs_cs2_inv_get_num(
-    struct RS_CS2Host* host,
-    int inv_id,
-    int slot)
-{
-    assert(host);
-    assert(host->invs);
-    if( inv_id < 0 || slot < 0 )
-        return 0;
-    return InvManager_GetNum(host->invs, inv_id, slot);
-}
+/* INV_GETOBJ / INV_GETNUM are RS_CS2Host_InvGetObj / _InvGetNum
+ * (rs_cs2_host_reads.h), shared with the VM's read entry RS_CS2Host_Read. */
 
 static int
 rs_cs2_inv_total(
@@ -2943,8 +2926,7 @@ exec_vars_read_varbit(
     struct CS2VM2_Thread* thread,
     int varbit_id)
 {
-    assert(host->varps);
-    return CS2VM2_PushInt(thread, VarPManager_GetVarbit(host->varps, varbit_id));
+    return CS2VM2_PushInt(thread, RS_CS2Host_VarbitGet(host, varbit_id));
 }
 
 static int
@@ -5301,19 +5283,24 @@ rs_cs2_obj_pose_ready(
 /* cc_setobject's model, once the obj's model is here (or will never be): on a
  * MODEL widget the obj's 3D interface model, answering the objtype it drew
  * (the stack variant's when there is one), else (or with no model) the obj's
- * icon, answering -1. Writes no pose. */
+ * icon, answering -1 with the icon's scene id (or -1) in *out_icon. Writes no
+ * pose. */
 static int
 rs_cs2_bind_object_model(
     struct RS_CS2Host* host,
     int component_id,
     int obj_id,
     int count,
-    int num_mode)
+    int num_mode,
+    int* out_icon)
 {
     struct UITree* tree = rs_cs2_tree(host);
     struct CacheProvider* provider = rs_cs2_provider(host);
     int scene_id = -1;
     int atlas_index = 0;
+
+    assert(out_icon);
+    *out_icon = -1;
 
     /*
      * A type-6 (MODEL) widget draws the obj in 3D, not as its 2D icon.
@@ -5379,12 +5366,13 @@ rs_cs2_bind_object_model(
             dbg >= 0 ? (int)tree->components[dbg].type : -1);
     }
     (void)UITree_ApplyObject(tree, component_id, obj_id, count, scene_id, atlas_index, num_mode);
+    *out_icon = scene_id;
     return -1;
 }
 
 /* cc_setobject with everything resident: the model and its pose, or the
- * icon. */
-static void
+ * icon. Answers the icon's scene id when the cell took the icon, else -1. */
+static int
 rs_cs2_set_object_resident(
     struct RS_CS2Host* host,
     int component_id,
@@ -5392,10 +5380,13 @@ rs_cs2_set_object_resident(
     int count,
     int num_mode)
 {
-    int const render_obj = rs_cs2_bind_object_model(host, component_id, obj_id, count, num_mode);
+    int icon = -1;
+    int const render_obj =
+        rs_cs2_bind_object_model(host, component_id, obj_id, count, num_mode, &icon);
 
     if( render_obj >= 0 && CacheProvider_ObjtypeHas(rs_cs2_provider(host), render_obj) )
         rs_cs2_pose_obj_model(host, component_id, render_obj);
+    return icon;
 }
 
 void
@@ -5406,8 +5397,9 @@ RS_CS2Host_SetObjectModelLanded(
     int count,
     int num_mode)
 {
+    int icon = -1;
     assert(host);
-    (void)rs_cs2_bind_object_model(host, component_id, obj_id, count, num_mode);
+    (void)rs_cs2_bind_object_model(host, component_id, obj_id, count, num_mode, &icon);
 }
 
 
@@ -5443,10 +5435,33 @@ exec_set_object(
         return CS2VM_EXECNO_OK;
     }
 
+    /* An icon cell whose item was ready before and has lost nothing since
+     * (engine/obj_icon_memo.h): the answer the full test below would give,
+     * read back. A MODEL widget takes the full path -- it draws the obj's
+     * model and poses it, which the memo does not cover. */
+    {
+        int const remembered =
+            UITreeSceneBridge_ObjIconRemembered(rs_cs2_bridge(host), obj_id, count);
+        if( remembered > 0 && !torirs_objicon_debug() )
+        {
+            int32_t const cell = UITree_FindByComponentId(tree, component_id);
+            if( cell < 0 || tree->components[cell].type != UIELEM_RS_MODEL )
+            {
+                (void)UITree_ApplyObject(
+                    tree, component_id, obj_id, count, remembered, 0, num_mode);
+                return CS2VM_EXECNO_OK;
+            }
+        }
+    }
+
+    /* Read before the test, so a drop during it leaves what is remembered
+     * below stale rather than wrong. */
+    uint64_t const drop_revision = CacheProvider_AssetDropRevision(provider);
     /* The icon needs the objtype, its count variant, the inventory model and
      * that model's textures. Task_ObjModelLoad fetches all of them, so ask it
      * once whether anything is missing rather than yielding per piece. */
-    if( ObjModelLoad_NeedsWork(provider, obj_id, count) )
+    bool const ready = !ObjModelLoad_NeedsWork(provider, obj_id, count);
+    if( !ready )
     {
         /*
          * An ICON cell does not wait. Store the obj on the node now — the
@@ -5493,7 +5508,11 @@ exec_set_object(
          * the icon from what did arrive; the raster skips missing faces. */
     }
 
-    rs_cs2_set_object_resident(host, component_id, obj_id, count, num_mode);
+    int const icon = rs_cs2_set_object_resident(host, component_id, obj_id, count, num_mode);
+    /* Only a complete item is remembered: one built from a partial load is
+     * asked again next time, as before. */
+    if( ready && icon > 0 )
+        UITreeSceneBridge_ObjIconRemember(rs_cs2_bridge(host), obj_id, count, drop_revision, icon);
     return CS2VM_EXECNO_OK;
 }
 
@@ -6005,15 +6024,28 @@ exec_cc_find(
 {
     struct UITree* tree = rs_cs2_tree(host);
     int found = 0;
-    int yield_res;
     int32_t parent_idx;
 
-    yield_res =
-        rs_cs2_yield_if_group_missing(host, vm, parent_id, exact_request);
-    if( yield_res != CS2VM_EXECNO_OK )
-        return yield_res;
-
-    parent_idx = UITree_FindByComponentId(tree, parent_id);
+    /* The parent the last cc_find resolved, when no id has moved since
+     * (RS_CS2Host::find_parent_id): its group was mounted then and still is. */
+    if( parent_id == host->find_parent_id && tree->instance_id == host->find_tree_instance &&
+        tree->id_generation == host->find_id_generation )
+        parent_idx = host->find_parent_idx;
+    else
+    {
+        int const yield_res =
+            rs_cs2_yield_if_group_missing(host, vm, parent_id, exact_request);
+        if( yield_res != CS2VM_EXECNO_OK )
+            return yield_res;
+        parent_idx = UITree_FindByComponentId(tree, parent_id);
+        if( parent_idx >= 0 )
+        {
+            host->find_tree_instance = tree->instance_id;
+            host->find_parent_id = parent_id;
+            host->find_parent_idx = parent_idx;
+            host->find_id_generation = tree->id_generation;
+        }
+    }
     if( parent_idx >= 0 )
     {
         int32_t child_idx =
@@ -9941,12 +9973,32 @@ exec_widget_get_op(
     int component_id,
     int one_based_op_index)
 {
-    char const* op = "";
     int const op_index = one_based_op_index - 1;
     struct UITreeComponent* node = rs_cs2_node(host, component_id);
     if( node && op_index >= 0 && op_index < UITREE_MENU_OPTION_SLOTS )
-        op = UITree_MenuOptions(node)->ops[op_index];
-    return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, op));
+    {
+        struct UITree_String const* op = &UITree_MenuOptions(node)->ops[op_index];
+        return CS2VM2_PushStr(vm, CS2VM2_StrDupLen(vm, op->text, op->len));
+    }
+    return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+}
+
+/* TORIRS_SETHIDE_DEBUG=1: the hide writes to a few interfaces, with whether
+ * the node was there. Out of line: the write below is a script's commonest. */
+static __attribute__((noinline)) void
+rs_cs2_sethide_trace(
+    int component_id,
+    int hide,
+    int32_t idx)
+{
+    int const g = (component_id >> 16) & 0xffff;
+    if( g == 149 || g == 320 || g == 218 || (g == 161 && (component_id & 0xffff) >= 73) )
+        TORIRS_LOG("sethide: component 0x%08x (%d|%d) hide=%d found=%d\n",
+            (unsigned)component_id,
+            g,
+            component_id & 0xffff,
+            hide,
+            idx >= 0 ? 1 : 0);
 }
 
 static int
@@ -9955,36 +10007,23 @@ exec_widget_set_hide(
     int component_id,
     bool hidden)
 {
+    static int sethide_debug = -1;
     struct UITree* tree = rs_cs2_tree(host);
-    int was_hidden = 0;
-    int32_t hide_idx;
+    /* One lookup: the node whose flag is read here is the one written below
+     * (UITree_SetHideAt, which is what UITree_ApplyHide resolved the id to). */
+    int32_t const hide_idx = UITree_FindByComponentId(tree, component_id);
+    int const was_hidden = hide_idx >= 0 && tree->components[hide_idx].behavior.hide;
 
 #if UITREE_CLICK_DEBUG
     TORIRS_LOG("uitree_click: IF_SETHIDE component_id=%d hide=%d\n",
         component_id,
         hidden ? 1 : 0);
 #endif
-    {
-        static int sethide_debug = -1;
-        if( sethide_debug < 0 )
-            sethide_debug = getenv("TORIRS_SETHIDE_DEBUG") != NULL;
-        if( sethide_debug )
-        {
-            int const g = (component_id >> 16) & 0xffff;
-            if( g == 149 || g == 320 || g == 218 ||
-                (g == 161 && (component_id & 0xffff) >= 73) )
-                TORIRS_LOG("sethide: component 0x%08x (%d|%d) hide=%d found=%d\n",
-                    (unsigned)component_id,
-                    g,
-                    component_id & 0xffff,
-                    hidden ? 1 : 0,
-                    UITree_FindByComponentId(tree, component_id) >= 0 ? 1 : 0);
-        }
-    }
-    hide_idx = UITree_FindByComponentId(tree, component_id);
-    if( hide_idx >= 0 )
-        was_hidden = tree->components[hide_idx].behavior.hide ? 1 : 0;
-    (void)UITree_ApplyHide(tree, component_id, hidden ? 1 : 0);
+    if( sethide_debug < 0 )
+        sethide_debug = getenv("TORIRS_SETHIDE_DEBUG") != NULL;
+    if( sethide_debug )
+        rs_cs2_sethide_trace(component_id, hidden ? 1 : 0, hide_idx);
+    (void)UITree_SetHideAt(tree, hide_idx, hidden ? 1 : 0);
     if( host->if_written )
         host->if_written(host->if_written_user, RS_CS2_IF_WRITE_HIDE, component_id, hidden ? 1 : 0, NULL);
     if( was_hidden && !hidden )
@@ -10333,7 +10372,7 @@ exec_widget_set_op(
     struct RS_CS2Host* host,
     int component_id,
     int index,
-    char const* text)
+    struct CS2VM2_Str const* text)
 {
     rs_cs2_apply_op(rs_cs2_tree(host), component_id, index, text);
     return CS2VM_EXECNO_OK;
@@ -10343,9 +10382,10 @@ static int
 exec_widget_set_op_base(
     struct RS_CS2Host* host,
     int component_id,
-    char const* text)
+    struct CS2VM2_Str const* text)
 {
-    (void)UITree_ApplyOpBase(rs_cs2_tree(host), component_id, text);
+    (void)UITree_ApplyOpBaseLen(
+        rs_cs2_tree(host), component_id, CS2VM2_StrText(text), CS2VM2_StrLen(text));
     return CS2VM_EXECNO_OK;
 }
 
@@ -10356,17 +10396,22 @@ exec_widget_get_op_base(
     int component_id)
 {
     struct UITreeComponent* node = rs_cs2_node(host, component_id);
-    char const* text = node ? UITree_MenuOptions(node)->option : "";
-    return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, text ? text : ""));
+    if( node )
+    {
+        struct UITree_String const* base = &UITree_MenuOptions(node)->option;
+        return CS2VM2_PushStr(vm, CS2VM2_StrDupLen(vm, base->text, base->len));
+    }
+    return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
 }
 
 static int
 exec_widget_set_target_verb(
     struct RS_CS2Host* host,
     int component_id,
-    char const* text)
+    struct CS2VM2_Str const* text)
 {
-    (void)UITree_ApplyTargetVerb(rs_cs2_tree(host), component_id, text);
+    (void)UITree_ApplyTargetVerbLen(
+        rs_cs2_tree(host), component_id, CS2VM2_StrText(text), CS2VM2_StrLen(text));
     return CS2VM_EXECNO_OK;
 }
 
@@ -10376,7 +10421,7 @@ exec_widget_set_op_submenu(
     int component_id,
     int op_index,
     int sub_index,
-    char const* text)
+    struct CS2VM2_Str const* text)
 {
     rs_cs2_apply_op_submenu(
         rs_cs2_tree(host), component_id, op_index, sub_index, text);
@@ -10461,6 +10506,35 @@ rs_cs2_host_exec_dispatch(
     struct CS2VM2_Thread* vm,
     struct CS2VM_HostRequest* request);
 
+#ifndef TORIRS_PERF_DISABLE
+/* RS_CS2Host_Exec while TORIRS_PERF is on: the request counted, the outermost
+ * dispatch timed. Depth-guarded because a handler may re-enter the VM and reach
+ * RS_CS2Host_Exec again (CC_CALLONOP and the trigger dispatchers do), and a
+ * stage that begins twice before it ends bills the inner span to the outer one.
+ * Only the outermost dispatch is timed, so the stage total stays the
+ * wall-clock time `cs2` spends inside host work rather than a sum that can
+ * exceed its own parent. Not thread-local on purpose: the VM is pumped from one
+ * thread and this is measurement scaffolding, not tree state. */
+static __attribute__((noinline)) int
+rs_cs2_host_exec_measured(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest* request)
+{
+    static int depth = 0;
+    int result;
+    int const timed = (depth++ == 0);
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
+    if( timed )
+        TORIRS_PERF_STAGE_BEGIN(TORIRS_PERF_STAGE_CS2_HOST_OP);
+    result = rs_cs2_host_exec_dispatch(vm, request);
+    if( timed )
+        TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_CS2_HOST_OP);
+    depth--;
+    return result;
+}
+#endif
+
 int
 RS_CS2Host_Exec(
     struct CS2VM2_Thread* vm,
@@ -10476,24 +10550,15 @@ RS_CS2Host_Exec(
      * assert. */
     assert(CS2VM_USER(vm) && "CS2VM_USER(thread) must be RS_CS2Host*");
 
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
-    /* Depth-guarded because a handler may re-enter the VM and reach this
-     * function again (CC_CALLONOP and the trigger dispatchers do), and a stage
-     * that begins twice before it ends bills the inner span to the outer one.
-     * Only the outermost dispatch is timed, so the stage total stays the
-     * wall-clock time `cs2` spends inside host work rather than a sum that can
-     * exceed its own parent. Not thread-local on purpose: the VM is pumped from
-     * one thread and this is measurement scaffolding, not tree state. */
-    {
-        static int depth = 0;
-        int timed = (depth++ == 0);
-        if( timed )
-            TORIRS_PERF_STAGE_BEGIN(TORIRS_PERF_STAGE_CS2_HOST_OP);
+    /* Measurement is one test when it is off, which it is in every run that
+     * is not being profiled: the counter, the depth and the stage are all
+     * inside rs_cs2_host_exec_measured. */
+#ifndef TORIRS_PERF_DISABLE
+    if( g_torirs_perf_enabled )
+        result = rs_cs2_host_exec_measured(vm, request);
+    else
+#endif
         result = rs_cs2_host_exec_dispatch(vm, request);
-        if( timed )
-            TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_CS2_HOST_OP);
-        depth--;
-    }
     /* The await record only spans the yield -> load -> retry window: a request
      * that completes retires it, so a resource evicted later can be awaited
      * again. */
@@ -10757,16 +10822,16 @@ rs_cs2_host_exec_dispatch(
         return exec_widget_set_component_param(host, request->u.opname.component_id, request->u.opname.param_id, request->u.opname.value, CS2VM2_StrCStr(request->u.opname.str_value))
 #define RS_CS2_SET_OP_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_op(host, request->u.opname.component_id, request->u.opname.index, CS2VM2_StrCStr(request->u.opname.text))
+        return exec_widget_set_op(host, request->u.opname.component_id, request->u.opname.index, request->u.opname.text)
 #define RS_CS2_SET_OP_BASE_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_op_base(host, request->u.opname.component_id, CS2VM2_StrCStr(request->u.opname.text))
+        return exec_widget_set_op_base(host, request->u.opname.component_id, request->u.opname.text)
 #define RS_CS2_SET_TARGET_VERB_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_target_verb(host, request->u.opname.component_id, CS2VM2_StrCStr(request->u.opname.text))
+        return exec_widget_set_target_verb(host, request->u.opname.component_id, request->u.opname.text)
 #define RS_CS2_SET_OP_SUBMENU_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_op_submenu(host, request->u.opname.component_id, request->u.opname.op_index, request->u.opname.sub_index, CS2VM2_StrCStr(request->u.opname.text))
+        return exec_widget_set_op_submenu(host, request->u.opname.component_id, request->u.opname.op_index, request->u.opname.sub_index, request->u.opname.text)
 #define RS_CS2_SET_TARGET_PRIORITY_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         return exec_widget_set_target_priority(host, request->u.opname.component_id, request->u.opname.priority)
@@ -12271,13 +12336,13 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_INV_GETOBJ:
         return CS2VM2_PushInt(
             vm,
-            rs_cs2_inv_get_obj(host, request->u.INV_GETOBJ.inv_id, request->u.INV_GETOBJ.slot));
+            RS_CS2Host_InvGetObj(host, request->u.INV_GETOBJ.inv_id, request->u.INV_GETOBJ.slot));
     case CS2VM_HOST_REQUEST_INVOTHER_GETOBJ:
-        return CS2VM2_PushInt(vm, rs_cs2_inv_get_obj(host,
+        return CS2VM2_PushInt(vm, RS_CS2Host_InvGetObj(host,
             (int)((uint32_t)request->u.INVOTHER_GETOBJ.inv_id + 32768u),
             request->u.INVOTHER_GETOBJ.slot));
     case CS2VM_HOST_REQUEST_INVOTHER_GETNUM:
-        return CS2VM2_PushInt(vm, rs_cs2_inv_get_num(host,
+        return CS2VM2_PushInt(vm, RS_CS2Host_InvGetNum(host,
             (int)((uint32_t)request->u.INVOTHER_GETNUM.inv_id + 32768u),
             request->u.INVOTHER_GETNUM.slot));
     case CS2VM_HOST_REQUEST_INVOTHER_TOTAL:
@@ -12288,7 +12353,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_INV_GETNUM:
         return CS2VM2_PushInt(
             vm,
-            rs_cs2_inv_get_num(host, request->u.INV_GETNUM.inv_id, request->u.INV_GETNUM.slot));
+            RS_CS2Host_InvGetNum(host, request->u.INV_GETNUM.inv_id, request->u.INV_GETNUM.slot));
 
     case CS2VM_HOST_REQUEST_INV_TOTAL:
         return CS2VM2_PushInt(

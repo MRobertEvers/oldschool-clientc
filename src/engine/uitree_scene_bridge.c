@@ -279,6 +279,7 @@ UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge)
     bridge_hmap_free(bridge->obj_icon_border_map);
     bridge_hmap_free(bridge->npc_head_map);
     bridge_hmap_free(bridge->obj_model_map);
+    ObjIconMemo_Free(&bridge->obj_icon_memo);
     /* Their models are the scene's, and go with it. */
     ToriMem_Free(ToriMem_Ui(), bridge->custom_heads);
     /* The icons' pixels are the scene's, and go with it. */
@@ -2297,6 +2298,30 @@ UITreeSceneBridge_EnsureObjIcon(
 {
     return bridge_ensure_obj_icon(
         bridge, obj_id, count, BRIDGE_ICON_OUTLINE_SHADOW, bridge->obj_icon_map);
+}
+
+int
+UITreeSceneBridge_ObjIconRemembered(
+    struct UITreeSceneBridge const* bridge,
+    int obj_id,
+    int count)
+{
+    assert(bridge);
+    return ObjIconMemo_Get(
+        &bridge->obj_icon_memo, obj_id, count, CacheProvider_AssetDropRevision(bridge->provider));
+}
+
+void
+UITreeSceneBridge_ObjIconRemember(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count,
+    uint64_t revision,
+    int scene_id)
+{
+    assert(bridge);
+    assert(scene_id > 0);
+    ObjIconMemo_Put(&bridge->obj_icon_memo, obj_id, count, revision, scene_id);
 }
 
 int

@@ -2714,8 +2714,8 @@ app_minimenu_run_option(
             if( node->behavior.button_type == REVCONFIG_BUTTON_TYPE_TARGET )
                 UITargetSelect_SetTargetOpClassic(
                     &app->target_select,
-                    UITree_MenuOptions(node)->target_verb,
-                    UITree_MenuOptions(node)->target_base);
+                    UITree_MenuOptions(node)->target_verb.text,
+                    UITree_MenuOptions(node)->target_base.text);
             else
             {
                 /* IF3: one string, because that is the shape the world/
@@ -2724,8 +2724,8 @@ app_minimenu_run_option(
                  * add_if3_target_op_rows applies when it builds the row. */
                 UITargetSelect_SetTargetOpIf3(
                     &app->target_select,
-                    UITree_MenuOptions(node)->target_verb,
-                    UITree_MenuOptions(node)->option);
+                    UITree_MenuOptions(node)->target_verb.text,
+                    UITree_MenuOptions(node)->option.text);
             }
         }
         if( getenv("TORIRS_CLICK_DEBUG") )

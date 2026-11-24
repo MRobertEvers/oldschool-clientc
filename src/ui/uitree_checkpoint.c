@@ -515,23 +515,32 @@ ckpt_node_equal(
     }
     else
     {
-        struct UITreeMenuOptions ma;
-        struct UITreeMenuOptions mb;
-
-        memcpy(&ma, a->menu_options, sizeof(ma));
-        memcpy(&mb, b->menu_options, sizeof(mb));
-        ma.submenus = mb.submenus = NULL;
-        if( memcmp(&ma, &mb, sizeof(ma)) != 0 )
+        /* Field by field: a UITree_String's bytes past its length are not
+         * part of it (a write copies what it was given and is not padded),
+         * so the blocks cannot be compared as memory. */
+        struct UITreeMenuOptions const* ma = a->menu_options;
+        struct UITreeMenuOptions const* mb = b->menu_options;
+        if( !UITree_StringEquals(&ma->option, &mb->option) ||
+            !UITree_StringEquals(&ma->target_verb, &mb->target_verb) ||
+            !UITree_StringEquals(&ma->target_base, &mb->target_base) ||
+            ma->option_action != mb->option_action )
             return 0;
+        for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+            if( !UITree_StringEquals(&ma->ops[i], &mb->ops[i]) || ma->op_actions[i] != mb->op_actions[i] )
+                return 0;
         *field = "menu_options.submenus";
-        if( !a->menu_options->submenus || !b->menu_options->submenus )
+        if( !ma->submenus || !mb->submenus )
         {
-            if( a->menu_options->submenus != b->menu_options->submenus )
+            if( ma->submenus != mb->submenus )
                 return 0;
         }
-        else if( memcmp(a->menu_options->submenus, b->menu_options->submenus,
-                        sizeof(*a->menu_options->submenus)) != 0 )
-            return 0;
+        else
+        {
+            for( int op = 0; op < UITREE_SUBMENU_OP_SLOTS; op++ )
+                for( int e = 0; e < UITREE_SUBMENU_ENTRY_SLOTS; e++ )
+                    if( !UITree_StringEquals(&ma->submenus->ops[op][e], &mb->submenus->ops[op][e]) )
+                        return 0;
+        }
     }
     *field = "op_keys";
     if( memcmp(UITree_OpKeys(a), UITree_OpKeys(b), sizeof(struct UITreeOpKeys)) != 0 )

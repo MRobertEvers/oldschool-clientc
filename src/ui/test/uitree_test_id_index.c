@@ -399,7 +399,7 @@ test_id_shortcuts(void)
         {
             int32_t r = UITree_CcCreate(tree, parent, parent_id, 4, sub);
             (void)UITree_SetTextAt(tree, r, "label");
-            strcpy(UITree_MenuOptionsMutIn(tree, &tree->components[r])->ops[0], "Use");
+            UITree_StringSetC(&UITree_MenuOptionsMutIn(tree, &tree->components[r])->ops[0], "Use");
             UITree_HookSetIn(
                 &tree->hook_argv_pool, &UITree_HooksMutIn(tree, &tree->components[r])->on_click, 9, args, 2, 0, NULL, 0);
         }
@@ -446,9 +446,9 @@ test_block_pool(void)
     TEST_ASSERT(!UITree_HasMenuOptions(&tree->components[row]), "a new row has no options block");
     struct UITreeMenuOptions* opts = UITree_MenuOptionsMutIn(tree, &tree->components[row]);
     TEST_ASSERT(opts != NULL, "options block on first write");
-    strcpy(opts->ops[0], "Withdraw-1");
-    strcpy(opts->option, "Bank");
-    TEST_ASSERT(UITree_MenuSubmenuSetEntry(opts, 2, 3, "Withdraw-10"), "set a submenu entry");
+    UITree_StringSetC(&opts->ops[0], "Withdraw-1");
+    UITree_StringSetC(&opts->option, "Bank");
+    TEST_ASSERT(UITree_MenuSubmenuSetEntry(opts, 2, 3, "Withdraw-10", strlen("Withdraw-10")), "set a submenu entry");
     struct UITreeRuntimeHooks* hooks = UITree_HooksMutIn(tree, &tree->components[row]);
     TEST_ASSERT(hooks != NULL, "handler block on first write");
     UITree_HookSet(&hooks->on_click, 1234, args, 3, 0, strs, 1);
@@ -480,7 +480,16 @@ test_block_pool(void)
         struct UITreeRuntimeHooks zero_hooks;
         memset(&zero_opts, 0, sizeof(zero_opts));
         memset(&zero_hooks, 0, sizeof(zero_hooks));
-        TEST_ASSERT(memcmp(opts2, &zero_opts, sizeof(zero_opts)) == 0, "recycled options block is zeroed");
+        /* Empty as a block of UITree_Strings is empty: zero lengths and no
+         * actions; the bytes past a zero length are not part of a string. */
+        int empty = UITree_StringEmpty(&opts2->option) && UITree_StringEmpty(&opts2->target_verb) &&
+                    UITree_StringEmpty(&opts2->target_base) && opts2->option_action == 0 &&
+                    opts2->submenus == NULL;
+        for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+            empty = empty && UITree_StringEmpty(&opts2->ops[i]) && opts2->ops[i].text[0] == '\0' &&
+                    opts2->op_actions[i] == 0;
+        (void)zero_opts;
+        TEST_ASSERT(empty, "recycled options block is empty");
         TEST_ASSERT(memcmp(hooks2, &zero_hooks, sizeof(zero_hooks)) == 0, "recycled handler block is zeroed");
     }
     TEST_ASSERT(UITree_MenuSubmenuEntry(opts2, 2, 3)[0] == '\0', "no submenu survives");
@@ -590,7 +599,7 @@ test_block_pool(void)
         {
             int32_t r = UITree_CcCreate(tree, parent, parent_id, UIELEM_RS_RECT, sub);
             TEST_ASSERT(r >= 0, "create many rows");
-            strcpy(UITree_MenuOptionsMutIn(tree, &tree->components[r])->ops[1], "Examine");
+            UITree_StringSetC(&UITree_MenuOptionsMutIn(tree, &tree->components[r])->ops[1], "Examine");
             UITree_HookSet(&UITree_HooksMutIn(tree, &tree->components[r])->on_timer, 77, args, 2, 0, NULL, 0);
         }
         UITree_CcDeleteAll(tree, parent);
@@ -658,13 +667,13 @@ test_menu_submenus(void)
     TEST_ASSERT(opts->submenus == NULL, "no block until a submenu is set");
     TEST_ASSERT(UITree_MenuSubmenuEntry(opts, 1, 1)[0] == '\0', "unset entry reads empty");
 
-    TEST_ASSERT(UITree_MenuSubmenuSetEntry(opts, 2, 3, "Withdraw-10"), "set entry");
+    TEST_ASSERT(UITree_MenuSubmenuSetEntry(opts, 2, 3, "Withdraw-10", strlen("Withdraw-10")), "set entry");
     TEST_ASSERT(opts->submenus != NULL, "block allocated on first write");
     TEST_ASSERT(strcmp(UITree_MenuSubmenuEntry(opts, 2, 3), "Withdraw-10") == 0, "entry reads back");
     TEST_ASSERT(UITree_MenuSubmenuEntry(opts, 2, 4)[0] == '\0', "neighbour entry still empty");
-    TEST_ASSERT(!UITree_MenuSubmenuSetEntry(opts, 0, 1, "x"), "op index 0 rejected");
+    TEST_ASSERT(!UITree_MenuSubmenuSetEntry(opts, 0, 1, "x", strlen("x")), "op index 0 rejected");
     TEST_ASSERT(
-        !UITree_MenuSubmenuSetEntry(opts, UITREE_SUBMENU_OP_SLOTS + 1, 1, "x"),
+        !UITree_MenuSubmenuSetEntry(opts, UITREE_SUBMENU_OP_SLOTS + 1, 1, "x", strlen("x")),
         "op index past the end rejected");
 
     /* CC_COPY must give the copy its own block. */
@@ -675,7 +684,7 @@ test_menu_submenus(void)
         TEST_ASSERT(dst->submenus != NULL, "copy carries the submenus");
         TEST_ASSERT(dst->submenus != UITree_MenuOptions(&tree->components[row])->submenus, "copy is not an alias");
         TEST_ASSERT(strcmp(UITree_MenuSubmenuEntry(dst, 2, 3), "Withdraw-10") == 0, "copied entry");
-        TEST_ASSERT(UITree_MenuSubmenuSetEntry(dst, 2, 3, "Withdraw-X"), "write to the copy");
+        TEST_ASSERT(UITree_MenuSubmenuSetEntry(dst, 2, 3, "Withdraw-X", strlen("Withdraw-X")), "write to the copy");
         TEST_ASSERT(
             strcmp(UITree_MenuSubmenuEntry(UITree_MenuOptions(&tree->components[row]), 2, 3),
                    "Withdraw-10") == 0,
@@ -685,7 +694,7 @@ test_menu_submenus(void)
     /* Clearing one op keeps the block; clearing all of them drops it. */
     UITree_MenuSubmenuClear(opts, 2);
     TEST_ASSERT(UITree_MenuSubmenuEntry(opts, 2, 3)[0] == '\0', "cleared op entry");
-    UITree_MenuSubmenuSetEntry(opts, 1, 1, "Ok");
+    UITree_MenuSubmenuSetEntry(opts, 1, 1, "Ok", strlen("Ok"));
     UITree_MenuSubmenuClear(opts, 0);
     TEST_ASSERT(opts->submenus == NULL, "clear-all releases the block");
     TEST_ASSERT(UITree_MenuSubmenuEntry(opts, 1, 1)[0] == '\0', "reads empty after release");

@@ -1919,7 +1919,7 @@ drive_pointer_spell_arm(
         return DRIVE_OK;
     }
     c = &app->tree->components[node];
-    verb = UITree_MenuOptions(c)->target_verb;
+    verb = UITree_MenuOptions(c)->target_verb.text;
     if( c->behavior.button_type == REVCONFIG_BUTTON_TYPE_TARGET )
         offers = verb[0] != '\0';
     else

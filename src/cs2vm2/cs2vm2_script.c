@@ -1,6 +1,7 @@
 #include "mem/torirs_mem.h"
 #include "cs2vm2_script.h"
 #include "cs2vm2_jit.h"
+#include "cs2vm2_callee.h"
 #include "cs2vm2_str.h"
 
 #include <assert.h>
@@ -61,6 +62,8 @@ CS2VM2_ScriptFree(struct CS2VM2_Script* script)
     if( !script )
         return;
 
+    /* Any caller that remembered this script as its callee must ask again. */
+    CS2VM2_CalleeScriptRetired(script);
     /* First, while the constant strings its debug canary re-hashes exist. */
     CS2VM2_JitFree(script);
     if( script->switch_tables )
@@ -236,4 +239,6 @@ CS2VM2_ScriptPrepare(struct CS2VM2_Script* script)
     CS2VM2_JitPlainCodes(script, script->plain_code);
     if( !script->jit )
         script->run_code = script->plain_code;
+    /* A table for the gosubs' callees, empty: the first call at each asks. */
+    CS2VM2_CalleePrepare(script);
 }

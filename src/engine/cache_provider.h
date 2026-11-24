@@ -3,6 +3,7 @@
 
 #include "task_trigger.h"
 #include "torirs_types.h"
+#include "engine/cache_provider_obj_index.h"
 
 #include <assert.h>
 #include <hmap.h>
@@ -52,6 +53,15 @@ struct CacheProvider
      *  broader cache-wide counter would make unrelated config/network traffic
      *  defeat retained UI emission. */
     uint64_t ui_asset_revision;
+    /** Bumped when a resident objtype, model or texture LEAVES the provider
+     *  or is replaced by another: retired, evicted, trimmed, cleaned up. An
+     *  arrival does not move it. What a caller remembers about "everything
+     *  this item draws is resident" (the bridge's ObjIconMemo) stays true
+     *  until it moves; CacheProvider_AssetDropRevision reads it. */
+    uint64_t asset_drop_revision;
+    /** objtype_cache by id, without hashing (engine/cache_provider_obj_index.h);
+     *  written everywhere the map's objtype pointers are. */
+    struct CacheProvider_ObjIndex objtype_index;
 
     /** Recent answers of CacheProvider_ClientScriptGet, in front of the map:
      *  a script calls other scripts by id thousands of times in one
@@ -544,6 +554,15 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider);
 /** Version of provider-resident assets observable by UITree host requests. */
 uint64_t
 CacheProvider_UIAssetRevision(struct CacheProvider const* provider);
+
+/** Moves when a resident objtype, model or texture leaves or is replaced
+ *  (CacheProvider::asset_drop_revision). Never 0 once anything has left. */
+static inline uint64_t
+CacheProvider_AssetDropRevision(struct CacheProvider const* provider)
+{
+    assert(provider);
+    return provider->asset_drop_revision;
+}
 
 void
 CacheProvider_ModelAdd(
