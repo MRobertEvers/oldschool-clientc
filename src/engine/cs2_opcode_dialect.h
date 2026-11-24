@@ -34,8 +34,9 @@
  *
  * Command range (>= 100): audited against the 634 client's dispatcher and split
  * three ways — renumbered ids translate here, ids that name a *different* command
- * under RS2 divert to a stubbed signature (g_cs2vm2_opcode_stack_rs2 in
- * cs2vm2.c), and two need real behaviour (CC_CREATE's arity, CC_GETBLENDMODE).
+ * under RS2 are renumbered after this to vm-dialect commands of their own with
+ * stubbed signatures (CS2VM2_ScriptResolveDialect, cs2vm2_dialect.h), and two
+ * need real behaviour (CC_CREATE_FLAT, RS2_CC_GETPARAM).
  * The full list is docs/RS2_634_CLIENT_REFERENCES.md section 3.
  */
 

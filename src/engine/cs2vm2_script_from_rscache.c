@@ -17,6 +17,9 @@ cs2vm2_script_translate_opcodes(
 
     for( int i = 0; i < dst->op_count; i++ )
         dst->opcodes[i] = CS2_OpcodeTranslate(dialect, dst->opcodes[i]);
+    /* The dialect's flags become opcode ids here, so nothing reads them at
+     * run time. */
+    CS2VM2_ScriptResolveDialect(dst);
 }
 
 /*

@@ -280,6 +280,12 @@ struct CS2VM2_Thread
     int longs_stack_top;
 
     int frame_sp;
+    /* Moves on every frame push, pop and reset. The interpreter keeps the
+     * running frame and its script's arrays in locals across instructions and
+     * reads them again only when this has moved: frame_sp alone cannot say,
+     * since a pop and a push in one instruction (a host that runs a gosub)
+     * leave it, and the pooled frame block, where they were. */
+    uint32_t frame_epoch;
 
     int active_component_id;
     int dot_component_id;

@@ -227,8 +227,8 @@ app_cs2jit_init(struct App* app)
 
     app->cs2jit = NULL;
     app->cs2jit_store = 0;
-    /* An rs2 cache's scripts never run the hot loop (CS2VM2_JitBuild refuses
-     * them all), so it gets no pack to read or write. */
+    /* CS2VM2_JitBuild refuses every rs2 script (CS2VM2_JIT_REFUSED_DIALECT),
+     * so an rs2 cache gets no pack to read or write. */
     if( enabled && !(dialect && dialect->rs2_commands) )
     {
         app->cs2jit = CS2JitCache_New(dialect);

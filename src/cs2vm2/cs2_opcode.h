@@ -3,7 +3,7 @@
 #define CS2_OPCODE_H
 
 #define CS2_OPCODE_MAX 13337
-#define CS2_OPCODE_COUNT 1335
+#define CS2_OPCODE_COUNT 1377
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
@@ -4127,6 +4127,351 @@
 #define CS2_OP_GROUP_GETVAR 8560
 #define CS2_OP_GROUP_GETMEMBERVAR 8561
 #define CS2_OP_GROUP_GETVAR_SCOPED 8570
+
+/* === CS2 opcode group: vm-dialect (9000..9099) ===
+ * dialect variants the VM renumbers commands to at load.
+ * Not a client range: the VM's own ids, given at load; no cache spells them.
+ */
+/* CC_CREATE_FLAT — Create dynamic child component, three arguments.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   parent, type, child_index  (child_index = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: CC_CREATE (100) where the cache era pushes no is_nested flag: RS2 634 (Class66.method710) and OldSchool through 229. Renumbered at load; is_nested reaches the host as 0.
+ */
+#define CS2_OP_CC_CREATE_FLAT 9000
+/* DEFINE_ARRAY_SHARED — Define an int array in one of the run's numbered arrays.
+ * operand: (array number << 16) | element type char
+ * int stack in:   size
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: DEFINE_ARRAY (44) where arrays are numbered and shared by every frame of a run (OldSchool through 230). Renumbered at load.
+ */
+#define CS2_OP_DEFINE_ARRAY_SHARED 9001
+/* PUSH_ARRAY_INT_SHARED — Read an element of one of the run's numbered arrays.
+ * operand: array number
+ * int stack in:   index
+ * str stack in:   -
+ * int stack out:  value
+ * str stack out:  -
+ * notes: PUSH_ARRAY_INT (45) over numbered arrays (OldSchool through 230). A string array pushes onto the string stack instead. Renumbered at load.
+ */
+#define CS2_OP_PUSH_ARRAY_INT_SHARED 9002
+/* POP_ARRAY_INT_SHARED — Write an element of one of the run's numbered arrays.
+ * operand: array number
+ * int stack in:   index, value  (value = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: POP_ARRAY_INT (46) over numbered arrays (OldSchool through 230). A string array takes its value off the string stack. Renumbered at load.
+ */
+#define CS2_OP_POP_ARRAY_INT_SHARED 9003
+/* RS2_CC_GETPARAM — Read a param off the active widget (RS2 634).
+ * int stack in:   param_id
+ * str stack in:   -
+ * int stack out:  value
+ * str stack out:  -
+ * notes: Wire 1613 at 634, where OldSchool's 1613 is CC_GETBLENDMODE. Type-polymorphic: the ParamType decides whether an int or a string comes back. No 634-era widget carries a param table, so the answer is the ParamType's default. Renumbered at load.
+ */
+#define CS2_OP_RS2_CC_GETPARAM 9004
+/* RS2_202 — RS2 634 command 202, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: Remove a widget from its group array (Class66.method714); canonical 202 is IF_FIND_ENTITYOVERLAY. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 202 at load.
+ */
+#define CS2_OP_RS2_202 9010
+/* RS2_1122 — RS2 634 command 1122, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: CC_ set of the type-5 flag bit 1 (Class46.aBoolean745). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 1122 at load.
+ */
+#define CS2_OP_RS2_1122 9011
+/* RS2_1311 — RS2 634 command 1311, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: A one-int widget setter (Class46.anInt713); canonical 1311 is CC_SETSUBOP. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 1311 at load.
+ */
+#define CS2_OP_RS2_1311 9012
+/* RS2_2122 — RS2 634 command 2122, stubbed to its 634 signature.
+ * int stack in:   a1, a2  (a2 = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: IF_ set of the type-5 flag bit 1; pops the component id first (Class66:2731). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2122 at load.
+ */
+#define CS2_OP_RS2_2122 9013
+/* RS2_2314 — RS2 634 command 2314, stubbed to its 634 signature.
+ * int stack in:   a1, a2  (a2 = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: A one-int widget setter on an explicit component (Class46.anInt719); canonical 2314 is IF_SETOPPRIORITY. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2314 at load.
+ */
+#define CS2_OP_RS2_2314 9014
+/* RS2_2703 — RS2 634 command 2703, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: Count of a widget's dynamic children (Class46.aClass46Array798). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2703 at load.
+ */
+#define CS2_OP_RS2_2703 9015
+/* RS2_3329 — RS2 634 command 3329, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: Class50_Sub2.aBoolean5233. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3329 at load.
+ */
+#define CS2_OP_RS2_3329 9016
+/* RS2_3335 — RS2 634 command 3335, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: Language index (Class348_Sub33.anInt6967). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3335 at load.
+ */
+#define CS2_OP_RS2_3335 9017
+/* RS2_3340 — RS2 634 command 3340, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: Class175.aBoolean2329. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3340 at load.
+ */
+#define CS2_OP_RS2_3340 9018
+/* RS2_3351 — RS2 634 command 3351, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1, r2, r3  (r3 = top)
+ * str stack out:  -
+ * notes: Three mouse-button booleans, one call. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3351 at load.
+ */
+#define CS2_OP_RS2_3351 9019
+/* RS2_3609 — RS2 634 command 3609, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   s1
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: Friend test by display name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3609 at load.
+ */
+#define CS2_OP_RS2_3609 9020
+/* RS2_3619 — RS2 634 command 3619, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   s1
+ * int stack out:  -
+ * str stack out:  -
+ * notes: Join clan chat by owner name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3619 at load.
+ */
+#define CS2_OP_RS2_3619 9021
+/* RS2_4124 — RS2 634 command 4124, stubbed to its 634 signature.
+ * int stack in:   a1, a2  (a2 = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  t1
+ * notes: (value, comma-group) -> formatted number; OldSchool 239 script 5031 calls canonical 4124 with an empty stack. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 4124 at load.
+ */
+#define CS2_OP_RS2_4124 9022
+/* RS2_4125 — RS2 634 command 4125, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   s1
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: (font, text) -> rendered width. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 4125 at load.
+ */
+#define CS2_OP_RS2_4125 9023
+/* RS2_5003 — RS2 634 command 5003, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  t1
+ * notes: Friend/ignore record field by list index (s.method3985); canonical 5003.. is the chat history family. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5003 at load.
+ */
+#define CS2_OP_RS2_5003 9024
+/* RS2_5004 — RS2 634 command 5004, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5004 at load.
+ */
+#define CS2_OP_RS2_5004 9025
+/* RS2_5010 — RS2 634 command 5010, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  t1
+ * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5010 at load.
+ */
+#define CS2_OP_RS2_5010 9026
+/* RS2_5011 — RS2 634 command 5011, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  t1
+ * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5011 at load.
+ */
+#define CS2_OP_RS2_5011 9027
+/* RS2_5012 — RS2 634 command 5012, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5012 at load.
+ */
+#define CS2_OP_RS2_5012 9028
+/* RS2_5019 — RS2 634 command 5019, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  t1
+ * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5019 at load.
+ */
+#define CS2_OP_RS2_5019 9029
+/* RS2_5024 — RS2 634 command 5024, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5024 at load.
+ */
+#define CS2_OP_RS2_5024 9030
+/* RS2_5056 — RS2 634 command 5056, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: Array length or 0. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5056 at load.
+ */
+#define CS2_OP_RS2_5056 9031
+/* RS2_5102 — RS2 634 command 5102, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: Key-down test. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5102 at load.
+ */
+#define CS2_OP_RS2_5102 9032
+/* RS2_5420 — RS2 634 command 5420, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5420 at load.
+ */
+#define CS2_OP_RS2_5420 9033
+/* RS2_5424 — RS2 634 command 5424, stubbed to its 634 signature.
+ * int stack in:   a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11  (a11 = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: Chat scrollbar skin: four geometry values, five sprite ids the client preloads, two more. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5424 at load.
+ */
+#define CS2_OP_RS2_5424 9034
+/* RS2_5428 — RS2 634 command 5428, stubbed to its 634 signature.
+ * int stack in:   a1, a2  (a2 = top)
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: A two-int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5428 at load.
+ */
+#define CS2_OP_RS2_5428 9035
+/* RS2_5504 — RS2 634 command 5504, stubbed to its 634 signature.
+ * int stack in:   a1, a2  (a2 = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: CAM_FORCEANGLE. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5504 at load.
+ */
+#define CS2_OP_RS2_5504 9036
+/* RS2_5505 — RS2 634 command 5505, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: CAM_GETANGLE_XA. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5505 at load.
+ */
+#define CS2_OP_RS2_5505 9037
+/* RS2_5506 — RS2 634 command 5506, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: CAM_GETANGLE_YA. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5506 at load.
+ */
+#define CS2_OP_RS2_5506 9038
+/* RS2_5507 — RS2 634 command 5507, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5507 at load.
+ */
+#define CS2_OP_RS2_5507 9039
+/* RS2_5508 — RS2 634 command 5508, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5508 at load.
+ */
+#define CS2_OP_RS2_5508 9040
+/* RS2_5509 — RS2 634 command 5509, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5509 at load.
+ */
+#define CS2_OP_RS2_5509 9041
+/* RS2_5510 — RS2 634 command 5510, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5510 at load.
+ */
+#define CS2_OP_RS2_5510 9042
+/* RS2_5547 — RS2 634 command 5547, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5547 at load.
+ */
+#define CS2_OP_RS2_5547 9043
+/* RS2_6506 — RS2 634 command 6506, stubbed to its 634 signature.
+ * int stack in:   a1
+ * str stack in:   -
+ * int stack out:  r1, r2, r3, r4  (r4 = top)
+ * str stack out:  t1, t2, t3      (t3 = top)
+ * notes: WORLDLIST_SPECIFIC(world) -> id, name, loc-id, loc-name, flags, players, activity; OldSchool 239 script 6918 stores 4 ints + 2. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6506 at load.
+ */
+#define CS2_OP_RS2_6506 9044
+/* RS2_6510 — RS2 634 command 6510, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6510 at load.
+ */
+#define CS2_OP_RS2_6510 9045
+/* RS2_6900 — RS2 634 command 6900, stubbed to its 634 signature.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  r1
+ * str stack out:  -
+ * notes: An int query; canonical 6900 is P_NAME. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6900 at load.
+ */
+#define CS2_OP_RS2_6900 9046
 
 /* === CS2 opcode group: op-count (13000..13999) ===
  * interpreter operation-count introspection.

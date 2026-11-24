@@ -11675,7 +11675,7 @@ rs_cs2_host_exec_dispatch(
         /* The blend mode is not modelled: CC_/IF_SETBLENDMODE are accepted and
          * dropped (exec_widget_set_int has no case for FILL_MODE), so the getter
          * answers the default, 0. The RS2 command on this wire id arrives as
-         * STRUCT_PARAM instead -- see CS2VM2_Op_CC_GetParam. */
+         * STRUCT_PARAM instead -- see CS2VM2_Op_RS2_CC_GetParam. */
         (void)request->u.CC_GETBLENDMODE.component_id;
         return CS2VM2_PushInt(vm, 0);
 

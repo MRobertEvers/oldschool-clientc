@@ -36,6 +36,7 @@ from opcode_groups import (
     OpcodeGroup,
     OpcodeSpan,
     group_for_opcode,
+    is_vm_only,
     span_for_opcode,
 )
 from opcode_semantics import (
@@ -267,6 +268,8 @@ def format_group_banner(group: OpcodeGroup, span: OpcodeSpan) -> list[str]:
     ]
     if group.enum_name == "VM_CORE":
         lines.append(" * rev-239 execution: inline in Statics.method4464.")
+    elif not group.deob_handler:
+        lines.append(" * Not a client range: the VM's own ids, given at load; no cache spells them.")
     else:
         lines.append(f" * rev-239 dispatch: Statics.method6889 -> {group.deob_handler}.")
     if len(group.spans) > 1:
@@ -908,7 +911,7 @@ def emit_wire_opcodes_ts(entries: list[tuple[str, int]]) -> str:
     being mistaken for an implemented intrinsic.
     """
 
-    by_opcode = {opcode: name for name, opcode in entries if opcode >= 0}
+    by_opcode = {opcode: name for name, opcode in entries if opcode >= 0 and not is_vm_only(opcode)}
     for opcode, name in parse_command_opcodes().items():
         by_opcode.setdefault(opcode, name)
     by_opcode.update(WIRE_ONLY_OPCODE_NAMES)
@@ -992,7 +995,7 @@ def emit_rscache_decode_c(entries: list[tuple[str, int]]) -> str:
     ]
     emitted_group_spans: set[tuple[int, int]] = set()
     for i in range(max_id + 1):
-        grouped = span_for_opcode(i)
+        grouped = None if is_vm_only(i) else span_for_opcode(i)
         if grouped:
             group, span = grouped
             span_key = (span.lo, span.hi)
@@ -1000,7 +1003,7 @@ def emit_rscache_decode_c(entries: list[tuple[str, int]]) -> str:
                 emitted_group_spans.add(span_key)
                 lines.append("")
                 lines.append(f"    /* {group.slug}: {group.label} — {group.summary}. */")
-        if i in id_to_name:
+        if i in id_to_name and not is_vm_only(i):
             opk = decode_operand_kind(i)
         else:
             opk = DECODE_OPERAND_OVERRIDES.get(i, "CS2_OPERAND_INT32")

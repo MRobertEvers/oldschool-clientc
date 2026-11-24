@@ -577,6 +577,18 @@
       ]
     },
     {
+      "enum": "VM_DIALECT",
+      "slug": "vm-dialect",
+      "summary": "dialect variants the VM renumbers commands to at load",
+      "deob_handler": "",
+      "spans": [
+        {
+          "lo": 9000,
+          "hi": 9100
+        }
+      ]
+    },
+    {
       "enum": "OP_COUNT",
       "slug": "op-count",
       "summary": "interpreter operation-count introspection",

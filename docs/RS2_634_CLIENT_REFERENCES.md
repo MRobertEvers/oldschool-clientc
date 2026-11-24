@@ -136,10 +136,13 @@ wire number; the canonical handler is correct once the id lines up.
 
 ### 3.2 Same id, different command — diverted to a stubbed signature
 
-`g_cs2vm2_opcode_stack_rs2` in `src/cs2vm2/cs2vm2.c`. An id listed here skips the
-canonical handler entirely (`CS2VM2_RunOp` checks the overlay before its switch):
-running the wrong command is worse than running none, so these become no-ops with
-the right pop/push counts and the stack stays balanced. Signatures are
+`g_cs2vm2_rs2_variants` in `src/cs2vm2/cs2vm2.c`. An id listed here is renumbered
+when its script is loaded, before any jit overlay is built, to a vm-dialect command
+of its own (`CS2_OP_RS2_<id>`, 9010..9046 in `cs2_opcode.h`), so the canonical
+handler never sees it and nothing tests the dialect at run time: running the wrong
+command is worse than running none, so these become no-ops with the right pop/push
+counts (their doc comments in `tools/cs2_gen_opcodes/opcode_docs.py`, carried into
+the generated stack table) and the stack stays balanced. Signatures are
 `(int_in, str_in, int_out, str_out)`.
 
 | Op | 634 | Canonical | What 634 means |

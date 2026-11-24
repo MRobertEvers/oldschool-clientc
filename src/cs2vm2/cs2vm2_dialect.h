@@ -45,13 +45,37 @@ struct CS2VM2_Dialect
      * OldSchool's, and its CC_GETBLENDMODE. A handful of ids above 4000 carry
      * different stack signatures in the two eras -- 6506 pushes 4 ints + 3
      * strings at 634 and 4 + 2 at OldSchool 239, 4124 pops two ints at 634 and
-     * none at OldSchool -- so an overlay table (g_cs2vm2_opcode_stack_rs2)
-     * stands in for them rather than a private canonical id per divergence. */
+     * none at OldSchool -- so each is renumbered at load to a vm-dialect
+     * command of its own, RS2_<wire id>, carrying its 634 signature. */
     bool rs2_commands;
 };
 
 /* Numbered arrays a run shares when !array_handles (the classic client's five). */
 #define CS2VM2_SHARED_ARRAYS 5
+
+/*
+ * The flags above are read when a script is loaded, before any jit overlay is
+ * built, and never while it runs: CS2VM2_ScriptResolveDialect renumbers every
+ * command whose meaning a flag changes to a variant of its own, an opcode in
+ * cs2_opcode.h's vm-dialect group (9000..9099) with its own handler:
+ *
+ *   !cc_create_nested  CC_CREATE (100)            -> CC_CREATE_FLAT
+ *   !array_handles     DEFINE/PUSH/POP_ARRAY_INT  -> DEFINE/PUSH/POP_ARRAY_INT_SHARED
+ *   rs2_commands       1613                       -> RS2_CC_GETPARAM
+ *                      each 634 command that names a different command than
+ *                      OldSchool's id                -> RS2_<wire id>
+ *
+ * The interpreter then dispatches on the id alone, as it does for OldSchool's.
+ * No cache spells a vm-dialect id; the generator keeps them out of the wire
+ * catalogue.
+ */
+struct CS2VM2_Script;
+
+/* Renumber `script`'s commands for its dialect (see above). Every loader calls
+ * it once, after the wire-id remap (CS2_OpcodeTranslate); `script->dialect`
+ * must be set. Running it again changes nothing. */
+void
+CS2VM2_ScriptResolveDialect(struct CS2VM2_Script* script);
 
 /* OldSchool from 231: what the VM implements natively. */
 extern struct CS2VM2_Dialect const CS2VM2_DIALECT_OSRS;

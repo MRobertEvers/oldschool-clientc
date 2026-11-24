@@ -433,6 +433,9 @@ test_rs2_overlay_entry(
     script.opcodes = &wire_opcode;
     script.int_operands = &operand;
     script.string_operands = &string_operand;
+    /* What every loader does: the 634 command becomes a vm-dialect id. */
+    CS2VM2_ScriptResolveDialect(&script);
+    CHECK(wire_opcode != (uint16_t)opcode, "RS2 collision renumbered at load");
 
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, unexpected_host_exec);
@@ -568,6 +571,8 @@ build_ops(
     assert(script->opcodes && script->int_operands && script->string_operands);
     memcpy(script->opcodes, opcodes, (size_t)count * sizeof(uint16_t));
     memcpy(script->int_operands, operands, (size_t)count * sizeof(int));
+    /* As a loader would: the dialect's array model is chosen here, not at run time. */
+    CS2VM2_ScriptResolveDialect(script);
 }
 
 /*
@@ -623,11 +628,11 @@ test_array_model(
 static void
 test_rs2_overlay_binary_lookup(void)
 {
-    printf("TEST: sorted RS2 overlay lookup keeps collision signatures exact\n");
+    printf("TEST: RS2 collisions renumbered at load keep their 634 signatures\n");
 
-    /* First, middle and last entries make both binary-search bounds observable;
-     * 1122/1311/2122/2314 are canonical widget handlers and therefore also
-     * prove an overlay hit diverts instead of dispatching the wrong command. */
+    /* First, middle and last rows of the renumbering table; 1122/1311/2122/2314
+     * are canonical widget handlers and therefore also prove a renumbered id
+     * never dispatches the wrong command. */
     test_rs2_overlay_entry(202, 1, 0, 0, 0, "overlay first entry 202");
     test_rs2_overlay_entry(1122, 1, 0, 0, 0, "overlay collision 1122");
     test_rs2_overlay_entry(1311, 1, 0, 0, 0, "overlay collision 1311");

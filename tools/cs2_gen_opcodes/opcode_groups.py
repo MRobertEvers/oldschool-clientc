@@ -107,6 +107,17 @@ OPCODE_GROUPS: tuple[OpcodeGroup, ...] = (
     OpcodeGroup("EXTENSION", "extension", "native extension and client-setting commands", (_span(7700, 8000),), "method11128"),
     OpcodeGroup("ARRAY", "array", "typed list and array commands", (_span(8000, 8100),), "method12336"),
     OpcodeGroup("TYPED_DATA", "typed-data", "typed long-keyed data commands", (_span(8100, 8600),), "method4514"),
+    # Not a client range. A dialect's command whose meaning a cache era changes
+    # (src/cs2vm2/cs2vm2_dialect.h) is renumbered to one of these ids when its
+    # script is loaded, before any jit overlay is built, so the interpreter
+    # dispatches on the id alone. No cache spells them: see VM_ONLY_GROUPS.
+    OpcodeGroup(
+        "VM_DIALECT",
+        "vm-dialect",
+        "dialect variants the VM renumbers commands to at load",
+        (_span(9000, 9100),),
+        "",
+    ),
     OpcodeGroup(
         "OP_COUNT",
         "op-count",
@@ -151,6 +162,17 @@ def group_for_opcode(opcode: int) -> OpcodeGroup | None:
         if group.contains(opcode):
             return group
     return None
+
+
+# Groups whose ids the VM assigns and no cache carries: kept out of the wire
+# catalogue (cs2dom's cs2_wire_opcodes.ts) and the dat2a decoder, which
+# describe what a cache can contain.
+VM_ONLY_GROUPS: frozenset[str] = frozenset({"VM_DIALECT"})
+
+
+def is_vm_only(opcode: int) -> bool:
+    group = group_for_opcode(opcode)
+    return group is not None and group.enum_name in VM_ONLY_GROUPS
 
 
 def span_for_opcode(opcode: int) -> tuple[OpcodeGroup, OpcodeSpan] | None:

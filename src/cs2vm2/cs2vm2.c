@@ -354,7 +354,20 @@ cs2vm2_frame_long_local(
  * handles — so dropping them is the existing ownership model, not a leak this
  * introduces.
  */
-static inline void
+/*
+ * A function whose zeroing loops the compiler must not turn back into memset.
+ * On wasm a memset of a size known only at run time is memory.fill, which V8
+ * runs as a call out to C: dearer than the handful of slots a frame clears.
+ * In the bank build the frame clear's memsets were a third of the frame push
+ * (V8 on the NUC, 2026-11-23). Native memset is no such call.
+ */
+#if defined(__wasm__) && defined(__clang__)
+#define CS2VM2_NO_MEMSET_IDIOM __attribute__((no_builtin("memset")))
+#else
+#define CS2VM2_NO_MEMSET_IDIOM
+#endif
+
+static inline CS2VM2_NO_MEMSET_IDIOM void
 cs2vm2_frame_clear(struct CS2VM2_Frame* frame)
 {
     assert(frame);
@@ -365,17 +378,12 @@ cs2vm2_frame_clear(struct CS2VM2_Frame* frame)
     assert(frame->long_locals_dirty >= 0);
     assert(frame->long_locals_dirty <= frame->long_locals_cap);
 
-    if( frame->int_locals_dirty > 0 )
-        memset(
-            frame->int_locals, 0, (size_t)frame->int_locals_dirty * sizeof(frame->int_locals[0]));
-    if( frame->str_locals_dirty > 0 )
-        memset(
-            frame->str_locals, 0, (size_t)frame->str_locals_dirty * sizeof(frame->str_locals[0]));
-    if( frame->long_locals_dirty > 0 )
-        memset(
-            frame->long_locals,
-            0,
-            (size_t)frame->long_locals_dirty * sizeof(frame->long_locals[0]));
+    for( int i = 0; i < frame->int_locals_dirty; i++ )
+        frame->int_locals[i] = 0;
+    for( int i = 0; i < frame->str_locals_dirty; i++ )
+        frame->str_locals[i] = NULL;
+    for( int i = 0; i < frame->long_locals_dirty; i++ )
+        frame->long_locals[i] = 0;
     frame->int_locals_dirty = 0;
     frame->str_locals_dirty = 0;
     frame->long_locals_dirty = 0;
@@ -386,7 +394,10 @@ cs2vm2_frame_clear(struct CS2VM2_Frame* frame)
     frame->return_frame = 0;
     frame->has_return = 0;
     frame->return_int_count = 0;
-    memset(frame->return_ints, 0, sizeof(frame->return_ints));
+    /* A loop too: under CS2VM2_NO_MEMSET_IDIOM even a constant-size memset is
+     * a call, where these eight stores are not. */
+    for( size_t i = 0; i < sizeof(frame->return_ints) / sizeof(frame->return_ints[0]); i++ )
+        frame->return_ints[i] = 0;
     frame->hooked = 0;
     frame->hook_int_base = 0;
     frame->hook_str_base = 0;
@@ -654,16 +665,6 @@ struct CS2VM2_Dialect const CS2VM2_DIALECT_RS2_634 = {
     .rs2_commands = true,
 };
 
-/* The dialect the running script is in; a frame with no script, or a script
- * built in memory, is in the VM's own. */
-static struct CS2VM2_Dialect const*
-cs2vm2_frame_dialect(struct CS2VM2_Frame const* frame)
-{
-    if( frame && frame->script && frame->script->dialect )
-        return frame->script->dialect;
-    return &CS2VM2_DIALECT_OSRS;
-}
-
 /* An array HANDLE is an array's address carried in a string slot
  * (CS2VM2_ArrayHandle; the string stack and gosub args copy it verbatim).
  * Resolution validates rather than trusts: anything that is not a live,
@@ -687,23 +688,28 @@ cs2vm2_array_from_handle(
 }
 
 /* PUSH/POP_ARRAY_INT's operand: the string-local slot of the CURRENT frame
- * holding the handle -- or, in a dialect without array handles, the number of
- * one of the arrays every frame of the run shares. */
+ * holding the handle. */
 static struct CS2VM2_Array*
 cs2vm2_array_local(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
     int slot)
 {
-    if( !cs2vm2_frame_dialect(frame)->array_handles )
-    {
-        if( slot < 0 || slot >= CS2VM2_SHARED_ARRAYS )
-            return NULL;
-        return cs2vm2_array_from_handle(vm, vm->shared_arrays[slot]);
-    }
     if( slot < 0 || slot >= CS2VM_MAX_LOCALS )
         return NULL;
     return cs2vm2_array_from_handle(vm, cs2vm2_frame_str_local(frame, slot));
+}
+
+/* PUSH/POP_ARRAY_INT_SHARED's operand: the number of one of the arrays every
+ * frame of the run shares (OldSchool through 230, which has no handles). */
+static struct CS2VM2_Array*
+cs2vm2_array_shared(
+    struct CS2VM2_Thread* vm,
+    int slot)
+{
+    if( slot < 0 || slot >= CS2VM2_SHARED_ARRAYS )
+        return NULL;
+    return cs2vm2_array_from_handle(vm, vm->shared_arrays[slot]);
 }
 
 /* Opt-in tracked array store: records the prior value so a yield restore can undo
@@ -1065,6 +1071,7 @@ CS2VM2_PopFrame(struct CS2VM2_Thread* vm)
 {
     assert(vm);
     vm->frame_sp--;
+    vm->frame_epoch++;
     return CS2VM_EXECNO_OK;
 }
 
@@ -2306,38 +2313,20 @@ CS2VM2_Op_CC_Find(
     return CS2VM_EXECNO_OK;
 }
 
-// CC_CREATE: When intOp=1 (dot variant .cc_create), sets dotWidget instead of activeWidget
-//
-// PARITY: Argument count depends on client revision, NOT stack contents.
-// - Older revisions (< 200): 3 args [parentUid, type, childIndex] (aka Kronos)
-// - Modern revisions (>= 200): 4 args [parentUid, type, childIndex, isNested]
-int
-CS2VM2_Op_CC_Create(
+/* CC_CREATE's request, once its arguments are popped. When the operand is 1
+ * (the dot variant .cc_create) the host sets the dot component instead of the
+ * active one. */
+static int
+cs2vm2_cc_create_ask(
     struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
+    struct CS2VM2_YieldMark mark,
+    int operand,
+    int parent_id,
+    int type,
+    int child_index,
+    int is_nested)
 {
-    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
-    assert(frame);
-
-    int is_nested = 0, child_index, type, parent_id;
-
-    /* RS2 (634) pushes only (parent, type, index) — Class66.method710 opcode 100
-     * pops three. The nested flag is a later OldSchool addition (rev 230);
-     * popping it under RS2 or an older OldSchool cache steals the parent id and
-     * the create fails on a garbage uid. */
-    if( cs2vm2_frame_dialect(frame)->cc_create_nested )
-    {
-        if( CS2VM2_PopInt(vm, &is_nested) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
-    }
-    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &parent_id) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
 
     /* Arm, not union -- see the note on the varbit-read builder above. */
     struct CS2VM_HostRequest request;
@@ -2349,11 +2338,57 @@ CS2VM2_Op_CC_Create(
     request.u.CC_CREATE.is_nested = is_nested;
     request.u.CC_CREATE.dot_operand = operand;
 
-    int result = CS2VM2_Ask(vm, &request, mark);
-    if( result != CS2VM_EXECNO_OK )
-        return result;
+    return CS2VM2_Ask(vm, &request, mark);
+}
 
-    return CS2VM_EXECNO_OK;
+/* CC_CREATE (100): (parent, type, index, nested), nested on top. The nested
+ * flag is an OldSchool addition at rev 230 (script 3953 gains the push). */
+int
+CS2VM2_Op_CC_Create(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    int is_nested, child_index, type, parent_id;
+    if( CS2VM2_PopInt(vm, &is_nested) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &parent_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return cs2vm2_cc_create_ask(vm, mark, operand, parent_id, type, child_index, is_nested);
+}
+
+/* CC_CREATE_FLAT: CC_CREATE where the era pushes only (parent, type, index):
+ * RS2 634 (Class66.method710 opcode 100 pops three) and OldSchool through 229.
+ * Popping a nested flag there steals the parent id and the create fails on a
+ * garbage uid. Renumbered from 100 at load (CS2VM2_ScriptResolveDialect). */
+static int
+CS2VM2_Op_CC_CreateFlat(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    int child_index, type, parent_id;
+    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &parent_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return cs2vm2_cc_create_ask(vm, mark, operand, parent_id, type, child_index, 0);
 }
 
 // === Position and Size ===
@@ -4993,14 +5028,19 @@ CS2VM2_Op_IF_SetHide(
 }
 
 /*
- * Zero a handler registration's fields up to, not including, its string
- * pointers. An entry below str_arg_count is written by the fill that follows;
- * one at or past the count is not written and must not be read. The host
- * reads entries below the count only (rs_cs2_copy_hook_str_args,
- * exec_set_on_cc_event, exec_set_on_if_event).
+ * Start a handler registration: zero the string count the fill counts up
+ * from. Every other field the host reads is assigned by the fill (component,
+ * script, signature, triggers, int_arg_count, str_arg_mask), and int_args and
+ * str_args are written below their counts; past the counts nothing is written
+ * and nothing is read (rs_cs2_copy_hook_str_args, exec_set_on_cc_event,
+ * exec_set_on_if_event, the transmit hooks' compares).
+ *
+ * It used to zero the whole head, int_args[64] included: about 290 bytes a
+ * registration, which on wasm is a memory.fill V8 runs as a call out to C --
+ * half of what a registration cost in the bank build (V8 on the NUC,
+ * 2026-11-23).
  */
-#define CS2VM_SETON_ZERO_HEAD(member)                                                              \
-    memset(&(member), 0, (size_t)((char*)(member).str_args - (char*)&(member)))
+#define CS2VM_SETON_BEGIN(member) ((member).str_arg_count = 0)
 
 /* A transmit handler's trigger ids, for as long as its registration takes:
  * the host copies them before the request returns. A short list (nearly all
@@ -5163,13 +5203,13 @@ CS2VM2_Op_IF_SetOnEventHandler(
     request.kind = kind;
 #define CS2VM_IF_SETON_CASE(name)                                                                  \
     case CS2VM_HOST_REQUEST_##name:                                                                \
-        CS2VM_SETON_ZERO_HEAD(request.u.name);                                                     \
+        CS2VM_SETON_BEGIN(request.u.name);                                                         \
         request.u.name.component_id = widget_uid;                                                  \
         request.u.name.script_id = script_id;                                                      \
         request.u.name.signature = signature;                                                      \
         request.u.name.trigger_ids = trigger_ids;                                                  \
         request.u.name.trigger_count = trigger_count;                                              \
-        /* The head was zeroed; the count is all that was popped. */                               \
+        /* Below the count only: past it nothing is read. */                                       \
         for( int i = 0; i < int_arg_count; i++ )                                                   \
             request.u.name.int_args[i] = int_args[i];                                              \
         request.u.name.int_arg_count = int_arg_count;                                              \
@@ -5360,13 +5400,13 @@ CS2VM2_Op_CC_SetOnEventHandler(
     request.kind = kind;
 #define CS2VM_CC_SETON_CASE(name)                                                                  \
     case CS2VM_HOST_REQUEST_##name:                                                                \
-        CS2VM_SETON_ZERO_HEAD(request.u.name);                                                     \
+        CS2VM_SETON_BEGIN(request.u.name);                                                         \
         request.u.name.component_id = component_id;                                                \
         request.u.name.script_id = script_id;                                                      \
         request.u.name.signature = signature;                                                      \
         request.u.name.trigger_ids = trigger_ids;                                                  \
         request.u.name.trigger_count = trigger_count;                                              \
-        /* The head was zeroed; the count is all that was popped. */                               \
+        /* Below the count only: past it nothing is read. */                                       \
         for( int i = 0; i < int_arg_count; i++ )                                                   \
             request.u.name.int_args[i] = int_args[i];                                              \
         request.u.name.int_arg_count = int_arg_count;                                              \
@@ -5975,7 +6015,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
 
     struct CS2VM_HostRequest request;
     request.kind = CS2VM_HOST_REQUEST_IF_SETONINVTRANSMIT;
-    CS2VM_SETON_ZERO_HEAD(request.u.IF_SETONINVTRANSMIT);
+    CS2VM_SETON_BEGIN(request.u.IF_SETONINVTRANSMIT);
     request.u.IF_SETONINVTRANSMIT.component_id = widget_uid;
     request.u.IF_SETONINVTRANSMIT.script_id = script_id;
     request.u.IF_SETONINVTRANSMIT.signature = signature;
@@ -8405,29 +8445,17 @@ CS2VM2_Op_PopVarbit(
     return CS2VM2_Ask(vm, &request, mark);
 }
 
-int
-CS2VM2_Op_DefineArray(
+/* DEFINE_ARRAY's array, from the pool, cells filled for its element type
+ * (the operand's low half). */
+static struct CS2VM2_Array*
+cs2vm2_array_define(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
-    int operand)
+    int operand,
+    int size)
 {
     assert(vm);
     assert(frame);
-    (void)frame;
-
-    int size;
-    if( CS2VM2_PopInt(vm, &size) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-
-    /* High half of the operand is the STRING LOCAL that receives the array's
-     * handle — not a global array id. Allocate from the pool and park the
-     * pointer in that local; every later PUSH/POP_ARRAY_INT resolves its own
-     * frame's local, which is what lets a proc receive an array as an
-     * ordinary string argument (the spellbook sort does). */
-    int const str_slot = CS2VM2_ArrayDefineSlot(operand);
-    int const shared = !cs2vm2_frame_dialect(frame)->array_handles;
-    if( str_slot < 0 || str_slot >= (shared ? CS2VM2_SHARED_ARRAYS : CS2VM_MAX_LOCALS) )
-        return CS2VM_EXECNO_OK;
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
     {
@@ -8481,28 +8509,67 @@ CS2VM2_Op_DefineArray(
             for( int i = 0; i < array->size; i++ )
                 array->cells.ints[i] = fill;
     }
-    if( shared )
-        vm->shared_arrays[str_slot] = CS2VM2_ArrayHandle(array);
-    else
-        *cs2vm2_frame_str_local_ref(frame, str_slot) = CS2VM2_ArrayHandle(array);
-    return CS2VM_EXECNO_OK;
+    return array;
 }
 
 int
-CS2VM2_Op_PushArrayInt(
+CS2VM2_Op_DefineArray(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
     int operand)
 {
     assert(vm);
     assert(frame);
-    (void)frame;
 
-    int index;
-    if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+    int size;
+    if( CS2VM2_PopInt(vm, &size) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    struct CS2VM2_Array* array = cs2vm2_array_local(vm, frame, operand);
+    /* High half of the operand is the STRING LOCAL that receives the array's
+     * handle — not a global array id. Allocate from the pool and park the
+     * pointer in that local; every later PUSH/POP_ARRAY_INT resolves its own
+     * frame's local, which is what lets a proc receive an array as an
+     * ordinary string argument (the spellbook sort does). */
+    int const str_slot = CS2VM2_ArrayDefineSlot(operand);
+    if( str_slot < 0 || str_slot >= CS2VM_MAX_LOCALS )
+        return CS2VM_EXECNO_OK;
+    struct CS2VM2_Array* array = cs2vm2_array_define(vm, frame, operand, size);
+    *cs2vm2_frame_str_local_ref(frame, str_slot) = CS2VM2_ArrayHandle(array);
+    return CS2VM_EXECNO_OK;
+}
+
+/* DEFINE_ARRAY_SHARED: the operand's high half numbers one of the arrays every
+ * frame of the run shares (OldSchool through 230: script 2255 sorts array 0
+ * recursively with no array argument). Renumbered from DEFINE_ARRAY at load. */
+static int
+CS2VM2_Op_DefineArrayShared(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int size;
+    if( CS2VM2_PopInt(vm, &size) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int const slot = CS2VM2_ArrayDefineSlot(operand);
+    if( slot < 0 || slot >= CS2VM2_SHARED_ARRAYS )
+        return CS2VM_EXECNO_OK;
+    struct CS2VM2_Array* array = cs2vm2_array_define(vm, frame, operand, size);
+    vm->shared_arrays[slot] = CS2VM2_ArrayHandle(array);
+    return CS2VM_EXECNO_OK;
+}
+
+/* PUSH_ARRAY_INT's read, once the array is found. */
+static int
+cs2vm2_array_push_element(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Array* array,
+    int index)
+{
+    assert(vm);
     int const in_range = array && index >= 0 && index < array->size;
 
     /* A string array reads onto the string stack — same opcode, other stack. */
@@ -8516,7 +8583,24 @@ CS2VM2_Op_PushArrayInt(
 }
 
 int
-CS2VM2_Op_PopArrayInt(
+CS2VM2_Op_PushArrayInt(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int index;
+    if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return cs2vm2_array_push_element(vm, cs2vm2_array_local(vm, frame, operand), index);
+}
+
+/* PUSH_ARRAY_INT_SHARED: the operand numbers a shared array (OldSchool
+ * through 230). Renumbered from PUSH_ARRAY_INT at load. */
+static int
+CS2VM2_Op_PushArrayIntShared(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
     int operand)
@@ -8525,6 +8609,21 @@ CS2VM2_Op_PopArrayInt(
     assert(frame);
     (void)frame;
 
+    int index;
+    if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return cs2vm2_array_push_element(vm, cs2vm2_array_shared(vm, operand), index);
+}
+
+/* POP_ARRAY_INT's pops and write, once the array is found (before the pops:
+ * a string array takes its value off the other stack). */
+static int
+cs2vm2_array_pop_element(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Array* array)
+{
+    assert(vm);
+
     /* `$array($index) = $value` compiles to: push index, push value, POP_ARRAY_INT
      * — so the VALUE is on top and the INDEX sits beneath it. Popping these in the
      * wrong order transposes them, which is invisible whenever index == value (the
@@ -8532,8 +8631,6 @@ CS2VM2_Op_PopArrayInt(
      * asymmetric write (the spellbook sort's in-place swaps). */
     int index;
     int value;
-
-    struct CS2VM2_Array* array = cs2vm2_array_local(vm, frame, operand);
 
     /* A string array's value comes off the STRING stack; popping an int for it
      * underflows the int stack and desyncs everything after. */
@@ -8562,6 +8659,31 @@ CS2VM2_Op_PopArrayInt(
         array->cells.ints[index] = value;
 
     return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VM2_Op_PopArrayInt(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    return cs2vm2_array_pop_element(vm, cs2vm2_array_local(vm, frame, operand));
+}
+
+/* POP_ARRAY_INT_SHARED: the operand numbers a shared array (OldSchool
+ * through 230). Renumbered from POP_ARRAY_INT at load. */
+static int
+CS2VM2_Op_PopArrayIntShared(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    return cs2vm2_array_pop_element(vm, cs2vm2_array_shared(vm, operand));
 }
 
 /*
@@ -10021,7 +10143,13 @@ CS2VM2_Op_StructParam(
     int operand);
 
 int
-CS2VM2_Op_CC_GetParam(
+CS2VM2_Op_CC_GetBlendMode(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand);
+
+static int
+CS2VM2_Op_RS2_CC_GetParam(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
     int operand);
@@ -11191,8 +11319,11 @@ CS2VM2_Op_SafeArea(
 }
 
 /*
- * Stack signatures for RS2 (634/643) commands the OldSchool table does not carry,
- * or carries with a different shape.
+ * RS2 (634/643) commands that name a different command than OldSchool's id
+ * does, each renumbered at load to a vm-dialect id of its own (RS2_<wire id>,
+ * cs2_opcode.h). Their 634 stack signatures are those ids' doc comments
+ * (tools/cs2_gen_opcodes/opcode_docs.py), so the generated stack table runs
+ * them through CS2VM2_Op_StackMetaStub like any other stub.
  *
  * Read off the rev-634 client's command dispatcher (`Class66`, and the classes it
  * chains to; the full diff is docs/RS2_634_CLIENT_REFERENCES.md section 3) by
@@ -11201,134 +11332,93 @@ CS2VM2_Op_SafeArea(
  * one, `aStringArray1152` is the string stack, and `anInt1173 -= N` followed by
  * indexed reads pops N at once.
  *
- * Only ids whose 634 signature is not already in the canonical table belong here.
- * Two ids in this list demonstrably mean different commands in the two eras — 4124
- * (634: two ints in, one string out; OldSchool 239 script 5031 calls it with an
- * empty stack) and 6506 (634 pushes 4 ints + 3 strings; OldSchool 239 script 6918
- * stores 4 ints + 2) — which is why this is an era overlay rather than more
- * entries in gen_opcode_stack.py's MANUAL_STACK.
+ * Only ids whose 634 meaning differs belong here. Two of them demonstrably mean
+ * different commands in the two eras — 4124 (634: two ints in, one string out;
+ * OldSchool 239 script 5031 calls it with an empty stack) and 6506 (634 pushes
+ * 4 ints + 3 strings; OldSchool 239 script 6918 stores 4 ints + 2) — which is why
+ * each is a command of its own rather than another signature on the canonical id.
  *
  * These are stubs, not implementations: the counts keep the stack balanced so the
  * rest of the script runs, and every pushed value is a zero/empty default.
+ * 1613 is the one with real behaviour (RS2_CC_GETPARAM).
  */
-struct CS2VM2OpcodeStackRs2
-{
-    uint16_t opcode;
-    struct CS2VM2OpcodeStack meta;
+static struct CS2VM2_DialectRemap const g_cs2vm2_rs2_variants[] = {
+    { 202, CS2_OP_RS2_202 },
+    { 1122, CS2_OP_RS2_1122 },
+    { 1311, CS2_OP_RS2_1311 },
+    { 1613, CS2_OP_RS2_CC_GETPARAM },
+    { 2122, CS2_OP_RS2_2122 },
+    { 2314, CS2_OP_RS2_2314 },
+    { 2703, CS2_OP_RS2_2703 },
+    { 3329, CS2_OP_RS2_3329 },
+    { 3335, CS2_OP_RS2_3335 },
+    { 3340, CS2_OP_RS2_3340 },
+    { 3351, CS2_OP_RS2_3351 },
+    { 3609, CS2_OP_RS2_3609 },
+    { 3619, CS2_OP_RS2_3619 },
+    { 4124, CS2_OP_RS2_4124 },
+    { 4125, CS2_OP_RS2_4125 },
+    { 5003, CS2_OP_RS2_5003 },
+    { 5004, CS2_OP_RS2_5004 },
+    { 5010, CS2_OP_RS2_5010 },
+    { 5011, CS2_OP_RS2_5011 },
+    { 5012, CS2_OP_RS2_5012 },
+    { 5019, CS2_OP_RS2_5019 },
+    { 5024, CS2_OP_RS2_5024 },
+    { 5056, CS2_OP_RS2_5056 },
+    { 5102, CS2_OP_RS2_5102 },
+    { 5420, CS2_OP_RS2_5420 },
+    { 5424, CS2_OP_RS2_5424 },
+    { 5428, CS2_OP_RS2_5428 },
+    { 5504, CS2_OP_RS2_5504 },
+    { 5505, CS2_OP_RS2_5505 },
+    { 5506, CS2_OP_RS2_5506 },
+    { 5507, CS2_OP_RS2_5507 },
+    { 5508, CS2_OP_RS2_5508 },
+    { 5509, CS2_OP_RS2_5509 },
+    { 5510, CS2_OP_RS2_5510 },
+    { 5547, CS2_OP_RS2_5547 },
+    { 6506, CS2_OP_RS2_6506 },
+    { 6510, CS2_OP_RS2_6510 },
+    { 6900, CS2_OP_RS2_6900 },
 };
 
-static struct CS2VM2OpcodeStackRs2 const g_cs2vm2_opcode_stack_rs2[] = {
-    /* 202/203: remove a widget from its group array (Class66.method714/702).
-     * Canonical 202 is IF_FIND_ENTITYOVERLAY, which answers a bool the RS2 form has no
-     * value for -- so RS2 diverts to the stub rather than running it. */
-    { 202,  { 1, 0, 0, 0, 1 }  },
-    /* 1122 / 2122: CC_/IF_ set of the type-5 flag bit 1 (Class46.aBoolean745).
-     * The IF_ form pops the component id first (Class66:2731 `i -= 1000`). */
-    { 1122, { 1, 0, 0, 0, 1 }  },
-    /* 1311/2314 collide with CC_SETSUBOP and IF_SETOPPRIORITY: at 634
-     * both are plain one-int widget setters (Class66 `class46.anInt713` /
-     * `anInt719`). */
-    { 1311, { 1, 0, 0, 0, 1 }  },
-    { 2122, { 2, 0, 0, 0, 1 }  },
-    { 2314, { 2, 0, 0, 0, 1 }  },
-    /* 2703: count of a widget's dynamic children (Class46.aClass46Array798). */
-    { 2703, { 1, 0, 1, 0, 1 }  },
-    /* 3316 STAFFMODLEVEL and 3323 PLAYERMOD used to sit here. Both now carry the
-     * same signature in the canonical table (gen_opcode_stack.py's MANUAL_STACK),
-     * and the two eras agree on it, so an overlay entry would only shadow an
-     * identical one. */
-    { 3329, { 0, 0, 1, 0, 1 }  }, /* Class50_Sub2.aBoolean5233 */
-    { 3335, { 0, 0, 1, 0, 1 }  }, /* language index (Class348_Sub33.anInt6967) */
-    { 3340, { 0, 0, 1, 0, 1 }  }, /* Class175.aBoolean2329 */
-    { 3351, { 0, 0, 3, 0, 1 }  }, /* three mouse-button booleans, one call */
-    /* 3609/3619 take a name string where the canonical pair takes an int. */
-    { 3609, { 0, 1, 1, 0, 1 }  }, /* friend test by display name */
-    { 3619, { 0, 1, 0, 0, 1 }  }, /* join clan chat by owner name */
-    { 4124, { 2, 0, 0, 1, 1 }  }, /* (value, comma-group) -> formatted number */
-    { 4125, { 1, 1, 1, 0, 1 }  }, /* (font, text) -> rendered width */
-    /*
-     * 5003..5024 are a friend/ignore-record accessor family at 634 — every one
-     * takes a list index and reads a field off the record
-     * (`Class147 = s.method3985(index)`). The canonical numbering puts the chat
-     * history family on the same ids, with no argument and a different result
-     * type, so these have to be overridden even where the two happen to agree on
-     * the count.
-     */
-    { 5003, { 1, 0, 0, 1, 1 }  },
-    { 5004, { 1, 0, 1, 0, 1 }  },
-    { 5010, { 1, 0, 0, 1, 1 }  },
-    { 5011, { 1, 0, 0, 1, 1 }  },
-    { 5012, { 1, 0, 1, 0, 1 }  },
-    { 5019, { 1, 0, 0, 1, 1 }  },
-    { 5024, { 1, 0, 1, 0, 1 }  },
-    { 5056, { 1, 0, 1, 0, 1 }  }, /* array length or 0 */
-    { 5102, { 0, 0, 1, 0, 1 }  }, /* key-down test */
-    { 5420, { 0, 0, 1, 0, 1 }  },
-    /* 5424: eleven ints — four chat/scroll geometry values, five sprite ids the
-     * client immediately preloads, then two more. Sets the chat scrollbar skin. */
-    { 5424, { 11, 0, 0, 0, 1 } },
-    { 5428, { 2, 0, 1, 0, 1 }  },
-    { 5504, { 2, 0, 0, 0, 1 }  }, /* CAM_FORCEANGLE */
-    { 5505, { 0, 0, 1, 0, 1 }  }, /* CAM_GETANGLE_XA */
-    { 5506, { 0, 0, 1, 0, 1 }  }, /* CAM_GETANGLE_YA */
-    { 5507, { 0, 0, 0, 0, 1 }  },
-    { 5508, { 0, 0, 0, 0, 1 }  },
-    { 5509, { 0, 0, 0, 0, 1 }  },
-    { 5510, { 0, 0, 0, 0, 1 }  },
-    { 5547, { 0, 0, 1, 0, 1 }  },
-    /* 6506 WORLDLIST_SPECIFIC(world) -> id, name, loc-id, loc-name, flags,
-     * players, activity. Four ints and three strings, interleaved on the wire but
-     * split across the two stacks. */
-    { 6506, { 1, 0, 4, 3, 1 }  },
-    { 6510, { 0, 0, 1, 0, 1 }  },
-    { 6900, { 0, 0, 1, 0, 1 }  },
-};
-
-#ifndef NDEBUG
-static void
-cs2vm2_opcode_stack_rs2_assert_sorted(void)
+/* The vm-dialect id an RS2 script's `op` becomes, or `op` itself. */
+static uint16_t
+cs2vm2_rs2_variant(uint16_t op)
 {
-    size_t const count = sizeof(g_cs2vm2_opcode_stack_rs2) / sizeof(g_cs2vm2_opcode_stack_rs2[0]);
-    for( size_t i = 1; i < count; i++ )
-        assert(g_cs2vm2_opcode_stack_rs2[i - 1].opcode < g_cs2vm2_opcode_stack_rs2[i].opcode);
+    for( size_t i = 0; i < sizeof(g_cs2vm2_rs2_variants) / sizeof(g_cs2vm2_rs2_variants[0]); i++ )
+        if( g_cs2vm2_rs2_variants[i].wire == op )
+            return g_cs2vm2_rs2_variants[i].canonical;
+    return op;
 }
-#endif
 
-static bool
-cs2vm2_opcode_stack_rs2_lookup(
-    int opcode,
-    struct CS2VM2OpcodeStack* out)
+void
+CS2VM2_ScriptResolveDialect(struct CS2VM2_Script* script)
 {
-    /* Every RS2 instruction passes through this probe before the canonical
-     * dispatcher. The overlay is deliberately sparse and sorted, so a linear
-     * scan made ordinary (non-overlay) opcodes compare against the complete
-     * table on every VM cycle. Dynamic interface builders execute tens of
-     * thousands of those cycles per input event. Keep the table as the single
-     * source of truth, but search it logarithmically. */
-    size_t low = 0;
-    size_t high = sizeof(g_cs2vm2_opcode_stack_rs2) / sizeof(g_cs2vm2_opcode_stack_rs2[0]);
-    if( opcode < (int)g_cs2vm2_opcode_stack_rs2[0].opcode ||
-        opcode > (int)g_cs2vm2_opcode_stack_rs2[high - 1].opcode )
-        return false;
-    while( low < high )
+    assert(script);
+    assert(script->dialect);
+    assert(script->opcodes || script->op_count == 0);
+
+    struct CS2VM2_Dialect const* const dialect = script->dialect;
+    for( int pc = 0; pc < script->op_count; pc++ )
     {
-        size_t middle = low + (high - low) / 2;
-        uint16_t candidate = g_cs2vm2_opcode_stack_rs2[middle].opcode;
-        if( candidate < (uint16_t)opcode )
-            low = middle + 1;
-        else
-            high = middle;
-    }
-    if( low < sizeof(g_cs2vm2_opcode_stack_rs2) / sizeof(g_cs2vm2_opcode_stack_rs2[0]) &&
-        g_cs2vm2_opcode_stack_rs2[low].opcode == (uint16_t)opcode )
-    {
-        if( out )
+        uint16_t op = script->opcodes[pc];
+        if( dialect->rs2_commands )
+            op = cs2vm2_rs2_variant(op);
+        if( !dialect->cc_create_nested && op == CS2_OP_CC_CREATE )
+            op = CS2_OP_CC_CREATE_FLAT;
+        if( !dialect->array_handles )
         {
-            *out = g_cs2vm2_opcode_stack_rs2[low].meta;
+            if( op == CS2_OP_DEFINE_ARRAY )
+                op = CS2_OP_DEFINE_ARRAY_SHARED;
+            else if( op == CS2_OP_PUSH_ARRAY_INT )
+                op = CS2_OP_PUSH_ARRAY_INT_SHARED;
+            else if( op == CS2_OP_POP_ARRAY_INT )
+                op = CS2_OP_POP_ARRAY_INT_SHARED;
         }
-        return true;
+        script->opcodes[pc] = op;
     }
-    return false;
 }
 
 static int
@@ -11365,15 +11455,6 @@ CS2VM2_Op_StackMetaStub(
     else
     {
         memset(&meta, 0, sizeof(meta));
-    }
-
-    /* The RS2 overlay wins where it has an entry: for the ids it names the
-     * canonical signature is either absent or a different command's. */
-    if( cs2vm2_frame_dialect(frame)->rs2_commands )
-    {
-        struct CS2VM2OpcodeStack rs2;
-        if( cs2vm2_opcode_stack_rs2_lookup(opcode, &rs2) )
-            meta = rs2;
     }
 
     /* Reaching the generic stub with an unknown signature means the opcode is
@@ -13487,23 +13568,9 @@ CS2VM2_RunOp(
     assert(vm);
     assert(frame);
 
-    /*
-     * An id in the RS2 overlay names a *different command* under RS2 than the
-     * canonical handler below implements, so the handler has to be skipped
-     * outright — not just given different pop counts. StackMetaStub with the
-     * overlay's signature is the honest result: the stack stays balanced and the
-     * command is a no-op, rather than the wrong command running.
-     *
-     * Only ids the overlay actually lists divert; everything RS2 shares with
-     * OldSchool falls through to its real handler as before.
-     */
-    if( cs2vm2_frame_dialect(frame)->rs2_commands )
-    {
-        struct CS2VM2OpcodeStack rs2;
-        if( cs2vm2_opcode_stack_rs2_lookup(opcode, &rs2) )
-            return CS2VM2_Op_StackMetaStub(vm, frame, opcode, operand);
-    }
-
+    /* No dialect test here: an RS2 command that names a different command than
+     * OldSchool's arrives as a vm-dialect id of its own (renumbered at load,
+     * CS2VM2_ScriptResolveDialect), so every id below means one thing. */
     switch( opcode )
     {
     /* === CS2 opcode group: vm-core (0..99) ===
@@ -14319,7 +14386,7 @@ CS2VM2_RunOp(
     case CS2_OP_CC_GETBLENDTRANS:
         return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETBLENDTRANS);
     case CS2_OP_CC_GETBLENDMODE:
-        return CS2VM2_Op_CC_GetParam(vm, frame, operand);
+        return CS2VM2_Op_CC_GetBlendMode(vm, frame, operand);
     case CS2_OP_CC_GETMODELTRANSPARENT:
         return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELTRANSPARENT);
     case CS2_OP_CC_GETARCSTART:
@@ -16066,6 +16133,60 @@ CS2VM2_RunOp(
         return CS2VM2_Ask(vm, &request, mark);
     }
 
+    /* === CS2 opcode group: vm-dialect (9000..9099) ===
+     * dialect variants the VM renumbers commands to at load.
+     * Not a client range: the VM's own ids, given at load; no cache spells them. */
+    case CS2_OP_CC_CREATE_FLAT:
+        return CS2VM2_Op_CC_CreateFlat(vm, frame, operand);
+    case CS2_OP_DEFINE_ARRAY_SHARED:
+        return CS2VM2_Op_DefineArrayShared(vm, frame, operand);
+    case CS2_OP_PUSH_ARRAY_INT_SHARED:
+        return CS2VM2_Op_PushArrayIntShared(vm, frame, operand);
+    case CS2_OP_POP_ARRAY_INT_SHARED:
+        return CS2VM2_Op_PopArrayIntShared(vm, frame, operand);
+    case CS2_OP_RS2_CC_GETPARAM:
+        return CS2VM2_Op_RS2_CC_GetParam(vm, frame, operand);
+    /* RS2 634 commands that name a different command than OldSchool's: not
+     * implemented, run as their 634 stack signature (the generated table). */
+    case CS2_OP_RS2_202:
+    case CS2_OP_RS2_1122:
+    case CS2_OP_RS2_1311:
+    case CS2_OP_RS2_2122:
+    case CS2_OP_RS2_2314:
+    case CS2_OP_RS2_2703:
+    case CS2_OP_RS2_3329:
+    case CS2_OP_RS2_3335:
+    case CS2_OP_RS2_3340:
+    case CS2_OP_RS2_3351:
+    case CS2_OP_RS2_3609:
+    case CS2_OP_RS2_3619:
+    case CS2_OP_RS2_4124:
+    case CS2_OP_RS2_4125:
+    case CS2_OP_RS2_5003:
+    case CS2_OP_RS2_5004:
+    case CS2_OP_RS2_5010:
+    case CS2_OP_RS2_5011:
+    case CS2_OP_RS2_5012:
+    case CS2_OP_RS2_5019:
+    case CS2_OP_RS2_5024:
+    case CS2_OP_RS2_5056:
+    case CS2_OP_RS2_5102:
+    case CS2_OP_RS2_5420:
+    case CS2_OP_RS2_5424:
+    case CS2_OP_RS2_5428:
+    case CS2_OP_RS2_5504:
+    case CS2_OP_RS2_5505:
+    case CS2_OP_RS2_5506:
+    case CS2_OP_RS2_5507:
+    case CS2_OP_RS2_5508:
+    case CS2_OP_RS2_5509:
+    case CS2_OP_RS2_5510:
+    case CS2_OP_RS2_5547:
+    case CS2_OP_RS2_6506:
+    case CS2_OP_RS2_6510:
+    case CS2_OP_RS2_6900:
+        return CS2VM2_Op_StackMetaStub(vm, frame, opcode, operand);
+
         /* === CS2 opcode group: op-count (13000..13999) ===
          * interpreter operation-count introspection.
          * rev-239 dispatch: Statics.method6889 -> method6817. */
@@ -16298,7 +16419,9 @@ CS2VM2_DebugPrintOpCode(
 #endif
 }
 
-int
+/* CS2VM2_NO_MEMSET_IDIOM like the frame clear it inlines (a function and its
+ * inlinee have to agree on it). */
+CS2VM2_NO_MEMSET_IDIOM int
 CS2VM2_PushCallScript(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Script* script)
@@ -16336,6 +16459,7 @@ CS2VM2_PushCallScript(
         frame->int_locals_dirty = declared_ints;
     }
     vm->frame_sp += 1;
+    vm->frame_epoch++;
     return CS2VM_EXECNO_OK;
 }
 
@@ -16662,11 +16786,14 @@ static inline bool
 cs2vm2_run_hot(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
+    uint16_t const* const ops,
+    int const* const args,
+    int const op_count,
     int* cycles)
 {
-    uint16_t const* const ops = frame->script->opcodes;
-    int const* const args = frame->script->int_operands;
-    int const op_count = frame->script->op_count;
+    assert(ops == frame->script->opcodes);
+    assert(args == frame->script->int_operands);
+    assert(op_count == frame->script->op_count);
     int* const stack = vm->ints_stack;
     int* locals = frame->int_locals;
     int locals_dirty = frame->int_locals_dirty;
@@ -16767,13 +16894,18 @@ static inline bool
 cs2vm2_run_hot_jit(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
+    uint8_t const* const code,
+    struct CS2VM2_Str* const* const cstrs,
+    int const* const args,
+    int const op_count,
     int* cycles)
 {
     struct CS2VM2_Script const* const script = frame->script;
-    uint8_t const* const code = script->jit->code;
-    struct CS2VM2_Str* const* const cstrs = script->string_constants;
-    int const* const args = script->int_operands;
-    int const op_count = script->op_count;
+    (void)script;
+    assert(script->jit && code == script->jit->code);
+    assert(cstrs == script->string_constants);
+    assert(args == script->int_operands);
+    assert(op_count == script->op_count);
     int* const stack = vm->ints_stack;
     int* locals = frame->int_locals;
     int locals_dirty = frame->int_locals_dirty;
@@ -16972,17 +17104,44 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
      * observed run takes every instruction down the full path below. Read
      * again after each instruction that could have changed it. */
     int observed = g_cs2_profile_on > 0 || CS2VM2_TRACE_ARMED();
+
+    /* The running frame and what the loop reads off its script, kept across
+     * instructions and read again only when the frame stack has moved
+     * (vm->frame_epoch). An instruction that pushes, pops or resets frames
+     * moves it; any other leaves the frame and its script where they were,
+     * so the loop does not walk vm -> frame -> script again for every
+     * general-path instruction. The epoch starts one behind: the first
+     * iteration reads. */
+    uint32_t epoch = vm->frame_epoch - 1u;
+    struct CS2VM2_Frame* frame = NULL;
+    uint16_t const* ops = NULL;
+    int const* args = NULL;
+    struct CS2VM2_Str* const* cstrs = NULL;
+    uint8_t const* jit_code = NULL;
+    int op_count = 0;
     while( cycles++ < CS2VM_MAX_CYCLES )
     {
-        if( vm->frame_sp <= 0 )
+        if( vm->frame_epoch != epoch )
         {
-            CS2VM2_COUNT_OPCODES(vm, cycles - 1);
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles - 1);
-            return CS2VM_EXECNO_DONE;
+            if( vm->frame_sp <= 0 )
+            {
+                CS2VM2_COUNT_OPCODES(vm, cycles - 1);
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles - 1);
+                return CS2VM_EXECNO_DONE;
+            }
+            frame = CS2VM_FRAME(vm);
+            struct CS2VM2_Script const* const script = frame->script;
+            ops = script->opcodes;
+            args = script->int_operands;
+            cstrs = script->string_constants;
+            jit_code = script->jit ? script->jit->code : NULL;
+            op_count = script->op_count;
+            epoch = vm->frame_epoch;
         }
+        assert(vm->frame_sp > 0);
+        assert(frame == CS2VM_FRAME(vm));
 
-        struct CS2VM2_Frame* frame = CS2VM_FRAME(vm);
-        if( frame->pc >= frame->script->op_count )
+        if( frame->pc >= op_count )
         {
             CS2VM2_COUNT_OPCODES(vm, cycles - 1);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles - 1);
@@ -16991,25 +17150,27 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
 
         /* The hot loop first: a stretch of pushes, stores, branches and
          * arithmetic runs there. Not for an observed run, which wants every
-         * instruction to pass the trace and the profile below, nor for a
-         * script in the RS2 dialect, whose overlay may give one of those ids
-         * another meaning. */
-        if( !observed && !(frame->script->dialect && frame->script->dialect->rs2_commands) )
+         * instruction to pass the trace and the profile below. Every dialect
+         * runs it: a command an era means differently was renumbered at load
+         * to an id of its own (CS2VM2_ScriptResolveDialect), and none of those
+         * is a hot id. */
+        if( !observed )
         {
             /* A script with a jit overlay runs the overlay's loop; one
              * without runs the plain loop exactly as before the jit. */
-            bool const for_general = frame->script->jit ? cs2vm2_run_hot_jit(vm, frame, &cycles)
-                                                        : cs2vm2_run_hot(vm, frame, &cycles);
+            bool const for_general =
+                jit_code ? cs2vm2_run_hot_jit(vm, frame, jit_code, cstrs, args, op_count, &cycles)
+                         : cs2vm2_run_hot(vm, frame, ops, args, op_count, &cycles);
             if( !for_general )
                 continue;
         }
 
-        int opcode = frame->script->opcodes[frame->pc];
-        int operand = frame->script->int_operands[frame->pc];
+        int opcode = ops[frame->pc];
+        int operand = args[frame->pc];
 
         struct CS2VM2_Str* str_operand_str = NULL;
-        if( frame->script->string_constants )
-            str_operand_str = frame->script->string_constants[frame->pc];
+        if( cstrs )
+            str_operand_str = cstrs[frame->pc];
 
         CS2VM2_DebugPrintOpCode(vm, frame, opcode, operand, str_operand_str);
 
@@ -17610,22 +17771,14 @@ CS2VM2_Op_StructParam(
 }
 
 /*
- * Wire 1613 is two different commands, one per dialect.
+ * Wire 1613 is two different commands, one per dialect; an RS2 script's 1613
+ * is renumbered to RS2_CC_GETPARAM at load (CS2VM2_ScriptResolveDialect).
  *
  * OldSchool (rev 239): cc_getblendmode() -> int, the active component's blend
  * mode. It pops nothing.
- *
- * RS2 (rev 634): read a param off the active widget, which pops the param id.
- * Type-polymorphic — the ParamType decides whether an int or a string comes
- * back, which is why it cannot be a StackMetaStub entry. A rev-634 widget only
- * carries its own param table when the file's leading version byte is >= 0, and
- * no file in a 634-era cache is (they all lead with 255 = -1), so the answer is
- * always the ParamType's default. STRUCT_PARAM with struct -1 already means
- * exactly that — "no record, fall through to the param default" — so this
- * forwards to it rather than duplicating the type dispatch.
  */
 int
-CS2VM2_Op_CC_GetParam(
+CS2VM2_Op_CC_GetBlendMode(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
     int operand)
@@ -17633,16 +17786,38 @@ CS2VM2_Op_CC_GetParam(
     struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
     assert(vm);
     assert(frame);
+    (void)frame;
 
     struct CS2VM_HostRequest request;
-    if( !cs2vm2_frame_dialect(frame)->rs2_commands )
-    {
-        request.kind = CS2VM_HOST_REQUEST_CC_GETBLENDMODE;
-        memset(&request.u.CC_GETBLENDMODE, 0, sizeof(request.u.CC_GETBLENDMODE));
-        request.u.CC_GETBLENDMODE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
-        return CS2VM2_Ask(vm, &request, mark);
-    }
+    request.kind = CS2VM_HOST_REQUEST_CC_GETBLENDMODE;
+    memset(&request.u.CC_GETBLENDMODE, 0, sizeof(request.u.CC_GETBLENDMODE));
+    request.u.CC_GETBLENDMODE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    return CS2VM2_Ask(vm, &request, mark);
+}
 
+/*
+ * RS2 (rev 634) 1613: read a param off the active widget, which pops the param
+ * id. Type-polymorphic — the ParamType decides whether an int or a string comes
+ * back, which is why it cannot be a StackMetaStub entry. A rev-634 widget only
+ * carries its own param table when the file's leading version byte is >= 0, and
+ * no file in a 634-era cache is (they all lead with 255 = -1), so the answer is
+ * always the ParamType's default. STRUCT_PARAM with struct -1 already means
+ * exactly that — "no record, fall through to the param default" — so this
+ * forwards to it rather than duplicating the type dispatch.
+ */
+static int
+CS2VM2_Op_RS2_CC_GetParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    struct CS2VM_HostRequest request;
     int param_id;
     if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -17965,6 +18140,7 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
     vm->strs_stack_top = 0;
     vm->longs_stack_top = 0;
     vm->frame_sp = 0;
+    vm->frame_epoch++;
     /* Dropping the stacks and frames drops the last references to every string
      * the finished script made, so this is where the pool is reclaimed. Callers
      * must therefore reset only between scripts, never mid-run. */
@@ -18011,6 +18187,7 @@ cs2vm2_thread_init_common(
     thread->strs_stack_top = 0;
     thread->longs_stack_top = 0;
     thread->frame_sp = 0;
+    thread->frame_epoch++;
 
     thread->active_component_id = 0;
     thread->dot_component_id = 0;
@@ -18073,9 +18250,6 @@ void
 CS2VM2_Init(struct CS2VM2* vm)
 {
     assert(vm);
-#ifndef NDEBUG
-    cs2vm2_opcode_stack_rs2_assert_sorted();
-#endif
     vm->thread_count = CS2VM2_MAX_THREADS;
     vm->host_exec = NULL;
     vm->user = NULL;

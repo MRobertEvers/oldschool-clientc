@@ -104,8 +104,10 @@ enum CS2VM2_JitBuildResult
     CS2VM2_JIT_BUILT = 0,
     /* op_count <= 0: nothing to run. */
     CS2VM2_JIT_REFUSED_EMPTY,
-    /* The script's dialect has rs2_commands: the hot loop never runs those
-     * scripts (cs2vm2_run_script_body), so an overlay would never be read. */
+    /* The script's dialect has rs2_commands. Decided at load like the
+     * dialect's renumbering (CS2VM2_ScriptResolveDialect), after which RS2
+     * scripts run the plain hot loop; no overlay has been built and checked
+     * against one. */
     CS2VM2_JIT_REFUSED_DIALECT,
     /* A jump by operand (the hot branches BRANCH, BRANCH_EQUALS ..
      * BRANCH_GREATER_THAN_OR_EQUALS, the long compares LONG_BRANCH_NOT ..

@@ -1966,4 +1966,233 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Empty a whole highlight group",
         int_in=("group",),
     ),
+    # --- vm-dialect: the VM's own ids for a dialect's commands (9000..9099) ---
+    "CC_CREATE_FLAT": OpcodeDoc(
+        summary="Create dynamic child component, three arguments",
+        operand="0 = active component, 1 = dot component",
+        int_in=("parent", "type", "child_index"),
+        notes="CC_CREATE (100) where the cache era pushes no is_nested flag: RS2 634 (Class66.method710) and OldSchool through 229. Renumbered at load; is_nested reaches the host as 0.",
+    ),
+    "DEFINE_ARRAY_SHARED": OpcodeDoc(
+        summary="Define an int array in one of the run's numbered arrays",
+        operand="(array number << 16) | element type char",
+        int_in=("size",),
+        notes="DEFINE_ARRAY (44) where arrays are numbered and shared by every frame of a run (OldSchool through 230). Renumbered at load.",
+    ),
+    "PUSH_ARRAY_INT_SHARED": OpcodeDoc(
+        summary="Read an element of one of the run's numbered arrays",
+        operand="array number",
+        int_in=("index",),
+        int_out=("value",),
+        notes="PUSH_ARRAY_INT (45) over numbered arrays (OldSchool through 230). A string array pushes onto the string stack instead. Renumbered at load.",
+    ),
+    "POP_ARRAY_INT_SHARED": OpcodeDoc(
+        summary="Write an element of one of the run's numbered arrays",
+        operand="array number",
+        int_in=("index", "value"),
+        notes="POP_ARRAY_INT (46) over numbered arrays (OldSchool through 230). A string array takes its value off the string stack. Renumbered at load.",
+    ),
+    "RS2_CC_GETPARAM": OpcodeDoc(
+        summary="Read a param off the active widget (RS2 634)",
+        int_in=("param_id",),
+        int_out=("value",),
+        notes="Wire 1613 at 634, where OldSchool's 1613 is CC_GETBLENDMODE. Type-polymorphic: the ParamType decides whether an int or a string comes back. No 634-era widget carries a param table, so the answer is the ParamType's default. Renumbered at load.",
+    ),
+    "RS2_202": OpcodeDoc(
+        summary="RS2 634 command 202, stubbed to its 634 signature",
+        int_in=("a1",),
+        notes="Remove a widget from its group array (Class66.method714); canonical 202 is IF_FIND_ENTITYOVERLAY. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 202 at load."
+    ),
+    "RS2_1122": OpcodeDoc(
+        summary="RS2 634 command 1122, stubbed to its 634 signature",
+        int_in=("a1",),
+        notes="CC_ set of the type-5 flag bit 1 (Class46.aBoolean745). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 1122 at load."
+    ),
+    "RS2_1311": OpcodeDoc(
+        summary="RS2 634 command 1311, stubbed to its 634 signature",
+        int_in=("a1",),
+        notes="A one-int widget setter (Class46.anInt713); canonical 1311 is CC_SETSUBOP. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 1311 at load."
+    ),
+    "RS2_2122": OpcodeDoc(
+        summary="RS2 634 command 2122, stubbed to its 634 signature",
+        int_in=("a1", "a2"),
+        notes="IF_ set of the type-5 flag bit 1; pops the component id first (Class66:2731). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2122 at load."
+    ),
+    "RS2_2314": OpcodeDoc(
+        summary="RS2 634 command 2314, stubbed to its 634 signature",
+        int_in=("a1", "a2"),
+        notes="A one-int widget setter on an explicit component (Class46.anInt719); canonical 2314 is IF_SETOPPRIORITY. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2314 at load."
+    ),
+    "RS2_2703": OpcodeDoc(
+        summary="RS2 634 command 2703, stubbed to its 634 signature",
+        int_in=("a1",),
+        int_out=("r1",),
+        notes="Count of a widget's dynamic children (Class46.aClass46Array798). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2703 at load."
+    ),
+    "RS2_3329": OpcodeDoc(
+        summary="RS2 634 command 3329, stubbed to its 634 signature",
+        int_out=("r1",),
+        notes="Class50_Sub2.aBoolean5233. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3329 at load."
+    ),
+    "RS2_3335": OpcodeDoc(
+        summary="RS2 634 command 3335, stubbed to its 634 signature",
+        int_out=("r1",),
+        notes="Language index (Class348_Sub33.anInt6967). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3335 at load."
+    ),
+    "RS2_3340": OpcodeDoc(
+        summary="RS2 634 command 3340, stubbed to its 634 signature",
+        int_out=("r1",),
+        notes="Class175.aBoolean2329. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3340 at load."
+    ),
+    "RS2_3351": OpcodeDoc(
+        summary="RS2 634 command 3351, stubbed to its 634 signature",
+        int_out=("r1", "r2", "r3"),
+        notes="Three mouse-button booleans, one call. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3351 at load."
+    ),
+    "RS2_3609": OpcodeDoc(
+        summary="RS2 634 command 3609, stubbed to its 634 signature",
+        str_in=("s1",),
+        int_out=("r1",),
+        notes="Friend test by display name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3609 at load."
+    ),
+    "RS2_3619": OpcodeDoc(
+        summary="RS2 634 command 3619, stubbed to its 634 signature",
+        str_in=("s1",),
+        notes="Join clan chat by owner name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3619 at load."
+    ),
+    "RS2_4124": OpcodeDoc(
+        summary="RS2 634 command 4124, stubbed to its 634 signature",
+        int_in=("a1", "a2"),
+        str_out=("t1",),
+        notes="(value, comma-group) -> formatted number; OldSchool 239 script 5031 calls canonical 4124 with an empty stack. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 4124 at load."
+    ),
+    "RS2_4125": OpcodeDoc(
+        summary="RS2 634 command 4125, stubbed to its 634 signature",
+        int_in=("a1",),
+        str_in=("s1",),
+        int_out=("r1",),
+        notes="(font, text) -> rendered width. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 4125 at load."
+    ),
+    "RS2_5003": OpcodeDoc(
+        summary="RS2 634 command 5003, stubbed to its 634 signature",
+        int_in=("a1",),
+        str_out=("t1",),
+        notes="Friend/ignore record field by list index (s.method3985); canonical 5003.. is the chat history family. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5003 at load."
+    ),
+    "RS2_5004": OpcodeDoc(
+        summary="RS2 634 command 5004, stubbed to its 634 signature",
+        int_in=("a1",),
+        int_out=("r1",),
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5004 at load."
+    ),
+    "RS2_5010": OpcodeDoc(
+        summary="RS2 634 command 5010, stubbed to its 634 signature",
+        int_in=("a1",),
+        str_out=("t1",),
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5010 at load."
+    ),
+    "RS2_5011": OpcodeDoc(
+        summary="RS2 634 command 5011, stubbed to its 634 signature",
+        int_in=("a1",),
+        str_out=("t1",),
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5011 at load."
+    ),
+    "RS2_5012": OpcodeDoc(
+        summary="RS2 634 command 5012, stubbed to its 634 signature",
+        int_in=("a1",),
+        int_out=("r1",),
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5012 at load."
+    ),
+    "RS2_5019": OpcodeDoc(
+        summary="RS2 634 command 5019, stubbed to its 634 signature",
+        int_in=("a1",),
+        str_out=("t1",),
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5019 at load."
+    ),
+    "RS2_5024": OpcodeDoc(
+        summary="RS2 634 command 5024, stubbed to its 634 signature",
+        int_in=("a1",),
+        int_out=("r1",),
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5024 at load."
+    ),
+    "RS2_5056": OpcodeDoc(
+        summary="RS2 634 command 5056, stubbed to its 634 signature",
+        int_in=("a1",),
+        int_out=("r1",),
+        notes="Array length or 0. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5056 at load."
+    ),
+    "RS2_5102": OpcodeDoc(
+        summary="RS2 634 command 5102, stubbed to its 634 signature",
+        int_out=("r1",),
+        notes="Key-down test. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5102 at load."
+    ),
+    "RS2_5420": OpcodeDoc(
+        summary="RS2 634 command 5420, stubbed to its 634 signature",
+        int_out=("r1",),
+        notes="An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5420 at load."
+    ),
+    "RS2_5424": OpcodeDoc(
+        summary="RS2 634 command 5424, stubbed to its 634 signature",
+        int_in=("a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11"),
+        notes="Chat scrollbar skin: four geometry values, five sprite ids the client preloads, two more. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5424 at load."
+    ),
+    "RS2_5428": OpcodeDoc(
+        summary="RS2 634 command 5428, stubbed to its 634 signature",
+        int_in=("a1", "a2"),
+        int_out=("r1",),
+        notes="A two-int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5428 at load."
+    ),
+    "RS2_5504": OpcodeDoc(
+        summary="RS2 634 command 5504, stubbed to its 634 signature",
+        int_in=("a1", "a2"),
+        notes="CAM_FORCEANGLE. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5504 at load."
+    ),
+    "RS2_5505": OpcodeDoc(
+        summary="RS2 634 command 5505, stubbed to its 634 signature",
+        int_out=("r1",),
+        notes="CAM_GETANGLE_XA. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5505 at load."
+    ),
+    "RS2_5506": OpcodeDoc(
+        summary="RS2 634 command 5506, stubbed to its 634 signature",
+        int_out=("r1",),
+        notes="CAM_GETANGLE_YA. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5506 at load."
+    ),
+    "RS2_5507": OpcodeDoc(
+        summary="RS2 634 command 5507, stubbed to its 634 signature",
+        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5507 at load."
+    ),
+    "RS2_5508": OpcodeDoc(
+        summary="RS2 634 command 5508, stubbed to its 634 signature",
+        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5508 at load."
+    ),
+    "RS2_5509": OpcodeDoc(
+        summary="RS2 634 command 5509, stubbed to its 634 signature",
+        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5509 at load."
+    ),
+    "RS2_5510": OpcodeDoc(
+        summary="RS2 634 command 5510, stubbed to its 634 signature",
+        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5510 at load."
+    ),
+    "RS2_5547": OpcodeDoc(
+        summary="RS2 634 command 5547, stubbed to its 634 signature",
+        int_out=("r1",),
+        notes="An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5547 at load."
+    ),
+    "RS2_6506": OpcodeDoc(
+        summary="RS2 634 command 6506, stubbed to its 634 signature",
+        int_in=("a1",),
+        int_out=("r1", "r2", "r3", "r4"),
+        str_out=("t1", "t2", "t3"),
+        notes="WORLDLIST_SPECIFIC(world) -> id, name, loc-id, loc-name, flags, players, activity; OldSchool 239 script 6918 stores 4 ints + 2. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6506 at load."
+    ),
+    "RS2_6510": OpcodeDoc(
+        summary="RS2 634 command 6510, stubbed to its 634 signature",
+        int_out=("r1",),
+        notes="An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6510 at load."
+    ),
+    "RS2_6900": OpcodeDoc(
+        summary="RS2 634 command 6900, stubbed to its 634 signature",
+        int_out=("r1",),
+        notes="An int query; canonical 6900 is P_NAME. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6900 at load."
+    ),
 }
