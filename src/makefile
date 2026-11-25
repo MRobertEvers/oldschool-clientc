@@ -5650,6 +5650,20 @@ test-soft3d-interface-filter: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
 	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/soft3d_interface_filter_test
 
+# Soft3D's outline/shadow cache: more distinct icons in a frame than it ever
+# held (the bank), stale entries, the ceiling, an unloaded sprite and a second
+# scene all draw exactly what a renderer with no cache draws.
+.PHONY: test-soft3d-outline-cache
+test-soft3d-outline-cache: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/soft3d_outline_cache_test $(TORIMEM_SRCS) \
+		platform/test/soft3d_outline_cache_test.c \
+		platform/platform_renderer_soft3d.c \
+		render/torirs_frame.c render/torirs_pick.c \
+		render/torirs_polygon.c render/torirs_arc.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/soft3d_outline_cache_test
+
 # A scene element's allocation serial: a recycled element id gets a new one,
 # and a freed id reads 0, so a key held across a wait (a parked sequence bind)
 # can tell the element it was made for from whoever inherited its id.

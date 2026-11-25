@@ -42,18 +42,43 @@ struct Soft3DSegmentCache
     int has_coverage;
 };
 
+/*
+ * One outlined/shadowed copy of a scene sprite. Keyed by the sprite's scene id
+ * and atlas index as well as its pixel buffer, so a TORIRSRC_SPRITE_UNLOAD of
+ * the id can find and drop what was baked from the pixels the scene just freed.
+ */
 struct Soft3DOutlineCacheEntry
 {
     uint32_t const* src;
+    int scene_id;
+    int atlas_index;
     int sw, sh;
     int outline;
     int graphic_shadow;
+    /* NULL: the slot is free and `next` links the free list. */
     uint32_t* pixels;
     int w, h;
-    uint64_t last_used;
+    /* The Init that last drew it. @see soft3d_outline_cache_slot. */
+    uint64_t used_frame;
+    /* The next entry in this scene id's bucket, or in the free list; -1 ends. */
+    int next;
 };
 
-#define SOFT3D_OUTLINE_CACHE_SLOTS 256
+/*
+ * The cache holds every outlined sprite one frame draws, up to the ceiling.
+ *
+ * It was 256 slots with least-recently-used eviction, and the bank draws an
+ * outlined, shadowed icon for each of its items -- 414 of them for a 400-item
+ * bank, the ones scrolled out of view included. A frame that cycles through
+ * more keys than an LRU holds evicts each entry just before it is asked for
+ * again, so every icon was rebuilt every frame (2.8 ms of a 15 ms frame on the
+ * N100) and nothing ever hit. Now the cache doubles whenever one frame has
+ * used every slot, and only evicts what the current frame has not drawn.
+ * Bound: SOFT3D_OUTLINE_CACHE_MAX_SLOTS entries, one sprite's pixels each
+ * (an item icon with its shadow is 38x34, 5 KB: 10 MB at the ceiling).
+ */
+#define SOFT3D_OUTLINE_CACHE_MIN_SLOTS 256
+#define SOFT3D_OUTLINE_CACHE_MAX_SLOTS 2048
 
 /*
  * The renderer's frame-crossing working set (declared opaque in the header).
@@ -110,8 +135,20 @@ struct ToriPlatform_Renderer_Soft3D_Scratch
      * @see soft3d_segment_end. */
     struct Soft3DSegmentCache segment_caches[SOFT3D_SEGMENT_CACHES];
     int segment_index;
-    struct Soft3DOutlineCacheEntry outline_cache[SOFT3D_OUTLINE_CACHE_SLOTS];
-    uint64_t outline_clock;
+    /* outline_cache_cap entries (a power of two, 0 before the first lookup)
+     * and as many bucket heads, chained by scene id. [0, outline_cache_used)
+     * have been handed out; the free list holds the ones dropped since. */
+    struct Soft3DOutlineCacheEntry* outline_cache;
+    int* outline_buckets;
+    int outline_cache_cap;
+    int outline_cache_used;
+    int outline_free;
+    /* Where the eviction sweep resumes. */
+    int outline_hand;
+    /* Counts Inits: a frame's draws all carry the same value. */
+    uint64_t outline_frame;
+    /* The scene the cached pixels came from; another scene empties it. */
+    struct ToriDraw_Scene const* outline_scene;
     /* The rszbuffer world's models of the open 3D pass, in the order they
      * drew, for the translucent pass END_3D runs over them. Kept across
      * frames so a pass does not allocate. */
@@ -220,9 +257,161 @@ soft3d_scratch(
     return soft->scratch->blit;
 }
 
+static int
+soft3d_outline_bucket(
+    struct ToriPlatform_Renderer_Soft3D_Scratch const* scratch,
+    int scene_id)
+{
+    uint32_t h = (uint32_t)scene_id * 0x9E3779B1u;
+
+    h ^= h >> 15;
+    return (int)(h & (uint32_t)(scratch->outline_cache_cap - 1));
+}
+
+static void
+soft3d_outline_link(
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch,
+    int index)
+{
+    int const b = soft3d_outline_bucket(scratch, scratch->outline_cache[index].scene_id);
+
+    scratch->outline_cache[index].next = scratch->outline_buckets[b];
+    scratch->outline_buckets[b] = index;
+}
+
+/* Unlink a live entry, free its pixels and put the slot on the free list. */
+static void
+soft3d_outline_release(
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch,
+    int index)
+{
+    struct Soft3DOutlineCacheEntry* e = &scratch->outline_cache[index];
+    int* link = &scratch->outline_buckets[soft3d_outline_bucket(scratch, e->scene_id)];
+
+    assert(e->pixels);
+    while( *link != index )
+    {
+        assert(*link >= 0);
+        link = &scratch->outline_cache[*link].next;
+    }
+    *link = e->next;
+    TORIDRAW_FREE(e->pixels); /* toridraw's outline/shadow output */
+    memset(e, 0, sizeof(*e));
+    e->next = scratch->outline_free;
+    scratch->outline_free = index;
+}
+
+/* Size the table to `cap` slots and re-chain every live entry. */
+static void
+soft3d_outline_resize(
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch,
+    int cap)
+{
+    struct Soft3DOutlineCacheEntry* grown;
+    int* buckets;
+
+    assert(cap > scratch->outline_cache_cap);
+    assert((cap & (cap - 1)) == 0);
+    grown = ToriMem_Realloc(
+        ToriMem_Render(), scratch->outline_cache, (size_t)cap * sizeof(*scratch->outline_cache));
+    assert(grown);
+    memset(
+        grown + scratch->outline_cache_cap,
+        0,
+        (size_t)(cap - scratch->outline_cache_cap) * sizeof(*grown));
+    buckets = ToriMem_Realloc(
+        ToriMem_Render(), scratch->outline_buckets, (size_t)cap * sizeof(*scratch->outline_buckets));
+    assert(buckets);
+    if( scratch->outline_cache_cap == 0 )
+        scratch->outline_free = -1;
+    scratch->outline_cache = grown;
+    scratch->outline_buckets = buckets;
+    scratch->outline_cache_cap = cap;
+    for( int b = 0; b < cap; b++ )
+        buckets[b] = -1;
+    for( int i = 0; i < scratch->outline_cache_used; i++ )
+    {
+        if( grown[i].pixels )
+            soft3d_outline_link(scratch, i);
+    }
+}
+
+/*
+ * A slot for a new entry: a free one, else one this frame has not drawn,
+ * else -- every slot drawn this frame -- a doubled table, and only at the
+ * ceiling one this frame has drawn.
+ */
+static int
+soft3d_outline_cache_slot(struct ToriPlatform_Renderer_Soft3D_Scratch* scratch)
+{
+    int index;
+
+    if( scratch->outline_free < 0 && scratch->outline_cache_used == scratch->outline_cache_cap )
+    {
+        int victim = -1;
+        for( int k = 0; k < scratch->outline_cache_cap; k++ )
+        {
+            int const i = scratch->outline_hand;
+            scratch->outline_hand = (i + 1) & (scratch->outline_cache_cap - 1);
+            if( scratch->outline_cache[i].used_frame != scratch->outline_frame )
+            {
+                victim = i;
+                break;
+            }
+        }
+        if( victim < 0 && scratch->outline_cache_cap < SOFT3D_OUTLINE_CACHE_MAX_SLOTS )
+            soft3d_outline_resize(scratch, scratch->outline_cache_cap * 2);
+        else
+            soft3d_outline_release(scratch, victim >= 0 ? victim : scratch->outline_hand);
+    }
+    if( scratch->outline_free >= 0 )
+    {
+        index = scratch->outline_free;
+        scratch->outline_free = scratch->outline_cache[index].next;
+        return index;
+    }
+    assert(scratch->outline_cache_used < scratch->outline_cache_cap);
+    return scratch->outline_cache_used++;
+}
+
+/* Drop everything baked from scene sprite `scene_id`: the scene has freed
+ * those pixels, and a new buffer may be handed the same address. */
+static void
+soft3d_outline_cache_forget(
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch,
+    int scene_id)
+{
+    int i;
+
+    assert(scratch);
+    if( scratch->outline_cache_cap == 0 )
+        return;
+    i = scratch->outline_buckets[soft3d_outline_bucket(scratch, scene_id)];
+    while( i >= 0 )
+    {
+        int const next = scratch->outline_cache[i].next;
+        if( scratch->outline_cache[i].scene_id == scene_id )
+            soft3d_outline_release(scratch, i);
+        i = next;
+    }
+}
+
+static void
+soft3d_outline_cache_clear(struct ToriPlatform_Renderer_Soft3D_Scratch* scratch)
+{
+    assert(scratch);
+    for( int i = 0; i < scratch->outline_cache_used; i++ )
+    {
+        if( scratch->outline_cache[i].pixels )
+            soft3d_outline_release(scratch, i);
+    }
+}
+
 static uint32_t*
 soft3d_outline_cache_get(
     struct ToriPlatform_Renderer_Soft3D* soft,
+    int scene_id,
+    int atlas_index,
     uint32_t const* src,
     int sw,
     int sh,
@@ -231,11 +420,10 @@ soft3d_outline_cache_get(
     int* out_w,
     int* out_h)
 {
-    struct Soft3DOutlineCacheEntry* cache;
-    uint64_t stamp;
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch;
+    struct Soft3DOutlineCacheEntry* e;
     int i;
-    int victim = 0;
-    uint64_t victim_used = UINT64_MAX;
+    int slot;
     uint32_t const* outlined;
     uint32_t* final_px;
     int ow = 0;
@@ -245,27 +433,25 @@ soft3d_outline_cache_get(
 
     assert(soft);
     assert(soft->scratch);
+    assert(src);
     assert(out_w);
     assert(out_h);
 
-    cache = soft->scratch->outline_cache;
-    stamp = ++soft->scratch->outline_clock;
+    scratch = soft->scratch;
+    if( scratch->outline_cache_cap == 0 )
+        soft3d_outline_resize(scratch, SOFT3D_OUTLINE_CACHE_MIN_SLOTS);
 
-    for( i = 0; i < SOFT3D_OUTLINE_CACHE_SLOTS; i++ )
+    for( i = scratch->outline_buckets[soft3d_outline_bucket(scratch, scene_id)]; i >= 0; i = e->next )
     {
-        if( cache[i].src == src && cache[i].sw == sw && cache[i].sh == sh &&
-            cache[i].outline == outline && cache[i].graphic_shadow == graphic_shadow &&
-            cache[i].pixels )
+        e = &scratch->outline_cache[i];
+        if( e->scene_id == scene_id && e->atlas_index == atlas_index && e->src == src &&
+            e->sw == sw && e->sh == sh && e->outline == outline &&
+            e->graphic_shadow == graphic_shadow )
         {
-            cache[i].last_used = stamp;
-            *out_w = cache[i].w;
-            *out_h = cache[i].h;
-            return cache[i].pixels;
-        }
-        if( cache[i].last_used < victim_used )
-        {
-            victim_used = cache[i].last_used;
-            victim = i;
+            e->used_frame = scratch->outline_frame;
+            *out_w = e->w;
+            *out_h = e->h;
+            return e->pixels;
         }
     }
 
@@ -299,16 +485,20 @@ soft3d_outline_cache_get(
         return NULL;
     }
 
-    TORIDRAW_FREE(cache[victim].pixels); /* toridraw's outline/shadow output */
-    cache[victim].src = src;
-    cache[victim].sw = sw;
-    cache[victim].sh = sh;
-    cache[victim].outline = outline;
-    cache[victim].graphic_shadow = graphic_shadow;
-    cache[victim].pixels = final_px;
-    cache[victim].w = ow;
-    cache[victim].h = oh;
-    cache[victim].last_used = stamp;
+    slot = soft3d_outline_cache_slot(scratch);
+    e = &scratch->outline_cache[slot];
+    e->src = src;
+    e->scene_id = scene_id;
+    e->atlas_index = atlas_index;
+    e->sw = sw;
+    e->sh = sh;
+    e->outline = outline;
+    e->graphic_shadow = graphic_shadow;
+    e->pixels = final_px;
+    e->w = ow;
+    e->h = oh;
+    e->used_frame = scratch->outline_frame;
+    soft3d_outline_link(scratch, slot);
     *out_w = ow;
     *out_h = oh;
     return final_px;
@@ -813,7 +1003,16 @@ soft3d_draw_sprite(
         int cw = 0;
         int ch = 0;
         uint32_t* cached = soft3d_outline_cache_get(
-            soft, spr->pixels_argb, sw, sh, cmd->outline, cmd->graphic_shadow, &cw, &ch);
+            soft,
+            cmd->scene_id,
+            atlas,
+            spr->pixels_argb,
+            sw,
+            sh,
+            cmd->outline,
+            cmd->graphic_shadow,
+            &cw,
+            &ch);
         if( cached )
         {
             int cox = ox;
@@ -851,6 +1050,8 @@ soft3d_draw_sprite(
         int sh2 = 0;
         uint32_t* cached = soft3d_outline_cache_get(
             soft,
+            cmd->scene_id,
+            atlas,
             spr->pixels_argb,
             nominal_w,
             nominal_h,
@@ -1720,14 +1921,13 @@ ToriPlatform_Renderer_Soft3D_New(void)
 void
 ToriPlatform_Renderer_Soft3D_Free(struct ToriPlatform_Renderer_Soft3D* soft)
 {
-    int i;
-
     if( !soft )
         return;
     if( soft->scratch )
     {
-        for( i = 0; i < SOFT3D_OUTLINE_CACHE_SLOTS; i++ )
-            TORIDRAW_FREE(soft->scratch->outline_cache[i].pixels);
+        soft3d_outline_cache_clear(soft->scratch);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->outline_cache);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->outline_buckets);
         ToriMem_Free(ToriMem_Render(), soft->scratch->blit);
         ToriMem_Free(ToriMem_Render(), soft->scratch->layer);
         ToriMem_Free(ToriMem_Render(), soft->scratch->segment);
@@ -1770,6 +1970,14 @@ ToriPlatform_Renderer_Soft3D_Init(
     scratch = soft->scratch;
     memset(soft, 0, sizeof(*soft));
     soft->scratch = scratch;
+    /* The outline cache's frame: what it may evict is what this one has not
+     * drawn. Pixels baked from another scene's sprites are not this one's. */
+    scratch->outline_frame++;
+    if( scratch->outline_scene != scene )
+    {
+        soft3d_outline_cache_clear(scratch);
+        scratch->outline_scene = scene;
+    }
     /* A frame's 2D segments are numbered from its first. */
     scratch->segment_index = 0;
     soft->scene = scene;
@@ -2020,6 +2228,12 @@ ToriPlatform_Renderer_Soft3D_Execute(
         soft3d_polygon_end(soft);
         break;
 
+    /* The scene freed the sprite; what the outline cache baked from it goes
+     * too. The sprites themselves are read straight out of the scene. */
+    case TORIRSRC_SPRITE_UNLOAD:
+        soft3d_outline_cache_forget(soft->scratch, cmd->u.sprite_load.element_id);
+        break;
+
     case TORIRSRC_MODEL_LOAD:
     case TORIRSRC_MODEL_UNLOAD:
     case TORIRSRC_ANIM_LOAD:
@@ -2027,7 +2241,6 @@ ToriPlatform_Renderer_Soft3D_Execute(
     case TORIRSRC_TEX_LOAD:
     case TORIRSRC_TEX_UNLOAD:
     case TORIRSRC_SPRITE_LOAD:
-    case TORIRSRC_SPRITE_UNLOAD:
     case TORIRSRC_FONT_LOAD:
     case TORIRSRC_FONT_UNLOAD:
     case TORIRSRC_BATCH3D_BEGIN:
