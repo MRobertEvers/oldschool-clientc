@@ -5395,7 +5395,7 @@ test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_canvas_floor.c ui/uitree_canvas_floor.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_layer_clip.c ui/test/uitree_test_held_drag.c ui/test/uitree_test_anchor_reorder.c ui/test/uitree_test_widget_idempotent.c ui/test/uitree_test_owned_budget.c ui/test/uitree_test_input_walk.c ui/test/uitree_test_visible_children.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
-		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
+		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mount_layout.c ui/test/uitree_test_mutate_emit.c \
 		ui/test/uitree_test_drag.c ui/test/uitree_test_scroll_hit.c \
 		ui/test/uitree_test_drag_scrolled.c ui/test/uitree_test_emit_icons.c \
 		ui/test/uitree_test_emit_golden.c \

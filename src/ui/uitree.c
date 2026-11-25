@@ -2802,10 +2802,12 @@ enum UITreeMutationImpact
     /** This node's own layout inputs changed.  A changed resolved box is
      * propagated to descendants by UITree_LayoutResolve. */
     UITREE_IMPACT_LAYOUT_SELF = 1u << 1,
-    /** A child coordinate-space input changed without changing the parent's
-     * resolved box (currently a layer's scroll extent), so every cached box
-     * must be made unresolved. */
-    UITREE_IMPACT_LAYOUT_TREE = 1u << 2,
+    /** No box changed, but the next UITree_LayoutResolve must still run
+     * rather than skip (UITree_LayoutRequestPass).  A mount flag is not a
+     * layout input -- layout_compute_node never reads it -- so nothing is
+     * unresolved; the pass is kept because layout_resolve_seq, which the emit
+     * retain gate and the canvas-floor memo key on, advanced here before. */
+    UITREE_IMPACT_LAYOUT_PASS = 1u << 2,
     /** Traversal reachability changed.  This bump cannot use the previous
      * emit-visited bitmap, because an unhide invalidates that very answer. */
     UITREE_IMPACT_REACHABILITY = 1u << 3,
@@ -2838,13 +2840,13 @@ uitree_note_mutation(
     }
 #endif
 
-    if( impacts & UITREE_IMPACT_LAYOUT_TREE )
-        UITree_LayoutInvalidate(tree);
-    else if( impacts & UITREE_IMPACT_LAYOUT_SELF )
+    if( impacts & UITREE_IMPACT_LAYOUT_SELF )
     {
         tree->components[idx].position.layout_resolved = 0;
         UITree_LayoutInvalidateNode(tree, idx);
     }
+    else if( impacts & UITREE_IMPACT_LAYOUT_PASS )
+        UITree_LayoutRequestPass(tree);
 
     if( impacts & UITREE_IMPACT_EMIT_SELF )
         UITree_MarkNodeDirty(tree, idx);
@@ -2853,7 +2855,7 @@ uitree_note_mutation(
         uitree_topo_bump(tree, __LINE__);
         uitree_visible_children_reconcile(tree, idx);
     }
-    if( impacts & (UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_LAYOUT_TREE | UITREE_IMPACT_GEOMETRY_STATE) )
+    if( impacts & (UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_LAYOUT_PASS | UITREE_IMPACT_GEOMETRY_STATE) )
         uitree_geometry_audit_stamp(tree, idx);
 }
 
@@ -4822,8 +4824,13 @@ UITree_SetMountHiddenAt(struct UITree* tree, int32_t idx, int hidden)
     hidden = hidden ? 1 : 0;
     if( c->mount_hidden == hidden ) return true;
     c->mount_hidden = (uint8_t)hidden;
+    /* Hidden or not, every box under it lays out the same (hit testing, the
+     * emit walk and the chrome-strip measure read the flag, not the layout).
+     * This used to unresolve every node in the tree, so each group mount and
+     * each open re-laid the whole tree out: two full passes per group, ~34,000
+     * node computes per bank open on a 9,800-node tree. */
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY |
-                                  UITREE_IMPACT_LAYOUT_TREE);
+                                  UITREE_IMPACT_LAYOUT_PASS);
     return true;
 }
 

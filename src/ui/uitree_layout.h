@@ -91,6 +91,13 @@ UITree_LayoutInvalidateChildrenOf(struct UITree* tree, int32_t idx);
 void
 UITree_LayoutInvalidateBoxes(struct UITree* tree);
 
+/** No layout input changed, but the next UITree_LayoutResolve must run instead
+ *  of taking its skip: it advances layout_resolve_seq, the key the emit retain
+ *  gate and the canvas-floor memo read. Unresolves nothing, so that pass
+ *  computes no node on this account. O(1). */
+void
+UITree_LayoutRequestPass(struct UITree* tree);
+
 /** Re-resolve at root dims if any layout was invalidated since the last
  *  resolve (reference WidgetManager.ensureLayout — CS2 getters must not read
  *  stale geometry mid-script). No-op when layout is current. */

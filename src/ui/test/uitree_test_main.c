@@ -21,6 +21,7 @@ void test_anchor_reorder(void);
 void test_visible_children(void);
 void test_canvas_queries(void);
 void test_canvas_floor_measures(void);
+void test_mount_layout(void);
 void test_overlay_retention(void);
 
 int
@@ -87,6 +88,7 @@ main(void)
     test_click_event_coords();
     test_pointer_owner_blocks_tree();
     test_layout_build();
+    test_mount_layout();
     test_toplevel164_tab_strip();
     test_mutate_emit();
     test_apply_object_silhouette();

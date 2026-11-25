@@ -176,6 +176,17 @@ UITree_LayoutInvalidateBoxes(struct UITree* tree)
 }
 
 void
+UITree_LayoutRequestPass(struct UITree* tree)
+{
+    assert(tree);
+    UITREE_LAYOUT_BLAME_HERE(tree);
+    /* No seed and no overflow: the pass this asks for walks an empty
+     * worklist. */
+    tree->layout_stale = 1;
+    tree->layout_resolved_valid = 0;
+}
+
+void
 UITree_LayoutInvalidateNode(struct UITree* tree, int32_t idx)
 {
     assert(tree);
@@ -615,6 +626,36 @@ layout_depth_of(struct UITree const* tree, int32_t idx)
     return d;
 }
 
+/* layout_depth_of(idx), remembering the last parent asked about. Seeds come in
+ * runs of siblings -- a script that builds a grid creates every cell under one
+ * layer -- so nearly every seed past the first of a run answers from the memo
+ * instead of walking the same ancestors again. Same value as layout_depth_of:
+ * a node's depth is its parent's plus one. */
+struct UITreeLayoutDepthMemo
+{
+    int32_t parent;
+    int parent_depth;
+};
+
+static int
+layout_depth_of_memo(
+    struct UITree const* tree,
+    int32_t idx,
+    struct UITreeLayoutDepthMemo* memo)
+{
+    int32_t parent;
+
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return 0;
+    parent = tree->components[idx].parent;
+    if( parent != memo->parent )
+    {
+        memo->parent = parent;
+        memo->parent_depth = layout_depth_of(tree, parent);
+    }
+    return memo->parent_depth + 1;
+}
+
 /* Deepest seed the counting sort below files; real trees nest far shallower. */
 #define UITREE_LAYOUT_SEED_DEPTH_MAX 63
 
@@ -627,21 +668,23 @@ layout_sort_seeds_by_depth(struct UITree* tree)
     int32_t* const seeds = tree->layout_dirty;
     int32_t* const scratch = seeds + k;
     uint32_t start[UITREE_LAYOUT_SEED_DEPTH_MAX + 2] = { 0 };
+    struct UITreeLayoutDepthMemo memo = { -2, 0 };
 
     if( k < 2 )
         return true;
     assert(tree->layout_dirty_cap >= 2u * k);
     for( uint32_t i = 0; i < k; i++ )
     {
-        int const d = layout_depth_of(tree, seeds[i]);
+        int const d = layout_depth_of_memo(tree, seeds[i], &memo);
         if( d > UITREE_LAYOUT_SEED_DEPTH_MAX )
             return false;
         start[d + 1]++;
     }
     for( int d = 1; d <= UITREE_LAYOUT_SEED_DEPTH_MAX + 1; d++ )
         start[d] += start[d - 1];
+    memo.parent = -2;
     for( uint32_t i = 0; i < k; i++ )
-        scratch[start[layout_depth_of(tree, seeds[i])]++] = seeds[i];
+        scratch[start[layout_depth_of_memo(tree, seeds[i], &memo)]++] = seeds[i];
     memcpy(seeds, scratch, (size_t)k * sizeof(*seeds));
     return true;
 }
