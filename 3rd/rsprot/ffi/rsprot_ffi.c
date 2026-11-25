@@ -671,38 +671,20 @@ rsprot_ffi_player_info(void *players, int revision, const uint8_t *data, int len
 
 static _Thread_local RsprotFfiNpcLengths g_lengths;
 
-/* CUSTOM_TYPED: whose type the npc at list position `who` has, from the ops
- * read so far -- a newcomer's NPCTYPE, a CHANGE_TYPE in its own extended info
- * (as sent: 65535 is back to the spawned type), or else its position in the
- * previous packet's list -- then the host's counts for it. */
+/* CUSTOM_TYPED: the reader names the type in force (RsprotNpcTypeLengths) --
+ * a type this packet gave the npc, else its index `old` in the previous
+ * packet's list -- and the host is asked in its own terms. The reader reads a
+ * TRANSFORMATION to 65535 as no type (both -1); the host has it as sent,
+ * 65535: back to the spawned type. */
 static int
-npc_lengths(void *ctx, int who, int head, int *recolours, int *retextures)
+npc_lengths(void *ctx, int old, int npc_type, int head, int *recolours, int *retextures)
 {
-    const RsprotInfoList *list = ctx;
-    int position = 0;
-    int target = -1;
-    int old = -1;
-    int32_t type = -1;
-
-    for (int i = 0; i < list->count; i++) {
-        const RsprotInfoOp *op = &list->ops[i];
-
-        if (op->kind == RSPROT_OP_ADD_OLD) {
-            if (position++ == who)
-                old = (int)op->value;
-        } else if (op->kind == RSPROT_OP_ADD_NEW) {
-            position++;
-        } else if (op->kind == RSPROT_OP_NPCTYPE && position - 1 == who) {
-            type = (int32_t)op->value;
-        } else if (op->kind == RSPROT_OP_SET_EXT) {
-            target = (int)op->value;
-        } else if (op->kind == RSPROT_OP_CHANGE_TYPE && target == who) {
-            type = op->change_type.npc_type == -1 ? 0xFFFF : op->change_type.npc_type;
-        }
-    }
-    if (type < 0 && old < 0)
+    (void)ctx;
+    if (!g_lengths)
         return 0;
-    return g_lengths && g_lengths(type >= 0 ? -1 : old, type, head, recolours, retextures);
+    if (npc_type < 0 && old < 0)
+        npc_type = 0xFFFF;
+    return g_lengths(npc_type >= 0 ? -1 : old, npc_type, head, recolours, retextures);
 }
 
 /* The stream version a server prot calls at `revision` (rsprot_prot_version):
