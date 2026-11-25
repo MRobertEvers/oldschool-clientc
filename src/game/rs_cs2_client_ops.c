@@ -19,6 +19,7 @@
 #include "game/rs_cs2_host.h"
 
 #include "cs2vm2/cs2_opcode.h"
+#include "cs2vm2/cs2_opcode_meta.h"
 #include "cs2vm2/cs2vm2.h"
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
@@ -520,7 +521,7 @@ RS_CS2Host_ExecClientOp(
      * Discord integration, which the native client reports the same way. */
     case CS2_OP_UNKNOWN_COMMAND_3187:
     case CS2_OP_UNKNOWN_COMMAND_3188:
-        TORIRS_LOG("cs2: Discord is not initialized (opcode %d)\n", args->opcode);
+        TORIRS_LOG("cs2: Discord is not initialized (opcode %s)\n", CS2_OpCode_String(args->opcode));
         return CS2VM_EXECNO_OK;
 
     /* gameoption_exists / deviceoption_exists: the ids each table has. */
@@ -687,7 +688,7 @@ RS_CS2Host_ExecClientOp(
         return CS2VM2_PushInt(vm, 1);
 
     default:
-        TORIRS_LOG("RS_CS2Host_ExecClientOp: unhandled opcode %d\n", args->opcode);
+        TORIRS_LOG("RS_CS2Host_ExecClientOp: unhandled opcode %s\n", CS2_OpCode_String(args->opcode));
         assert(0 && "RS_CS2Host_ExecClientOp: unexpected opcode");
         return CS2VM_EXECNO_ERROR;
     }

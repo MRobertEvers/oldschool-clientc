@@ -34,8 +34,85 @@ static uint64_t const g_golden_hash[18] = {
     0xE3F8B2D323B4371EULL, /* 16 */
     0x96306C7D215449FCULL, /* 17 */
 };
-/* CS2VM2_JitFingerprint(golden_script()). */
-#define GOLDEN_FINGERPRINT 0xDF3EFFAE9F9E3A0DULL
+/* The fingerprint's stream, written out here from docs/CS2_JIT.md
+ * "Fingerprint" and hashed with CS2VM2_JitHash64 (whose golden values are
+ * above), so the fingerprint is pinned without pinning the canonical
+ * numbering: a script's opcodes are canonical instructions, and
+ * regenerating cs2_opcode.h moves their values (the blob format guards that
+ * through CS2_OP_NUMBERING_HASH in the dialect tag). */
+struct ref_stream
+{
+    uint8_t b[4096];
+    size_t n;
+};
+static void
+ref_u8(struct ref_stream* r, uint32_t v)
+{
+    assert(r->n < sizeof(r->b));
+    r->b[r->n++] = (uint8_t)v;
+}
+static void
+ref_u16(struct ref_stream* r, uint32_t v)
+{
+    ref_u8(r, v & 0xFFu);
+    ref_u8(r, (v >> 8) & 0xFFu);
+}
+static void
+ref_u32(struct ref_stream* r, uint32_t v)
+{
+    ref_u16(r, v & 0xFFFFu);
+    ref_u16(r, v >> 16);
+}
+static void
+ref_str(struct ref_stream* r, char const* text)
+{
+    if( !text )
+    {
+        ref_u32(r, 0);
+        return;
+    }
+    size_t const len = strlen(text);
+    ref_u32(r, (uint32_t)len + 1u);
+    for( size_t i = 0; i < len; i++ )
+        ref_u8(r, (uint8_t)text[i]);
+}
+static uint64_t
+ref_fingerprint(struct CS2VM2_Script const* s)
+{
+    static struct ref_stream r;
+    r.n = 0;
+    ref_u32(&r, (uint32_t)s->op_count);
+    ref_u32(&r, (uint32_t)s->local_int_count);
+    ref_u32(&r, (uint32_t)s->local_string_count);
+    ref_u32(&r, (uint32_t)s->local_long_count);
+    ref_u32(&r, (uint32_t)s->int_argument_count);
+    ref_u32(&r, (uint32_t)s->string_argument_count);
+    ref_u32(&r, (uint32_t)s->long_argument_count);
+    ref_u32(&r, (uint32_t)s->int_stack_depth);
+    ref_u32(&r, (uint32_t)s->str_stack_depth);
+    ref_str(&r, s->signature);
+    for( int pc = 0; pc < s->op_count; pc++ )
+        ref_u16(&r, s->opcodes[pc]);
+    for( int pc = 0; pc < s->op_count; pc++ )
+        ref_u32(&r, (uint32_t)s->int_operands[pc]);
+    assert(!s->long_operands);
+    ref_u8(&r, 0);
+    ref_u8(&r, s->string_operands ? 1u : 0u);
+    if( s->string_operands )
+        for( int pc = 0; pc < s->op_count; pc++ )
+            ref_str(&r, s->string_operands[pc]);
+    ref_u32(&r, (uint32_t)s->switch_table_count);
+    for( int t = 0; t < s->switch_table_count; t++ )
+    {
+        ref_u32(&r, (uint32_t)s->switch_tables[t].case_count);
+        for( int c = 0; c < s->switch_tables[t].case_count; c++ )
+        {
+            ref_u32(&r, (uint32_t)s->switch_tables[t].cases[c].key);
+            ref_u32(&r, (uint32_t)s->switch_tables[t].cases[c].target_pc);
+        }
+    }
+    return CS2VM2_JitHash64(r.b, r.n, CS2VM2_JIT_FINGERPRINT_SEED);
+}
 
 /* The fingerprint's fixed script: five instructions, one switch table. */
 static void
@@ -204,8 +281,9 @@ test_golden(void)
     struct CS2VM2_Script s;
     golden_script(&s);
     uint64_t const fp = CS2VM2_JitFingerprint(&s);
-    jt_check(fp == GOLDEN_FINGERPRINT, "golden fingerprint %016llx (golden %016llx)", (unsigned long long)fp,
-        (unsigned long long)GOLDEN_FINGERPRINT);
+    uint64_t const want = ref_fingerprint(&s);
+    jt_check(fp == want, "golden fingerprint %016llx (the documented stream %016llx)", (unsigned long long)fp,
+        (unsigned long long)want);
     CS2VM2_ScriptFree(&s);
     jt_check(CS2VM2_JitDialectTag(NULL) == CS2VM2_JitDialectTag(&CS2VM2_DIALECT_OSRS),
         "NULL dialect tags as OSRS (%08x)", CS2VM2_JitDialectTag(NULL));
@@ -413,7 +491,8 @@ test_rejections(void)
             CS2VM2_JitAttachResultName(r));
         CS2VM2_ScriptFree(&m);
     }
-    /* An rs2 script: the header made to match it, so only step 10 refuses. */
+    /* An rs2 script, the header made to match it: its instructions are
+     * canonical like any other dialect's once loaded, so it attaches. */
     {
         struct CS2VM2_Script m;
         copy_plain(&s, &m);
@@ -422,7 +501,7 @@ test_rejections(void)
         put32(b + 8, CS2VM2_JitDialectTag(m.dialect));
         reseal(b, size);
         enum CS2VM2_JitAttachResult const r = CS2VM2_JitAttachBlob(&m, CS2VM2_JitFingerprint(&m), b, size);
-        jt_check(r == CS2VM2_JIT_REJECT_UNJITTABLE, "an rs2 script: %s", CS2VM2_JitAttachResultName(r));
+        jt_check(r == CS2VM2_JIT_ATTACHED, "an rs2 script: %s", CS2VM2_JitAttachResultName(r));
         CS2VM2_ScriptFree(&m);
     }
     /* A script with a branch out of range. */

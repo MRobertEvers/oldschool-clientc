@@ -17,7 +17,28 @@
 #include "cs2_opcode.h"
 #include "cs2vm2_script.h"
 
+#include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
+
+/*
+ * The default of a switch over canonical instructions, which no loaded script
+ * can reach: CS2VM2_ScriptResolveDialect gives every script only instructions
+ * below CS2_OP_PLAIN_COUNT (an id it cannot translate is UNDEFINED_WIRE_ID), CS2VM2_ScriptPrepare
+ * asserts the same of a script built by hand, and an overlay holds only codes
+ * the jit's builder or validator placed. Loud in a debug build; in a release
+ * build the compiler drops the range check in front of the jump table.
+ */
+#ifndef NDEBUG
+#define CS2VM2_UNREACHABLE(why)                                                                    \
+    do                                                                                             \
+    {                                                                                              \
+        assert(0 && (why));                                                                        \
+        abort();                                                                                   \
+    } while( 0 )
+#else
+#define CS2VM2_UNREACHABLE(why) __builtin_unreachable()
+#endif
 
 /*
  * One script's overlay, in ONE ToriMem_Script block: this header followed by
@@ -126,7 +147,7 @@ enum CS2VM2_JitCode
 
 /* opcode -> plain hot code, 0 for "not a hot instruction". Static so each
  * includer has its own copy and no link needs another object. */
-#define CS2VM2_HOT_TABLE_SIZE 4096u
+#define CS2VM2_HOT_TABLE_SIZE ((unsigned)CS2_OP_PLAIN_COUNT)
 static const uint8_t g_cs2vm2_hot_op[CS2VM2_HOT_TABLE_SIZE] = {
     [CS2_OP_PUSH_CONSTANT_INT] = CS2VM2_HOT_PUSH_CONSTANT_INT,
     [CS2_OP_PUSH_INT_LOCAL] = CS2VM2_HOT_PUSH_INT_LOCAL,

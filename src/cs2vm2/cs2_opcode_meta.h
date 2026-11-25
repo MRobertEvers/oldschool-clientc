@@ -4,6 +4,9 @@
 
 #include <stdint.h>
 
+/* Everything here is indexed by canonical instruction (cs2_opcode.h), except
+ * CS2_WireOpcodeGroupOf, which answers for an OldSchool wire id. */
+
 enum CS2_OperandKind
 {
     CS2_OPERAND_NONE = 0,
@@ -67,8 +70,10 @@ enum CS2_OpcodeGroup
     CS2_OPCODE_GROUP_EXTENSION,
     CS2_OPCODE_GROUP_ARRAY,
     CS2_OPCODE_GROUP_TYPED_DATA,
-    CS2_OPCODE_GROUP_VM_DIALECT,
     CS2_OPCODE_GROUP_OP_COUNT,
+    CS2_OPCODE_GROUP_RS2_634,
+    CS2_OPCODE_GROUP_UNDEFINED,
+    CS2_OPCODE_GROUP_JIT,
 };
 
 struct CS2_OpcodeMeta
@@ -76,22 +81,38 @@ struct CS2_OpcodeMeta
     const char* name;
     enum CS2_OperandKind operand;
     enum CS2_HandlerKind handler;
+    enum CS2_OpcodeGroup group;
+    /* The wire id of the command this instruction is: OldSchool's for an
+     * OldSchool command (both versions of a versioned family share it), the
+     * 634 client's for an RS2_ one, -1 for a jit instruction. Which dialect
+     * spells it how is cs2vm2_dialect.h's business; this names the command. */
+    int32_t wire;
 };
 
+/* [CS2_OP_COUNT] rows. */
 extern const struct CS2_OpcodeMeta cs2_opcode_meta_table[];
 extern const int cs2_opcode_meta_table_size;
 
+/* The row of canonical instruction `opcode`; a value outside the set (the
+ * VM's -1 for "no instruction", say) reads a row named "_unknown". */
 const struct CS2_OpcodeMeta*
 cs2_opcode_meta_lookup(int opcode);
 
 enum CS2_OperandKind
 cs2_opcode_operand_kind(int opcode);
 
+/* The canonical instruction's name, "_unknown" outside the set. */
 const char*
 CS2_OpCode_String(int opcode);
 
+/* The group of canonical instruction `opcode`. */
 enum CS2_OpcodeGroup
 CS2_OpcodeGroupOf(int opcode);
+
+/* The reference client's dispatch group of OldSchool WIRE id `wire`
+ * (opcode_groups.py's ranges); UNKNOWN outside them. */
+enum CS2_OpcodeGroup
+CS2_WireOpcodeGroupOf(int wire);
 
 const char*
 CS2_OpcodeGroupName(enum CS2_OpcodeGroup group);

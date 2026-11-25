@@ -443,11 +443,13 @@ test_refusals(void)
     jt_check(CS2VM2_JitBuild(&s) == CS2VM2_JIT_REFUSED_EMPTY && !s.jit, "an empty script is refused");
     CS2VM2_ScriptFree(&s);
 
+    /* A script of any dialect is canonical instructions once loaded, so an
+     * RS2 634 one is jitted like any other. */
     jt_asm_init(&a);
     jt_op(&a, CS2_OP_PUSH_CONSTANT_INT, 1);
     jt_build(&a, &s, 72, 0);
     s.dialect = &CS2VM2_DIALECT_RS2_634;
-    jt_check(CS2VM2_JitBuild(&s) == CS2VM2_JIT_REFUSED_DIALECT && !s.jit, "an rs2-dialect script is refused");
+    jt_check(CS2VM2_JitBuild(&s) == CS2VM2_JIT_BUILT && s.jit, "an rs2-dialect script is jitted");
     CS2VM2_ScriptFree(&s);
 
     jt_asm_init(&a);

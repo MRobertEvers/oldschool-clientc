@@ -853,7 +853,7 @@ The report line (one line, about 400 bytes):
 
 ```
 cs2jit: why=<store|shutdown|request> prepared=<n>/<ops> built=<n>/<ops>/<ms> before_pack=<n>
-  refused=<empty,dialect,branch> hits=<n> fp=<n>/<ops>/<ms> attached=<n>/<ops>/<ms>
+  refused=<empty,branch> hits=<n> fp=<n>/<ops>/<ms> attached=<n>/<ops>/<ms>
   rejected=<trunc,magic,version,dialect,id,stale,shape,checksum,illegal,unjittable>
   pack=<state>/<bytes>/<entries>/parse <ms>/wait <ms> stores=<n>/<bytes>/<ms> fused=<pcs>
 ```

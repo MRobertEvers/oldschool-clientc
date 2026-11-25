@@ -1292,7 +1292,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         TORIRS_LOG(
             "Task_CS2Run: unhandled yield kind %d (opcode %d, script %d)\n",
             (int)self->pending->kind,
-            CS2VM_HostRequestOpcode(self->pending->kind),
+            CS2VM_HostRequestWireOpcode(self->pending->kind),
             self->script_id);
         self->yield_plan = TASK_CS2_YIELD_ABORT;
         break;
@@ -1842,9 +1842,9 @@ Task_CS2Run_Run(
                         d->local_int_count);
                     for( int p = 0; p < d->op_count; p++ )
                         TORIRS_ERR(
-                            "  pc=%d op=%d %s operand=%d str=%s\n",
+                            "  pc=%d wire=%d %s operand=%d str=%s\n",
                             p,
-                            d->opcodes[p],
+                            CS2VM2_DialectWireOf(d->dialect, d->opcodes[p]),
                             CS2_OpCode_String(d->opcodes[p]),
                             d->int_operands ? d->int_operands[p] : 0,
                             (d->string_operands && d->string_operands[p]) ? d->string_operands[p]
@@ -1871,10 +1871,10 @@ Task_CS2Run_Run(
         if( status == CS2VM2_THREAD_ERROR )
         {
             TORIRS_ERR(
-                "Task_CS2Run: script %d failed at opcode %d pc %d "
+                "Task_CS2Run: script %d failed at %s pc %d "
                 "(invoked as script %d for component 0x%x)\n",
                 thread->last_error_script_id,
-                thread->last_error_opcode,
+                CS2_OpCode_String(thread->last_error_opcode),
                 thread->last_error_pc,
                 self->script_id,
                 (unsigned)self->active_component_id);
@@ -1924,9 +1924,9 @@ Task_CS2Run_Run(
                         pci = 0;
                     for( ; pci < dbg->op_count && pci <= pc_hi; pci++ )
                         TORIRS_ERR(
-                            "  pc=%d op=%d %s operand=%d str=%s\n",
+                            "  pc=%d wire=%d %s operand=%d str=%s\n",
                             pci,
-                            dbg->opcodes[pci],
+                            CS2VM2_DialectWireOf(dbg->dialect, dbg->opcodes[pci]),
                             CS2_OpCode_String(dbg->opcodes[pci]),
                             dbg->int_operands ? dbg->int_operands[pci] : 0,
                             (dbg->string_operands && dbg->string_operands[pci])

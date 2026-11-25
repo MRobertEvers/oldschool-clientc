@@ -1,5 +1,7 @@
-/* Generated opcode-group metadata must match the rev-239 dispatch boundaries. */
+/* Generated opcode-group metadata must match the rev-239 dispatch boundaries
+ * (by wire id), and the canonical numbering must keep each group one range. */
 
+#include "cs2vm2/cs2_opcode.h"
 #include "cs2vm2/cs2_opcode_meta.h"
 
 #include <stdio.h>
@@ -10,7 +12,7 @@ static int failures;
 #define CHECK_GROUP(opcode, expected)                                                           \
     do                                                                                           \
     {                                                                                            \
-        enum CS2_OpcodeGroup actual = CS2_OpcodeGroupOf(opcode);                                \
+        enum CS2_OpcodeGroup actual = CS2_WireOpcodeGroupOf(opcode);                            \
         if( actual != (expected) )                                                               \
         {                                                                                        \
             fprintf(                                                                            \
@@ -58,6 +60,60 @@ main(void)
     CHECK_GROUP(13000, CS2_OPCODE_GROUP_OP_COUNT);
     CHECK_GROUP(13999, CS2_OPCODE_GROUP_OP_COUNT);
     CHECK_GROUP(14000, CS2_OPCODE_GROUP_UNKNOWN);
+
+    /* Canonical instructions: an OldSchool command's group is its wire id's,
+     * the RS2 634 section and UNDEFINED_WIRE_ID are groups of their own, and
+     * each group is the range its generated BEGIN/END constants name -- the
+     * property every range test on the dense numbering (the wasm split of
+     * CS2VM2_RunOp) relies on. */
+#define CANONICAL_ONLY(meta_)                                                                      \
+    ((meta_)->group == CS2_OPCODE_GROUP_RS2_634 || (meta_)->group == CS2_OPCODE_GROUP_UNDEFINED)
+    for( int op = 0; op < CS2_OP_PLAIN_COUNT; op++ )
+    {
+        struct CS2_OpcodeMeta const* meta = cs2_opcode_meta_lookup(op);
+        enum CS2_OpcodeGroup const want = CANONICAL_ONLY(meta) ? meta->group : CS2_WireOpcodeGroupOf(meta->wire);
+        if( CS2_OpcodeGroupOf(op) != want || want == CS2_OPCODE_GROUP_UNKNOWN )
+        {
+            fprintf(stderr, "instruction %d %s: group %s, wire %d says %s\n", op, meta->name,
+                CS2_OpcodeGroupName(CS2_OpcodeGroupOf(op)), meta->wire, CS2_OpcodeGroupName(want));
+            failures++;
+        }
+        if( op > 0 && !CANONICAL_ONLY(meta) && !CANONICAL_ONLY(cs2_opcode_meta_lookup(op - 1)) &&
+            cs2_opcode_meta_lookup(op - 1)->wire > meta->wire )
+        {
+            fprintf(stderr, "instruction %d %s is out of wire order\n", op, meta->name);
+            failures++;
+        }
+    }
+#define CHECK_RANGE(begin, end, group)                                                             \
+    for( int op = 0; op < CS2_OP_PLAIN_COUNT; op++ )                                               \
+    {                                                                                              \
+        int const inside = op >= (begin) && op < (end);                                            \
+        int const in_group = CS2_OpcodeGroupOf(op) == (group);                                     \
+        if( inside && !in_group )                                                                  \
+        {                                                                                          \
+            fprintf(stderr, "%s range holds %s\n", #group, CS2_OpCode_String(op));                 \
+            failures++;                                                                            \
+        }                                                                                          \
+    }
+    CHECK_RANGE(CS2_OPS_VM_CORE_BEGIN, CS2_OPS_VM_CORE_END, CS2_OPCODE_GROUP_VM_CORE);
+    CHECK_RANGE(CS2_OPS_COMPONENT_LAYOUT_CC_BEGIN, CS2_OPS_COMPONENT_LAYOUT_CC_END, CS2_OPCODE_GROUP_COMPONENT_LAYOUT);
+    CHECK_RANGE(CS2_OPS_COMPONENT_LAYOUT_IF_BEGIN, CS2_OPS_COMPONENT_LAYOUT_IF_END, CS2_OPCODE_GROUP_COMPONENT_LAYOUT);
+    CHECK_RANGE(CS2_OPS_CLIENT_BEGIN, CS2_OPS_CLIENT_END, CS2_OPCODE_GROUP_CLIENT);
+    CHECK_RANGE(CS2_OPS_CLIENT_STATE_BEGIN, CS2_OPS_CLIENT_STATE_END, CS2_OPCODE_GROUP_CLIENT_STATE);
+    CHECK_RANGE(CS2_OPS_STRING_BEGIN, CS2_OPS_STRING_END, CS2_OPCODE_GROUP_STRING);
+    CHECK_RANGE(CS2_OPS_RS2_634_BEGIN, CS2_OPS_RS2_634_END, CS2_OPCODE_GROUP_RS2_634);
+    CHECK_RANGE(CS2_OPS_UNDEFINED_BEGIN, CS2_OPS_UNDEFINED_END, CS2_OPCODE_GROUP_UNDEFINED);
+#undef CHECK_RANGE
+#undef CANONICAL_ONLY
+    if( CS2_OpcodeGroupOf(CS2_OPS_CLIENT_STATE_BEGIN) != CS2_OPCODE_GROUP_CLIENT_STATE ||
+        CS2_OpcodeGroupOf(CS2_OPS_CLIENT_STATE_END - 1) != CS2_OPCODE_GROUP_CLIENT_STATE ||
+        CS2_OpcodeGroupOf(CS2_OPS_CLIENT_STATE_END) == CS2_OPCODE_GROUP_CLIENT_STATE ||
+        CS2_OpcodeGroupOf(CS2_OPS_CLIENT_STATE_BEGIN - 1) == CS2_OPCODE_GROUP_CLIENT_STATE )
+    {
+        fprintf(stderr, "client-state range is not exactly its group\n");
+        failures++;
+    }
 
     if( strcmp(CS2_OpcodeGroupName(CS2_OPCODE_GROUP_WORLDMAP), "worldmap") != 0 )
     {

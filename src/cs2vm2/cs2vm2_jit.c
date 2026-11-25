@@ -318,11 +318,11 @@ CS2VM2_JitDialectTag(struct CS2VM2_Dialect const* dialect)
     assert(dialect->name);
 
     struct cs2vm2_jit_hasher jh;
-    jh_init(&jh, CS2VM2_JIT_DIALECT_SEED, jh_str_size(dialect->name) + 3u);
+    jh_init(&jh, CS2VM2_JIT_DIALECT_SEED, jh_str_size(dialect->name) + 4u);
     jh_str(&jh, dialect->name);
-    jh_u8(&jh, dialect->cc_create_nested ? 1u : 0u);
-    jh_u8(&jh, dialect->array_handles ? 1u : 0u);
-    jh_u8(&jh, dialect->rs2_commands ? 1u : 0u);
+    /* The canonical numbering: a blob holds instructions, so a regenerated
+     * cs2_opcode.h is another dialect as far as a cached blob can tell. */
+    jh_u32(&jh, (uint32_t)CS2_OP_NUMBERING_HASH);
     uint64_t const h = jh_end(&jh);
     return (uint32_t)(h ^ (h >> 32));
 }
@@ -553,8 +553,6 @@ cs2vm2_jit_refusal(struct CS2VM2_Script const* script)
         return CS2VM2_JIT_REFUSED_EMPTY;
     assert(script->opcodes);
     assert(script->int_operands);
-    if( script->dialect && script->dialect->rs2_commands )
-        return CS2VM2_JIT_REFUSED_DIALECT;
     if( script->switch_table_count > 0 )
         assert(script->switch_tables);
     if( !cs2vm2_jit_jumps_in_range(script) )
@@ -832,7 +830,6 @@ CS2VM2_JitBuildResultName(enum CS2VM2_JitBuildResult result)
     static char const* const names[CS2VM2_JIT_BUILD_RESULT_COUNT] = {
         [CS2VM2_JIT_BUILT] = "built",
         [CS2VM2_JIT_REFUSED_EMPTY] = "refused_empty",
-        [CS2VM2_JIT_REFUSED_DIALECT] = "refused_dialect",
         [CS2VM2_JIT_REFUSED_BRANCH_RANGE] = "refused_branch_range",
     };
     assert((int)result >= 0);

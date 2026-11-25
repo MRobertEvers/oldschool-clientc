@@ -1280,7 +1280,7 @@ test_callback_context_across_asset_yield(void)
             fx.tree->next_dynamic_uid = (uint16_t)(id & 0xffff);
             child = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, dot);
         }
-        uint16_t callee_ops[] = {CS2_OP_RETURN};
+        uint16_t callee_ops[] = {21}; /* wire RETURN: the archive is the cache's bytes */
         int callee_args[] = {0};
         char* callee_strings[] = {NULL};
         struct RSCache_ClientScript callee = {.script={.script_id=99996, .op_count=1,
@@ -1382,7 +1382,7 @@ test_registry_compaction_during_callback(void)
         /* Adding D compacts the dead first entry. A and B move, while the
          * dispatcher is suspended inside A's resource load. */
         register_test_transmit(thread, channel, fx.tree->components[nodes[3]].component_id, 99993);
-        uint16_t return_op[] = {CS2_OP_RETURN};
+        uint16_t return_op[] = {21}; /* wire RETURN: the archive is the cache's bytes */
         int return_arg[] = {0};
         char* return_string[] = {NULL};
         struct RSCache_ClientScript callee = {.script={.script_id=99992, .op_count=1,

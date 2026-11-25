@@ -30,14 +30,23 @@ struct CS2VM2_ScriptSwitch
     struct CS2VM2_ScriptSwitchCase* cases;
 };
 
+/* A wire id the script's dialect does not define, and the pc that held it:
+ * the opcode there is UNDEFINED_WIRE_ID (CS2VM2_ScriptResolveDialect). */
+struct CS2VM2_UndefinedWire
+{
+    int pc;
+    uint16_t wire;
+};
+
 /** Decoded clientscript bytecode (RuneStar Script.kt). */
 struct CS2VM2_Script
 {
     int script_id;
-    /* The era this script's bytes are in (cs2vm2_dialect.h): where its
-     * commands differ from what the VM implements natively. NULL is the
-     * native one, CS2VM2_DIALECT_OSRS -- a script built in memory (a test,
-     * the server's compiler) is in the VM's own dialect. */
+    /* The era this script's bytes came from (cs2vm2_dialect.h). Its opcodes
+     * were translated from that era's wire ids to canonical instructions when
+     * it was loaded; the dialect stays so a print can name the wire id. NULL
+     * is the native one, CS2VM2_DIALECT_OSRS -- a script built in memory (a
+     * test, the server's compiler) is written in canonical instructions. */
     struct CS2VM2_Dialect const* dialect;
     char* signature;
     int local_int_count;
@@ -49,7 +58,12 @@ struct CS2VM2_Script
     int int_stack_depth;
     int str_stack_depth;
     int op_count;
+    /* Canonical instructions (enum CS2_Op), each below CS2_OP_PLAIN_COUNT. */
     uint16_t* opcodes;
+    /* The wire id behind each pc whose opcode is UNDEFINED_WIRE_ID, in pc
+     * order (CS2VM2_ScriptResolveDialect); NULL and 0 for a script with none. */
+    struct CS2VM2_UndefinedWire* undefined_wires;
+    int undefined_wire_count;
     int* int_operands;
     /* PUSH_CONSTANT_LONG's operand, a full int64 (rscache long_operands); NULL
      * for a script that has none. */
@@ -122,7 +136,7 @@ CS2VM2_ScriptEnsureConstants(struct CS2VM2_Script* script);
  * string constants (a constant row for every pc, NULL where an op has none)
  * and its dispatch codes (plain_code, and run_code while no jit overlay is
  * attached). Every loader and CS2VM2_ScriptCopy call it after the opcodes are
- * final (the dialect's renumbering included); whoever builds a script by hand
+ * final (the dialect's translation, CS2VM2_ScriptResolveDialect); whoever builds a script by hand
  * calls it before the script first runs, and again after changing an opcode.
  * CS2VM2_PushCallScript asserts it was done and checks nothing itself.
  */

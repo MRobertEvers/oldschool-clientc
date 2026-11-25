@@ -227,9 +227,9 @@ app_cs2jit_init(struct App* app)
 
     app->cs2jit = NULL;
     app->cs2jit_store = 0;
-    /* CS2VM2_JitBuild refuses every rs2 script (CS2VM2_JIT_REFUSED_DIALECT),
-     * so an rs2 cache gets no pack to read or write. */
-    if( enabled && !(dialect && dialect->rs2_commands) )
+    /* Every dialect's scripts are canonical instructions once loaded
+     * (CS2VM2_ScriptResolveDialect), so every cache gets overlays and a pack. */
+    if( enabled )
     {
         app->cs2jit = CS2JitCache_New(dialect);
         CS2JitCache_SetTiming(app->cs2jit, stats && stats[0] && !app_knob_is_zero(stats));

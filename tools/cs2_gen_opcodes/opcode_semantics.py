@@ -974,8 +974,13 @@ def validate_opcode_semantics(
     dispatch_source: Path,
     operand_kind_for_opcode: Callable[[int], str],
     handler_kind_for_opcode: Callable[[int], str],
+    canonical_name_of: Callable[[str], str] = lambda name: name,
 ) -> None:
-    """Reject any semantic or production-dispatch drift before generation."""
+    """Reject any semantic or production-dispatch drift before generation.
+
+    The rows are wire-level (an OldSchool command name and its wire id); the
+    dispatch is canonical, so a row's handler is looked up under
+    `canonical_name_of(name)` -- DEFINE_ARRAY's under DEFINE_ARRAY_V2."""
 
     names_to_ids = {name: opcode for name, opcode in entries}
     ids_to_names = {opcode: name for name, opcode in entries}
@@ -1009,7 +1014,7 @@ def validate_opcode_semantics(
         if intrinsic is None:
             errors.append(f"{semantic.name}: unknown intrinsic {semantic.intrinsic!r}")
         else:
-            actual_handler = production_handlers.get(semantic.name)
+            actual_handler = production_handlers.get(canonical_name_of(semantic.name))
             if actual_handler != intrinsic.c_handler:
                 errors.append(
                     f"{semantic.name}: schema intrinsic maps to {intrinsic.c_handler}, "

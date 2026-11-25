@@ -54,6 +54,14 @@ COMMAND_GEN_H = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_command.gen.h"
 CS2_TYPES_C = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_types.c"
 sys.path.insert(0, str(REPO / "tools" / "cs2_gen_opcodes"))
 import catalogue  # noqa: E402
+import gen_opcodes  # noqa: E402
+
+
+def canonical_instructions():
+    """The VM's canonical instruction list (tools/cs2_gen_opcodes/canonical.py)."""
+    entries = gen_opcodes.merge_local(gen_opcodes.parse_opcodes(gen_opcodes.VENDOR))
+    instructions, _dialects, _numbering = gen_opcodes.build_canonical(entries)
+    return instructions
 
 
 # The table ceiling is DERIVED, never hand-maintained. An opcode above it is
@@ -684,60 +692,122 @@ def parse_stack_line(line: str) -> int:
     return len(parts)
 
 
-def parse_opcode_h() -> tuple[dict[int, tuple[int, int, int, int]], set[int]]:
-    """Returns (entries, documented). `documented` is every opcode carrying a
-    stack doc comment, including ones whose counts are all zero — those are
-    otherwise indistinguishable from "no comment at all" and would be handed to
-    the name heuristics, which guess wrong for e.g. SETKEYINPUTMODE_ALL."""
+def _parse_stack_comment(comment: str) -> tuple[tuple[int, int, int, int], bool]:
+    int_in = str_in = int_out = str_out = 0
+    saw_stack_line = False
+    for line in comment.split("\n"):
+        line = line.strip().lstrip("*").strip()
+        if line.startswith("int stack in:"):
+            int_in = parse_stack_line(line)
+            saw_stack_line = True
+        elif line.startswith("str stack in:"):
+            str_in = parse_stack_line(line)
+            saw_stack_line = True
+        elif line.startswith("int stack out:"):
+            int_out = parse_stack_line(line)
+            saw_stack_line = True
+        elif line.startswith("str stack out:"):
+            str_out = parse_stack_line(line)
+            saw_stack_line = True
+    return (int_in, str_in, int_out, str_out), saw_stack_line
+
+
+def parse_opcode_h(instructions) -> tuple[
+    dict[int, tuple[int, int, int, int]],
+    set[int],
+    dict[str, tuple[int, int, int, int]],
+    set[str],
+]:
+    """The stack doc comments of cs2_opcode.h.
+
+    Returns (entries, documented, own_entries, own_documented). The first pair
+    is keyed by OldSchool wire id, for every instruction that is plainly an
+    OldSchool command -- and, for a versioned family, its newest version, which
+    is what the wire id means to the rev-239 client the catalogue describes.
+    The second pair is keyed by instruction name, for the instructions that are
+    not that: a family's older versions and the RS2 634 commands. `documented`
+    is every opcode carrying a stack doc comment, including ones whose counts
+    are all zero -- those are otherwise indistinguishable from "no comment at
+    all" and would be handed to the name heuristics, which guess wrong for e.g.
+    SETKEYINPUTMODE_ALL."""
     text = OPCODE_H.read_text()
+    by_name = {ins.name: ins for ins in instructions}
     entries: dict[int, tuple[int, int, int, int]] = {}
     documented: set[int] = set()
-    pattern = re.compile(r"/\*(.*?)\*/\s*#define\s+CS2_OP_[A-Z0-9_]+\s+(\d+)", re.DOTALL)
+    own: dict[str, tuple[int, int, int, int]] = {}
+    own_documented: set[str] = set()
+    pattern = re.compile(r"/\*((?:(?!\*/).)*?)\*/\s*CS2_OP_([A-Z0-9_]+) = \d+,", re.DOTALL)
     for m in pattern.finditer(text):
-        comment, num_s = m.group(1), m.group(2)
-        num = int(num_s)
-        int_in = str_in = int_out = str_out = 0
-        saw_stack_line = False
-        for line in comment.split("\n"):
-            line = line.strip().lstrip("*").strip()
-            if line.startswith("int stack in:"):
-                int_in = parse_stack_line(line)
-                saw_stack_line = True
-            elif line.startswith("str stack in:"):
-                str_in = parse_stack_line(line)
-                saw_stack_line = True
-            elif line.startswith("int stack out:"):
-                int_out = parse_stack_line(line)
-                saw_stack_line = True
-            elif line.startswith("str stack out:"):
-                str_out = parse_stack_line(line)
-                saw_stack_line = True
-        entries[num] = (int_in, str_in, int_out, str_out)
-        if saw_stack_line:
-            documented.add(num)
-    return entries, documented
+        comment, name = m.group(1), m.group(2)
+        ins = by_name.get(name)
+        if ins is None or (ins.wire is None and ins.group == "JIT"):
+            continue
+        sig, saw = _parse_stack_comment(comment)
+        newest = ins.version_of is not None and gen_opcodes.canonical_name_of(ins.version_of) == ins.name
+        if ins.rs2 or ins.wire is None or (ins.version_of is not None and not newest):
+            own[name] = sig
+            if saw:
+                own_documented.add(name)
+        else:
+            entries[ins.wire] = sig
+            if saw:
+                documented.add(ins.wire)
+    return entries, documented, own, own_documented
 
 
-def parse_meta_names() -> dict[int, str]:
-    text = META_C.read_text()
+def parse_meta_names(instructions) -> dict[int, str]:
+    """OldSchool wire id -> its command's name (a versioned family's base name)."""
     names: dict[int, str] = {}
-    for m in re.finditer(r"\[(\d+)\]\s*=\s*\{\s*\"([^\"]+)\"", text):
-        names[int(m.group(1))] = m.group(2)
+    for ins in instructions:
+        if ins.wire is not None and not ins.rs2:
+            names[ins.wire] = ins.version_of or ins.name
     return names
 
 
 def parse_previous_output() -> dict[int, tuple[int, int, int, int]]:
-    """This generator's last output, as opcode -> signature ({} on a first run)."""
+    """This generator's last output, as wire id -> signature ({} on a first run).
+
+    Rows are indexed by canonical instruction and carry their OldSchool wire
+    id in a comment; a table from before the canonical numbering was indexed
+    by wire id itself."""
     if not OUT.is_file():
         return {}
+    text = OUT.read_text(encoding="utf-8")
+    canonical_rows = re.compile(r"\{ (\d+), (\d+), (\d+), (\d+), \d+ \}, /\* wire (\d+) \*/")
+    rows = {
+        int(m.group(5)): tuple(int(m.group(i)) for i in range(1, 5))
+        for m in canonical_rows.finditer(text)
+    }
+    if rows:
+        return rows
     pattern = re.compile(r"\[(\d+)\] = \{ (\d+), (\d+), (\d+), (\d+), \d+ \}")
     return {
         int(m.group(1)): tuple(int(m.group(i)) for i in range(2, 6))
-        for m in pattern.finditer(OUT.read_text(encoding="utf-8"))
+        for m in pattern.finditer(text)
     }
 
 
-def parse_dispatched(ids_by_name: dict[str, int]) -> set[int]:
+def dispatch_keys(instructions) -> dict[str, object]:
+    """Every spelling a case label can name an instruction by -> its key: the
+    OldSchool wire id for an instruction that is that command (both versions
+    of a family share it), the instruction's name for an RS2 634 command."""
+    keys: dict[str, object] = {}
+    by_wire: dict[int, object] = {}
+    for ins in instructions:
+        if ins.wire is None:
+            keys["CS2_OP_" + ins.name] = ins.name
+            continue
+        key = ins.name if ins.rs2 else ins.wire
+        keys["CS2_OP_" + ins.name] = key
+        if not ins.rs2:
+            by_wire[ins.wire] = key
+    for wire, aliases in gen_opcodes.LOCAL_ALIASES.items():
+        for alias in aliases:
+            keys["CS2_OP_" + alias] = by_wire[wire]
+    return keys
+
+
+def parse_dispatched(keys: dict[str, object]) -> set[object]:
     """Opcodes cs2vm2.c actually dispatches.
 
     The heuristic below answers (0,0,0,0) for whole families of SET-shaped
@@ -754,13 +824,11 @@ def parse_dispatched(ids_by_name: dict[str, int]) -> set[int]:
     `..._CASE(X)` macros that expand to them.
     """
     # Every spelling an opcode can be dispatched under: its canonical name,
-    # any LOCAL_ALIASES alias (both are #defines in cs2_opcode.h -- the
-    # highlight op-group is dispatched as HIGHLIGHT_OPGROUP_* while its
-    # canonical name is HIGHLIGHT_GROUP_*), and its host-request kind name,
-    # which the ..._CASE(name) macros paste into CS2VM_HOST_REQUEST_##name.
-    ids = dict(ids_by_name)
-    for name, value in re.findall(r"^#define (CS2_OP_[A-Z0-9_]+) (\d+)$", OPCODE_H.read_text(encoding="utf-8"), re.M):
-        ids.setdefault(name, int(value))
+    # any LOCAL_ALIASES alias (the highlight op-group is dispatched as
+    # HIGHLIGHT_OPGROUP_* while its canonical name is HIGHLIGHT_GROUP_*), and
+    # its host-request kind name, which the ..._CASE(name) macros paste into
+    # CS2VM_HOST_REQUEST_##name.
+    ids = dict(keys)
     kinds = HERE / "cs2vm2_host_request_kinds.def"
     for name, value in re.findall(r"CS2VM_HOST_REQUEST_KIND\(\s*([A-Za-z0-9_]+)\s*,\s*(\d+)", kinds.read_text(encoding="utf-8")):
         ids.setdefault("CS2_OP_" + name, int(value))
@@ -771,7 +839,13 @@ def parse_dispatched(ids_by_name: dict[str, int]) -> set[int]:
     return {ids[m] for m in macros if m in ids}
 
 
-def parse_client_rejected(ids_by_name: dict[str, int]) -> set[int]:
+def parse_run_op_cases() -> set[str]:
+    """The canonical instructions CS2VM2_RunOp's switch names in a case of its
+    own (the rest are CS2VM2_STACK_META_STUB_CASES, generated below)."""
+    return set(re.findall(r"case CS2_OP_([A-Z0-9_]+):", gen_opcodes.dispatch_body(DISPATCH_C)))
+
+
+def parse_client_rejected(keys: dict[str, object]) -> set[object]:
     """Opcodes cs2vm2.c routes to CS2VM2_Op_ClientRejects.
 
     Those are opcodes the reference client does not implement: its dispatch
@@ -779,14 +853,11 @@ def parse_client_rejected(ids_by_name: dict[str, int]) -> set[int]:
     catalogue signature is real but never exercised, so they get their own tier
     (3) rather than claiming an implementation whose arity can be measured.
     """
-    ids = dict(ids_by_name)
-    for name, value in re.findall(r"^#define (CS2_OP_[A-Z0-9_]+) (\d+)$", OPCODE_H.read_text(encoding="utf-8"), re.M):
-        ids.setdefault(name, int(value))
     text = DISPATCH_C.read_text(encoding="utf-8")
-    rejected: set[int] = set()
+    rejected: set[object] = set()
     for block in re.findall(r"((?:[ \t]*case CS2_OP_[A-Z0-9_]+:\n)+)[ \t]*return CS2VM2_Op_ClientRejects\(", text):
         for name in re.findall(r"case (CS2_OP_[A-Z0-9_]+):", block):
-            rejected.add(ids[name])
+            rejected.add(keys[name])
     return rejected
 
 
@@ -921,8 +992,10 @@ def ceiling(*id_sources) -> int:
 
 
 def main() -> None:
-    entries, documented = parse_opcode_h()
-    names = parse_meta_names()
+    instructions = canonical_instructions()
+    entries, documented, own_entries, own_documented = parse_opcode_h(instructions)
+    names = parse_meta_names(instructions)
+    keys = dispatch_keys(instructions)
 
     # `known` = the opcode's stack signature comes from a real source (an explicit
     # stack doc comment, a MANUAL_STACK override, or a specific name heuristic).
@@ -968,7 +1041,7 @@ def main() -> None:
 
     # ---- the bridge (source 4; see this file's docstring) -------------------
     bridge, cmd_table_size = parse_command_gen()
-    dispatched = parse_dispatched({f"CS2_OP_{n}": o for o, n in names.items()})
+    dispatched = parse_dispatched(keys)
 
     for op, name in names.items():
         if op in documented:
@@ -1046,12 +1119,29 @@ def main() -> None:
         inherited.add(op)
     bridged = len(inherited)
 
+    # Every row the wire-level work above gave a signature names a command
+    # some dialect's table defines: an id the VM would have run with a known
+    # shape is never one its dialects refuse at load.
+    wire_ids = {ins.wire for ins in instructions if ins.wire is not None and not ins.rs2}
+    orphans = sorted(op for op in known if op not in wire_ids)
+    if orphans:
+        print(
+            "gen_opcode_stack: wire ids with a stack signature but no canonical\n"
+            f"instruction (add them to the catalogue): {orphans}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
     lines = [
         "/* Generated by src/cs2vm2/gen_opcode_stack.py — do not edit by hand. */",
         "#ifndef CS2VM2_OPCODE_STACK_GEN_H",
         "#define CS2VM2_OPCODE_STACK_GEN_H",
         "",
-        f"#define CS2VM2_OPCODE_STACK_MAX {max_opcode}",
+        '#include "cs2_opcode.h"',
+        "",
+        "/* One row per instruction a loaded script can hold, indexed by canonical",
+        " * instruction (cs2_opcode.h); the comment is its OldSchool wire id. */",
+        "#define CS2VM2_OPCODE_STACK_MAX CS2_OP_PLAIN_COUNT",
         "",
         "struct CS2VM2OpcodeStack {",
         "    unsigned char int_in;",
@@ -1087,25 +1177,59 @@ def main() -> None:
     # promote it 2 -> 1 purely because its name matched a heuristic, which
     # silenced the warning for something still unimplemented. `dispatched` is
     # the real question, so ask it directly.
-    rejected = parse_client_rejected({f"CS2_OP_{n}": o for o, n in names.items()})
-    for op in range(max_opcode):
-        ii, si, io, so = entries.get(op, (0, 0, 0, 0))
-        if op in rejected:
-            kn = 3
-        elif op not in known:
-            kn = 0
-        elif op in dispatched:
-            kn = 1
+    rejected = parse_client_rejected(keys)
+
+    def tier(key, is_known: bool) -> int:
+        if key in rejected:
+            return 3
+        if not is_known:
+            return 0
+        if key in dispatched:
+            return 1
+        return 2
+
+    for ins in instructions:
+        newest = ins.version_of is None or gen_opcodes.canonical_name_of(ins.version_of) == ins.name
+        if ins.rs2 or ins.wire is None or not newest:
+            ii, si, io, so = own_entries.get(ins.name, (0, 0, 0, 0))
+            key = ins.name if ins.rs2 or ins.wire is None else ins.wire
+            kn = tier(key, ins.name in own_documented)
+            lines.append(f"    [CS2_OP_{ins.name}] = {{ {ii}, {si}, {io}, {so}, {kn} }},")
         else:
-            kn = 2
-        lines.append(f"    [{op}] = {{ {ii}, {si}, {io}, {so}, {kn} }},")
-    lines.extend(["};", "", "#endif", ""])
+            op = ins.wire
+            ii, si, io, so = entries.get(op, (0, 0, 0, 0))
+            kn = tier(op, op in known)
+            lines.append(f"    [CS2_OP_{ins.name}] = {{ {ii}, {si}, {io}, {so}, {kn} }}, /* wire {op} */")
+    lines.extend(["};", ""])
+
+    # The canonical instructions CS2VM2_RunOp has no case of its own for. Its
+    # switch has no default (every instruction of a loaded script is one of
+    # these, CS2VM2_ScriptResolveDialect), so they are named here and run by
+    # CS2VM2_Op_StackMetaStub from their row above.
+    own_cases = parse_run_op_cases()
+    alias_names = {a for aliases in gen_opcodes.LOCAL_ALIASES.values() for a in aliases}
+    by_wire = {ins.wire: ins.name for ins in instructions if ins.wire is not None and not ins.rs2}
+    for wire, aliases in gen_opcodes.LOCAL_ALIASES.items():
+        if any(a in own_cases for a in aliases):
+            own_cases.add(by_wire[wire])
+    unknown_cases = sorted(own_cases - {ins.name for ins in instructions} - alias_names)
+    if unknown_cases:
+        raise SystemExit(f"gen_opcode_stack: CS2VM2_RunOp names unknown instructions: {unknown_cases}")
+    stubbed = [ins.name for ins in instructions if ins.name not in own_cases]
+    lines.append("/* Every instruction CS2VM2_RunOp has no case of its own for: it runs them")
+    lines.append(" * through CS2VM2_Op_StackMetaStub from the row above. */")
+    lines.append("#define CS2VM2_STACK_META_STUB_CASES \\")
+    for name in stubbed:
+        lines.append(f"    case CS2_OP_{name}: \\")
+    lines.append("    /* end of CS2VM2_STACK_META_STUB_CASES */")
+    lines.extend(["", "#endif", ""])
     OUT.write_text("\n".join(lines))
     print(
-        f"wrote {OUT} ({len(entries)} opcodes with metadata, "
+        f"wrote {OUT} ({len(instructions)} instructions, {len(entries)} wire opcodes with metadata, "
         f"{len(known)} with a signature, {len(known & dispatched)} implemented; "
         f"{bridged} inherited from cs2_command.gen.h "
-        f"[table size {cmd_table_size}], {len(conflicts)} acknowledged conflicts)"
+        f"[table size {cmd_table_size}], {len(conflicts)} acknowledged conflicts; "
+        f"{len(stubbed)} run by the stack-meta stub)"
     )
 
 

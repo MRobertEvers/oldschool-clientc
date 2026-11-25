@@ -1966,233 +1966,237 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Empty a whole highlight group",
         int_in=("group",),
     ),
-    # --- vm-dialect: the VM's own ids for a dialect's commands (9000..9099) ---
-    "CC_CREATE_FLAT": OpcodeDoc(
+    # --- canonical instructions of their own: OldSchool V1 versions and the RS2 634 section ---
+    "CC_CREATE_V1": OpcodeDoc(
         summary="Create dynamic child component, three arguments",
         operand="0 = active component, 1 = dot component",
         int_in=("parent", "type", "child_index"),
-        notes="CC_CREATE (100) where the cache era pushes no is_nested flag: RS2 634 (Class66.method710) and OldSchool through 229. Renumbered at load; is_nested reaches the host as 0.",
+        notes="CC_CREATE (100) where the cache era pushes no is_nested flag: RS2 634 (Class66.method710) and OldSchool through 229. CC_CREATE_V1 is what wire 100 means there (the dialect's table); is_nested reaches the host as 0.",
     ),
-    "DEFINE_ARRAY_SHARED": OpcodeDoc(
+    "DEFINE_ARRAY_V1": OpcodeDoc(
         summary="Define an int array in one of the run's numbered arrays",
         operand="(array number << 16) | element type char",
         int_in=("size",),
-        notes="DEFINE_ARRAY (44) where arrays are numbered and shared by every frame of a run (OldSchool through 230). Renumbered at load.",
+        notes="DEFINE_ARRAY (44) where arrays are numbered and shared by every frame of a run (OldSchool through 230).",
     ),
-    "PUSH_ARRAY_INT_SHARED": OpcodeDoc(
+    "PUSH_ARRAY_INT_V1": OpcodeDoc(
         summary="Read an element of one of the run's numbered arrays",
         operand="array number",
         int_in=("index",),
         int_out=("value",),
-        notes="PUSH_ARRAY_INT (45) over numbered arrays (OldSchool through 230). A string array pushes onto the string stack instead. Renumbered at load.",
+        notes="PUSH_ARRAY_INT (45) over numbered arrays (OldSchool through 230). A string array pushes onto the string stack instead.",
     ),
-    "POP_ARRAY_INT_SHARED": OpcodeDoc(
+    "POP_ARRAY_INT_V1": OpcodeDoc(
         summary="Write an element of one of the run's numbered arrays",
         operand="array number",
         int_in=("index", "value"),
-        notes="POP_ARRAY_INT (46) over numbered arrays (OldSchool through 230). A string array takes its value off the string stack. Renumbered at load.",
+        notes="POP_ARRAY_INT (46) over numbered arrays (OldSchool through 230). A string array takes its value off the string stack.",
+    ),
+    "UNDEFINED_WIRE_ID": OpcodeDoc(
+        summary="A wire id the script's dialect does not define",
+        notes="Not a command of any cache. CS2VM2_ScriptResolveDialect puts it where a script holds a wire id its dialect's table has no row for and keeps the wire id beside the script (undefined_wires). Run, it takes the path of an instruction with no stack signature, naming the wire id: a report and an assert, a report and nothing else under NDEBUG, one survey line under TORIRS_CS2_SURVEY. A script that never reaches it runs as any other.",
     ),
     "RS2_CC_GETPARAM": OpcodeDoc(
         summary="Read a param off the active widget (RS2 634)",
         int_in=("param_id",),
         int_out=("value",),
-        notes="Wire 1613 at 634, where OldSchool's 1613 is CC_GETBLENDMODE. Type-polymorphic: the ParamType decides whether an int or a string comes back. No 634-era widget carries a param table, so the answer is the ParamType's default. Renumbered at load.",
+        notes="Wire 1613 at 634, where OldSchool's 1613 is CC_GETBLENDMODE. Type-polymorphic: the ParamType decides whether an int or a string comes back. No 634-era widget carries a param table, so the answer is the ParamType's default. The RS2 634 dialect maps wire 1613 here.",
     ),
-    "RS2_202": OpcodeDoc(
+    "RS2_IF_REMOVEFROMGROUP": OpcodeDoc(
         summary="RS2 634 command 202, stubbed to its 634 signature",
         int_in=("a1",),
-        notes="Remove a widget from its group array (Class66.method714); canonical 202 is IF_FIND_ENTITYOVERLAY. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 202 at load."
+        notes="Remove a widget from its group array (Class66.method714); canonical 202 is IF_FIND_ENTITYOVERLAY. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 202 here."
     ),
-    "RS2_1122": OpcodeDoc(
+    "RS2_CC_SETGRAPHICFLAG": OpcodeDoc(
         summary="RS2 634 command 1122, stubbed to its 634 signature",
         int_in=("a1",),
-        notes="CC_ set of the type-5 flag bit 1 (Class46.aBoolean745). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 1122 at load."
+        notes="CC_ set of the type-5 flag bit 1 (Class46.aBoolean745). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 1122 here."
     ),
-    "RS2_1311": OpcodeDoc(
+    "RS2_CC_SETANINT713": OpcodeDoc(
         summary="RS2 634 command 1311, stubbed to its 634 signature",
         int_in=("a1",),
-        notes="A one-int widget setter (Class46.anInt713); canonical 1311 is CC_SETSUBOP. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 1311 at load."
+        notes="A one-int widget setter (Class46.anInt713); canonical 1311 is CC_SETSUBOP. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 1311 here."
     ),
-    "RS2_2122": OpcodeDoc(
+    "RS2_IF_SETGRAPHICFLAG": OpcodeDoc(
         summary="RS2 634 command 2122, stubbed to its 634 signature",
         int_in=("a1", "a2"),
-        notes="IF_ set of the type-5 flag bit 1; pops the component id first (Class66:2731). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2122 at load."
+        notes="IF_ set of the type-5 flag bit 1; pops the component id first (Class66:2731). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 2122 here."
     ),
-    "RS2_2314": OpcodeDoc(
+    "RS2_IF_SETANINT719": OpcodeDoc(
         summary="RS2 634 command 2314, stubbed to its 634 signature",
         int_in=("a1", "a2"),
-        notes="A one-int widget setter on an explicit component (Class46.anInt719); canonical 2314 is IF_SETOPPRIORITY. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2314 at load."
+        notes="A one-int widget setter on an explicit component (Class46.anInt719); canonical 2314 is IF_SETOPPRIORITY. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 2314 here."
     ),
-    "RS2_2703": OpcodeDoc(
+    "RS2_IF_GETDYNAMICCHILDCOUNT": OpcodeDoc(
         summary="RS2 634 command 2703, stubbed to its 634 signature",
         int_in=("a1",),
         int_out=("r1",),
-        notes="Count of a widget's dynamic children (Class46.aClass46Array798). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2703 at load."
+        notes="Count of a widget's dynamic children (Class46.aClass46Array798). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 2703 here."
     ),
-    "RS2_3329": OpcodeDoc(
+    "RS2_GETABOOLEAN5233": OpcodeDoc(
         summary="RS2 634 command 3329, stubbed to its 634 signature",
         int_out=("r1",),
-        notes="Class50_Sub2.aBoolean5233. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3329 at load."
+        notes="Class50_Sub2.aBoolean5233. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3329 here."
     ),
-    "RS2_3335": OpcodeDoc(
+    "RS2_GETLANGUAGE": OpcodeDoc(
         summary="RS2 634 command 3335, stubbed to its 634 signature",
         int_out=("r1",),
-        notes="Language index (Class348_Sub33.anInt6967). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3335 at load."
+        notes="Language index (Class348_Sub33.anInt6967). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3335 here."
     ),
-    "RS2_3340": OpcodeDoc(
+    "RS2_GETABOOLEAN2329": OpcodeDoc(
         summary="RS2 634 command 3340, stubbed to its 634 signature",
         int_out=("r1",),
-        notes="Class175.aBoolean2329. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3340 at load."
+        notes="Class175.aBoolean2329. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3340 here."
     ),
-    "RS2_3351": OpcodeDoc(
+    "RS2_GETMOUSEBUTTONS": OpcodeDoc(
         summary="RS2 634 command 3351, stubbed to its 634 signature",
         int_out=("r1", "r2", "r3"),
-        notes="Three mouse-button booleans, one call. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3351 at load."
+        notes="Three mouse-button booleans, one call. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3351 here."
     ),
-    "RS2_3609": OpcodeDoc(
+    "RS2_FRIEND_TEST": OpcodeDoc(
         summary="RS2 634 command 3609, stubbed to its 634 signature",
         str_in=("s1",),
         int_out=("r1",),
-        notes="Friend test by display name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3609 at load."
+        notes="Friend test by display name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3609 here."
     ),
-    "RS2_3619": OpcodeDoc(
+    "RS2_FRIENDSCHAT_JOINCHAT": OpcodeDoc(
         summary="RS2 634 command 3619, stubbed to its 634 signature",
         str_in=("s1",),
-        notes="Join clan chat by owner name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3619 at load."
+        notes="Join clan chat by owner name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3619 here."
     ),
-    "RS2_4124": OpcodeDoc(
+    "RS2_TOSTRING_GROUPED": OpcodeDoc(
         summary="RS2 634 command 4124, stubbed to its 634 signature",
         int_in=("a1", "a2"),
         str_out=("t1",),
-        notes="(value, comma-group) -> formatted number; OldSchool 239 script 5031 calls canonical 4124 with an empty stack. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 4124 at load."
+        notes="(value, comma-group) -> formatted number; OldSchool 239 script 5031 calls canonical 4124 with an empty stack. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 4124 here."
     ),
-    "RS2_4125": OpcodeDoc(
+    "RS2_STRINGWIDTH": OpcodeDoc(
         summary="RS2 634 command 4125, stubbed to its 634 signature",
         int_in=("a1",),
         str_in=("s1",),
         int_out=("r1",),
-        notes="(font, text) -> rendered width. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 4125 at load."
+        notes="(font, text) -> rendered width. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 4125 here."
     ),
-    "RS2_5003": OpcodeDoc(
+    "RS2_FRIENDRECORD_GETTEXT_A": OpcodeDoc(
         summary="RS2 634 command 5003, stubbed to its 634 signature",
         int_in=("a1",),
         str_out=("t1",),
-        notes="Friend/ignore record field by list index (s.method3985); canonical 5003.. is the chat history family. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5003 at load."
+        notes="Friend/ignore record field by list index (s.method3985); canonical 5003.. is the chat history family. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5003 here."
     ),
-    "RS2_5004": OpcodeDoc(
+    "RS2_FRIENDRECORD_GETINT_A": OpcodeDoc(
         summary="RS2 634 command 5004, stubbed to its 634 signature",
         int_in=("a1",),
         int_out=("r1",),
-        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5004 at load."
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5004 here."
     ),
-    "RS2_5010": OpcodeDoc(
+    "RS2_FRIENDRECORD_GETTEXT_B": OpcodeDoc(
         summary="RS2 634 command 5010, stubbed to its 634 signature",
         int_in=("a1",),
         str_out=("t1",),
-        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5010 at load."
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5010 here."
     ),
-    "RS2_5011": OpcodeDoc(
+    "RS2_FRIENDRECORD_GETTEXT_C": OpcodeDoc(
         summary="RS2 634 command 5011, stubbed to its 634 signature",
         int_in=("a1",),
         str_out=("t1",),
-        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5011 at load."
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5011 here."
     ),
-    "RS2_5012": OpcodeDoc(
+    "RS2_FRIENDRECORD_GETINT_B": OpcodeDoc(
         summary="RS2 634 command 5012, stubbed to its 634 signature",
         int_in=("a1",),
         int_out=("r1",),
-        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5012 at load."
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5012 here."
     ),
-    "RS2_5019": OpcodeDoc(
+    "RS2_FRIENDRECORD_GETTEXT_D": OpcodeDoc(
         summary="RS2 634 command 5019, stubbed to its 634 signature",
         int_in=("a1",),
         str_out=("t1",),
-        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5019 at load."
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5019 here."
     ),
-    "RS2_5024": OpcodeDoc(
+    "RS2_FRIENDRECORD_GETINT_C": OpcodeDoc(
         summary="RS2 634 command 5024, stubbed to its 634 signature",
         int_in=("a1",),
         int_out=("r1",),
-        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5024 at load."
+        notes="Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5024 here."
     ),
-    "RS2_5056": OpcodeDoc(
+    "RS2_ARRAY_GETLENGTH": OpcodeDoc(
         summary="RS2 634 command 5056, stubbed to its 634 signature",
         int_in=("a1",),
         int_out=("r1",),
-        notes="Array length or 0. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5056 at load."
+        notes="Array length or 0. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5056 here."
     ),
-    "RS2_5102": OpcodeDoc(
+    "RS2_KEY_ISDOWN": OpcodeDoc(
         summary="RS2 634 command 5102, stubbed to its 634 signature",
         int_out=("r1",),
-        notes="Key-down test. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5102 at load."
+        notes="Key-down test. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5102 here."
     ),
-    "RS2_5420": OpcodeDoc(
+    "RS2_GETINT_A": OpcodeDoc(
         summary="RS2 634 command 5420, stubbed to its 634 signature",
         int_out=("r1",),
-        notes="An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5420 at load."
+        notes="An int query. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5420 here."
     ),
-    "RS2_5424": OpcodeDoc(
+    "RS2_CHAT_SETSCROLLBARSKIN": OpcodeDoc(
         summary="RS2 634 command 5424, stubbed to its 634 signature",
         int_in=("a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11"),
-        notes="Chat scrollbar skin: four geometry values, five sprite ids the client preloads, two more. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5424 at load."
+        notes="Chat scrollbar skin: four geometry values, five sprite ids the client preloads, two more. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5424 here."
     ),
-    "RS2_5428": OpcodeDoc(
+    "RS2_GETINT_OF2_A": OpcodeDoc(
         summary="RS2 634 command 5428, stubbed to its 634 signature",
         int_in=("a1", "a2"),
         int_out=("r1",),
-        notes="A two-int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5428 at load."
+        notes="A two-int query. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5428 here."
     ),
-    "RS2_5504": OpcodeDoc(
+    "RS2_CAM_FORCEANGLE": OpcodeDoc(
         summary="RS2 634 command 5504, stubbed to its 634 signature",
         int_in=("a1", "a2"),
-        notes="CAM_FORCEANGLE. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5504 at load."
+        notes="CAM_FORCEANGLE. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5504 here."
     ),
-    "RS2_5505": OpcodeDoc(
+    "RS2_CAM_GETANGLE_XA": OpcodeDoc(
         summary="RS2 634 command 5505, stubbed to its 634 signature",
         int_out=("r1",),
-        notes="CAM_GETANGLE_XA. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5505 at load."
+        notes="CAM_GETANGLE_XA. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5505 here."
     ),
-    "RS2_5506": OpcodeDoc(
+    "RS2_CAM_GETANGLE_YA": OpcodeDoc(
         summary="RS2 634 command 5506, stubbed to its 634 signature",
         int_out=("r1",),
-        notes="CAM_GETANGLE_YA. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5506 at load."
+        notes="CAM_GETANGLE_YA. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5506 here."
     ),
-    "RS2_5507": OpcodeDoc(
+    "RS2_CAM_ACTION_A": OpcodeDoc(
         summary="RS2 634 command 5507, stubbed to its 634 signature",
-        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5507 at load."
+        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5507 here."
     ),
-    "RS2_5508": OpcodeDoc(
+    "RS2_CAM_ACTION_B": OpcodeDoc(
         summary="RS2 634 command 5508, stubbed to its 634 signature",
-        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5508 at load."
+        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5508 here."
     ),
-    "RS2_5509": OpcodeDoc(
+    "RS2_CAM_ACTION_C": OpcodeDoc(
         summary="RS2 634 command 5509, stubbed to its 634 signature",
-        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5509 at load."
+        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5509 here."
     ),
-    "RS2_5510": OpcodeDoc(
+    "RS2_CAM_ACTION_D": OpcodeDoc(
         summary="RS2 634 command 5510, stubbed to its 634 signature",
-        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5510 at load."
+        notes="A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5510 here."
     ),
-    "RS2_5547": OpcodeDoc(
+    "RS2_GETINT_B": OpcodeDoc(
         summary="RS2 634 command 5547, stubbed to its 634 signature",
         int_out=("r1",),
-        notes="An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5547 at load."
+        notes="An int query. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5547 here."
     ),
-    "RS2_6506": OpcodeDoc(
+    "RS2_WORLDLIST_SPECIFIC": OpcodeDoc(
         summary="RS2 634 command 6506, stubbed to its 634 signature",
         int_in=("a1",),
         int_out=("r1", "r2", "r3", "r4"),
         str_out=("t1", "t2", "t3"),
-        notes="WORLDLIST_SPECIFIC(world) -> id, name, loc-id, loc-name, flags, players, activity; OldSchool 239 script 6918 stores 4 ints + 2. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6506 at load."
+        notes="WORLDLIST_SPECIFIC(world) -> id, name, loc-id, loc-name, flags, players, activity; OldSchool 239 script 6918 stores 4 ints + 2. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 6506 here."
     ),
-    "RS2_6510": OpcodeDoc(
+    "RS2_GETINT_C": OpcodeDoc(
         summary="RS2 634 command 6510, stubbed to its 634 signature",
         int_out=("r1",),
-        notes="An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6510 at load."
+        notes="An int query. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 6510 here."
     ),
-    "RS2_6900": OpcodeDoc(
+    "RS2_GETINT_D": OpcodeDoc(
         summary="RS2 634 command 6900, stubbed to its 634 signature",
         int_out=("r1",),
-        notes="An int query; canonical 6900 is P_NAME. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6900 at load."
+        notes="An int query; canonical 6900 is P_NAME. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 6900 here."
     ),
 }

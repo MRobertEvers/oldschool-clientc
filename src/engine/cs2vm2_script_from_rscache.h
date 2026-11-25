@@ -9,8 +9,9 @@
 
 /**
  * Moves heap fields from src into dst; leaves src empty. Returns false if
- * op_count <= 0. Wire opcodes are translated to the VM's canonical numbering
- * according to `dialect` (see CS2_OpcodeTranslate).
+ * op_count <= 0. Wire opcodes become canonical instructions by `dialect`'s
+ * table (CS2VM2_ScriptResolveDialect; an id it does not define becomes
+ * UNDEFINED_WIRE_ID).
  */
 bool
 CS2VM2_ScriptFromRSCache(
@@ -20,8 +21,9 @@ CS2VM2_ScriptFromRSCache(
 
 /**
  * Deep-copies src into dst; src is unchanged. Returns false if op_count <= 0.
- * Wire opcodes are translated to the VM's canonical numbering according to
- * `dialect` (see CS2_OpcodeTranslate).
+ * Wire opcodes become canonical instructions by `dialect`'s table
+ * (CS2VM2_ScriptResolveDialect; an id it does not define becomes
+ * UNDEFINED_WIRE_ID).
  */
 bool
 CS2VM2_ScriptCopyFromRSCache(

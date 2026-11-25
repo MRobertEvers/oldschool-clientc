@@ -7,18 +7,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The one translation: wire ids of dst's dialect -> canonical instructions,
+ * then what every run assumes of a loaded script. */
 static void
-cs2vm2_script_translate_opcodes(
-    struct CS2VM2_Script* dst,
-    struct CS2VM2_Dialect const* dialect)
+cs2vm2_script_translate_opcodes(struct CS2VM2_Script* dst)
 {
     assert(dst);
     assert(dst->opcodes || dst->op_count == 0);
 
-    for( int i = 0; i < dst->op_count; i++ )
-        dst->opcodes[i] = CS2_OpcodeTranslate(dialect, dst->opcodes[i]);
-    /* The dialect's flags become opcode ids here, so nothing reads them at
-     * run time. */
     CS2VM2_ScriptResolveDialect(dst);
     /* The opcodes are final: string constants and dispatch codes. */
     CS2VM2_ScriptPrepare(dst);
@@ -56,12 +52,16 @@ cs2vm2_script_copy_switch_tables(
     return true;
 }
 
+/* Whether a wire script pushes a long constant: read before translation,
+ * through the dialect's table. */
 static bool
-cs2vm2_script_has_long_constant(const struct RSCache_CS2_Script* src)
+cs2vm2_script_has_long_constant(
+    const struct RSCache_CS2_Script* src,
+    struct CS2VM2_Dialect const* dialect)
 {
     for( int i = 0; i < src->op_count; i++ )
     {
-        if( src->opcodes[i] == CS2_OP_PUSH_CONSTANT_LONG )
+        if( CS2VM2_DialectTranslate(dialect, src->opcodes[i]) == CS2_OP_PUSH_CONSTANT_LONG )
             return true;
     }
     return false;
@@ -70,7 +70,8 @@ cs2vm2_script_has_long_constant(const struct RSCache_CS2_Script* src)
 static bool
 cs2vm2_script_copy_heap_fields(
     const struct RSCache_CS2_Script* src,
-    struct CS2VM2_Script* dst)
+    struct CS2VM2_Script* dst,
+    struct CS2VM2_Dialect const* dialect)
 {
     int i;
 
@@ -98,7 +99,7 @@ cs2vm2_script_copy_heap_fields(
 
         /* Only a script that pushes a long constant needs the int64 per op;
          * the decoder allocates the array for every script. */
-        if( src->long_operands && cs2vm2_script_has_long_constant(src) )
+        if( src->long_operands && cs2vm2_script_has_long_constant(src, dialect) )
         {
             dst->long_operands =
                 ToriMem_Alloc(ToriMem_Script(), (size_t)src->op_count * sizeof(*dst->long_operands));
@@ -169,9 +170,8 @@ CS2VM2_ScriptFromRSCache(
         return false;
 
     /* Ownership transferred; rewrite wire opcodes in place under the chosen dialect. */
-    cs2vm2_script_translate_opcodes(dst, dialect);
-
     RSCache_CS2_ScriptInit(src);
+    cs2vm2_script_translate_opcodes(dst);
     return true;
 }
 
@@ -206,9 +206,9 @@ CS2VM2_ScriptCopyFromRSCache(
     if( !cs2vm2_script_copy_switch_tables(src, dst) )
         return false;
 
-    if( !cs2vm2_script_copy_heap_fields(src, dst) )
+    if( !cs2vm2_script_copy_heap_fields(src, dst, dialect) )
         return false;
 
-    cs2vm2_script_translate_opcodes(dst, dialect);
+    cs2vm2_script_translate_opcodes(dst);
     return true;
 }

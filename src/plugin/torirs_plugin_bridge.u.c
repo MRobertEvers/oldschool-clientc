@@ -1411,7 +1411,9 @@ static uint64_t app_script_fingerprint(struct CS2VM2_Script const* script)
     for( size_t i=0;i<sizeof(fields)/sizeof(fields[0]);++i ) app_script_hash_word(&hash,(uint32_t)fields[i]);
     for( int i=0;i<script->op_count;++i )
     {
-        app_script_hash_word(&hash,script->opcodes[i]);
+        /* The wire id, as tools/plugin_engine_script_hooks.py hashes it from the
+         * cache: a loaded script holds canonical instructions. */
+        app_script_hash_word(&hash,(uint32_t)CS2VM2_DialectWireOf(script->dialect,script->opcodes[i]));
         app_script_hash_word(&hash,script->opcodes[i]==CS2_OP_PUSH_CONSTANT_STRING ? 0 : (uint32_t)script->int_operands[i]);
         char const* text=script->opcodes[i]==CS2_OP_PUSH_CONSTANT_STRING ? script->string_operands[i] : "";
         if( text ) for( unsigned char const* p=(unsigned char const*)text;*p;++p ) hash=(hash^*p)*UINT64_C(1099511628211);
@@ -2833,7 +2835,8 @@ app_plugin_script_run(
         if( status != CS2VM2_THREAD_YIELDED || !host->has_pending )
         {
             TORIRS_ERR("plugin scripts.run: script %d failed at opcode %d pc %d (in script %d)\n",
-                script_id, thread->last_error_opcode, thread->last_error_pc, thread->last_error_script_id);
+                script_id, CS2VM2_DialectWireOf(NULL, thread->last_error_opcode), thread->last_error_pc,
+                thread->last_error_script_id);
             host->has_pending = false;
             CS2VM2_ResetRuntime(thread);
             result = TORIRS_CONTRACT_FAILED;

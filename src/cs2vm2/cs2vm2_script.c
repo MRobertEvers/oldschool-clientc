@@ -1,5 +1,6 @@
 #include "mem/torirs_mem.h"
 #include "cs2vm2_script.h"
+#include "cs2_opcode.h"
 #include "cs2vm2_jit.h"
 #include "cs2vm2_callee.h"
 #include "cs2vm2_str.h"
@@ -74,6 +75,7 @@ CS2VM2_ScriptFree(struct CS2VM2_Script* script)
     }
     ToriMem_Free(ToriMem_Script(), script->signature);
     ToriMem_Free(ToriMem_Script(), script->opcodes);
+    ToriMem_Free(ToriMem_Script(), script->undefined_wires);
     ToriMem_Free(ToriMem_Script(), script->int_operands);
     ToriMem_Free(ToriMem_Script(), script->long_operands);
     if( script->string_operands )
@@ -138,6 +140,15 @@ CS2VM2_ScriptCopy(
     dst->opcodes = ToriMem_Alloc(ToriMem_Script(), (size_t)src->op_count * sizeof(*dst->opcodes));
     assert(dst->opcodes);
     memcpy(dst->opcodes, src->opcodes, (size_t)src->op_count * sizeof(*dst->opcodes));
+
+    if( src->undefined_wire_count > 0 )
+    {
+        size_t const bytes = (size_t)src->undefined_wire_count * sizeof(*dst->undefined_wires);
+        dst->undefined_wires = ToriMem_Alloc(ToriMem_Script(), bytes);
+        assert(dst->undefined_wires);
+        memcpy(dst->undefined_wires, src->undefined_wires, bytes);
+        dst->undefined_wire_count = src->undefined_wire_count;
+    }
 
     dst->int_operands = ToriMem_Alloc(ToriMem_Script(), (size_t)src->op_count * sizeof(*dst->int_operands));
     assert(dst->int_operands);
@@ -218,6 +229,12 @@ CS2VM2_ScriptPrepare(struct CS2VM2_Script* script)
     assert(script);
     assert(script->op_count > 0);
     assert(script->opcodes);
+    /* Every opcode is a canonical instruction a script can hold: what every
+     * switch over them relies on to have no default (cs2vm2_dialect.h). A
+     * loaded script is translated by its dialect's table, which produces
+     * nothing else; a script built by hand is written in them. */
+    for( int pc = 0; pc < script->op_count; pc++ )
+        assert(script->opcodes[pc] < CS2_OP_PLAIN_COUNT);
 
     CS2VM2_ScriptEnsureConstants(script);
     /* A script with no string operand still gets its row of NULLs: the loop

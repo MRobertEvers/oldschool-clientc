@@ -1022,7 +1022,7 @@ CS2JitCache_Report(
     for( int r = 1; r < CS2VM2_JIT_ATTACH_RESULT_COUNT; r++ )
         used += (size_t)snprintf(rejected + used, sizeof(rejected) - used, "%s%d", r > 1 ? "," : "", s.rejected[r]);
     TORIRS_REPORT(
-        "cs2jit: why=%s prepared=%d/%lld built=%d/%lld/%.3fms before_pack=%d refused=%d,%d,%d "
+        "cs2jit: why=%s prepared=%d/%lld built=%d/%lld/%.3fms before_pack=%d refused=%d,%d "
         "hits=%d misses=%d fp=%d/%lld/%.3fms attached=%d/%lld/%.3fms rejected=%s "
         "read=%s/%s pack=%s/%lld/%d/parse %.3fms/wait %.3fms ignored=%d "
         "stores=%d/%lld/%.3fms new=%d carried=%d unchanged=%d skipped=%d dropped=%d failures=%d "
@@ -1035,7 +1035,6 @@ CS2JitCache_Report(
         ms(s.build_ns),
         s.before_pack,
         s.refused[CS2VM2_JIT_REFUSED_EMPTY],
-        s.refused[CS2VM2_JIT_REFUSED_DIALECT],
         s.refused[CS2VM2_JIT_REFUSED_BRANCH_RANGE],
         s.index_hits,
         s.index_misses,

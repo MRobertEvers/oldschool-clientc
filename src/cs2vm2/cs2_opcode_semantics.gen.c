@@ -440,7 +440,7 @@ struct CS2_OpcodeSemantics const cs2_opcode_semantics[] =
         CS2_SEM_DIALECT_CANONICAL | CS2_SEM_DIALECT_RS2_DAT2,
     },
     {
-        CS2_OP_DEFINE_ARRAY,
+        CS2_OP_DEFINE_ARRAY_V2,
         "DEFINE_ARRAY",
         CS2_SEM_OPERAND_INT32,
         CS2_SEM_STACK_EFFECT_FIXED,
@@ -460,7 +460,7 @@ struct CS2_OpcodeSemantics const cs2_opcode_semantics[] =
         CS2_SEM_DIALECT_CANONICAL | CS2_SEM_DIALECT_RS2_DAT2,
     },
     {
-        CS2_OP_PUSH_ARRAY_INT,
+        CS2_OP_PUSH_ARRAY_INT_V2,
         "PUSH_ARRAY_INT",
         CS2_SEM_OPERAND_INT32,
         CS2_SEM_STACK_EFFECT_ARRAY_ELEMENT_TYPE,
@@ -480,7 +480,7 @@ struct CS2_OpcodeSemantics const cs2_opcode_semantics[] =
         CS2_SEM_DIALECT_CANONICAL | CS2_SEM_DIALECT_RS2_DAT2,
     },
     {
-        CS2_OP_POP_ARRAY_INT,
+        CS2_OP_POP_ARRAY_INT_V2,
         "POP_ARRAY_INT",
         CS2_SEM_OPERAND_INT32,
         CS2_SEM_STACK_EFFECT_ARRAY_ELEMENT_TYPE,

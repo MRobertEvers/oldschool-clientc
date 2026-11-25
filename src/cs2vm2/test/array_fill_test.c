@@ -7,13 +7,13 @@
 static void check(int type,int value,int offset,int count,const char* text,
                   const int* expected,int error_expected)
 {
-    uint16_t ops[]={CS2_OP_PUSH_CONSTANT_INT,CS2_OP_DEFINE_ARRAY,
+    uint16_t ops[]={CS2_OP_PUSH_CONSTANT_INT,CS2_OP_DEFINE_ARRAY_V2,
         CS2_OP_PUSH_STRING_LOCAL,CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_ARRAY_FILL,CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_ARRAY_INT,
-        CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_ARRAY_INT,
-        CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_ARRAY_INT,
-        CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_ARRAY_INT,CS2_OP_RETURN};
+        CS2_OP_ARRAY_FILL,CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_ARRAY_INT_V2,
+        CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_ARRAY_INT_V2,
+        CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_ARRAY_INT_V2,
+        CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_ARRAY_INT_V2,CS2_OP_RETURN};
     int values[]={4,type==0 ? (value==-1 ? 208:'i'):'s',0,value,offset,count,type,0,0,0,1,0,2,0,3,0,0};
     char* strings[17]={0};
     if(type==2){ops[3]=CS2_OP_PUSH_CONSTANT_STRING;strings[3]=(char*)text;}

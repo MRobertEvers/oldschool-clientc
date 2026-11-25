@@ -609,37 +609,9 @@ cs2vm2_array_begin(
     return 1;
 }
 
-/* 634 SWITCH lives at wire 51; canonical moved it to 60 and reused 51 for
- * GET_VARC_LONG. STRUCT_PARAM: 634 wire 4500, canonical 6516 -- same stack
- * shape (pop struct, param; push int or string by the ParamType), so the
- * existing handler is correct once the id lines up. */
-static struct CS2VM2_DialectRemap const g_cs2vm2_remap_rs2_634[] = {
-    { 51,   CS2_OP_SWITCH       },
-    { 4500, CS2_OP_STRUCT_PARAM },
-};
-
-struct CS2VM2_Dialect const CS2VM2_DIALECT_OSRS = {
-    .name = "osrs",
-    .cc_create_nested = true,
-    .array_handles = true,
-};
-
-struct CS2VM2_Dialect const CS2VM2_DIALECT_OSRS_230 = {
-    .name = "osrs230",
-    .cc_create_nested = true,
-};
-
-struct CS2VM2_Dialect const CS2VM2_DIALECT_OSRS_229 = {
-    .name = "osrs229",
-};
-
-struct CS2VM2_Dialect const CS2VM2_DIALECT_RS2_634 = {
-    .name = "rs2_634",
-    .remap = g_cs2vm2_remap_rs2_634,
-    .remap_count = (int)(sizeof(g_cs2vm2_remap_rs2_634) / sizeof(g_cs2vm2_remap_rs2_634[0])),
-    .array_handles = true,
-    .rs2_commands = true,
-};
+/* Every dialect's wire table (tools/cs2_gen_opcodes/canonical.py): the four
+ * struct CS2VM2_Dialect objects cs2vm2_dialect.h declares. */
+#include "cs2vm2_dialects.gen.inc"
 
 /* An array HANDLE is an array's address carried in a string slot
  * (CS2VM2_ArrayHandle; the string stack and gosub args copy it verbatim).
@@ -676,7 +648,7 @@ cs2vm2_array_local(
     return cs2vm2_array_from_handle(vm, cs2vm2_frame_str_local(frame, slot));
 }
 
-/* PUSH/POP_ARRAY_INT_SHARED's operand: the number of one of the arrays every
+/* PUSH/POP_ARRAY_INT_V1's operand: the number of one of the arrays every
  * frame of the run shares (OldSchool through 230, which has no handles). */
 static struct CS2VM2_Array*
 cs2vm2_array_shared(
@@ -777,8 +749,9 @@ CS2VM2_CheckYieldHalt(
     if( vm->yield_halt_count > 1 )
     {
         TORIRS_LOG(
-            "CS2VM: opcode %d yielded more than once at script=%d pc=%d frame=%d\n",
-            opcode,
+            "CS2VM: %s (wire %d) yielded more than once at script=%d pc=%d frame=%d\n",
+            CS2_OpCode_String(opcode),
+            CS2VM2_DialectWireOf(frame->script->dialect, opcode),
             script_id,
             op_pc,
             vm->frame_sp);
@@ -807,7 +780,8 @@ CS2VM2_IsTargetingOpcode(int opcode)
     case CS2_OP_CC_FIND_LAYER:
     case CS2_OP_CC_FIND_NEXT_SIBLING:
     case CS2_OP_IF_QUERY:
-    case CS2_OP_CC_CREATE:
+    case CS2_OP_CC_CREATE_V1:
+    case CS2_OP_CC_CREATE_V2:
     case CS2_OP_CC_COPY:
     case CS2_OP_CC_CREATE_CHILD:
     case CS2_OP_CC_CREATE_SIBLING:
@@ -2327,10 +2301,10 @@ CS2VM2_Op_CC_Create(
     return cs2vm2_cc_create_ask(vm, took, operand, parent_id, type, child_index, is_nested);
 }
 
-/* CC_CREATE_FLAT: CC_CREATE where the era pushes only (parent, type, index):
- * RS2 634 (Class66.method710 opcode 100 pops three) and OldSchool through 229.
- * Popping a nested flag there steals the parent id and the create fails on a
- * garbage uid. Renumbered from 100 at load (CS2VM2_ScriptResolveDialect). */
+/* CC_CREATE_V1: the create where the era pushes only (parent, type, index):
+ * RS2 634 (Class66.method710 opcode 100 pops three) and OldSchool through 229,
+ * whose dialects map wire 100 here. Popping a nested flag there steals the
+ * parent id and the create fails on a garbage uid. */
 static int
 CS2VM2_Op_CC_CreateFlat(
     struct CS2VM2_Thread* vm,
@@ -6478,8 +6452,8 @@ cs2vm2_long_fail(
 {
     struct CS2VM2_Frame* frame = CS2VM_FRAME(vm);
     TORIRS_LOG(
-        "CS2VM2: long op %d %s (script %d pc %d)\n",
-        opcode,
+        "CS2VM2: long op wire %d %s (script %d pc %d)\n",
+        CS2VM2_DialectWireOf(frame->script ? frame->script->dialect : NULL, opcode),
         why,
         frame->script ? frame->script->script_id : -1,
         frame->pc);
@@ -8423,9 +8397,9 @@ CS2VM2_Op_DefineArray(
     return CS2VM_EXECNO_OK;
 }
 
-/* DEFINE_ARRAY_SHARED: the operand's high half numbers one of the arrays every
+/* DEFINE_ARRAY_V1: the operand's high half numbers one of the arrays every
  * frame of the run shares (OldSchool through 230: script 2255 sorts array 0
- * recursively with no array argument). Renumbered from DEFINE_ARRAY at load. */
+ * recursively with no array argument). */
 static int
 CS2VM2_Op_DefineArrayShared(
     struct CS2VM2_Thread* vm,
@@ -8482,8 +8456,8 @@ CS2VM2_Op_PushArrayInt(
     return cs2vm2_array_push_element(vm, cs2vm2_array_local(vm, frame, operand), index);
 }
 
-/* PUSH_ARRAY_INT_SHARED: the operand numbers a shared array (OldSchool
- * through 230). Renumbered from PUSH_ARRAY_INT at load. */
+/* PUSH_ARRAY_INT_V1: the operand numbers a shared array (OldSchool
+ * through 230). */
 static int
 CS2VM2_Op_PushArrayIntShared(
     struct CS2VM2_Thread* vm,
@@ -8556,8 +8530,8 @@ CS2VM2_Op_PopArrayInt(
     return cs2vm2_array_pop_element(vm, cs2vm2_array_local(vm, frame, operand));
 }
 
-/* POP_ARRAY_INT_SHARED: the operand numbers a shared array (OldSchool
- * through 230). Renumbered from POP_ARRAY_INT at load. */
+/* POP_ARRAY_INT_V1: the operand numbers a shared array (OldSchool
+ * through 230). */
 static int
 CS2VM2_Op_PopArrayIntShared(
     struct CS2VM2_Thread* vm,
@@ -10207,6 +10181,24 @@ CS2VM2_Op_CC_SetOnStatTransmit(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT);
 }
 
+/* The wire id a print names for the instruction at `pc` of `script`: the
+ * dialect's spelling, or the undefined one the script held there. */
+static int
+cs2vm2_wire_at(
+    struct CS2VM2_Script const* script,
+    int pc)
+{
+    assert(script);
+    int const op = script->opcodes[pc];
+    if( op != CS2_OP_UNDEFINED_WIRE_ID )
+        return CS2VM2_DialectWireOf(script->dialect, op);
+    for( int i = 0; i < script->undefined_wire_count; i++ )
+        if( script->undefined_wires[i].pc == pc )
+            return (int)script->undefined_wires[i].wire;
+    assert(0 && "UNDEFINED_WIRE_ID with no wire id recorded at its pc");
+    return -1;
+}
+
 /* Print the calling script and a window of ops around the current pc when an
  * unimplemented opcode is hit, so its stack signature can be read off the
  * surrounding pushes/pops (how the MANUAL_STACK entries in gen_opcode_stack.py
@@ -10214,16 +10206,14 @@ CS2VM2_Op_CC_SetOnStatTransmit(
 static void
 CS2VM2_ReportUnimplementedOpcode(
     struct CS2VM2_Frame const* frame,
-    int opcode)
+    int opcode,
+    int wire)
 {
     struct CS2VM2_Script const* script = frame->script;
     int first;
     int last;
 
-    TORIRS_LOG(
-        "CS2VM2: unimplemented opcode %d (%s) — no stack signature\n",
-        opcode,
-        CS2_OpCode_String(opcode));
+    TORIRS_LOG("CS2VM2: unimplemented wire opcode %d (%s) — no stack signature\n", wire, CS2_OpCode_String(opcode));
 
     if( !script )
         return;
@@ -10244,10 +10234,10 @@ CS2VM2_ReportUnimplementedOpcode(
     for( int pci = first; pci < last; pci++ )
     {
         TORIRS_ERR(
-            "  %s pc=%d op=%d %-22s operand=%d str=%s\n",
+            "  %s pc=%d wire=%d %-22s operand=%d str=%s\n",
             pci == frame->pc ? "->" : "  ",
             pci,
-            script->opcodes[pci],
+            cs2vm2_wire_at(script, pci),
             CS2_OpCode_String(script->opcodes[pci]),
             script->int_operands ? script->int_operands[pci] : 0,
             (script->string_operands && script->string_operands[pci]) ? script->string_operands[pci]
@@ -10719,10 +10709,10 @@ CS2VM2_Op_ClientRejects(
     int opcode)
 {
     assert(vm);
-    (void)vm;
+    struct CS2VM2_Frame const* const frame = vm->frame_sp > 0 ? CS2VM_FRAME(vm) : NULL;
     TORIRS_LOG(
-        "CS2VM2: opcode %d (%s) is not implemented by the reference client; the script aborts\n",
-        opcode,
+        "CS2VM2: wire opcode %d (%s) is not implemented by the reference client; the script aborts\n",
+        CS2VM2_DialectWireOf(frame ? frame->script->dialect : NULL, opcode),
         CS2_OpCode_String(opcode));
     return CS2VM_EXECNO_ERROR;
 }
@@ -11178,79 +11168,39 @@ CS2VM2_Op_SafeArea(
     return CS2VM2_Ask(vm, &request, took);
 }
 
-/*
- * RS2 (634/643) commands that name a different command than OldSchool's id
- * does, each renumbered at load to a vm-dialect id of its own (RS2_<wire id>,
- * cs2_opcode.h). Their 634 stack signatures are those ids' doc comments
- * (tools/cs2_gen_opcodes/opcode_docs.py), so the generated stack table runs
- * them through CS2VM2_Op_StackMetaStub like any other stub.
- *
- * Read off the rev-634 client's command dispatcher (`Class66`, and the classes it
- * chains to; the full diff is docs/RS2_634_CLIENT_REFERENCES.md section 3) by
- * counting stack traffic:
- * `anIntArray1149[--anInt1173]` pops an int, `anIntArray1149[anInt1173++] =` pushes
- * one, `aStringArray1152` is the string stack, and `anInt1173 -= N` followed by
- * indexed reads pops N at once.
- *
- * Only ids whose 634 meaning differs belong here. Two of them demonstrably mean
- * different commands in the two eras — 4124 (634: two ints in, one string out;
- * OldSchool 239 script 5031 calls it with an empty stack) and 6506 (634 pushes
- * 4 ints + 3 strings; OldSchool 239 script 6918 stores 4 ints + 2) — which is why
- * each is a command of its own rather than another signature on the canonical id.
- *
- * These are stubs, not implementations: the counts keep the stack balanced so the
- * rest of the script runs, and every pushed value is a zero/empty default.
- * 1613 is the one with real behaviour (RS2_CC_GETPARAM).
- */
-static struct CS2VM2_DialectRemap const g_cs2vm2_rs2_variants[] = {
-    { 202, CS2_OP_RS2_202 },
-    { 1122, CS2_OP_RS2_1122 },
-    { 1311, CS2_OP_RS2_1311 },
-    { 1613, CS2_OP_RS2_CC_GETPARAM },
-    { 2122, CS2_OP_RS2_2122 },
-    { 2314, CS2_OP_RS2_2314 },
-    { 2703, CS2_OP_RS2_2703 },
-    { 3329, CS2_OP_RS2_3329 },
-    { 3335, CS2_OP_RS2_3335 },
-    { 3340, CS2_OP_RS2_3340 },
-    { 3351, CS2_OP_RS2_3351 },
-    { 3609, CS2_OP_RS2_3609 },
-    { 3619, CS2_OP_RS2_3619 },
-    { 4124, CS2_OP_RS2_4124 },
-    { 4125, CS2_OP_RS2_4125 },
-    { 5003, CS2_OP_RS2_5003 },
-    { 5004, CS2_OP_RS2_5004 },
-    { 5010, CS2_OP_RS2_5010 },
-    { 5011, CS2_OP_RS2_5011 },
-    { 5012, CS2_OP_RS2_5012 },
-    { 5019, CS2_OP_RS2_5019 },
-    { 5024, CS2_OP_RS2_5024 },
-    { 5056, CS2_OP_RS2_5056 },
-    { 5102, CS2_OP_RS2_5102 },
-    { 5420, CS2_OP_RS2_5420 },
-    { 5424, CS2_OP_RS2_5424 },
-    { 5428, CS2_OP_RS2_5428 },
-    { 5504, CS2_OP_RS2_5504 },
-    { 5505, CS2_OP_RS2_5505 },
-    { 5506, CS2_OP_RS2_5506 },
-    { 5507, CS2_OP_RS2_5507 },
-    { 5508, CS2_OP_RS2_5508 },
-    { 5509, CS2_OP_RS2_5509 },
-    { 5510, CS2_OP_RS2_5510 },
-    { 5547, CS2_OP_RS2_5547 },
-    { 6506, CS2_OP_RS2_6506 },
-    { 6510, CS2_OP_RS2_6510 },
-    { 6900, CS2_OP_RS2_6900 },
-};
-
-/* The vm-dialect id an RS2 script's `op` becomes, or `op` itself. */
-static uint16_t
-cs2vm2_rs2_variant(uint16_t op)
+int
+CS2VM2_DialectTranslate(
+    struct CS2VM2_Dialect const* dialect,
+    int wire)
 {
-    for( size_t i = 0; i < sizeof(g_cs2vm2_rs2_variants) / sizeof(g_cs2vm2_rs2_variants[0]); i++ )
-        if( g_cs2vm2_rs2_variants[i].wire == op )
-            return g_cs2vm2_rs2_variants[i].canonical;
-    return op;
+    assert(dialect);
+    int lo = 0;
+    int hi = dialect->wire_count - 1;
+    while( lo <= hi )
+    {
+        int const mid = lo + (hi - lo) / 2;
+        int const at = dialect->wire_to_op[mid].wire;
+        if( at == wire )
+            return dialect->wire_to_op[mid].op;
+        if( at < wire )
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return -1;
+}
+
+int
+CS2VM2_DialectWireOf(
+    struct CS2VM2_Dialect const* dialect,
+    int op)
+{
+    if( !dialect )
+        dialect = &CS2VM2_DIALECT_OSRS;
+    if( op < 0 || op >= CS2_OP_PLAIN_COUNT )
+        return -1;
+    uint16_t const wire = dialect->op_to_wire[op];
+    return wire == CS2VM2_DIALECT_NO_WIRE ? -1 : (int)wire;
 }
 
 void
@@ -11259,25 +11209,35 @@ CS2VM2_ScriptResolveDialect(struct CS2VM2_Script* script)
     assert(script);
     assert(script->dialect);
     assert(script->opcodes || script->op_count == 0);
+    assert(!script->undefined_wires);
 
     struct CS2VM2_Dialect const* const dialect = script->dialect;
+    int undefined = 0;
+    for( int pc = 0; pc < script->op_count; pc++ )
+        if( CS2VM2_DialectTranslate(dialect, script->opcodes[pc]) < 0 )
+            undefined++;
+    if( undefined > 0 )
+    {
+        script->undefined_wires =
+            ToriMem_Alloc(ToriMem_Script(), (size_t)undefined * sizeof(*script->undefined_wires));
+        assert(script->undefined_wires);
+    }
+
     for( int pc = 0; pc < script->op_count; pc++ )
     {
-        uint16_t op = script->opcodes[pc];
-        if( dialect->rs2_commands )
-            op = cs2vm2_rs2_variant(op);
-        if( !dialect->cc_create_nested && op == CS2_OP_CC_CREATE )
-            op = CS2_OP_CC_CREATE_FLAT;
-        if( !dialect->array_handles )
+        int op = CS2VM2_DialectTranslate(dialect, script->opcodes[pc]);
+        if( op < 0 )
         {
-            if( op == CS2_OP_DEFINE_ARRAY )
-                op = CS2_OP_DEFINE_ARRAY_SHARED;
-            else if( op == CS2_OP_PUSH_ARRAY_INT )
-                op = CS2_OP_PUSH_ARRAY_INT_SHARED;
-            else if( op == CS2_OP_POP_ARRAY_INT )
-                op = CS2_OP_POP_ARRAY_INT_SHARED;
+            /* A command this era's table does not define. The script loads;
+             * the instruction does what one with no stack signature does if
+             * it is run (CS2VM2_Op_UndefinedWireId), naming this wire id. */
+            struct CS2VM2_UndefinedWire* const at = &script->undefined_wires[script->undefined_wire_count++];
+            at->pc = pc;
+            at->wire = script->opcodes[pc];
+            op = CS2_OP_UNDEFINED_WIRE_ID;
         }
-        script->opcodes[pc] = op;
+        assert(op < CS2_OP_PLAIN_COUNT);
+        script->opcodes[pc] = (uint16_t)op;
     }
 }
 
@@ -11352,14 +11312,16 @@ CS2VM2_Op_StackMetaStub(
                 if( in_table )
                     reported[opcode] = true;
                 TORIRS_LOG(
-                    "cs2-survey: opcode %d unimplemented (script %d pc %d)\n",
-                    opcode,
+                    "cs2-survey: wire opcode %d (%s) unimplemented (script %d pc %d)\n",
+                    CS2VM2_DialectWireOf(frame->script ? frame->script->dialect : NULL, opcode),
+                    CS2_OpCode_String(opcode),
                     frame->script ? frame->script->script_id : -1,
                     frame->pc);
             }
             return CS2VM_EXECNO_OK;
         }
-        CS2VM2_ReportUnimplementedOpcode(frame, opcode);
+        CS2VM2_ReportUnimplementedOpcode(
+            frame, opcode, CS2VM2_DialectWireOf(frame->script ? frame->script->dialect : NULL, opcode));
         assert(0 && "unimplemented CS2 opcode reached StackMetaStub");
     }
 
@@ -11380,9 +11342,10 @@ CS2VM2_Op_StackMetaStub(
         {
             announced[opcode] = true;
             TORIRS_LOG(
-                "cs2-stub: opcode %d has an inherited signature (%d,%d,%d,%d) but no "
+                "cs2-stub: wire opcode %d (%s) has an inherited signature (%d,%d,%d,%d) but no "
                 "implementation — stack balanced, results faked (script %d pc %d)\n",
-                opcode,
+                CS2VM2_DialectWireOf(frame->script ? frame->script->dialect : NULL, opcode),
+                CS2_OpCode_String(opcode),
                 meta.int_in,
                 meta.str_in,
                 meta.int_out,
@@ -11414,6 +11377,50 @@ CS2VM2_Op_StackMetaStub(
         if( CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm)) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
+    return CS2VM_EXECNO_OK;
+}
+
+/*
+ * UNDEFINED_WIRE_ID: the script reached a wire id its dialect does not
+ * define (CS2VM2_ScriptResolveDialect kept it beside the script). It takes
+ * the path of an instruction with no stack signature, naming the wire id:
+ * one survey line per wire id under TORIRS_CS2_SURVEY, otherwise the report
+ * and an assert, and under NDEBUG the report alone, the stack untouched.
+ */
+static int
+CS2VM2_Op_UndefinedWireId(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame)
+{
+    assert(vm);
+    assert(frame);
+    struct CS2VM2_Script const* const script = frame->script;
+    int const wire = cs2vm2_wire_at(script, frame->pc - 1);
+
+    static bool survey = false;
+    static bool survey_read = false;
+    if( !survey_read )
+    {
+        survey = getenv("TORIRS_CS2_SURVEY") != NULL;
+        survey_read = true;
+    }
+    if( survey )
+    {
+        static bool reported[UINT16_MAX + 1];
+        if( !reported[wire] )
+        {
+            reported[wire] = true;
+            TORIRS_LOG(
+                "cs2-survey: wire opcode %d (%s) unimplemented (script %d pc %d)\n",
+                wire,
+                CS2_OpCode_String(CS2_OP_UNDEFINED_WIRE_ID),
+                script->script_id,
+                frame->pc);
+        }
+        return CS2VM_EXECNO_OK;
+    }
+    CS2VM2_ReportUnimplementedOpcode(frame, CS2_OP_UNDEFINED_WIRE_ID, wire);
+    assert(0 && "a wire id the script's dialect does not define was run");
     return CS2VM_EXECNO_OK;
 }
 
@@ -13357,14 +13364,17 @@ CS2VM2_OpArgCounts(
 #endif
 
 #if CS2VM2_RUNOP_SPLIT
-/* The opcodes cs2vm2_run_op_outlined runs: 3000 and up, except the string
- * group (4100..4199), which is common and never asks the host, and the
- * client-state group (3300..3399): INV_GETOBJ and INV_GETNUM run once per
- * bank slot, and the loop function has the room since the yield mark went
- * (53 KB of JavaScriptCore's 100 KB before this group, measured 2026-11-24). */
+/* The instructions cs2vm2_run_op_outlined runs: the reference client's
+ * groups from CLIENT (wire 3000) on, and the RS2 634 section after them,
+ * except the string group, which is common and never asks the host, and the
+ * client-state group: INV_GETOBJ and INV_GETNUM run once per bank slot, and
+ * the loop function has the room since the yield mark went (53 KB of
+ * JavaScriptCore's 100 KB before this group, measured 2026-11-24). Canonical
+ * order is the wire order, so each is one range of the dense numbering. */
 #define CS2VM2_RUNOP_OUTLINED(opcode)                                                              \
-    ((opcode) >= 3000 && !((opcode) >= 3300 && (opcode) < 3400) &&                                 \
-     ((opcode) < 4100 || (opcode) >= 4200))
+    ((opcode) >= CS2_OPS_CLIENT_BEGIN &&                                                           \
+     !((opcode) >= CS2_OPS_CLIENT_STATE_BEGIN && (opcode) < CS2_OPS_CLIENT_STATE_END) &&           \
+     !((opcode) >= CS2_OPS_STRING_BEGIN && (opcode) < CS2_OPS_STRING_END))
 /* The definition below is the body both halves inline. */
 #define CS2VM2_RunOp cs2vm2_run_op_body
 static inline __attribute__((always_inline)) int
@@ -13387,9 +13397,9 @@ CS2VM2_RunOp(
     assert(vm);
     assert(frame);
 
-    /* No dialect test here: an RS2 command that names a different command than
-     * OldSchool's arrives as a vm-dialect id of its own (renumbered at load,
-     * CS2VM2_ScriptResolveDialect), so every id below means one thing. */
+    /* No dialect test here: the script's dialect chose the instruction when it
+     * was loaded (CS2VM2_ScriptResolveDialect), so every instruction below
+     * means one thing. */
     switch( opcode )
     {
     /* === CS2 opcode group: vm-core (0..99) ===
@@ -13508,12 +13518,19 @@ CS2VM2_RunOp(
         return CS2VM2_Op_Switch(vm, frame, operand);
     case CS2_OP_RETURN:
         return CS2VM2_Op_Return(vm, frame);
-    case CS2_OP_DEFINE_ARRAY:
+    case CS2_OP_DEFINE_ARRAY_V2:
         return CS2VM2_Op_DefineArray(vm, frame, operand);
-    case CS2_OP_PUSH_ARRAY_INT:
+    case CS2_OP_PUSH_ARRAY_INT_V2:
         return CS2VM2_Op_PushArrayInt(vm, frame, operand);
-    case CS2_OP_POP_ARRAY_INT:
+    case CS2_OP_POP_ARRAY_INT_V2:
         return CS2VM2_Op_PopArrayInt(vm, frame, operand);
+    /* Numbered arrays shared by every frame of a run (OldSchool through 230). */
+    case CS2_OP_DEFINE_ARRAY_V1:
+        return CS2VM2_Op_DefineArrayShared(vm, frame, operand);
+    case CS2_OP_PUSH_ARRAY_INT_V1:
+        return CS2VM2_Op_PushArrayIntShared(vm, frame, operand);
+    case CS2_OP_POP_ARRAY_INT_V1:
+        return CS2VM2_Op_PopArrayIntShared(vm, frame, operand);
 
     /* === CS2 opcode group: component (100..999) ===
      * component construction and addressing.
@@ -13528,8 +13545,11 @@ CS2VM2_RunOp(
         return CS2VM2_Op_EntityOverlay(vm, opcode, operand);
     case CS2_OP_CC_DELETE:
         return CS2VM2_Op_CC_Delete(vm, frame, operand);
-    case CS2_OP_CC_CREATE:
+    case CS2_OP_CC_CREATE_V2:
         return CS2VM2_Op_CC_Create(vm, frame, operand);
+    /* Three arguments: RS2 634 and OldSchool through 229. */
+    case CS2_OP_CC_CREATE_V1:
+        return CS2VM2_Op_CC_CreateFlat(vm, frame, operand);
     case CS2_OP_CC_COPY:
         return CS2VM2_Op_CC_Copy(vm, frame, operand);
     case CS2_OP_CC_FIND:
@@ -15912,66 +15932,76 @@ CS2VM2_RunOp(
         return CS2VM2_Ask(vm, &request, took);
     }
 
-    /* === CS2 opcode group: vm-dialect (9000..9099) ===
-     * dialect variants the VM renumbers commands to at load.
-     * Not a client range: the VM's own ids, given at load; no cache spells them. */
-    case CS2_OP_CC_CREATE_FLAT:
-        return CS2VM2_Op_CC_CreateFlat(vm, frame, operand);
-    case CS2_OP_DEFINE_ARRAY_SHARED:
-        return CS2VM2_Op_DefineArrayShared(vm, frame, operand);
-    case CS2_OP_PUSH_ARRAY_INT_SHARED:
-        return CS2VM2_Op_PushArrayIntShared(vm, frame, operand);
-    case CS2_OP_POP_ARRAY_INT_SHARED:
-        return CS2VM2_Op_PopArrayIntShared(vm, frame, operand);
-    case CS2_OP_RS2_CC_GETPARAM:
-        return CS2VM2_Op_RS2_CC_GetParam(vm, frame, operand);
-    /* RS2 634 commands that name a different command than OldSchool's: not
-     * implemented, run as their 634 stack signature (the generated table). */
-    case CS2_OP_RS2_202:
-    case CS2_OP_RS2_1122:
-    case CS2_OP_RS2_1311:
-    case CS2_OP_RS2_2122:
-    case CS2_OP_RS2_2314:
-    case CS2_OP_RS2_2703:
-    case CS2_OP_RS2_3329:
-    case CS2_OP_RS2_3335:
-    case CS2_OP_RS2_3340:
-    case CS2_OP_RS2_3351:
-    case CS2_OP_RS2_3609:
-    case CS2_OP_RS2_3619:
-    case CS2_OP_RS2_4124:
-    case CS2_OP_RS2_4125:
-    case CS2_OP_RS2_5003:
-    case CS2_OP_RS2_5004:
-    case CS2_OP_RS2_5010:
-    case CS2_OP_RS2_5011:
-    case CS2_OP_RS2_5012:
-    case CS2_OP_RS2_5019:
-    case CS2_OP_RS2_5024:
-    case CS2_OP_RS2_5056:
-    case CS2_OP_RS2_5102:
-    case CS2_OP_RS2_5420:
-    case CS2_OP_RS2_5424:
-    case CS2_OP_RS2_5428:
-    case CS2_OP_RS2_5504:
-    case CS2_OP_RS2_5505:
-    case CS2_OP_RS2_5506:
-    case CS2_OP_RS2_5507:
-    case CS2_OP_RS2_5508:
-    case CS2_OP_RS2_5509:
-    case CS2_OP_RS2_5510:
-    case CS2_OP_RS2_5547:
-    case CS2_OP_RS2_6506:
-    case CS2_OP_RS2_6510:
-    case CS2_OP_RS2_6900:
-        return CS2VM2_Op_StackMetaStub(vm, frame, opcode, operand);
 
         /* === CS2 opcode group: op-count (13000..13999) ===
          * interpreter operation-count introspection.
          * rev-239 dispatch: Statics.method6889 -> method6817. */
 
-    default:
+    /* === CS2 opcode group: rs2-634 (no wire range) ===
+     * the RS2 634 client's commands that differ from OldSchool's.
+     * The RS2 634 dialect maps the wire ids where the 634 client spells a
+     * different command than OldSchool's to these (canonical.py). */
+    case CS2_OP_RS2_CC_GETPARAM:
+        return CS2VM2_Op_RS2_CC_GetParam(vm, frame, operand);
+    /* Not implemented: each runs as its 634 stack signature (the generated
+     * table), the stack balanced and every result 0 or "". */
+    case CS2_OP_RS2_IF_REMOVEFROMGROUP:
+    case CS2_OP_RS2_CC_SETGRAPHICFLAG:
+    case CS2_OP_RS2_CC_SETANINT713:
+    case CS2_OP_RS2_IF_SETGRAPHICFLAG:
+    case CS2_OP_RS2_IF_SETANINT719:
+    case CS2_OP_RS2_IF_GETDYNAMICCHILDCOUNT:
+    case CS2_OP_RS2_GETABOOLEAN5233:
+    case CS2_OP_RS2_GETLANGUAGE:
+    case CS2_OP_RS2_GETABOOLEAN2329:
+    case CS2_OP_RS2_GETMOUSEBUTTONS:
+    case CS2_OP_RS2_FRIEND_TEST:
+    case CS2_OP_RS2_FRIENDSCHAT_JOINCHAT:
+    case CS2_OP_RS2_TOSTRING_GROUPED:
+    case CS2_OP_RS2_STRINGWIDTH:
+    case CS2_OP_RS2_FRIENDRECORD_GETTEXT_A:
+    case CS2_OP_RS2_FRIENDRECORD_GETINT_A:
+    case CS2_OP_RS2_FRIENDRECORD_GETTEXT_B:
+    case CS2_OP_RS2_FRIENDRECORD_GETTEXT_C:
+    case CS2_OP_RS2_FRIENDRECORD_GETINT_B:
+    case CS2_OP_RS2_FRIENDRECORD_GETTEXT_D:
+    case CS2_OP_RS2_FRIENDRECORD_GETINT_C:
+    case CS2_OP_RS2_ARRAY_GETLENGTH:
+    case CS2_OP_RS2_KEY_ISDOWN:
+    case CS2_OP_RS2_GETINT_A:
+    case CS2_OP_RS2_CHAT_SETSCROLLBARSKIN:
+    case CS2_OP_RS2_GETINT_OF2_A:
+    case CS2_OP_RS2_CAM_FORCEANGLE:
+    case CS2_OP_RS2_CAM_GETANGLE_XA:
+    case CS2_OP_RS2_CAM_GETANGLE_YA:
+    case CS2_OP_RS2_CAM_ACTION_A:
+    case CS2_OP_RS2_CAM_ACTION_B:
+    case CS2_OP_RS2_CAM_ACTION_C:
+    case CS2_OP_RS2_CAM_ACTION_D:
+    case CS2_OP_RS2_GETINT_B:
+    case CS2_OP_RS2_WORLDLIST_SPECIFIC:
+    case CS2_OP_RS2_GETINT_C:
+    case CS2_OP_RS2_GETINT_D:
         return CS2VM2_Op_StackMetaStub(vm, frame, opcode, operand);
+
+    /* === CS2 opcode group: undefined (no wire range) ===
+     * what a wire id the script's dialect does not define becomes at load. */
+    case CS2_OP_UNDEFINED_WIRE_ID:
+        return CS2VM2_Op_UndefinedWireId(vm, frame);
+
+    /* Every instruction above without a case of its own (generated,
+     * cs2vm2_opcode_stack.gen.h): run from its stack signature. */
+    CS2VM2_STACK_META_STUB_CASES
+        return CS2VM2_Op_StackMetaStub(vm, frame, opcode, operand);
+
+    default:
+        /* Unreachable: every opcode of a loaded script is a canonical
+         * instruction below CS2_OP_PLAIN_COUNT (CS2VM2_ScriptResolveDialect
+         * gives it no other; CS2VM2_ScriptPrepare asserts it of one built by
+         * hand), and every one of them has a case above. A
+         * release build therefore drops the range check in front of the
+         * jump table. */
+        CS2VM2_UNREACHABLE("CS2VM2_RunOp: not a plain canonical instruction");
     }
 }
 
@@ -16054,7 +16084,10 @@ CS2VM2_OpArgCounts(
     case CS2_OP_SCALE:
         *int_args = 3;
         return 0;
-    case CS2_OP_CC_CREATE:
+    case CS2_OP_CC_CREATE_V1:
+        *int_args = 3;
+        return 0;
+    case CS2_OP_CC_CREATE_V2:
         *int_args = 4;
         return 0;
     case CS2_OP_CC_COPY:
@@ -16139,7 +16172,11 @@ CS2VM2_DebugPrintOpCode(
     (void)str_operand;
     (void)vm;
 #if CS2VM2_DEBUG_OPS
-    TORIRS_LOG("pc=%d %s (op %d)", frame->pc, CS2_OpCode_String(opcode), opcode);
+    TORIRS_LOG(
+        "pc=%d %s (wire %d)",
+        frame->pc,
+        CS2_OpCode_String(opcode),
+        CS2VM2_DialectWireOf(frame->script ? frame->script->dialect : NULL, opcode));
 
     switch( cs2_opcode_operand_kind(opcode) )
     {
@@ -16812,11 +16849,11 @@ frame_moved:
                 vm->dot_component_id != vm->instr_dot_component_id )
             {
                 TORIRS_ERR(
-                    "CS2VM2: opcode %d (script %d, pc %d) yielded without restoring what it took: "
+                    "CS2VM2: %s (script %d, pc %d) yielded without restoring what it took: "
                     "ints %d (was %d), strings %d (was %d), longs %d (was %d), active %d (was %d), "
                     "dot %d (was %d). Its implementation must put back what it popped "
                     "(CS2VM2_Take* and CS2VM2_Ask, or CS2VM2_YieldRestore)\n",
-                    opcode,
+                    CS2_OpCode_String(opcode),
                     frame->script->script_id,
                     op_pc,
                     vm->ints_stack_top,
@@ -17332,7 +17369,7 @@ CS2VM2_Op_StructParam(
 
 /*
  * Wire 1613 is two different commands, one per dialect; an RS2 script's 1613
- * is renumbered to RS2_CC_GETPARAM at load (CS2VM2_ScriptResolveDialect).
+ * is RS2_CC_GETPARAM by the RS2 634 table (CS2VM2_ScriptResolveDialect).
  *
  * OldSchool (rev 239): cc_getblendmode() -> int, the active component's blend
  * mode. It pops nothing.

@@ -232,8 +232,13 @@ def discover():
             hosted.append(row)
             if ui:
                 opcodes.append(row)
-    all_opcodes = [{"name": name, "opcode": int(value), "disposition": "HOSTED" if name in {r['name'] for r in hosted} else "VM_EXECUTION"}
-                   for name,value in re.findall(r"^#define CS2_OP_(\w+)[ \t]+(\d+)\b", (ROOT / "src/cs2vm2/cs2_opcode.h").read_text(), re.M)]
+    # cs2_opcode.h is the VM's canonical instruction set: each instruction
+    # names the wire id of its command in a comment, which is the number a
+    # human looks up ("opcode" here); the canonical value is the VM's own.
+    hosted_names = {r['name'] for r in hosted}
+    all_opcodes = [{"name": name, "opcode": int(wire), "instruction": int(value),
+                    "disposition": "HOSTED" if name in hosted_names or name.rsplit("_V", 1)[0] in hosted_names else "VM_EXECUTION"}
+                   for name, value, wire in re.findall(r"^\s*CS2_OP_(\w+) = (\d+), /\* (?:rs2_634 )?wire (\d+) \*/", (ROOT / "src/cs2vm2/cs2_opcode.h").read_text(), re.M)]
     for field in fields:
         for key in ("readers", "writers"):
             field[key] = sorted(set(field[key]))

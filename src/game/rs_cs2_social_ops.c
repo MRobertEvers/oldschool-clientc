@@ -26,7 +26,7 @@
 static int
 script_error(int opcode, char const* why)
 {
-    TORIRS_LOG("cs2: %s (opcode %d): %s\n", CS2_OpCode_String(opcode), opcode, why);
+    TORIRS_LOG("cs2: %s: %s\n", CS2_OpCode_String(opcode), why);
     return CS2VM_EXECNO_ERROR;
 }
 
@@ -447,7 +447,7 @@ RS_CS2Host_ExecSocialOp(
         return push_bool(vm, clan->varclan_enabled);
 
     default:
-        TORIRS_LOG("RS_CS2Host_ExecSocialOp: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("RS_CS2Host_ExecSocialOp: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         assert(0 && "RS_CS2Host_ExecSocialOp: unexpected opcode");
         return CS2VM_EXECNO_ERROR;
     }

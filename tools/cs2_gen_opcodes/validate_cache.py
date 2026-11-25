@@ -12,20 +12,17 @@ REPO = Path(__file__).resolve().parents[2]
 CACHE = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO / "cache"
 DAT2 = CACHE / "main_file_cache.dat2"
 IDX12 = CACHE / "main_file_cache.idx12"
-META = REPO / "src" / "cs2vm2" / "cs2_opcode_meta.c"
 
 
 def load_known_opcodes() -> set[int]:
-    known: set[int] = set()
-    if not META.is_file():
-        return known
-    for line in META.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line.startswith("[") and "] = {" in line:
-            idx = int(line[1 : line.index("]")])
-            if '"_unknown"' not in line:
-                known.add(idx)
-    return known
+    """Every wire id the native (OldSchool rev 231+) dialect defines."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import gen_opcodes  # noqa: E402
+
+    entries = gen_opcodes.merge_local(gen_opcodes.parse_opcodes(gen_opcodes.VENDOR))
+    _instructions, dialects, _numbering = gen_opcodes.build_canonical(entries)
+    native = next(d for d in dialects if d.enum_name == "OSRS")
+    return set(native.wire_to_name)
 
 
 def read_u16(data: bytes, off: int) -> int:

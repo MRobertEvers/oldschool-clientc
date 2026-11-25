@@ -107,17 +107,6 @@ OPCODE_GROUPS: tuple[OpcodeGroup, ...] = (
     OpcodeGroup("EXTENSION", "extension", "native extension and client-setting commands", (_span(7700, 8000),), "method11128"),
     OpcodeGroup("ARRAY", "array", "typed list and array commands", (_span(8000, 8100),), "method12336"),
     OpcodeGroup("TYPED_DATA", "typed-data", "typed long-keyed data commands", (_span(8100, 8600),), "method4514"),
-    # Not a client range. A dialect's command whose meaning a cache era changes
-    # (src/cs2vm2/cs2vm2_dialect.h) is renumbered to one of these ids when its
-    # script is loaded, before any jit overlay is built, so the interpreter
-    # dispatches on the id alone. No cache spells them: see VM_ONLY_GROUPS.
-    OpcodeGroup(
-        "VM_DIALECT",
-        "vm-dialect",
-        "dialect variants the VM renumbers commands to at load",
-        (_span(9000, 9100),),
-        "",
-    ),
     OpcodeGroup(
         "OP_COUNT",
         "op-count",
@@ -164,15 +153,20 @@ def group_for_opcode(opcode: int) -> OpcodeGroup | None:
     return None
 
 
-# Groups whose ids the VM assigns and no cache carries: kept out of the wire
-# catalogue (cs2dom's cs2_wire_opcodes.ts) and the dat2a decoder, which
-# describe what a cache can contain.
-VM_ONLY_GROUPS: frozenset[str] = frozenset({"VM_DIALECT"})
-
-
-def is_vm_only(opcode: int) -> bool:
-    group = group_for_opcode(opcode)
-    return group is not None and group.enum_name in VM_ONLY_GROUPS
+# Groups of the VM's canonical instruction set that are no client range: no
+# wire id falls in them, so they have no span. canonical.py assigns their
+# instructions; the generated CS2_OpcodeGroup enum lists them after the ranges.
+#   RS2_634 -- the RS2 634 client's commands that are not OldSchool's command at
+#              the same wire id (canonical.RS2_634_COMMANDS).
+#   UNDEFINED -- UNDEFINED_WIRE_ID alone: what a wire id the script's dialect
+#              does not define becomes at load (canonical.UNDEFINED_WIRE_ID).
+#   JIT     -- the load-time jit's instructions (jit_instructions.py): no cache
+#              spells them and no dialect maps to them.
+CANONICAL_ONLY_GROUPS: tuple[tuple[str, str, str], ...] = (
+    ("RS2_634", "rs2-634", "the RS2 634 client's commands that differ from OldSchool's"),
+    ("UNDEFINED", "undefined", "what a wire id the script's dialect does not define becomes at load"),
+    ("JIT", "jit", "the load-time jit's fused and proven instructions"),
+)
 
 
 def span_for_opcode(opcode: int) -> tuple[OpcodeGroup, OpcodeSpan] | None:

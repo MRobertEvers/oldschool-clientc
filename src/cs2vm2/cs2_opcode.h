@@ -2,4481 +2,4648 @@
 #ifndef CS2_OPCODE_H
 #define CS2_OPCODE_H
 
-#define CS2_OPCODE_MAX 13337
-#define CS2_OPCODE_COUNT 1377
-
-#define CS2_OP_SS_AND -2
-#define CS2_OP_SS_OR -1
-
-/* === CS2 opcode group: vm-core (0..99) ===
- * VM control flow, locals, vars and arrays.
- * rev-239 execution: inline in Statics.method4464.
- */
-/* PUSH_CONSTANT_INT — Push int constant.
- * operand: int constant
- * int stack in:   -
- * str stack in:   -
- * int stack out:  operand
- * str stack out:  -
- */
-#define CS2_OP_PUSH_CONSTANT_INT 0
-/* PUSH_VAR — Read varp.
- * operand: varp id
- * int stack in:   -
- * str stack in:   -
- * int stack out:  varp[operand]
- * str stack out:  -
- */
-#define CS2_OP_PUSH_VAR 1
-/* POP_VAR — Write varp.
- * operand: varp id
- * int stack in:   value
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: varp[operand] = value
- */
-#define CS2_OP_POP_VAR 2
-/* PUSH_CONSTANT_STRING — Push string constant.
- * operand: string index
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  script_string[operand]
- */
-#define CS2_OP_PUSH_CONSTANT_STRING 3
-/* BRANCH — Unconditional branch.
- * operand: branch offset
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: pc += operand
- */
-#define CS2_OP_BRANCH 6
-/* BRANCH_NOT — Branch if not equal.
- * operand: branch offset
- * int stack in:   a, b  (b = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: pc += operand if a != b
- */
-#define CS2_OP_BRANCH_NOT 7
-/* BRANCH_EQUALS — Branch if equal.
- * operand: branch offset
- * int stack in:   a, b  (b = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: pc += operand if a == b
- */
-#define CS2_OP_BRANCH_EQUALS 8
-/* BRANCH_LESS_THAN — Branch if less.
- * operand: branch offset
- * int stack in:   a, b  (b = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: pc += operand if a < b
- */
-#define CS2_OP_BRANCH_LESS_THAN 9
-/* BRANCH_GREATER_THAN — Branch if greater.
- * operand: branch offset
- * int stack in:   a, b  (b = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: pc += operand if a > b
- */
-#define CS2_OP_BRANCH_GREATER_THAN 10
-/* RETURN — Return from script.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: pops frame
- */
-#define CS2_OP_RETURN 21
-/* PUSH_VARBIT — Read varbit.
- * operand: varbit id
- * int stack in:   -
- * str stack in:   -
- * int stack out:  varbit[operand]
- * str stack out:  -
- */
-#define CS2_OP_PUSH_VARBIT 25
-/* POP_VARBIT — Write varbit.
- * operand: varbit id
- * int stack in:   value
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: varbit[operand] = value
- */
-#define CS2_OP_POP_VARBIT 27
-/* BRANCH_LESS_THAN_OR_EQUALS — Branch if less than or equal.
- * operand: branch offset
- * int stack in:   a, b  (b = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: pc += operand if a <= b
- */
-#define CS2_OP_BRANCH_LESS_THAN_OR_EQUALS 31
-/* BRANCH_GREATER_THAN_OR_EQUALS — Branch if greater than or equal.
- * operand: branch offset
- * int stack in:   a, b  (b = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: pc += operand if a >= b
- */
-#define CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS 32
-/* PUSH_INT_LOCAL — Push int local.
- * operand: local index
- * int stack in:   -
- * str stack in:   -
- * int stack out:  int_local[operand]
- * str stack out:  -
- */
-#define CS2_OP_PUSH_INT_LOCAL 33
-/* POP_INT_LOCAL — Pop int local.
- * operand: local index
- * int stack in:   value
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: int_local[operand] = value
- */
-#define CS2_OP_POP_INT_LOCAL 34
-/* PUSH_STRING_LOCAL — Push string local.
- * operand: local index
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  str_local[operand]
- */
-#define CS2_OP_PUSH_STRING_LOCAL 35
-/* POP_STRING_LOCAL — Pop string local.
- * operand: local index
- * int stack in:   -
- * str stack in:   value
- * int stack out:  -
- * str stack out:  -
- * notes: str_local[operand] = value
- */
-#define CS2_OP_POP_STRING_LOCAL 36
-/* JOIN_STRING — Concatenate strings.
- * int stack in:   -
- * str stack in:   a, b   (b = top)
- * int stack out:  -
- * str stack out:  a + b
- */
-#define CS2_OP_JOIN_STRING 37
-/* POP_INT_DISCARD — Discard int.
- * operand: unused (a byte, like RETURN's; not a repeat count)
- * int stack in:   value
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: discards exactly one value
- */
-#define CS2_OP_POP_INT_DISCARD 38
-/* POP_STRING_DISCARD — Discard string.
- * operand: unused (a byte, like RETURN's; not a repeat count)
- * int stack in:   -
- * str stack in:   value
- * int stack out:  -
- * str stack out:  -
- * notes: discards exactly one value
- */
-#define CS2_OP_POP_STRING_DISCARD 39
-/* GOSUB_WITH_PARAMS — Call script.
- * int stack in:   callee args per signature
- * str stack in:   -
- * int stack out:  callee returns per signature
- * str stack out:  -
- */
-#define CS2_OP_GOSUB_WITH_PARAMS 40
-/* PUSH_VARC_INT — Read client int varc.
- * operand: varc id
- * int stack in:   -
- * str stack in:   -
- * int stack out:  varc_int[operand]
- * str stack out:  -
- */
-#define CS2_OP_PUSH_VARC_INT 42
-/* POP_VARC_INT — Write client int varc.
- * operand: varc id
- * int stack in:   value
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: varc_int[operand] = value
- */
-#define CS2_OP_POP_VARC_INT 43
-/* DEFINE_ARRAY — Define int array.
- * operand: array id
- * int stack in:   size
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: creates array[operand]
- */
-#define CS2_OP_DEFINE_ARRAY 44
-/* PUSH_ARRAY_INT — Read array element.
- * operand: array id
- * int stack in:   index
- * str stack in:   -
- * int stack out:  array[operand][index]
- * str stack out:  -
- */
-#define CS2_OP_PUSH_ARRAY_INT 45
-/* POP_ARRAY_INT — Write array element.
- * operand: array id
- * int stack in:   index, value  (value = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: array[operand][index] = value
- */
-#define CS2_OP_POP_ARRAY_INT 46
-#define CS2_OP_PUSH_VARC_STRING_OLD 47
-#define CS2_OP_POP_VARC_STRING_OLD 48
-/* PUSH_VARC_STRING — Read client string varc.
- * operand: varc id
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  varc_string[operand]
- */
-#define CS2_OP_PUSH_VARC_STRING 49
-/* POP_VARC_STRING — Write client string varc.
- * operand: varc id
- * int stack in:   -
- * str stack in:   value
- * int stack out:  -
- * str stack out:  -
- * notes: varc_string[operand] = value
- */
-#define CS2_OP_POP_VARC_STRING 50
-#define CS2_OP_PUSH_VARC_LONG 51
-#define CS2_OP_POP_VARC_LONG 52
-/* SWITCH — Switch jump.
- * int stack in:   key
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: pc = case target or fall through
- */
-#define CS2_OP_SWITCH 60
-#define CS2_OP_PUSH_CONSTANT_LONG 61
-#define CS2_OP_POP_LONG_DISCARD 62
-#define CS2_OP_PUSH_CONSTANT_NULL 63
-#define CS2_OP_PUSH_VAR_LONG 64
-#define CS2_OP_POP_VAR_LONG 65
-#define CS2_OP_PUSH_LONG_LOCAL 66
-#define CS2_OP_POP_LONG_LOCAL 67
-#define CS2_OP_LONG_BRANCH_NOT 68
-#define CS2_OP_LONG_BRANCH_EQUALS 69
-#define CS2_OP_LONG_BRANCH_LESS_THAN 70
-#define CS2_OP_LONG_BRANCH_GREATER_THAN 71
-#define CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS 72
-#define CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS 73
-#define CS2_OP_PUSH_VARCLANSETTING 74
-#define CS2_OP_PUSH_VARCLAN 76
-/* BRANCH_IF_ONE — RS2-era (rev 634) conditional branch.
- * operand: branch offset
- * int stack in:   value
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: pc += operand if value == 1. Free in the OSRS numbering
- *        (nothing between 76 and 100); claimed here rather than
- *        dialect-translated. See engine/cs2_opcode_dialect.h. */
-#define CS2_OP_BRANCH_IF_ONE 86
-
-/* === CS2 opcode group: component (100..999) ===
- * component construction and addressing.
- * rev-239 dispatch: Statics.method6889 -> method4548.
- */
-/* CC_CREATE — Create dynamic child component.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   parent, type, child_index, is_nested  (is_nested = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: sets active to new child. Fixed CC_CREATE to take 4 args
- *        (rev ≥ 200 / osrs230), which was breaking stack analysis.
- *        Older revisions (< 200) used 3 args [parent, type, child_index].
- */
-#define CS2_OP_CC_CREATE 100
-#define CS2_OP_CC_DELETE 101
-/* CC_DELETEALL — Delete every dynamic child of a component.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_DELETEALL 102
-/* CC_CREATE_ENTITYOVERLAY — Create a dynamic child in a scripted entity overlay layer.
- * int stack in:   overlay, type, child_index  (child_index = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: The parent is an overlay index, not a component id. Sets the active component to the new child; dynamic layers (type 0) and child-slot gaps are rejected. See game/rs_entity_overlay.h.
- */
-#define CS2_OP_CC_CREATE_ENTITYOVERLAY 103
-/* CC_DELETEALL_ENTITYOVERLAY — Delete every dynamic child from a scripted entity overlay layer.
- * int stack in:   overlay
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_DELETEALL_ENTITYOVERLAY 104
-/* CC_COPY — Clone a dynamic child into another slot under the same parent.
- * int stack in:   parent, src_sub, dst_sub  (dst_sub = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: sets active to the copy; used by the bank tab strip builder
- */
-#define CS2_OP_CC_COPY 105
-#define CS2_OP_CC_CREATE_CHILD 106
-#define CS2_OP_CC_CREATE_SIBLING 107
-/* CC_FIND — Find child by sub-id.
- * int stack in:   parent, sub                     (sub = top)
- * str stack in:   -
- * int stack out:  1 if found (active set) else 0
- * str stack out:  -
- */
-#define CS2_OP_CC_FIND 200
-/* IF_FIND — Find interface component.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  1 if found (active set) else 0
- * str stack out:  -
- */
-#define CS2_OP_IF_FIND 201
-/* IF_FIND_ENTITYOVERLAY — Make a scripted entity overlay layer the active component.
- * int stack in:   overlay
- * str stack in:   -
- * int stack out:  1 if found (active set) else 0
- * str stack out:  -
- * notes: This is opcode 202 even though the vendored decompiler maps both _202 and _203 to 202. Rev-239 call sites pass one argument; treating it as the old guessed CC_FINDROOT leaks an int.
- */
-#define CS2_OP_IF_FIND_ENTITYOVERLAY 202
-/* CC_FIND_ENTITYOVERLAY — Find a dynamic child inside a scripted entity overlay layer.
- * int stack in:   overlay, sub                    (sub = top)
- * str stack in:   -
- * int stack out:  1 if found (active set) else 0
- * str stack out:  -
- * notes: Opcode 203; completes the reference overlay-layer family.
- */
-#define CS2_OP_CC_FIND_ENTITYOVERLAY 203
-#define CS2_OP_CC_FIND_PARENT 204
-#define CS2_OP_CC_FIND_LAYER 205
-#define CS2_OP_CC_FIND_NEXT_SIBLING 206
-#define CS2_OP_CC_FIND_PREV_SIBLING 207
-#define CS2_OP_CC_CHILDCOUNT 208
-#define CS2_OP_CC_PARENTID 209
-#define CS2_OP_CC_FIND_PARAM 210
-#define CS2_OP_IF_QUERY 211
-#define CS2_OP_CC_QUERY 212
-#define CS2_OP_IF_QUERY_NEXT 213
-#define CS2_OP__213 213
-/* IF_QUERY_NEXTID — Advance the children iterator and push the next child sub-id.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  next collected sub-id, or -1 once the iterator is exhausted
- * str stack out:  -
- * notes: Opcode 214. rev-239 Statics.method7953(class332): `cursor >= count ? -1 : ids[cursor++]` over the id list that IF_QUERY (211) and CC_QUERY (212) fill. It shares that cursor with IF_QUERY_NEXT (213), which resolves the same id to a component and makes it active instead of pushing it.
- */
-#define CS2_OP_IF_QUERY_NEXTID 214
-#define CS2_OP_IF_QUERY_IDS 215
-#define CS2_OP_IF_QUERY_REFINE 216
-#define CS2_OP_CC_FIND_CHILD 217
-#define CS2_OP_CC_FIND_FIRST_SIBLING 218
-#define CS2_OP_CC_FIND_LAST_SIBLING 219
-#define CS2_OP_CC_FIND_FIRST_CHILD 220
-#define CS2_OP_CC_FIND_LAST_CHILD 221
-#define CS2_OP_CC_ASSERT 222
-
-/* === CS2 opcode group: component-layout (1000..1099 / 2000..2099) ===
- * component position, size and visibility setters.
- * rev-239 dispatch: Statics.method6889 -> method5842.
- * The listed ranges deliberately share one component handler.
- */
-/* CC_SETPOSITION — Set position modes.
- * int stack in:   x, y, x_mode, y_mode  (y_mode = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETPOSITION 1000
-/* CC_SETSIZE — Set size modes.
- * int stack in:   w, h, w_mode, h_mode  (h_mode = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETSIZE 1001
-/* CC_SETHIDE — Hide active child.
- * int stack in:   hide
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETHIDE 1003
-#define CS2_OP__1004 1004
-/* CC_SETNOCLICKTHROUGH — Set no-click-through.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   enabled
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETNOCLICKTHROUGH 1005
-#define CS2_OP_CC_SETNOSCROLLTHROUGH 1006
-
-/* === CS2 opcode group: component-appearance (1100..1199 / 2100..2199) ===
- * component graphic, model and text setters.
- * rev-239 dispatch: Statics.method6889 -> method4754.
- * The listed ranges deliberately share one component handler.
- */
-#define CS2_OP_CC_SETSCROLLPOS 1100
-/* CC_SETCOLOUR — Set colour on active child.
- * int stack in:   colour
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETCOLOUR 1101
-/* CC_SETFILL — Set rectangle fill.
- * int stack in:   filled
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETFILL 1102
-/* CC_SETTRANS — Set transparency.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   trans
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: 0-255 opacity (255 = fully transparent)
- */
-#define CS2_OP_CC_SETTRANS 1103
-#define CS2_OP_CC_SETLINEWID 1104
-/* CC_SETGRAPHIC — Set sprite graphic.
- * int stack in:   graphic_id
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETGRAPHIC 1105
-#define CS2_OP_CC_SET2DANGLE 1106
-/* CC_SETTILING — Set sprite tiling.
- * int stack in:   tiled
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETTILING 1107
-#define CS2_OP_CC_SETMODEL 1108
-#define CS2_OP_CC_SETMODELANGLE 1109
-#define CS2_OP_CC_SETMODELANIM 1110
-#define CS2_OP_CC_SETMODELORTHOG 1111
-/* CC_SETTEXT — Set text on child component.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETTEXT 1112
-/* CC_SETTEXTFONT — Set font on active child.
- * int stack in:   font_id
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETTEXTFONT 1113
-/* CC_SETTEXTALIGN — Set text alignment.
- * int stack in:   x_align, y_align, line_height  (line_height = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETTEXTALIGN 1114
-/* CC_SETTEXTSHADOW — Set text shadow.
- * int stack in:   shadowed
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETTEXTSHADOW 1115
-/* CC_SETOUTLINE — Set sprite outline.
- * int stack in:   outline
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETOUTLINE 1116
-/* CC_SETGRAPHICSHADOW — Set sprite shadow.
- * int stack in:   shadow
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETGRAPHICSHADOW 1117
-#define CS2_OP_CC_SETVFLIP 1118
-#define CS2_OP_CC_SETHFLIP 1119
-#define CS2_OP_CC_SETSCROLLSIZE 1120
-#define CS2_OP_CC_RESUME_PAUSEBUTTON 1121
-/* CC_SETCLICKMASK — Set secondary sprite graphic.
- * int stack in:   graphic_id
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETCLICKMASK 1122
-#define CS2_OP_CC_SETBLENDCOLOUR 1123
-/* CC_SETBLENDTRANS — Set bottom transparency.
- * int stack in:   trans
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETBLENDTRANS 1124
-/* CC_SETBLENDMODE — Set fill mode.
- * int stack in:   fill_mode
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETBLENDMODE 1125
-#define CS2_OP_CC_SETLINEDIRECTION 1126
-#define CS2_OP_CC_SETMODELTRANSPARENT 1127
-/* CC_SETARC — Set the arc's start and end angle on the active child.
- * int stack in:   start_angle, end_angle  (end_angle = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: Widget type 10 only. 65536 is a full turn, 0 is straight up, and the sweep runs clockwise. Drawn as an annulus sector; script 5480 builds the overlay countdown pie from three of them.
- */
-#define CS2_OP_CC_SETARC 1128
-#define CS2_OP_CC_SETHTTPSPRITE 1129
-#define CS2_OP_CC_CRMVIEW_INIT 1130
-#define CS2_OP_CC_CRMVIEW_SETTEXTFONT 1131
-#define CS2_OP_CC_CRMVIEW_SETSERVERTARGETS 1132
-#define CS2_OP_CC_INPUT_SETSELECTCOLOUR 1133
-#define CS2_OP_CC_INPUT_SETSELECTBGCOLOUR 1134
-#define CS2_OP_CC_INPUT_SETPLACEHOLDERTEXT 1135
-#define CS2_OP_CC_INPUT_SETPLACEHOLDERTEXTCOLOUR 1136
-#define CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH 1137
-#define CS2_OP_CC_INPUT_SETLINECOUNTLIMIT 1138
-#define CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT 1139
-#define CS2_OP_CC_INPUT_SETFOCUS 1140
-#define CS2_OP_CC_INPUT_SETFOCUSABLE 1141
-#define CS2_OP_CC_INPUT_SETSELECTION 1142
-#define CS2_OP_CC_INPUT_SETCARET 1143
-#define CS2_OP_CC_INPUT_SETWRAPMODE 1144
-#define CS2_OP_CC_INPUT_SETSUBMITMODE 1145
-#define CS2_OP_CC_INPUT_SETACCEPTMODE 1146
-#define CS2_OP_CC_INPUT_SETCENSORMODE 1147
-#define CS2_OP_CC_INPUT_SETKEYMODE 1148
-#define CS2_OP_CC_INPUT_SETCHARMODE 1149
-#define CS2_OP_CC_CRMVIEW_SETJSON 1150
-#define CS2_OP_CC_CRMVIEW_INIT_V2 1151
-#define CS2_OP_CC_CRMVIEW_DISMISS 1152
-
-/* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
- * component object and head-model setters.
- * rev-239 dispatch: Statics.method6889 -> method5661.
- * The listed ranges deliberately share one component handler.
- */
-/* CC_SETOBJECT — Set object icon on active child.
- * int stack in:   obj_count, obj_id  (obj_id = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETOBJECT 1200
-#define CS2_OP_CC_SETNPCHEAD 1201
-#define CS2_OP_CC_SETPLAYERHEAD_SELF 1202
-#define CS2_OP__1203 1203
-#define CS2_OP__1204 1204
-/* CC_SETOBJECT_NONUM — Set the object icon, never drawing its count.
- * int stack in:   obj_id, count  (count = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETOBJECT_NONUM 1205
-#define CS2_OP_CC_SETPLAYERMODEL_SELF 1207
-#define CS2_OP_CC_SETPLAYERMODEL_OBJ 1208
-#define CS2_OP_CC_SETPLAYERMODEL_BASECOLOUR 1209
-#define CS2_OP_CC_SETPLAYERMODEL_BODYTYPE 1210
-/* CC_SETOBJECT_ALWAYSNUM — Set object icon always showing qty.
- * int stack in:   obj_count, obj_id  (obj_id = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETOBJECT_ALWAYSNUM 1212
-#define CS2_OP_CC_SETOBJECT_NUMMODE 1213
-#define CS2_OP_CC_SETLOCMODEL 1214
-#define CS2_OP_CC_SETNPCMODEL 1215
-
-/* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
- * component ops, dragging and key bindings.
- * rev-239 dispatch: Statics.method6889 -> method12438.
- * The listed ranges deliberately share one component handler.
- */
-/* CC_SETOP — Set right-click op.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   index
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- * notes: index 1-10 maps to actions[index - 1]
- */
-#define CS2_OP_CC_SETOP 1300
-/* CC_SETDRAGGABLE — Set draggable parent/child.
- * int stack in:   parent_uid, child_index  (child_index = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETDRAGGABLE 1301
-/* CC_SETDRAGRENDERBEHAVIOUR — Set drag behavior.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   behavior
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: behavior 1 sets isScrollBar
- */
-#define CS2_OP_CC_SETDRAGRENDERBEHAVIOUR 1302
-/* CC_SETDRAGDEADZONE — Set drag dead zone pixels.
- * int stack in:   zone
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETDRAGDEADZONE 1303
-/* CC_SETDRAGDEADTIME — Set drag dead time ms.
- * int stack in:   time
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETDRAGDEADTIME 1304
-/* CC_SETOPBASE — Set context-menu target label (op base).
- * int stack in:   -
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- * notes: Op base is the right-hand target text in Choose Option menus (e.g. spell name on Cast). Stored as widget opBase.
- */
-#define CS2_OP_CC_SETOPBASE 1305
-/* CC_SETTARGETVERB — Set target verb on the active/dot component.
- * int stack in:   -
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETTARGETVERB 1306
-/* CC_CLEAROPS — Clear all ops on active child.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_CLEAROPS 1307
-/* CC_SETALWAYSLEFTCLICK — Force left-click to execute the op without opening the menu.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   flag
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: flag == 1 enables; any other value disables.
- */
-#define CS2_OP_CC_SETALWAYSLEFTCLICK 1308
-/* CC_SETPINCH — Client stub that discards one int.
- * int stack in:   value
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETPINCH 1309
-/* CC_CLEARSUBOPS — Clear submenu entries for one op slot.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   op_index
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: op_index is 1-based (1..10).
- */
-#define CS2_OP_CC_CLEARSUBOPS 1310
-/* CC_SETSUBOP — Set a submenu entry label.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   op_index, sub_index  (sub_index = top)
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- * notes: op_index and sub_index are 1-based in script.
- */
-#define CS2_OP_CC_SETSUBOP 1311
-/* CC_SETOPPRIORITY — Set target priority.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   priority
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: -1 resets to 4; 1..32 stores value-1.
- */
-#define CS2_OP_CC_SETOPPRIORITY 1312
-/* CC_SETOPKEY — Bind up to 5 (keychar, keycode) pairs to an op slot on the active child.
- * int stack in:   opindex, k0_char, k0_code, k1_char, k1_code, k2_char, k2_code, k3_char, k3_code, k4_char, k4_code  (k4_code = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: opindex is 1-based (1..10). Pairs are read bottom-up and stop at the
- *        first negative keychar; a negative k0_char clears the slot.
- */
-#define CS2_OP_CC_SETOPKEY 1350
-/* CC_SETOPTKEY — Bind one (keychar, keycode) pair to the typed-key slot (op 10).
- * int stack in:   keychar, keycode  (keycode = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETOPTKEY 1351
-/* CC_SETOPKEYRATE — Set auto-repeat rate for an op key slot.
- * int stack in:   opindex, keyrate, tickrate  (tickrate = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: tickrate == 0 disables repeat.
- */
-#define CS2_OP_CC_SETOPKEYRATE 1352
-/* CC_SETOPTKEYRATE — Set auto-repeat rate for the typed-key slot (op 10).
- * int stack in:   tickrate, keyrate  (keyrate = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: reference pops these in the opposite order to CC_SETOPKEYRATE. The
- *        values are unused downstream, so only the count matters; mirrored
- *        rather than "corrected" without a real-cache trace.
- */
-#define CS2_OP_CC_SETOPTKEYRATE 1353
-/* CC_SETOPKEYIGNOREHELD — Suppress auto-repeat while the key is held.
- * int stack in:   opindex
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETOPKEYIGNOREHELD 1354
-/* CC_SETOPTKEYIGNOREHELD — Suppress auto-repeat on the typed-key slot (op 10).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_CC_SETOPTKEYIGNOREHELD 1355
-
-/* === CS2 opcode group: component-listener (1400..1499 / 2400..2499) ===
- * component listener registration.
- * rev-239 dispatch: Statics.method6889 -> method4487.
- * The listed ranges deliberately share one component handler.
- */
-/* CC_SETONCLICK — Set onClick handler on active child.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_CC_SETONCLICK 1400
-/* CC_SETONHOLD — Set onHold handler on active child.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_CC_SETONHOLD 1401
-#define CS2_OP_CC_SETONRELEASE 1402
-/* CC_SETONMOUSEOVER — Set onMouseOver handler on active child.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_CC_SETONMOUSEOVER 1403
-/* CC_SETONMOUSELEAVE — Set onMouseLeave handler on active child.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_CC_SETONMOUSELEAVE 1404
-/* CC_SETONDRAG — Set onDrag handler on active child.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_CC_SETONDRAG 1405
-#define CS2_OP_CC_SETONTARGETLEAVE 1406
-#define CS2_OP_CC_SETONVARTRANSMIT 1407
-#define CS2_OP_CC_SETONTIMER 1408
-/* CC_SETONOP — Set onOp handler on active child.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_CC_SETONOP 1409
-/* CC_SETONDRAGCOMPLETE — Set onDragComplete handler on active child.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_CC_SETONDRAGCOMPLETE 1410
-#define CS2_OP_CC_SETONCLICKREPEAT 1411
-#define CS2_OP_CC_SETONMOUSEREPEAT 1412
-/* CC_SETONINVTRANSMIT — Register inv-transmit script on active child.
- * operand: script id
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_CC_SETONINVTRANSMIT 1414
-#define CS2_OP_CC_SETONSTATTRANSMIT 1415
-#define CS2_OP_CC_SETONTARGETENTER 1416
-/* CC_SETONSCROLLWHEEL — Set onScroll handler on active child.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: Stores onScroll (not onScrollWheel); wheel in opcode name is the trigger.
- *        signature args on stack
- */
-#define CS2_OP_CC_SETONSCROLLWHEEL 1417
-#define CS2_OP_CC_SETONCHATTRANSMIT 1418
-/* CC_SETONKEY — Set onKey handler on active child.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_CC_SETONKEY 1419
-#define CS2_OP_CC_SETONFRIENDTRANSMIT 1420
-#define CS2_OP_CC_SETONCLANTRANSMIT 1421
-#define CS2_OP_CC_SETONMISCTRANSMIT 1422
-#define CS2_OP_CC_SETONDIALOGABORT 1423
-#define CS2_OP_CC_SETONSUBCHANGE 1424
-#define CS2_OP_CC_SETONSTOCKTRANSMIT 1425
-#define CS2_OP_CC_SETONACTIVEOFFERSTRANSMIT 1426
-#define CS2_OP_CC_SETONRESIZE 1427
-#define CS2_OP_CC_SETONCLANSETTINGSTRANSMIT 1428
-#define CS2_OP_CC_SETONCLANCHANNELTRANSMIT 1429
-/* More SETON* listeners with no runtime model yet — signature-driven operand
- * counts, so they are dispatched to the parse-and-discard helper like the rest
- * of the family (see the CC_SETON* discard group in cs2vm2.c). */
-#define CS2_OP_CC_SETONKEYDOWN 1430
-#define CS2_OP_CC_SETONKEYUP 1431
-#define CS2_OP_CC_SETONMAPPRE 1432
-#define CS2_OP_CC_SETONMAPPOST 1433
-#define CS2_OP_CC_CRMVIEW_SETONUPDATED 1434
-#define CS2_OP_CC_SETONOPT 1435
 /*
- * Input-field (widget type 16) listeners. Signature-driven operand counts like
- * the other SETON* opcodes, so they are dispatched to the parse-and-discard
- * helpers rather than described here; the counts below are placeholders the
- * generator ignores for SETON names.
+ * THE VM'S OWN INSTRUCTION SET. A loaded script holds these, never a cache's
+ * wire ids: each dialect (cs2vm2_dialect.h) is a table from its wire ids to
+ * these instructions, applied once at load by CS2VM2_ScriptResolveDialect;
+ * a wire id the dialect does not define becomes UNDEFINED_WIRE_ID, which does
+ * what an instruction with no stack signature does if it is run. The
+ * numbering is dense (0 .. CS2_OP_COUNT-1), belongs to the VM alone, and may
+ * change whenever this file is regenerated: nothing outside the process may
+ * hold a CS2_OP_ value (a log or a record prints the script's wire id,
+ * CS2VM2_DialectWireOf, or the name, CS2_OpCode_String).
+ *
+ * NAMING, one scheme for every instruction:
+ *   - an instruction whose meaning is the same in every era keeps the
+ *     OldSchool command's name (PUSH_CONSTANT_INT, CC_SETHIDE, INV_GETOBJ);
+ *   - an OldSchool command whose stack shape changed between OldSchool eras is
+ *     a versioned family, numbered in the order the eras introduced them, and
+ *     neither keeps the bare name (CC_CREATE_V1 pops three ints, through rev
+ *     229; CC_CREATE_V2 four, from 230);
+ *   - a command of the RS2 634 client that is not OldSchool's command at the
+ *     same wire id is RS2_<what it does> (RS2_CC_GETPARAM);
+ *   - the jit's instructions (the section from CS2_OP_JIT_FIRST) are named by
+ *     what they do: a fused instruction joins the names of the instructions
+ *     it replaces, in order, with "__" (PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD__POP_INT_LOCAL);
+ *     a load-proven one is the instruction's name followed by what was proven
+ *     (PUSH_INT_LOCAL_DECLARED: its local is below the script's declared count).
+ *
+ * ORDER: the OldSchool wire order, so each dispatch group of the reference
+ * client is one contiguous range, CS2_OPS_<GROUP>_BEGIN .. _END (exclusive);
+ * a versioned family takes its command's place. Then the RS2 634 section,
+ * then UNDEFINED_WIRE_ID, then the jit's. CS2_OP_PLAIN_COUNT instructions
+ * can appear in a loaded script; the jit's appear only in its overlay
+ * (script->run_code).
  */
-#define CS2_OP_CC_INPUT_SETONFOCUSCHANGED 1436
-#define CS2_OP_CC_INPUT_SETONSELECT 1437
-#define CS2_OP_CC_INPUT_SETONSUBMIT 1438
-#define CS2_OP_CC_INPUT_SETONCHANGE 1439
 
-/* === CS2 opcode group: cc-geometry (1500..1599) ===
- * active-component geometry getters.
- * rev-239 dispatch: Statics.method6889 -> method1470.
- */
-/* CC_GETX — Get relative X of child component.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  x
- * str stack out:  -
- */
-#define CS2_OP_CC_GETX 1500
-/* CC_GETY — Get relative Y of child component.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  y
- * str stack out:  -
- */
-#define CS2_OP_CC_GETY 1501
-/* CC_GETWIDTH — Get layout width.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  width
- * str stack out:  -
- */
-#define CS2_OP_CC_GETWIDTH 1502
-/* CC_GETHEIGHT — Get layout height.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   -
- * str stack in:   -
- * int stack out:  height
- * str stack out:  -
- */
-#define CS2_OP_CC_GETHEIGHT 1503
-/* CC_GETHIDE — Get hidden flag.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  hidden ? 1 : 0
- * str stack out:  -
- */
-#define CS2_OP_CC_GETHIDE 1504
-/* CC_GETLAYER — Get parent component id.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  parent_id
- * str stack out:  -
- */
-#define CS2_OP_CC_GETLAYER 1505
-#define CS2_OP_CC_GETPARENTLAYER 1506
+enum CS2_Op
+{
 
-/* === CS2 opcode group: cc-appearance (1600..1699) ===
- * active-component appearance getters.
- * rev-239 dispatch: Statics.method6889 -> method6296.
- */
-/* CC_GETSCROLLX — Get scroll X (stub).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  0
- * str stack out:  -
- */
-#define CS2_OP_CC_GETSCROLLX 1600
-/* CC_GETSCROLLY — Get scroll Y (stub).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  0
- * str stack out:  -
- */
-#define CS2_OP_CC_GETSCROLLY 1601
-/* CC_GETTEXT — Get text.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  text
- */
-#define CS2_OP_CC_GETTEXT 1602
-/* CC_GETSCROLLWIDTH — Get scroll content width.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  scroll_width
- * str stack out:  -
- */
-#define CS2_OP_CC_GETSCROLLWIDTH 1603
-/* CC_GETSCROLLHEIGHT — Get scroll content height.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  scroll_height
- * str stack out:  -
- */
-#define CS2_OP_CC_GETSCROLLHEIGHT 1604
-#define CS2_OP_CC_GETMODELZOOM 1605
-#define CS2_OP_CC_GETMODELANGLE_X 1606
-#define CS2_OP_CC_GETMODELANGLE_Z 1607
-#define CS2_OP_CC_GETMODELANGLE_Y 1608
-#define CS2_OP_CC_GETTRANS 1609
-#define CS2_OP_CC_GETBLENDTRANS 1610
-#define CS2_OP_CC_GETCOLOUR 1611
-#define CS2_OP_CC_GETBLENDCOLOUR 1612
-#define CS2_OP_CC_GETBLENDMODE 1613
-#define CS2_OP_CC_GETMODELTRANSPARENT 1614
-#define CS2_OP_CC_GETARCSTART 1615
-#define CS2_OP_CC_GETARCEND 1616
-#define CS2_OP_CC_INPUT_GETSELECTCOLOUR 1617
-#define CS2_OP_CC_INPUT_GETSELECTBGCOLOUR 1618
-#define CS2_OP_CC_INPUT_GETPLACEHOLDERTEXT 1619
-#define CS2_OP_CC_INPUT_GETPLACEHOLDERTEXTCOLOUR 1620
-#define CS2_OP_CC_INPUT_GETLINEWRAPPINGWIDTH 1621
-#define CS2_OP_CC_INPUT_GETLINECOUNTLIMIT 1622
-#define CS2_OP_CC_INPUT_GETLINEWIDTHLIMIT 1623
-#define CS2_OP_CC_INPUT_GETFOCUS 1624
-#define CS2_OP_CC_INPUT_GETFOCUSABLE 1625
-#define CS2_OP_CC_INPUT_GETSELECTIONTEXT 1626
-#define CS2_OP_CC_INPUT_GETSELECTIONBOUNDS 1627
-#define CS2_OP_CC_INPUT_GETCARETPOSITION 1628
-#define CS2_OP_CC_INPUT_GETLINEWRAPPINGMODE 1629
-#define CS2_OP_CC_INPUT_GETSUBMITMODE 1630
-#define CS2_OP_CC_INPUT_GETACCEPTMODE 1631
-#define CS2_OP_CC_INPUT_GETCENSORMODE 1632
-#define CS2_OP_CC_INPUT_GETKEYMODE 1633
-#define CS2_OP_CC_INPUT_GETCHARMODE 1634
+    /* === CS2 opcode group: vm-core (0..99) ===
+     * VM control flow, locals, vars and arrays.
+     * rev-239 execution: inline in Statics.method4464.
+     */
+    /* PUSH_CONSTANT_INT — Push int constant.
+     * operand: int constant
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  operand
+     * str stack out:  -
+     */
+    CS2_OP_PUSH_CONSTANT_INT = 0, /* wire 0 */
+    /* PUSH_VAR — Read varp.
+     * operand: varp id
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  varp[operand]
+     * str stack out:  -
+     */
+    CS2_OP_PUSH_VAR = 1, /* wire 1 */
+    /* POP_VAR — Write varp.
+     * operand: varp id
+     * int stack in:   value
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: varp[operand] = value
+     */
+    CS2_OP_POP_VAR = 2, /* wire 2 */
+    /* PUSH_CONSTANT_STRING — Push string constant.
+     * operand: string index
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  script_string[operand]
+     */
+    CS2_OP_PUSH_CONSTANT_STRING = 3, /* wire 3 */
+    /* BRANCH — Unconditional branch.
+     * operand: branch offset
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pc += operand
+     */
+    CS2_OP_BRANCH = 4, /* wire 6 */
+    /* BRANCH_NOT — Branch if not equal.
+     * operand: branch offset
+     * int stack in:   a, b  (b = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pc += operand if a != b
+     */
+    CS2_OP_BRANCH_NOT = 5, /* wire 7 */
+    /* BRANCH_EQUALS — Branch if equal.
+     * operand: branch offset
+     * int stack in:   a, b  (b = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pc += operand if a == b
+     */
+    CS2_OP_BRANCH_EQUALS = 6, /* wire 8 */
+    /* BRANCH_LESS_THAN — Branch if less.
+     * operand: branch offset
+     * int stack in:   a, b  (b = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pc += operand if a < b
+     */
+    CS2_OP_BRANCH_LESS_THAN = 7, /* wire 9 */
+    /* BRANCH_GREATER_THAN — Branch if greater.
+     * operand: branch offset
+     * int stack in:   a, b  (b = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pc += operand if a > b
+     */
+    CS2_OP_BRANCH_GREATER_THAN = 8, /* wire 10 */
+    /* RETURN — Return from script.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pops frame
+     */
+    CS2_OP_RETURN = 9, /* wire 21 */
+    /* PUSH_VARBIT — Read varbit.
+     * operand: varbit id
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  varbit[operand]
+     * str stack out:  -
+     */
+    CS2_OP_PUSH_VARBIT = 10, /* wire 25 */
+    /* POP_VARBIT — Write varbit.
+     * operand: varbit id
+     * int stack in:   value
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: varbit[operand] = value
+     */
+    CS2_OP_POP_VARBIT = 11, /* wire 27 */
+    /* BRANCH_LESS_THAN_OR_EQUALS — Branch if less than or equal.
+     * operand: branch offset
+     * int stack in:   a, b  (b = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pc += operand if a <= b
+     */
+    CS2_OP_BRANCH_LESS_THAN_OR_EQUALS = 12, /* wire 31 */
+    /* BRANCH_GREATER_THAN_OR_EQUALS — Branch if greater than or equal.
+     * operand: branch offset
+     * int stack in:   a, b  (b = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pc += operand if a >= b
+     */
+    CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS = 13, /* wire 32 */
+    /* PUSH_INT_LOCAL — Push int local.
+     * operand: local index
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  int_local[operand]
+     * str stack out:  -
+     */
+    CS2_OP_PUSH_INT_LOCAL = 14, /* wire 33 */
+    /* POP_INT_LOCAL — Pop int local.
+     * operand: local index
+     * int stack in:   value
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: int_local[operand] = value
+     */
+    CS2_OP_POP_INT_LOCAL = 15, /* wire 34 */
+    /* PUSH_STRING_LOCAL — Push string local.
+     * operand: local index
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  str_local[operand]
+     */
+    CS2_OP_PUSH_STRING_LOCAL = 16, /* wire 35 */
+    /* POP_STRING_LOCAL — Pop string local.
+     * operand: local index
+     * int stack in:   -
+     * str stack in:   value
+     * int stack out:  -
+     * str stack out:  -
+     * notes: str_local[operand] = value
+     */
+    CS2_OP_POP_STRING_LOCAL = 17, /* wire 36 */
+    /* JOIN_STRING — Concatenate strings.
+     * int stack in:   -
+     * str stack in:   a, b   (b = top)
+     * int stack out:  -
+     * str stack out:  a + b
+     */
+    CS2_OP_JOIN_STRING = 18, /* wire 37 */
+    /* POP_INT_DISCARD — Discard int.
+     * operand: unused (a byte, like RETURN's; not a repeat count)
+     * int stack in:   value
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: discards exactly one value
+     */
+    CS2_OP_POP_INT_DISCARD = 19, /* wire 38 */
+    /* POP_STRING_DISCARD — Discard string.
+     * operand: unused (a byte, like RETURN's; not a repeat count)
+     * int stack in:   -
+     * str stack in:   value
+     * int stack out:  -
+     * str stack out:  -
+     * notes: discards exactly one value
+     */
+    CS2_OP_POP_STRING_DISCARD = 20, /* wire 39 */
+    /* GOSUB_WITH_PARAMS — Call script.
+     * int stack in:   callee args per signature
+     * str stack in:   -
+     * int stack out:  callee returns per signature
+     * str stack out:  -
+     */
+    CS2_OP_GOSUB_WITH_PARAMS = 21, /* wire 40 */
+    /* PUSH_VARC_INT — Read client int varc.
+     * operand: varc id
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  varc_int[operand]
+     * str stack out:  -
+     */
+    CS2_OP_PUSH_VARC_INT = 22, /* wire 42 */
+    /* POP_VARC_INT — Write client int varc.
+     * operand: varc id
+     * int stack in:   value
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: varc_int[operand] = value
+     */
+    CS2_OP_POP_VARC_INT = 23, /* wire 43 */
+    /* DEFINE_ARRAY_V1 — Define an int array in one of the run's numbered arrays.
+     * operand: (array number << 16) | element type char
+     * int stack in:   size
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: DEFINE_ARRAY (44) where arrays are numbered and shared by every frame of a run (OldSchool through 230).
+     */
+    CS2_OP_DEFINE_ARRAY_V1 = 24, /* wire 44 */
+    /* DEFINE_ARRAY_V2 — Define int array.
+     * operand: array id
+     * int stack in:   size
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: creates array[operand]
+     */
+    CS2_OP_DEFINE_ARRAY_V2 = 25, /* wire 44 */
+    /* PUSH_ARRAY_INT_V1 — Read an element of one of the run's numbered arrays.
+     * operand: array number
+     * int stack in:   index
+     * str stack in:   -
+     * int stack out:  value
+     * str stack out:  -
+     * notes: PUSH_ARRAY_INT (45) over numbered arrays (OldSchool through 230). A string array pushes onto the string stack instead.
+     */
+    CS2_OP_PUSH_ARRAY_INT_V1 = 26, /* wire 45 */
+    /* PUSH_ARRAY_INT_V2 — Read array element.
+     * operand: array id
+     * int stack in:   index
+     * str stack in:   -
+     * int stack out:  array[operand][index]
+     * str stack out:  -
+     */
+    CS2_OP_PUSH_ARRAY_INT_V2 = 27, /* wire 45 */
+    /* POP_ARRAY_INT_V1 — Write an element of one of the run's numbered arrays.
+     * operand: array number
+     * int stack in:   index, value  (value = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: POP_ARRAY_INT (46) over numbered arrays (OldSchool through 230). A string array takes its value off the string stack.
+     */
+    CS2_OP_POP_ARRAY_INT_V1 = 28, /* wire 46 */
+    /* POP_ARRAY_INT_V2 — Write array element.
+     * operand: array id
+     * int stack in:   index, value  (value = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: array[operand][index] = value
+     */
+    CS2_OP_POP_ARRAY_INT_V2 = 29, /* wire 46 */
+    CS2_OP_PUSH_VARC_STRING_OLD = 30, /* wire 47 */
+    CS2_OP_POP_VARC_STRING_OLD = 31, /* wire 48 */
+    /* PUSH_VARC_STRING — Read client string varc.
+     * operand: varc id
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  varc_string[operand]
+     */
+    CS2_OP_PUSH_VARC_STRING = 32, /* wire 49 */
+    /* POP_VARC_STRING — Write client string varc.
+     * operand: varc id
+     * int stack in:   -
+     * str stack in:   value
+     * int stack out:  -
+     * str stack out:  -
+     * notes: varc_string[operand] = value
+     */
+    CS2_OP_POP_VARC_STRING = 33, /* wire 50 */
+    CS2_OP_PUSH_VARC_LONG = 34, /* wire 51 */
+    CS2_OP_POP_VARC_LONG = 35, /* wire 52 */
+    /* SWITCH — Switch jump.
+     * int stack in:   key
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pc = case target or fall through
+     */
+    CS2_OP_SWITCH = 36, /* wire 60 */
+    CS2_OP_PUSH_CONSTANT_LONG = 37, /* wire 61 */
+    CS2_OP_POP_LONG_DISCARD = 38, /* wire 62 */
+    CS2_OP_PUSH_CONSTANT_NULL = 39, /* wire 63 */
+    CS2_OP_PUSH_VAR_LONG = 40, /* wire 64 */
+    CS2_OP_POP_VAR_LONG = 41, /* wire 65 */
+    CS2_OP_PUSH_LONG_LOCAL = 42, /* wire 66 */
+    CS2_OP_POP_LONG_LOCAL = 43, /* wire 67 */
+    CS2_OP_LONG_BRANCH_NOT = 44, /* wire 68 */
+    CS2_OP_LONG_BRANCH_EQUALS = 45, /* wire 69 */
+    CS2_OP_LONG_BRANCH_LESS_THAN = 46, /* wire 70 */
+    CS2_OP_LONG_BRANCH_GREATER_THAN = 47, /* wire 71 */
+    CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS = 48, /* wire 72 */
+    CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS = 49, /* wire 73 */
+    CS2_OP_PUSH_VARCLANSETTING = 50, /* wire 74 */
+    CS2_OP_PUSH_VARCLAN = 51, /* wire 76 */
+    /* BRANCH_IF_ONE — RS2-era (rev 634) conditional branch.
+     * operand: branch offset
+     * int stack in:   value
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pc += operand if value == 1. Free in the OSRS numbering
+     *        (nothing between 76 and 100); claimed here rather than
+     *        dialect-translated. See engine/cs2_opcode_dialect.h. */
+    CS2_OP_BRANCH_IF_ONE = 52, /* wire 86 */
 
-/* === CS2 opcode group: cc-inventory (1700..1799) ===
- * active-component inventory and identity getters.
- * rev-239 dispatch: Statics.method6889 -> method12337.
- */
-#define CS2_OP_CC_GETINVOBJECT 1700
-#define CS2_OP_CC_GETINVCOUNT 1701
-/* CC_GETID — Get active component id.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  active_component
- * str stack out:  -
- */
-#define CS2_OP_CC_GETID 1702
-/* CC_PARAM — Read a param off the component's runtime param table.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   param_id
- * str stack in:   -
- * int stack out:  value
- * str stack out:  -
- * notes: Answers with what CC_SETPARAM wrote, else the ParamType's default_int — which is what makes the scripts' `= -1` guards mean "never tagged".
- */
-#define CS2_OP_CC_PARAM 1703
-/* CC_SETPARAM — Write a param onto the component's runtime param table.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   param_id, value, kind  (kind = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: OldSchool-era, distinct from CC_GETBLENDMODE (1613): the table lives on the component at runtime and starts empty (IF3 files carry no param section). VARIABLE ARITY, so the counts above are the kind == 0 case only: `kind` names the ParamType's type, and kind == 2 means the value was pushed on the STRING stack, leaving just (param_id, kind) on the int stack — script 9581 writes param 1017, declared `s`, that way. Popping three ints unconditionally steals an unrelated int from under it. Dedicated dispatch in cs2vm2.c handles both shapes, so this never reaches StackMetaStub with the wrong one.
- */
-#define CS2_OP_CC_SETPARAM 1704
-#define CS2_OP_CC_CRMVIEW_GETHASRESPONSE 1707
-#define CS2_OP_CC_CRMVIEW_GETINT 1708
-#define CS2_OP_CC_CRMVIEW_GETSTRING 1709
+    /* === CS2 opcode group: component (100..999) ===
+     * component construction and addressing.
+     * rev-239 dispatch: Statics.method6889 -> method4548.
+     */
+    /* CC_CREATE_V1 — Create dynamic child component, three arguments.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   parent, type, child_index  (child_index = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: CC_CREATE (100) where the cache era pushes no is_nested flag: RS2 634 (Class66.method710) and OldSchool through 229. CC_CREATE_V1 is what wire 100 means there (the dialect's table); is_nested reaches the host as 0.
+     */
+    CS2_OP_CC_CREATE_V1 = 53, /* wire 100 */
+    /* CC_CREATE_V2 — Create dynamic child component.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   parent, type, child_index, is_nested  (is_nested = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: sets active to new child. Fixed CC_CREATE to take 4 args
+     *        (rev ≥ 200 / osrs230), which was breaking stack analysis.
+     *        Older revisions (< 200) used 3 args [parent, type, child_index].
+     */
+    CS2_OP_CC_CREATE_V2 = 54, /* wire 100 */
+    CS2_OP_CC_DELETE = 55, /* wire 101 */
+    /* CC_DELETEALL — Delete every dynamic child of a component.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_DELETEALL = 56, /* wire 102 */
+    /* CC_CREATE_ENTITYOVERLAY — Create a dynamic child in a scripted entity overlay layer.
+     * int stack in:   overlay, type, child_index  (child_index = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: The parent is an overlay index, not a component id. Sets the active component to the new child; dynamic layers (type 0) and child-slot gaps are rejected. See game/rs_entity_overlay.h.
+     */
+    CS2_OP_CC_CREATE_ENTITYOVERLAY = 57, /* wire 103 */
+    /* CC_DELETEALL_ENTITYOVERLAY — Delete every dynamic child from a scripted entity overlay layer.
+     * int stack in:   overlay
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_DELETEALL_ENTITYOVERLAY = 58, /* wire 104 */
+    /* CC_COPY — Clone a dynamic child into another slot under the same parent.
+     * int stack in:   parent, src_sub, dst_sub  (dst_sub = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: sets active to the copy; used by the bank tab strip builder
+     */
+    CS2_OP_CC_COPY = 59, /* wire 105 */
+    CS2_OP_CC_CREATE_CHILD = 60, /* wire 106 */
+    CS2_OP_CC_CREATE_SIBLING = 61, /* wire 107 */
+    /* CC_FIND — Find child by sub-id.
+     * int stack in:   parent, sub                     (sub = top)
+     * str stack in:   -
+     * int stack out:  1 if found (active set) else 0
+     * str stack out:  -
+     */
+    CS2_OP_CC_FIND = 62, /* wire 200 */
+    /* IF_FIND — Find interface component.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  1 if found (active set) else 0
+     * str stack out:  -
+     */
+    CS2_OP_IF_FIND = 63, /* wire 201 */
+    /* IF_FIND_ENTITYOVERLAY — Make a scripted entity overlay layer the active component.
+     * int stack in:   overlay
+     * str stack in:   -
+     * int stack out:  1 if found (active set) else 0
+     * str stack out:  -
+     * notes: This is opcode 202 even though the vendored decompiler maps both _202 and _203 to 202. Rev-239 call sites pass one argument; treating it as the old guessed CC_FINDROOT leaks an int.
+     */
+    CS2_OP_IF_FIND_ENTITYOVERLAY = 64, /* wire 202 */
+    /* CC_FIND_ENTITYOVERLAY — Find a dynamic child inside a scripted entity overlay layer.
+     * int stack in:   overlay, sub                    (sub = top)
+     * str stack in:   -
+     * int stack out:  1 if found (active set) else 0
+     * str stack out:  -
+     * notes: Opcode 203; completes the reference overlay-layer family.
+     */
+    CS2_OP_CC_FIND_ENTITYOVERLAY = 65, /* wire 203 */
+    CS2_OP_CC_FIND_PARENT = 66, /* wire 204 */
+    CS2_OP_CC_FIND_LAYER = 67, /* wire 205 */
+    CS2_OP_CC_FIND_NEXT_SIBLING = 68, /* wire 206 */
+    CS2_OP_CC_FIND_PREV_SIBLING = 69, /* wire 207 */
+    CS2_OP_CC_CHILDCOUNT = 70, /* wire 208 */
+    CS2_OP_CC_PARENTID = 71, /* wire 209 */
+    CS2_OP_CC_FIND_PARAM = 72, /* wire 210 */
+    CS2_OP_IF_QUERY = 73, /* wire 211 */
+    CS2_OP_CC_QUERY = 74, /* wire 212 */
+    CS2_OP_IF_QUERY_NEXT = 75, /* wire 213 */
+    CS2_OP__213 = CS2_OP_IF_QUERY_NEXT,
+    /* IF_QUERY_NEXTID — Advance the children iterator and push the next child sub-id.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  next collected sub-id, or -1 once the iterator is exhausted
+     * str stack out:  -
+     * notes: Opcode 214. rev-239 Statics.method7953(class332): `cursor >= count ? -1 : ids[cursor++]` over the id list that IF_QUERY (211) and CC_QUERY (212) fill. It shares that cursor with IF_QUERY_NEXT (213), which resolves the same id to a component and makes it active instead of pushing it.
+     */
+    CS2_OP_IF_QUERY_NEXTID = 76, /* wire 214 */
+    CS2_OP_IF_QUERY_IDS = 77, /* wire 215 */
+    CS2_OP_IF_QUERY_REFINE = 78, /* wire 216 */
+    CS2_OP_CC_FIND_CHILD = 79, /* wire 217 */
+    CS2_OP_CC_FIND_FIRST_SIBLING = 80, /* wire 218 */
+    CS2_OP_CC_FIND_LAST_SIBLING = 81, /* wire 219 */
+    CS2_OP_CC_FIND_FIRST_CHILD = 82, /* wire 220 */
+    CS2_OP_CC_FIND_LAST_CHILD = 83, /* wire 221 */
+    CS2_OP_CC_ASSERT = 84, /* wire 222 */
 
-/* === CS2 opcode group: cc-target (1800..1899) ===
- * active-component target and op getters.
- * rev-239 dispatch: Statics.method6889 -> method6843.
- */
-#define CS2_OP_CC_GETTARGETMASK 1800
-/* CC_GETOP — Get op text.
- * int stack in:   op_index
- * str stack in:   -
- * int stack out:  -
- * str stack out:  op text
- */
-#define CS2_OP_CC_GETOP 1801
-/* CC_GETOPBASE — Get op base text.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  op_base
- */
-#define CS2_OP_CC_GETOPBASE 1802
-#define CS2_OP_DEEPLINK_GET 1826
-#define CS2_OP_DEEPLINK_COUNT 1827
-#define CS2_OP_DEEPLINK_CLEAR_INDEX 1828
+    /* === CS2 opcode group: component-layout (1000..1099 / 2000..2099) ===
+     * component position, size and visibility setters.
+     * rev-239 dispatch: Statics.method6889 -> method5842.
+     * The listed ranges deliberately share one component handler.
+     */
+    /* CC_SETPOSITION — Set position modes.
+     * int stack in:   x, y, x_mode, y_mode  (y_mode = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETPOSITION = 85, /* wire 1000 */
+    /* CC_SETSIZE — Set size modes.
+     * int stack in:   w, h, w_mode, h_mode  (h_mode = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETSIZE = 86, /* wire 1001 */
+    /* CC_SETHIDE — Hide active child.
+     * int stack in:   hide
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETHIDE = 87, /* wire 1003 */
+    CS2_OP__1004 = 88, /* wire 1004 */
+    /* CC_SETNOCLICKTHROUGH — Set no-click-through.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   enabled
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETNOCLICKTHROUGH = 89, /* wire 1005 */
+    CS2_OP_CC_SETNOSCROLLTHROUGH = 90, /* wire 1006 */
 
-/* === CS2 opcode group: component-action (1900..1999 / 2900..2999) ===
- * component resize and trigger actions.
- * rev-239 dispatch: Statics.method6889 -> method1005.
- * The listed ranges deliberately share one component handler.
- */
-#define CS2_OP_CC_CALLONRESIZE 1927
-#define CS2_OP_CC_TRIGGEROP 1928
+    /* === CS2 opcode group: component-appearance (1100..1199 / 2100..2199) ===
+     * component graphic, model and text setters.
+     * rev-239 dispatch: Statics.method6889 -> method4754.
+     * The listed ranges deliberately share one component handler.
+     */
+    CS2_OP_CC_SETSCROLLPOS = 91, /* wire 1100 */
+    /* CC_SETCOLOUR — Set colour on active child.
+     * int stack in:   colour
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETCOLOUR = 92, /* wire 1101 */
+    /* CC_SETFILL — Set rectangle fill.
+     * int stack in:   filled
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETFILL = 93, /* wire 1102 */
+    /* CC_SETTRANS — Set transparency.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   trans
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: 0-255 opacity (255 = fully transparent)
+     */
+    CS2_OP_CC_SETTRANS = 94, /* wire 1103 */
+    CS2_OP_CC_SETLINEWID = 95, /* wire 1104 */
+    /* CC_SETGRAPHIC — Set sprite graphic.
+     * int stack in:   graphic_id
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETGRAPHIC = 96, /* wire 1105 */
+    CS2_OP_CC_SET2DANGLE = 97, /* wire 1106 */
+    /* CC_SETTILING — Set sprite tiling.
+     * int stack in:   tiled
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETTILING = 98, /* wire 1107 */
+    CS2_OP_CC_SETMODEL = 99, /* wire 1108 */
+    CS2_OP_CC_SETMODELANGLE = 100, /* wire 1109 */
+    CS2_OP_CC_SETMODELANIM = 101, /* wire 1110 */
+    CS2_OP_CC_SETMODELORTHOG = 102, /* wire 1111 */
+    /* CC_SETTEXT — Set text on child component.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETTEXT = 103, /* wire 1112 */
+    /* CC_SETTEXTFONT — Set font on active child.
+     * int stack in:   font_id
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETTEXTFONT = 104, /* wire 1113 */
+    /* CC_SETTEXTALIGN — Set text alignment.
+     * int stack in:   x_align, y_align, line_height  (line_height = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETTEXTALIGN = 105, /* wire 1114 */
+    /* CC_SETTEXTSHADOW — Set text shadow.
+     * int stack in:   shadowed
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETTEXTSHADOW = 106, /* wire 1115 */
+    /* CC_SETOUTLINE — Set sprite outline.
+     * int stack in:   outline
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETOUTLINE = 107, /* wire 1116 */
+    /* CC_SETGRAPHICSHADOW — Set sprite shadow.
+     * int stack in:   shadow
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETGRAPHICSHADOW = 108, /* wire 1117 */
+    CS2_OP_CC_SETVFLIP = 109, /* wire 1118 */
+    CS2_OP_CC_SETHFLIP = 110, /* wire 1119 */
+    CS2_OP_CC_SETSCROLLSIZE = 111, /* wire 1120 */
+    CS2_OP_CC_RESUME_PAUSEBUTTON = 112, /* wire 1121 */
+    /* CC_SETCLICKMASK — Set secondary sprite graphic.
+     * int stack in:   graphic_id
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETCLICKMASK = 113, /* wire 1122 */
+    CS2_OP_CC_SETBLENDCOLOUR = 114, /* wire 1123 */
+    /* CC_SETBLENDTRANS — Set bottom transparency.
+     * int stack in:   trans
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETBLENDTRANS = 115, /* wire 1124 */
+    /* CC_SETBLENDMODE — Set fill mode.
+     * int stack in:   fill_mode
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETBLENDMODE = 116, /* wire 1125 */
+    CS2_OP_CC_SETLINEDIRECTION = 117, /* wire 1126 */
+    CS2_OP_CC_SETMODELTRANSPARENT = 118, /* wire 1127 */
+    /* CC_SETARC — Set the arc's start and end angle on the active child.
+     * int stack in:   start_angle, end_angle  (end_angle = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Widget type 10 only. 65536 is a full turn, 0 is straight up, and the sweep runs clockwise. Drawn as an annulus sector; script 5480 builds the overlay countdown pie from three of them.
+     */
+    CS2_OP_CC_SETARC = 119, /* wire 1128 */
+    CS2_OP_CC_SETHTTPSPRITE = 120, /* wire 1129 */
+    CS2_OP_CC_CRMVIEW_INIT = 121, /* wire 1130 */
+    CS2_OP_CC_CRMVIEW_SETTEXTFONT = 122, /* wire 1131 */
+    CS2_OP_CC_CRMVIEW_SETSERVERTARGETS = 123, /* wire 1132 */
+    CS2_OP_CC_INPUT_SETSELECTCOLOUR = 124, /* wire 1133 */
+    CS2_OP_CC_INPUT_SETSELECTBGCOLOUR = 125, /* wire 1134 */
+    CS2_OP_CC_INPUT_SETPLACEHOLDERTEXT = 126, /* wire 1135 */
+    CS2_OP_CC_INPUT_SETPLACEHOLDERTEXTCOLOUR = 127, /* wire 1136 */
+    CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH = 128, /* wire 1137 */
+    CS2_OP_CC_INPUT_SETLINECOUNTLIMIT = 129, /* wire 1138 */
+    CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT = 130, /* wire 1139 */
+    CS2_OP_CC_INPUT_SETFOCUS = 131, /* wire 1140 */
+    CS2_OP_CC_INPUT_SETFOCUSABLE = 132, /* wire 1141 */
+    CS2_OP_CC_INPUT_SETSELECTION = 133, /* wire 1142 */
+    CS2_OP_CC_INPUT_SETCARET = 134, /* wire 1143 */
+    CS2_OP_CC_INPUT_SETWRAPMODE = 135, /* wire 1144 */
+    CS2_OP_CC_INPUT_SETSUBMITMODE = 136, /* wire 1145 */
+    CS2_OP_CC_INPUT_SETACCEPTMODE = 137, /* wire 1146 */
+    CS2_OP_CC_INPUT_SETCENSORMODE = 138, /* wire 1147 */
+    CS2_OP_CC_INPUT_SETKEYMODE = 139, /* wire 1148 */
+    CS2_OP_CC_INPUT_SETCHARMODE = 140, /* wire 1149 */
+    CS2_OP_CC_CRMVIEW_SETJSON = 141, /* wire 1150 */
+    CS2_OP_CC_CRMVIEW_INIT_V2 = 142, /* wire 1151 */
+    CS2_OP_CC_CRMVIEW_DISMISS = 143, /* wire 1152 */
 
-/* === CS2 opcode group: component-layout (1000..1099 / 2000..2099) ===
- * component position, size and visibility setters.
- * rev-239 dispatch: Statics.method6889 -> method5842.
- * The listed ranges deliberately share one component handler.
- */
-/* IF_SETPOSITION — Set position.
- * int stack in:   x, y, x_mode, y_mode, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: component is top of int stack.
- */
-#define CS2_OP_IF_SETPOSITION 2000
-/* IF_SETSIZE — Set size.
- * int stack in:   width, height, width_mode, height_mode, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: component is top of int stack.
- */
-#define CS2_OP_IF_SETSIZE 2001
-/* IF_SETHIDE — Set hidden.
- * int stack in:   component, hide  (hide = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETHIDE 2003
-#define CS2_OP__2004 2004
-/* IF_SETNOCLICKTHROUGH — Set no-click-through.
- * int stack in:   component, enabled  (enabled = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETNOCLICKTHROUGH 2005
-#define CS2_OP_IF_SETNOSCROLLTHROUGH 2006
+    /* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
+     * component object and head-model setters.
+     * rev-239 dispatch: Statics.method6889 -> method5661.
+     * The listed ranges deliberately share one component handler.
+     */
+    /* CC_SETOBJECT — Set object icon on active child.
+     * int stack in:   obj_count, obj_id  (obj_id = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETOBJECT = 144, /* wire 1200 */
+    CS2_OP_CC_SETNPCHEAD = 145, /* wire 1201 */
+    CS2_OP_CC_SETPLAYERHEAD_SELF = 146, /* wire 1202 */
+    CS2_OP__1203 = 147, /* wire 1203 */
+    CS2_OP__1204 = 148, /* wire 1204 */
+    /* CC_SETOBJECT_NONUM — Set the object icon, never drawing its count.
+     * int stack in:   obj_id, count  (count = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETOBJECT_NONUM = 149, /* wire 1205 */
+    CS2_OP_CC_SETPLAYERMODEL_SELF = 150, /* wire 1207 */
+    CS2_OP_CC_SETPLAYERMODEL_OBJ = 151, /* wire 1208 */
+    CS2_OP_CC_SETPLAYERMODEL_BASECOLOUR = 152, /* wire 1209 */
+    CS2_OP_CC_SETPLAYERMODEL_BODYTYPE = 153, /* wire 1210 */
+    /* CC_SETOBJECT_ALWAYSNUM — Set object icon always showing qty.
+     * int stack in:   obj_count, obj_id  (obj_id = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETOBJECT_ALWAYSNUM = 154, /* wire 1212 */
+    CS2_OP_CC_SETOBJECT_NUMMODE = 155, /* wire 1213 */
+    CS2_OP_CC_SETLOCMODEL = 156, /* wire 1214 */
+    CS2_OP_CC_SETNPCMODEL = 157, /* wire 1215 */
 
-/* === CS2 opcode group: component-appearance (1100..1199 / 2100..2199) ===
- * component graphic, model and text setters.
- * rev-239 dispatch: Statics.method6889 -> method4754.
- * The listed ranges deliberately share one component handler.
- */
-/* IF_SETSCROLLPOS — Set scroll position.
- * int stack in:   scroll_y, scroll_x, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETSCROLLPOS 2100
-/* IF_SETCOLOUR — Set colour.
- * int stack in:   component, colour  (colour = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETCOLOUR 2101
-/* IF_SETFILL — Set fill.
- * int stack in:   component, filled  (filled = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETFILL 2102
-/* IF_SETTRANS — Set transparency.
- * int stack in:   component, trans  (trans = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETTRANS 2103
-#define CS2_OP_IF_SETLINEWID 2104
-/* IF_SETGRAPHIC — Set graphic.
- * int stack in:   graphic_id, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETGRAPHIC 2105
-#define CS2_OP_IF_SET2DANGLE 2106
-#define CS2_OP_IF_SETTILING 2107
-/* IF_SETMODEL — Set model id.
- * int stack in:   model_id, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETMODEL 2108
-#define CS2_OP_IF_SETMODELANGLE 2109
-#define CS2_OP_IF_SETMODELANIM 2110
-#define CS2_OP_IF_SETMODELORTHOG 2111
-/* IF_SETTEXT — Set text.
- * int stack in:   component
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETTEXT 2112
-/* IF_SETTEXTFONT — Set font.
- * int stack in:   component, font_id  (font_id = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETTEXTFONT 2113
-/* IF_SETTEXTALIGN — Set text alignment.
- * int stack in:   x_align, y_align, line_height, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETTEXTALIGN 2114
-/* IF_SETTEXTSHADOW — Set text shadow.
- * int stack in:   component, shadow  (shadow = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETTEXTSHADOW 2115
-/* IF_SETOUTLINE — Set sprite outline (border type).
- * int stack in:   outline, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: Sets widget borderType for sprite outline rendering.
- */
-#define CS2_OP_IF_SETOUTLINE 2116
-#define CS2_OP_IF_SETGRAPHICSHADOW 2117
-#define CS2_OP_IF_SETVFLIP 2118
-#define CS2_OP_IF_SETHFLIP 2119
-/* IF_SETSCROLLSIZE — Set scroll size.
- * int stack in:   scroll_h, scroll_w, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETSCROLLSIZE 2120
-#define CS2_OP_IF_RESUME_PAUSEBUTTON 2121
-/* IF_SETCLICKMASK — Set secondary sprite graphic.
- * int stack in:   graphic_id, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETCLICKMASK 2122
-#define CS2_OP_IF_SETBLENDCOLOUR 2123
-/* IF_SETBLENDTRANS — Set bottom transparency.
- * int stack in:   trans, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETBLENDTRANS 2124
-/* IF_SETBLENDMODE — Set fill mode.
- * int stack in:   fill_mode, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETBLENDMODE 2125
-#define CS2_OP_IF_SETLINEDIRECTION 2126
-/* IF_SETMODELTRANSPARENT — Set model transparency.
- * int stack in:   transparent, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETMODELTRANSPARENT 2127
-/* IF_SETARC — Set the arc's start and end angle.
- * int stack in:   start_angle, end_angle, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: The by-id form of CC_SETARC; same angle units.
- */
-#define CS2_OP_IF_SETARC 2128
-#define CS2_OP_IF_SETHTTPSPRITE 2129
-#define CS2_OP_IF_CRMVIEW_INIT 2130
-#define CS2_OP_IF_CRMVIEW_SETTEXTFONT 2131
-#define CS2_OP_IF_CRMVIEW_SETSERVERTARGETS 2132
-/*
- * IF_ variants of the input-field config setters. No UITree model for these
- * fields yet, so each is forwarded as its own exact host request. Their stack
- * signatures must still be described to keep the operand stack synchronized.
- * Each takes the component uid on top of the value.
- */
-/* IF_INPUT_SETSELECTCOLOUR
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETSELECTCOLOUR 2133
-/* IF_INPUT_SETSELECTBGCOLOUR
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETSELECTBGCOLOUR 2134
-/* IF_INPUT_SETPLACEHOLDERTEXT — Set an input field's placeholder text.
- * int stack in:   component
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETPLACEHOLDERTEXT 2135
-/* IF_INPUT_SETPLACEHOLDERTEXTCOLOUR
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETPLACEHOLDERTEXTCOLOUR 2136
-/* IF_INPUT_SETLINEWRAPPINGWIDTH
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETLINEWRAPPINGWIDTH 2137
-/* IF_INPUT_SETLINECOUNTLIMIT
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETLINECOUNTLIMIT 2138
-/* IF_INPUT_SETLINEWIDTHLIMIT
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETLINEWIDTHLIMIT 2139
-/* IF_INPUT_SETFOCUS
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETFOCUS 2140
-/* IF_INPUT_SETFOCUSABLE
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETFOCUSABLE 2141
-/* IF_INPUT_SETSELECTION — Set an input field's selected range.
- * int stack in:   start, end, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETSELECTION 2142
-/* IF_INPUT_SETCARET
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETCARET 2143
-/* IF_INPUT_SETWRAPMODE
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETWRAPMODE 2144
-/* IF_INPUT_SETSUBMITMODE
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETSUBMITMODE 2145
-/* IF_INPUT_SETACCEPTMODE
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_INPUT_SETACCEPTMODE 2146
-#define CS2_OP_IF_INPUT_SETCENSORMODE 2147
-#define CS2_OP_IF_INPUT_SETKEYMODE 2148
-#define CS2_OP_IF_INPUT_SETCHARMODE 2149
-#define CS2_OP_IF_CRMVIEW_SETJSON 2150
+    /* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
+     * component ops, dragging and key bindings.
+     * rev-239 dispatch: Statics.method6889 -> method12438.
+     * The listed ranges deliberately share one component handler.
+     */
+    /* CC_SETOP — Set right-click op.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   index
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     * notes: index 1-10 maps to actions[index - 1]
+     */
+    CS2_OP_CC_SETOP = 158, /* wire 1300 */
+    /* CC_SETDRAGGABLE — Set draggable parent/child.
+     * int stack in:   parent_uid, child_index  (child_index = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETDRAGGABLE = 159, /* wire 1301 */
+    /* CC_SETDRAGRENDERBEHAVIOUR — Set drag behavior.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   behavior
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: behavior 1 sets isScrollBar
+     */
+    CS2_OP_CC_SETDRAGRENDERBEHAVIOUR = 160, /* wire 1302 */
+    /* CC_SETDRAGDEADZONE — Set drag dead zone pixels.
+     * int stack in:   zone
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETDRAGDEADZONE = 161, /* wire 1303 */
+    /* CC_SETDRAGDEADTIME — Set drag dead time ms.
+     * int stack in:   time
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETDRAGDEADTIME = 162, /* wire 1304 */
+    /* CC_SETOPBASE — Set context-menu target label (op base).
+     * int stack in:   -
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Op base is the right-hand target text in Choose Option menus (e.g. spell name on Cast). Stored as widget opBase.
+     */
+    CS2_OP_CC_SETOPBASE = 163, /* wire 1305 */
+    /* CC_SETTARGETVERB — Set target verb on the active/dot component.
+     * int stack in:   -
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETTARGETVERB = 164, /* wire 1306 */
+    /* CC_CLEAROPS — Clear all ops on active child.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_CLEAROPS = 165, /* wire 1307 */
+    /* CC_SETALWAYSLEFTCLICK — Force left-click to execute the op without opening the menu.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   flag
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: flag == 1 enables; any other value disables.
+     */
+    CS2_OP_CC_SETALWAYSLEFTCLICK = 166, /* wire 1308 */
+    /* CC_SETPINCH — Client stub that discards one int.
+     * int stack in:   value
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETPINCH = 167, /* wire 1309 */
+    /* CC_CLEARSUBOPS — Clear submenu entries for one op slot.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   op_index
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: op_index is 1-based (1..10).
+     */
+    CS2_OP_CC_CLEARSUBOPS = 168, /* wire 1310 */
+    /* CC_SETSUBOP — Set a submenu entry label.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   op_index, sub_index  (sub_index = top)
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     * notes: op_index and sub_index are 1-based in script.
+     */
+    CS2_OP_CC_SETSUBOP = 169, /* wire 1311 */
+    /* CC_SETOPPRIORITY — Set target priority.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   priority
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: -1 resets to 4; 1..32 stores value-1.
+     */
+    CS2_OP_CC_SETOPPRIORITY = 170, /* wire 1312 */
+    /* CC_SETOPKEY — Bind up to 5 (keychar, keycode) pairs to an op slot on the active child.
+     * int stack in:   opindex, k0_char, k0_code, k1_char, k1_code, k2_char, k2_code, k3_char, k3_code, k4_char, k4_code  (k4_code = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: opindex is 1-based (1..10). Pairs are read bottom-up and stop at the
+     *        first negative keychar; a negative k0_char clears the slot.
+     */
+    CS2_OP_CC_SETOPKEY = 171, /* wire 1350 */
+    /* CC_SETOPTKEY — Bind one (keychar, keycode) pair to the typed-key slot (op 10).
+     * int stack in:   keychar, keycode  (keycode = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETOPTKEY = 172, /* wire 1351 */
+    /* CC_SETOPKEYRATE — Set auto-repeat rate for an op key slot.
+     * int stack in:   opindex, keyrate, tickrate  (tickrate = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: tickrate == 0 disables repeat.
+     */
+    CS2_OP_CC_SETOPKEYRATE = 173, /* wire 1352 */
+    /* CC_SETOPTKEYRATE — Set auto-repeat rate for the typed-key slot (op 10).
+     * int stack in:   tickrate, keyrate  (keyrate = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: reference pops these in the opposite order to CC_SETOPKEYRATE. The
+     *        values are unused downstream, so only the count matters; mirrored
+     *        rather than "corrected" without a real-cache trace.
+     */
+    CS2_OP_CC_SETOPTKEYRATE = 174, /* wire 1353 */
+    /* CC_SETOPKEYIGNOREHELD — Suppress auto-repeat while the key is held.
+     * int stack in:   opindex
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETOPKEYIGNOREHELD = 175, /* wire 1354 */
+    /* CC_SETOPTKEYIGNOREHELD — Suppress auto-repeat on the typed-key slot (op 10).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_CC_SETOPTKEYIGNOREHELD = 176, /* wire 1355 */
 
-/* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
- * component object and head-model setters.
- * rev-239 dispatch: Statics.method6889 -> method5661.
- * The listed ranges deliberately share one component handler.
- */
-/* IF_SETOBJECT — Set object icon.
- * int stack in:   obj_id, obj_count, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETOBJECT 2200
-#define CS2_OP_IF_SETNPCHEAD 2201
-#define CS2_OP_IF_SETPLAYERHEAD_SELF 2202
-#define CS2_OP__2203 2203
-/* IF_SETOBJECT_NONUM — Set object icon without qty.
- * int stack in:   obj_id, obj_count, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETOBJECT_NONUM 2205
-#define CS2_OP_IF_SETPLAYERMODEL_SELF 2207
-#define CS2_OP_IF_SETPLAYERMODEL_OBJ 2208
-#define CS2_OP_IF_SETPLAYERMODEL_BASECOLOUR 2209
-#define CS2_OP_IF_SETPLAYERMODEL_BODYTYPE 2210
-/* IF_SETOBJECT_ALWAYSNUM — Set object icon always showing qty.
- * int stack in:   obj_id, obj_count, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETOBJECT_ALWAYSNUM 2212
-#define CS2_OP_IF_SETOBJECT_NUMMODE 2213
-#define CS2_OP_IF_SETLOCMODEL 2214
-#define CS2_OP_IF_SETNPCMODEL 2215
+    /* === CS2 opcode group: component-listener (1400..1499 / 2400..2499) ===
+     * component listener registration.
+     * rev-239 dispatch: Statics.method6889 -> method4487.
+     * The listed ranges deliberately share one component handler.
+     */
+    /* CC_SETONCLICK — Set onClick handler on active child.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_CC_SETONCLICK = 177, /* wire 1400 */
+    /* CC_SETONHOLD — Set onHold handler on active child.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_CC_SETONHOLD = 178, /* wire 1401 */
+    CS2_OP_CC_SETONRELEASE = 179, /* wire 1402 */
+    /* CC_SETONMOUSEOVER — Set onMouseOver handler on active child.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_CC_SETONMOUSEOVER = 180, /* wire 1403 */
+    /* CC_SETONMOUSELEAVE — Set onMouseLeave handler on active child.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_CC_SETONMOUSELEAVE = 181, /* wire 1404 */
+    /* CC_SETONDRAG — Set onDrag handler on active child.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_CC_SETONDRAG = 182, /* wire 1405 */
+    CS2_OP_CC_SETONTARGETLEAVE = 183, /* wire 1406 */
+    CS2_OP_CC_SETONVARTRANSMIT = 184, /* wire 1407 */
+    CS2_OP_CC_SETONTIMER = 185, /* wire 1408 */
+    /* CC_SETONOP — Set onOp handler on active child.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_CC_SETONOP = 186, /* wire 1409 */
+    /* CC_SETONDRAGCOMPLETE — Set onDragComplete handler on active child.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_CC_SETONDRAGCOMPLETE = 187, /* wire 1410 */
+    CS2_OP_CC_SETONCLICKREPEAT = 188, /* wire 1411 */
+    CS2_OP_CC_SETONMOUSEREPEAT = 189, /* wire 1412 */
+    /* CC_SETONINVTRANSMIT — Register inv-transmit script on active child.
+     * operand: script id
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_CC_SETONINVTRANSMIT = 190, /* wire 1414 */
+    CS2_OP_CC_SETONSTATTRANSMIT = 191, /* wire 1415 */
+    CS2_OP_CC_SETONTARGETENTER = 192, /* wire 1416 */
+    /* CC_SETONSCROLLWHEEL — Set onScroll handler on active child.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Stores onScroll (not onScrollWheel); wheel in opcode name is the trigger.
+     *        signature args on stack
+     */
+    CS2_OP_CC_SETONSCROLLWHEEL = 193, /* wire 1417 */
+    CS2_OP_CC_SETONCHATTRANSMIT = 194, /* wire 1418 */
+    /* CC_SETONKEY — Set onKey handler on active child.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_CC_SETONKEY = 195, /* wire 1419 */
+    CS2_OP_CC_SETONFRIENDTRANSMIT = 196, /* wire 1420 */
+    CS2_OP_CC_SETONCLANTRANSMIT = 197, /* wire 1421 */
+    CS2_OP_CC_SETONMISCTRANSMIT = 198, /* wire 1422 */
+    CS2_OP_CC_SETONDIALOGABORT = 199, /* wire 1423 */
+    CS2_OP_CC_SETONSUBCHANGE = 200, /* wire 1424 */
+    CS2_OP_CC_SETONSTOCKTRANSMIT = 201, /* wire 1425 */
+    CS2_OP_CC_SETONACTIVEOFFERSTRANSMIT = 202, /* wire 1426 */
+    CS2_OP_CC_SETONRESIZE = 203, /* wire 1427 */
+    CS2_OP_CC_SETONCLANSETTINGSTRANSMIT = 204, /* wire 1428 */
+    CS2_OP_CC_SETONCLANCHANNELTRANSMIT = 205, /* wire 1429 */
+    /* More SETON* listeners with no runtime model yet — signature-driven operand
+     * counts, so they are dispatched to the parse-and-discard helper like the rest
+     * of the family (see the CC_SETON* discard group in cs2vm2.c). */
+    CS2_OP_CC_SETONKEYDOWN = 206, /* wire 1430 */
+    CS2_OP_CC_SETONKEYUP = 207, /* wire 1431 */
+    CS2_OP_CC_SETONMAPPRE = 208, /* wire 1432 */
+    CS2_OP_CC_SETONMAPPOST = 209, /* wire 1433 */
+    CS2_OP_CC_CRMVIEW_SETONUPDATED = 210, /* wire 1434 */
+    CS2_OP_CC_SETONOPT = 211, /* wire 1435 */
+    /*
+     * Input-field (widget type 16) listeners. Signature-driven operand counts like
+     * the other SETON* opcodes, so they are dispatched to the parse-and-discard
+     * helpers rather than described here; the counts below are placeholders the
+     * generator ignores for SETON names.
+     */
+    CS2_OP_CC_INPUT_SETONFOCUSCHANGED = 212, /* wire 1436 */
+    CS2_OP_CC_INPUT_SETONSELECT = 213, /* wire 1437 */
+    CS2_OP_CC_INPUT_SETONSUBMIT = 214, /* wire 1438 */
+    CS2_OP_CC_INPUT_SETONCHANGE = 215, /* wire 1439 */
 
-/* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
- * component ops, dragging and key bindings.
- * rev-239 dispatch: Statics.method6889 -> method12438.
- * The listed ranges deliberately share one component handler.
- */
-/* IF_SETOP — Set op text.
- * int stack in:   index, component  (component = top)
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETOP 2300
-/* IF_SETDRAGGABLE — Set draggable.
- * int stack in:   component, parent_uid, child_index  (child_index = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETDRAGGABLE 2301
-/* IF_SETDRAGRENDERBEHAVIOUR — Set drag behavior.
- * int stack in:   component, behavior  (behavior = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETDRAGRENDERBEHAVIOUR 2302
-/* IF_SETDRAGDEADZONE — Set drag dead zone.
- * int stack in:   component, zone  (zone = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETDRAGDEADZONE 2303
-/* IF_SETDRAGDEADTIME — Set drag dead time.
- * int stack in:   component, time  (time = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETDRAGDEADTIME 2304
-/* IF_SETOPBASE — Set context-menu target label (op base).
- * int stack in:   component
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- * notes: Op base is the right-hand target text in Choose Option menus (e.g. spell name on Cast). Stored as widget opBase.
- */
-#define CS2_OP_IF_SETOPBASE 2305
-/* IF_SETTARGETVERB — Set target verb on a named component.
- * int stack in:   component
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETTARGETVERB 2306
-/* IF_CLEAROPS — Clear ops.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_CLEAROPS 2307
-/* IF_SETALWAYSLEFTCLICK — Set click mask.
- * int stack in:   click_mask, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETALWAYSLEFTCLICK 2308
-/* IF_SETPINCH — Client stub: pop component + one int and discard.
- * int stack in:   value, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETPINCH 2309
-#define CS2_OP_IF_CLEARSUBOPS 2310
-/* IF_SETSUBOP — Set op submenu label.
- * int stack in:   op_index, sub_index, component  (component = top)
- * str stack in:   text
- * int stack out:  -
- * str stack out:  -
- * notes: op_index and sub_index are 1-based in script
- */
-#define CS2_OP_IF_SETSUBOP 2311
-/* IF_SETOPPRIORITY — Set target priority (stub).
- * int stack in:   component, priority  (priority = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETOPPRIORITY 2312
-/* IF_SETOPKEY — Bind one (keychar, keycode) pair to an op slot by component uid.
- * int stack in:   opindex, keychar, keycode, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: component is on top (popped first). opindex is 1-based (1..10).
- */
-#define CS2_OP_IF_SETOPKEY 2350
-/* IF_SETOPTKEY — Bind one (keychar, keycode) pair to the typed-key slot (op 10).
- * int stack in:   keychar, keycode, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETOPTKEY 2351
-/* IF_SETOPKEYRATE — Set auto-repeat rate for an op key slot by component uid.
- * int stack in:   opindex, keyrate, tickrate, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: tickrate == 0 disables repeat.
- */
-#define CS2_OP_IF_SETOPKEYRATE 2352
-/* IF_SETOPTKEYRATE — Set auto-repeat rate for the typed-key slot (op 10).
- * int stack in:   tickrate, keyrate, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETOPTKEYRATE 2353
-/* IF_SETOPKEYIGNOREHELD — Suppress auto-repeat while the key is held.
- * int stack in:   opindex, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETOPKEYIGNOREHELD 2354
-/* IF_SETOPTKEYIGNOREHELD — Suppress auto-repeat on the typed-key slot (op 10).
- * int stack in:   component
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_IF_SETOPTKEYIGNOREHELD 2355
+    /* === CS2 opcode group: cc-geometry (1500..1599) ===
+     * active-component geometry getters.
+     * rev-239 dispatch: Statics.method6889 -> method1470.
+     */
+    /* CC_GETX — Get relative X of child component.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  x
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETX = 216, /* wire 1500 */
+    /* CC_GETY — Get relative Y of child component.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  y
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETY = 217, /* wire 1501 */
+    /* CC_GETWIDTH — Get layout width.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  width
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETWIDTH = 218, /* wire 1502 */
+    /* CC_GETHEIGHT — Get layout height.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  height
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETHEIGHT = 219, /* wire 1503 */
+    /* CC_GETHIDE — Get hidden flag.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  hidden ? 1 : 0
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETHIDE = 220, /* wire 1504 */
+    /* CC_GETLAYER — Get parent component id.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  parent_id
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETLAYER = 221, /* wire 1505 */
+    CS2_OP_CC_GETPARENTLAYER = 222, /* wire 1506 */
 
-/* === CS2 opcode group: component-listener (1400..1499 / 2400..2499) ===
- * component listener registration.
- * rev-239 dispatch: Statics.method6889 -> method4487.
- * The listed ranges deliberately share one component handler.
- */
-#define CS2_OP_IF_SETONCLICK 2400
-#define CS2_OP_IF_SETONHOLD 2401
-#define CS2_OP_IF_SETONRELEASE 2402
-/* IF_SETONMOUSEOVER — Set onMouseOver handler.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_IF_SETONMOUSEOVER 2403
-#define CS2_OP_IF_SETONMOUSELEAVE 2404
-#define CS2_OP_IF_SETONDRAG 2405
-#define CS2_OP_IF_SETONTARGETLEAVE 2406
-#define CS2_OP_IF_SETONVARTRANSMIT 2407
-/* IF_SETONTIMER — Set onTimer handler.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_IF_SETONTIMER 2408
-#define CS2_OP_IF_SETONOP 2409
-#define CS2_OP_IF_SETONDRAGCOMPLETE 2410
-#define CS2_OP_IF_SETONCLICKREPEAT 2411
-#define CS2_OP_IF_SETONMOUSEREPEAT 2412
-/* IF_SETONINVTRANSMIT — Register inv-transmit script.
- * operand: script id
- * int stack in:   component
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: signature args on stack
- */
-#define CS2_OP_IF_SETONINVTRANSMIT 2414
-#define CS2_OP_IF_SETONSTATTRANSMIT 2415
-#define CS2_OP_IF_SETONTARGETENTER 2416
-/* IF_SETONSCROLLWHEEL — Set onScroll handler.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: Stores onScroll (not onScrollWheel); wheel in opcode name is the trigger.
- *        signature args on stack
- */
-#define CS2_OP_IF_SETONSCROLLWHEEL 2417
-#define CS2_OP_IF_SETONCHATTRANSMIT 2418
-#define CS2_OP_IF_SETONKEY 2419
-#define CS2_OP_IF_SETONFRIENDTRANSMIT 2420
-#define CS2_OP_IF_SETONCLANTRANSMIT 2421
-#define CS2_OP_IF_SETONMISCTRANSMIT 2422
-#define CS2_OP_IF_SETONDIALOGABORT 2423
-#define CS2_OP_IF_SETONSUBCHANGE 2424
-#define CS2_OP_IF_SETONSTOCKTRANSMIT 2425
-#define CS2_OP_IF_SETONACTIVEOFFERSTRANSMIT 2426
-#define CS2_OP_IF_SETONRESIZE 2427
-#define CS2_OP_IF_SETONCLANSETTINGSTRANSMIT 2428
-#define CS2_OP_IF_SETONCLANCHANNELTRANSMIT 2429
-/* IF_ counterparts of CC_SETONKEYDOWN/CLANSETTINGS/MAPPOST (1430/1431/1433):
- * set the listener by widget UID instead of on the active/dot child. No runtime
- * model yet — signature-driven operand counts, so they are dispatched to the
- * parse-and-discard helper (see the IF_SETON* discard group in cs2vm2.c). Used
- * by the magic spellbook redraw (script 2610) — without a dispatch case op 2430
- * fell through to StackMetaStub and aborted, blanking the spell icons. */
-#define CS2_OP_IF_SETONKEYDOWN 2430
-#define CS2_OP_IF_SETONKEYUP 2431
-#define CS2_OP_IF_SETONMAPPRE 2432
-#define CS2_OP_IF_SETONMAPPOST 2433
-#define CS2_OP_IF_CRMVIEW_SETONUPDATED 2434
-#define CS2_OP_IF_SETONOPT 2435
-#define CS2_OP_IF_INPUT_SETONFOCUSCHANGED 2436
-#define CS2_OP_IF_INPUT_SETONSELECT 2437
-#define CS2_OP_IF_INPUT_SETONSUBMIT 2438
-#define CS2_OP_IF_INPUT_SETONCHANGE 2439
+    /* === CS2 opcode group: cc-appearance (1600..1699) ===
+     * active-component appearance getters.
+     * rev-239 dispatch: Statics.method6889 -> method6296.
+     */
+    /* CC_GETSCROLLX — Get scroll X (stub).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  0
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETSCROLLX = 223, /* wire 1600 */
+    /* CC_GETSCROLLY — Get scroll Y (stub).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  0
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETSCROLLY = 224, /* wire 1601 */
+    /* CC_GETTEXT — Get text.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  text
+     */
+    CS2_OP_CC_GETTEXT = 225, /* wire 1602 */
+    /* CC_GETSCROLLWIDTH — Get scroll content width.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  scroll_width
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETSCROLLWIDTH = 226, /* wire 1603 */
+    /* CC_GETSCROLLHEIGHT — Get scroll content height.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  scroll_height
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETSCROLLHEIGHT = 227, /* wire 1604 */
+    CS2_OP_CC_GETMODELZOOM = 228, /* wire 1605 */
+    CS2_OP_CC_GETMODELANGLE_X = 229, /* wire 1606 */
+    CS2_OP_CC_GETMODELANGLE_Z = 230, /* wire 1607 */
+    CS2_OP_CC_GETMODELANGLE_Y = 231, /* wire 1608 */
+    CS2_OP_CC_GETTRANS = 232, /* wire 1609 */
+    CS2_OP_CC_GETBLENDTRANS = 233, /* wire 1610 */
+    CS2_OP_CC_GETCOLOUR = 234, /* wire 1611 */
+    CS2_OP_CC_GETBLENDCOLOUR = 235, /* wire 1612 */
+    CS2_OP_CC_GETBLENDMODE = 236, /* wire 1613 */
+    CS2_OP_CC_GETMODELTRANSPARENT = 237, /* wire 1614 */
+    CS2_OP_CC_GETARCSTART = 238, /* wire 1615 */
+    CS2_OP_CC_GETARCEND = 239, /* wire 1616 */
+    CS2_OP_CC_INPUT_GETSELECTCOLOUR = 240, /* wire 1617 */
+    CS2_OP_CC_INPUT_GETSELECTBGCOLOUR = 241, /* wire 1618 */
+    CS2_OP_CC_INPUT_GETPLACEHOLDERTEXT = 242, /* wire 1619 */
+    CS2_OP_CC_INPUT_GETPLACEHOLDERTEXTCOLOUR = 243, /* wire 1620 */
+    CS2_OP_CC_INPUT_GETLINEWRAPPINGWIDTH = 244, /* wire 1621 */
+    CS2_OP_CC_INPUT_GETLINECOUNTLIMIT = 245, /* wire 1622 */
+    CS2_OP_CC_INPUT_GETLINEWIDTHLIMIT = 246, /* wire 1623 */
+    CS2_OP_CC_INPUT_GETFOCUS = 247, /* wire 1624 */
+    CS2_OP_CC_INPUT_GETFOCUSABLE = 248, /* wire 1625 */
+    CS2_OP_CC_INPUT_GETSELECTIONTEXT = 249, /* wire 1626 */
+    CS2_OP_CC_INPUT_GETSELECTIONBOUNDS = 250, /* wire 1627 */
+    CS2_OP_CC_INPUT_GETCARETPOSITION = 251, /* wire 1628 */
+    CS2_OP_CC_INPUT_GETLINEWRAPPINGMODE = 252, /* wire 1629 */
+    CS2_OP_CC_INPUT_GETSUBMITMODE = 253, /* wire 1630 */
+    CS2_OP_CC_INPUT_GETACCEPTMODE = 254, /* wire 1631 */
+    CS2_OP_CC_INPUT_GETCENSORMODE = 255, /* wire 1632 */
+    CS2_OP_CC_INPUT_GETKEYMODE = 256, /* wire 1633 */
+    CS2_OP_CC_INPUT_GETCHARMODE = 257, /* wire 1634 */
 
-/* === CS2 opcode group: if-geometry (2500..2599) ===
- * explicit-component geometry getters.
- * rev-239 dispatch: Statics.method6889 -> method4787.
- */
-/* IF_GETX — Get relative X.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  x
- * str stack out:  -
- */
-#define CS2_OP_IF_GETX 2500
-/* IF_GETY — Get relative Y.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  y
- * str stack out:  -
- */
-#define CS2_OP_IF_GETY 2501
-/* IF_GETWIDTH — Get layout width.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  width
- * str stack out:  -
- */
-#define CS2_OP_IF_GETWIDTH 2502
-/* IF_GETHEIGHT — Get layout height.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  height
- * str stack out:  -
- */
-#define CS2_OP_IF_GETHEIGHT 2503
-/* IF_GETHIDE — Get hidden flag.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  hidden ? 1 : 0
- * str stack out:  -
- */
-#define CS2_OP_IF_GETHIDE 2504
-/* IF_GETLAYER — Get parent component id.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  parent_id
- * str stack out:  -
- */
-#define CS2_OP_IF_GETLAYER 2505
-#define CS2_OP_IF_GETPARENTLAYER 2506
+    /* === CS2 opcode group: cc-inventory (1700..1799) ===
+     * active-component inventory and identity getters.
+     * rev-239 dispatch: Statics.method6889 -> method12337.
+     */
+    CS2_OP_CC_GETINVOBJECT = 258, /* wire 1700 */
+    CS2_OP_CC_GETINVCOUNT = 259, /* wire 1701 */
+    /* CC_GETID — Get active component id.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  active_component
+     * str stack out:  -
+     */
+    CS2_OP_CC_GETID = 260, /* wire 1702 */
+    /* CC_PARAM — Read a param off the component's runtime param table.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   param_id
+     * str stack in:   -
+     * int stack out:  value
+     * str stack out:  -
+     * notes: Answers with what CC_SETPARAM wrote, else the ParamType's default_int — which is what makes the scripts' `= -1` guards mean "never tagged".
+     */
+    CS2_OP_CC_PARAM = 261, /* wire 1703 */
+    /* CC_SETPARAM — Write a param onto the component's runtime param table.
+     * operand: 0 = active component, 1 = dot component
+     * int stack in:   param_id, value, kind  (kind = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: OldSchool-era, distinct from CC_GETBLENDMODE (1613): the table lives on the component at runtime and starts empty (IF3 files carry no param section). VARIABLE ARITY, so the counts above are the kind == 0 case only: `kind` names the ParamType's type, and kind == 2 means the value was pushed on the STRING stack, leaving just (param_id, kind) on the int stack — script 9581 writes param 1017, declared `s`, that way. Popping three ints unconditionally steals an unrelated int from under it. Dedicated dispatch in cs2vm2.c handles both shapes, so this never reaches StackMetaStub with the wrong one.
+     */
+    CS2_OP_CC_SETPARAM = 262, /* wire 1704 */
+    CS2_OP_CC_CRMVIEW_GETHASRESPONSE = 263, /* wire 1707 */
+    CS2_OP_CC_CRMVIEW_GETINT = 264, /* wire 1708 */
+    CS2_OP_CC_CRMVIEW_GETSTRING = 265, /* wire 1709 */
 
-/* === CS2 opcode group: if-appearance (2600..2699) ===
- * explicit-component appearance getters.
- * rev-239 dispatch: Statics.method6889 -> method8067.
- */
-/* IF_GETSCROLLX — Get scroll X (stub).
- * int stack in:   component
- * str stack in:   -
- * int stack out:  0
- * str stack out:  -
- */
-#define CS2_OP_IF_GETSCROLLX 2600
-/* IF_GETSCROLLY — Get scroll Y (stub).
- * int stack in:   component
- * str stack in:   -
- * int stack out:  0
- * str stack out:  -
- */
-#define CS2_OP_IF_GETSCROLLY 2601
-/* IF_GETTEXT — Get text.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  -
- * str stack out:  text
- */
-#define CS2_OP_IF_GETTEXT 2602
-/* IF_GETSCROLLWIDTH — Get scroll content width.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  scroll_width
- * str stack out:  -
- */
-#define CS2_OP_IF_GETSCROLLWIDTH 2603
-/* IF_GETSCROLLHEIGHT — Get scroll content height.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  scroll_height
- * str stack out:  -
- */
-#define CS2_OP_IF_GETSCROLLHEIGHT 2604
-#define CS2_OP_IF_GETMODELZOOM 2605
-#define CS2_OP_IF_GETMODELANGLE_X 2606
-#define CS2_OP_IF_GETMODELANGLE_Z 2607
-#define CS2_OP_IF_GETMODELANGLE_Y 2608
-#define CS2_OP_IF_GETTRANS 2609
-#define CS2_OP_IF_GETBLENDTRANS 2610
-#define CS2_OP_IF_GETCOLOUR 2611
-#define CS2_OP_IF_GETBLENDCOLOUR 2612
-#define CS2_OP_IF_GETBLENDMODE 2613
-#define CS2_OP_IF_GETMODELTRANSPARENT 2614
-#define CS2_OP_IF_GETARCSTART 2615
-#define CS2_OP_IF_GETARCEND 2616
-#define CS2_OP_IF_INPUT_GETSELECTCOLOUR 2617
-#define CS2_OP_IF_INPUT_GETSELECTBGCOLOUR 2618
-#define CS2_OP_IF_INPUT_GETPLACEHOLDERTEXT 2619
-#define CS2_OP_IF_INPUT_GETPLACEHOLDERTEXTCOLOUR 2620
-#define CS2_OP_IF_INPUT_GETLINEWRAPPINGWIDTH 2621
-#define CS2_OP_IF_INPUT_GETLINECOUNTLIMIT 2622
-#define CS2_OP_IF_INPUT_GETLINEWIDTHLIMIT 2623
-#define CS2_OP_IF_INPUT_GETFOCUS 2624
-#define CS2_OP_IF_INPUT_GETFOCUSABLE 2625
-#define CS2_OP_IF_INPUT_GETSELECTIONTEXT 2626
-#define CS2_OP_IF_INPUT_GETSELECTIONBOUNDS 2627
-#define CS2_OP_IF_INPUT_GETCARETPOSITION 2628
-#define CS2_OP_IF_INPUT_GETLINEWRAPPINGMODE 2629
-#define CS2_OP_IF_INPUT_GETSUBMITMODE 2630
-#define CS2_OP_IF_INPUT_GETACCEPTMODE 2631
-#define CS2_OP_IF_INPUT_GETCENSORMODE 2632
-#define CS2_OP_IF_INPUT_GETKEYMODE 2633
-#define CS2_OP_IF_INPUT_GETCHARMODE 2634
+    /* === CS2 opcode group: cc-target (1800..1899) ===
+     * active-component target and op getters.
+     * rev-239 dispatch: Statics.method6889 -> method6843.
+     */
+    CS2_OP_CC_GETTARGETMASK = 266, /* wire 1800 */
+    /* CC_GETOP — Get op text.
+     * int stack in:   op_index
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  op text
+     */
+    CS2_OP_CC_GETOP = 267, /* wire 1801 */
+    /* CC_GETOPBASE — Get op base text.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  op_base
+     */
+    CS2_OP_CC_GETOPBASE = 268, /* wire 1802 */
+    CS2_OP_DEEPLINK_GET = 269, /* wire 1826 */
+    CS2_OP_DEEPLINK_COUNT = 270, /* wire 1827 */
+    CS2_OP_DEEPLINK_CLEAR_INDEX = 271, /* wire 1828 */
 
-/* === CS2 opcode group: if-inventory (2700..2799) ===
- * interface inventory, parent and identity getters.
- * rev-239 dispatch: Statics.method6889 -> method3056.
- */
-#define CS2_OP_IF_GETINVOBJECT 2700
-#define CS2_OP_IF_GETINVCOUNT 2701
-#define CS2_OP_IF_HASSUB 2702
-/* IF_PARAM — Read a runtime param from a named component.
- * operand: unused
- * int stack in:   param, component, fallback                    (fallback = top)
- * str stack in:   -
- * int stack out:  component param value, or fallback on a miss
- * str stack out:  -
- * notes: Absent from both vendored tables. All 16 rev-239 call sites push three ints and use literal -1 as the fallback; see the derivation in local_opcodes.py.
- */
-#define CS2_OP_IF_PARAM 2703
-/* IF_SETPARAM — Write a runtime param onto a named component.
- * int stack in:   param_id, value, component_uid, child_index, type  (type = top)
- * str stack in:   value when type names a string
- * int stack out:  -
- * str stack out:  -
- * notes: Variable arity: type 2/115 takes the value from the string stack, so the integer `value` is absent. child_index -1 names the component itself. Rev-239 call sites identify this opcode; IF_HASCHILD_MODAL is retained only as a legacy source alias.
- */
-#define CS2_OP_IF_SETPARAM 2704
-#define CS2_OP_IF_HASCHILD_MODAL 2704
-/* IF_HASCHILD_OVERLAY (2705) — legacy interface-parent probe.
- * operand: unused
- * int stack in:   widget, parent  (parent = top)
- * str stack in:   -
- * int stack out:  1 if InterfaceParent[widget].group_id == parent, else 0
- * str stack out:  -
- * notes: retained from the rev-634 interface-parent family. Opcode
- *        2704 is IF_SETPARAM in the current rev-239 dialect. */
-#define CS2_OP__2705 2705
-/* IF_GETTOP — Get root component id.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  top component or -1
- * str stack out:  -
- */
-#define CS2_OP_IF_GETTOP 2706
-#define CS2_OP_IF_CRMVIEW_GETHASRESPONSE 2707
-#define CS2_OP_IF_CRMVIEW_GETINT 2708
-#define CS2_OP_IF_CRMVIEW_GETSTRING 2709
+    /* === CS2 opcode group: component-action (1900..1999 / 2900..2999) ===
+     * component resize and trigger actions.
+     * rev-239 dispatch: Statics.method6889 -> method1005.
+     * The listed ranges deliberately share one component handler.
+     */
+    CS2_OP_CC_CALLONRESIZE = 272, /* wire 1927 */
+    CS2_OP_CC_TRIGGEROP = 273, /* wire 1928 */
 
-/* === CS2 opcode group: if-target (2800..2899) ===
- * explicit-component target and op getters.
- * rev-239 dispatch: Statics.method6889 -> method2.
- */
-#define CS2_OP_IF_GETTARGETMASK 2800
-/* IF_GETOP — Get op text.
- * int stack in:   op_index, component  (component = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  op text
- * notes: The rev-239 handler pops the explicit component first, then the one-based op index.
- */
-#define CS2_OP_IF_GETOP 2801
-/* IF_GETOPBASE — Get op base text.
- * int stack in:   component
- * str stack in:   -
- * int stack out:  -
- * str stack out:  op_base
- */
-#define CS2_OP_IF_GETOPBASE 2802
+    /* === CS2 opcode group: component-layout (1000..1099 / 2000..2099) ===
+     * component position, size and visibility setters.
+     * rev-239 dispatch: Statics.method6889 -> method5842.
+     * The listed ranges deliberately share one component handler.
+     */
+    /* IF_SETPOSITION — Set position.
+     * int stack in:   x, y, x_mode, y_mode, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: component is top of int stack.
+     */
+    CS2_OP_IF_SETPOSITION = 274, /* wire 2000 */
+    /* IF_SETSIZE — Set size.
+     * int stack in:   width, height, width_mode, height_mode, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: component is top of int stack.
+     */
+    CS2_OP_IF_SETSIZE = 275, /* wire 2001 */
+    /* IF_SETHIDE — Set hidden.
+     * int stack in:   component, hide  (hide = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETHIDE = 276, /* wire 2003 */
+    CS2_OP__2004 = 277, /* wire 2004 */
+    /* IF_SETNOCLICKTHROUGH — Set no-click-through.
+     * int stack in:   component, enabled  (enabled = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETNOCLICKTHROUGH = 278, /* wire 2005 */
+    CS2_OP_IF_SETNOSCROLLTHROUGH = 279, /* wire 2006 */
 
-/* === CS2 opcode group: component-action (1900..1999 / 2900..2999) ===
- * component resize and trigger actions.
- * rev-239 dispatch: Statics.method6889 -> method1005.
- * The listed ranges deliberately share one component handler.
- */
-#define CS2_OP_IF_CALLONRESIZE 2927
-#define CS2_OP_IF_TRIGGEROP 2928
-/* IF_SCRIPT_TRIGGER — Synthesize a server component click with typed arguments.
- * int stack in:   crc, component, child_index, typed ints          (typed ints = top)
- * str stack in:   signature (plus any typed strings it describes)
- * int stack out:  -
- * str stack out:  -
- * notes: Variable arity is described by the signature. The rev-239 wire op is IF_SCRIPT_TRIGGER; this client adapts it to IF_BUTTON1.
- */
-#define CS2_OP_IF_SCRIPT_TRIGGER 2929
+    /* === CS2 opcode group: component-appearance (1100..1199 / 2100..2199) ===
+     * component graphic, model and text setters.
+     * rev-239 dispatch: Statics.method6889 -> method4754.
+     * The listed ranges deliberately share one component handler.
+     */
+    /* IF_SETSCROLLPOS — Set scroll position.
+     * int stack in:   scroll_y, scroll_x, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETSCROLLPOS = 280, /* wire 2100 */
+    /* IF_SETCOLOUR — Set colour.
+     * int stack in:   component, colour  (colour = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETCOLOUR = 281, /* wire 2101 */
+    /* IF_SETFILL — Set fill.
+     * int stack in:   component, filled  (filled = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETFILL = 282, /* wire 2102 */
+    /* IF_SETTRANS — Set transparency.
+     * int stack in:   component, trans  (trans = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETTRANS = 283, /* wire 2103 */
+    CS2_OP_IF_SETLINEWID = 284, /* wire 2104 */
+    /* IF_SETGRAPHIC — Set graphic.
+     * int stack in:   graphic_id, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETGRAPHIC = 285, /* wire 2105 */
+    CS2_OP_IF_SET2DANGLE = 286, /* wire 2106 */
+    CS2_OP_IF_SETTILING = 287, /* wire 2107 */
+    /* IF_SETMODEL — Set model id.
+     * int stack in:   model_id, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETMODEL = 288, /* wire 2108 */
+    CS2_OP_IF_SETMODELANGLE = 289, /* wire 2109 */
+    CS2_OP_IF_SETMODELANIM = 290, /* wire 2110 */
+    CS2_OP_IF_SETMODELORTHOG = 291, /* wire 2111 */
+    /* IF_SETTEXT — Set text.
+     * int stack in:   component
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETTEXT = 292, /* wire 2112 */
+    /* IF_SETTEXTFONT — Set font.
+     * int stack in:   component, font_id  (font_id = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETTEXTFONT = 293, /* wire 2113 */
+    /* IF_SETTEXTALIGN — Set text alignment.
+     * int stack in:   x_align, y_align, line_height, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETTEXTALIGN = 294, /* wire 2114 */
+    /* IF_SETTEXTSHADOW — Set text shadow.
+     * int stack in:   component, shadow  (shadow = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETTEXTSHADOW = 295, /* wire 2115 */
+    /* IF_SETOUTLINE — Set sprite outline (border type).
+     * int stack in:   outline, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Sets widget borderType for sprite outline rendering.
+     */
+    CS2_OP_IF_SETOUTLINE = 296, /* wire 2116 */
+    CS2_OP_IF_SETGRAPHICSHADOW = 297, /* wire 2117 */
+    CS2_OP_IF_SETVFLIP = 298, /* wire 2118 */
+    CS2_OP_IF_SETHFLIP = 299, /* wire 2119 */
+    /* IF_SETSCROLLSIZE — Set scroll size.
+     * int stack in:   scroll_h, scroll_w, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETSCROLLSIZE = 300, /* wire 2120 */
+    CS2_OP_IF_RESUME_PAUSEBUTTON = 301, /* wire 2121 */
+    /* IF_SETCLICKMASK — Set secondary sprite graphic.
+     * int stack in:   graphic_id, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETCLICKMASK = 302, /* wire 2122 */
+    CS2_OP_IF_SETBLENDCOLOUR = 303, /* wire 2123 */
+    /* IF_SETBLENDTRANS — Set bottom transparency.
+     * int stack in:   trans, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETBLENDTRANS = 304, /* wire 2124 */
+    /* IF_SETBLENDMODE — Set fill mode.
+     * int stack in:   fill_mode, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETBLENDMODE = 305, /* wire 2125 */
+    CS2_OP_IF_SETLINEDIRECTION = 306, /* wire 2126 */
+    /* IF_SETMODELTRANSPARENT — Set model transparency.
+     * int stack in:   transparent, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETMODELTRANSPARENT = 307, /* wire 2127 */
+    /* IF_SETARC — Set the arc's start and end angle.
+     * int stack in:   start_angle, end_angle, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: The by-id form of CC_SETARC; same angle units.
+     */
+    CS2_OP_IF_SETARC = 308, /* wire 2128 */
+    CS2_OP_IF_SETHTTPSPRITE = 309, /* wire 2129 */
+    CS2_OP_IF_CRMVIEW_INIT = 310, /* wire 2130 */
+    CS2_OP_IF_CRMVIEW_SETTEXTFONT = 311, /* wire 2131 */
+    CS2_OP_IF_CRMVIEW_SETSERVERTARGETS = 312, /* wire 2132 */
+    /*
+     * IF_ variants of the input-field config setters. No UITree model for these
+     * fields yet, so each is forwarded as its own exact host request. Their stack
+     * signatures must still be described to keep the operand stack synchronized.
+     * Each takes the component uid on top of the value.
+     */
+    /* IF_INPUT_SETSELECTCOLOUR
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETSELECTCOLOUR = 313, /* wire 2133 */
+    /* IF_INPUT_SETSELECTBGCOLOUR
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETSELECTBGCOLOUR = 314, /* wire 2134 */
+    /* IF_INPUT_SETPLACEHOLDERTEXT — Set an input field's placeholder text.
+     * int stack in:   component
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETPLACEHOLDERTEXT = 315, /* wire 2135 */
+    /* IF_INPUT_SETPLACEHOLDERTEXTCOLOUR
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETPLACEHOLDERTEXTCOLOUR = 316, /* wire 2136 */
+    /* IF_INPUT_SETLINEWRAPPINGWIDTH
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETLINEWRAPPINGWIDTH = 317, /* wire 2137 */
+    /* IF_INPUT_SETLINECOUNTLIMIT
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETLINECOUNTLIMIT = 318, /* wire 2138 */
+    /* IF_INPUT_SETLINEWIDTHLIMIT
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETLINEWIDTHLIMIT = 319, /* wire 2139 */
+    /* IF_INPUT_SETFOCUS
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETFOCUS = 320, /* wire 2140 */
+    /* IF_INPUT_SETFOCUSABLE
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETFOCUSABLE = 321, /* wire 2141 */
+    /* IF_INPUT_SETSELECTION — Set an input field's selected range.
+     * int stack in:   start, end, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETSELECTION = 322, /* wire 2142 */
+    /* IF_INPUT_SETCARET
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETCARET = 323, /* wire 2143 */
+    /* IF_INPUT_SETWRAPMODE
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETWRAPMODE = 324, /* wire 2144 */
+    /* IF_INPUT_SETSUBMITMODE
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETSUBMITMODE = 325, /* wire 2145 */
+    /* IF_INPUT_SETACCEPTMODE
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_INPUT_SETACCEPTMODE = 326, /* wire 2146 */
+    CS2_OP_IF_INPUT_SETCENSORMODE = 327, /* wire 2147 */
+    CS2_OP_IF_INPUT_SETKEYMODE = 328, /* wire 2148 */
+    CS2_OP_IF_INPUT_SETCHARMODE = 329, /* wire 2149 */
+    CS2_OP_IF_CRMVIEW_SETJSON = 330, /* wire 2150 */
 
-/* === CS2 opcode group: client (3000..3199) ===
- * general client commands and preferences.
- * rev-239 dispatch: Statics.method6889 -> method6397.
- */
-#define CS2_OP_MES 3100
-#define CS2_OP_ANIM 3101
-#define CS2_OP_MES_TYPED 3102
-#define CS2_OP_IF_CLOSE 3103
-#define CS2_OP_RESUME_COUNTDIALOG 3104
-#define CS2_OP_RESUME_NAMEDIALOG 3105
-#define CS2_OP_RESUME_STRINGDIALOG 3106
-#define CS2_OP_OPPLAYER 3107
-#define CS2_OP_IF_DRAGPICKUP 3108
-#define CS2_OP_CC_DRAGPICKUP 3109
-#define CS2_OP_SETMOUSECAM 3110
-#define CS2_OP_GETREMOVEROOFS 3111
-#define CS2_OP_SETREMOVEROOFS 3112
-#define CS2_OP_OPENURL 3113
-#define CS2_OP_RESUME_COUNTDIALOG_LONG 3114
-#define CS2_OP_RESUME_OBJDIALOG 3115
-#define CS2_OP_BUG_REPORT 3116
-#define CS2_OP_SETSHIFTCLICKENABLED 3117
-#define CS2_OP_SETSHOWMOUSEOVERTEXT 3118
-#define CS2_OP_RENDERSELF 3119
-#define CS2_OP_SETDRAWPLAYERNAMES_FRIENDS 3120
-#define CS2_OP_SETDRAWPLAYERNAMES_CLANMATES 3121
-#define CS2_OP_SETDRAWPLAYERNAMES_OTHERS 3122
-#define CS2_OP_SETDRAWPLAYERNAMES_SELF 3123
-#define CS2_OP_RESETDRAWPLAYERNAMES 3124
-#define CS2_OP_SETSHOWMOUSECROSS 3125
-#define CS2_OP_SETSHOWLOADINGMESSAGES 3126
-#define CS2_OP_SETSIMULATEDSHIFTACTIVE 3127
-#define CS2_OP_GETSIMULATEDSHIFTACTIVE 3128
-/* SETFREECAMSPEED — Set the free camera's speed.
- * int stack in:   x1, x2  (x2 = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: Not implemented here; the stack stub pops both.
- */
-#define CS2_OP_SETFREECAMSPEED 3129
-#define CS2_OP_SETFEEDBACKSPRITE 3130
-#define CS2_OP_SETFEEDBACKSHOWPOPUPTEXT 3131
-#define CS2_OP_GETCANVASSIZE 3132
-#define CS2_OP_MOBILE_SETFPS 3133
-#define CS2_OP_SHOP_OPEN 3134
-#define CS2_OP_SHOP_OPENSUBSET 3135
-#define CS2_OP_SETKEYINPUTMODE_COMPONENT 3136
-#define CS2_OP_SETKEYINPUTMODE_INTERFACE 3137
-/* SETKEYINPUTMODE_ALL — Release keyboard capture (input dialog type 0).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: takes no args despite the SET prefix — the doc comment is required to
- *        stop the generator's "SET* pops one" heuristic guessing wrong.
- */
-#define CS2_OP_SETKEYINPUTMODE_ALL 3138
-/* SETKEYINPUTMODE_NONE — Capture keyboard for a dialog (input dialog type 1).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: takes no args despite the SET prefix (see SETKEYINPUTMODE_ALL).
- */
-#define CS2_OP_SETKEYINPUTMODE_NONE 3139
-/* SETKEYINPUTMODE_ACTIVECOMPONENT — Route keyboard input to the active component.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: rev-239 Statics 3140 sets the key-input mode and takes the active (or dot) component; nothing on the stacks.
- */
-#define CS2_OP_SETKEYINPUTMODE_ACTIVECOMPONENT 3140
-#define CS2_OP_SETHIDEUSERNAME 3141
-#define CS2_OP_GETHIDEUSERNAME 3142
-#define CS2_OP_SETREMEMBERUSERNAME 3143
-#define CS2_OP_GETREMEMBERUSERNAME 3144
-#define CS2_OP_SHOW_IOS_REVIEW 3145
-#define CS2_OP_SETTITLESCREENSOUND 3146
-#define CS2_OP_GETTITLESCREENSOUND 3147
-#define CS2_OP_SETTERMSANDPRIVACY 3148
-#define CS2_OP_GETTERMSANDPRIVACY 3149
-#define CS2_OP_ELIGIBLEFORFREETRIAL 3150
-#define CS2_OP_ELIGIBLEFORINTRODUCTORYPRICE 3151
-#define CS2_OP_GETPUCHASEHISTORYSTATUS 3152
-#define CS2_OP_GETLOADINGPROGRESS 3153
-#define CS2_OP_GETPRELOADPROGRESS 3154
-#define CS2_OP_SHOP_PURCHASEITEM 3155
-#define CS2_OP_SHOP_REQUESTDATA 3156
-#define CS2_OP_SHOP_OPENCATEGORIES 3157
-#define CS2_OP_SHOP_PURCHASEITEMSTATUS 3158
-#define CS2_OP_SHOP_REQUESTDATASTATUS 3159
-#define CS2_OP_SHOP_GETCATEGORYCOUNT 3160
-#define CS2_OP_SHOP_GETCATEGORYID 3161
-#define CS2_OP_SHOP_GETINDEXFORCATEGORYID 3162
-#define CS2_OP_SHOP_GETINDEXFORCATEGORYNAME 3163
-#define CS2_OP_SHOP_GETCATEGORYDESCRIPTION 3164
-#define CS2_OP_SHOP_GETPRODUCTCOUNT 3165
-#define CS2_OP_SHOP_ISPRODUCTAVAILABLE 3166
-#define CS2_OP_SHOP_ISPRODUCTRECOMMENDED 3167
-#define CS2_OP_SHOP_GETPRODUCTDETAILS 3168
-#define CS2_OP_UNKNOWN_COMMAND_3169 3169
-/*
- * Mobile local (push) notifications, 3170..3173. Newer than the vendored RuneStar
- * table, which has nothing between 3157 and 3181. Desktop has no notification
- * centre, so the host stubs the whole family: scheduling is a no-op and
- * SUPPORTED answers 0, which is what the scripts branch on.
- */
-/* NOTIFICATIONS_SENDLOCAL — Schedule a local notification.
- * int stack in:   id, delay_ms  (delay_ms = top)
- * str stack in:   title, body   (body = top)
- * int stack out:  handle
- * str stack out:  -
- * notes: pushes a handle for NOTIFICATIONS_SENDGROUPEDLOCAL. script 5360
- *        (proc,local_notification) POP_INT_LOCALs it straight after the call, so
- *        the push is required or that store underflows.
- */
-#define CS2_OP_NOTIFICATIONS_SENDLOCAL 3170
-/* NOTIFICATIONS_SENDGROUPEDLOCAL — Schedule a grouped mobile notification.
- * int stack in:   x4, x5, x6                                           (x6 = top)
- * str stack in:   x1, x2, x3                                           (x3 = top)
- * int stack out:  handle (0 here: desktop has no notification centre)
- * str stack out:  -
- */
-#define CS2_OP_NOTIFICATIONS_SENDGROUPEDLOCAL 3171
-/* NOTIFICATIONS_CANCELLOCAL — Cancel one scheduled mobile notification.
- * int stack in:   handle
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_NOTIFICATIONS_CANCELLOCAL 3172
-/* NOTIFICATIONS_ISLOCALSCHEDULED — Is a mobile notification scheduled?.
- * int stack in:   handle
- * str stack in:   -
- * int stack out:  0 here
- * str stack out:  -
- */
-#define CS2_OP_NOTIFICATIONS_ISLOCALSCHEDULED 3173
-#define CS2_OP_UNKNOWN_COMMAND_3174 3174
-#define CS2_OP_NOTIFICATIONS_GETENABLED 3175
-#define CS2_OP_UNKNOWN_COMMAND_3176 3176
-#define CS2_OP_MARKETING_INITANALYTICS 3177
-#define CS2_OP_MARKETING_SENDANALYTICSEVENT 3178
-#define CS2_OP_MARKETING_INITATTRIBUTION 3179
-#define CS2_OP_MARKETING_SENDATTRIBUTIONEVENT 3180
-#define CS2_OP_SETBRIGHTNESS 3181
-#define CS2_OP_GETBRIGHTNESS 3182
-#define CS2_OP_SETANTIDRAG 3183
-#define CS2_OP_GETANTIDRAG 3184
-#define CS2_OP_SETDRAWDISTANCE 3185
-#define CS2_OP_GETDRAWDISTANCE 3186
-#define CS2_OP_UNKNOWN_COMMAND_3187 3187
-#define CS2_OP_UNKNOWN_COMMAND_3188 3188
-#define CS2_OP_SEQ_PREFETCH 3189
-#define CS2_OP_UNKNOWN_COMMAND_3197 3197
-#define CS2_OP_UNKNOWN_COMMAND_3198 3198
+    /* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
+     * component object and head-model setters.
+     * rev-239 dispatch: Statics.method6889 -> method5661.
+     * The listed ranges deliberately share one component handler.
+     */
+    /* IF_SETOBJECT — Set object icon.
+     * int stack in:   obj_id, obj_count, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETOBJECT = 331, /* wire 2200 */
+    CS2_OP_IF_SETNPCHEAD = 332, /* wire 2201 */
+    CS2_OP_IF_SETPLAYERHEAD_SELF = 333, /* wire 2202 */
+    CS2_OP__2203 = 334, /* wire 2203 */
+    /* IF_SETOBJECT_NONUM — Set object icon without qty.
+     * int stack in:   obj_id, obj_count, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETOBJECT_NONUM = 335, /* wire 2205 */
+    CS2_OP_IF_SETPLAYERMODEL_SELF = 336, /* wire 2207 */
+    CS2_OP_IF_SETPLAYERMODEL_OBJ = 337, /* wire 2208 */
+    CS2_OP_IF_SETPLAYERMODEL_BASECOLOUR = 338, /* wire 2209 */
+    CS2_OP_IF_SETPLAYERMODEL_BODYTYPE = 339, /* wire 2210 */
+    /* IF_SETOBJECT_ALWAYSNUM — Set object icon always showing qty.
+     * int stack in:   obj_id, obj_count, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETOBJECT_ALWAYSNUM = 340, /* wire 2212 */
+    CS2_OP_IF_SETOBJECT_NUMMODE = 341, /* wire 2213 */
+    CS2_OP_IF_SETLOCMODEL = 342, /* wire 2214 */
+    CS2_OP_IF_SETNPCMODEL = 343, /* wire 2215 */
 
-/* === CS2 opcode group: audio-options (3200..3299) ===
- * audio and client option commands.
- * rev-239 dispatch: Statics.method6889 -> method6695.
- */
-/* SOUND_SYNTH — Play a cache sound effect.
- * int stack in:   synth, loops, delay  (delay = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: About 600 rev-239 call sites use sound_synth(synth, 1, 0); these are the interface interaction sounds.
- */
-#define CS2_OP_SOUND_SYNTH 3200
-/* SOUND_SONG — Play a song with fade-out and fade-in settings.
- * int stack in:   id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed  (fade_in_speed = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: The CS2 twin of MIDI_SONG_V2. Script 9630 and RSProt's MidiSongV2 agree on the default fade tuple 0/60/60/0.
- */
-#define CS2_OP_SOUND_SONG 3201
-/* SOUND_JINGLE — Play a MIDI jingle.
- * int stack in:   id, delay  (delay = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_SOUND_JINGLE 3202
-#define CS2_OP_SETVOLUMEMUSIC 3203
-#define CS2_OP_GETVOLUMEMUSIC 3204
-#define CS2_OP_SETVOLUMESOUNDS 3205
-#define CS2_OP_GETVOLUMESOUNDS 3206
-#define CS2_OP_SETVOLUMEAREASOUNDS 3207
-#define CS2_OP_GETVOLUMEAREASOUNDS 3208
-#define CS2_OP_CLIENTOPTION_SET 3209
-#define CS2_OP_CLIENTOPTION_GET 3210
-#define CS2_OP_UNKNOWN_COMMAND_3211 3211
-#define CS2_OP_DEVICEOPTION_SET 3212
-#define CS2_OP_GAMEOPTION_SET 3213
-#define CS2_OP_DEVICEOPTION_GET 3214
-#define CS2_OP_GAMEOPTION_GET 3215
-#define CS2_OP_DEVICEOPTION_EXISTS 3216
-#define CS2_OP_DEVICEOPTION_GETRANGE 3217
-#define CS2_OP_GAMEOPTION_EXISTS 3218
-#define CS2_OP_GAMEOPTION_GETRANGE 3219
-#define CS2_OP_SOUND_SONG_STOP 3220
-/* SOUND_SONG_WITHSECONDARY — Play a song with a secondary track and cross-fade settings.
- * int stack in:   primary, secondary, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed  (fade_in_speed = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: Named _3221 upstream. Script 9630 falls back to SOUND_SONG when its secondary lookup returns -1, which identifies the operation.
- */
-#define CS2_OP_SOUND_SONG_WITHSECONDARY 3221
-#define CS2_OP_SOUND_SONG_SWAP 3222
-#define CS2_OP_RT7_SETENABLED 3223
-#define CS2_OP_RT7_SD 3224
-#define CS2_OP_RT7_HD 3225
-#define CS2_OP_UNKNOWN_COMMAND_3226 3226
-#define CS2_OP_RT7_GETENABLED 3227
-#define CS2_OP_TRANSLATIONS_SET 3228
-#define CS2_OP_TRANSLATIONS_CLEAR 3229
+    /* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
+     * component ops, dragging and key bindings.
+     * rev-239 dispatch: Statics.method6889 -> method12438.
+     * The listed ranges deliberately share one component handler.
+     */
+    /* IF_SETOP — Set op text.
+     * int stack in:   index, component  (component = top)
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETOP = 344, /* wire 2300 */
+    /* IF_SETDRAGGABLE — Set draggable.
+     * int stack in:   component, parent_uid, child_index  (child_index = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETDRAGGABLE = 345, /* wire 2301 */
+    /* IF_SETDRAGRENDERBEHAVIOUR — Set drag behavior.
+     * int stack in:   component, behavior  (behavior = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETDRAGRENDERBEHAVIOUR = 346, /* wire 2302 */
+    /* IF_SETDRAGDEADZONE — Set drag dead zone.
+     * int stack in:   component, zone  (zone = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETDRAGDEADZONE = 347, /* wire 2303 */
+    /* IF_SETDRAGDEADTIME — Set drag dead time.
+     * int stack in:   component, time  (time = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETDRAGDEADTIME = 348, /* wire 2304 */
+    /* IF_SETOPBASE — Set context-menu target label (op base).
+     * int stack in:   component
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Op base is the right-hand target text in Choose Option menus (e.g. spell name on Cast). Stored as widget opBase.
+     */
+    CS2_OP_IF_SETOPBASE = 349, /* wire 2305 */
+    /* IF_SETTARGETVERB — Set target verb on a named component.
+     * int stack in:   component
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETTARGETVERB = 350, /* wire 2306 */
+    /* IF_CLEAROPS — Clear ops.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_CLEAROPS = 351, /* wire 2307 */
+    /* IF_SETALWAYSLEFTCLICK — Set click mask.
+     * int stack in:   click_mask, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETALWAYSLEFTCLICK = 352, /* wire 2308 */
+    /* IF_SETPINCH — Client stub: pop component + one int and discard.
+     * int stack in:   value, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETPINCH = 353, /* wire 2309 */
+    CS2_OP_IF_CLEARSUBOPS = 354, /* wire 2310 */
+    /* IF_SETSUBOP — Set op submenu label.
+     * int stack in:   op_index, sub_index, component  (component = top)
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  -
+     * notes: op_index and sub_index are 1-based in script
+     */
+    CS2_OP_IF_SETSUBOP = 355, /* wire 2311 */
+    /* IF_SETOPPRIORITY — Set target priority (stub).
+     * int stack in:   component, priority  (priority = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETOPPRIORITY = 356, /* wire 2312 */
+    /* IF_SETOPKEY — Bind one (keychar, keycode) pair to an op slot by component uid.
+     * int stack in:   opindex, keychar, keycode, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: component is on top (popped first). opindex is 1-based (1..10).
+     */
+    CS2_OP_IF_SETOPKEY = 357, /* wire 2350 */
+    /* IF_SETOPTKEY — Bind one (keychar, keycode) pair to the typed-key slot (op 10).
+     * int stack in:   keychar, keycode, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETOPTKEY = 358, /* wire 2351 */
+    /* IF_SETOPKEYRATE — Set auto-repeat rate for an op key slot by component uid.
+     * int stack in:   opindex, keyrate, tickrate, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: tickrate == 0 disables repeat.
+     */
+    CS2_OP_IF_SETOPKEYRATE = 359, /* wire 2352 */
+    /* IF_SETOPTKEYRATE — Set auto-repeat rate for the typed-key slot (op 10).
+     * int stack in:   tickrate, keyrate, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETOPTKEYRATE = 360, /* wire 2353 */
+    /* IF_SETOPKEYIGNOREHELD — Suppress auto-repeat while the key is held.
+     * int stack in:   opindex, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETOPKEYIGNOREHELD = 361, /* wire 2354 */
+    /* IF_SETOPTKEYIGNOREHELD — Suppress auto-repeat on the typed-key slot (op 10).
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_IF_SETOPTKEYIGNOREHELD = 362, /* wire 2355 */
 
-/* === CS2 opcode group: client-state (3300..3399) ===
- * client state, inventory, stats and coordinates.
- * rev-239 dispatch: Statics.method6889 -> method6548.
- */
-/* CLIENTCLOCK — Get client tick counter.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  clock_ticks
- * str stack out:  -
- */
-#define CS2_OP_CLIENTCLOCK 3300
-/* INV_GETOBJ — Get inventory item id.
- * int stack in:   inv_id, slot           (slot = top)
- * str stack in:   -
- * int stack out:  obj_id or -1 if empty
- * str stack out:  -
- */
-#define CS2_OP_INV_GETOBJ 3301
-/* INV_GETNUM — Get inventory stack size.
- * int stack in:   inv_id, slot  (slot = top)
- * str stack in:   -
- * int stack out:  count
- * str stack out:  -
- */
-#define CS2_OP_INV_GETNUM 3302
-/* INV_TOTAL — Count item across inventory.
- * int stack in:   inv_id, item_id  (item_id = top)
- * str stack in:   -
- * int stack out:  total qty
- * str stack out:  -
- */
-#define CS2_OP_INV_TOTAL 3303
-/* INV_SIZE — Get inventory capacity.
- * int stack in:   inv_id
- * str stack in:   -
- * int stack out:  slot_count
- * str stack out:  -
- */
-#define CS2_OP_INV_SIZE 3304
-#define CS2_OP_STAT 3305
-#define CS2_OP_STAT_BASE 3306
-#define CS2_OP_STAT_VISIBLE_XP 3307
-/* COORD — Get player coord packed (stub).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  0
- * str stack out:  -
- */
-#define CS2_OP_COORD 3308
-/* COORDX — Extract X from packed coord.
- * int stack in:   packed
- * str stack in:   -
- * int stack out:  (packed >> 14) & 0x3FFF
- * str stack out:  -
- */
-#define CS2_OP_COORDX 3309
-/* COORDY — Extract the plane from packed coord. RuneScript's axes are x/y/z with y as the level, so "y" here is the plane and COORDZ is the second tile axis — not the other way round.
- * int stack in:   packed
- * str stack in:   -
- * int stack out:  (packed >> 28) & 0x3
- * str stack out:  -
- */
-#define CS2_OP_COORDY 3310
-/* COORDZ — Extract Z (the second tile axis) from packed coord.
- * int stack in:   packed
- * str stack in:   -
- * int stack out:  packed & 0x3FFF
- * str stack out:  -
- */
-#define CS2_OP_COORDZ 3311
-/* MAP_MEMBERS — Is members world (stub).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  1
- * str stack out:  -
- */
-#define CS2_OP_MAP_MEMBERS 3312
-#define CS2_OP_INVOTHER_GETOBJ 3313
-#define CS2_OP_INVOTHER_GETNUM 3314
-#define CS2_OP_INVOTHER_TOTAL 3315
-#define CS2_OP_STAFFMODLEVEL 3316
-#define CS2_OP_REBOOTTIMER 3317
-/* MAP_WORLD — Get world id (stub).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  301
- * str stack out:  -
- */
-#define CS2_OP_MAP_WORLD 3318
-#define CS2_OP_RUNENERGY_VISIBLE 3321
-/* RUNWEIGHT_VISIBLE — Get visible player weight.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  weight kg (0 default)
- * str stack out:  -
- */
-#define CS2_OP_RUNWEIGHT_VISIBLE 3322
-#define CS2_OP_PLAYERMOD 3323
-#define CS2_OP_WORLDFLAGS 3324
-/* MOVECOORD — Offset a packed coord by (x, y, z), where y is the plane.
- * int stack in:   packed, x, plane, z                       (z = top)
- * str stack in:   -
- * int stack out:  packed + ((plane << 28) | (x << 14) | z)
- * str stack out:  -
- */
-#define CS2_OP_MOVECOORD 3325
-#define CS2_OP_MOUSE_GETX 3326
-#define CS2_OP_MOUSE_GETY 3327
-#define CS2_OP_IDLETIMER_GET 3328
-#define CS2_OP_IDLETIMER_RESET 3329
-#define CS2_OP_DESTINATIONCOORD 3330
-#define CS2_OP__3330 3330
-#define CS2_OP_RUNENERGY 3331
-#define CS2_OP_STAT_UNKNOWN 3332
-#define CS2_OP_UNKNOWN_COMMAND_3333 3333
-#define CS2_OP_REBOOTMESSAGE 3334
-#define CS2_OP_WEC_NAME 3339
+    /* === CS2 opcode group: component-listener (1400..1499 / 2400..2499) ===
+     * component listener registration.
+     * rev-239 dispatch: Statics.method6889 -> method4487.
+     * The listed ranges deliberately share one component handler.
+     */
+    CS2_OP_IF_SETONCLICK = 363, /* wire 2400 */
+    CS2_OP_IF_SETONHOLD = 364, /* wire 2401 */
+    CS2_OP_IF_SETONRELEASE = 365, /* wire 2402 */
+    /* IF_SETONMOUSEOVER — Set onMouseOver handler.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_IF_SETONMOUSEOVER = 366, /* wire 2403 */
+    CS2_OP_IF_SETONMOUSELEAVE = 367, /* wire 2404 */
+    CS2_OP_IF_SETONDRAG = 368, /* wire 2405 */
+    CS2_OP_IF_SETONTARGETLEAVE = 369, /* wire 2406 */
+    CS2_OP_IF_SETONVARTRANSMIT = 370, /* wire 2407 */
+    /* IF_SETONTIMER — Set onTimer handler.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_IF_SETONTIMER = 371, /* wire 2408 */
+    CS2_OP_IF_SETONOP = 372, /* wire 2409 */
+    CS2_OP_IF_SETONDRAGCOMPLETE = 373, /* wire 2410 */
+    CS2_OP_IF_SETONCLICKREPEAT = 374, /* wire 2411 */
+    CS2_OP_IF_SETONMOUSEREPEAT = 375, /* wire 2412 */
+    /* IF_SETONINVTRANSMIT — Register inv-transmit script.
+     * operand: script id
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: signature args on stack
+     */
+    CS2_OP_IF_SETONINVTRANSMIT = 376, /* wire 2414 */
+    CS2_OP_IF_SETONSTATTRANSMIT = 377, /* wire 2415 */
+    CS2_OP_IF_SETONTARGETENTER = 378, /* wire 2416 */
+    /* IF_SETONSCROLLWHEEL — Set onScroll handler.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Stores onScroll (not onScrollWheel); wheel in opcode name is the trigger.
+     *        signature args on stack
+     */
+    CS2_OP_IF_SETONSCROLLWHEEL = 379, /* wire 2417 */
+    CS2_OP_IF_SETONCHATTRANSMIT = 380, /* wire 2418 */
+    CS2_OP_IF_SETONKEY = 381, /* wire 2419 */
+    CS2_OP_IF_SETONFRIENDTRANSMIT = 382, /* wire 2420 */
+    CS2_OP_IF_SETONCLANTRANSMIT = 383, /* wire 2421 */
+    CS2_OP_IF_SETONMISCTRANSMIT = 384, /* wire 2422 */
+    CS2_OP_IF_SETONDIALOGABORT = 385, /* wire 2423 */
+    CS2_OP_IF_SETONSUBCHANGE = 386, /* wire 2424 */
+    CS2_OP_IF_SETONSTOCKTRANSMIT = 387, /* wire 2425 */
+    CS2_OP_IF_SETONACTIVEOFFERSTRANSMIT = 388, /* wire 2426 */
+    CS2_OP_IF_SETONRESIZE = 389, /* wire 2427 */
+    CS2_OP_IF_SETONCLANSETTINGSTRANSMIT = 390, /* wire 2428 */
+    CS2_OP_IF_SETONCLANCHANNELTRANSMIT = 391, /* wire 2429 */
+    /* IF_ counterparts of CC_SETONKEYDOWN/CLANSETTINGS/MAPPOST (1430/1431/1433):
+     * set the listener by widget UID instead of on the active/dot child. No runtime
+     * model yet — signature-driven operand counts, so they are dispatched to the
+     * parse-and-discard helper (see the IF_SETON* discard group in cs2vm2.c). Used
+     * by the magic spellbook redraw (script 2610) — without a dispatch case op 2430
+     * fell through to StackMetaStub and aborted, blanking the spell icons. */
+    CS2_OP_IF_SETONKEYDOWN = 392, /* wire 2430 */
+    CS2_OP_IF_SETONKEYUP = 393, /* wire 2431 */
+    CS2_OP_IF_SETONMAPPRE = 394, /* wire 2432 */
+    CS2_OP_IF_SETONMAPPOST = 395, /* wire 2433 */
+    CS2_OP_IF_CRMVIEW_SETONUPDATED = 396, /* wire 2434 */
+    CS2_OP_IF_SETONOPT = 397, /* wire 2435 */
+    CS2_OP_IF_INPUT_SETONFOCUSCHANGED = 398, /* wire 2436 */
+    CS2_OP_IF_INPUT_SETONSELECT = 399, /* wire 2437 */
+    CS2_OP_IF_INPUT_SETONSUBMIT = 400, /* wire 2438 */
+    CS2_OP_IF_INPUT_SETONCHANGE = 401, /* wire 2439 */
 
-/* === CS2 opcode group: enum (3400..3499) ===
- * enum lookups.
- * rev-239 dispatch: Statics.method6889 -> method6018.
- */
-#define CS2_OP_ENUM_STRING 3400
-/* ENUM — Enum lookup.
- * int stack in:   input_type, output_type, enum_id, key  (key = top)
- * str stack in:   -
- * int stack out:  mapped value or -1
- * str stack out:  -
- */
-#define CS2_OP_ENUM 3408
-/* ENUM_GETOUTPUTCOUNT — Get enum output count.
- * int stack in:   enum_id
- * str stack in:   -
- * int stack out:  count
- * str stack out:  -
- */
-#define CS2_OP_ENUM_GETOUTPUTCOUNT 3411
+    /* === CS2 opcode group: if-geometry (2500..2599) ===
+     * explicit-component geometry getters.
+     * rev-239 dispatch: Statics.method6889 -> method4787.
+     */
+    /* IF_GETX — Get relative X.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  x
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETX = 402, /* wire 2500 */
+    /* IF_GETY — Get relative Y.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  y
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETY = 403, /* wire 2501 */
+    /* IF_GETWIDTH — Get layout width.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  width
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETWIDTH = 404, /* wire 2502 */
+    /* IF_GETHEIGHT — Get layout height.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  height
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETHEIGHT = 405, /* wire 2503 */
+    /* IF_GETHIDE — Get hidden flag.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  hidden ? 1 : 0
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETHIDE = 406, /* wire 2504 */
+    /* IF_GETLAYER — Get parent component id.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  parent_id
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETLAYER = 407, /* wire 2505 */
+    CS2_OP_IF_GETPARENTLAYER = 408, /* wire 2506 */
 
-/* === CS2 opcode group: keyboard (3500..3599) ===
- * keyboard state.
- * rev-239 dispatch: Statics.method6889 -> method6403.
- */
-/* KEYHELD — Is the given key currently held down?.
- * int stack in:   keycode
- * str stack in:   -
- * int stack out:  held
- * str stack out:  -
- * notes: keycode is an OSRS internal key code (see torirs_keymap.h), not ASCII.
- */
-#define CS2_OP_KEYHELD 3500
-/* KEYPRESSED — Was the given key pressed during this frame?.
- * int stack in:   keycode
- * str stack in:   -
- * int stack out:  pressed
- * str stack out:  -
- * notes: edge-triggered; cleared each frame. OSRS internal key code.
- */
-#define CS2_OP_KEYPRESSED 3501
-#define CS2_OP_KEYRELEASED 3502
+    /* === CS2 opcode group: if-appearance (2600..2699) ===
+     * explicit-component appearance getters.
+     * rev-239 dispatch: Statics.method6889 -> method8067.
+     */
+    /* IF_GETSCROLLX — Get scroll X (stub).
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  0
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETSCROLLX = 409, /* wire 2600 */
+    /* IF_GETSCROLLY — Get scroll Y (stub).
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  0
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETSCROLLY = 410, /* wire 2601 */
+    /* IF_GETTEXT — Get text.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  text
+     */
+    CS2_OP_IF_GETTEXT = 411, /* wire 2602 */
+    /* IF_GETSCROLLWIDTH — Get scroll content width.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  scroll_width
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETSCROLLWIDTH = 412, /* wire 2603 */
+    /* IF_GETSCROLLHEIGHT — Get scroll content height.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  scroll_height
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETSCROLLHEIGHT = 413, /* wire 2604 */
+    CS2_OP_IF_GETMODELZOOM = 414, /* wire 2605 */
+    CS2_OP_IF_GETMODELANGLE_X = 415, /* wire 2606 */
+    CS2_OP_IF_GETMODELANGLE_Z = 416, /* wire 2607 */
+    CS2_OP_IF_GETMODELANGLE_Y = 417, /* wire 2608 */
+    CS2_OP_IF_GETTRANS = 418, /* wire 2609 */
+    CS2_OP_IF_GETBLENDTRANS = 419, /* wire 2610 */
+    CS2_OP_IF_GETCOLOUR = 420, /* wire 2611 */
+    CS2_OP_IF_GETBLENDCOLOUR = 421, /* wire 2612 */
+    CS2_OP_IF_GETBLENDMODE = 422, /* wire 2613 */
+    CS2_OP_IF_GETMODELTRANSPARENT = 423, /* wire 2614 */
+    CS2_OP_IF_GETARCSTART = 424, /* wire 2615 */
+    CS2_OP_IF_GETARCEND = 425, /* wire 2616 */
+    CS2_OP_IF_INPUT_GETSELECTCOLOUR = 426, /* wire 2617 */
+    CS2_OP_IF_INPUT_GETSELECTBGCOLOUR = 427, /* wire 2618 */
+    CS2_OP_IF_INPUT_GETPLACEHOLDERTEXT = 428, /* wire 2619 */
+    CS2_OP_IF_INPUT_GETPLACEHOLDERTEXTCOLOUR = 429, /* wire 2620 */
+    CS2_OP_IF_INPUT_GETLINEWRAPPINGWIDTH = 430, /* wire 2621 */
+    CS2_OP_IF_INPUT_GETLINECOUNTLIMIT = 431, /* wire 2622 */
+    CS2_OP_IF_INPUT_GETLINEWIDTHLIMIT = 432, /* wire 2623 */
+    CS2_OP_IF_INPUT_GETFOCUS = 433, /* wire 2624 */
+    CS2_OP_IF_INPUT_GETFOCUSABLE = 434, /* wire 2625 */
+    CS2_OP_IF_INPUT_GETSELECTIONTEXT = 435, /* wire 2626 */
+    CS2_OP_IF_INPUT_GETSELECTIONBOUNDS = 436, /* wire 2627 */
+    CS2_OP_IF_INPUT_GETCARETPOSITION = 437, /* wire 2628 */
+    CS2_OP_IF_INPUT_GETLINEWRAPPINGMODE = 438, /* wire 2629 */
+    CS2_OP_IF_INPUT_GETSUBMITMODE = 439, /* wire 2630 */
+    CS2_OP_IF_INPUT_GETACCEPTMODE = 440, /* wire 2631 */
+    CS2_OP_IF_INPUT_GETCENSORMODE = 441, /* wire 2632 */
+    CS2_OP_IF_INPUT_GETKEYMODE = 442, /* wire 2633 */
+    CS2_OP_IF_INPUT_GETCHARMODE = 443, /* wire 2634 */
 
-/* === CS2 opcode group: social (3600..3699) ===
- * friends, ignores and legacy clan chat.
- * rev-239 dispatch: Statics.method6889 -> method7997.
- */
-#define CS2_OP_FRIEND_COUNT 3600
-#define CS2_OP_FRIEND_GETNAME 3601
-#define CS2_OP_FRIEND_GETWORLD 3602
-#define CS2_OP_FRIEND_GETRANK 3603
-#define CS2_OP_FRIEND_SETRANK 3604
-#define CS2_OP_FRIEND_ADD 3605
-#define CS2_OP_FRIEND_DEL 3606
-#define CS2_OP_IGNORE_ADD 3607
-#define CS2_OP_IGNORE_DEL 3608
-#define CS2_OP_FRIEND_TEST 3609
-#define CS2_OP_FRIENDSCHAT_GETCHATDISPLAYNAME 3611
-#define CS2_OP_FRIENDSCHAT_GETCHATCOUNT 3612
-#define CS2_OP_FRIENDSCHAT_GETCHATUSERNAME 3613
-#define CS2_OP_FRIENDSCHAT_GETCHATUSERWORLD 3614
-#define CS2_OP_FRIENDSCHAT_GETCHATUSERRANK 3615
-#define CS2_OP_FRIENDSCHAT_GETCHATMINKICK 3616
-#define CS2_OP_FRIENDSCHAT_KICKUSER 3617
-#define CS2_OP_FRIENDSCHAT_GETCHATRANK 3618
-#define CS2_OP_FRIENDSCHAT_JOINCHAT 3619
-#define CS2_OP_FRIENDSCHAT_LEAVECHAT 3620
-#define CS2_OP_IGNORE_COUNT 3621
-#define CS2_OP_IGNORE_GETNAME 3622
-#define CS2_OP_IGNORE_TEST 3623
-#define CS2_OP_FRIENDSCHAT_ISSELF 3624
-#define CS2_OP_FRIENDSCHAT_GETCHATOWNERNAME 3625
-#define CS2_OP_FRIENDSCHAT_ISFRIEND 3626
-#define CS2_OP_FRIENDSCHAT_ISIGNORE 3627
-#define CS2_OP_FRIENDLIST_SORT_RESET 3628
-#define CS2_OP_FRIENDLIST_SORT_LEGACY 3629
-#define CS2_OP_FRIENDLIST_SORT_NAME 3630
-#define CS2_OP_FRIENDLIST_SORT_WORLD 3631
-#define CS2_OP_FRIENDLIST_SORT_LASTWORLDCHANGE 3632
-#define CS2_OP_FRIENDLIST_SORT_ONLINE_STATUS 3633
-#define CS2_OP_FRIENDLIST_SORT_ONLINE_NAME 3634
-#define CS2_OP_FRIENDLIST_SORT_ONLINE_LASTWORLDCHANGE 3635
-#define CS2_OP_FRIENDLIST_SORT_ONLINE_WORLD 3636
-#define CS2_OP_FRIENDLIST_SORT_OWNWORLD_NAME 3637
-#define CS2_OP_FRIENDLIST_SORT_OWNWORLD_WORLD 3638
-#define CS2_OP_FRIENDLIST_SORT_APPLY 3639
-#define CS2_OP_IGNORELIST_SORT_RESET 3640
-#define CS2_OP_IGNORELIST_SORT_LEGACY 3641
-#define CS2_OP_IGNORELIST_SORT_NAME 3642
-#define CS2_OP_IGNORELIST_SORT_APPLY 3643
-#define CS2_OP_FRIENDSCHAT_SORT_RESET 3644
-#define CS2_OP_FRIENDSCHAT_SORT_LEGACY 3645
-#define CS2_OP_FRIENDSCHAT_SORT_NAME 3646
-#define CS2_OP_FRIENDSCHAT_SORT_WORLD 3647
-#define CS2_OP_FRIENDSCHAT_SORT_LASTWORLDCHANGE 3648
-#define CS2_OP_FRIENDSCHAT_SORT_ONLINE_STATUS 3649
-#define CS2_OP_FRIENDSCHAT_SORT_ONLINE_NAME 3650
-#define CS2_OP_FRIENDSCHAT_SORT_ONLINE_LASTWORLDCHANGE 3651
-#define CS2_OP_FRIENDSCHAT_SORT_ONLINE_WORLD 3652
-#define CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_NAME 3653
-#define CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_WORLD 3654
-#define CS2_OP_FRIENDSCHAT_SORT_APPLY 3655
-#define CS2_OP_FRIENDLIST_SORT_RANK 3656
-#define CS2_OP_FRIENDSCHAT_SORT_RANK 3657
+    /* === CS2 opcode group: if-inventory (2700..2799) ===
+     * interface inventory, parent and identity getters.
+     * rev-239 dispatch: Statics.method6889 -> method3056.
+     */
+    CS2_OP_IF_GETINVOBJECT = 444, /* wire 2700 */
+    CS2_OP_IF_GETINVCOUNT = 445, /* wire 2701 */
+    CS2_OP_IF_HASSUB = 446, /* wire 2702 */
+    /* IF_PARAM — Read a runtime param from a named component.
+     * operand: unused
+     * int stack in:   param, component, fallback                    (fallback = top)
+     * str stack in:   -
+     * int stack out:  component param value, or fallback on a miss
+     * str stack out:  -
+     * notes: Absent from both vendored tables. All 16 rev-239 call sites push three ints and use literal -1 as the fallback; see the derivation in local_opcodes.py.
+     */
+    CS2_OP_IF_PARAM = 447, /* wire 2703 */
+    /* IF_SETPARAM — Write a runtime param onto a named component.
+     * int stack in:   param_id, value, component_uid, child_index, type  (type = top)
+     * str stack in:   value when type names a string
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Variable arity: type 2/115 takes the value from the string stack, so the integer `value` is absent. child_index -1 names the component itself. Rev-239 call sites identify this opcode; IF_HASCHILD_MODAL is retained only as a legacy source alias.
+     */
+    CS2_OP_IF_SETPARAM = 448, /* wire 2704 */
+    CS2_OP_IF_HASCHILD_MODAL = CS2_OP_IF_SETPARAM,
+    /* IF_HASCHILD_OVERLAY (2705) — legacy interface-parent probe.
+     * operand: unused
+     * int stack in:   widget, parent  (parent = top)
+     * str stack in:   -
+     * int stack out:  1 if InterfaceParent[widget].group_id == parent, else 0
+     * str stack out:  -
+     * notes: retained from the rev-634 interface-parent family. Opcode
+     *        2704 is IF_SETPARAM in the current rev-239 dialect. */
+    CS2_OP__2705 = 449, /* wire 2705 */
+    /* IF_GETTOP — Get root component id.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  top component or -1
+     * str stack out:  -
+     */
+    CS2_OP_IF_GETTOP = 450, /* wire 2706 */
+    CS2_OP_IF_CRMVIEW_GETHASRESPONSE = 451, /* wire 2707 */
+    CS2_OP_IF_CRMVIEW_GETINT = 452, /* wire 2708 */
+    CS2_OP_IF_CRMVIEW_GETSTRING = 453, /* wire 2709 */
 
-/* === CS2 opcode group: unused-3700 (3700..3799) ===
- * unhandled 3700-series commands.
- * rev-239 dispatch: Statics.method6889 -> method13645.
- */
-#define CS2_OP_STEAM_SETACHIEVEMENT 3700
-#define CS2_OP_STEAM_SETSTAT 3701
-#define CS2_OP_STEAM_STORESTATS 3702
+    /* === CS2 opcode group: if-target (2800..2899) ===
+     * explicit-component target and op getters.
+     * rev-239 dispatch: Statics.method6889 -> method2.
+     */
+    CS2_OP_IF_GETTARGETMASK = 454, /* wire 2800 */
+    /* IF_GETOP — Get op text.
+     * int stack in:   op_index, component  (component = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  op text
+     * notes: The rev-239 handler pops the explicit component first, then the one-based op index.
+     */
+    CS2_OP_IF_GETOP = 455, /* wire 2801 */
+    /* IF_GETOPBASE — Get op base text.
+     * int stack in:   component
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  op_base
+     */
+    CS2_OP_IF_GETOPBASE = 456, /* wire 2802 */
 
-/* === CS2 opcode group: clan (3800..3899) ===
- * clan settings and channels.
- * rev-239 dispatch: Statics.method6889 -> method4507.
- */
-#define CS2_OP_ACTIVECLANSETTINGS_FIND_LISTENED 3800
-#define CS2_OP_ACTIVECLANSETTINGS_FIND_AFFINED 3801
-#define CS2_OP_ACTIVECLANSETTINGS_GETCLANNAME 3802
-#define CS2_OP_ACTIVECLANSETTINGS_GETALLOWUNAFFINED 3803
-#define CS2_OP_ACTIVECLANSETTINGS_GETRANKTALK 3804
-#define CS2_OP_ACTIVECLANSETTINGS_GETRANKKICK 3805
-#define CS2_OP_ACTIVECLANSETTINGS_GETRANKLOOTSHARE 3806
-#define CS2_OP_ACTIVECLANSETTINGS_GETCOINSHARE 3807
-#define CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDCOUNT 3809
-#define CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDDISPLAYNAME 3810
-#define CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDRANK 3811
-#define CS2_OP_ACTIVECLANSETTINGS_GETBANNEDCOUNT 3812
-#define CS2_OP_ACTIVECLANSETTINGS_GETBANNEDDISPLAYNAME 3813
-#define CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDEXTRAINFO 3814
-#define CS2_OP_ACTIVECLANSETTINGS_GETCURRENTOWNER_SLOT 3815
-#define CS2_OP_ACTIVECLANSETTINGS_GETREPLACEMENTOWNER_SLOT 3816
-#define CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDSLOT 3817
-#define CS2_OP_ACTIVECLANSETTINGS_GETSORTEDAFFINEDSLOT 3818
-#define CS2_OP_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL 3819
-#define CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDJOINRUNEDAY 3820
-#define CS2_OP_AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL 3821
-#define CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDMUTED 3822
-#define CS2_OP_ACTIVECLANCHANNEL_FIND_LISTENED 3850
-#define CS2_OP_ACTIVECLANCHANNEL_FIND_AFFINED 3851
-#define CS2_OP_ACTIVECLANCHANNEL_GETCLANNAME 3852
-#define CS2_OP_ACTIVECLANCHANNEL_GETRANKKICK 3853
-#define CS2_OP_ACTIVECLANCHANNEL_GETRANKTALK 3854
-#define CS2_OP_ACTIVECLANCHANNEL_GETUSERCOUNT 3855
-#define CS2_OP_ACTIVECLANCHANNEL_GETUSERDISPLAYNAME 3856
-#define CS2_OP_ACTIVECLANCHANNEL_GETUSERRANK 3857
-#define CS2_OP_ACTIVECLANCHANNEL_GETUSERWORLD 3858
-#define CS2_OP_ACTIVECLANCHANNEL_KICKUSER 3859
-#define CS2_OP_ACTIVECLANCHANNEL_GETUSERSLOT 3860
-#define CS2_OP_ACTIVECLANCHANNEL_GETSORTEDUSERSLOT 3861
-#define CS2_OP_CLANPROFILE_FIND 3890
+    /* === CS2 opcode group: component-action (1900..1999 / 2900..2999) ===
+     * component resize and trigger actions.
+     * rev-239 dispatch: Statics.method6889 -> method1005.
+     * The listed ranges deliberately share one component handler.
+     */
+    CS2_OP_IF_CALLONRESIZE = 457, /* wire 2927 */
+    CS2_OP_IF_TRIGGEROP = 458, /* wire 2928 */
+    /* IF_SCRIPT_TRIGGER — Synthesize a server component click with typed arguments.
+     * int stack in:   crc, component, child_index, typed ints          (typed ints = top)
+     * str stack in:   signature (plus any typed strings it describes)
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Variable arity is described by the signature. The rev-239 wire op is IF_SCRIPT_TRIGGER; this client adapts it to IF_BUTTON1.
+     */
+    CS2_OP_IF_SCRIPT_TRIGGER = 459, /* wire 2929 */
 
-/* === CS2 opcode group: market (3900..3999) ===
- * Grand Exchange and trading-post commands.
- * rev-239 dispatch: Statics.method6889 -> method3202.
- */
-#define CS2_OP_STOCKMARKET_GETOFFERTYPE 3903
-#define CS2_OP_STOCKMARKET_GETOFFERITEM 3904
-#define CS2_OP_STOCKMARKET_GETOFFERPRICE 3905
-#define CS2_OP_STOCKMARKET_GETOFFERCOUNT 3906
-#define CS2_OP_STOCKMARKET_GETOFFERCOMPLETEDCOUNT 3907
-#define CS2_OP_STOCKMARKET_GETOFFERCOMPLETEDGOLD 3908
-#define CS2_OP_STOCKMARKET_ISOFFEREMPTY 3910
-#define CS2_OP_STOCKMARKET_ISOFFERSTABLE 3911
-#define CS2_OP_STOCKMARKET_ISOFFERFINISHED 3912
-#define CS2_OP_STOCKMARKET_ISOFFERADDING 3913
-#define CS2_OP_TRADINGPOST_SORTBY_NAME 3914
-#define CS2_OP_TRADINGPOST_SORTBY_PRICE 3915
-#define CS2_OP_TRADINGPOST_SORTFILTERBY_WORLD 3916
-#define CS2_OP_TRADINGPOST_SORTBY_AGE 3917
-#define CS2_OP_TRADINGPOST_SORTBY_COUNT 3918
-#define CS2_OP_TRADINGPOST_GETTOTALOFFERS 3919
-#define CS2_OP_TRADINGPOST_GETOFFERWORLD 3920
-#define CS2_OP_TRADINGPOST_GETOFFERNAME 3921
-#define CS2_OP_TRADINGPOST_GETOFFERPREVIOUSNAME 3922
-#define CS2_OP_TRADINGPOST_GETOFFERAGE 3923
-#define CS2_OP_TRADINGPOST_GETOFFERCOUNT 3924
-#define CS2_OP_TRADINGPOST_GETOFFERPRICE 3925
-#define CS2_OP_TRADINGPOST_GETOFFERITEM 3926
-#define CS2_OP_STOCKMARKET_SELLABLE 3931
-#define CS2_OP_STOCKMARKET_VALUE 3932
-#define CS2_OP_STOCKMARKET_BUYABLE 3939
+    /* === CS2 opcode group: client (3000..3199) ===
+     * general client commands and preferences.
+     * rev-239 dispatch: Statics.method6889 -> method6397.
+     */
+    CS2_OP_MES = 460, /* wire 3100 */
+    CS2_OP_ANIM = 461, /* wire 3101 */
+    CS2_OP_MES_TYPED = 462, /* wire 3102 */
+    CS2_OP_IF_CLOSE = 463, /* wire 3103 */
+    CS2_OP_RESUME_COUNTDIALOG = 464, /* wire 3104 */
+    CS2_OP_RESUME_NAMEDIALOG = 465, /* wire 3105 */
+    CS2_OP_RESUME_STRINGDIALOG = 466, /* wire 3106 */
+    CS2_OP_OPPLAYER = 467, /* wire 3107 */
+    CS2_OP_IF_DRAGPICKUP = 468, /* wire 3108 */
+    CS2_OP_CC_DRAGPICKUP = 469, /* wire 3109 */
+    CS2_OP_SETMOUSECAM = 470, /* wire 3110 */
+    CS2_OP_GETREMOVEROOFS = 471, /* wire 3111 */
+    CS2_OP_SETREMOVEROOFS = 472, /* wire 3112 */
+    CS2_OP_OPENURL = 473, /* wire 3113 */
+    CS2_OP_RESUME_COUNTDIALOG_LONG = 474, /* wire 3114 */
+    CS2_OP_RESUME_OBJDIALOG = 475, /* wire 3115 */
+    CS2_OP_BUG_REPORT = 476, /* wire 3116 */
+    CS2_OP_SETSHIFTCLICKENABLED = 477, /* wire 3117 */
+    CS2_OP_SETSHOWMOUSEOVERTEXT = 478, /* wire 3118 */
+    CS2_OP_RENDERSELF = 479, /* wire 3119 */
+    CS2_OP_SETDRAWPLAYERNAMES_FRIENDS = 480, /* wire 3120 */
+    CS2_OP_SETDRAWPLAYERNAMES_CLANMATES = 481, /* wire 3121 */
+    CS2_OP_SETDRAWPLAYERNAMES_OTHERS = 482, /* wire 3122 */
+    CS2_OP_SETDRAWPLAYERNAMES_SELF = 483, /* wire 3123 */
+    CS2_OP_RESETDRAWPLAYERNAMES = 484, /* wire 3124 */
+    CS2_OP_SETSHOWMOUSECROSS = 485, /* wire 3125 */
+    CS2_OP_SETSHOWLOADINGMESSAGES = 486, /* wire 3126 */
+    CS2_OP_SETSIMULATEDSHIFTACTIVE = 487, /* wire 3127 */
+    CS2_OP_GETSIMULATEDSHIFTACTIVE = 488, /* wire 3128 */
+    /* SETFREECAMSPEED — Set the free camera's speed.
+     * int stack in:   x1, x2  (x2 = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Not implemented here; the stack stub pops both.
+     */
+    CS2_OP_SETFREECAMSPEED = 489, /* wire 3129 */
+    CS2_OP_SETFEEDBACKSPRITE = 490, /* wire 3130 */
+    CS2_OP_SETFEEDBACKSHOWPOPUPTEXT = 491, /* wire 3131 */
+    CS2_OP_GETCANVASSIZE = 492, /* wire 3132 */
+    CS2_OP_MOBILE_SETFPS = 493, /* wire 3133 */
+    CS2_OP_SHOP_OPEN = 494, /* wire 3134 */
+    CS2_OP_SHOP_OPENSUBSET = 495, /* wire 3135 */
+    CS2_OP_SETKEYINPUTMODE_COMPONENT = 496, /* wire 3136 */
+    CS2_OP_SETKEYINPUTMODE_INTERFACE = 497, /* wire 3137 */
+    /* SETKEYINPUTMODE_ALL — Release keyboard capture (input dialog type 0).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: takes no args despite the SET prefix — the doc comment is required to
+     *        stop the generator's "SET* pops one" heuristic guessing wrong.
+     */
+    CS2_OP_SETKEYINPUTMODE_ALL = 498, /* wire 3138 */
+    /* SETKEYINPUTMODE_NONE — Capture keyboard for a dialog (input dialog type 1).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: takes no args despite the SET prefix (see SETKEYINPUTMODE_ALL).
+     */
+    CS2_OP_SETKEYINPUTMODE_NONE = 499, /* wire 3139 */
+    /* SETKEYINPUTMODE_ACTIVECOMPONENT — Route keyboard input to the active component.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: rev-239 Statics 3140 sets the key-input mode and takes the active (or dot) component; nothing on the stacks.
+     */
+    CS2_OP_SETKEYINPUTMODE_ACTIVECOMPONENT = 500, /* wire 3140 */
+    CS2_OP_SETHIDEUSERNAME = 501, /* wire 3141 */
+    CS2_OP_GETHIDEUSERNAME = 502, /* wire 3142 */
+    CS2_OP_SETREMEMBERUSERNAME = 503, /* wire 3143 */
+    CS2_OP_GETREMEMBERUSERNAME = 504, /* wire 3144 */
+    CS2_OP_SHOW_IOS_REVIEW = 505, /* wire 3145 */
+    CS2_OP_SETTITLESCREENSOUND = 506, /* wire 3146 */
+    CS2_OP_GETTITLESCREENSOUND = 507, /* wire 3147 */
+    CS2_OP_SETTERMSANDPRIVACY = 508, /* wire 3148 */
+    CS2_OP_GETTERMSANDPRIVACY = 509, /* wire 3149 */
+    CS2_OP_ELIGIBLEFORFREETRIAL = 510, /* wire 3150 */
+    CS2_OP_ELIGIBLEFORINTRODUCTORYPRICE = 511, /* wire 3151 */
+    CS2_OP_GETPUCHASEHISTORYSTATUS = 512, /* wire 3152 */
+    CS2_OP_GETLOADINGPROGRESS = 513, /* wire 3153 */
+    CS2_OP_GETPRELOADPROGRESS = 514, /* wire 3154 */
+    CS2_OP_SHOP_PURCHASEITEM = 515, /* wire 3155 */
+    CS2_OP_SHOP_REQUESTDATA = 516, /* wire 3156 */
+    CS2_OP_SHOP_OPENCATEGORIES = 517, /* wire 3157 */
+    CS2_OP_SHOP_PURCHASEITEMSTATUS = 518, /* wire 3158 */
+    CS2_OP_SHOP_REQUESTDATASTATUS = 519, /* wire 3159 */
+    CS2_OP_SHOP_GETCATEGORYCOUNT = 520, /* wire 3160 */
+    CS2_OP_SHOP_GETCATEGORYID = 521, /* wire 3161 */
+    CS2_OP_SHOP_GETINDEXFORCATEGORYID = 522, /* wire 3162 */
+    CS2_OP_SHOP_GETINDEXFORCATEGORYNAME = 523, /* wire 3163 */
+    CS2_OP_SHOP_GETCATEGORYDESCRIPTION = 524, /* wire 3164 */
+    CS2_OP_SHOP_GETPRODUCTCOUNT = 525, /* wire 3165 */
+    CS2_OP_SHOP_ISPRODUCTAVAILABLE = 526, /* wire 3166 */
+    CS2_OP_SHOP_ISPRODUCTRECOMMENDED = 527, /* wire 3167 */
+    CS2_OP_SHOP_GETPRODUCTDETAILS = 528, /* wire 3168 */
+    CS2_OP_UNKNOWN_COMMAND_3169 = 529, /* wire 3169 */
+    /*
+     * Mobile local (push) notifications, 3170..3173. Newer than the vendored RuneStar
+     * table, which has nothing between 3157 and 3181. Desktop has no notification
+     * centre, so the host stubs the whole family: scheduling is a no-op and
+     * SUPPORTED answers 0, which is what the scripts branch on.
+     */
+    /* NOTIFICATIONS_SENDLOCAL — Schedule a local notification.
+     * int stack in:   id, delay_ms  (delay_ms = top)
+     * str stack in:   title, body   (body = top)
+     * int stack out:  handle
+     * str stack out:  -
+     * notes: pushes a handle for NOTIFICATIONS_SENDGROUPEDLOCAL. script 5360
+     *        (proc,local_notification) POP_INT_LOCALs it straight after the call, so
+     *        the push is required or that store underflows.
+     */
+    CS2_OP_NOTIFICATIONS_SENDLOCAL = 530, /* wire 3170 */
+    /* NOTIFICATIONS_SENDGROUPEDLOCAL — Schedule a grouped mobile notification.
+     * int stack in:   x4, x5, x6                                           (x6 = top)
+     * str stack in:   x1, x2, x3                                           (x3 = top)
+     * int stack out:  handle (0 here: desktop has no notification centre)
+     * str stack out:  -
+     */
+    CS2_OP_NOTIFICATIONS_SENDGROUPEDLOCAL = 531, /* wire 3171 */
+    /* NOTIFICATIONS_CANCELLOCAL — Cancel one scheduled mobile notification.
+     * int stack in:   handle
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_NOTIFICATIONS_CANCELLOCAL = 532, /* wire 3172 */
+    /* NOTIFICATIONS_ISLOCALSCHEDULED — Is a mobile notification scheduled?.
+     * int stack in:   handle
+     * str stack in:   -
+     * int stack out:  0 here
+     * str stack out:  -
+     */
+    CS2_OP_NOTIFICATIONS_ISLOCALSCHEDULED = 533, /* wire 3173 */
+    CS2_OP_UNKNOWN_COMMAND_3174 = 534, /* wire 3174 */
+    CS2_OP_NOTIFICATIONS_GETENABLED = 535, /* wire 3175 */
+    CS2_OP_UNKNOWN_COMMAND_3176 = 536, /* wire 3176 */
+    CS2_OP_MARKETING_INITANALYTICS = 537, /* wire 3177 */
+    CS2_OP_MARKETING_SENDANALYTICSEVENT = 538, /* wire 3178 */
+    CS2_OP_MARKETING_INITATTRIBUTION = 539, /* wire 3179 */
+    CS2_OP_MARKETING_SENDATTRIBUTIONEVENT = 540, /* wire 3180 */
+    CS2_OP_SETBRIGHTNESS = 541, /* wire 3181 */
+    CS2_OP_GETBRIGHTNESS = 542, /* wire 3182 */
+    CS2_OP_SETANTIDRAG = 543, /* wire 3183 */
+    CS2_OP_GETANTIDRAG = 544, /* wire 3184 */
+    CS2_OP_SETDRAWDISTANCE = 545, /* wire 3185 */
+    CS2_OP_GETDRAWDISTANCE = 546, /* wire 3186 */
+    CS2_OP_UNKNOWN_COMMAND_3187 = 547, /* wire 3187 */
+    CS2_OP_UNKNOWN_COMMAND_3188 = 548, /* wire 3188 */
+    CS2_OP_SEQ_PREFETCH = 549, /* wire 3189 */
+    CS2_OP_UNKNOWN_COMMAND_3197 = 550, /* wire 3197 */
+    CS2_OP_UNKNOWN_COMMAND_3198 = 551, /* wire 3198 */
 
-/* === CS2 opcode group: math (4000..4099) ===
- * integer maths and bit operations.
- * rev-239 dispatch: Statics.method6889 -> method2838.
- */
-/* ADD — Integer add.
- * int stack in:   a, b   (b = top)
- * str stack in:   -
- * int stack out:  a + b
- * str stack out:  -
- */
-#define CS2_OP_ADD 4000
-/* SUB — Integer subtract.
- * int stack in:   a, b   (b = top)
- * str stack in:   -
- * int stack out:  a - b
- * str stack out:  -
- */
-#define CS2_OP_SUB 4001
-/* MULTIPLY — Integer multiply.
- * int stack in:   a, b   (b = top)
- * str stack in:   -
- * int stack out:  a * b
- * str stack out:  -
- */
-#define CS2_OP_MULTIPLY 4002
-/* DIVIDE — Integer divide.
- * int stack in:   a, b   (b = top)
- * str stack in:   -
- * int stack out:  a / b
- * str stack out:  -
- * notes: VM error if b == 0; otherwise truncates toward zero
- */
-#define CS2_OP_DIVIDE 4003
-/* RANDOM — Random exclusive.
- * int stack in:   max
- * str stack in:   -
- * int stack out:  rand() % max
- * str stack out:  -
- * notes: Returns 0 when max <= 0. LostCity engine.rs2 documents the range as 0 through max - 1; the input is required for stack balance.
- */
-#define CS2_OP_RANDOM 4004
-/* RANDOMINC — Random inclusive.
- * int stack in:   max
- * str stack in:   -
- * int stack out:  rand() % (max + 1)
- * str stack out:  -
- */
-#define CS2_OP_RANDOMINC 4005
-/* INTERPOLATE — Linear interpolate.
- * int stack in:   a, b, c, d, e                    (e = top)
- * str stack in:   -
- * int stack out:  a + (b - a) * (e - c) / (d - c)
- * str stack out:  -
- */
-#define CS2_OP_INTERPOLATE 4006
-#define CS2_OP_ADDPERCENT 4007
-/* SETBIT — Set bit in value.
- * int stack in:   value, bit          (bit = top)
- * str stack in:   -
- * int stack out:  value with bit set
- * str stack out:  -
- */
-#define CS2_OP_SETBIT 4008
-/* CLEARBIT — Clear bit in value.
- * int stack in:   value, bit              (bit = top)
- * str stack in:   -
- * int stack out:  value with bit cleared
- * str stack out:  -
- */
-#define CS2_OP_CLEARBIT 4009
-/* TESTBIT — Test bit set.
- * int stack in:   value, bit                 (bit = top)
- * str stack in:   -
- * int stack out:  (value & (1 << bit)) != 0
- * str stack out:  -
- */
-#define CS2_OP_TESTBIT 4010
-/* MODULO — Integer modulo.
- * int stack in:   a, b   (b = top)
- * str stack in:   -
- * int stack out:  a % b
- * str stack out:  -
- * notes: VM error if b == 0; remainder has the dividend's sign
- */
-#define CS2_OP_MODULO 4011
-#define CS2_OP_POW 4012
-#define CS2_OP_INVPOW 4013
-/* AND — Bitwise and.
- * int stack in:   a, b   (b = top)
- * str stack in:   -
- * int stack out:  a & b
- * str stack out:  -
- */
-#define CS2_OP_AND 4014
-/* OR — Bitwise or.
- * int stack in:   a, b   (b = top)
- * str stack in:   -
- * int stack out:  a | b
- * str stack out:  -
- */
-#define CS2_OP_OR 4015
-/* MIN — Minimum of two ints.  int in: a, b (b = top)  int out: min(a, b).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_MIN 4016
-/* MAX — Maximum of two ints.  int in: a, b (b = top)  int out: max(a, b).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_MAX 4017
-/* SCALE — Scale interpolate (c*a)/b.
- * int stack in:   a, b, c  (c = top)
- * str stack in:   -
- * int stack out:  result
- * str stack out:  -
- * notes: b == 0 yields 0
- */
-#define CS2_OP_SCALE 4018
-#define CS2_OP_BITCOUNT 4025
-#define CS2_OP_TOGGLEBIT 4026
-#define CS2_OP_SETBIT_RANGE 4027
-#define CS2_OP_CLEARBIT_RANGE 4028
-#define CS2_OP_GETBIT_RANGE 4029
-/* SETBIT_RANGE_VALUE (a.k.a. SETBIT_RANGE_TOINT): clear the [low,high] bit range
- * of `value` then write `newBits` (clamped to the range width) into it.
- * int in: value, newBits, low, high (high = top)  int out: result */
-#define CS2_OP_SETBIT_RANGE_TOINT 4030
-#define CS2_OP_SETBIT_RANGE_VALUE 4030
-#define CS2_OP_SIN 4032
-#define CS2_OP_COS 4033
-#define CS2_OP_ATAN2 4034
-#define CS2_OP_ABS 4035
-#define CS2_OP_PARSEINT 4036
-#define CS2_OP_LONG_ADD 4037
-#define CS2_OP_LONG_SUB 4038
-#define CS2_OP_LONG_MULTIPLY 4039
-#define CS2_OP_LONG_DIVIDE 4040
-#define CS2_OP_LONG_MIN 4041
-#define CS2_OP_LONG_MAX 4042
-#define CS2_OP_LONG_SCALE 4043
-#define CS2_OP_INT_TO_LONG 4044
-#define CS2_OP_LONG_SETBIT 4047
-#define CS2_OP_LONG_CLEARBIT 4048
-#define CS2_OP_LONG_TESTBIT 4049
-#define CS2_OP_LONG_BITCOUNT 4050
-#define CS2_OP_LONG_TOGGLEBIT 4051
-#define CS2_OP_LONG_SETBIT_RANGE 4052
-#define CS2_OP_LONG_CLEARBIT_RANGE 4053
-#define CS2_OP_LONG_GETBIT_RANGE 4054
-#define CS2_OP_LONG_MODULO 4055
-#define CS2_OP_LONG_AND 4056
-#define CS2_OP_LONG_OR 4057
-#define CS2_OP_LONG_NOT 4058
-#define CS2_OP_LONG_SETBIT_RANGE_TOLONG 4059
-#define CS2_OP_LONG_PACK 4060
-#define CS2_OP_LONG_UNPACK 4061
-#define CS2_OP_LONG_TO_INT 4062
-#define CS2_OP_LONG_HIGH_TO_INT 4063
+    /* === CS2 opcode group: audio-options (3200..3299) ===
+     * audio and client option commands.
+     * rev-239 dispatch: Statics.method6889 -> method6695.
+     */
+    /* SOUND_SYNTH — Play a cache sound effect.
+     * int stack in:   synth, loops, delay  (delay = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: About 600 rev-239 call sites use sound_synth(synth, 1, 0); these are the interface interaction sounds.
+     */
+    CS2_OP_SOUND_SYNTH = 552, /* wire 3200 */
+    /* SOUND_SONG — Play a song with fade-out and fade-in settings.
+     * int stack in:   id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed  (fade_in_speed = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: The CS2 twin of MIDI_SONG_V2. Script 9630 and RSProt's MidiSongV2 agree on the default fade tuple 0/60/60/0.
+     */
+    CS2_OP_SOUND_SONG = 553, /* wire 3201 */
+    /* SOUND_JINGLE — Play a MIDI jingle.
+     * int stack in:   id, delay  (delay = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_SOUND_JINGLE = 554, /* wire 3202 */
+    CS2_OP_SETVOLUMEMUSIC = 555, /* wire 3203 */
+    CS2_OP_GETVOLUMEMUSIC = 556, /* wire 3204 */
+    CS2_OP_SETVOLUMESOUNDS = 557, /* wire 3205 */
+    CS2_OP_GETVOLUMESOUNDS = 558, /* wire 3206 */
+    CS2_OP_SETVOLUMEAREASOUNDS = 559, /* wire 3207 */
+    CS2_OP_GETVOLUMEAREASOUNDS = 560, /* wire 3208 */
+    CS2_OP_CLIENTOPTION_SET = 561, /* wire 3209 */
+    CS2_OP_CLIENTOPTION_GET = 562, /* wire 3210 */
+    CS2_OP_UNKNOWN_COMMAND_3211 = 563, /* wire 3211 */
+    CS2_OP_DEVICEOPTION_SET = 564, /* wire 3212 */
+    CS2_OP_GAMEOPTION_SET = 565, /* wire 3213 */
+    CS2_OP_DEVICEOPTION_GET = 566, /* wire 3214 */
+    CS2_OP_GAMEOPTION_GET = 567, /* wire 3215 */
+    CS2_OP_DEVICEOPTION_EXISTS = 568, /* wire 3216 */
+    CS2_OP_DEVICEOPTION_GETRANGE = 569, /* wire 3217 */
+    CS2_OP_GAMEOPTION_EXISTS = 570, /* wire 3218 */
+    CS2_OP_GAMEOPTION_GETRANGE = 571, /* wire 3219 */
+    CS2_OP_SOUND_SONG_STOP = 572, /* wire 3220 */
+    /* SOUND_SONG_WITHSECONDARY — Play a song with a secondary track and cross-fade settings.
+     * int stack in:   primary, secondary, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed  (fade_in_speed = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Named _3221 upstream. Script 9630 falls back to SOUND_SONG when its secondary lookup returns -1, which identifies the operation.
+     */
+    CS2_OP_SOUND_SONG_WITHSECONDARY = 573, /* wire 3221 */
+    CS2_OP_SOUND_SONG_SWAP = 574, /* wire 3222 */
+    CS2_OP_RT7_SETENABLED = 575, /* wire 3223 */
+    CS2_OP_RT7_SD = 576, /* wire 3224 */
+    CS2_OP_RT7_HD = 577, /* wire 3225 */
+    CS2_OP_UNKNOWN_COMMAND_3226 = 578, /* wire 3226 */
+    CS2_OP_RT7_GETENABLED = 579, /* wire 3227 */
+    CS2_OP_TRANSLATIONS_SET = 580, /* wire 3228 */
+    CS2_OP_TRANSLATIONS_CLEAR = 581, /* wire 3229 */
 
-/* === CS2 opcode group: string (4100..4199) ===
- * string operations.
- * rev-239 dispatch: Statics.method6889 -> method5814.
- */
-/* APPEND_NUM — Append int as decimal.
- * int stack in:   value
- * str stack in:   dest
- * int stack out:  -
- * str stack out:  dest + value
- */
-#define CS2_OP_APPEND_NUM 4100
-/* APPEND — Append string.
- * int stack in:   -
- * str stack in:   dest, src   (src = top)
- * int stack out:  -
- * str stack out:  dest + src
- */
-#define CS2_OP_APPEND 4101
-/* APPEND_SIGNNUM — Append signed int.
- * int stack in:   value
- * str stack in:   dest
- * int stack out:  -
- * str stack out:  dest + signed value
- */
-#define CS2_OP_APPEND_SIGNNUM 4102
-#define CS2_OP_LOWERCASE 4103
-#define CS2_OP_FROMDATE 4104
-#define CS2_OP_TEXT_BODYTYPE 4105
-/* TOSTRING — Int to string.
- * int stack in:   value
- * str stack in:   -
- * int stack out:  -
- * str stack out:  decimal string
- */
-#define CS2_OP_TOSTRING 4106
-#define CS2_OP_COMPARE 4107
-/* PARAHEIGHT — Wrapped line count.
- * int stack in:   max_width, font_id  (font_id = top)
- * str stack in:   text
- * int stack out:  lines
- * str stack out:  -
- */
-#define CS2_OP_PARAHEIGHT 4108
-/* PARAWIDTH — Wrapped max line width.
- * int stack in:   max_width, font_id  (font_id = top)
- * str stack in:   text
- * int stack out:  pixels
- * str stack out:  -
- */
-#define CS2_OP_PARAWIDTH 4109
-#define CS2_OP_TEXT_SWITCH 4110
-/* ESCAPE — Neutralise markup so the text renders literally.
- * int stack in:   -
- * str stack in:   text
- * int stack out:  -
- * str stack out:  escaped text
- * notes: '<' -> "<lt>", '>' -> "<gt>" — the escapes ToriDraw_Font decodes back.
- *        Scripts call this before showing player-supplied text so it cannot
- *        inject <col=...>/<img=...> formatting.
- */
-#define CS2_OP_ESCAPE 4111
-/* APPEND_CHAR — Append char.
- * int stack in:   ch
- * str stack in:   dest
- * int stack out:  -
- * str stack out:  dest + char
- */
-#define CS2_OP_APPEND_CHAR 4112
-/* CHAR_ISPRINTABLE — Can this character code be drawn?.
- * int stack in:   char
- * str stack in:   -
- * int stack out:  bool
- * str stack out:  -
- * notes: printable ASCII + Latin-1 supplement, plus the cp1252 stragglers
- *        (euro, OE/oe, em dash, Y-diaeresis). Filters keyboard input.
- */
-#define CS2_OP_CHAR_ISPRINTABLE 4113
-/* CHAR_ISALPHANUMERIC — ASCII letter or digit?.
- * int stack in:   char
- * str stack in:   -
- * int stack out:  bool
- * str stack out:  -
- */
-#define CS2_OP_CHAR_ISALPHANUMERIC 4114
-/* CHAR_ISALPHA — ASCII letter?.
- * int stack in:   char
- * str stack in:   -
- * int stack out:  bool
- * str stack out:  -
- */
-#define CS2_OP_CHAR_ISALPHA 4115
-/* CHAR_ISNUMERIC — ASCII digit?.
- * int stack in:   char
- * str stack in:   -
- * int stack out:  bool
- * str stack out:  -
- */
-#define CS2_OP_CHAR_ISNUMERIC 4116
-/* STRING_LENGTH — String length.
- * int stack in:   -
- * str stack in:   str
- * int stack out:  strlen
- * str stack out:  -
- */
-#define CS2_OP_STRING_LENGTH 4117
-#define CS2_OP_SUBSTRING 4118
-#define CS2_OP_REMOVETAGS 4119
-#define CS2_OP_STRING_INDEXOF_CHAR 4120
-#define CS2_OP_STRING_INDEXOF_STRING 4121
-/* UPPERCASE — ASCII-uppercase a string.
- * int stack in:   -
- * str stack in:   text
- * int stack out:  -
- * str stack out:  uppercased text
- */
-#define CS2_OP_UPPERCASE 4122
-#define CS2_OP_TEXT_PRONOUN 4123
-#define CS2_OP_PRONOUN 4124
-#define CS2_OP_TOSTRING_LONG 4125
-#define CS2_OP_TOSTRING_SPACER_LONG 4126
-#define CS2_OP_SAFEPARSEINT 4127
+    /* === CS2 opcode group: client-state (3300..3399) ===
+     * client state, inventory, stats and coordinates.
+     * rev-239 dispatch: Statics.method6889 -> method6548.
+     */
+    /* CLIENTCLOCK — Get client tick counter.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  clock_ticks
+     * str stack out:  -
+     */
+    CS2_OP_CLIENTCLOCK = 582, /* wire 3300 */
+    /* INV_GETOBJ — Get inventory item id.
+     * int stack in:   inv_id, slot           (slot = top)
+     * str stack in:   -
+     * int stack out:  obj_id or -1 if empty
+     * str stack out:  -
+     */
+    CS2_OP_INV_GETOBJ = 583, /* wire 3301 */
+    /* INV_GETNUM — Get inventory stack size.
+     * int stack in:   inv_id, slot  (slot = top)
+     * str stack in:   -
+     * int stack out:  count
+     * str stack out:  -
+     */
+    CS2_OP_INV_GETNUM = 584, /* wire 3302 */
+    /* INV_TOTAL — Count item across inventory.
+     * int stack in:   inv_id, item_id  (item_id = top)
+     * str stack in:   -
+     * int stack out:  total qty
+     * str stack out:  -
+     */
+    CS2_OP_INV_TOTAL = 585, /* wire 3303 */
+    /* INV_SIZE — Get inventory capacity.
+     * int stack in:   inv_id
+     * str stack in:   -
+     * int stack out:  slot_count
+     * str stack out:  -
+     */
+    CS2_OP_INV_SIZE = 586, /* wire 3304 */
+    CS2_OP_STAT = 587, /* wire 3305 */
+    CS2_OP_STAT_BASE = 588, /* wire 3306 */
+    CS2_OP_STAT_VISIBLE_XP = 589, /* wire 3307 */
+    /* COORD — Get player coord packed (stub).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  0
+     * str stack out:  -
+     */
+    CS2_OP_COORD = 590, /* wire 3308 */
+    /* COORDX — Extract X from packed coord.
+     * int stack in:   packed
+     * str stack in:   -
+     * int stack out:  (packed >> 14) & 0x3FFF
+     * str stack out:  -
+     */
+    CS2_OP_COORDX = 591, /* wire 3309 */
+    /* COORDY — Extract the plane from packed coord. RuneScript's axes are x/y/z with y as the level, so "y" here is the plane and COORDZ is the second tile axis — not the other way round.
+     * int stack in:   packed
+     * str stack in:   -
+     * int stack out:  (packed >> 28) & 0x3
+     * str stack out:  -
+     */
+    CS2_OP_COORDY = 592, /* wire 3310 */
+    /* COORDZ — Extract Z (the second tile axis) from packed coord.
+     * int stack in:   packed
+     * str stack in:   -
+     * int stack out:  packed & 0x3FFF
+     * str stack out:  -
+     */
+    CS2_OP_COORDZ = 593, /* wire 3311 */
+    /* MAP_MEMBERS — Is members world (stub).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  1
+     * str stack out:  -
+     */
+    CS2_OP_MAP_MEMBERS = 594, /* wire 3312 */
+    CS2_OP_INVOTHER_GETOBJ = 595, /* wire 3313 */
+    CS2_OP_INVOTHER_GETNUM = 596, /* wire 3314 */
+    CS2_OP_INVOTHER_TOTAL = 597, /* wire 3315 */
+    CS2_OP_STAFFMODLEVEL = 598, /* wire 3316 */
+    CS2_OP_REBOOTTIMER = 599, /* wire 3317 */
+    /* MAP_WORLD — Get world id (stub).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  301
+     * str stack out:  -
+     */
+    CS2_OP_MAP_WORLD = 600, /* wire 3318 */
+    CS2_OP_RUNENERGY_VISIBLE = 601, /* wire 3321 */
+    /* RUNWEIGHT_VISIBLE — Get visible player weight.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  weight kg (0 default)
+     * str stack out:  -
+     */
+    CS2_OP_RUNWEIGHT_VISIBLE = 602, /* wire 3322 */
+    CS2_OP_PLAYERMOD = 603, /* wire 3323 */
+    CS2_OP_WORLDFLAGS = 604, /* wire 3324 */
+    /* MOVECOORD — Offset a packed coord by (x, y, z), where y is the plane.
+     * int stack in:   packed, x, plane, z                       (z = top)
+     * str stack in:   -
+     * int stack out:  packed + ((plane << 28) | (x << 14) | z)
+     * str stack out:  -
+     */
+    CS2_OP_MOVECOORD = 605, /* wire 3325 */
+    CS2_OP_MOUSE_GETX = 606, /* wire 3326 */
+    CS2_OP_MOUSE_GETY = 607, /* wire 3327 */
+    CS2_OP_IDLETIMER_GET = 608, /* wire 3328 */
+    CS2_OP_IDLETIMER_RESET = 609, /* wire 3329 */
+    CS2_OP_DESTINATIONCOORD = 610, /* wire 3330 */
+    CS2_OP__3330 = CS2_OP_DESTINATIONCOORD,
+    CS2_OP_RUNENERGY = 611, /* wire 3331 */
+    CS2_OP_STAT_UNKNOWN = 612, /* wire 3332 */
+    CS2_OP_UNKNOWN_COMMAND_3333 = 613, /* wire 3333 */
+    CS2_OP_REBOOTMESSAGE = 614, /* wire 3334 */
+    CS2_OP_WEC_NAME = 615, /* wire 3339 */
 
-/* === CS2 opcode group: obj (4200..4299) ===
- * object definitions and object search.
- * rev-239 dispatch: Statics.method6889 -> method2965.
- */
-#define CS2_OP_OC_NAME 4200
-#define CS2_OP_OC_OP 4201
-#define CS2_OP_OC_IOP 4202
-#define CS2_OP_OC_COST 4203
-#define CS2_OP_OC_STACKABLE 4204
-#define CS2_OP_OC_CERT 4205
-#define CS2_OP_OC_UNCERT 4206
-#define CS2_OP_OC_MEMBERS 4207
-#define CS2_OP_OC_PLACEHOLDER 4208
-/* OC_UNPLACEHOLDER — Resolve placeholder item.
- * int stack in:   item_id
- * str stack in:   -
- * int stack out:  underlying id or item_id
- * str stack out:  -
- */
-#define CS2_OP_OC_UNPLACEHOLDER 4209
-#define CS2_OP_OC_FIND 4210
-#define CS2_OP_OC_FINDNEXT 4211
-#define CS2_OP_OC_FINDRESET 4212
-#define CS2_OP_OC_SHIFTCLICKIOP 4213
-#define CS2_OP_OC_WEARPOS 4214
-#define CS2_OP_OC_WEARPOS2 4215
-#define CS2_OP_OC_WEARPOS3 4216
-#define CS2_OP_OC_WEIGHT 4217
-#define CS2_OP_OC_DESC 4218
-#define CS2_OP_OC_CATEGORY 4219
-#define CS2_OP_OC_TRADEABLE 4220
-#define CS2_OP_OC_ISUBOP 4222
-#define CS2_OP_OC_ID 4223
-#define CS2_OP_OC_BYID 4224
-#define CS2_OP_OBJ_ISUNLOCKED 4252
-#define CS2_OP_OBJ_UNLOCKCOUNT 4253
+    /* === CS2 opcode group: enum (3400..3499) ===
+     * enum lookups.
+     * rev-239 dispatch: Statics.method6889 -> method6018.
+     */
+    CS2_OP_ENUM_STRING = 616, /* wire 3400 */
+    /* ENUM — Enum lookup.
+     * int stack in:   input_type, output_type, enum_id, key  (key = top)
+     * str stack in:   -
+     * int stack out:  mapped value or -1
+     * str stack out:  -
+     */
+    CS2_OP_ENUM = 617, /* wire 3408 */
+    /* ENUM_GETOUTPUTCOUNT — Get enum output count.
+     * int stack in:   enum_id
+     * str stack in:   -
+     * int stack out:  count
+     * str stack out:  -
+     */
+    CS2_OP_ENUM_GETOUTPUTCOUNT = 618, /* wire 3411 */
 
-/* === CS2 opcode group: chat (4300..5099) ===
- * chat commands.
- * rev-239 dispatch: Statics.method6889 -> method11780.
- */
-#define CS2_OP_CHAT_GETFILTER_PUBLIC 5000
-#define CS2_OP_CHAT_SETFILTER 5001
-#define CS2_OP_CHAT_SENDABUSEREPORT 5002
-#define CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE_PRE195 5003
-#define CS2_OP_CHAT_GETHISTORY_BYUID_PRE195 5004
-#define CS2_OP_CHAT_GETFILTER_PRIVATE 5005
-#define CS2_OP_CHAT_SENDPUBLIC 5008
-#define CS2_OP_CHAT_SENDPRIVATE 5009
-#define CS2_OP_CHAT_SENDCLAN 5010
-#define CS2_OP_CHAT_GETHISTORYCLAN 5011
-#define CS2_OP_CHAT_PLAYERNAME 5015
-#define CS2_OP_CHAT_GETFILTER_TRADE 5016
-#define CS2_OP_CHAT_GETHISTORYLENGTH 5017
-#define CS2_OP_CHAT_GETNEXTUID 5018
-#define CS2_OP_CHAT_GETPREVUID 5019
-#define CS2_OP_DOCHEAT 5020
-#define CS2_OP_CHAT_SETMESSAGEFILTER 5021
-#define CS2_OP_CHAT_GETMESSAGEFILTER 5022
-#define CS2_OP_WRITECONSOLE 5023
-#define CS2_OP_CHAT_SETTIMESTAMPS 5024
-#define CS2_OP_CHAT_GETTIMESTAMPS 5025
-#define CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE 5030
-#define CS2_OP_CHAT_GETHISTORY_BYUID 5031
+    /* === CS2 opcode group: keyboard (3500..3599) ===
+     * keyboard state.
+     * rev-239 dispatch: Statics.method6889 -> method6403.
+     */
+    /* KEYHELD — Is the given key currently held down?.
+     * int stack in:   keycode
+     * str stack in:   -
+     * int stack out:  held
+     * str stack out:  -
+     * notes: keycode is an OSRS internal key code (see torirs_keymap.h), not ASCII.
+     */
+    CS2_OP_KEYHELD = 619, /* wire 3500 */
+    /* KEYPRESSED — Was the given key pressed during this frame?.
+     * int stack in:   keycode
+     * str stack in:   -
+     * int stack out:  pressed
+     * str stack out:  -
+     * notes: edge-triggered; cleared each frame. OSRS internal key code.
+     */
+    CS2_OP_KEYPRESSED = 620, /* wire 3501 */
+    CS2_OP_KEYRELEASED = 621, /* wire 3502 */
 
-/* === CS2 opcode group: window (5100..5399) ===
- * window-mode commands.
- * rev-239 dispatch: Statics.method6889 -> method9060.
- */
-#define CS2_OP_DISPLAYNAMES_POLL 5100
-#define CS2_OP_DISPLAYNAMES_GETSESSION 5101
-#define CS2_OP_DISPLAYNAMES_CHECK 5102
-#define CS2_OP_DISPLAYNAMES_GETCHECK 5103
-#define CS2_OP_DISPLAYNAMES_SUBMIT 5104
-#define CS2_OP_DISPLAYNAMES_GETSUBMIT 5105
-#define CS2_OP_DISPLAYNAMES_CANCEL 5106
-#define CS2_OP_DISPLAYNAMES_GETCANCEL 5107
-#define CS2_OP_DISPLAYNAMES_END 5108
-#define CS2_OP_GETWINDOWMODE 5306
-#define CS2_OP_SETWINDOWMODE 5307
-#define CS2_OP_GETDEFAULTWINDOWMODE 5308
-#define CS2_OP_SETDEFAULTWINDOWMODE 5309
-#define CS2_OP_UNKNOWN_COMMAND_5310 5310
-#define CS2_OP_SETWINDOWSIZE 5311
-#define CS2_OP_SETWINDOWTOPMOST 5312
-#define CS2_OP_UNKNOWN_COMMAND_5350 5350
-#define CS2_OP_UNKNOWN_COMMAND_5351 5351
-#define CS2_OP_UNKNOWN_COMMAND_5352 5352
+    /* === CS2 opcode group: social (3600..3699) ===
+     * friends, ignores and legacy clan chat.
+     * rev-239 dispatch: Statics.method6889 -> method7997.
+     */
+    CS2_OP_FRIEND_COUNT = 622, /* wire 3600 */
+    CS2_OP_FRIEND_GETNAME = 623, /* wire 3601 */
+    CS2_OP_FRIEND_GETWORLD = 624, /* wire 3602 */
+    CS2_OP_FRIEND_GETRANK = 625, /* wire 3603 */
+    CS2_OP_FRIEND_SETRANK = 626, /* wire 3604 */
+    CS2_OP_FRIEND_ADD = 627, /* wire 3605 */
+    CS2_OP_FRIEND_DEL = 628, /* wire 3606 */
+    CS2_OP_IGNORE_ADD = 629, /* wire 3607 */
+    CS2_OP_IGNORE_DEL = 630, /* wire 3608 */
+    CS2_OP_FRIEND_TEST = 631, /* wire 3609 */
+    CS2_OP_FRIENDSCHAT_GETCHATDISPLAYNAME = 632, /* wire 3611 */
+    CS2_OP_FRIENDSCHAT_GETCHATCOUNT = 633, /* wire 3612 */
+    CS2_OP_FRIENDSCHAT_GETCHATUSERNAME = 634, /* wire 3613 */
+    CS2_OP_FRIENDSCHAT_GETCHATUSERWORLD = 635, /* wire 3614 */
+    CS2_OP_FRIENDSCHAT_GETCHATUSERRANK = 636, /* wire 3615 */
+    CS2_OP_FRIENDSCHAT_GETCHATMINKICK = 637, /* wire 3616 */
+    CS2_OP_FRIENDSCHAT_KICKUSER = 638, /* wire 3617 */
+    CS2_OP_FRIENDSCHAT_GETCHATRANK = 639, /* wire 3618 */
+    CS2_OP_FRIENDSCHAT_JOINCHAT = 640, /* wire 3619 */
+    CS2_OP_FRIENDSCHAT_LEAVECHAT = 641, /* wire 3620 */
+    CS2_OP_IGNORE_COUNT = 642, /* wire 3621 */
+    CS2_OP_IGNORE_GETNAME = 643, /* wire 3622 */
+    CS2_OP_IGNORE_TEST = 644, /* wire 3623 */
+    CS2_OP_FRIENDSCHAT_ISSELF = 645, /* wire 3624 */
+    CS2_OP_FRIENDSCHAT_GETCHATOWNERNAME = 646, /* wire 3625 */
+    CS2_OP_FRIENDSCHAT_ISFRIEND = 647, /* wire 3626 */
+    CS2_OP_FRIENDSCHAT_ISIGNORE = 648, /* wire 3627 */
+    CS2_OP_FRIENDLIST_SORT_RESET = 649, /* wire 3628 */
+    CS2_OP_FRIENDLIST_SORT_LEGACY = 650, /* wire 3629 */
+    CS2_OP_FRIENDLIST_SORT_NAME = 651, /* wire 3630 */
+    CS2_OP_FRIENDLIST_SORT_WORLD = 652, /* wire 3631 */
+    CS2_OP_FRIENDLIST_SORT_LASTWORLDCHANGE = 653, /* wire 3632 */
+    CS2_OP_FRIENDLIST_SORT_ONLINE_STATUS = 654, /* wire 3633 */
+    CS2_OP_FRIENDLIST_SORT_ONLINE_NAME = 655, /* wire 3634 */
+    CS2_OP_FRIENDLIST_SORT_ONLINE_LASTWORLDCHANGE = 656, /* wire 3635 */
+    CS2_OP_FRIENDLIST_SORT_ONLINE_WORLD = 657, /* wire 3636 */
+    CS2_OP_FRIENDLIST_SORT_OWNWORLD_NAME = 658, /* wire 3637 */
+    CS2_OP_FRIENDLIST_SORT_OWNWORLD_WORLD = 659, /* wire 3638 */
+    CS2_OP_FRIENDLIST_SORT_APPLY = 660, /* wire 3639 */
+    CS2_OP_IGNORELIST_SORT_RESET = 661, /* wire 3640 */
+    CS2_OP_IGNORELIST_SORT_LEGACY = 662, /* wire 3641 */
+    CS2_OP_IGNORELIST_SORT_NAME = 663, /* wire 3642 */
+    CS2_OP_IGNORELIST_SORT_APPLY = 664, /* wire 3643 */
+    CS2_OP_FRIENDSCHAT_SORT_RESET = 665, /* wire 3644 */
+    CS2_OP_FRIENDSCHAT_SORT_LEGACY = 666, /* wire 3645 */
+    CS2_OP_FRIENDSCHAT_SORT_NAME = 667, /* wire 3646 */
+    CS2_OP_FRIENDSCHAT_SORT_WORLD = 668, /* wire 3647 */
+    CS2_OP_FRIENDSCHAT_SORT_LASTWORLDCHANGE = 669, /* wire 3648 */
+    CS2_OP_FRIENDSCHAT_SORT_ONLINE_STATUS = 670, /* wire 3649 */
+    CS2_OP_FRIENDSCHAT_SORT_ONLINE_NAME = 671, /* wire 3650 */
+    CS2_OP_FRIENDSCHAT_SORT_ONLINE_LASTWORLDCHANGE = 672, /* wire 3651 */
+    CS2_OP_FRIENDSCHAT_SORT_ONLINE_WORLD = 673, /* wire 3652 */
+    CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_NAME = 674, /* wire 3653 */
+    CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_WORLD = 675, /* wire 3654 */
+    CS2_OP_FRIENDSCHAT_SORT_APPLY = 676, /* wire 3655 */
+    CS2_OP_FRIENDLIST_SORT_RANK = 677, /* wire 3656 */
+    CS2_OP_FRIENDSCHAT_SORT_RANK = 678, /* wire 3657 */
 
-/* === CS2 opcode group: camera (5400..5599) ===
- * camera commands.
- * rev-239 dispatch: Statics.method6889 -> method4488.
- */
-#define CS2_OP_CAM_FORCEANGLE 5504
-#define CS2_OP_CAM_GETANGLE_XA 5505
-#define CS2_OP_CAM_GETANGLE_YA 5506
-#define CS2_OP_CAM_SETFOLLOWHEIGHT 5530
-#define CS2_OP_CAM_GETFOLLOWHEIGHT 5531
+    /* === CS2 opcode group: unused-3700 (3700..3799) ===
+     * unhandled 3700-series commands.
+     * rev-239 dispatch: Statics.method6889 -> method13645.
+     */
+    CS2_OP_STEAM_SETACHIEVEMENT = 679, /* wire 3700 */
+    CS2_OP_STEAM_SETSTAT = 680, /* wire 3701 */
+    CS2_OP_STEAM_STORESTATS = 681, /* wire 3702 */
 
-/* === CS2 opcode group: login (5600..5699) ===
- * logout and federated-login commands.
- * rev-239 dispatch: Statics.method6889 -> method6568.
- */
-#define CS2_OP_LOGOUT 5630
-#define CS2_OP_FEDERATED_LOGIN 5631
-#define CS2_OP_FEDERATED_LOGIN_STATE 5632
-#define CS2_OP_FEDERATED_SHOP 5633
+    /* === CS2 opcode group: clan (3800..3899) ===
+     * clan settings and channels.
+     * rev-239 dispatch: Statics.method6889 -> method4507.
+     */
+    CS2_OP_ACTIVECLANSETTINGS_FIND_LISTENED = 682, /* wire 3800 */
+    CS2_OP_ACTIVECLANSETTINGS_FIND_AFFINED = 683, /* wire 3801 */
+    CS2_OP_ACTIVECLANSETTINGS_GETCLANNAME = 684, /* wire 3802 */
+    CS2_OP_ACTIVECLANSETTINGS_GETALLOWUNAFFINED = 685, /* wire 3803 */
+    CS2_OP_ACTIVECLANSETTINGS_GETRANKTALK = 686, /* wire 3804 */
+    CS2_OP_ACTIVECLANSETTINGS_GETRANKKICK = 687, /* wire 3805 */
+    CS2_OP_ACTIVECLANSETTINGS_GETRANKLOOTSHARE = 688, /* wire 3806 */
+    CS2_OP_ACTIVECLANSETTINGS_GETCOINSHARE = 689, /* wire 3807 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDCOUNT = 690, /* wire 3809 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDDISPLAYNAME = 691, /* wire 3810 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDRANK = 692, /* wire 3811 */
+    CS2_OP_ACTIVECLANSETTINGS_GETBANNEDCOUNT = 693, /* wire 3812 */
+    CS2_OP_ACTIVECLANSETTINGS_GETBANNEDDISPLAYNAME = 694, /* wire 3813 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDEXTRAINFO = 695, /* wire 3814 */
+    CS2_OP_ACTIVECLANSETTINGS_GETCURRENTOWNER_SLOT = 696, /* wire 3815 */
+    CS2_OP_ACTIVECLANSETTINGS_GETREPLACEMENTOWNER_SLOT = 697, /* wire 3816 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDSLOT = 698, /* wire 3817 */
+    CS2_OP_ACTIVECLANSETTINGS_GETSORTEDAFFINEDSLOT = 699, /* wire 3818 */
+    CS2_OP_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL = 700, /* wire 3819 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDJOINRUNEDAY = 701, /* wire 3820 */
+    CS2_OP_AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL = 702, /* wire 3821 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDMUTED = 703, /* wire 3822 */
+    CS2_OP_ACTIVECLANCHANNEL_FIND_LISTENED = 704, /* wire 3850 */
+    CS2_OP_ACTIVECLANCHANNEL_FIND_AFFINED = 705, /* wire 3851 */
+    CS2_OP_ACTIVECLANCHANNEL_GETCLANNAME = 706, /* wire 3852 */
+    CS2_OP_ACTIVECLANCHANNEL_GETRANKKICK = 707, /* wire 3853 */
+    CS2_OP_ACTIVECLANCHANNEL_GETRANKTALK = 708, /* wire 3854 */
+    CS2_OP_ACTIVECLANCHANNEL_GETUSERCOUNT = 709, /* wire 3855 */
+    CS2_OP_ACTIVECLANCHANNEL_GETUSERDISPLAYNAME = 710, /* wire 3856 */
+    CS2_OP_ACTIVECLANCHANNEL_GETUSERRANK = 711, /* wire 3857 */
+    CS2_OP_ACTIVECLANCHANNEL_GETUSERWORLD = 712, /* wire 3858 */
+    CS2_OP_ACTIVECLANCHANNEL_KICKUSER = 713, /* wire 3859 */
+    CS2_OP_ACTIVECLANCHANNEL_GETUSERSLOT = 714, /* wire 3860 */
+    CS2_OP_ACTIVECLANCHANNEL_GETSORTEDUSERSLOT = 715, /* wire 3861 */
+    CS2_OP_CLANPROFILE_FIND = 716, /* wire 3890 */
 
-/* === CS2 opcode group: viewport (5700..6299) ===
- * viewport, canvas, UI zoom and safe-area commands.
- * rev-239 dispatch: Statics.method6889 -> method6341.
- */
-#define CS2_OP_VIEWPORT_SETFOV 6200
-#define CS2_OP_VIEWPORT_SETZOOM 6201
-#define CS2_OP_VIEWPORT_CLAMPFOV 6202
-#define CS2_OP_VIEWPORT_GETEFFECTIVESIZE 6203
-#define CS2_OP_VIEWPORT_GETZOOM 6204
-#define CS2_OP_VIEWPORT_GETFOV 6205
-#define CS2_OP_UIZOOM_SET 6210
-#define CS2_OP_UIZOOM_GET 6211
-#define CS2_OP_UIZOOM_RESET 6212
-#define CS2_OP_UIZOOM_SETMODE 6213
-#define CS2_OP_UIZOOM_GETDEFAULT 6214
-#define CS2_OP_SAFEAREA_GETMINX 6220
-#define CS2_OP_SAFEAREA_GETMINY 6221
-#define CS2_OP_SAFEAREA_GETMAXX 6222
-#define CS2_OP_SAFEAREA_GETMAXY 6223
-#define CS2_OP_UNKNOWN_COMMAND_6230 6230
-#define CS2_OP_SIDEBAR_SETWIDTH 6231
-#define CS2_OP_SIDEBAR_CLEARWIDTH 6232
+    /* === CS2 opcode group: market (3900..3999) ===
+     * Grand Exchange and trading-post commands.
+     * rev-239 dispatch: Statics.method6889 -> method3202.
+     */
+    CS2_OP_STOCKMARKET_GETOFFERTYPE = 717, /* wire 3903 */
+    CS2_OP_STOCKMARKET_GETOFFERITEM = 718, /* wire 3904 */
+    CS2_OP_STOCKMARKET_GETOFFERPRICE = 719, /* wire 3905 */
+    CS2_OP_STOCKMARKET_GETOFFERCOUNT = 720, /* wire 3906 */
+    CS2_OP_STOCKMARKET_GETOFFERCOMPLETEDCOUNT = 721, /* wire 3907 */
+    CS2_OP_STOCKMARKET_GETOFFERCOMPLETEDGOLD = 722, /* wire 3908 */
+    CS2_OP_STOCKMARKET_ISOFFEREMPTY = 723, /* wire 3910 */
+    CS2_OP_STOCKMARKET_ISOFFERSTABLE = 724, /* wire 3911 */
+    CS2_OP_STOCKMARKET_ISOFFERFINISHED = 725, /* wire 3912 */
+    CS2_OP_STOCKMARKET_ISOFFERADDING = 726, /* wire 3913 */
+    CS2_OP_TRADINGPOST_SORTBY_NAME = 727, /* wire 3914 */
+    CS2_OP_TRADINGPOST_SORTBY_PRICE = 728, /* wire 3915 */
+    CS2_OP_TRADINGPOST_SORTFILTERBY_WORLD = 729, /* wire 3916 */
+    CS2_OP_TRADINGPOST_SORTBY_AGE = 730, /* wire 3917 */
+    CS2_OP_TRADINGPOST_SORTBY_COUNT = 731, /* wire 3918 */
+    CS2_OP_TRADINGPOST_GETTOTALOFFERS = 732, /* wire 3919 */
+    CS2_OP_TRADINGPOST_GETOFFERWORLD = 733, /* wire 3920 */
+    CS2_OP_TRADINGPOST_GETOFFERNAME = 734, /* wire 3921 */
+    CS2_OP_TRADINGPOST_GETOFFERPREVIOUSNAME = 735, /* wire 3922 */
+    CS2_OP_TRADINGPOST_GETOFFERAGE = 736, /* wire 3923 */
+    CS2_OP_TRADINGPOST_GETOFFERCOUNT = 737, /* wire 3924 */
+    CS2_OP_TRADINGPOST_GETOFFERPRICE = 738, /* wire 3925 */
+    CS2_OP_TRADINGPOST_GETOFFERITEM = 739, /* wire 3926 */
+    CS2_OP_STOCKMARKET_SELLABLE = 740, /* wire 3931 */
+    CS2_OP_STOCKMARKET_VALUE = 741, /* wire 3932 */
+    CS2_OP_STOCKMARKET_BUYABLE = 742, /* wire 3939 */
 
-/* === CS2 opcode group: world (6300..6599) ===
- * world list, config params and platform commands.
- * rev-239 dispatch: Statics.method6889 -> method5150.
- */
-#define CS2_OP_WORLDLIST_FETCH 6500
-#define CS2_OP_WORLDLIST_START 6501
-#define CS2_OP_WORLDLIST_NEXT 6502
-#define CS2_OP_WORLDLIST_SPECIFIC 6506
-#define CS2_OP_WORLDLIST_SORT 6507
-#define CS2_OP_WORLDLIST_GET 6511
-#define CS2_OP_SETFOLLOWEROPSLOWPRIORITY 6512
-#define CS2_OP_NC_PARAM 6513
-#define CS2_OP_LC_PARAM 6514
-#define CS2_OP_OC_PARAM 6515
-/* STRUCT_PARAM — Read struct param.
- * int stack in:   struct_id, param_id   (param_id = top)
- * str stack in:   -
- * int stack out:  param value
- * str stack out:  param value (string)
- * notes: pushes int or str depending on param type
- */
-#define CS2_OP_STRUCT_PARAM 6516
-/* ON_MOBILE — Is mobile client (stub).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  0
- * str stack out:  -
- */
-#define CS2_OP_ON_MOBILE 6518
-/* CLIENTTYPE — Get client type.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  client_type
- * str stack out:  -
- * notes: Client type values (OSRS):
- *          1 Desktop (legacy Java client)
- *          2 Android
- *          3 iOS
- *          4 Enhanced (RuneLite / C++ client)
- *          5 Mac
- *          7 Mobile (generic)
- *         10 Steam / enhanced variant
- */
-#define CS2_OP_CLIENTTYPE 6519
-#define CS2_OP_MOBILE_KEYBOARDSHOW 6520
-#define CS2_OP_MOBILE_KEYBOARDHIDE 6521
-#define CS2_OP_MOBILE_KEYBOARDSHOWSTRING 6522
-#define CS2_OP_MOBILE_KEYBOARDSHOWINTEGER 6523
-/* MOBILE_BATTERYLEVEL — Battery charge percentage (0..100).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  percent
- * str stack out:  -
- * notes: Desktop has no battery; we report a full charge.
- */
-#define CS2_OP_MOBILE_BATTERYLEVEL 6524
-/* MOBILE_BATTERYCHARGING — Is the device charging.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  charging
- * str stack out:  -
- * notes: Desktop is always on mains power.
- */
-#define CS2_OP_MOBILE_BATTERYCHARGING 6525
-/* MOBILE_WIFIAVAILABLE — Is a wifi (non-metered) connection available.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  available
- * str stack out:  -
- * notes: Desktop is treated as an unmetered connection.
- */
-#define CS2_OP_MOBILE_WIFIAVAILABLE 6526
-#define CS2_OP_PLATFORMTYPE 6527
-#define CS2_OP_INV_PARAM 6528
-#define CS2_OP_HAPTIC 6530
-#define CS2_OP_CLIENT_VERSION 6531
-/* RUNELITE_CALLBACK — Invoke a synchronous named plugin callback.
- * int stack in:   -
- * str stack in:   event_name
- * int stack out:  -
- * str stack out:  -
- * notes: Remaining stack slots are live callback arguments/results. The host must not yield or recursively run scripts.
- */
-#define CS2_OP_RUNELITE_CALLBACK 6599
+    /* === CS2 opcode group: math (4000..4099) ===
+     * integer maths and bit operations.
+     * rev-239 dispatch: Statics.method6889 -> method2838.
+     */
+    /* ADD — Integer add.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a + b
+     * str stack out:  -
+     */
+    CS2_OP_ADD = 743, /* wire 4000 */
+    /* SUB — Integer subtract.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a - b
+     * str stack out:  -
+     */
+    CS2_OP_SUB = 744, /* wire 4001 */
+    /* MULTIPLY — Integer multiply.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a * b
+     * str stack out:  -
+     */
+    CS2_OP_MULTIPLY = 745, /* wire 4002 */
+    /* DIVIDE — Integer divide.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a / b
+     * str stack out:  -
+     * notes: VM error if b == 0; otherwise truncates toward zero
+     */
+    CS2_OP_DIVIDE = 746, /* wire 4003 */
+    /* RANDOM — Random exclusive.
+     * int stack in:   max
+     * str stack in:   -
+     * int stack out:  rand() % max
+     * str stack out:  -
+     * notes: Returns 0 when max <= 0. LostCity engine.rs2 documents the range as 0 through max - 1; the input is required for stack balance.
+     */
+    CS2_OP_RANDOM = 747, /* wire 4004 */
+    /* RANDOMINC — Random inclusive.
+     * int stack in:   max
+     * str stack in:   -
+     * int stack out:  rand() % (max + 1)
+     * str stack out:  -
+     */
+    CS2_OP_RANDOMINC = 748, /* wire 4005 */
+    /* INTERPOLATE — Linear interpolate.
+     * int stack in:   a, b, c, d, e                    (e = top)
+     * str stack in:   -
+     * int stack out:  a + (b - a) * (e - c) / (d - c)
+     * str stack out:  -
+     */
+    CS2_OP_INTERPOLATE = 749, /* wire 4006 */
+    CS2_OP_ADDPERCENT = 750, /* wire 4007 */
+    /* SETBIT — Set bit in value.
+     * int stack in:   value, bit          (bit = top)
+     * str stack in:   -
+     * int stack out:  value with bit set
+     * str stack out:  -
+     */
+    CS2_OP_SETBIT = 751, /* wire 4008 */
+    /* CLEARBIT — Clear bit in value.
+     * int stack in:   value, bit              (bit = top)
+     * str stack in:   -
+     * int stack out:  value with bit cleared
+     * str stack out:  -
+     */
+    CS2_OP_CLEARBIT = 752, /* wire 4009 */
+    /* TESTBIT — Test bit set.
+     * int stack in:   value, bit                 (bit = top)
+     * str stack in:   -
+     * int stack out:  (value & (1 << bit)) != 0
+     * str stack out:  -
+     */
+    CS2_OP_TESTBIT = 753, /* wire 4010 */
+    /* MODULO — Integer modulo.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a % b
+     * str stack out:  -
+     * notes: VM error if b == 0; remainder has the dividend's sign
+     */
+    CS2_OP_MODULO = 754, /* wire 4011 */
+    CS2_OP_POW = 755, /* wire 4012 */
+    CS2_OP_INVPOW = 756, /* wire 4013 */
+    /* AND — Bitwise and.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a & b
+     * str stack out:  -
+     */
+    CS2_OP_AND = 757, /* wire 4014 */
+    /* OR — Bitwise or.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a | b
+     * str stack out:  -
+     */
+    CS2_OP_OR = 758, /* wire 4015 */
+    /* MIN — Minimum of two ints.  int in: a, b (b = top)  int out: min(a, b).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_MIN = 759, /* wire 4016 */
+    /* MAX — Maximum of two ints.  int in: a, b (b = top)  int out: max(a, b).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_MAX = 760, /* wire 4017 */
+    /* SCALE — Scale interpolate (c*a)/b.
+     * int stack in:   a, b, c  (c = top)
+     * str stack in:   -
+     * int stack out:  result
+     * str stack out:  -
+     * notes: b == 0 yields 0
+     */
+    CS2_OP_SCALE = 761, /* wire 4018 */
+    CS2_OP_BITCOUNT = 762, /* wire 4025 */
+    CS2_OP_TOGGLEBIT = 763, /* wire 4026 */
+    CS2_OP_SETBIT_RANGE = 764, /* wire 4027 */
+    CS2_OP_CLEARBIT_RANGE = 765, /* wire 4028 */
+    CS2_OP_GETBIT_RANGE = 766, /* wire 4029 */
+    /* SETBIT_RANGE_VALUE (a.k.a. SETBIT_RANGE_TOINT): clear the [low,high] bit range
+     * of `value` then write `newBits` (clamped to the range width) into it.
+     * int in: value, newBits, low, high (high = top)  int out: result */
+    CS2_OP_SETBIT_RANGE_TOINT = 767, /* wire 4030 */
+    CS2_OP_SETBIT_RANGE_VALUE = CS2_OP_SETBIT_RANGE_TOINT,
+    CS2_OP_SIN = 768, /* wire 4032 */
+    CS2_OP_COS = 769, /* wire 4033 */
+    CS2_OP_ATAN2 = 770, /* wire 4034 */
+    CS2_OP_ABS = 771, /* wire 4035 */
+    CS2_OP_PARSEINT = 772, /* wire 4036 */
+    CS2_OP_LONG_ADD = 773, /* wire 4037 */
+    CS2_OP_LONG_SUB = 774, /* wire 4038 */
+    CS2_OP_LONG_MULTIPLY = 775, /* wire 4039 */
+    CS2_OP_LONG_DIVIDE = 776, /* wire 4040 */
+    CS2_OP_LONG_MIN = 777, /* wire 4041 */
+    CS2_OP_LONG_MAX = 778, /* wire 4042 */
+    CS2_OP_LONG_SCALE = 779, /* wire 4043 */
+    CS2_OP_INT_TO_LONG = 780, /* wire 4044 */
+    CS2_OP_LONG_SETBIT = 781, /* wire 4047 */
+    CS2_OP_LONG_CLEARBIT = 782, /* wire 4048 */
+    CS2_OP_LONG_TESTBIT = 783, /* wire 4049 */
+    CS2_OP_LONG_BITCOUNT = 784, /* wire 4050 */
+    CS2_OP_LONG_TOGGLEBIT = 785, /* wire 4051 */
+    CS2_OP_LONG_SETBIT_RANGE = 786, /* wire 4052 */
+    CS2_OP_LONG_CLEARBIT_RANGE = 787, /* wire 4053 */
+    CS2_OP_LONG_GETBIT_RANGE = 788, /* wire 4054 */
+    CS2_OP_LONG_MODULO = 789, /* wire 4055 */
+    CS2_OP_LONG_AND = 790, /* wire 4056 */
+    CS2_OP_LONG_OR = 791, /* wire 4057 */
+    CS2_OP_LONG_NOT = 792, /* wire 4058 */
+    CS2_OP_LONG_SETBIT_RANGE_TOLONG = 793, /* wire 4059 */
+    CS2_OP_LONG_PACK = 794, /* wire 4060 */
+    CS2_OP_LONG_UNPACK = 795, /* wire 4061 */
+    CS2_OP_LONG_TO_INT = 796, /* wire 4062 */
+    CS2_OP_LONG_HIGH_TO_INT = 797, /* wire 4063 */
 
-/* === CS2 opcode group: worldmap (6600..6699) ===
- * world-map and map-element commands.
- * rev-239 dispatch: Statics.method6889 -> method629.
- */
-/* World map (interface 595). Coords are packed as plane<<28 | x<<14 | y; a
- * "display" coord is a position on the map surface, a "source" coord is a real
- * world coord. Map ids index the worldmap "details" archive (cache table 19).
- */
-/* WORLDMAP_JUMPTOPLAYER — Select the map area containing the player and centre on it.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_JUMPTOPLAYER 6600
-/* WORLDMAP_GETMAPNAME — External (display) name of a map area.
- * int stack in:   mapId
- * str stack in:   -
- * int stack out:  -
- * str stack out:  name
- */
-#define CS2_OP_WORLDMAP_GETMAPNAME 6601
-/* WORLDMAP_SETMAP — Make a map area current (resets zoom + position).
- * int stack in:   mapId
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_SETMAP 6602
-/* WORLDMAP_GETZOOM — Current zoom percentage (25/37/50/75/100/200).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  zoom
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETZOOM 6603
-/* WORLDMAP_SETZOOM — Set the zoom percentage.
- * int stack in:   zoom
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_SETZOOM 6604
-/* WORLDMAP_ISLOADED — Are the world map area configs available.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  loaded
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_ISLOADED 6605
-/* WORLDMAP_JUMPTODISPLAYCOORD — Pan towards a display coord.
- * int stack in:   coord
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_JUMPTODISPLAYCOORD 6606
-/* WORLDMAP_JUMPTODISPLAYCOORD_INSTANT — Snap to a display coord.
- * int stack in:   coord
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_JUMPTODISPLAYCOORD_INSTANT 6607
-/* WORLDMAP_JUMPTOSOURCECOORD — Pan towards a world coord.
- * int stack in:   coord
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_JUMPTOSOURCECOORD 6608
-/* WORLDMAP_JUMPTOSOURCECOORD_INSTANT — Snap to a world coord.
- * int stack in:   coord
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_JUMPTOSOURCECOORD_INSTANT 6609
-/* WORLDMAP_GETDISPLAYPOSITION — Centre of the view, in display tiles.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  x, y  (y = top)
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETDISPLAYPOSITION 6610
-/* WORLDMAP_GETCONFIGORIGIN — Packed origin coord of a map area.
- * int stack in:   mapId
- * str stack in:   -
- * int stack out:  coord
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETCONFIGORIGIN 6611
-/* WORLDMAP_GETCONFIGSIZE — Size of a map area in tiles.
- * int stack in:   mapId
- * str stack in:   -
- * int stack out:  width, height  (height = top)
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETCONFIGSIZE 6612
-/* WORLDMAP_GETCONFIGBOUNDS — Tile bounds of a map area.
- * int stack in:   mapId
- * str stack in:   -
- * int stack out:  minX, minY, maxX, maxY  (maxY = top)
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETCONFIGBOUNDS 6613
-/* WORLDMAP_GETCONFIGZOOM — Default zoom percentage of a map area.
- * int stack in:   mapId
- * str stack in:   -
- * int stack out:  zoom
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETCONFIGZOOM 6614
-/* WORLDMAP_GETSOURCEPOSITION — World coord under the view centre.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  x, y  (y = top)
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETSOURCEPOSITION 6615
-/* WORLDMAP_GETCURRENTMAP — Id of the current map area (-1 when none).
- * int stack in:   -
- * str stack in:   -
- * int stack out:  mapId
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETCURRENTMAP 6616
-/* WORLDMAP_GETDISPLAYCOORD — Map a world coord to a display position.
- * int stack in:   coord
- * str stack in:   -
- * int stack out:  x, y   (y = top)
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETDISPLAYCOORD 6617
-/* WORLDMAP_GETSOURCECOORD — Map a display coord back to a world coord.
- * int stack in:   coord
- * str stack in:   -
- * int stack out:  coord
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETSOURCECOORD 6618
-/* WORLDMAP_SETMAP_COORD — Switch map area, panning to the player when it is in range and to the fallback coord otherwise.
- * int stack in:   mapId, fallbackCoord  (fallbackCoord = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_SETMAP_COORD 6619
-/* WORLDMAP_SETMAP_COORD_OVERRIDE — JUMPTOMAP, always using the fallback coord.
- * int stack in:   mapId, fallbackCoord  (fallbackCoord = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_SETMAP_COORD_OVERRIDE 6620
-/* WORLDMAP_COORDINMAP — Does a map area cover a world coord.
- * int stack in:   mapId, coord  (coord = top)
- * str stack in:   -
- * int stack out:  inMap
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_COORDINMAP 6621
-/* WORLDMAP_GETSIZE — Visible size of the map surface, in tiles.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  width, height  (height = top)
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETSIZE 6622
-/* WORLDMAP_GETMAP — Map area covering a world coord (-1 when none).
- * int stack in:   coord
- * str stack in:   -
- * int stack out:  mapId
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETMAP 6623
-/* WORLDMAP_SETFLASHLOOPS — How many times a flashing element blinks.
- * int stack in:   count
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_SETFLASHLOOPS 6624
-/* WORLDMAP_SETFLASHLOOPS_DEFAULT — Restore the default flash count.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_SETFLASHLOOPS_DEFAULT 6625
-/* WORLDMAP_SETFLASHTICS — Client cycles between flash toggles.
- * int stack in:   cycles
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_SETFLASHTICS 6626
-/* WORLDMAP_SETFLASHTICS_DEFAULT — Restore the default flash rate.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_SETFLASHTICS_DEFAULT 6627
-/* WORLDMAP_PERPETUALFLASH — Flash forever instead of maxFlashCount times.
- * int stack in:   enabled
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_PERPETUALFLASH 6628
-/* WORLDMAP_FLASHELEMENT — Start flashing one map element.
- * int stack in:   elementId
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_FLASHELEMENT 6629
-/* WORLDMAP_FLASHELEMENTCATEGORY — Start flashing an element category.
- * int stack in:   categoryId
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_FLASHELEMENTCATEGORY 6630
-/* WORLDMAP_STOPCURRENTFLASHES — Clear every active flash.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_STOPCURRENTFLASHES 6631
-/* WORLDMAP_DISABLEELEMENTS — Master switch for drawing map elements.
- * int stack in:   enabled
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_DISABLEELEMENTS 6632
-/* WORLDMAP_DISABLEELEMENT — Enable/disable a single element.
- * int stack in:   elementId, enabled  (enabled = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_DISABLEELEMENT 6633
-/* WORLDMAP_DISABLEELEMENTCATEGORY — Enable/disable an element category.
- * int stack in:   categoryId, enabled  (enabled = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_DISABLEELEMENTCATEGORY 6634
-/* WORLDMAP_GETDISABLEELEMENTS — Is element drawing enabled.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  enabled
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETDISABLEELEMENTS 6635
-/* WORLDMAP_GETDISABLEELEMENT — Is one element enabled.
- * int stack in:   elementId
- * str stack in:   -
- * int stack out:  enabled
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETDISABLEELEMENT 6636
-/* WORLDMAP_GETDISABLEELEMENTCATEGORY — Is an element category enabled.
- * int stack in:   categoryId
- * str stack in:   -
- * int stack out:  enabled
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_GETDISABLEELEMENTCATEGORY 6637
-/* WORLDMAP_FINDNEARESTELEMENT — Display coord of the nearest icon of an element.
- * int stack in:   elementId, sourceCoord  (sourceCoord = top)
- * str stack in:   -
- * int stack out:  coord
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_FINDNEARESTELEMENT 6638
-/* WORLDMAP_LISTELEMENT_START — Begin iterating visible icons.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  element, coord  (coord = top)
- * str stack out:  -
- * notes: yields (-1, -1) when the iteration is exhausted.
- */
-#define CS2_OP_WORLDMAP_LISTELEMENT_START 6639
-/* WORLDMAP_LISTELEMENT_NEXT — Continue iterating visible icons.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  element, coord  (coord = top)
- * str stack out:  -
- */
-#define CS2_OP_WORLDMAP_LISTELEMENT_NEXT 6640
-/* MEC_TEXT — Map element label.
- * int stack in:   mecId
- * str stack in:   -
- * int stack out:  -
- * str stack out:  text
- */
-#define CS2_OP_MEC_TEXT 6693
-/* MEC_TEXTSIZE — Map element label size.
- * int stack in:   mecId
- * str stack in:   -
- * int stack out:  size
- * str stack out:  -
- */
-#define CS2_OP_MEC_TEXTSIZE 6694
-/* MEC_CATEGORY — Map element category (-1 when uncategorised).
- * int stack in:   mecId
- * str stack in:   -
- * int stack out:  category
- * str stack out:  -
- */
-#define CS2_OP_MEC_CATEGORY 6695
-/* MEC_SPRITE — Map element icon sprite id (-1 when none).
- * int stack in:   mecId
- * str stack in:   -
- * int stack out:  spriteId
- * str stack out:  -
- */
-#define CS2_OP_MEC_SPRITE 6696
-/* MEL_TYPE — Element id of the map element event being handled.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  elementId
- * str stack out:  -
- */
-#define CS2_OP_MEL_TYPE 6697
-/* MEL_SOURCECOORD — First coord of the map element event.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  coord
- * str stack out:  -
- */
-#define CS2_OP_MEL_SOURCECOORD 6698
-/* MEL_DISPLAYCOORD — Second coord of the map element event.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  coord
- * str stack out:  -
- */
-#define CS2_OP_MEL_DISPLAYCOORD 6699
+    /* === CS2 opcode group: string (4100..4199) ===
+     * string operations.
+     * rev-239 dispatch: Statics.method6889 -> method5814.
+     */
+    /* APPEND_NUM — Append int as decimal.
+     * int stack in:   value
+     * str stack in:   dest
+     * int stack out:  -
+     * str stack out:  dest + value
+     */
+    CS2_OP_APPEND_NUM = 798, /* wire 4100 */
+    /* APPEND — Append string.
+     * int stack in:   -
+     * str stack in:   dest, src   (src = top)
+     * int stack out:  -
+     * str stack out:  dest + src
+     */
+    CS2_OP_APPEND = 799, /* wire 4101 */
+    /* APPEND_SIGNNUM — Append signed int.
+     * int stack in:   value
+     * str stack in:   dest
+     * int stack out:  -
+     * str stack out:  dest + signed value
+     */
+    CS2_OP_APPEND_SIGNNUM = 800, /* wire 4102 */
+    CS2_OP_LOWERCASE = 801, /* wire 4103 */
+    CS2_OP_FROMDATE = 802, /* wire 4104 */
+    CS2_OP_TEXT_BODYTYPE = 803, /* wire 4105 */
+    /* TOSTRING — Int to string.
+     * int stack in:   value
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  decimal string
+     */
+    CS2_OP_TOSTRING = 804, /* wire 4106 */
+    CS2_OP_COMPARE = 805, /* wire 4107 */
+    /* PARAHEIGHT — Wrapped line count.
+     * int stack in:   max_width, font_id  (font_id = top)
+     * str stack in:   text
+     * int stack out:  lines
+     * str stack out:  -
+     */
+    CS2_OP_PARAHEIGHT = 806, /* wire 4108 */
+    /* PARAWIDTH — Wrapped max line width.
+     * int stack in:   max_width, font_id  (font_id = top)
+     * str stack in:   text
+     * int stack out:  pixels
+     * str stack out:  -
+     */
+    CS2_OP_PARAWIDTH = 807, /* wire 4109 */
+    CS2_OP_TEXT_SWITCH = 808, /* wire 4110 */
+    /* ESCAPE — Neutralise markup so the text renders literally.
+     * int stack in:   -
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  escaped text
+     * notes: '<' -> "<lt>", '>' -> "<gt>" — the escapes ToriDraw_Font decodes back.
+     *        Scripts call this before showing player-supplied text so it cannot
+     *        inject <col=...>/<img=...> formatting.
+     */
+    CS2_OP_ESCAPE = 809, /* wire 4111 */
+    /* APPEND_CHAR — Append char.
+     * int stack in:   ch
+     * str stack in:   dest
+     * int stack out:  -
+     * str stack out:  dest + char
+     */
+    CS2_OP_APPEND_CHAR = 810, /* wire 4112 */
+    /* CHAR_ISPRINTABLE — Can this character code be drawn?.
+     * int stack in:   char
+     * str stack in:   -
+     * int stack out:  bool
+     * str stack out:  -
+     * notes: printable ASCII + Latin-1 supplement, plus the cp1252 stragglers
+     *        (euro, OE/oe, em dash, Y-diaeresis). Filters keyboard input.
+     */
+    CS2_OP_CHAR_ISPRINTABLE = 811, /* wire 4113 */
+    /* CHAR_ISALPHANUMERIC — ASCII letter or digit?.
+     * int stack in:   char
+     * str stack in:   -
+     * int stack out:  bool
+     * str stack out:  -
+     */
+    CS2_OP_CHAR_ISALPHANUMERIC = 812, /* wire 4114 */
+    /* CHAR_ISALPHA — ASCII letter?.
+     * int stack in:   char
+     * str stack in:   -
+     * int stack out:  bool
+     * str stack out:  -
+     */
+    CS2_OP_CHAR_ISALPHA = 813, /* wire 4115 */
+    /* CHAR_ISNUMERIC — ASCII digit?.
+     * int stack in:   char
+     * str stack in:   -
+     * int stack out:  bool
+     * str stack out:  -
+     */
+    CS2_OP_CHAR_ISNUMERIC = 814, /* wire 4116 */
+    /* STRING_LENGTH — String length.
+     * int stack in:   -
+     * str stack in:   str
+     * int stack out:  strlen
+     * str stack out:  -
+     */
+    CS2_OP_STRING_LENGTH = 815, /* wire 4117 */
+    CS2_OP_SUBSTRING = 816, /* wire 4118 */
+    CS2_OP_REMOVETAGS = 817, /* wire 4119 */
+    CS2_OP_STRING_INDEXOF_CHAR = 818, /* wire 4120 */
+    CS2_OP_STRING_INDEXOF_STRING = 819, /* wire 4121 */
+    /* UPPERCASE — ASCII-uppercase a string.
+     * int stack in:   -
+     * str stack in:   text
+     * int stack out:  -
+     * str stack out:  uppercased text
+     */
+    CS2_OP_UPPERCASE = 820, /* wire 4122 */
+    CS2_OP_TEXT_PRONOUN = 821, /* wire 4123 */
+    CS2_OP_PRONOUN = 822, /* wire 4124 */
+    CS2_OP_TOSTRING_LONG = 823, /* wire 4125 */
+    CS2_OP_TOSTRING_SPACER_LONG = 824, /* wire 4126 */
+    CS2_OP_SAFEPARSEINT = 825, /* wire 4127 */
 
-/* === CS2 opcode group: clientop-npc (6700..6799) ===
- * client ops and active NPC queries.
- * rev-239 dispatch: Statics.method6889 -> method12492.
- */
-#define CS2_OP_CLIENTOP_NPC_SET 6700
-#define CS2_OP_CLIENTOP_NPC_DEL 6701
-#define CS2_OP_CLIENTOP_LOC_SET 6702
-#define CS2_OP_CLIENTOP_LOC_DEL 6703
-#define CS2_OP_CLIENTOP_OBJ_SET 6704
-#define CS2_OP_CLIENTOP_OBJ_DEL 6705
-#define CS2_OP_CLIENTOP_PLAYER_SET 6706
-#define CS2_OP_CLIENTOP_PLAYER_DEL 6707
-#define CS2_OP_CLIENTOP_TILE_SET 6708
-#define CS2_OP_CLIENTOP_TILE_DEL 6709
-#define CS2_OP_NPC_NAME 6750
-#define CS2_OP__6750 6750
-#define CS2_OP_NPC_UID 6751
-#define CS2_OP__6751 6751
-#define CS2_OP_NPC_CREATIONCYCLE 6752
-#define CS2_OP__6752 6752
-#define CS2_OP_NPC_TYPE 6753
-#define CS2_OP__6753 6753
-#define CS2_OP_NC_NAME 6754
-#define CS2_OP_NPC_ROUTE_LENGTH 6755
-#define CS2_OP_NPC_ROUTE_GET 6756
-#define CS2_OP_NPC_SAY 6757
-#define CS2_OP_NPC_FINDUID 6758
-#define CS2_OP_NPC_GETOPBASE 6759
-#define CS2_OP_NPC_GETOP 6760
-#define CS2_OP_NC_GETOPBASE 6761
-#define CS2_OP_NC_GETOP 6762
-#define CS2_OP_NC_GETMULTINPC 6763
-#define CS2_OP_NC_HEADICON 6764
-#define CS2_OP_NC_VISLEVEL 6765
+    /* === CS2 opcode group: obj (4200..4299) ===
+     * object definitions and object search.
+     * rev-239 dispatch: Statics.method6889 -> method2965.
+     */
+    CS2_OP_OC_NAME = 826, /* wire 4200 */
+    CS2_OP_OC_OP = 827, /* wire 4201 */
+    CS2_OP_OC_IOP = 828, /* wire 4202 */
+    CS2_OP_OC_COST = 829, /* wire 4203 */
+    CS2_OP_OC_STACKABLE = 830, /* wire 4204 */
+    CS2_OP_OC_CERT = 831, /* wire 4205 */
+    CS2_OP_OC_UNCERT = 832, /* wire 4206 */
+    CS2_OP_OC_MEMBERS = 833, /* wire 4207 */
+    CS2_OP_OC_PLACEHOLDER = 834, /* wire 4208 */
+    /* OC_UNPLACEHOLDER — Resolve placeholder item.
+     * int stack in:   item_id
+     * str stack in:   -
+     * int stack out:  underlying id or item_id
+     * str stack out:  -
+     */
+    CS2_OP_OC_UNPLACEHOLDER = 835, /* wire 4209 */
+    CS2_OP_OC_FIND = 836, /* wire 4210 */
+    CS2_OP_OC_FINDNEXT = 837, /* wire 4211 */
+    CS2_OP_OC_FINDRESET = 838, /* wire 4212 */
+    CS2_OP_OC_SHIFTCLICKIOP = 839, /* wire 4213 */
+    CS2_OP_OC_WEARPOS = 840, /* wire 4214 */
+    CS2_OP_OC_WEARPOS2 = 841, /* wire 4215 */
+    CS2_OP_OC_WEARPOS3 = 842, /* wire 4216 */
+    CS2_OP_OC_WEIGHT = 843, /* wire 4217 */
+    CS2_OP_OC_DESC = 844, /* wire 4218 */
+    CS2_OP_OC_CATEGORY = 845, /* wire 4219 */
+    CS2_OP_OC_TRADEABLE = 846, /* wire 4220 */
+    CS2_OP_OC_ISUBOP = 847, /* wire 4222 */
+    CS2_OP_OC_ID = 848, /* wire 4223 */
+    CS2_OP_OC_BYID = 849, /* wire 4224 */
+    CS2_OP_OBJ_ISUNLOCKED = 850, /* wire 4252 */
+    CS2_OP_OBJ_UNLOCKCOUNT = 851, /* wire 4253 */
 
-/* === CS2 opcode group: clientop-loc (6800..6899) ===
- * active location and object queries.
- * rev-239 dispatch: Statics.method6889 -> method3101.
- */
-#define CS2_OP_LOC_NAME 6800
-#define CS2_OP_LOC_COORD 6801
-#define CS2_OP__6801 6801
-#define CS2_OP_LOC_TYPE 6802
-#define CS2_OP__6802 6802
-/* LOC_FIND — Find a location of a given type at a tile and make it active.
- * int stack in:   coord, loc_type                     (loc_type = top)
- * str stack in:   -
- * int stack out:  1 if found (active loc set) else 0
- * str stack out:  -
- * notes: Static-overlay scripts use this as their scene-presence gate; later active-loc and OVERLAY_LOC operations address the selected location.
- */
-#define CS2_OP_LOC_FIND 6803
-#define CS2_OP_LOC_GETOPBASE 6804
-#define CS2_OP_LOC_GETOP 6805
-#define CS2_OP_LC_GETOPBASE 6806
-#define CS2_OP_LC_GETOP 6807
-#define CS2_OP_LC_GETMULTILOC 6808
-#define CS2_OP_LC_NAME 6809
-#define CS2_OP_LOC_WIDTH 6810
-#define CS2_OP_LOC_LENGTH 6811
-#define CS2_OP_OBJ_NAME 6850
-#define CS2_OP_OBJ_COORD 6851
-#define CS2_OP__6851 6851
-#define CS2_OP_OBJ_TYPE 6852
-#define CS2_OP__6852 6852
-#define CS2_OP_OBJ_COUNT 6853
-#define CS2_OP_OBJ_FIND 6854
-#define CS2_OP_OBJ_GETOPBASE 6855
-#define CS2_OP_OBJ_GETOP 6856
-#define CS2_OP_OC_GETOPBASE 6857
-#define CS2_OP_OC_GETOP 6858
-#define CS2_OP_OBJ_FINDBYINDEX 6859
-#define CS2_OP_OBJ_DESPAWNTIME 6860
-#define CS2_OP_OBJ_REVEALTIME 6861
-#define CS2_OP_OBJ_REVEALED 6862
-#define CS2_OP_OBJ_OWNER 6863
+    /* === CS2 opcode group: chat (4300..5099) ===
+     * chat commands.
+     * rev-239 dispatch: Statics.method6889 -> method11780.
+     */
+    CS2_OP_CHAT_GETFILTER_PUBLIC = 852, /* wire 5000 */
+    CS2_OP_CHAT_SETFILTER = 853, /* wire 5001 */
+    CS2_OP_CHAT_SENDABUSEREPORT = 854, /* wire 5002 */
+    CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE_PRE195 = 855, /* wire 5003 */
+    CS2_OP_CHAT_GETHISTORY_BYUID_PRE195 = 856, /* wire 5004 */
+    CS2_OP_CHAT_GETFILTER_PRIVATE = 857, /* wire 5005 */
+    CS2_OP_CHAT_SENDPUBLIC = 858, /* wire 5008 */
+    CS2_OP_CHAT_SENDPRIVATE = 859, /* wire 5009 */
+    CS2_OP_CHAT_SENDCLAN = 860, /* wire 5010 */
+    CS2_OP_CHAT_GETHISTORYCLAN = 861, /* wire 5011 */
+    CS2_OP_CHAT_PLAYERNAME = 862, /* wire 5015 */
+    CS2_OP_CHAT_GETFILTER_TRADE = 863, /* wire 5016 */
+    CS2_OP_CHAT_GETHISTORYLENGTH = 864, /* wire 5017 */
+    CS2_OP_CHAT_GETNEXTUID = 865, /* wire 5018 */
+    CS2_OP_CHAT_GETPREVUID = 866, /* wire 5019 */
+    CS2_OP_DOCHEAT = 867, /* wire 5020 */
+    CS2_OP_CHAT_SETMESSAGEFILTER = 868, /* wire 5021 */
+    CS2_OP_CHAT_GETMESSAGEFILTER = 869, /* wire 5022 */
+    CS2_OP_WRITECONSOLE = 870, /* wire 5023 */
+    CS2_OP_CHAT_SETTIMESTAMPS = 871, /* wire 5024 */
+    CS2_OP_CHAT_GETTIMESTAMPS = 872, /* wire 5025 */
+    CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE = 873, /* wire 5030 */
+    CS2_OP_CHAT_GETHISTORY_BYUID = 874, /* wire 5031 */
 
-/* === CS2 opcode group: clientop-player (6900..6999) ===
- * active player and login-state commands.
- * rev-239 dispatch: Statics.method6889 -> method6167.
- */
-#define CS2_OP_P_NAME 6900
-#define CS2_OP__6900 6900
-/* P_FINDSELF — Make the local player the active player.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  1 if a local player exists else -1
- * str stack out:  -
- * notes: The only setter in the 6901..6905 active-player block. The NXT reference selects m_localPlayerIndex before pushing the result.
- */
-#define CS2_OP_P_FINDSELF 6901
-#define CS2_OP_ACTIVEPLAYER_SETLOCAL 6901
-/* P_ROUTELENGTH — Active player's route length.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  m_routeLength (0..9)
- * str stack out:  -
- * notes: The queue of tiles the server has put the player on that the
- *        client has not walked through yet. 0 means standing still, and
- *        clientscript 5203 reads it exactly that way: with a route it marks
- *        P_ROUTE(0), without one it marks `coord`.
- */
-#define CS2_OP_P_ROUTELENGTH 6902
-#define CS2_OP_ACTIVEPLAYER_GETROUTELENGTH 6902
-/* P_ROUTE — Active player's route coord at an index.
- * int stack in:   index
- * str stack in:   -
- * int stack out:  coord or -1
- * str stack out:  -
- * notes: Index 0 is the NEWEST entry -- ClientPlayer::AddRoutePoint
- *        shifts the queue up and writes the new tile at 0 -- so it is the
- *        player's server-side tile, ahead of the rendered position while
- *        walking. The reference packs it as plane << 28 | x << 14 | z after
- *        WorldCoordFromBuildCoord, and asserts index < m_routeLength.
- */
-#define CS2_OP_P_ROUTE 6903
-#define CS2_OP_ACTIVEPLAYER_GETROUTECOORD 6903
-/* UID — Active player's uid.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  uid or -1
- * str stack out:  -
- */
-#define CS2_OP_UID 6904
-#define CS2_OP_ACTIVEPLAYER_GETUID 6904
-/* SELF_PLAYER_UID — Local player's uid.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  uid or -1
- * str stack out:  -
- * notes: `UID = SELF_PLAYER_UID` is how a per-player
- *        trigger script asks whether the player it fired for is this client's
- *        own -- clientscript 5203 (the current-tile indicator) is the cache's
- *        only user of either.
- */
-#define CS2_OP_SELF_PLAYER_UID 6905
-#define CS2_OP_LOCALPLAYER_GETUID 6905
-#define CS2_OP_P_SAY 6906
-#define CS2_OP_P_GETOP 6907
-/* LOGIN_INT24 — rev 634 login/account int getter (Class24.anInt359).
- * operand: unused
- * int stack in:   -
- * str stack in:   -
- * int stack out:  value
- * str stack out:  -
- * notes: set at jagex-account login and by packet 54 (signed 24-bit
- *        alongside the membership flag). Scripts probe 8388605
- *        (0x7FFFFD). Offline/unlogged stub pushes 0 (static default). */
-#define CS2_OP_LOGIN_INT24 6910
-#define CS2_OP_TILE_COORD 6950
-#define CS2_OP__6950 6950
-/* TILE_FIND — Test whether a packed coordinate is inside the loaded scene.
- * int stack in:   coord
- * str stack in:   -
- * int stack out:  1 if inside the build area else 0
- * str stack out:  -
- * notes: The coordinate-anchored twin of LOC_FIND; overlays recheck it as the scene window moves.
- */
-#define CS2_OP_TILE_FIND 6951
+    /* === CS2 opcode group: window (5100..5399) ===
+     * window-mode commands.
+     * rev-239 dispatch: Statics.method6889 -> method9060.
+     */
+    CS2_OP_DISPLAYNAMES_POLL = 875, /* wire 5100 */
+    CS2_OP_DISPLAYNAMES_GETSESSION = 876, /* wire 5101 */
+    CS2_OP_DISPLAYNAMES_CHECK = 877, /* wire 5102 */
+    CS2_OP_DISPLAYNAMES_GETCHECK = 878, /* wire 5103 */
+    CS2_OP_DISPLAYNAMES_SUBMIT = 879, /* wire 5104 */
+    CS2_OP_DISPLAYNAMES_GETSUBMIT = 880, /* wire 5105 */
+    CS2_OP_DISPLAYNAMES_CANCEL = 881, /* wire 5106 */
+    CS2_OP_DISPLAYNAMES_GETCANCEL = 882, /* wire 5107 */
+    CS2_OP_DISPLAYNAMES_END = 883, /* wire 5108 */
+    CS2_OP_GETWINDOWMODE = 884, /* wire 5306 */
+    CS2_OP_SETWINDOWMODE = 885, /* wire 5307 */
+    CS2_OP_GETDEFAULTWINDOWMODE = 886, /* wire 5308 */
+    CS2_OP_SETDEFAULTWINDOWMODE = 887, /* wire 5309 */
+    CS2_OP_UNKNOWN_COMMAND_5310 = 888, /* wire 5310 */
+    CS2_OP_SETWINDOWSIZE = 889, /* wire 5311 */
+    CS2_OP_SETWINDOWTOPMOST = 890, /* wire 5312 */
+    CS2_OP_UNKNOWN_COMMAND_5350 = 891, /* wire 5350 */
+    CS2_OP_UNKNOWN_COMMAND_5351 = 892, /* wire 5351 */
+    CS2_OP_UNKNOWN_COMMAND_5352 = 893, /* wire 5352 */
 
-/* === CS2 opcode group: highlight (7000..7099) ===
- * entity highlighting.
- * rev-239 dispatch: Statics.method6889 -> method8558.
- */
-/* HIGHLIGHT_NPC_SETUP — Define what highlight group N looks like.
- * int stack in:   group, colour, style, opacity, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_NPC_SETUP 7000
-/* HIGHLIGHT_NPC_ON — Put one npc into a highlight group.
- * int stack in:   npc_uid, coord, group  (group = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_NPC_ON 7001
-/* HIGHLIGHT_NPC_OFF — Take one npc out of a highlight group.
- * int stack in:   npc_uid, coord, group  (group = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_NPC_OFF 7002
-/* HIGHLIGHT_NPC_GET — Is this npc in the highlight group.
- * int stack in:   npc_uid, coord, group  (group = top)
- * str stack in:   -
- * int stack out:  highlighted
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_NPC_GET 7003
-/* HIGHLIGHT_NPC_CLEAR — Empty a whole highlight group.
- * int stack in:   group
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_NPC_CLEAR 7004
-/* HIGHLIGHT_NPCTYPE_SETUP — Define what highlight group N looks like.
- * int stack in:   group, colour, style, opacity, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_NPCTYPE_SETUP 7005
-/* HIGHLIGHT_NPCTYPE_ON — Put one npc type into a highlight group.
- * int stack in:   npc_type, group  (group = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_NPCTYPE_ON 7006
-/* HIGHLIGHT_NPCTYPE_OFF — Take one npc type out of a highlight group.
- * int stack in:   npc_type, group  (group = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_NPCTYPE_OFF 7007
-/* HIGHLIGHT_NPCTYPE_GET — Is this npc type in the highlight group.
- * int stack in:   npc_type, group  (group = top)
- * str stack in:   -
- * int stack out:  highlighted
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_NPCTYPE_GET 7008
-/* HIGHLIGHT_NPCTYPE_CLEAR — Empty a whole highlight group.
- * int stack in:   group
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_NPCTYPE_CLEAR 7009
-/* HIGHLIGHT_LOC_SETUP — Define what highlight group N looks like.
- * int stack in:   group, colour, style, opacity, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_LOC_SETUP 7010
-/* HIGHLIGHT_LOC_ON — Put one loc into a highlight group.
- * int stack in:   loc_type, coord, group, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_LOC_ON 7011
-/* HIGHLIGHT_LOC_OFF — Take one loc out of a highlight group.
- * int stack in:   loc_type, coord, group, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_LOC_OFF 7012
-/* HIGHLIGHT_LOC_GET — Is this loc in the highlight group.
- * int stack in:   loc_type, coord, group, flags  (flags = top)
- * str stack in:   -
- * int stack out:  highlighted
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_LOC_GET 7013
-/* HIGHLIGHT_LOC_CLEAR — Empty a whole highlight group.
- * int stack in:   group
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_LOC_CLEAR 7014
-/* HIGHLIGHT_LOCTYPE_SETUP — Define what highlight group N looks like.
- * int stack in:   group, colour, style, opacity, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_LOCTYPE_SETUP 7015
-/* HIGHLIGHT_LOCTYPE_ON — Put one loc type into a highlight group.
- * int stack in:   loc_type, group  (group = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_LOCTYPE_ON 7016
-/* HIGHLIGHT_LOCTYPE_OFF — Take one loc type out of a highlight group.
- * int stack in:   loc_type, group  (group = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_LOCTYPE_OFF 7017
-/* HIGHLIGHT_LOCTYPE_GET — Is this loc type in the highlight group.
- * int stack in:   loc_type, group  (group = top)
- * str stack in:   -
- * int stack out:  highlighted
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_LOCTYPE_GET 7018
-/* HIGHLIGHT_LOCTYPE_CLEAR — Empty a whole highlight group.
- * int stack in:   group
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_LOCTYPE_CLEAR 7019
-/* HIGHLIGHT_OBJ_SETUP — Define what highlight group N looks like.
- * int stack in:   group, colour, style, opacity, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_OBJ_SETUP 7020
-/* HIGHLIGHT_OBJ_ON — Put one obj into a highlight group.
- * int stack in:   obj_type, coord, group, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_OBJ_ON 7021
-/* HIGHLIGHT_OBJ_OFF — Take one obj out of a highlight group.
- * int stack in:   obj_type, coord, group, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_OBJ_OFF 7022
-/* HIGHLIGHT_OBJ_GET — Is this obj in the highlight group.
- * int stack in:   obj_type, coord, group, flags  (flags = top)
- * str stack in:   -
- * int stack out:  highlighted
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_OBJ_GET 7023
-/* HIGHLIGHT_OBJ_CLEAR — Empty a whole highlight group.
- * int stack in:   group
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_OBJ_CLEAR 7024
-/* HIGHLIGHT_OBJTYPE_SETUP — Define what highlight group N looks like.
- * int stack in:   group, colour, style, opacity, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_OBJTYPE_SETUP 7025
-/* HIGHLIGHT_OBJTYPE_ON — Put one obj type into a highlight group.
- * int stack in:   obj_type, group  (group = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_OBJTYPE_ON 7026
-/* HIGHLIGHT_OBJTYPE_OFF — Take one obj type out of a highlight group.
- * int stack in:   obj_type, group  (group = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_OBJTYPE_OFF 7027
-/* HIGHLIGHT_OBJTYPE_GET — Is this obj type in the highlight group.
- * int stack in:   obj_type, group  (group = top)
- * str stack in:   -
- * int stack out:  highlighted
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_OBJTYPE_GET 7028
-/* HIGHLIGHT_OBJTYPE_CLEAR — Empty a whole highlight group.
- * int stack in:   group
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_OBJTYPE_CLEAR 7029
-/* HIGHLIGHT_PLAYER_SETUP — Define what highlight group N looks like.
- * int stack in:   group, colour, style, opacity, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_PLAYER_SETUP 7030
-/* HIGHLIGHT_PLAYER_ON — Put one player into a highlight group.
- * int stack in:   group
- * str stack in:   name
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_PLAYER_ON 7031
-/* HIGHLIGHT_PLAYER_OFF — Take one player out of a highlight group.
- * int stack in:   group
- * str stack in:   name
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_PLAYER_OFF 7032
-/* HIGHLIGHT_PLAYER_GET — Is this player in the highlight group.
- * int stack in:   group
- * str stack in:   name
- * int stack out:  highlighted
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_PLAYER_GET 7033
-/* HIGHLIGHT_PLAYER_CLEAR — Empty a whole highlight group.
- * int stack in:   group
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_PLAYER_CLEAR 7034
-/* HIGHLIGHT_TILE_SETUP — Define what highlight group N looks like.
- * int stack in:   group, colour, style, opacity, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_TILE_SETUP 7035
-/* HIGHLIGHT_TILE_ON — Put one tile into a highlight group.
- * int stack in:   coord, group, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_TILE_ON 7036
-/* HIGHLIGHT_TILE_OFF — Take one tile out of a highlight group.
- * int stack in:   coord, group, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_TILE_OFF 7037
-/* HIGHLIGHT_TILE_GET — Is this tile in the highlight group.
- * int stack in:   coord, group, flags  (flags = top)
- * str stack in:   -
- * int stack out:  highlighted
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_TILE_GET 7038
-/* HIGHLIGHT_TILE_CLEAR — Empty a whole highlight group.
- * int stack in:   group
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_TILE_CLEAR 7039
-/* HIGHLIGHT_GROUP_SETUP — Define what highlight group N looks like.
- * int stack in:   group, colour, style, opacity, flags  (flags = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_GROUP_SETUP 7040
-#define CS2_OP_HIGHLIGHT_OPGROUP_SETUP 7040
-/* HIGHLIGHT_GROUP_ON — Put one named operation group into a highlight group.
- * int stack in:   group
- * str stack in:   name
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_GROUP_ON 7041
-#define CS2_OP_HIGHLIGHT_OPGROUP_ON 7041
-/* HIGHLIGHT_GROUP_OFF — Take one named operation group out of a highlight group.
- * int stack in:   group
- * str stack in:   name
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_GROUP_OFF 7042
-#define CS2_OP_HIGHLIGHT_OPGROUP_OFF 7042
-/* HIGHLIGHT_GROUP_GET — Is this named operation group in the highlight group.
- * int stack in:   group
- * str stack in:   name
- * int stack out:  highlighted
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_GROUP_GET 7043
-#define CS2_OP_HIGHLIGHT_OPGROUP_GET 7043
-/* HIGHLIGHT_GROUP_CLEAR — Empty a whole highlight group.
- * int stack in:   group
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_HIGHLIGHT_GROUP_CLEAR 7044
-#define CS2_OP_HIGHLIGHT_OPGROUP_CLEAR 7044
-#define CS2_OP_OBJTAG_ADD 7060
-#define CS2_OP_OBJTAG_DEL 7061
-#define CS2_OP_OBJTAG_REMOVE 7062
-#define CS2_OP_OBJTAG_FINDTAGS_BYOBJ 7063
-#define CS2_OP_OBJTAG_FINDTAGS_BYGROUP 7064
-#define CS2_OP_OBJTAG_FINDTAGS_NEXT 7065
-#define CS2_OP_OBJTAG_FINDTAGS_RESET 7066
-#define CS2_OP_OBJTAG_FINDOBJS_BYTAG 7067
-#define CS2_OP_OBJTAG_FINDOBJS_BYGROUP 7068
-#define CS2_OP_OBJTAG_FINDOBJS_NEXT 7069
-#define CS2_OP_OBJTAG_FINDOBJS_RESET 7070
-#define CS2_OP_OBJTAG_HAS 7071
-#define CS2_OP_OBJTAG_ALLEMPTY 7072
-#define CS2_OP_OBJTAG_DELALL 7073
-#define CS2_OP_OBJTAG_DELGROUP 7074
+    /* === CS2 opcode group: camera (5400..5599) ===
+     * camera commands.
+     * rev-239 dispatch: Statics.method6889 -> method4488.
+     */
+    CS2_OP_CAM_FORCEANGLE = 894, /* wire 5504 */
+    CS2_OP_CAM_GETANGLE_XA = 895, /* wire 5505 */
+    CS2_OP_CAM_GETANGLE_YA = 896, /* wire 5506 */
+    CS2_OP_CAM_SETFOLLOWHEIGHT = 897, /* wire 5530 */
+    CS2_OP_CAM_GETFOLLOWHEIGHT = 898, /* wire 5531 */
 
-/* === CS2 opcode group: minimenu (7100..7199) ===
- * minimenu introspection.
- * rev-239 dispatch: Statics.method6889 -> method1135.
- */
-#define CS2_OP_MINIMENU_TYPE 7100
-#define CS2_OP_MINIMENU_ENTRY 7101
-#define CS2_OP_MINIMENU_FINDNPC 7102
-#define CS2_OP_MINIMENU_FINDLOC 7103
-#define CS2_OP_MINIMENU_FINDOBJ 7104
-#define CS2_OP_MINIMENU_FINDPLAYER 7105
-#define CS2_OP_MINIMENU_COORD 7106
-#define CS2_OP_MINIMENU_OBJTYPE 7107
-#define CS2_OP_MINIMENU_ISOPEN 7108
-#define CS2_OP_MINIMENU_FINDCOMPONENT 7109
-#define CS2_OP_MINIMENU_NUMOPS 7110
-#define CS2_OP_OBJSTACK_SIZE 7120
-#define CS2_OP_OBJSTACK_OBJ 7121
-#define CS2_OP_OBJSTACK_COUNT 7122
+    /* === CS2 opcode group: login (5600..5699) ===
+     * logout and federated-login commands.
+     * rev-239 dispatch: Statics.method6889 -> method6568.
+     */
+    CS2_OP_LOGOUT = 899, /* wire 5630 */
+    CS2_OP_FEDERATED_LOGIN = 900, /* wire 5631 */
+    CS2_OP_FEDERATED_LOGIN_STATE = 901, /* wire 5632 */
+    CS2_OP_FEDERATED_SHOP = 902, /* wire 5633 */
 
-/* === CS2 opcode group: overlay (7200..7499) ===
- * entity overlays, minimap and native extension commands.
- * rev-239 dispatch: Statics.method6889 -> method12357.
- */
-/* Scripted entity overlays (7200..7214) — jag::oldscape::EntityOverlays.
- * CREATE forms share the tail (slot, band, width, height, source_coord):
- * band is 0 middle / 1 above / 2 below, and source_coord selects world-
- * versus display-coordinate anchoring. GET and DESTROY address the same
- * subject-specific slot. See game/rs_entity_overlay.h. */
-/* ENTITYOVERLAY_CREATE_NPC — Attach an overlay to the active NPC.
- * int stack in:   slot, band, width, height, source_coord  (source_coord = top)
- * str stack in:   -
- * int stack out:  overlay index (-1 when none)
- * str stack out:  -
- */
-#define CS2_OP_ENTITYOVERLAY_CREATE_NPC 7200
-/* ENTITYOVERLAY_CREATE_LOC — Attach an overlay to the active location.
- * int stack in:   slot, band, width, height, source_coord  (source_coord = top)
- * str stack in:   -
- * int stack out:  overlay index (-1 when none)
- * str stack out:  -
- * notes: Anchored at the location coord and layer, so separate locations on one tile retain separate overlays.
- */
-#define CS2_OP_ENTITYOVERLAY_CREATE_LOC 7201
-#define CS2_OP__7202 7202
-/* ENTITYOVERLAY_CREATE_PLAYER — Attach an overlay to the active player.
- * int stack in:   slot, band, width, height, source_coord  (source_coord = top)
- * str stack in:   -
- * int stack out:  overlay index (-1 when none)
- * str stack out:  -
- */
-#define CS2_OP_ENTITYOVERLAY_CREATE_PLAYER 7203
-/* ENTITYOVERLAY_CREATE_COORD — Attach an overlay to a bare tile.
- * int stack in:   coord, slot, band, width, height, source_coord  (source_coord = top)
- * str stack in:   -
- * int stack out:  overlay index (-1 when none)
- * str stack out:  -
- */
-#define CS2_OP_ENTITYOVERLAY_CREATE_COORD 7204
-/* ENTITYOVERLAY_GET_NPC — Get one overlay attached to the active NPC.
- * int stack in:   slot
- * str stack in:   -
- * int stack out:  overlay index (-1 when none)
- * str stack out:  -
- * notes: The vendored signature incorrectly recorded zero inputs; the slot must be popped or the integer stack leaks.
- */
-#define CS2_OP_ENTITYOVERLAY_GET_NPC 7205
-/* ENTITYOVERLAY_GET_LOC — Get one overlay attached to the active location.
- * int stack in:   slot
- * str stack in:   -
- * int stack out:  overlay index (-1 when none)
- * str stack out:  -
- */
-#define CS2_OP_ENTITYOVERLAY_GET_LOC 7206
-#define CS2_OP__7207 7207
-/* ENTITYOVERLAY_GET_PLAYER — Get one overlay attached to the active player.
- * int stack in:   slot
- * str stack in:   -
- * int stack out:  overlay index (-1 when none)
- * str stack out:  -
- */
-#define CS2_OP_ENTITYOVERLAY_GET_PLAYER 7208
-/* ENTITYOVERLAY_GET_COORD — Get one overlay attached to a tile.
- * int stack in:   coord, slot                   (slot = top)
- * str stack in:   -
- * int stack out:  overlay index (-1 when none)
- * str stack out:  -
- */
-#define CS2_OP_ENTITYOVERLAY_GET_COORD 7209
-/* ENTITYOVERLAY_DELETE_NPC — Destroy one overlay attached to the active NPC.
- * int stack in:   slot
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_ENTITYOVERLAY_DELETE_NPC 7210
-/* ENTITYOVERLAY_DELETE_LOC — Destroy one overlay attached to the active location.
- * int stack in:   slot
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_ENTITYOVERLAY_DELETE_LOC 7211
-#define CS2_OP__7212 7212
-/* ENTITYOVERLAY_DELETE_PLAYER — Destroy one overlay attached to the active player.
- * int stack in:   slot
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_ENTITYOVERLAY_DELETE_PLAYER 7213
-/* ENTITYOVERLAY_DELETE_COORD — Destroy one overlay attached to a tile.
- * int stack in:   coord, slot  (slot = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_ENTITYOVERLAY_DELETE_COORD 7214
-#define CS2_OP_MINIMAP_SETZOOMABLE 7250
-#define CS2_OP_MINIMAP_GETZOOMABLE 7251
-#define CS2_OP_MINIMAP_SETZOOM 7252
-#define CS2_OP_MINIMAP_GETZOOM 7253
-#define CS2_OP_MINIMAP_SETICONZOOMLIMIT 7254
-#define CS2_OP_MINIMAP_GETICONZOOMLIMIT 7255
-#define CS2_OP_MINIMAP_REDRAW 7256
-#define CS2_OP_MINIMAP_SETDOTSTYLE 7257
-#define CS2_OP_MINIMAP_GETDOTSTYLE 7258
-#define CS2_OP_MINIMAP_SETDOTVISIBLE 7259
-#define CS2_OP_MINIMAP_GETDOTVISIBLE 7260
-#define CS2_OP_UNKNOWN_COMMAND_7261 7261
-#define CS2_OP_UNKNOWN_COMMAND_7262 7262
-#define CS2_OP_MINIMAP_SETDRAWDISPLAYNAME 7263
-#define CS2_OP_MINIMAP_GETDRAWDISPLAYNAME 7264
-/* Loot-tracker auxiliary-list ops inside the 7200..7499 native group. */
-#define CS2_OP_STRINGVECTOR_ADD 7400
-#define CS2_OP_STRINGVECTOR_ADDUNIQUE 7401
-#define CS2_OP_STRINGVECTOR_INSERT 7402
-#define CS2_OP_STRINGVECTOR_SET 7403
-#define CS2_OP_STRINGVECTOR_REMOVE 7404
-#define CS2_OP_STRINGVECTOR_REMOVEAT 7405
-#define CS2_OP_STRINGVECTOR_GET 7406
-#define CS2_OP_STRINGVECTOR_SIZE 7407
-#define CS2_OP_STRINGVECTOR_CONTAINS 7408
-#define CS2_OP_STRINGVECTOR_CLEAR 7409
-#define CS2_OP_MINIMENU_NUMENTRIES 7450
-#define CS2_OP_MINIMENU_TYPEAT 7451
-#define CS2_OP_MINIMENU_ENTRYAT 7452
-#define CS2_OP_MINIMENU_FINDNPCAT 7453
-#define CS2_OP_MINIMENU_FINDLOCAT 7454
-#define CS2_OP_MINIMENU_FINDOBJAT 7455
-#define CS2_OP_MINIMENU_FINDPLAYERAT 7456
-#define CS2_OP_MINIMENU_COORDAT 7457
-#define CS2_OP_MINIMENU_OBJTYPEAT 7458
-#define CS2_OP_MINIMENU_FINDCOMPONENTAT 7459
-#define CS2_OP_MINIMENU_HOVERED_INDEX 7460
-#define CS2_OP_MINIMENU_SETADDMODE 7461
-#define CS2_OP_MINIMENU_SETBLOCKMODE 7462
-#define CS2_OP_MINIMENU_SETSINGLECLICK 7463
-#define CS2_OP_MINIMENU_SETPRIORITYMODE 7464
-#define CS2_OP_MINIMENU_RESETORDER 7465
-#define CS2_OP_MINIMENU_SETORDEREDIT 7466
-#define CS2_OP_MINIMENU_GETORDEREDIT 7467
-#define CS2_OP_MINIMENU_SETSCROLLHEIGHT 7468
-#define CS2_OP_MINIMENU_GETSCROLLHEIGHT 7469
-#define CS2_OP_MINIMENU_TOGGLESCROLL 7470
-#define CS2_OP_MINIMENU_GETSCROLL 7471
+    /* === CS2 opcode group: viewport (5700..6299) ===
+     * viewport, canvas, UI zoom and safe-area commands.
+     * rev-239 dispatch: Statics.method6889 -> method6341.
+     */
+    CS2_OP_VIEWPORT_SETFOV = 903, /* wire 6200 */
+    CS2_OP_VIEWPORT_SETZOOM = 904, /* wire 6201 */
+    CS2_OP_VIEWPORT_CLAMPFOV = 905, /* wire 6202 */
+    CS2_OP_VIEWPORT_GETEFFECTIVESIZE = 906, /* wire 6203 */
+    CS2_OP_VIEWPORT_GETZOOM = 907, /* wire 6204 */
+    CS2_OP_VIEWPORT_GETFOV = 908, /* wire 6205 */
+    CS2_OP_UIZOOM_SET = 909, /* wire 6210 */
+    CS2_OP_UIZOOM_GET = 910, /* wire 6211 */
+    CS2_OP_UIZOOM_RESET = 911, /* wire 6212 */
+    CS2_OP_UIZOOM_SETMODE = 912, /* wire 6213 */
+    CS2_OP_UIZOOM_GETDEFAULT = 913, /* wire 6214 */
+    CS2_OP_SAFEAREA_GETMINX = 914, /* wire 6220 */
+    CS2_OP_SAFEAREA_GETMINY = 915, /* wire 6221 */
+    CS2_OP_SAFEAREA_GETMAXX = 916, /* wire 6222 */
+    CS2_OP_SAFEAREA_GETMAXY = 917, /* wire 6223 */
+    CS2_OP_UNKNOWN_COMMAND_6230 = 918, /* wire 6230 */
+    CS2_OP_SIDEBAR_SETWIDTH = 919, /* wire 6231 */
+    CS2_OP_SIDEBAR_CLEARWIDTH = 920, /* wire 6232 */
 
-/* === CS2 opcode group: db (7500..7599) ===
- * client database commands.
- * rev-239 dispatch: Statics.method6889 -> method870.
- */
-/* Client database family. Read DBROW config (kind 38) and the DBTABLEINDEX
- * (cache table 21); see CS2VM2_Op_Db / exec_db. */
-#define CS2_OP_DB_FIND 7500
-#define CS2_OP_DB_FINDNEXT 7501
-#define CS2_OP_DB_GETFIELD 7502
-#define CS2_OP_DB_GETFIELDCOUNT 7503
-#define CS2_OP_DB_LISTALL 7504
-#define CS2_OP_DB_GETROWTABLE 7505
-#define CS2_OP_DB_FIND_GET 7506
-#define CS2_OP_DB_FIND_REFINE 7507
-#define CS2_OP_DB_FIND_PRE228 7508
-#define CS2_OP_DB_FIND_REFINE_PRE228 7509
-#define CS2_OP_DB_LISTALL_PRE228 7510
+    /* === CS2 opcode group: world (6300..6599) ===
+     * world list, config params and platform commands.
+     * rev-239 dispatch: Statics.method6889 -> method5150.
+     */
+    CS2_OP_WORLDLIST_FETCH = 921, /* wire 6500 */
+    CS2_OP_WORLDLIST_START = 922, /* wire 6501 */
+    CS2_OP_WORLDLIST_NEXT = 923, /* wire 6502 */
+    CS2_OP_WORLDLIST_SPECIFIC = 924, /* wire 6506 */
+    CS2_OP_WORLDLIST_SORT = 925, /* wire 6507 */
+    CS2_OP_WORLDLIST_GET = 926, /* wire 6511 */
+    CS2_OP_SETFOLLOWEROPSLOWPRIORITY = 927, /* wire 6512 */
+    CS2_OP_NC_PARAM = 928, /* wire 6513 */
+    CS2_OP_LC_PARAM = 929, /* wire 6514 */
+    CS2_OP_OC_PARAM = 930, /* wire 6515 */
+    /* STRUCT_PARAM — Read struct param.
+     * int stack in:   struct_id, param_id   (param_id = top)
+     * str stack in:   -
+     * int stack out:  param value
+     * str stack out:  param value (string)
+     * notes: pushes int or str depending on param type
+     */
+    CS2_OP_STRUCT_PARAM = 931, /* wire 6516 */
+    /* ON_MOBILE — Is mobile client (stub).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  0
+     * str stack out:  -
+     */
+    CS2_OP_ON_MOBILE = 932, /* wire 6518 */
+    /* CLIENTTYPE — Get client type.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  client_type
+     * str stack out:  -
+     * notes: Client type values (OSRS):
+     *          1 Desktop (legacy Java client)
+     *          2 Android
+     *          3 iOS
+     *          4 Enhanced (RuneLite / C++ client)
+     *          5 Mac
+     *          7 Mobile (generic)
+     *         10 Steam / enhanced variant
+     */
+    CS2_OP_CLIENTTYPE = 933, /* wire 6519 */
+    CS2_OP_MOBILE_KEYBOARDSHOW = 934, /* wire 6520 */
+    CS2_OP_MOBILE_KEYBOARDHIDE = 935, /* wire 6521 */
+    CS2_OP_MOBILE_KEYBOARDSHOWSTRING = 936, /* wire 6522 */
+    CS2_OP_MOBILE_KEYBOARDSHOWINTEGER = 937, /* wire 6523 */
+    /* MOBILE_BATTERYLEVEL — Battery charge percentage (0..100).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  percent
+     * str stack out:  -
+     * notes: Desktop has no battery; we report a full charge.
+     */
+    CS2_OP_MOBILE_BATTERYLEVEL = 938, /* wire 6524 */
+    /* MOBILE_BATTERYCHARGING — Is the device charging.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  charging
+     * str stack out:  -
+     * notes: Desktop is always on mains power.
+     */
+    CS2_OP_MOBILE_BATTERYCHARGING = 939, /* wire 6525 */
+    /* MOBILE_WIFIAVAILABLE — Is a wifi (non-metered) connection available.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  available
+     * str stack out:  -
+     * notes: Desktop is treated as an unmetered connection.
+     */
+    CS2_OP_MOBILE_WIFIAVAILABLE = 940, /* wire 6526 */
+    CS2_OP_PLATFORMTYPE = 941, /* wire 6527 */
+    CS2_OP_INV_PARAM = 942, /* wire 6528 */
+    CS2_OP_HAPTIC = 943, /* wire 6530 */
+    CS2_OP_CLIENT_VERSION = 944, /* wire 6531 */
+    /* RUNELITE_CALLBACK — Invoke a synchronous named plugin callback.
+     * int stack in:   -
+     * str stack in:   event_name
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Remaining stack slots are live callback arguments/results. The host must not yield or recursively run scripts.
+     */
+    CS2_OP_RUNELITE_CALLBACK = 945, /* wire 6599 */
 
-/* === CS2 opcode group: loot (7600..7699) ===
- * loot-tracker native commands.
- * rev-239 dispatch: Statics.method6889 -> method10020.
- */
-#define CS2_OP_LOOTTRACKER_SOURCEADD 7600
-/* Loot-tracker native store (7600-family host ops). The rev-239 Java
- * range handler returns unhandled; this port implements the cache's
- * native loot-tracker extension. */
-#define CS2_OP_LOOTTRACKER_SOURCENAMECOUNT 7601
-#define CS2_OP_LOOTTRACKER_SOURCENAME 7602
-#define CS2_OP_LOOTTRACKER_SOURCEID 7603
-/* LOOTTRACKER_SOURCECOUNT — Get the recorded kill count for one loot source.
- * int stack in:   -
- * str stack in:   source_name
- * int stack out:  kill_count
- * str stack out:  -
- * notes: The historical name says TOTALVAL, but scripts use this as a source kill count. GP totals are calculated from item widgets.
- */
-#define CS2_OP_LOOTTRACKER_SOURCECOUNT 7604
-#define CS2_OP_LOOTTRACKER_SOURCEQUERY_NEW 7605
-#define CS2_OP_LOOTTRACKER_SOURCEQUERY_GET 7606
-#define CS2_OP_UNKNOWN_COMMAND_7607 7607
-#define CS2_OP_LOOTTRACKER_GETDROPLIMIT 7608
-#define CS2_OP_LOOTTRACKER_LOOTCOUNT_BYNAME 7609
-#define CS2_OP_LOOTTRACKER_LOOTCOUNT_BYID 7610
-#define CS2_OP_LOOTTRACKER_LOOTGET_BYNAME 7611
-#define CS2_OP_LOOTTRACKER_LOOTGET_BYID 7612
-#define CS2_OP_LOOTTRACKER_CLEAR 7613
-#define CS2_OP_LOOTTRACKER_LOOTDEL_BYNAME 7614
-#define CS2_OP_LOOTTRACKER_LOOTDEL_BYID 7615
-#define CS2_OP_LOOTTRACKER_IGNORELOOTADD 7616
-#define CS2_OP_LOOTTRACKER_IGNORELOOTDEL 7617
-#define CS2_OP_LOOTTRACKER_IGNORELOOTDELAT 7618
-#define CS2_OP_LOOTTRACKER_IGNORELOOTCOUNT 7619
-#define CS2_OP_LOOTTRACKER_IGNORELOOTGET 7620
-#define CS2_OP_LOOTTRACKER_IGNORELOOTCLEAR 7621
-#define CS2_OP_LOOTTRACKER_IGNORESOURCEADD 7622
-#define CS2_OP_LOOTTRACKER_IGNORESOURCEDEL 7623
-#define CS2_OP_LOOTTRACKER_IGNORESOURCEDELAT 7624
-#define CS2_OP_LOOTTRACKER_IGNORESOURCECOUNT 7625
-#define CS2_OP_LOOTTRACKER_IGNORESOURCEGET 7626
-#define CS2_OP_LOOTTRACKER_IGNORESOURCECLEAR 7627
-/* LOOTTRACKER_LOOTADD — Write one kill-drop row into the native loot store.
- * int stack in:   obj, qty, event_id  (event_id = top)
- * str stack in:   source_name
- * int stack out:  -
- * str stack out:  -
- * notes: event_id batches multi-item kills so each event increments the kill count once; rows merge by (source name, object id).
- */
-#define CS2_OP_LOOTTRACKER_LOOTADD 7628
-#define CS2_OP_LOOTTRACKER_SETDROPLIMIT 7629
-#define CS2_OP_LOOTTRACKER_SOURCEDROPNAME 7630
+    /* === CS2 opcode group: worldmap (6600..6699) ===
+     * world-map and map-element commands.
+     * rev-239 dispatch: Statics.method6889 -> method629.
+     */
+    /* World map (interface 595). Coords are packed as plane<<28 | x<<14 | y; a
+     * "display" coord is a position on the map surface, a "source" coord is a real
+     * world coord. Map ids index the worldmap "details" archive (cache table 19).
+     */
+    /* WORLDMAP_JUMPTOPLAYER — Select the map area containing the player and centre on it.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_JUMPTOPLAYER = 946, /* wire 6600 */
+    /* WORLDMAP_GETMAPNAME — External (display) name of a map area.
+     * int stack in:   mapId
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  name
+     */
+    CS2_OP_WORLDMAP_GETMAPNAME = 947, /* wire 6601 */
+    /* WORLDMAP_SETMAP — Make a map area current (resets zoom + position).
+     * int stack in:   mapId
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_SETMAP = 948, /* wire 6602 */
+    /* WORLDMAP_GETZOOM — Current zoom percentage (25/37/50/75/100/200).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  zoom
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETZOOM = 949, /* wire 6603 */
+    /* WORLDMAP_SETZOOM — Set the zoom percentage.
+     * int stack in:   zoom
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_SETZOOM = 950, /* wire 6604 */
+    /* WORLDMAP_ISLOADED — Are the world map area configs available.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  loaded
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_ISLOADED = 951, /* wire 6605 */
+    /* WORLDMAP_JUMPTODISPLAYCOORD — Pan towards a display coord.
+     * int stack in:   coord
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_JUMPTODISPLAYCOORD = 952, /* wire 6606 */
+    /* WORLDMAP_JUMPTODISPLAYCOORD_INSTANT — Snap to a display coord.
+     * int stack in:   coord
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_JUMPTODISPLAYCOORD_INSTANT = 953, /* wire 6607 */
+    /* WORLDMAP_JUMPTOSOURCECOORD — Pan towards a world coord.
+     * int stack in:   coord
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_JUMPTOSOURCECOORD = 954, /* wire 6608 */
+    /* WORLDMAP_JUMPTOSOURCECOORD_INSTANT — Snap to a world coord.
+     * int stack in:   coord
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_JUMPTOSOURCECOORD_INSTANT = 955, /* wire 6609 */
+    /* WORLDMAP_GETDISPLAYPOSITION — Centre of the view, in display tiles.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  x, y  (y = top)
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETDISPLAYPOSITION = 956, /* wire 6610 */
+    /* WORLDMAP_GETCONFIGORIGIN — Packed origin coord of a map area.
+     * int stack in:   mapId
+     * str stack in:   -
+     * int stack out:  coord
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETCONFIGORIGIN = 957, /* wire 6611 */
+    /* WORLDMAP_GETCONFIGSIZE — Size of a map area in tiles.
+     * int stack in:   mapId
+     * str stack in:   -
+     * int stack out:  width, height  (height = top)
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETCONFIGSIZE = 958, /* wire 6612 */
+    /* WORLDMAP_GETCONFIGBOUNDS — Tile bounds of a map area.
+     * int stack in:   mapId
+     * str stack in:   -
+     * int stack out:  minX, minY, maxX, maxY  (maxY = top)
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETCONFIGBOUNDS = 959, /* wire 6613 */
+    /* WORLDMAP_GETCONFIGZOOM — Default zoom percentage of a map area.
+     * int stack in:   mapId
+     * str stack in:   -
+     * int stack out:  zoom
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETCONFIGZOOM = 960, /* wire 6614 */
+    /* WORLDMAP_GETSOURCEPOSITION — World coord under the view centre.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  x, y  (y = top)
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETSOURCEPOSITION = 961, /* wire 6615 */
+    /* WORLDMAP_GETCURRENTMAP — Id of the current map area (-1 when none).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  mapId
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETCURRENTMAP = 962, /* wire 6616 */
+    /* WORLDMAP_GETDISPLAYCOORD — Map a world coord to a display position.
+     * int stack in:   coord
+     * str stack in:   -
+     * int stack out:  x, y   (y = top)
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETDISPLAYCOORD = 963, /* wire 6617 */
+    /* WORLDMAP_GETSOURCECOORD — Map a display coord back to a world coord.
+     * int stack in:   coord
+     * str stack in:   -
+     * int stack out:  coord
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETSOURCECOORD = 964, /* wire 6618 */
+    /* WORLDMAP_SETMAP_COORD — Switch map area, panning to the player when it is in range and to the fallback coord otherwise.
+     * int stack in:   mapId, fallbackCoord  (fallbackCoord = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_SETMAP_COORD = 965, /* wire 6619 */
+    /* WORLDMAP_SETMAP_COORD_OVERRIDE — JUMPTOMAP, always using the fallback coord.
+     * int stack in:   mapId, fallbackCoord  (fallbackCoord = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_SETMAP_COORD_OVERRIDE = 966, /* wire 6620 */
+    /* WORLDMAP_COORDINMAP — Does a map area cover a world coord.
+     * int stack in:   mapId, coord  (coord = top)
+     * str stack in:   -
+     * int stack out:  inMap
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_COORDINMAP = 967, /* wire 6621 */
+    /* WORLDMAP_GETSIZE — Visible size of the map surface, in tiles.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  width, height  (height = top)
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETSIZE = 968, /* wire 6622 */
+    /* WORLDMAP_GETMAP — Map area covering a world coord (-1 when none).
+     * int stack in:   coord
+     * str stack in:   -
+     * int stack out:  mapId
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETMAP = 969, /* wire 6623 */
+    /* WORLDMAP_SETFLASHLOOPS — How many times a flashing element blinks.
+     * int stack in:   count
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_SETFLASHLOOPS = 970, /* wire 6624 */
+    /* WORLDMAP_SETFLASHLOOPS_DEFAULT — Restore the default flash count.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_SETFLASHLOOPS_DEFAULT = 971, /* wire 6625 */
+    /* WORLDMAP_SETFLASHTICS — Client cycles between flash toggles.
+     * int stack in:   cycles
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_SETFLASHTICS = 972, /* wire 6626 */
+    /* WORLDMAP_SETFLASHTICS_DEFAULT — Restore the default flash rate.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_SETFLASHTICS_DEFAULT = 973, /* wire 6627 */
+    /* WORLDMAP_PERPETUALFLASH — Flash forever instead of maxFlashCount times.
+     * int stack in:   enabled
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_PERPETUALFLASH = 974, /* wire 6628 */
+    /* WORLDMAP_FLASHELEMENT — Start flashing one map element.
+     * int stack in:   elementId
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_FLASHELEMENT = 975, /* wire 6629 */
+    /* WORLDMAP_FLASHELEMENTCATEGORY — Start flashing an element category.
+     * int stack in:   categoryId
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_FLASHELEMENTCATEGORY = 976, /* wire 6630 */
+    /* WORLDMAP_STOPCURRENTFLASHES — Clear every active flash.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_STOPCURRENTFLASHES = 977, /* wire 6631 */
+    /* WORLDMAP_DISABLEELEMENTS — Master switch for drawing map elements.
+     * int stack in:   enabled
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_DISABLEELEMENTS = 978, /* wire 6632 */
+    /* WORLDMAP_DISABLEELEMENT — Enable/disable a single element.
+     * int stack in:   elementId, enabled  (enabled = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_DISABLEELEMENT = 979, /* wire 6633 */
+    /* WORLDMAP_DISABLEELEMENTCATEGORY — Enable/disable an element category.
+     * int stack in:   categoryId, enabled  (enabled = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_DISABLEELEMENTCATEGORY = 980, /* wire 6634 */
+    /* WORLDMAP_GETDISABLEELEMENTS — Is element drawing enabled.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  enabled
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETDISABLEELEMENTS = 981, /* wire 6635 */
+    /* WORLDMAP_GETDISABLEELEMENT — Is one element enabled.
+     * int stack in:   elementId
+     * str stack in:   -
+     * int stack out:  enabled
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETDISABLEELEMENT = 982, /* wire 6636 */
+    /* WORLDMAP_GETDISABLEELEMENTCATEGORY — Is an element category enabled.
+     * int stack in:   categoryId
+     * str stack in:   -
+     * int stack out:  enabled
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_GETDISABLEELEMENTCATEGORY = 983, /* wire 6637 */
+    /* WORLDMAP_FINDNEARESTELEMENT — Display coord of the nearest icon of an element.
+     * int stack in:   elementId, sourceCoord  (sourceCoord = top)
+     * str stack in:   -
+     * int stack out:  coord
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_FINDNEARESTELEMENT = 984, /* wire 6638 */
+    /* WORLDMAP_LISTELEMENT_START — Begin iterating visible icons.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  element, coord  (coord = top)
+     * str stack out:  -
+     * notes: yields (-1, -1) when the iteration is exhausted.
+     */
+    CS2_OP_WORLDMAP_LISTELEMENT_START = 985, /* wire 6639 */
+    /* WORLDMAP_LISTELEMENT_NEXT — Continue iterating visible icons.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  element, coord  (coord = top)
+     * str stack out:  -
+     */
+    CS2_OP_WORLDMAP_LISTELEMENT_NEXT = 986, /* wire 6640 */
+    /* MEC_TEXT — Map element label.
+     * int stack in:   mecId
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  text
+     */
+    CS2_OP_MEC_TEXT = 987, /* wire 6693 */
+    /* MEC_TEXTSIZE — Map element label size.
+     * int stack in:   mecId
+     * str stack in:   -
+     * int stack out:  size
+     * str stack out:  -
+     */
+    CS2_OP_MEC_TEXTSIZE = 988, /* wire 6694 */
+    /* MEC_CATEGORY — Map element category (-1 when uncategorised).
+     * int stack in:   mecId
+     * str stack in:   -
+     * int stack out:  category
+     * str stack out:  -
+     */
+    CS2_OP_MEC_CATEGORY = 989, /* wire 6695 */
+    /* MEC_SPRITE — Map element icon sprite id (-1 when none).
+     * int stack in:   mecId
+     * str stack in:   -
+     * int stack out:  spriteId
+     * str stack out:  -
+     */
+    CS2_OP_MEC_SPRITE = 990, /* wire 6696 */
+    /* MEL_TYPE — Element id of the map element event being handled.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  elementId
+     * str stack out:  -
+     */
+    CS2_OP_MEL_TYPE = 991, /* wire 6697 */
+    /* MEL_SOURCECOORD — First coord of the map element event.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  coord
+     * str stack out:  -
+     */
+    CS2_OP_MEL_SOURCECOORD = 992, /* wire 6698 */
+    /* MEL_DISPLAYCOORD — Second coord of the map element event.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  coord
+     * str stack out:  -
+     */
+    CS2_OP_MEL_DISPLAYCOORD = 993, /* wire 6699 */
 
-/* === CS2 opcode group: extension (7700..7999) ===
- * native extension and client-setting commands.
- * rev-239 dispatch: Statics.method6889 -> method11128.
- */
-#define CS2_OP_HISCORE_LOOKUP 7800
-#define CS2_OP_HISCORE_GETRANK 7801
-#define CS2_OP_HISCORE_GETVALUE 7802
-#define CS2_OP_HISCORE_GETSKILLRANK 7803
-#define CS2_OP_HISCORE_GETGAMERANK 7804
-#define CS2_OP_HISCORE_GETSKILLXP 7805
-#define CS2_OP_HISCORE_GETGAMECOMPLETIONS 7806
-#define CS2_OP_HISCORE_GETOVERALLRANK 7807
-#define CS2_OP_HISCORE_GETOVERALLXP 7808
-/* Hiscores native-extension stubs (7809/7811). */
-#define CS2_OP_HISCORE_GETSTATUS 7809
-#define CS2_OP_HISCORE_CLEAR 7810
-#define CS2_OP_HISCORE_GETERROR 7811
-#define CS2_OP_HISCORE_SETAPI 7812
-#define CS2_OP_HISCORE_GETBOSSRANK 7813
-#define CS2_OP_HISCORE_GETBOSSKILLS 7814
-#define CS2_OP_HISCORE_GETGROUPTOTALLEVEL 7815
-#define CS2_OP_HISCORE_GETGROUPTOTALXP 7816
-#define CS2_OP_HISCORE_GETGROUPSIZE 7817
-#define CS2_OP_HISCORE_GETMEMBERCOUNT 7818
-#define CS2_OP_HISCORE_GETMEMBERLEVEL 7819
-#define CS2_OP_HISCORE_GETMEMBERCONTRIBUTEDXP_BYNAME 7820
-#define CS2_OP_HISCORE_GETMEMBERLEVEL_BYINDEX 7821
-#define CS2_OP_HISCORE_GETMEMBERCONTRIBUTEDXP_BYINDEX 7822
-#define CS2_OP_HISCORE_GETMEMBERNAME 7823
-#define CS2_OP_HISCORE_GETMEMBERHISCORES 7824
-#define CS2_OP_WORLDENTITY_SETRENDERLIMIT 7900
-#define CS2_OP_WORLDENTITY_GETRENDERLIMIT 7901
+    /* === CS2 opcode group: clientop-npc (6700..6799) ===
+     * client ops and active NPC queries.
+     * rev-239 dispatch: Statics.method6889 -> method12492.
+     */
+    CS2_OP_CLIENTOP_NPC_SET = 994, /* wire 6700 */
+    CS2_OP_CLIENTOP_NPC_DEL = 995, /* wire 6701 */
+    CS2_OP_CLIENTOP_LOC_SET = 996, /* wire 6702 */
+    CS2_OP_CLIENTOP_LOC_DEL = 997, /* wire 6703 */
+    CS2_OP_CLIENTOP_OBJ_SET = 998, /* wire 6704 */
+    CS2_OP_CLIENTOP_OBJ_DEL = 999, /* wire 6705 */
+    CS2_OP_CLIENTOP_PLAYER_SET = 1000, /* wire 6706 */
+    CS2_OP_CLIENTOP_PLAYER_DEL = 1001, /* wire 6707 */
+    CS2_OP_CLIENTOP_TILE_SET = 1002, /* wire 6708 */
+    CS2_OP_CLIENTOP_TILE_DEL = 1003, /* wire 6709 */
+    CS2_OP_NPC_NAME = 1004, /* wire 6750 */
+    CS2_OP__6750 = CS2_OP_NPC_NAME,
+    CS2_OP_NPC_UID = 1005, /* wire 6751 */
+    CS2_OP__6751 = CS2_OP_NPC_UID,
+    CS2_OP_NPC_CREATIONCYCLE = 1006, /* wire 6752 */
+    CS2_OP__6752 = CS2_OP_NPC_CREATIONCYCLE,
+    CS2_OP_NPC_TYPE = 1007, /* wire 6753 */
+    CS2_OP__6753 = CS2_OP_NPC_TYPE,
+    CS2_OP_NC_NAME = 1008, /* wire 6754 */
+    CS2_OP_NPC_ROUTE_LENGTH = 1009, /* wire 6755 */
+    CS2_OP_NPC_ROUTE_GET = 1010, /* wire 6756 */
+    CS2_OP_NPC_SAY = 1011, /* wire 6757 */
+    CS2_OP_NPC_FINDUID = 1012, /* wire 6758 */
+    CS2_OP_NPC_GETOPBASE = 1013, /* wire 6759 */
+    CS2_OP_NPC_GETOP = 1014, /* wire 6760 */
+    CS2_OP_NC_GETOPBASE = 1015, /* wire 6761 */
+    CS2_OP_NC_GETOP = 1016, /* wire 6762 */
+    CS2_OP_NC_GETMULTINPC = 1017, /* wire 6763 */
+    CS2_OP_NC_HEADICON = 1018, /* wire 6764 */
+    CS2_OP_NC_VISLEVEL = 1019, /* wire 6765 */
 
-/* === CS2 opcode group: array (8000..8099) ===
- * typed list and array commands.
- * rev-239 dispatch: Statics.method6889 -> method12336.
- */
-/* ARRAY_SORT — Sort two paired arrays by the first array.
- * int stack in:   -
- * str stack in:   primary handle, secondary handle  (secondary handle = top)
- * int stack out:  -
- * str stack out:  -
- * notes: Sorts primary ascending (lexically for strings, numerically otherwise) and applies the same permutation to secondary. Array handles travel on the string stack at this revision.
- */
-#define CS2_OP_ARRAY_SORT 8000
-#define CS2_OP_ARRAY_RANDOMISE 8001
-#define CS2_OP_ARRAY_ISNULL 8002
-/* ARRAY_SIZE — Get the element count of an array handle.
- * int stack in:   -
- * str stack in:   array handle
- * int stack out:  length
- * str stack out:  -
- */
-#define CS2_OP_ARRAY_SIZE 8003
-#define CS2_OP_ARRAY_COMPARE 8004
-#define CS2_OP_ARRAY_INDEXOF 8005
-#define CS2_OP_ARRAY_LASTINDEXOF 8006
-/* ARRAY_COUNT — count cells in [start, end) equal to a typed value.
- * A negative end means "to the end". The array is a handle on the
- * string stack; value_type selects whether the search value is popped
- * from the int or string stack, so this opcode has variable arity. */
-#define CS2_OP_ARRAY_COUNT 8007
-#define CS2_OP_ARRAY_MIN 8008
-#define CS2_OP_ARRAY_MAX 8009
-#define CS2_OP_ARRAY_FILL 8010
-#define CS2_OP_ARRAY_GENERATERANGE 8011
-#define CS2_OP_ARRAY_REVERSE 8012
-#define CS2_OP_ARRAY_ROTATE 8013
-#define CS2_OP_ARRAY_SWAP 8014
-#define CS2_OP_ARRAY_COPY 8015
-#define CS2_OP_ARRAY_TOTAL 8016
-#define CS2_OP_ARRAY_INDEXOFSUM 8017
-/* STRING_SPLIT — Split a string into a new string-array handle.
- * int stack in:   -
- * str stack in:   text, separator  (separator = top)
- * int stack out:  -
- * str stack out:  array handle
- */
-#define CS2_OP_STRING_SPLIT 8018
-/* STRING_JOIN — Join a string array with a separator.
- * int stack in:   -
- * str stack in:   array handle, separator  (separator = top)
- * int stack out:  -
- * str stack out:  joined text
- */
-#define CS2_OP_STRING_JOIN 8019
-#define CS2_OP_ENUM_GETINPUTS 8020
-#define CS2_OP_ENUM_GETOUTPUTS 8021
-/* ARRAY_CREATE — Create a typed array handle.
- * int stack in:   type_code, length, capacity  (capacity = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  array handle
- */
-#define CS2_OP_ARRAY_CREATE 8022
-/* ARRAY_RESIZE — Resize an array handle.
- * int stack in:   length
- * str stack in:   array handle
- * int stack out:  -
- * str stack out:  -
- */
-#define CS2_OP_ARRAY_RESIZE 8023
-/* ARRAY_PUSH — Append a typed value to an array handle.
- * int stack in:   typed value, value_type                (value_type = top)
- * str stack in:   array handle, typed value when string  (typed value when string = top)
- * int stack out:  -
- * str stack out:  -
- * notes: Variable arity: value_type selects the value stack.
- */
-#define CS2_OP_ARRAY_PUSH 8024
-#define CS2_OP_ARRAY_INSERT 8025
-#define CS2_OP_ARRAY_DELETE 8026
-#define CS2_OP_ARRAY_PUSHALL 8027
-#define CS2_OP_ARRAY_INSERTALL 8028
-#define CS2_OP_ARRAY_DELETEALL 8029
+    /* === CS2 opcode group: clientop-loc (6800..6899) ===
+     * active location and object queries.
+     * rev-239 dispatch: Statics.method6889 -> method3101.
+     */
+    CS2_OP_LOC_NAME = 1020, /* wire 6800 */
+    CS2_OP_LOC_COORD = 1021, /* wire 6801 */
+    CS2_OP__6801 = CS2_OP_LOC_COORD,
+    CS2_OP_LOC_TYPE = 1022, /* wire 6802 */
+    CS2_OP__6802 = CS2_OP_LOC_TYPE,
+    /* LOC_FIND — Find a location of a given type at a tile and make it active.
+     * int stack in:   coord, loc_type                     (loc_type = top)
+     * str stack in:   -
+     * int stack out:  1 if found (active loc set) else 0
+     * str stack out:  -
+     * notes: Static-overlay scripts use this as their scene-presence gate; later active-loc and OVERLAY_LOC operations address the selected location.
+     */
+    CS2_OP_LOC_FIND = 1023, /* wire 6803 */
+    CS2_OP_LOC_GETOPBASE = 1024, /* wire 6804 */
+    CS2_OP_LOC_GETOP = 1025, /* wire 6805 */
+    CS2_OP_LC_GETOPBASE = 1026, /* wire 6806 */
+    CS2_OP_LC_GETOP = 1027, /* wire 6807 */
+    CS2_OP_LC_GETMULTILOC = 1028, /* wire 6808 */
+    CS2_OP_LC_NAME = 1029, /* wire 6809 */
+    CS2_OP_LOC_WIDTH = 1030, /* wire 6810 */
+    CS2_OP_LOC_LENGTH = 1031, /* wire 6811 */
+    CS2_OP_OBJ_NAME = 1032, /* wire 6850 */
+    CS2_OP_OBJ_COORD = 1033, /* wire 6851 */
+    CS2_OP__6851 = CS2_OP_OBJ_COORD,
+    CS2_OP_OBJ_TYPE = 1034, /* wire 6852 */
+    CS2_OP__6852 = CS2_OP_OBJ_TYPE,
+    CS2_OP_OBJ_COUNT = 1035, /* wire 6853 */
+    CS2_OP_OBJ_FIND = 1036, /* wire 6854 */
+    CS2_OP_OBJ_GETOPBASE = 1037, /* wire 6855 */
+    CS2_OP_OBJ_GETOP = 1038, /* wire 6856 */
+    CS2_OP_OC_GETOPBASE = 1039, /* wire 6857 */
+    CS2_OP_OC_GETOP = 1040, /* wire 6858 */
+    CS2_OP_OBJ_FINDBYINDEX = 1041, /* wire 6859 */
+    CS2_OP_OBJ_DESPAWNTIME = 1042, /* wire 6860 */
+    CS2_OP_OBJ_REVEALTIME = 1043, /* wire 6861 */
+    CS2_OP_OBJ_REVEALED = 1044, /* wire 6862 */
+    CS2_OP_OBJ_OWNER = 1045, /* wire 6863 */
 
-/* === CS2 opcode group: typed-data (8100..8599) ===
- * typed long-keyed data commands.
- * rev-239 dispatch: Statics.method6889 -> method4514.
- */
-#define CS2_OP_PLUGIN_SETTING_COUNT 8202
-#define CS2_OP_PLUGIN_SETTING_GET_TYPE 8203
-#define CS2_OP_PLUGIN_SETTING_GET_LABEL 8204
-#define CS2_OP_PLUGIN_SETTING_GET_VALUE 8205
-#define CS2_OP_PLUGIN_SETTING_SET_VALUE 8206
-#define CS2_OP_PLUGIN_QUERY 8300
-#define CS2_OP_PLUGIN_QUERY_GET 8301
-#define CS2_OP_PLUGIN_QUERY_SET_SORT 8302
-#define CS2_OP_PLUGIN_QUERY_COUNT 8303
-#define CS2_OP_PLUGIN_NAME 8304
-#define CS2_OP_PLUGIN_NAME_ID 8305
-#define CS2_OP_UNKNOWN_COMMAND_8306 8306
-#define CS2_OP_PLUGIN_INSTALLED 8307
-#define CS2_OP_PLUGIN_INSTALL 8308
-#define CS2_OP_PLUGIN_UNINSTALL 8309
-#define CS2_OP_UNKNOWN_COMMAND_8310 8310
-#define CS2_OP_UNKNOWN_COMMAND_8311 8311
-#define CS2_OP_UNKNOWN_COMMAND_8312 8312
-#define CS2_OP_UNKNOWN_COMMAND_8313 8313
-#define CS2_OP_PLUGIN_ENABLED 8314
-#define CS2_OP_PLUGIN_ENABLE 8315
-#define CS2_OP_PLUGIN_DISABLE 8316
-#define CS2_OP_PLUGIN_SUBMITTED_BY 8317
-#define CS2_OP_PLUGIN_SUMMARY 8318
-#define CS2_OP_PLUGIN_LOGO 8319
-#define CS2_OP_PLUGIN_OUTDATED 8320
-#define CS2_OP_PLUGIN_VERSION 8321
-#define CS2_OP_PLUGIN_VERSION_INSTALLED 8322
-#define CS2_OP_PLUGIN_QUERY_SET_INSTALLED_ONLY 8323
-#define CS2_OP_PLUGIN_QUERY_ADD_TAG 8324
-#define CS2_OP_PLUGIN_QUERY_SET_TAG 8325
-#define CS2_OP_PLUGIN_QUERY_DEL_TAG 8326
-#define CS2_OP_PLUGIN_QUERY_CLEAR_TAGS 8327
-#define CS2_OP_PLUGIN_QUERY_ADD_TERM 8328
-#define CS2_OP_PLUGIN_QUERY_SET_TERM 8329
-#define CS2_OP_PLUGIN_QUERY_DEL_TERM 8330
-#define CS2_OP_PLUGIN_QUERY_CLEAR_TERMS 8331
-#define CS2_OP_PLUGIN_QUERY_STATUS 8332
-#define CS2_OP_GROUP_CHECK 8501
-#define CS2_OP_GROUP_GET 8520
-#define CS2_OP_GROUP_GETINDEX 8521
-#define CS2_OP_GROUP_GETVAR 8560
-#define CS2_OP_GROUP_GETMEMBERVAR 8561
-#define CS2_OP_GROUP_GETVAR_SCOPED 8570
+    /* === CS2 opcode group: clientop-player (6900..6999) ===
+     * active player and login-state commands.
+     * rev-239 dispatch: Statics.method6889 -> method6167.
+     */
+    CS2_OP_P_NAME = 1046, /* wire 6900 */
+    CS2_OP__6900 = CS2_OP_P_NAME,
+    /* P_FINDSELF — Make the local player the active player.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  1 if a local player exists else -1
+     * str stack out:  -
+     * notes: The only setter in the 6901..6905 active-player block. The NXT reference selects m_localPlayerIndex before pushing the result.
+     */
+    CS2_OP_P_FINDSELF = 1047, /* wire 6901 */
+    CS2_OP_ACTIVEPLAYER_SETLOCAL = CS2_OP_P_FINDSELF,
+    /* P_ROUTELENGTH — Active player's route length.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  m_routeLength (0..9)
+     * str stack out:  -
+     * notes: The queue of tiles the server has put the player on that the
+     *        client has not walked through yet. 0 means standing still, and
+     *        clientscript 5203 reads it exactly that way: with a route it marks
+     *        P_ROUTE(0), without one it marks `coord`.
+     */
+    CS2_OP_P_ROUTELENGTH = 1048, /* wire 6902 */
+    CS2_OP_ACTIVEPLAYER_GETROUTELENGTH = CS2_OP_P_ROUTELENGTH,
+    /* P_ROUTE — Active player's route coord at an index.
+     * int stack in:   index
+     * str stack in:   -
+     * int stack out:  coord or -1
+     * str stack out:  -
+     * notes: Index 0 is the NEWEST entry -- ClientPlayer::AddRoutePoint
+     *        shifts the queue up and writes the new tile at 0 -- so it is the
+     *        player's server-side tile, ahead of the rendered position while
+     *        walking. The reference packs it as plane << 28 | x << 14 | z after
+     *        WorldCoordFromBuildCoord, and asserts index < m_routeLength.
+     */
+    CS2_OP_P_ROUTE = 1049, /* wire 6903 */
+    CS2_OP_ACTIVEPLAYER_GETROUTECOORD = CS2_OP_P_ROUTE,
+    /* UID — Active player's uid.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  uid or -1
+     * str stack out:  -
+     */
+    CS2_OP_UID = 1050, /* wire 6904 */
+    CS2_OP_ACTIVEPLAYER_GETUID = CS2_OP_UID,
+    /* SELF_PLAYER_UID — Local player's uid.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  uid or -1
+     * str stack out:  -
+     * notes: `UID = SELF_PLAYER_UID` is how a per-player
+     *        trigger script asks whether the player it fired for is this client's
+     *        own -- clientscript 5203 (the current-tile indicator) is the cache's
+     *        only user of either.
+     */
+    CS2_OP_SELF_PLAYER_UID = 1051, /* wire 6905 */
+    CS2_OP_LOCALPLAYER_GETUID = CS2_OP_SELF_PLAYER_UID,
+    CS2_OP_P_SAY = 1052, /* wire 6906 */
+    CS2_OP_P_GETOP = 1053, /* wire 6907 */
+    /* LOGIN_INT24 — rev 634 login/account int getter (Class24.anInt359).
+     * operand: unused
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  value
+     * str stack out:  -
+     * notes: set at jagex-account login and by packet 54 (signed 24-bit
+     *        alongside the membership flag). Scripts probe 8388605
+     *        (0x7FFFFD). Offline/unlogged stub pushes 0 (static default). */
+    CS2_OP_LOGIN_INT24 = 1054, /* wire 6910 */
+    CS2_OP_TILE_COORD = 1055, /* wire 6950 */
+    CS2_OP__6950 = CS2_OP_TILE_COORD,
+    /* TILE_FIND — Test whether a packed coordinate is inside the loaded scene.
+     * int stack in:   coord
+     * str stack in:   -
+     * int stack out:  1 if inside the build area else 0
+     * str stack out:  -
+     * notes: The coordinate-anchored twin of LOC_FIND; overlays recheck it as the scene window moves.
+     */
+    CS2_OP_TILE_FIND = 1056, /* wire 6951 */
 
-/* === CS2 opcode group: vm-dialect (9000..9099) ===
- * dialect variants the VM renumbers commands to at load.
- * Not a client range: the VM's own ids, given at load; no cache spells them.
- */
-/* CC_CREATE_FLAT — Create dynamic child component, three arguments.
- * operand: 0 = active component, 1 = dot component
- * int stack in:   parent, type, child_index  (child_index = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: CC_CREATE (100) where the cache era pushes no is_nested flag: RS2 634 (Class66.method710) and OldSchool through 229. Renumbered at load; is_nested reaches the host as 0.
- */
-#define CS2_OP_CC_CREATE_FLAT 9000
-/* DEFINE_ARRAY_SHARED — Define an int array in one of the run's numbered arrays.
- * operand: (array number << 16) | element type char
- * int stack in:   size
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: DEFINE_ARRAY (44) where arrays are numbered and shared by every frame of a run (OldSchool through 230). Renumbered at load.
- */
-#define CS2_OP_DEFINE_ARRAY_SHARED 9001
-/* PUSH_ARRAY_INT_SHARED — Read an element of one of the run's numbered arrays.
- * operand: array number
- * int stack in:   index
- * str stack in:   -
- * int stack out:  value
- * str stack out:  -
- * notes: PUSH_ARRAY_INT (45) over numbered arrays (OldSchool through 230). A string array pushes onto the string stack instead. Renumbered at load.
- */
-#define CS2_OP_PUSH_ARRAY_INT_SHARED 9002
-/* POP_ARRAY_INT_SHARED — Write an element of one of the run's numbered arrays.
- * operand: array number
- * int stack in:   index, value  (value = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: POP_ARRAY_INT (46) over numbered arrays (OldSchool through 230). A string array takes its value off the string stack. Renumbered at load.
- */
-#define CS2_OP_POP_ARRAY_INT_SHARED 9003
-/* RS2_CC_GETPARAM — Read a param off the active widget (RS2 634).
- * int stack in:   param_id
- * str stack in:   -
- * int stack out:  value
- * str stack out:  -
- * notes: Wire 1613 at 634, where OldSchool's 1613 is CC_GETBLENDMODE. Type-polymorphic: the ParamType decides whether an int or a string comes back. No 634-era widget carries a param table, so the answer is the ParamType's default. Renumbered at load.
- */
-#define CS2_OP_RS2_CC_GETPARAM 9004
-/* RS2_202 — RS2 634 command 202, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: Remove a widget from its group array (Class66.method714); canonical 202 is IF_FIND_ENTITYOVERLAY. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 202 at load.
- */
-#define CS2_OP_RS2_202 9010
-/* RS2_1122 — RS2 634 command 1122, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: CC_ set of the type-5 flag bit 1 (Class46.aBoolean745). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 1122 at load.
- */
-#define CS2_OP_RS2_1122 9011
-/* RS2_1311 — RS2 634 command 1311, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: A one-int widget setter (Class46.anInt713); canonical 1311 is CC_SETSUBOP. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 1311 at load.
- */
-#define CS2_OP_RS2_1311 9012
-/* RS2_2122 — RS2 634 command 2122, stubbed to its 634 signature.
- * int stack in:   a1, a2  (a2 = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: IF_ set of the type-5 flag bit 1; pops the component id first (Class66:2731). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2122 at load.
- */
-#define CS2_OP_RS2_2122 9013
-/* RS2_2314 — RS2 634 command 2314, stubbed to its 634 signature.
- * int stack in:   a1, a2  (a2 = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: A one-int widget setter on an explicit component (Class46.anInt719); canonical 2314 is IF_SETOPPRIORITY. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2314 at load.
- */
-#define CS2_OP_RS2_2314 9014
-/* RS2_2703 — RS2 634 command 2703, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: Count of a widget's dynamic children (Class46.aClass46Array798). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 2703 at load.
- */
-#define CS2_OP_RS2_2703 9015
-/* RS2_3329 — RS2 634 command 3329, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: Class50_Sub2.aBoolean5233. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3329 at load.
- */
-#define CS2_OP_RS2_3329 9016
-/* RS2_3335 — RS2 634 command 3335, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: Language index (Class348_Sub33.anInt6967). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3335 at load.
- */
-#define CS2_OP_RS2_3335 9017
-/* RS2_3340 — RS2 634 command 3340, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: Class175.aBoolean2329. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3340 at load.
- */
-#define CS2_OP_RS2_3340 9018
-/* RS2_3351 — RS2 634 command 3351, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1, r2, r3  (r3 = top)
- * str stack out:  -
- * notes: Three mouse-button booleans, one call. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3351 at load.
- */
-#define CS2_OP_RS2_3351 9019
-/* RS2_3609 — RS2 634 command 3609, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   s1
- * int stack out:  r1
- * str stack out:  -
- * notes: Friend test by display name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3609 at load.
- */
-#define CS2_OP_RS2_3609 9020
-/* RS2_3619 — RS2 634 command 3619, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   s1
- * int stack out:  -
- * str stack out:  -
- * notes: Join clan chat by owner name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 3619 at load.
- */
-#define CS2_OP_RS2_3619 9021
-/* RS2_4124 — RS2 634 command 4124, stubbed to its 634 signature.
- * int stack in:   a1, a2  (a2 = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  t1
- * notes: (value, comma-group) -> formatted number; OldSchool 239 script 5031 calls canonical 4124 with an empty stack. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 4124 at load.
- */
-#define CS2_OP_RS2_4124 9022
-/* RS2_4125 — RS2 634 command 4125, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   s1
- * int stack out:  r1
- * str stack out:  -
- * notes: (font, text) -> rendered width. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 4125 at load.
- */
-#define CS2_OP_RS2_4125 9023
-/* RS2_5003 — RS2 634 command 5003, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  -
- * str stack out:  t1
- * notes: Friend/ignore record field by list index (s.method3985); canonical 5003.. is the chat history family. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5003 at load.
- */
-#define CS2_OP_RS2_5003 9024
-/* RS2_5004 — RS2 634 command 5004, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5004 at load.
- */
-#define CS2_OP_RS2_5004 9025
-/* RS2_5010 — RS2 634 command 5010, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  -
- * str stack out:  t1
- * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5010 at load.
- */
-#define CS2_OP_RS2_5010 9026
-/* RS2_5011 — RS2 634 command 5011, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  -
- * str stack out:  t1
- * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5011 at load.
- */
-#define CS2_OP_RS2_5011 9027
-/* RS2_5012 — RS2 634 command 5012, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5012 at load.
- */
-#define CS2_OP_RS2_5012 9028
-/* RS2_5019 — RS2 634 command 5019, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  -
- * str stack out:  t1
- * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5019 at load.
- */
-#define CS2_OP_RS2_5019 9029
-/* RS2_5024 — RS2 634 command 5024, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5024 at load.
- */
-#define CS2_OP_RS2_5024 9030
-/* RS2_5056 — RS2 634 command 5056, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: Array length or 0. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5056 at load.
- */
-#define CS2_OP_RS2_5056 9031
-/* RS2_5102 — RS2 634 command 5102, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: Key-down test. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5102 at load.
- */
-#define CS2_OP_RS2_5102 9032
-/* RS2_5420 — RS2 634 command 5420, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5420 at load.
- */
-#define CS2_OP_RS2_5420 9033
-/* RS2_5424 — RS2 634 command 5424, stubbed to its 634 signature.
- * int stack in:   a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11  (a11 = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: Chat scrollbar skin: four geometry values, five sprite ids the client preloads, two more. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5424 at load.
- */
-#define CS2_OP_RS2_5424 9034
-/* RS2_5428 — RS2 634 command 5428, stubbed to its 634 signature.
- * int stack in:   a1, a2  (a2 = top)
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: A two-int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5428 at load.
- */
-#define CS2_OP_RS2_5428 9035
-/* RS2_5504 — RS2 634 command 5504, stubbed to its 634 signature.
- * int stack in:   a1, a2  (a2 = top)
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: CAM_FORCEANGLE. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5504 at load.
- */
-#define CS2_OP_RS2_5504 9036
-/* RS2_5505 — RS2 634 command 5505, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: CAM_GETANGLE_XA. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5505 at load.
- */
-#define CS2_OP_RS2_5505 9037
-/* RS2_5506 — RS2 634 command 5506, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: CAM_GETANGLE_YA. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5506 at load.
- */
-#define CS2_OP_RS2_5506 9038
-/* RS2_5507 — RS2 634 command 5507, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5507 at load.
- */
-#define CS2_OP_RS2_5507 9039
-/* RS2_5508 — RS2 634 command 5508, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5508 at load.
- */
-#define CS2_OP_RS2_5508 9040
-/* RS2_5509 — RS2 634 command 5509, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5509 at load.
- */
-#define CS2_OP_RS2_5509 9041
-/* RS2_5510 — RS2 634 command 5510, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  -
- * str stack out:  -
- * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5510 at load.
- */
-#define CS2_OP_RS2_5510 9042
-/* RS2_5547 — RS2 634 command 5547, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 5547 at load.
- */
-#define CS2_OP_RS2_5547 9043
-/* RS2_6506 — RS2 634 command 6506, stubbed to its 634 signature.
- * int stack in:   a1
- * str stack in:   -
- * int stack out:  r1, r2, r3, r4  (r4 = top)
- * str stack out:  t1, t2, t3      (t3 = top)
- * notes: WORLDLIST_SPECIFIC(world) -> id, name, loc-id, loc-name, flags, players, activity; OldSchool 239 script 6918 stores 4 ints + 2. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6506 at load.
- */
-#define CS2_OP_RS2_6506 9044
-/* RS2_6510 — RS2 634 command 6510, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: An int query. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6510 at load.
- */
-#define CS2_OP_RS2_6510 9045
-/* RS2_6900 — RS2 634 command 6900, stubbed to its 634 signature.
- * int stack in:   -
- * str stack in:   -
- * int stack out:  r1
- * str stack out:  -
- * notes: An int query; canonical 6900 is P_NAME. Not implemented: the stack stays balanced and every result is 0 or empty. Renumbered from wire 6900 at load.
- */
-#define CS2_OP_RS2_6900 9046
+    /* === CS2 opcode group: highlight (7000..7099) ===
+     * entity highlighting.
+     * rev-239 dispatch: Statics.method6889 -> method8558.
+     */
+    /* HIGHLIGHT_NPC_SETUP — Define what highlight group N looks like.
+     * int stack in:   group, colour, style, opacity, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_NPC_SETUP = 1057, /* wire 7000 */
+    /* HIGHLIGHT_NPC_ON — Put one npc into a highlight group.
+     * int stack in:   npc_uid, coord, group  (group = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_NPC_ON = 1058, /* wire 7001 */
+    /* HIGHLIGHT_NPC_OFF — Take one npc out of a highlight group.
+     * int stack in:   npc_uid, coord, group  (group = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_NPC_OFF = 1059, /* wire 7002 */
+    /* HIGHLIGHT_NPC_GET — Is this npc in the highlight group.
+     * int stack in:   npc_uid, coord, group  (group = top)
+     * str stack in:   -
+     * int stack out:  highlighted
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_NPC_GET = 1060, /* wire 7003 */
+    /* HIGHLIGHT_NPC_CLEAR — Empty a whole highlight group.
+     * int stack in:   group
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_NPC_CLEAR = 1061, /* wire 7004 */
+    /* HIGHLIGHT_NPCTYPE_SETUP — Define what highlight group N looks like.
+     * int stack in:   group, colour, style, opacity, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_NPCTYPE_SETUP = 1062, /* wire 7005 */
+    /* HIGHLIGHT_NPCTYPE_ON — Put one npc type into a highlight group.
+     * int stack in:   npc_type, group  (group = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_NPCTYPE_ON = 1063, /* wire 7006 */
+    /* HIGHLIGHT_NPCTYPE_OFF — Take one npc type out of a highlight group.
+     * int stack in:   npc_type, group  (group = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_NPCTYPE_OFF = 1064, /* wire 7007 */
+    /* HIGHLIGHT_NPCTYPE_GET — Is this npc type in the highlight group.
+     * int stack in:   npc_type, group  (group = top)
+     * str stack in:   -
+     * int stack out:  highlighted
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_NPCTYPE_GET = 1065, /* wire 7008 */
+    /* HIGHLIGHT_NPCTYPE_CLEAR — Empty a whole highlight group.
+     * int stack in:   group
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_NPCTYPE_CLEAR = 1066, /* wire 7009 */
+    /* HIGHLIGHT_LOC_SETUP — Define what highlight group N looks like.
+     * int stack in:   group, colour, style, opacity, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_LOC_SETUP = 1067, /* wire 7010 */
+    /* HIGHLIGHT_LOC_ON — Put one loc into a highlight group.
+     * int stack in:   loc_type, coord, group, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_LOC_ON = 1068, /* wire 7011 */
+    /* HIGHLIGHT_LOC_OFF — Take one loc out of a highlight group.
+     * int stack in:   loc_type, coord, group, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_LOC_OFF = 1069, /* wire 7012 */
+    /* HIGHLIGHT_LOC_GET — Is this loc in the highlight group.
+     * int stack in:   loc_type, coord, group, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  highlighted
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_LOC_GET = 1070, /* wire 7013 */
+    /* HIGHLIGHT_LOC_CLEAR — Empty a whole highlight group.
+     * int stack in:   group
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_LOC_CLEAR = 1071, /* wire 7014 */
+    /* HIGHLIGHT_LOCTYPE_SETUP — Define what highlight group N looks like.
+     * int stack in:   group, colour, style, opacity, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_LOCTYPE_SETUP = 1072, /* wire 7015 */
+    /* HIGHLIGHT_LOCTYPE_ON — Put one loc type into a highlight group.
+     * int stack in:   loc_type, group  (group = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_LOCTYPE_ON = 1073, /* wire 7016 */
+    /* HIGHLIGHT_LOCTYPE_OFF — Take one loc type out of a highlight group.
+     * int stack in:   loc_type, group  (group = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_LOCTYPE_OFF = 1074, /* wire 7017 */
+    /* HIGHLIGHT_LOCTYPE_GET — Is this loc type in the highlight group.
+     * int stack in:   loc_type, group  (group = top)
+     * str stack in:   -
+     * int stack out:  highlighted
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_LOCTYPE_GET = 1075, /* wire 7018 */
+    /* HIGHLIGHT_LOCTYPE_CLEAR — Empty a whole highlight group.
+     * int stack in:   group
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_LOCTYPE_CLEAR = 1076, /* wire 7019 */
+    /* HIGHLIGHT_OBJ_SETUP — Define what highlight group N looks like.
+     * int stack in:   group, colour, style, opacity, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_OBJ_SETUP = 1077, /* wire 7020 */
+    /* HIGHLIGHT_OBJ_ON — Put one obj into a highlight group.
+     * int stack in:   obj_type, coord, group, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_OBJ_ON = 1078, /* wire 7021 */
+    /* HIGHLIGHT_OBJ_OFF — Take one obj out of a highlight group.
+     * int stack in:   obj_type, coord, group, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_OBJ_OFF = 1079, /* wire 7022 */
+    /* HIGHLIGHT_OBJ_GET — Is this obj in the highlight group.
+     * int stack in:   obj_type, coord, group, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  highlighted
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_OBJ_GET = 1080, /* wire 7023 */
+    /* HIGHLIGHT_OBJ_CLEAR — Empty a whole highlight group.
+     * int stack in:   group
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_OBJ_CLEAR = 1081, /* wire 7024 */
+    /* HIGHLIGHT_OBJTYPE_SETUP — Define what highlight group N looks like.
+     * int stack in:   group, colour, style, opacity, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_OBJTYPE_SETUP = 1082, /* wire 7025 */
+    /* HIGHLIGHT_OBJTYPE_ON — Put one obj type into a highlight group.
+     * int stack in:   obj_type, group  (group = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_OBJTYPE_ON = 1083, /* wire 7026 */
+    /* HIGHLIGHT_OBJTYPE_OFF — Take one obj type out of a highlight group.
+     * int stack in:   obj_type, group  (group = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_OBJTYPE_OFF = 1084, /* wire 7027 */
+    /* HIGHLIGHT_OBJTYPE_GET — Is this obj type in the highlight group.
+     * int stack in:   obj_type, group  (group = top)
+     * str stack in:   -
+     * int stack out:  highlighted
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_OBJTYPE_GET = 1085, /* wire 7028 */
+    /* HIGHLIGHT_OBJTYPE_CLEAR — Empty a whole highlight group.
+     * int stack in:   group
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_OBJTYPE_CLEAR = 1086, /* wire 7029 */
+    /* HIGHLIGHT_PLAYER_SETUP — Define what highlight group N looks like.
+     * int stack in:   group, colour, style, opacity, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_PLAYER_SETUP = 1087, /* wire 7030 */
+    /* HIGHLIGHT_PLAYER_ON — Put one player into a highlight group.
+     * int stack in:   group
+     * str stack in:   name
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_PLAYER_ON = 1088, /* wire 7031 */
+    /* HIGHLIGHT_PLAYER_OFF — Take one player out of a highlight group.
+     * int stack in:   group
+     * str stack in:   name
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_PLAYER_OFF = 1089, /* wire 7032 */
+    /* HIGHLIGHT_PLAYER_GET — Is this player in the highlight group.
+     * int stack in:   group
+     * str stack in:   name
+     * int stack out:  highlighted
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_PLAYER_GET = 1090, /* wire 7033 */
+    /* HIGHLIGHT_PLAYER_CLEAR — Empty a whole highlight group.
+     * int stack in:   group
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_PLAYER_CLEAR = 1091, /* wire 7034 */
+    /* HIGHLIGHT_TILE_SETUP — Define what highlight group N looks like.
+     * int stack in:   group, colour, style, opacity, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_TILE_SETUP = 1092, /* wire 7035 */
+    /* HIGHLIGHT_TILE_ON — Put one tile into a highlight group.
+     * int stack in:   coord, group, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_TILE_ON = 1093, /* wire 7036 */
+    /* HIGHLIGHT_TILE_OFF — Take one tile out of a highlight group.
+     * int stack in:   coord, group, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_TILE_OFF = 1094, /* wire 7037 */
+    /* HIGHLIGHT_TILE_GET — Is this tile in the highlight group.
+     * int stack in:   coord, group, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  highlighted
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_TILE_GET = 1095, /* wire 7038 */
+    /* HIGHLIGHT_TILE_CLEAR — Empty a whole highlight group.
+     * int stack in:   group
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_TILE_CLEAR = 1096, /* wire 7039 */
+    /* HIGHLIGHT_GROUP_SETUP — Define what highlight group N looks like.
+     * int stack in:   group, colour, style, opacity, flags  (flags = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_GROUP_SETUP = 1097, /* wire 7040 */
+    CS2_OP_HIGHLIGHT_OPGROUP_SETUP = CS2_OP_HIGHLIGHT_GROUP_SETUP,
+    /* HIGHLIGHT_GROUP_ON — Put one named operation group into a highlight group.
+     * int stack in:   group
+     * str stack in:   name
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_GROUP_ON = 1098, /* wire 7041 */
+    CS2_OP_HIGHLIGHT_OPGROUP_ON = CS2_OP_HIGHLIGHT_GROUP_ON,
+    /* HIGHLIGHT_GROUP_OFF — Take one named operation group out of a highlight group.
+     * int stack in:   group
+     * str stack in:   name
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_GROUP_OFF = 1099, /* wire 7042 */
+    CS2_OP_HIGHLIGHT_OPGROUP_OFF = CS2_OP_HIGHLIGHT_GROUP_OFF,
+    /* HIGHLIGHT_GROUP_GET — Is this named operation group in the highlight group.
+     * int stack in:   group
+     * str stack in:   name
+     * int stack out:  highlighted
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_GROUP_GET = 1100, /* wire 7043 */
+    CS2_OP_HIGHLIGHT_OPGROUP_GET = CS2_OP_HIGHLIGHT_GROUP_GET,
+    /* HIGHLIGHT_GROUP_CLEAR — Empty a whole highlight group.
+     * int stack in:   group
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_HIGHLIGHT_GROUP_CLEAR = 1101, /* wire 7044 */
+    CS2_OP_HIGHLIGHT_OPGROUP_CLEAR = CS2_OP_HIGHLIGHT_GROUP_CLEAR,
+    CS2_OP_OBJTAG_ADD = 1102, /* wire 7060 */
+    CS2_OP_OBJTAG_DEL = 1103, /* wire 7061 */
+    CS2_OP_OBJTAG_REMOVE = 1104, /* wire 7062 */
+    CS2_OP_OBJTAG_FINDTAGS_BYOBJ = 1105, /* wire 7063 */
+    CS2_OP_OBJTAG_FINDTAGS_BYGROUP = 1106, /* wire 7064 */
+    CS2_OP_OBJTAG_FINDTAGS_NEXT = 1107, /* wire 7065 */
+    CS2_OP_OBJTAG_FINDTAGS_RESET = 1108, /* wire 7066 */
+    CS2_OP_OBJTAG_FINDOBJS_BYTAG = 1109, /* wire 7067 */
+    CS2_OP_OBJTAG_FINDOBJS_BYGROUP = 1110, /* wire 7068 */
+    CS2_OP_OBJTAG_FINDOBJS_NEXT = 1111, /* wire 7069 */
+    CS2_OP_OBJTAG_FINDOBJS_RESET = 1112, /* wire 7070 */
+    CS2_OP_OBJTAG_HAS = 1113, /* wire 7071 */
+    CS2_OP_OBJTAG_ALLEMPTY = 1114, /* wire 7072 */
+    CS2_OP_OBJTAG_DELALL = 1115, /* wire 7073 */
+    CS2_OP_OBJTAG_DELGROUP = 1116, /* wire 7074 */
 
-/* === CS2 opcode group: op-count (13000..13999) ===
- * interpreter operation-count introspection.
- * rev-239 dispatch: Statics.method6889 -> method6817.
- */
-#define CS2_OP_OPCOUNT 13337
+    /* === CS2 opcode group: minimenu (7100..7199) ===
+     * minimenu introspection.
+     * rev-239 dispatch: Statics.method6889 -> method1135.
+     */
+    CS2_OP_MINIMENU_TYPE = 1117, /* wire 7100 */
+    CS2_OP_MINIMENU_ENTRY = 1118, /* wire 7101 */
+    CS2_OP_MINIMENU_FINDNPC = 1119, /* wire 7102 */
+    CS2_OP_MINIMENU_FINDLOC = 1120, /* wire 7103 */
+    CS2_OP_MINIMENU_FINDOBJ = 1121, /* wire 7104 */
+    CS2_OP_MINIMENU_FINDPLAYER = 1122, /* wire 7105 */
+    CS2_OP_MINIMENU_COORD = 1123, /* wire 7106 */
+    CS2_OP_MINIMENU_OBJTYPE = 1124, /* wire 7107 */
+    CS2_OP_MINIMENU_ISOPEN = 1125, /* wire 7108 */
+    CS2_OP_MINIMENU_FINDCOMPONENT = 1126, /* wire 7109 */
+    CS2_OP_MINIMENU_NUMOPS = 1127, /* wire 7110 */
+    CS2_OP_OBJSTACK_SIZE = 1128, /* wire 7120 */
+    CS2_OP_OBJSTACK_OBJ = 1129, /* wire 7121 */
+    CS2_OP_OBJSTACK_COUNT = 1130, /* wire 7122 */
+
+    /* === CS2 opcode group: overlay (7200..7499) ===
+     * entity overlays, minimap and native extension commands.
+     * rev-239 dispatch: Statics.method6889 -> method12357.
+     */
+    /* Scripted entity overlays (7200..7214) — jag::oldscape::EntityOverlays.
+     * CREATE forms share the tail (slot, band, width, height, source_coord):
+     * band is 0 middle / 1 above / 2 below, and source_coord selects world-
+     * versus display-coordinate anchoring. GET and DESTROY address the same
+     * subject-specific slot. See game/rs_entity_overlay.h. */
+    /* ENTITYOVERLAY_CREATE_NPC — Attach an overlay to the active NPC.
+     * int stack in:   slot, band, width, height, source_coord  (source_coord = top)
+     * str stack in:   -
+     * int stack out:  overlay index (-1 when none)
+     * str stack out:  -
+     */
+    CS2_OP_ENTITYOVERLAY_CREATE_NPC = 1131, /* wire 7200 */
+    /* ENTITYOVERLAY_CREATE_LOC — Attach an overlay to the active location.
+     * int stack in:   slot, band, width, height, source_coord  (source_coord = top)
+     * str stack in:   -
+     * int stack out:  overlay index (-1 when none)
+     * str stack out:  -
+     * notes: Anchored at the location coord and layer, so separate locations on one tile retain separate overlays.
+     */
+    CS2_OP_ENTITYOVERLAY_CREATE_LOC = 1132, /* wire 7201 */
+    CS2_OP__7202 = 1133, /* wire 7202 */
+    /* ENTITYOVERLAY_CREATE_PLAYER — Attach an overlay to the active player.
+     * int stack in:   slot, band, width, height, source_coord  (source_coord = top)
+     * str stack in:   -
+     * int stack out:  overlay index (-1 when none)
+     * str stack out:  -
+     */
+    CS2_OP_ENTITYOVERLAY_CREATE_PLAYER = 1134, /* wire 7203 */
+    /* ENTITYOVERLAY_CREATE_COORD — Attach an overlay to a bare tile.
+     * int stack in:   coord, slot, band, width, height, source_coord  (source_coord = top)
+     * str stack in:   -
+     * int stack out:  overlay index (-1 when none)
+     * str stack out:  -
+     */
+    CS2_OP_ENTITYOVERLAY_CREATE_COORD = 1135, /* wire 7204 */
+    /* ENTITYOVERLAY_GET_NPC — Get one overlay attached to the active NPC.
+     * int stack in:   slot
+     * str stack in:   -
+     * int stack out:  overlay index (-1 when none)
+     * str stack out:  -
+     * notes: The vendored signature incorrectly recorded zero inputs; the slot must be popped or the integer stack leaks.
+     */
+    CS2_OP_ENTITYOVERLAY_GET_NPC = 1136, /* wire 7205 */
+    /* ENTITYOVERLAY_GET_LOC — Get one overlay attached to the active location.
+     * int stack in:   slot
+     * str stack in:   -
+     * int stack out:  overlay index (-1 when none)
+     * str stack out:  -
+     */
+    CS2_OP_ENTITYOVERLAY_GET_LOC = 1137, /* wire 7206 */
+    CS2_OP__7207 = 1138, /* wire 7207 */
+    /* ENTITYOVERLAY_GET_PLAYER — Get one overlay attached to the active player.
+     * int stack in:   slot
+     * str stack in:   -
+     * int stack out:  overlay index (-1 when none)
+     * str stack out:  -
+     */
+    CS2_OP_ENTITYOVERLAY_GET_PLAYER = 1139, /* wire 7208 */
+    /* ENTITYOVERLAY_GET_COORD — Get one overlay attached to a tile.
+     * int stack in:   coord, slot                   (slot = top)
+     * str stack in:   -
+     * int stack out:  overlay index (-1 when none)
+     * str stack out:  -
+     */
+    CS2_OP_ENTITYOVERLAY_GET_COORD = 1140, /* wire 7209 */
+    /* ENTITYOVERLAY_DELETE_NPC — Destroy one overlay attached to the active NPC.
+     * int stack in:   slot
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_ENTITYOVERLAY_DELETE_NPC = 1141, /* wire 7210 */
+    /* ENTITYOVERLAY_DELETE_LOC — Destroy one overlay attached to the active location.
+     * int stack in:   slot
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_ENTITYOVERLAY_DELETE_LOC = 1142, /* wire 7211 */
+    CS2_OP__7212 = 1143, /* wire 7212 */
+    /* ENTITYOVERLAY_DELETE_PLAYER — Destroy one overlay attached to the active player.
+     * int stack in:   slot
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_ENTITYOVERLAY_DELETE_PLAYER = 1144, /* wire 7213 */
+    /* ENTITYOVERLAY_DELETE_COORD — Destroy one overlay attached to a tile.
+     * int stack in:   coord, slot  (slot = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_ENTITYOVERLAY_DELETE_COORD = 1145, /* wire 7214 */
+    CS2_OP_MINIMAP_SETZOOMABLE = 1146, /* wire 7250 */
+    CS2_OP_MINIMAP_GETZOOMABLE = 1147, /* wire 7251 */
+    CS2_OP_MINIMAP_SETZOOM = 1148, /* wire 7252 */
+    CS2_OP_MINIMAP_GETZOOM = 1149, /* wire 7253 */
+    CS2_OP_MINIMAP_SETICONZOOMLIMIT = 1150, /* wire 7254 */
+    CS2_OP_MINIMAP_GETICONZOOMLIMIT = 1151, /* wire 7255 */
+    CS2_OP_MINIMAP_REDRAW = 1152, /* wire 7256 */
+    CS2_OP_MINIMAP_SETDOTSTYLE = 1153, /* wire 7257 */
+    CS2_OP_MINIMAP_GETDOTSTYLE = 1154, /* wire 7258 */
+    CS2_OP_MINIMAP_SETDOTVISIBLE = 1155, /* wire 7259 */
+    CS2_OP_MINIMAP_GETDOTVISIBLE = 1156, /* wire 7260 */
+    CS2_OP_UNKNOWN_COMMAND_7261 = 1157, /* wire 7261 */
+    CS2_OP_UNKNOWN_COMMAND_7262 = 1158, /* wire 7262 */
+    CS2_OP_MINIMAP_SETDRAWDISPLAYNAME = 1159, /* wire 7263 */
+    CS2_OP_MINIMAP_GETDRAWDISPLAYNAME = 1160, /* wire 7264 */
+    /* Loot-tracker auxiliary-list ops inside the 7200..7499 native group. */
+    CS2_OP_STRINGVECTOR_ADD = 1161, /* wire 7400 */
+    CS2_OP_STRINGVECTOR_ADDUNIQUE = 1162, /* wire 7401 */
+    CS2_OP_STRINGVECTOR_INSERT = 1163, /* wire 7402 */
+    CS2_OP_STRINGVECTOR_SET = 1164, /* wire 7403 */
+    CS2_OP_STRINGVECTOR_REMOVE = 1165, /* wire 7404 */
+    CS2_OP_STRINGVECTOR_REMOVEAT = 1166, /* wire 7405 */
+    CS2_OP_STRINGVECTOR_GET = 1167, /* wire 7406 */
+    CS2_OP_STRINGVECTOR_SIZE = 1168, /* wire 7407 */
+    CS2_OP_STRINGVECTOR_CONTAINS = 1169, /* wire 7408 */
+    CS2_OP_STRINGVECTOR_CLEAR = 1170, /* wire 7409 */
+    CS2_OP_MINIMENU_NUMENTRIES = 1171, /* wire 7450 */
+    CS2_OP_MINIMENU_TYPEAT = 1172, /* wire 7451 */
+    CS2_OP_MINIMENU_ENTRYAT = 1173, /* wire 7452 */
+    CS2_OP_MINIMENU_FINDNPCAT = 1174, /* wire 7453 */
+    CS2_OP_MINIMENU_FINDLOCAT = 1175, /* wire 7454 */
+    CS2_OP_MINIMENU_FINDOBJAT = 1176, /* wire 7455 */
+    CS2_OP_MINIMENU_FINDPLAYERAT = 1177, /* wire 7456 */
+    CS2_OP_MINIMENU_COORDAT = 1178, /* wire 7457 */
+    CS2_OP_MINIMENU_OBJTYPEAT = 1179, /* wire 7458 */
+    CS2_OP_MINIMENU_FINDCOMPONENTAT = 1180, /* wire 7459 */
+    CS2_OP_MINIMENU_HOVERED_INDEX = 1181, /* wire 7460 */
+    CS2_OP_MINIMENU_SETADDMODE = 1182, /* wire 7461 */
+    CS2_OP_MINIMENU_SETBLOCKMODE = 1183, /* wire 7462 */
+    CS2_OP_MINIMENU_SETSINGLECLICK = 1184, /* wire 7463 */
+    CS2_OP_MINIMENU_SETPRIORITYMODE = 1185, /* wire 7464 */
+    CS2_OP_MINIMENU_RESETORDER = 1186, /* wire 7465 */
+    CS2_OP_MINIMENU_SETORDEREDIT = 1187, /* wire 7466 */
+    CS2_OP_MINIMENU_GETORDEREDIT = 1188, /* wire 7467 */
+    CS2_OP_MINIMENU_SETSCROLLHEIGHT = 1189, /* wire 7468 */
+    CS2_OP_MINIMENU_GETSCROLLHEIGHT = 1190, /* wire 7469 */
+    CS2_OP_MINIMENU_TOGGLESCROLL = 1191, /* wire 7470 */
+    CS2_OP_MINIMENU_GETSCROLL = 1192, /* wire 7471 */
+
+    /* === CS2 opcode group: db (7500..7599) ===
+     * client database commands.
+     * rev-239 dispatch: Statics.method6889 -> method870.
+     */
+    /* Client database family. Read DBROW config (kind 38) and the DBTABLEINDEX
+     * (cache table 21); see CS2VM2_Op_Db / exec_db. */
+    CS2_OP_DB_FIND = 1193, /* wire 7500 */
+    CS2_OP_DB_FINDNEXT = 1194, /* wire 7501 */
+    CS2_OP_DB_GETFIELD = 1195, /* wire 7502 */
+    CS2_OP_DB_GETFIELDCOUNT = 1196, /* wire 7503 */
+    CS2_OP_DB_LISTALL = 1197, /* wire 7504 */
+    CS2_OP_DB_GETROWTABLE = 1198, /* wire 7505 */
+    CS2_OP_DB_FIND_GET = 1199, /* wire 7506 */
+    CS2_OP_DB_FIND_REFINE = 1200, /* wire 7507 */
+    CS2_OP_DB_FIND_PRE228 = 1201, /* wire 7508 */
+    CS2_OP_DB_FIND_REFINE_PRE228 = 1202, /* wire 7509 */
+    CS2_OP_DB_LISTALL_PRE228 = 1203, /* wire 7510 */
+
+    /* === CS2 opcode group: loot (7600..7699) ===
+     * loot-tracker native commands.
+     * rev-239 dispatch: Statics.method6889 -> method10020.
+     */
+    CS2_OP_LOOTTRACKER_SOURCEADD = 1204, /* wire 7600 */
+    /* Loot-tracker native store (7600-family host ops). The rev-239 Java
+     * range handler returns unhandled; this port implements the cache's
+     * native loot-tracker extension. */
+    CS2_OP_LOOTTRACKER_SOURCENAMECOUNT = 1205, /* wire 7601 */
+    CS2_OP_LOOTTRACKER_SOURCENAME = 1206, /* wire 7602 */
+    CS2_OP_LOOTTRACKER_SOURCEID = 1207, /* wire 7603 */
+    /* LOOTTRACKER_SOURCECOUNT — Get the recorded kill count for one loot source.
+     * int stack in:   -
+     * str stack in:   source_name
+     * int stack out:  kill_count
+     * str stack out:  -
+     * notes: The historical name says TOTALVAL, but scripts use this as a source kill count. GP totals are calculated from item widgets.
+     */
+    CS2_OP_LOOTTRACKER_SOURCECOUNT = 1208, /* wire 7604 */
+    CS2_OP_LOOTTRACKER_SOURCEQUERY_NEW = 1209, /* wire 7605 */
+    CS2_OP_LOOTTRACKER_SOURCEQUERY_GET = 1210, /* wire 7606 */
+    CS2_OP_UNKNOWN_COMMAND_7607 = 1211, /* wire 7607 */
+    CS2_OP_LOOTTRACKER_GETDROPLIMIT = 1212, /* wire 7608 */
+    CS2_OP_LOOTTRACKER_LOOTCOUNT_BYNAME = 1213, /* wire 7609 */
+    CS2_OP_LOOTTRACKER_LOOTCOUNT_BYID = 1214, /* wire 7610 */
+    CS2_OP_LOOTTRACKER_LOOTGET_BYNAME = 1215, /* wire 7611 */
+    CS2_OP_LOOTTRACKER_LOOTGET_BYID = 1216, /* wire 7612 */
+    CS2_OP_LOOTTRACKER_CLEAR = 1217, /* wire 7613 */
+    CS2_OP_LOOTTRACKER_LOOTDEL_BYNAME = 1218, /* wire 7614 */
+    CS2_OP_LOOTTRACKER_LOOTDEL_BYID = 1219, /* wire 7615 */
+    CS2_OP_LOOTTRACKER_IGNORELOOTADD = 1220, /* wire 7616 */
+    CS2_OP_LOOTTRACKER_IGNORELOOTDEL = 1221, /* wire 7617 */
+    CS2_OP_LOOTTRACKER_IGNORELOOTDELAT = 1222, /* wire 7618 */
+    CS2_OP_LOOTTRACKER_IGNORELOOTCOUNT = 1223, /* wire 7619 */
+    CS2_OP_LOOTTRACKER_IGNORELOOTGET = 1224, /* wire 7620 */
+    CS2_OP_LOOTTRACKER_IGNORELOOTCLEAR = 1225, /* wire 7621 */
+    CS2_OP_LOOTTRACKER_IGNORESOURCEADD = 1226, /* wire 7622 */
+    CS2_OP_LOOTTRACKER_IGNORESOURCEDEL = 1227, /* wire 7623 */
+    CS2_OP_LOOTTRACKER_IGNORESOURCEDELAT = 1228, /* wire 7624 */
+    CS2_OP_LOOTTRACKER_IGNORESOURCECOUNT = 1229, /* wire 7625 */
+    CS2_OP_LOOTTRACKER_IGNORESOURCEGET = 1230, /* wire 7626 */
+    CS2_OP_LOOTTRACKER_IGNORESOURCECLEAR = 1231, /* wire 7627 */
+    /* LOOTTRACKER_LOOTADD — Write one kill-drop row into the native loot store.
+     * int stack in:   obj, qty, event_id  (event_id = top)
+     * str stack in:   source_name
+     * int stack out:  -
+     * str stack out:  -
+     * notes: event_id batches multi-item kills so each event increments the kill count once; rows merge by (source name, object id).
+     */
+    CS2_OP_LOOTTRACKER_LOOTADD = 1232, /* wire 7628 */
+    CS2_OP_LOOTTRACKER_SETDROPLIMIT = 1233, /* wire 7629 */
+    CS2_OP_LOOTTRACKER_SOURCEDROPNAME = 1234, /* wire 7630 */
+
+    /* === CS2 opcode group: extension (7700..7999) ===
+     * native extension and client-setting commands.
+     * rev-239 dispatch: Statics.method6889 -> method11128.
+     */
+    CS2_OP_HISCORE_LOOKUP = 1235, /* wire 7800 */
+    CS2_OP_HISCORE_GETRANK = 1236, /* wire 7801 */
+    CS2_OP_HISCORE_GETVALUE = 1237, /* wire 7802 */
+    CS2_OP_HISCORE_GETSKILLRANK = 1238, /* wire 7803 */
+    CS2_OP_HISCORE_GETGAMERANK = 1239, /* wire 7804 */
+    CS2_OP_HISCORE_GETSKILLXP = 1240, /* wire 7805 */
+    CS2_OP_HISCORE_GETGAMECOMPLETIONS = 1241, /* wire 7806 */
+    CS2_OP_HISCORE_GETOVERALLRANK = 1242, /* wire 7807 */
+    CS2_OP_HISCORE_GETOVERALLXP = 1243, /* wire 7808 */
+    /* Hiscores native-extension stubs (7809/7811). */
+    CS2_OP_HISCORE_GETSTATUS = 1244, /* wire 7809 */
+    CS2_OP_HISCORE_CLEAR = 1245, /* wire 7810 */
+    CS2_OP_HISCORE_GETERROR = 1246, /* wire 7811 */
+    CS2_OP_HISCORE_SETAPI = 1247, /* wire 7812 */
+    CS2_OP_HISCORE_GETBOSSRANK = 1248, /* wire 7813 */
+    CS2_OP_HISCORE_GETBOSSKILLS = 1249, /* wire 7814 */
+    CS2_OP_HISCORE_GETGROUPTOTALLEVEL = 1250, /* wire 7815 */
+    CS2_OP_HISCORE_GETGROUPTOTALXP = 1251, /* wire 7816 */
+    CS2_OP_HISCORE_GETGROUPSIZE = 1252, /* wire 7817 */
+    CS2_OP_HISCORE_GETMEMBERCOUNT = 1253, /* wire 7818 */
+    CS2_OP_HISCORE_GETMEMBERLEVEL = 1254, /* wire 7819 */
+    CS2_OP_HISCORE_GETMEMBERCONTRIBUTEDXP_BYNAME = 1255, /* wire 7820 */
+    CS2_OP_HISCORE_GETMEMBERLEVEL_BYINDEX = 1256, /* wire 7821 */
+    CS2_OP_HISCORE_GETMEMBERCONTRIBUTEDXP_BYINDEX = 1257, /* wire 7822 */
+    CS2_OP_HISCORE_GETMEMBERNAME = 1258, /* wire 7823 */
+    CS2_OP_HISCORE_GETMEMBERHISCORES = 1259, /* wire 7824 */
+    CS2_OP_WORLDENTITY_SETRENDERLIMIT = 1260, /* wire 7900 */
+    CS2_OP_WORLDENTITY_GETRENDERLIMIT = 1261, /* wire 7901 */
+
+    /* === CS2 opcode group: array (8000..8099) ===
+     * typed list and array commands.
+     * rev-239 dispatch: Statics.method6889 -> method12336.
+     */
+    /* ARRAY_SORT — Sort two paired arrays by the first array.
+     * int stack in:   -
+     * str stack in:   primary handle, secondary handle  (secondary handle = top)
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Sorts primary ascending (lexically for strings, numerically otherwise) and applies the same permutation to secondary. Array handles travel on the string stack at this revision.
+     */
+    CS2_OP_ARRAY_SORT = 1262, /* wire 8000 */
+    CS2_OP_ARRAY_RANDOMISE = 1263, /* wire 8001 */
+    CS2_OP_ARRAY_ISNULL = 1264, /* wire 8002 */
+    /* ARRAY_SIZE — Get the element count of an array handle.
+     * int stack in:   -
+     * str stack in:   array handle
+     * int stack out:  length
+     * str stack out:  -
+     */
+    CS2_OP_ARRAY_SIZE = 1265, /* wire 8003 */
+    CS2_OP_ARRAY_COMPARE = 1266, /* wire 8004 */
+    CS2_OP_ARRAY_INDEXOF = 1267, /* wire 8005 */
+    CS2_OP_ARRAY_LASTINDEXOF = 1268, /* wire 8006 */
+    /* ARRAY_COUNT — count cells in [start, end) equal to a typed value.
+     * A negative end means "to the end". The array is a handle on the
+     * string stack; value_type selects whether the search value is popped
+     * from the int or string stack, so this opcode has variable arity. */
+    CS2_OP_ARRAY_COUNT = 1269, /* wire 8007 */
+    CS2_OP_ARRAY_MIN = 1270, /* wire 8008 */
+    CS2_OP_ARRAY_MAX = 1271, /* wire 8009 */
+    CS2_OP_ARRAY_FILL = 1272, /* wire 8010 */
+    CS2_OP_ARRAY_GENERATERANGE = 1273, /* wire 8011 */
+    CS2_OP_ARRAY_REVERSE = 1274, /* wire 8012 */
+    CS2_OP_ARRAY_ROTATE = 1275, /* wire 8013 */
+    CS2_OP_ARRAY_SWAP = 1276, /* wire 8014 */
+    CS2_OP_ARRAY_COPY = 1277, /* wire 8015 */
+    CS2_OP_ARRAY_TOTAL = 1278, /* wire 8016 */
+    CS2_OP_ARRAY_INDEXOFSUM = 1279, /* wire 8017 */
+    /* STRING_SPLIT — Split a string into a new string-array handle.
+     * int stack in:   -
+     * str stack in:   text, separator  (separator = top)
+     * int stack out:  -
+     * str stack out:  array handle
+     */
+    CS2_OP_STRING_SPLIT = 1280, /* wire 8018 */
+    /* STRING_JOIN — Join a string array with a separator.
+     * int stack in:   -
+     * str stack in:   array handle, separator  (separator = top)
+     * int stack out:  -
+     * str stack out:  joined text
+     */
+    CS2_OP_STRING_JOIN = 1281, /* wire 8019 */
+    CS2_OP_ENUM_GETINPUTS = 1282, /* wire 8020 */
+    CS2_OP_ENUM_GETOUTPUTS = 1283, /* wire 8021 */
+    /* ARRAY_CREATE — Create a typed array handle.
+     * int stack in:   type_code, length, capacity  (capacity = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  array handle
+     */
+    CS2_OP_ARRAY_CREATE = 1284, /* wire 8022 */
+    /* ARRAY_RESIZE — Resize an array handle.
+     * int stack in:   length
+     * str stack in:   array handle
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_ARRAY_RESIZE = 1285, /* wire 8023 */
+    /* ARRAY_PUSH — Append a typed value to an array handle.
+     * int stack in:   typed value, value_type                (value_type = top)
+     * str stack in:   array handle, typed value when string  (typed value when string = top)
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Variable arity: value_type selects the value stack.
+     */
+    CS2_OP_ARRAY_PUSH = 1286, /* wire 8024 */
+    CS2_OP_ARRAY_INSERT = 1287, /* wire 8025 */
+    CS2_OP_ARRAY_DELETE = 1288, /* wire 8026 */
+    CS2_OP_ARRAY_PUSHALL = 1289, /* wire 8027 */
+    CS2_OP_ARRAY_INSERTALL = 1290, /* wire 8028 */
+    CS2_OP_ARRAY_DELETEALL = 1291, /* wire 8029 */
+
+    /* === CS2 opcode group: typed-data (8100..8599) ===
+     * typed long-keyed data commands.
+     * rev-239 dispatch: Statics.method6889 -> method4514.
+     */
+    CS2_OP_PLUGIN_SETTING_COUNT = 1292, /* wire 8202 */
+    CS2_OP_PLUGIN_SETTING_GET_TYPE = 1293, /* wire 8203 */
+    CS2_OP_PLUGIN_SETTING_GET_LABEL = 1294, /* wire 8204 */
+    CS2_OP_PLUGIN_SETTING_GET_VALUE = 1295, /* wire 8205 */
+    CS2_OP_PLUGIN_SETTING_SET_VALUE = 1296, /* wire 8206 */
+    CS2_OP_PLUGIN_QUERY = 1297, /* wire 8300 */
+    CS2_OP_PLUGIN_QUERY_GET = 1298, /* wire 8301 */
+    CS2_OP_PLUGIN_QUERY_SET_SORT = 1299, /* wire 8302 */
+    CS2_OP_PLUGIN_QUERY_COUNT = 1300, /* wire 8303 */
+    CS2_OP_PLUGIN_NAME = 1301, /* wire 8304 */
+    CS2_OP_PLUGIN_NAME_ID = 1302, /* wire 8305 */
+    CS2_OP_UNKNOWN_COMMAND_8306 = 1303, /* wire 8306 */
+    CS2_OP_PLUGIN_INSTALLED = 1304, /* wire 8307 */
+    CS2_OP_PLUGIN_INSTALL = 1305, /* wire 8308 */
+    CS2_OP_PLUGIN_UNINSTALL = 1306, /* wire 8309 */
+    CS2_OP_UNKNOWN_COMMAND_8310 = 1307, /* wire 8310 */
+    CS2_OP_UNKNOWN_COMMAND_8311 = 1308, /* wire 8311 */
+    CS2_OP_UNKNOWN_COMMAND_8312 = 1309, /* wire 8312 */
+    CS2_OP_UNKNOWN_COMMAND_8313 = 1310, /* wire 8313 */
+    CS2_OP_PLUGIN_ENABLED = 1311, /* wire 8314 */
+    CS2_OP_PLUGIN_ENABLE = 1312, /* wire 8315 */
+    CS2_OP_PLUGIN_DISABLE = 1313, /* wire 8316 */
+    CS2_OP_PLUGIN_SUBMITTED_BY = 1314, /* wire 8317 */
+    CS2_OP_PLUGIN_SUMMARY = 1315, /* wire 8318 */
+    CS2_OP_PLUGIN_LOGO = 1316, /* wire 8319 */
+    CS2_OP_PLUGIN_OUTDATED = 1317, /* wire 8320 */
+    CS2_OP_PLUGIN_VERSION = 1318, /* wire 8321 */
+    CS2_OP_PLUGIN_VERSION_INSTALLED = 1319, /* wire 8322 */
+    CS2_OP_PLUGIN_QUERY_SET_INSTALLED_ONLY = 1320, /* wire 8323 */
+    CS2_OP_PLUGIN_QUERY_ADD_TAG = 1321, /* wire 8324 */
+    CS2_OP_PLUGIN_QUERY_SET_TAG = 1322, /* wire 8325 */
+    CS2_OP_PLUGIN_QUERY_DEL_TAG = 1323, /* wire 8326 */
+    CS2_OP_PLUGIN_QUERY_CLEAR_TAGS = 1324, /* wire 8327 */
+    CS2_OP_PLUGIN_QUERY_ADD_TERM = 1325, /* wire 8328 */
+    CS2_OP_PLUGIN_QUERY_SET_TERM = 1326, /* wire 8329 */
+    CS2_OP_PLUGIN_QUERY_DEL_TERM = 1327, /* wire 8330 */
+    CS2_OP_PLUGIN_QUERY_CLEAR_TERMS = 1328, /* wire 8331 */
+    CS2_OP_PLUGIN_QUERY_STATUS = 1329, /* wire 8332 */
+    CS2_OP_GROUP_CHECK = 1330, /* wire 8501 */
+    CS2_OP_GROUP_GET = 1331, /* wire 8520 */
+    CS2_OP_GROUP_GETINDEX = 1332, /* wire 8521 */
+    CS2_OP_GROUP_GETVAR = 1333, /* wire 8560 */
+    CS2_OP_GROUP_GETMEMBERVAR = 1334, /* wire 8561 */
+    CS2_OP_GROUP_GETVAR_SCOPED = 1335, /* wire 8570 */
+
+    /* === CS2 opcode group: op-count (13000..13999) ===
+     * interpreter operation-count introspection.
+     * rev-239 dispatch: Statics.method6889 -> method6817.
+     */
+    CS2_OP_OPCOUNT = 1336, /* wire 13337 */
+
+    /* === CS2 opcode group: rs2-634 (no wire range) ===
+     * the RS2 634 client's commands that differ from OldSchool's.
+     */
+    /* RS2_IF_REMOVEFROMGROUP — RS2 634 command 202, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Remove a widget from its group array (Class66.method714); canonical 202 is IF_FIND_ENTITYOVERLAY. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 202 here.
+     */
+    CS2_OP_RS2_IF_REMOVEFROMGROUP = 1337, /* rs2_634 wire 202 */
+    /* RS2_CC_SETGRAPHICFLAG — RS2 634 command 1122, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: CC_ set of the type-5 flag bit 1 (Class46.aBoolean745). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 1122 here.
+     */
+    CS2_OP_RS2_CC_SETGRAPHICFLAG = 1338, /* rs2_634 wire 1122 */
+    /* RS2_CC_SETANINT713 — RS2 634 command 1311, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: A one-int widget setter (Class46.anInt713); canonical 1311 is CC_SETSUBOP. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 1311 here.
+     */
+    CS2_OP_RS2_CC_SETANINT713 = 1339, /* rs2_634 wire 1311 */
+    /* RS2_CC_GETPARAM — Read a param off the active widget (RS2 634).
+     * int stack in:   param_id
+     * str stack in:   -
+     * int stack out:  value
+     * str stack out:  -
+     * notes: Wire 1613 at 634, where OldSchool's 1613 is CC_GETBLENDMODE. Type-polymorphic: the ParamType decides whether an int or a string comes back. No 634-era widget carries a param table, so the answer is the ParamType's default. The RS2 634 dialect maps wire 1613 here.
+     */
+    CS2_OP_RS2_CC_GETPARAM = 1340, /* rs2_634 wire 1613 */
+    /* RS2_IF_SETGRAPHICFLAG — RS2 634 command 2122, stubbed to its 634 signature.
+     * int stack in:   a1, a2  (a2 = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: IF_ set of the type-5 flag bit 1; pops the component id first (Class66:2731). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 2122 here.
+     */
+    CS2_OP_RS2_IF_SETGRAPHICFLAG = 1341, /* rs2_634 wire 2122 */
+    /* RS2_IF_SETANINT719 — RS2 634 command 2314, stubbed to its 634 signature.
+     * int stack in:   a1, a2  (a2 = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: A one-int widget setter on an explicit component (Class46.anInt719); canonical 2314 is IF_SETOPPRIORITY. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 2314 here.
+     */
+    CS2_OP_RS2_IF_SETANINT719 = 1342, /* rs2_634 wire 2314 */
+    /* RS2_IF_GETDYNAMICCHILDCOUNT — RS2 634 command 2703, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: Count of a widget's dynamic children (Class46.aClass46Array798). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 2703 here.
+     */
+    CS2_OP_RS2_IF_GETDYNAMICCHILDCOUNT = 1343, /* rs2_634 wire 2703 */
+    /* RS2_GETABOOLEAN5233 — RS2 634 command 3329, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: Class50_Sub2.aBoolean5233. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3329 here.
+     */
+    CS2_OP_RS2_GETABOOLEAN5233 = 1344, /* rs2_634 wire 3329 */
+    /* RS2_GETLANGUAGE — RS2 634 command 3335, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: Language index (Class348_Sub33.anInt6967). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3335 here.
+     */
+    CS2_OP_RS2_GETLANGUAGE = 1345, /* rs2_634 wire 3335 */
+    /* RS2_GETABOOLEAN2329 — RS2 634 command 3340, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: Class175.aBoolean2329. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3340 here.
+     */
+    CS2_OP_RS2_GETABOOLEAN2329 = 1346, /* rs2_634 wire 3340 */
+    /* RS2_GETMOUSEBUTTONS — RS2 634 command 3351, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1, r2, r3  (r3 = top)
+     * str stack out:  -
+     * notes: Three mouse-button booleans, one call. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3351 here.
+     */
+    CS2_OP_RS2_GETMOUSEBUTTONS = 1347, /* rs2_634 wire 3351 */
+    /* RS2_FRIEND_TEST — RS2 634 command 3609, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   s1
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: Friend test by display name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3609 here.
+     */
+    CS2_OP_RS2_FRIEND_TEST = 1348, /* rs2_634 wire 3609 */
+    /* RS2_FRIENDSCHAT_JOINCHAT — RS2 634 command 3619, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   s1
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Join clan chat by owner name (the canonical command takes an int). Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 3619 here.
+     */
+    CS2_OP_RS2_FRIENDSCHAT_JOINCHAT = 1349, /* rs2_634 wire 3619 */
+    /* RS2_TOSTRING_GROUPED — RS2 634 command 4124, stubbed to its 634 signature.
+     * int stack in:   a1, a2  (a2 = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  t1
+     * notes: (value, comma-group) -> formatted number; OldSchool 239 script 5031 calls canonical 4124 with an empty stack. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 4124 here.
+     */
+    CS2_OP_RS2_TOSTRING_GROUPED = 1350, /* rs2_634 wire 4124 */
+    /* RS2_STRINGWIDTH — RS2 634 command 4125, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   s1
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: (font, text) -> rendered width. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 4125 here.
+     */
+    CS2_OP_RS2_STRINGWIDTH = 1351, /* rs2_634 wire 4125 */
+    /* RS2_FRIENDRECORD_GETTEXT_A — RS2 634 command 5003, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  t1
+     * notes: Friend/ignore record field by list index (s.method3985); canonical 5003.. is the chat history family. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5003 here.
+     */
+    CS2_OP_RS2_FRIENDRECORD_GETTEXT_A = 1352, /* rs2_634 wire 5003 */
+    /* RS2_FRIENDRECORD_GETINT_A — RS2 634 command 5004, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5004 here.
+     */
+    CS2_OP_RS2_FRIENDRECORD_GETINT_A = 1353, /* rs2_634 wire 5004 */
+    /* RS2_FRIENDRECORD_GETTEXT_B — RS2 634 command 5010, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  t1
+     * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5010 here.
+     */
+    CS2_OP_RS2_FRIENDRECORD_GETTEXT_B = 1354, /* rs2_634 wire 5010 */
+    /* RS2_FRIENDRECORD_GETTEXT_C — RS2 634 command 5011, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  t1
+     * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5011 here.
+     */
+    CS2_OP_RS2_FRIENDRECORD_GETTEXT_C = 1355, /* rs2_634 wire 5011 */
+    /* RS2_FRIENDRECORD_GETINT_B — RS2 634 command 5012, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5012 here.
+     */
+    CS2_OP_RS2_FRIENDRECORD_GETINT_B = 1356, /* rs2_634 wire 5012 */
+    /* RS2_FRIENDRECORD_GETTEXT_D — RS2 634 command 5019, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  t1
+     * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5019 here.
+     */
+    CS2_OP_RS2_FRIENDRECORD_GETTEXT_D = 1357, /* rs2_634 wire 5019 */
+    /* RS2_FRIENDRECORD_GETINT_C — RS2 634 command 5024, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: Friend/ignore record field by list index. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5024 here.
+     */
+    CS2_OP_RS2_FRIENDRECORD_GETINT_C = 1358, /* rs2_634 wire 5024 */
+    /* RS2_ARRAY_GETLENGTH — RS2 634 command 5056, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: Array length or 0. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5056 here.
+     */
+    CS2_OP_RS2_ARRAY_GETLENGTH = 1359, /* rs2_634 wire 5056 */
+    /* RS2_KEY_ISDOWN — RS2 634 command 5102, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: Key-down test. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5102 here.
+     */
+    CS2_OP_RS2_KEY_ISDOWN = 1360, /* rs2_634 wire 5102 */
+    /* RS2_GETINT_A — RS2 634 command 5420, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: An int query. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5420 here.
+     */
+    CS2_OP_RS2_GETINT_A = 1361, /* rs2_634 wire 5420 */
+    /* RS2_CHAT_SETSCROLLBARSKIN — RS2 634 command 5424, stubbed to its 634 signature.
+     * int stack in:   a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11  (a11 = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Chat scrollbar skin: four geometry values, five sprite ids the client preloads, two more. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5424 here.
+     */
+    CS2_OP_RS2_CHAT_SETSCROLLBARSKIN = 1362, /* rs2_634 wire 5424 */
+    /* RS2_GETINT_OF2_A — RS2 634 command 5428, stubbed to its 634 signature.
+     * int stack in:   a1, a2  (a2 = top)
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: A two-int query. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5428 here.
+     */
+    CS2_OP_RS2_GETINT_OF2_A = 1363, /* rs2_634 wire 5428 */
+    /* RS2_CAM_FORCEANGLE — RS2 634 command 5504, stubbed to its 634 signature.
+     * int stack in:   a1, a2  (a2 = top)
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: CAM_FORCEANGLE. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5504 here.
+     */
+    CS2_OP_RS2_CAM_FORCEANGLE = 1364, /* rs2_634 wire 5504 */
+    /* RS2_CAM_GETANGLE_XA — RS2 634 command 5505, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: CAM_GETANGLE_XA. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5505 here.
+     */
+    CS2_OP_RS2_CAM_GETANGLE_XA = 1365, /* rs2_634 wire 5505 */
+    /* RS2_CAM_GETANGLE_YA — RS2 634 command 5506, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: CAM_GETANGLE_YA. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5506 here.
+     */
+    CS2_OP_RS2_CAM_GETANGLE_YA = 1366, /* rs2_634 wire 5506 */
+    /* RS2_CAM_ACTION_A — RS2 634 command 5507, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5507 here.
+     */
+    CS2_OP_RS2_CAM_ACTION_A = 1367, /* rs2_634 wire 5507 */
+    /* RS2_CAM_ACTION_B — RS2 634 command 5508, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5508 here.
+     */
+    CS2_OP_RS2_CAM_ACTION_B = 1368, /* rs2_634 wire 5508 */
+    /* RS2_CAM_ACTION_C — RS2 634 command 5509, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5509 here.
+     */
+    CS2_OP_RS2_CAM_ACTION_C = 1369, /* rs2_634 wire 5509 */
+    /* RS2_CAM_ACTION_D — RS2 634 command 5510, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: A camera command with no stack effect. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5510 here.
+     */
+    CS2_OP_RS2_CAM_ACTION_D = 1370, /* rs2_634 wire 5510 */
+    /* RS2_GETINT_B — RS2 634 command 5547, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: An int query. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 5547 here.
+     */
+    CS2_OP_RS2_GETINT_B = 1371, /* rs2_634 wire 5547 */
+    /* RS2_WORLDLIST_SPECIFIC — RS2 634 command 6506, stubbed to its 634 signature.
+     * int stack in:   a1
+     * str stack in:   -
+     * int stack out:  r1, r2, r3, r4  (r4 = top)
+     * str stack out:  t1, t2, t3      (t3 = top)
+     * notes: WORLDLIST_SPECIFIC(world) -> id, name, loc-id, loc-name, flags, players, activity; OldSchool 239 script 6918 stores 4 ints + 2. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 6506 here.
+     */
+    CS2_OP_RS2_WORLDLIST_SPECIFIC = 1372, /* rs2_634 wire 6506 */
+    /* RS2_GETINT_C — RS2 634 command 6510, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: An int query. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 6510 here.
+     */
+    CS2_OP_RS2_GETINT_C = 1373, /* rs2_634 wire 6510 */
+    /* RS2_GETINT_D — RS2 634 command 6900, stubbed to its 634 signature.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  r1
+     * str stack out:  -
+     * notes: An int query; canonical 6900 is P_NAME. Not implemented: the stack stays balanced and every result is 0 or empty. The RS2 634 dialect maps wire 6900 here.
+     */
+    CS2_OP_RS2_GETINT_D = 1374, /* rs2_634 wire 6900 */
+
+    /* === CS2 opcode group: undefined (no wire range) ===
+     * what a wire id the script's dialect does not define becomes at load.
+     */
+    /* UNDEFINED_WIRE_ID — A wire id the script's dialect does not define.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: Not a command of any cache. CS2VM2_ScriptResolveDialect puts it where a script holds a wire id its dialect's table has no row for and keeps the wire id beside the script (undefined_wires). Run, it takes the path of an instruction with no stack signature, naming the wire id: a report and an assert, a report and nothing else under NDEBUG, one survey line under TORIRS_CS2_SURVEY. A script that never reaches it runs as any other.
+     */
+    CS2_OP_UNDEFINED_WIRE_ID = 1375,
+};
+
+/* Instructions a loaded script can hold (its opcodes[]); the jit's follow. */
+#define CS2_OP_PLAIN_COUNT 1376
+/* Every instruction, the jit's included: what the interpreter switches on. */
+#define CS2_OP_COUNT 1376
+/* Names this exact numbering (canonical.numbering_hash); the jit's blob
+ * format folds it in, so a regenerated numbering never reads an old blob. */
+#define CS2_OP_NUMBERING_HASH 0x948e9f87u
+
+/* Each group's instructions: [BEGIN, END). A component group the reference
+ * client gives two ranges (the active-component CC_ commands and the
+ * explicit-component IF_ ones) has a range for each. */
+#define CS2_OPS_VM_CORE_BEGIN 0
+#define CS2_OPS_VM_CORE_END 53
+#define CS2_OPS_COMPONENT_BEGIN 53
+#define CS2_OPS_COMPONENT_END 85
+#define CS2_OPS_COMPONENT_LAYOUT_CC_BEGIN 85
+#define CS2_OPS_COMPONENT_LAYOUT_CC_END 91
+#define CS2_OPS_COMPONENT_LAYOUT_IF_BEGIN 274
+#define CS2_OPS_COMPONENT_LAYOUT_IF_END 280
+#define CS2_OPS_COMPONENT_APPEARANCE_CC_BEGIN 91
+#define CS2_OPS_COMPONENT_APPEARANCE_CC_END 144
+#define CS2_OPS_COMPONENT_APPEARANCE_IF_BEGIN 280
+#define CS2_OPS_COMPONENT_APPEARANCE_IF_END 331
+#define CS2_OPS_COMPONENT_MODEL_CC_BEGIN 144
+#define CS2_OPS_COMPONENT_MODEL_CC_END 158
+#define CS2_OPS_COMPONENT_MODEL_IF_BEGIN 331
+#define CS2_OPS_COMPONENT_MODEL_IF_END 344
+#define CS2_OPS_COMPONENT_OP_CC_BEGIN 158
+#define CS2_OPS_COMPONENT_OP_CC_END 177
+#define CS2_OPS_COMPONENT_OP_IF_BEGIN 344
+#define CS2_OPS_COMPONENT_OP_IF_END 363
+#define CS2_OPS_COMPONENT_LISTENER_CC_BEGIN 177
+#define CS2_OPS_COMPONENT_LISTENER_CC_END 216
+#define CS2_OPS_COMPONENT_LISTENER_IF_BEGIN 363
+#define CS2_OPS_COMPONENT_LISTENER_IF_END 402
+#define CS2_OPS_CC_GEOMETRY_BEGIN 216
+#define CS2_OPS_CC_GEOMETRY_END 223
+#define CS2_OPS_CC_APPEARANCE_BEGIN 223
+#define CS2_OPS_CC_APPEARANCE_END 258
+#define CS2_OPS_CC_INVENTORY_BEGIN 258
+#define CS2_OPS_CC_INVENTORY_END 266
+#define CS2_OPS_CC_TARGET_BEGIN 266
+#define CS2_OPS_CC_TARGET_END 272
+#define CS2_OPS_COMPONENT_ACTION_CC_BEGIN 272
+#define CS2_OPS_COMPONENT_ACTION_CC_END 274
+#define CS2_OPS_COMPONENT_ACTION_IF_BEGIN 457
+#define CS2_OPS_COMPONENT_ACTION_IF_END 460
+#define CS2_OPS_IF_GEOMETRY_BEGIN 402
+#define CS2_OPS_IF_GEOMETRY_END 409
+#define CS2_OPS_IF_APPEARANCE_BEGIN 409
+#define CS2_OPS_IF_APPEARANCE_END 444
+#define CS2_OPS_IF_INVENTORY_BEGIN 444
+#define CS2_OPS_IF_INVENTORY_END 454
+#define CS2_OPS_IF_TARGET_BEGIN 454
+#define CS2_OPS_IF_TARGET_END 457
+#define CS2_OPS_CLIENT_BEGIN 460
+#define CS2_OPS_CLIENT_END 552
+#define CS2_OPS_AUDIO_OPTIONS_BEGIN 552
+#define CS2_OPS_AUDIO_OPTIONS_END 582
+#define CS2_OPS_CLIENT_STATE_BEGIN 582
+#define CS2_OPS_CLIENT_STATE_END 616
+#define CS2_OPS_ENUM_BEGIN 616
+#define CS2_OPS_ENUM_END 619
+#define CS2_OPS_KEYBOARD_BEGIN 619
+#define CS2_OPS_KEYBOARD_END 622
+#define CS2_OPS_SOCIAL_BEGIN 622
+#define CS2_OPS_SOCIAL_END 679
+#define CS2_OPS_UNUSED_3700_BEGIN 679
+#define CS2_OPS_UNUSED_3700_END 682
+#define CS2_OPS_CLAN_BEGIN 682
+#define CS2_OPS_CLAN_END 717
+#define CS2_OPS_MARKET_BEGIN 717
+#define CS2_OPS_MARKET_END 743
+#define CS2_OPS_MATH_BEGIN 743
+#define CS2_OPS_MATH_END 798
+#define CS2_OPS_STRING_BEGIN 798
+#define CS2_OPS_STRING_END 826
+#define CS2_OPS_OBJ_BEGIN 826
+#define CS2_OPS_OBJ_END 852
+#define CS2_OPS_CHAT_BEGIN 852
+#define CS2_OPS_CHAT_END 875
+#define CS2_OPS_WINDOW_BEGIN 875
+#define CS2_OPS_WINDOW_END 894
+#define CS2_OPS_CAMERA_BEGIN 894
+#define CS2_OPS_CAMERA_END 899
+#define CS2_OPS_LOGIN_BEGIN 899
+#define CS2_OPS_LOGIN_END 903
+#define CS2_OPS_VIEWPORT_BEGIN 903
+#define CS2_OPS_VIEWPORT_END 921
+#define CS2_OPS_WORLD_BEGIN 921
+#define CS2_OPS_WORLD_END 946
+#define CS2_OPS_WORLDMAP_BEGIN 946
+#define CS2_OPS_WORLDMAP_END 994
+#define CS2_OPS_CLIENTOP_NPC_BEGIN 994
+#define CS2_OPS_CLIENTOP_NPC_END 1020
+#define CS2_OPS_CLIENTOP_LOC_BEGIN 1020
+#define CS2_OPS_CLIENTOP_LOC_END 1046
+#define CS2_OPS_CLIENTOP_PLAYER_BEGIN 1046
+#define CS2_OPS_CLIENTOP_PLAYER_END 1057
+#define CS2_OPS_HIGHLIGHT_BEGIN 1057
+#define CS2_OPS_HIGHLIGHT_END 1117
+#define CS2_OPS_MINIMENU_BEGIN 1117
+#define CS2_OPS_MINIMENU_END 1131
+#define CS2_OPS_OVERLAY_BEGIN 1131
+#define CS2_OPS_OVERLAY_END 1193
+#define CS2_OPS_DB_BEGIN 1193
+#define CS2_OPS_DB_END 1204
+#define CS2_OPS_LOOT_BEGIN 1204
+#define CS2_OPS_LOOT_END 1235
+#define CS2_OPS_EXTENSION_BEGIN 1235
+#define CS2_OPS_EXTENSION_END 1262
+#define CS2_OPS_ARRAY_BEGIN 1262
+#define CS2_OPS_ARRAY_END 1292
+#define CS2_OPS_TYPED_DATA_BEGIN 1292
+#define CS2_OPS_TYPED_DATA_END 1336
+#define CS2_OPS_OP_COUNT_BEGIN 1336
+#define CS2_OPS_OP_COUNT_END 1337
+#define CS2_OPS_RS2_634_BEGIN 1337
+#define CS2_OPS_RS2_634_END 1375
+#define CS2_OPS_UNDEFINED_BEGIN 1375
+#define CS2_OPS_UNDEFINED_END 1376
+#define CS2_OPS_JIT_BEGIN 1376
+#define CS2_OPS_JIT_END 1376
 
 #endif

@@ -37,6 +37,7 @@ class OpcodeSemanticsContractTest(unittest.TestCase):
             generator.DISPATCH_SOURCE,
             generator.operand_kind,
             generator.handler_kind,
+            generator.canonical_name_of,
         )
 
     def test_foundation_coverage_is_exact_and_sorted(self) -> None:
@@ -160,6 +161,7 @@ class OpcodeSemanticsContractTest(unittest.TestCase):
                     path,
                     generator.operand_kind,
                     generator.handler_kind,
+                    generator.canonical_name_of,
                 )
 
     def test_checked_in_generated_artifacts_are_current(self) -> None:

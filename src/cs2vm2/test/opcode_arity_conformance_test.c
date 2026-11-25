@@ -211,11 +211,16 @@ main(void)
 
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    for( int opcode = 100; opcode < CS2VM2_OPCODE_STACK_MAX; opcode++ )
+    /* The commands (the reference client's groups from wire 100 on), each by
+     * its OldSchool wire id in the decompiler's table. An instruction the
+     * native dialect never produces (a V1 version, the RS2 634 section) has
+     * no such row. */
+    for( int opcode = CS2_OPS_COMPONENT_BEGIN; opcode < CS2VM2_OPCODE_STACK_MAX; opcode++ )
     {
-        if( g_cs2vm2_opcode_stack[opcode].known != 1 )
+        int const wire = CS2VM2_DialectWireOf(&CS2VM2_DIALECT_OSRS, opcode);
+        if( g_cs2vm2_opcode_stack[opcode].known != 1 || wire < 0 )
             continue;
-        if( !fixed_arity(opcode) || host_owns_stack(opcode) )
+        if( !fixed_arity(wire) || host_owns_stack(opcode) )
         {
             skipped++;
             continue;

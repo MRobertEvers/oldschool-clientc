@@ -29,18 +29,18 @@ test_int_bounds(void)
 {
     uint16_t opcodes[] = {
         CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_DEFINE_ARRAY,
+        CS2_OP_DEFINE_ARRAY_V2,
         CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_POP_ARRAY_INT,
+        CS2_OP_POP_ARRAY_INT_V2,
         CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_POP_ARRAY_INT,
+        CS2_OP_POP_ARRAY_INT_V2,
         CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_POP_ARRAY_INT,
+        CS2_OP_POP_ARRAY_INT_V2,
         CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_PUSH_ARRAY_INT,
+        CS2_OP_PUSH_ARRAY_INT_V2,
         CS2_OP_RETURN,
     };
     int operands[] = {
@@ -91,18 +91,18 @@ test_string_bounds(void)
 {
     uint16_t opcodes[] = {
         CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_DEFINE_ARRAY,
+        CS2_OP_DEFINE_ARRAY_V2,
         CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_PUSH_CONSTANT_STRING,
-        CS2_OP_POP_ARRAY_INT,
+        CS2_OP_POP_ARRAY_INT_V2,
         CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_PUSH_CONSTANT_STRING,
-        CS2_OP_POP_ARRAY_INT,
+        CS2_OP_POP_ARRAY_INT_V2,
         CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_PUSH_CONSTANT_STRING,
-        CS2_OP_POP_ARRAY_INT,
+        CS2_OP_POP_ARRAY_INT_V2,
         CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_PUSH_ARRAY_INT,
+        CS2_OP_PUSH_ARRAY_INT_V2,
         CS2_OP_RETURN,
     };
     int operands[] = {

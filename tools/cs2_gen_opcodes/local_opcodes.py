@@ -336,52 +336,6 @@ LOCAL_NAMES: dict[int, str] = {
     # vendored table's maximum but are used by the Overview widget library.
     8010: "ARRAY_FILL",
     8021: "ENUM_GETOUTPUTS",
-    # The vm-dialect group (opcode_groups.py, 9000..9099): ids the VM gives a
-    # dialect's commands at load (CS2VM2_ScriptResolveDialect), before any
-    # jit overlay is built. No cache carries them. RS2_<n> is wire command <n>
-    # of the 634 client where it names a different command than OldSchool's.
-    9000: "CC_CREATE_FLAT",
-    9001: "DEFINE_ARRAY_SHARED",
-    9002: "PUSH_ARRAY_INT_SHARED",
-    9003: "POP_ARRAY_INT_SHARED",
-    9004: "RS2_CC_GETPARAM",
-    9010: "RS2_202",
-    9011: "RS2_1122",
-    9012: "RS2_1311",
-    9013: "RS2_2122",
-    9014: "RS2_2314",
-    9015: "RS2_2703",
-    9016: "RS2_3329",
-    9017: "RS2_3335",
-    9018: "RS2_3340",
-    9019: "RS2_3351",
-    9020: "RS2_3609",
-    9021: "RS2_3619",
-    9022: "RS2_4124",
-    9023: "RS2_4125",
-    9024: "RS2_5003",
-    9025: "RS2_5004",
-    9026: "RS2_5010",
-    9027: "RS2_5011",
-    9028: "RS2_5012",
-    9029: "RS2_5019",
-    9030: "RS2_5024",
-    9031: "RS2_5056",
-    9032: "RS2_5102",
-    9033: "RS2_5420",
-    9034: "RS2_5424",
-    9035: "RS2_5428",
-    9036: "RS2_5504",
-    9037: "RS2_5505",
-    9038: "RS2_5506",
-    9039: "RS2_5507",
-    9040: "RS2_5508",
-    9041: "RS2_5509",
-    9042: "RS2_5510",
-    9043: "RS2_5547",
-    9044: "RS2_6506",
-    9045: "RS2_6510",
-    9046: "RS2_6900",
 
 }
 
@@ -475,9 +429,6 @@ META_OPERAND_OVERRIDES: dict[int, str] = {
     6214: "CS2_OPERAND_INT32",
     6231: "CS2_OPERAND_INT32",
     6232: "CS2_OPERAND_INT32",
-    9001: "CS2_OPERAND_INT32",  # DEFINE_ARRAY_SHARED
-    9002: "CS2_OPERAND_INT32",  # PUSH_ARRAY_INT_SHARED
-    9003: "CS2_OPERAND_INT32",  # POP_ARRAY_INT_SHARED
 }
 
 # id -> operand kind for the rscache decode table (dat2a_cs2_opcode_decode.c).
@@ -496,49 +447,6 @@ HANDLER_OVERRIDES: dict[int, str] = {
     47: "CS2_HANDLER_VM",  # PUSH_VARC_STRING_OLD — same as 49
     48: "CS2_HANDLER_VM",  # POP_VARC_STRING_OLD — same as 50
     86: "CS2_HANDLER_VM",  # BRANCH_IF_ONE (RS2-era)
-    # vm-dialect variants (LOCAL_NAMES)
-    9000: "CS2_HANDLER_HOST",  # CC_CREATE_FLAT
-    9001: "CS2_HANDLER_VM",  # DEFINE_ARRAY_SHARED
-    9002: "CS2_HANDLER_VM",  # PUSH_ARRAY_INT_SHARED
-    9003: "CS2_HANDLER_VM",  # POP_ARRAY_INT_SHARED
-    9004: "CS2_HANDLER_HOST",  # RS2_CC_GETPARAM
-    9010: "CS2_HANDLER_VM",  # RS2_202
-    9011: "CS2_HANDLER_VM",  # RS2_1122
-    9012: "CS2_HANDLER_VM",  # RS2_1311
-    9013: "CS2_HANDLER_VM",  # RS2_2122
-    9014: "CS2_HANDLER_VM",  # RS2_2314
-    9015: "CS2_HANDLER_VM",  # RS2_2703
-    9016: "CS2_HANDLER_VM",  # RS2_3329
-    9017: "CS2_HANDLER_VM",  # RS2_3335
-    9018: "CS2_HANDLER_VM",  # RS2_3340
-    9019: "CS2_HANDLER_VM",  # RS2_3351
-    9020: "CS2_HANDLER_VM",  # RS2_3609
-    9021: "CS2_HANDLER_VM",  # RS2_3619
-    9022: "CS2_HANDLER_VM",  # RS2_4124
-    9023: "CS2_HANDLER_VM",  # RS2_4125
-    9024: "CS2_HANDLER_VM",  # RS2_5003
-    9025: "CS2_HANDLER_VM",  # RS2_5004
-    9026: "CS2_HANDLER_VM",  # RS2_5010
-    9027: "CS2_HANDLER_VM",  # RS2_5011
-    9028: "CS2_HANDLER_VM",  # RS2_5012
-    9029: "CS2_HANDLER_VM",  # RS2_5019
-    9030: "CS2_HANDLER_VM",  # RS2_5024
-    9031: "CS2_HANDLER_VM",  # RS2_5056
-    9032: "CS2_HANDLER_VM",  # RS2_5102
-    9033: "CS2_HANDLER_VM",  # RS2_5420
-    9034: "CS2_HANDLER_VM",  # RS2_5424
-    9035: "CS2_HANDLER_VM",  # RS2_5428
-    9036: "CS2_HANDLER_VM",  # RS2_5504
-    9037: "CS2_HANDLER_VM",  # RS2_5505
-    9038: "CS2_HANDLER_VM",  # RS2_5506
-    9039: "CS2_HANDLER_VM",  # RS2_5507
-    9040: "CS2_HANDLER_VM",  # RS2_5508
-    9041: "CS2_HANDLER_VM",  # RS2_5509
-    9042: "CS2_HANDLER_VM",  # RS2_5510
-    9043: "CS2_HANDLER_VM",  # RS2_5547
-    9044: "CS2_HANDLER_VM",  # RS2_6506
-    9045: "CS2_HANDLER_VM",  # RS2_6510
-    9046: "CS2_HANDLER_VM",  # RS2_6900
     4016: "CS2_HANDLER_VM",
     4017: "CS2_HANDLER_VM",
     8005: "CS2_HANDLER_VM",

@@ -6,6 +6,9 @@
  * CS2VM2_PROFILING it holds only the one-line notice for TORIRS_CS2_PROFILE.
  */
 #include "cs2vm2_profiling.h"
+#include "cs2_opcode.h"
+#include "cs2_opcode_meta.h"
+#include "cs2vm2_dialect.h"
 
 #include "log/torirs_log.h"
 
@@ -77,7 +80,8 @@ static int g_cs2_profile_rows;
  * indexed only after a bounds test: `opcode` is a plain int off the script and
  * a malformed cache must not scribble past the array.
  */
-#define CS2_OPCODE_HIST_SIZE 16384
+/* Indexed by canonical instruction (cs2_opcode.h). */
+#define CS2_OPCODE_HIST_SIZE CS2_OP_COUNT
 static uint32_t g_cs2_opcode_hist[CS2_OPCODE_HIST_SIZE];
 static uint64_t g_cs2_opcode_hist_total;
 static uint32_t g_cs2_opcode_hist_dropped;
@@ -183,8 +187,9 @@ cs2_profile_report(void)
                 break;
             running += g_cs2_opcode_hist[best];
             TORIRS_LOG(
-                "  op %-6d %10u  %5.2f%%  cum %5.2f%%\n",
-                best,
+                "  %-32s wire %-6d %10u  %5.2f%%  cum %5.2f%%\n",
+                CS2_OpCode_String(best),
+                CS2VM2_DialectWireOf(NULL, best),
                 g_cs2_opcode_hist[best],
                 g_cs2_opcode_hist_total
                     ? 100.0 * (double)g_cs2_opcode_hist[best] / (double)g_cs2_opcode_hist_total

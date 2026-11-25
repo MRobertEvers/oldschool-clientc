@@ -11,6 +11,7 @@
 #include "game/rs_ui_slots.h"
 #include "game/sailing_settings.h"
 
+#include "cs2vm2/cs2_opcode_meta.h"
 #include "cs2vm2/cs2vm2.h"
 #include "engine/cache_provider.h"
 #include "engine/task_obj_model_load.h"
@@ -295,7 +296,7 @@ rs_cs2_yield_if_group_missing(
         TORIRS_LOG("cs2-automount: group %d requested via component 0x%08x (req opcode=%d)\n",
             group_id,
             (unsigned)component_id,
-            CS2VM_HostRequestOpcode(request->kind));
+            CS2VM_HostRequestWireOpcode(request->kind));
     return rs_cs2_yield_load(host, thread, request, group_id, -1);
 }
 
@@ -3260,7 +3261,7 @@ exec_worldmap(
         return CS2VM2_PushInt(thread, map->event_coord2);
 
     default:
-        TORIRS_LOG("exec_worldmap: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_worldmap: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -3301,7 +3302,7 @@ exec_mec(
     case CS2_OP_MEC_SPRITE:
         return CS2VM2_PushInt(thread, element->sprite_id);
     default:
-        TORIRS_LOG("exec_mec: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_mec: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -3416,7 +3417,7 @@ exec_minimenu_at(
         RS_ClientOpActiveSet(clientop, RS_CLIENTOP_PLAYER, subject);
         return CS2VM2_PushInt(thread, 1);
     default:
-        TORIRS_LOG("exec_minimenu_at: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_minimenu_at: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -3520,7 +3521,7 @@ exec_minimenu(
                 host->clientop.mouseover_component);
         return CS2VM2_PushInt(thread, 1);
     default:
-        TORIRS_LOG("exec_minimenu: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_minimenu: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -3680,7 +3681,7 @@ exec_client_option(
         return CS2VM2_PushInt(thread, max);
     }
     default:
-        TORIRS_LOG("exec_client_option: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_client_option: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -3709,7 +3710,7 @@ exec_local_notification(
     case CS2_OP_NOTIFICATIONS_CANCELLOCAL:
         return CS2VM_EXECNO_OK;
     default:
-        TORIRS_LOG("exec_local_notification: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_local_notification: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -3738,7 +3739,7 @@ exec_minimap(
     case CS2_OP_MINIMAP_SETICONZOOMLIMIT:
         return CS2VM_EXECNO_OK;
     default:
-        TORIRS_LOG("exec_minimap: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_minimap: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -3900,7 +3901,7 @@ exec_viewport(
         return CS2VM2_PushInt(thread, height);
     }
     default:
-        TORIRS_LOG("exec_viewport: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_viewport: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -3939,7 +3940,7 @@ exec_uizoom(
     case CS2_OP_UIZOOM_GETDEFAULT:
         return CS2VM2_PushInt(thread, RS_CS2_UIZOOM_DEFAULT);
     default:
-        TORIRS_ERR("exec_uizoom: unhandled opcode %d\n", opcode);
+        TORIRS_ERR("exec_uizoom: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -4351,7 +4352,7 @@ exec_safearea(
     case CS2_OP_SIDEBAR_SETWIDTH:
         return CS2VM2_PushInt(thread, thread->canvas_h);
     default:
-        TORIRS_LOG("exec_safearea: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_safearea: unhandled opcode %s\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -5731,7 +5732,7 @@ exec_entity_overlay(
 
     if( torirs_env_overlay_script_debug() )
     {
-        TORIRS_LOG("overlay: op %d args", opcode);
+        TORIRS_LOG("overlay: op %s args", CS2_OpCode_String(opcode));
         for( int i = 0; i < arg_count; i++ )
             TORIRS_LOG(" %d", a[i]);
         TORIRS_LOG("\n");
@@ -5907,7 +5908,7 @@ exec_entity_overlay(
         break;
     }
 
-    TORIRS_LOG("cs2: opcode %d is not a scripted-entity-overlay op\n", opcode);
+    TORIRS_LOG("cs2: opcode %s is not a scripted-entity-overlay op\n", CS2_OpCode_String(opcode));
     return CS2VM_EXECNO_ERROR;
 }
 
@@ -9153,7 +9154,7 @@ exec_loot(
         char const* str = request_name ? request_name : "";
         if( !LootStore_VectorValid(vector) )
         {
-            TORIRS_LOG("stringvector op %d: no string vector %d\n", opcode, vector);
+            TORIRS_LOG("stringvector op %s: no string vector %d\n", CS2_OpCode_String(opcode), vector);
             return CS2VM_EXECNO_ERROR;
         }
         switch( opcode )
@@ -9819,8 +9820,8 @@ exec_highlight_request(
 
     if( debug )
     {
-        TORIRS_REPORT("highlight: op %d (%s)",
-            opcode,
+        TORIRS_REPORT("highlight: op %s (%s)",
+            CS2_OpCode_String(opcode),
             known ? RS_HighlightKindName(kind) : "?");
         for( int i = 0; i < arg_count; i++ )
             TORIRS_REPORT(" %d", args[i]);
@@ -9845,9 +9846,9 @@ exec_highlight_request(
         if( !announced )
         {
             announced = true;
-            TORIRS_LOG("cs2: HIGHLIGHT opcode %d is not recorded -- nothing in this "
+            TORIRS_LOG("cs2: HIGHLIGHT opcode %s is not recorded -- nothing in this "
                 "cache names a subject for its family\n",
-                opcode);
+                CS2_OpCode_String(opcode));
         }
     }
     return query ? CS2VM2_PushInt(vm, answer) : CS2VM_EXECNO_OK;
@@ -9863,15 +9864,15 @@ exec_clientop_request(
     char const* label)
 {
     if( torirs_env_clientop_debug() )
-        TORIRS_REPORT("clientop: op %d %s slot %d script %d '%s'\n",
-            opcode,
+        TORIRS_REPORT("clientop: op %s %s slot %d script %d '%s'\n",
+            CS2_OpCode_String(opcode),
             is_set ? "set" : "del",
             slot,
             script_id,
             label ? label : "");
     if( !RS_ClientOpApply(&host->clientop, opcode, is_set, slot, label, script_id) )
-        TORIRS_LOG("cs2: CLIENTOP opcode %d is not in the 6700..6709 family\n",
-            opcode);
+        TORIRS_LOG("cs2: CLIENTOP opcode %s is not in the 6700..6709 family\n",
+            CS2_OpCode_String(opcode));
     return CS2VM_EXECNO_OK;
 }
 
@@ -9889,7 +9890,7 @@ exec_clientop_context_request(
         running = vm->frames[0]->script->script_id;
     if( !RS_ClientOpContextRead(&host->clientop, opcode, running, &value, &text) )
     {
-        TORIRS_LOG("cs2: opcode %d is not a client-op context getter\n", opcode);
+        TORIRS_LOG("cs2: opcode %s is not a client-op context getter\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
     if( opcode == CS2_OP_TILE_COORD && value < 0 )
@@ -9954,12 +9955,12 @@ exec_active_player_request(
         break;
     }
     default:
-        TORIRS_LOG("cs2: opcode %d is not an active-player getter\n", opcode);
+        TORIRS_LOG("cs2: opcode %s is not an active-player getter\n", CS2_OpCode_String(opcode));
         return CS2VM_EXECNO_ERROR;
     }
     if( getenv("TORIRS_HIGHLIGHT_DEBUG") )
-        TORIRS_REPORT("activeplayer: op %d (uid %d, index %d) -> %d\n",
-            opcode,
+        TORIRS_REPORT("activeplayer: op %s (uid %d, index %d) -> %d\n",
+            CS2_OpCode_String(opcode),
             uid,
             index,
             answer);
@@ -13279,7 +13280,7 @@ RS_CS2Host_Exec(
             TORIRS_LOG(
                 "RS_CS2Host_Exec: UNHANDLED request kind %d (opcode %d)\n",
                 (int)request->kind,
-                CS2VM_HostRequestOpcode(request->kind));
+                CS2VM_HostRequestWireOpcode(request->kind));
         else
             TORIRS_LOG("RS_CS2Host_Exec: request kind %d is not a kind\n", (int)request->kind);
         return CS2VM_EXECNO_ERROR;

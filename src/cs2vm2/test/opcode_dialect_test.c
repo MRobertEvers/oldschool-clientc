@@ -1,10 +1,12 @@
 /*
- * Unit test for the RS2-era CS2 opcode dialect translation and the two
- * non-colliding gaps it accompanies (47/48 varc-string-old, 86 BRANCH_IF_ONE).
- *
- * Wire opcode 51 is SWITCH under RS2-on-dat2 and GET_VARC_LONG under OSRS.
- * CS2VM2_ScriptCopyFromRSCache translates 51 -> CS2_OP_SWITCH (60) under the
- * RS2 dialect and leaves it alone under the canonical dialect.
+ * The dialects: every one CS2_DialectForCache can return is a complete table
+ * from its wire ids to canonical instructions, applied once at load
+ * (CS2VM2_ScriptResolveDialect). Checked here: each table translates a wire
+ * script to the expected instructions, the versioned ones included; a wire id
+ * a dialect does not define loads as UNDEFINED_WIRE_ID; and what the translated
+ * scripts then do (RS2 51 is SWITCH, CC_CREATE_V1 pops three, V1 arrays are
+ * shared), plus the two non-colliding gaps (47/48 varc-string-old,
+ * 86 BRANCH_IF_ONE).
  */
 
 #include "cs2vm2/cs2_opcode.h"
@@ -242,14 +244,14 @@ test_rs2_switch_miss(void)
 static void
 test_canonical_leaves_51(void)
 {
-    printf("TEST: canonical dialect leaves wire 51 untranslated\n");
+    printf("TEST: the native dialect reads wire 51 as PUSH_VARC_LONG\n");
 
     struct RSCache_CS2_Script src;
     build_wire_switch_script(&src, 42);
 
     struct CS2VM2_Script dst;
     CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, &CS2VM2_DIALECT_OSRS), "copy ok");
-    CHECK_EQ(dst.opcodes[1], 51, "opcodes[1] still wire 51");
+    CHECK_EQ(dst.opcodes[1], CS2_OP_PUSH_VARC_LONG, "OldSchool's wire 51 is PUSH_VARC_LONG");
 
     CS2VM2_ScriptFree(&dst);
     free_wire_script(&src);
@@ -280,11 +282,13 @@ test_dialect_for_cache(void)
     CHECK(CS2_DialectForCache(&osrs) == &CS2VM2_DIALECT_OSRS_229, "osrs 229 -> OSRS_229");
     osrs.revision = RSCACHE_REVISION_UNKNOWN;
     CHECK(CS2_DialectForCache(&osrs) == &CS2VM2_DIALECT_OSRS, "osrs of unknown revision -> OSRS");
-    CHECK_EQ(CS2_OpcodeTranslate(&CS2VM2_DIALECT_OSRS_229, 51), 51, "osrs 229 identity");
-
-    CHECK_EQ(CS2_OpcodeTranslate(&CS2VM2_DIALECT_RS2_634, 51), CS2_OP_SWITCH, "translate 51");
-    CHECK_EQ(CS2_OpcodeTranslate(&CS2VM2_DIALECT_OSRS, 51), 51, "canonical identity");
-    CHECK_EQ(CS2_OpcodeTranslate(&CS2VM2_DIALECT_RS2_634, 60), 60, "60 unchanged");
+    CHECK_EQ(CS2VM2_DialectTranslate(&CS2VM2_DIALECT_OSRS_229, 51), CS2_OP_PUSH_VARC_LONG, "osrs 229: 51");
+    CHECK_EQ(CS2VM2_DialectTranslate(&CS2VM2_DIALECT_RS2_634, 51), CS2_OP_SWITCH, "rs2: 51 is SWITCH");
+    CHECK_EQ(CS2VM2_DialectTranslate(&CS2VM2_DIALECT_OSRS, 51), CS2_OP_PUSH_VARC_LONG, "osrs: 51");
+    CHECK_EQ(CS2VM2_DialectTranslate(&CS2VM2_DIALECT_RS2_634, 60), CS2_OP_SWITCH, "rs2: 60 is SWITCH too");
+    CHECK_EQ(CS2VM2_DialectWireOf(&CS2VM2_DIALECT_RS2_634, CS2_OP_SWITCH), 51, "rs2 prints SWITCH as 51");
+    CHECK_EQ(CS2VM2_DialectWireOf(&CS2VM2_DIALECT_OSRS, CS2_OP_SWITCH), 60, "osrs prints SWITCH as 60");
+    CHECK_EQ(CS2VM2_DialectWireOf(NULL, CS2_OP_CC_CREATE_V2), 100, "NULL is the native dialect");
 }
 
 /* BRANCH_IF_ONE: push value; BRANCH_IF_ONE +2; push 0; RETURN; push 7; RETURN */
@@ -412,6 +416,7 @@ unexpected_host_exec(
 static void
 test_rs2_overlay_entry(
     int opcode,
+    int expect,
     int int_in,
     int str_in,
     int int_out,
@@ -436,9 +441,9 @@ test_rs2_overlay_entry(
     script.opcodes = &wire_opcode;
     script.int_operands = &operand;
     script.string_operands = &string_operand;
-    /* What every loader does: the 634 command becomes a vm-dialect id. */
+    /* What every loader does: the RS2 table names the 634 command. */
     CS2VM2_ScriptResolveDialect(&script);
-    CHECK(wire_opcode != (uint16_t)opcode, "RS2 collision renumbered at load");
+    CHECK_EQ(wire_opcode, expect, "RS2 collision is the 634 command's own instruction");
 
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, unexpected_host_exec);
@@ -507,21 +512,27 @@ test_cc_create_arity(
     src.int_operands = calloc((size_t)src.op_count, sizeof(int));
     src.string_operands = calloc((size_t)src.op_count, sizeof(char*));
     assert(src.opcodes && src.int_operands && src.string_operands);
+    /* Wire ids, as the cache spells them: 0 PUSH_CONSTANT_INT, 100 the create,
+     * 21 RETURN. */
     src.int_operands[n] = 10551300; /* parent 161:4 */
-    src.opcodes[n++] = CS2_OP_PUSH_CONSTANT_INT;
+    src.opcodes[n++] = 0;
     src.int_operands[n] = 5; /* type: graphic */
-    src.opcodes[n++] = CS2_OP_PUSH_CONSTANT_INT;
+    src.opcodes[n++] = 0;
     src.int_operands[n] = 3; /* index */
-    src.opcodes[n++] = CS2_OP_PUSH_CONSTANT_INT;
+    src.opcodes[n++] = 0;
     if( pushes_nested )
     {
         src.int_operands[n] = 1;
-        src.opcodes[n++] = CS2_OP_PUSH_CONSTANT_INT;
+        src.opcodes[n++] = 0;
     }
-    src.opcodes[n++] = CS2_OP_CC_CREATE;
-    src.opcodes[n++] = CS2_OP_RETURN;
+    src.opcodes[n++] = 100;
+    src.opcodes[n++] = 21;
 
     CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, dialect), "copy ok");
+    CHECK_EQ(
+        dst.opcodes[n - 2],
+        pushes_nested ? CS2_OP_CC_CREATE_V2 : CS2_OP_CC_CREATE_V1,
+        "wire 100 is the era's version of the create");
     memset(&host, 0, sizeof(host));
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, create_host_exec);
@@ -577,7 +588,8 @@ build_ops(
     assert(script->opcodes && script->int_operands && script->string_operands);
     memcpy(script->opcodes, opcodes, (size_t)count * sizeof(uint16_t));
     memcpy(script->int_operands, operands, (size_t)count * sizeof(int));
-    /* As a loader would: the dialect's array model is chosen here, not at run time. */
+    /* As a loader would: the opcodes are the dialect's wire ids, and its table
+     * picks the array model here, not at run time. */
     CS2VM2_ScriptResolveDialect(script);
 }
 
@@ -595,11 +607,11 @@ test_array_model(
     int want,
     char const* label)
 {
-    uint16_t const caller_ops[] = { CS2_OP_PUSH_CONSTANT_INT, CS2_OP_DEFINE_ARRAY,
-        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_POP_ARRAY_INT,
-        CS2_OP_GOSUB_WITH_PARAMS, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_ARRAY_INT, CS2_OP_RETURN };
+    /* Wire ids: 0 PUSH_CONSTANT_INT, 44 DEFINE_ARRAY, 46 POP_ARRAY_INT,
+     * 40 GOSUB_WITH_PARAMS, 45 PUSH_ARRAY_INT, 21 RETURN. */
+    uint16_t const caller_ops[] = { 0, 44, 0, 0, 46, 40, 0, 45, 21 };
     int const caller_operands[] = { 3, (0 << 16) | 'i', 1, 42, 0, 2256, 0, 0, 0 };
-    uint16_t const callee_ops[] = { CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_ARRAY_INT, CS2_OP_RETURN };
+    uint16_t const callee_ops[] = { 0, 45, 21 };
     int const callee_operands[] = { 1, 0, 0 };
     struct CS2VM2_Script caller;
     struct CS2VM2_Script callee;
@@ -635,24 +647,196 @@ test_array_model(
 static void
 test_rs2_overlay_binary_lookup(void)
 {
-    printf("TEST: RS2 collisions renumbered at load keep their 634 signatures\n");
+    printf("TEST: RS2 collisions translate to the 634 commands and keep their signatures\n");
 
     /* First, middle and last rows of the renumbering table; 1122/1311/2122/2314
      * are canonical widget handlers and therefore also prove a renumbered id
      * never dispatches the wrong command. */
-    test_rs2_overlay_entry(202, 1, 0, 0, 0, "overlay first entry 202");
-    test_rs2_overlay_entry(1122, 1, 0, 0, 0, "overlay collision 1122");
-    test_rs2_overlay_entry(1311, 1, 0, 0, 0, "overlay collision 1311");
-    test_rs2_overlay_entry(2122, 2, 0, 0, 0, "overlay collision 2122");
-    test_rs2_overlay_entry(2314, 2, 0, 0, 0, "overlay collision 2314");
-    test_rs2_overlay_entry(6506, 1, 0, 4, 3, "overlay mixed output 6506");
-    test_rs2_overlay_entry(6900, 0, 0, 1, 0, "overlay last entry 6900");
+    test_rs2_overlay_entry(202, CS2_OP_RS2_IF_REMOVEFROMGROUP, 1, 0, 0, 0, "overlay first entry 202");
+    test_rs2_overlay_entry(1122, CS2_OP_RS2_CC_SETGRAPHICFLAG, 1, 0, 0, 0, "overlay collision 1122");
+    test_rs2_overlay_entry(1311, CS2_OP_RS2_CC_SETANINT713, 1, 0, 0, 0, "overlay collision 1311");
+    test_rs2_overlay_entry(2122, CS2_OP_RS2_IF_SETGRAPHICFLAG, 2, 0, 0, 0, "overlay collision 2122");
+    test_rs2_overlay_entry(2314, CS2_OP_RS2_IF_SETANINT719, 2, 0, 0, 0, "overlay collision 2314");
+    test_rs2_overlay_entry(6506, CS2_OP_RS2_WORLDLIST_SPECIFIC, 1, 0, 4, 3, "overlay mixed output 6506");
+    test_rs2_overlay_entry(6900, CS2_OP_RS2_GETINT_D, 0, 0, 1, 0, "overlay last entry 6900");
+}
+
+
+/* One wire id in each dialect: the canonical instruction its table names, or
+ * -1 where the dialect does not define it. */
+struct WireCase
+{
+    int wire;
+    int osrs;
+    int osrs230;
+    int osrs229;
+    int rs2;
+};
+
+static int
+translate_one(
+    struct CS2VM2_Dialect const* dialect,
+    int wire)
+{
+    uint16_t op = (uint16_t)wire;
+    int operand = 0;
+    char* string_operand = NULL;
+    struct CS2VM2_Script script;
+    CS2VM2_ScriptInit(&script);
+    script.script_id = 900000 + wire;
+    script.dialect = dialect;
+    script.op_count = 1;
+    script.opcodes = &op;
+    script.int_operands = &operand;
+    script.string_operands = &string_operand;
+    CS2VM2_ScriptResolveDialect(&script);
+    int const result = op == CS2_OP_UNDEFINED_WIRE_ID ? -1 : (int)op;
+    CHECK_EQ(CS2VM2_DialectTranslate(dialect, wire), result, "translate one == table");
+    if( op == CS2_OP_UNDEFINED_WIRE_ID )
+    {
+        CHECK(script.undefined_wire_count == 1 && script.undefined_wires[0].pc == 0 &&
+                  script.undefined_wires[0].wire == wire,
+            "the undefined wire id is kept");
+        script.opcodes = NULL;
+        script.int_operands = NULL;
+        script.string_operands = NULL;
+        CS2VM2_ScriptFree(&script);
+    }
+    return result;
+}
+
+static void
+test_dialect_tables(void)
+{
+    printf("TEST: every dialect's table, the versioned instructions included\n");
+    static struct WireCase const cases[] = {
+        { 0, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT },
+        { 21, CS2_OP_RETURN, CS2_OP_RETURN, CS2_OP_RETURN, CS2_OP_RETURN },
+        /* Arrays: numbered and shared through rev 230, handles from 231 (and
+         * at 634). */
+        { 44, CS2_OP_DEFINE_ARRAY_V2, CS2_OP_DEFINE_ARRAY_V1, CS2_OP_DEFINE_ARRAY_V1, CS2_OP_DEFINE_ARRAY_V2 },
+        { 45, CS2_OP_PUSH_ARRAY_INT_V2, CS2_OP_PUSH_ARRAY_INT_V1, CS2_OP_PUSH_ARRAY_INT_V1, CS2_OP_PUSH_ARRAY_INT_V2 },
+        { 46, CS2_OP_POP_ARRAY_INT_V2, CS2_OP_POP_ARRAY_INT_V1, CS2_OP_POP_ARRAY_INT_V1, CS2_OP_POP_ARRAY_INT_V2 },
+        /* The create pops a nested flag from rev 230; 229 and 634 do not. */
+        { 100, CS2_OP_CC_CREATE_V2, CS2_OP_CC_CREATE_V2, CS2_OP_CC_CREATE_V1, CS2_OP_CC_CREATE_V1 },
+        /* 634 spells SWITCH 51 and STRUCT_PARAM 4500. */
+        { 51, CS2_OP_PUSH_VARC_LONG, CS2_OP_PUSH_VARC_LONG, CS2_OP_PUSH_VARC_LONG, CS2_OP_SWITCH },
+        { 60, CS2_OP_SWITCH, CS2_OP_SWITCH, CS2_OP_SWITCH, CS2_OP_SWITCH },
+        { 4500, -1, -1, -1, CS2_OP_STRUCT_PARAM },
+        { 6516, CS2_OP_STRUCT_PARAM, CS2_OP_STRUCT_PARAM, CS2_OP_STRUCT_PARAM, CS2_OP_STRUCT_PARAM },
+        /* A 634 command at an id where OldSchool has another. */
+        { 1613, CS2_OP_CC_GETBLENDMODE, CS2_OP_CC_GETBLENDMODE, CS2_OP_CC_GETBLENDMODE, CS2_OP_RS2_CC_GETPARAM },
+        { 4124, CS2_OP_PRONOUN, CS2_OP_PRONOUN, CS2_OP_PRONOUN, CS2_OP_RS2_TOSTRING_GROUPED },
+        { 3609, CS2_OP_FRIEND_TEST, CS2_OP_FRIEND_TEST, CS2_OP_FRIEND_TEST, CS2_OP_RS2_FRIEND_TEST },
+        /* What no cache spells: the old vm-dialect range, an id past them all. */
+        { 9000, -1, -1, -1, -1 },
+        { 9046, -1, -1, -1, -1 },
+        { 65535, -1, -1, -1, -1 },
+    };
+    for( size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++ )
+    {
+        struct WireCase const* c = &cases[i];
+        char label[96];
+        snprintf(label, sizeof(label), "osrs wire %d", c->wire);
+        CHECK_EQ(translate_one(&CS2VM2_DIALECT_OSRS, c->wire), c->osrs, label);
+        snprintf(label, sizeof(label), "osrs230 wire %d", c->wire);
+        CHECK_EQ(translate_one(&CS2VM2_DIALECT_OSRS_230, c->wire), c->osrs230, label);
+        snprintf(label, sizeof(label), "osrs229 wire %d", c->wire);
+        CHECK_EQ(translate_one(&CS2VM2_DIALECT_OSRS_229, c->wire), c->osrs229, label);
+        snprintf(label, sizeof(label), "rs2_634 wire %d", c->wire);
+        CHECK_EQ(translate_one(&CS2VM2_DIALECT_RS2_634, c->wire), c->rs2, label);
+    }
+
+    /* Each table, end to end: every wire id it defines translates, the result
+     * is a plain instruction, and prints name the wire id back (the era's own
+     * spelling where two reach one instruction). */
+    struct CS2VM2_Dialect const* const dialects[] = {
+        &CS2VM2_DIALECT_OSRS, &CS2VM2_DIALECT_OSRS_230, &CS2VM2_DIALECT_OSRS_229, &CS2VM2_DIALECT_RS2_634
+    };
+    for( size_t d = 0; d < sizeof(dialects) / sizeof(dialects[0]); d++ )
+    {
+        struct CS2VM2_Dialect const* dialect = dialects[d];
+        int bad = 0;
+        for( int i = 0; i < dialect->wire_count; i++ )
+        {
+            int const wire = dialect->wire_to_op[i].wire;
+            int const op = CS2VM2_DialectTranslate(dialect, wire);
+            if( i > 0 && dialect->wire_to_op[i - 1].wire >= wire )
+                bad++;
+            if( op < 0 || op >= CS2_OP_PLAIN_COUNT )
+                bad++;
+            else if( CS2VM2_DialectTranslate(dialect, CS2VM2_DialectWireOf(dialect, op)) != op )
+                bad++;
+        }
+        char label[96];
+        snprintf(label, sizeof(label), "%s: %d wire ids sorted, each round-trips", dialect->name, dialect->wire_count);
+        CHECK_EQ(bad, 0, label);
+    }
+}
+
+/* A wire script holding an id its dialect does not define loads; the id is an
+ * instruction of its own that does nothing unless it is run. Run under
+ * TORIRS_CS2_SURVEY it reports the wire id and goes on (without it, an assert:
+ * the path of an instruction with no stack signature). */
+static void
+test_undefined_wire_loads(void)
+{
+    printf("TEST: a wire id the dialect does not define loads as UNDEFINED_WIRE_ID\n");
+    struct RSCache_CS2_Script src;
+    struct CS2VM2_Script dst;
+    build_wire_switch_script(&src, 42);
+    src.opcodes[2] = 9000; /* the old vm-dialect CC_CREATE_FLAT: no cache's */
+
+    /* The SWITCH takes its case past pc 2: the script never reaches it. */
+    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, &CS2VM2_DIALECT_RS2_634), "rs2 loads a script holding wire 9000");
+    CHECK_EQ(dst.opcodes[2], CS2_OP_UNDEFINED_WIRE_ID, "wire 9000 is UNDEFINED_WIRE_ID");
+    CHECK_EQ(dst.undefined_wire_count, 1, "one undefined wire id");
+    CHECK_EQ(dst.undefined_wires[0].pc, 2, "at pc 2");
+    CHECK_EQ((int)dst.undefined_wires[0].wire, 9000, "wire 9000 kept");
+    CHECK_EQ(run_converted_script(&dst), 7, "the path that skips it runs as before");
+    struct CS2VM2_Script copy;
+    CS2VM2_ScriptInit(&copy);
+    CHECK(CS2VM2_ScriptCopy(&dst, &copy), "copied");
+    CHECK(copy.undefined_wire_count == 1, "a copy keeps the record");
+    CHECK(copy.undefined_wires != dst.undefined_wires, "in its own allocation");
+    CHECK_EQ((int)copy.undefined_wires[0].wire, 9000, "of the wire id");
+    CS2VM2_ScriptFree(&copy);
+    CS2VM2_ScriptFree(&dst);
+
+    /* The SWITCH misses: the script runs into it. The survey reports it and
+     * the run goes on to the RETURN after it. */
+    setenv("TORIRS_CS2_SURVEY", "1", 1);
+    src.int_operands[0] = 41;
+    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, &CS2VM2_DIALECT_RS2_634), "loads again");
+    struct CS2VM2 vm;
+    CS2VM2_Init(&vm);
+    struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&vm);
+    CS2VM2_PushCallScript(t, &dst);
+    CHECK_EQ(CS2VM2_RunScript(t), CS2VM_EXECNO_DONE, "under the survey it runs on");
+    CHECK_EQ(t->ints_stack_top, 0, "and touches no stack");
+    CS2VM2_Free(&vm);
+    CS2VM2_ScriptFree(&dst);
+    unsetenv("TORIRS_CS2_SURVEY");
+
+    /* OldSchool has no 4500 (634's STRUCT_PARAM): undefined there, defined at 634. */
+    src.int_operands[0] = 42;
+    src.opcodes[2] = 4500;
+    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, &CS2VM2_DIALECT_OSRS), "osrs loads 634's 4500");
+    CHECK_EQ(dst.opcodes[2], CS2_OP_UNDEFINED_WIRE_ID, "osrs 4500 is UNDEFINED_WIRE_ID");
+    CS2VM2_ScriptFree(&dst);
+    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, &CS2VM2_DIALECT_RS2_634), "rs2 takes 4500");
+    CHECK_EQ(dst.opcodes[2], CS2_OP_STRUCT_PARAM, "rs2 4500 is STRUCT_PARAM");
+    CHECK(dst.undefined_wires == NULL, "nothing undefined");
+    CS2VM2_ScriptFree(&dst);
+    free_wire_script(&src);
 }
 
 int
 main(void)
 {
     test_dialect_for_cache();
+    test_dialect_tables();
+    test_undefined_wire_loads();
     test_rs2_switch_hit();
     test_rs2_switch_miss();
     test_canonical_leaves_51();

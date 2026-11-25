@@ -3513,7 +3513,7 @@ test-loop-lane: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 .PHONY: test-cs2-host-request-kinds
 test-cs2-host-request-kinds: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_kinds_test \
-		cs2vm2/test/host_request_kinds_test.c $(LDFLAGS)
+		cs2vm2/test/host_request_kinds_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_host_request_kinds_test
 
 .PHONY: test-cs2-host-request-producers

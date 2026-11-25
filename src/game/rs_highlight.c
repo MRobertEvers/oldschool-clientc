@@ -1,6 +1,7 @@
 #include "game/rs_highlight.h"
 
 #include "cs2vm2/cs2_opcode.h"
+#include "cs2vm2/cs2_opcode_meta.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -525,8 +526,8 @@ RS_HighlightApply(
         /* The opcode table in cs2vm2 and this one disagree about the form.
          * Acting on it would read a group out of whichever slot happened to
          * line up, so it is refused and said out loud. */
-        TORIRS_ERR("highlight: opcode %d took %d ints, expected %d -- ignored\n",
-            opcode,
+        TORIRS_ERR("highlight: opcode %s took %d ints, expected %d -- ignored\n",
+            CS2_OpCode_String(opcode),
             arg_count,
             op->arg_count);
         return false;
@@ -549,9 +550,9 @@ RS_HighlightApply(
     {
         if( !name )
         {
-            TORIRS_LOG("highlight: opcode %d takes a name off the string stack and got "
+            TORIRS_LOG("highlight: opcode %s takes a name off the string stack and got "
                 "none -- ignored\n",
-                opcode);
+                CS2_OpCode_String(opcode));
             return false;
         }
         switch( op->action )

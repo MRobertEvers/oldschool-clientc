@@ -10,9 +10,12 @@ struct HostRequestProducerEntry
     int kind;
 };
 
-static struct HostRequestProducerEntry const HOST_REQUEST_PRODUCERS[] = {
+/* `opcode` is the canonical instruction a native script asks the kind with,
+ * filled in by main (CS2VM_HostRequestInstruction): a .def row is the
+ * wire-level command, CC_CREATE, and the instruction is CC_CREATE_V2. */
+static struct HostRequestProducerEntry HOST_REQUEST_PRODUCERS[] = {
 #define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) \
-    { #name, CS2_OP_##name, (int)CS2VM_HOST_REQUEST_##name },
+    { #name, -1, (int)CS2VM_HOST_REQUEST_##name },
 #include "cs2vm2/cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
 };
@@ -216,7 +219,7 @@ exercise_input_set_producer(
     struct CS2VM2_ThreadError error;
     enum CS2VM2_ThreadStatus first_status;
     enum CS2VM2_ThreadStatus retry_status;
-    uint16_t opcode = (uint16_t)CS2VM_HostRequestOpcode(kind);
+    uint16_t opcode = (uint16_t)CS2VM_HostRequestInstruction(kind);
     int int_operand = dot_operand;
     char* string_operand = NULL;
     int expected_initial_stack_top;
@@ -360,6 +363,9 @@ static int exercise_script_callback(void)
 int
 main(void)
 {
+    for( int i = 0; i < HOST_REQUEST_PRODUCER_COUNT; i++ )
+        HOST_REQUEST_PRODUCERS[i].opcode =
+            CS2VM_HostRequestInstruction((enum CS2VM_HostRequestKind)HOST_REQUEST_PRODUCERS[i].kind);
     int failures = exercise_script_callback();
 
     int exercised = 0;

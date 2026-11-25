@@ -20,8 +20,11 @@ RSCACHE_OUT_DIR = ROOT.parent.parent / "src" / "osrs" / "rscache" / "dat2a"
 CS2DOM_GENERATED_OUT_DIR = ROOT.parent / "cs2dom" / "src" / "generated"
 CS2DOM_COMMANDS_SOURCE = ROOT.parent / "cs2dom" / "src" / "cs2_commands.js"
 DISPATCH_SOURCE = OUT_DIR / "cs2vm2.c"
+HOST_REQUEST_KINDS = OUT_DIR / "cs2vm2_host_request_kinds.def"
 
+import canonical
 import catalogue
+from canonical import Instruction
 from local_opcodes import (
     DECODE_OPERAND_OVERRIDES,
     HANDLER_OVERRIDES,
@@ -32,11 +35,11 @@ from local_opcodes import (
 )
 from opcode_docs import OPCODE_DOCS, OpcodeDoc
 from opcode_groups import (
+    CANONICAL_ONLY_GROUPS,
     OPCODE_GROUPS,
     OpcodeGroup,
     OpcodeSpan,
     group_for_opcode,
-    is_vm_only,
     span_for_opcode,
 )
 from opcode_semantics import (
@@ -206,25 +209,53 @@ def validate_group_coverage(entries: list[tuple[str, int]]) -> None:
         raise ValueError(f"opcodes outside the rev-239 dispatch groups: {joined}")
 
 
-def validate_dispatch_grouping(entries: list[tuple[str, int]]) -> None:
-    """Keep the hand-written runtime switch in the generated group order."""
+def canonical_name_of(name: str) -> str:
+    """The canonical instruction an OldSchool (rev 231+) wire command runs as:
+    its own name, or the newest version of a versioned family."""
 
-    text = DISPATCH_SOURCE.read_text(encoding="utf-8")
+    for versions in canonical.VERSIONED.values():
+        if versions[-1].rsplit("_V", 1)[0] == name:
+            return versions[-1]
+    return name
+
+
+def dispatch_body(path: Path = DISPATCH_SOURCE) -> str:
+    """The text of the VM's per-instruction dispatch (CS2VM2_RunOp's switch)."""
+
+    text = path.read_text(encoding="utf-8")
     try:
         start = text.index("\nCS2VM2_RunOp(")
         end = text.index("\n/* Fills *int_args", start)
     except ValueError as error:
-        raise ValueError(f"cannot locate CS2VM2_RunOp in {DISPATCH_SOURCE}") from error
-    run_op = text[start:end]
+        raise ValueError(f"cannot locate CS2VM2_RunOp in {path}") from error
+    return text[start:end]
 
-    opcode_by_macro = {f"CS2_OP_{name}": opcode for name, opcode in entries}
+
+def all_group_slugs() -> list[tuple[str, str]]:
+    """(enum name, slug) of every group, ranges first, in canonical order."""
+
+    return [(g.enum_name, g.slug) for g in OPCODE_GROUPS] + [
+        (enum_name, slug) for enum_name, slug, _ in CANONICAL_ONLY_GROUPS
+    ]
+
+
+def validate_dispatch_grouping(instructions: list[Instruction]) -> None:
+    """Keep the hand-written runtime switch in the generated group order.
+
+    Every `case CS2_OP_X:` must sit under the banner of X's group, and the
+    banners must appear in canonical order (the jit's group has no cases in
+    this switch: its instructions are the interpreter loop's own)."""
+
+    run_op = dispatch_body()
+    group_by_name = {f"CS2_OP_{ins.name}": ins.group for ins in instructions}
+    by_wire = {ins.wire: ins for ins in instructions if ins.wire is not None and not ins.rs2}
     for opcode, aliases in LOCAL_ALIASES.items():
         for alias in aliases:
-            opcode_by_macro[f"CS2_OP_{alias}"] = opcode
+            group_by_name[f"CS2_OP_{alias}"] = by_wire[opcode].group
+    slug_to_enum = {slug: enum_name for enum_name, slug in all_group_slugs()}
 
-    groups_by_slug = {group.slug: group for group in OPCODE_GROUPS}
     seen_markers: list[str] = []
-    current_group: OpcodeGroup | None = None
+    current_group: str | None = None
     marker_pattern = re.compile(r"/\* === CS2 opcode group: ([a-z0-9-]+) \(")
     case_pattern = re.compile(r"\bcase\s+(CS2_OP_[A-Z0-9_]+)\s*:")
 
@@ -232,26 +263,21 @@ def validate_dispatch_grouping(entries: list[tuple[str, int]]) -> None:
         marker = marker_pattern.search(line)
         if marker:
             slug = marker.group(1)
-            current_group = groups_by_slug.get(slug)
+            current_group = slug_to_enum.get(slug)
             if current_group is None:
                 raise ValueError(f"unknown dispatch group marker {slug!r} at line {lineno}")
             seen_markers.append(slug)
 
         for macro in case_pattern.findall(line):
-            if macro not in opcode_by_macro:
-                raise ValueError(f"dispatch case {macro} is absent from the opcode generator")
-            opcode = opcode_by_macro[macro]
-            expected = group_for_opcode(opcode)
-            if expected is None:
-                raise ValueError(f"dispatch case {macro} ({opcode}) has no opcode group")
+            if macro not in group_by_name:
+                raise ValueError(f"dispatch case {macro} is not a canonical instruction")
+            expected = group_by_name[macro]
             if current_group != expected:
-                actual = current_group.slug if current_group else "none"
                 raise ValueError(
-                    f"dispatch case {macro} ({opcode}) is under {actual}, "
-                    f"expected {expected.slug}"
+                    f"dispatch case {macro} is under {current_group or 'none'}, expected {expected}"
                 )
 
-    expected_markers = [group.slug for group in OPCODE_GROUPS]
+    expected_markers = [slug for enum_name, slug in all_group_slugs() if enum_name != "JIT"]
     if seen_markers != expected_markers:
         raise ValueError(
             "CS2VM2_RunOp group markers differ from opcode_groups.py:\n"
@@ -375,51 +401,141 @@ def format_opcode_comment(name: str, doc: OpcodeDoc) -> list[str]:
     return [line.rstrip() for line in lines]
 
 
-def emit_header(entries: list[tuple[str, int]]) -> str:
+HEADER_PREAMBLE = """\
+/*
+ * THE VM'S OWN INSTRUCTION SET. A loaded script holds these, never a cache's
+ * wire ids: each dialect (cs2vm2_dialect.h) is a table from its wire ids to
+ * these instructions, applied once at load by CS2VM2_ScriptResolveDialect;
+ * a wire id the dialect does not define becomes UNDEFINED_WIRE_ID, which does
+ * what an instruction with no stack signature does if it is run. The
+ * numbering is dense (0 .. CS2_OP_COUNT-1), belongs to the VM alone, and may
+ * change whenever this file is regenerated: nothing outside the process may
+ * hold a CS2_OP_ value (a log or a record prints the script's wire id,
+ * CS2VM2_DialectWireOf, or the name, CS2_OpCode_String).
+ *
+ * NAMING, one scheme for every instruction:
+ *   - an instruction whose meaning is the same in every era keeps the
+ *     OldSchool command's name (PUSH_CONSTANT_INT, CC_SETHIDE, INV_GETOBJ);
+ *   - an OldSchool command whose stack shape changed between OldSchool eras is
+ *     a versioned family, numbered in the order the eras introduced them, and
+ *     neither keeps the bare name (CC_CREATE_V1 pops three ints, through rev
+ *     229; CC_CREATE_V2 four, from 230);
+ *   - a command of the RS2 634 client that is not OldSchool's command at the
+ *     same wire id is RS2_<what it does> (RS2_CC_GETPARAM);
+ *   - the jit's instructions (the section from CS2_OP_JIT_FIRST) are named by
+ *     what they do: a fused instruction joins the names of the instructions
+ *     it replaces, in order, with "__" (PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD__POP_INT_LOCAL);
+ *     a load-proven one is the instruction's name followed by what was proven
+ *     (PUSH_INT_LOCAL_DECLARED: its local is below the script's declared count).
+ *
+ * ORDER: the OldSchool wire order, so each dispatch group of the reference
+ * client is one contiguous range, CS2_OPS_<GROUP>_BEGIN .. _END (exclusive);
+ * a versioned family takes its command's place. Then the RS2 634 section,
+ * then UNDEFINED_WIRE_ID, then the jit's. CS2_OP_PLAIN_COUNT instructions
+ * can appear in a loaded script; the jit's appear only in its overlay
+ * (script->run_code).
+ */
+"""
+
+
+def emit_header(
+    instructions: list[Instruction],
+    numbering: int,
+    jit_instructions: list[Instruction] | None = None,
+) -> str:
+    jit_instructions = jit_instructions or []
     lines = [
         "/* Generated by tools/cs2_gen_opcodes/gen_opcodes.py from the rev-239 command catalogue */",
         "#ifndef CS2_OPCODE_H",
         "#define CS2_OPCODE_H",
         "",
-        f"#define CS2_OPCODE_MAX {max(v for _, v in entries)}",
-        f"#define CS2_OPCODE_COUNT {len(entries)}",
+        HEADER_PREAMBLE.rstrip("\n"),
         "",
+        "enum CS2_Op",
+        "{",
     ]
-    emitted_banners: set[int] = set()
-    emitted_group_spans: set[tuple[int, int]] = set()
-    emitted_aliases: set[int] = set()
-    for name, val in entries:
-        grouped = span_for_opcode(val)
-        if grouped:
-            group, span = grouped
-            span_key = (span.lo, span.hi)
-            if span_key not in emitted_group_spans:
-                emitted_group_spans.add(span_key)
-                lines.extend(["", *format_group_banner(group, span)])
-        if val in SECTION_COMMENTS and val not in emitted_banners:
-            emitted_banners.add(val)
-            lines.extend(SECTION_COMMENTS[val])
-        doc = OPCODE_DOCS.get(name)
+    aliases_by_name: dict[str, tuple[str, ...]] = {}
+    by_wire = {ins.wire: ins for ins in instructions if ins.wire is not None and not ins.rs2}
+    for wire, aliases in LOCAL_ALIASES.items():
+        aliases_by_name[by_wire[wire].name] = aliases
+    emitted_spans: set[tuple[int, int]] = set()
+    current_only: str | None = None
+    only_groups = {enum_name: (slug, summary) for enum_name, slug, summary in CANONICAL_ONLY_GROUPS}
+    everything = instructions + jit_instructions
+    for value, ins in enumerate(everything):
+        if ins.group in only_groups:
+            if current_only != ins.group:
+                current_only = ins.group
+                slug, summary = only_groups[ins.group]
+                lines += ["", f"    /* === CS2 opcode group: {slug} (no wire range) ===", f"     * {summary}.", "     */"]
+        else:
+            grouped = span_for_opcode(ins.wire)
+            if grouped:
+                group, span = grouped
+                key = (span.lo, span.hi)
+                if key not in emitted_spans:
+                    emitted_spans.add(key)
+                    lines.extend(["", *("    " + l for l in format_group_banner(group, span))])
+        if ins.wire is not None and not ins.rs2 and ins.wire in SECTION_COMMENTS and ins.version_of is None:
+            lines.extend("    " + l for l in SECTION_COMMENTS[ins.wire])
+        doc = OPCODE_DOCS.get(ins.doc_name) or (OPCODE_DOCS.get(ins.version_of) if ins.version_of else None)
         if doc:
-            lines.extend(format_opcode_comment(name, doc))
-        lines.append(f"#define CS2_OP_{name} {val}")
-        if val not in emitted_aliases:
-            emitted_aliases.add(val)
-            for alias in LOCAL_ALIASES.get(val, ()):
-                lines.append(f"#define CS2_OP_{alias} {val}")
+            lines.extend("    " + l for l in format_opcode_comment(ins.name, doc))
+        if ins.wire is None:
+            tail = ""
+        elif ins.rs2:
+            tail = f" /* rs2_634 wire {ins.wire} */"
+        else:
+            tail = f" /* wire {ins.wire} */"
+        lines.append(f"    CS2_OP_{ins.name} = {value},{tail}")
+        for alias in aliases_by_name.get(ins.name, ()):
+            lines.append(f"    CS2_OP_{alias} = CS2_OP_{ins.name},")
+    lines += ["};", ""]
+    lines += [
+        "/* Instructions a loaded script can hold (its opcodes[]); the jit's follow. */",
+        f"#define CS2_OP_PLAIN_COUNT {len(instructions)}",
+        "/* Every instruction, the jit's included: what the interpreter switches on. */",
+        f"#define CS2_OP_COUNT {len(everything)}",
+        "/* Names this exact numbering (canonical.numbering_hash); the jit's blob",
+        " * format folds it in, so a regenerated numbering never reads an old blob. */",
+        f"#define CS2_OP_NUMBERING_HASH 0x{numbering:08x}u",
+        "",
+        "/* Each group's instructions: [BEGIN, END). A component group the reference",
+        " * client gives two ranges (the active-component CC_ commands and the",
+        " * explicit-component IF_ ones) has a range for each. */",
+    ]
+    for group in OPCODE_GROUPS:
+        for idx, span in enumerate(group.spans):
+            suffix = "" if len(group.spans) == 1 else ("_CC" if idx == 0 else "_IF")
+            members = [i for i, ins in enumerate(instructions) if not ins.rs2 and ins.wire is not None and span.contains(ins.wire)]
+            begin = members[0] if members else next(
+                (i for i, ins in enumerate(instructions) if ins.rs2 or ins.wire is None or ins.wire >= span.hi), len(instructions)
+            )
+            end = members[-1] + 1 if members else begin
+            lines.append(f"#define CS2_OPS_{group.enum_name}{suffix}_BEGIN {begin}")
+            lines.append(f"#define CS2_OPS_{group.enum_name}{suffix}_END {end}")
+    for enum_name, _slug, _summary in CANONICAL_ONLY_GROUPS:
+        members = [i for i, ins in enumerate(everything) if ins.group == enum_name]
+        begin = members[0] if members else len(everything)
+        end = members[-1] + 1 if members else begin
+        lines.append(f"#define CS2_OPS_{enum_name}_BEGIN {begin}")
+        lines.append(f"#define CS2_OPS_{enum_name}_END {end}")
     lines += ["", "#endif", ""]
     return "\n".join(lines)
 
 
 def emit_meta_h() -> str:
     group_enum = "\n".join(
-        f"    CS2_OPCODE_GROUP_{group.enum_name}," for group in OPCODE_GROUPS
+        f"    CS2_OPCODE_GROUP_{enum_name}," for enum_name, _ in all_group_slugs()
     )
     return f"""/* Generated by tools/cs2_gen_opcodes/gen_opcodes.py */
 #ifndef CS2_OPCODE_META_H
 #define CS2_OPCODE_META_H
 
 #include <stdint.h>
+
+/* Everything here is indexed by canonical instruction (cs2_opcode.h), except
+ * CS2_WireOpcodeGroupOf, which answers for an OldSchool wire id. */
 
 enum CS2_OperandKind
 {{
@@ -446,22 +562,38 @@ struct CS2_OpcodeMeta
     const char* name;
     enum CS2_OperandKind operand;
     enum CS2_HandlerKind handler;
+    enum CS2_OpcodeGroup group;
+    /* The wire id of the command this instruction is: OldSchool's for an
+     * OldSchool command (both versions of a versioned family share it), the
+     * 634 client's for an RS2_ one, -1 for a jit instruction. Which dialect
+     * spells it how is cs2vm2_dialect.h's business; this names the command. */
+    int32_t wire;
 }};
 
+/* [CS2_OP_COUNT] rows. */
 extern const struct CS2_OpcodeMeta cs2_opcode_meta_table[];
 extern const int cs2_opcode_meta_table_size;
 
+/* The row of canonical instruction `opcode`; a value outside the set (the
+ * VM's -1 for "no instruction", say) reads a row named "_unknown". */
 const struct CS2_OpcodeMeta*
 cs2_opcode_meta_lookup(int opcode);
 
 enum CS2_OperandKind
 cs2_opcode_operand_kind(int opcode);
 
+/* The canonical instruction's name, "_unknown" outside the set. */
 const char*
 CS2_OpCode_String(int opcode);
 
+/* The group of canonical instruction `opcode`. */
 enum CS2_OpcodeGroup
 CS2_OpcodeGroupOf(int opcode);
+
+/* The reference client's dispatch group of OldSchool WIRE id `wire`
+ * (opcode_groups.py's ranges); UNKNOWN outside them. */
+enum CS2_OpcodeGroup
+CS2_WireOpcodeGroupOf(int wire);
 
 const char*
 CS2_OpcodeGroupName(enum CS2_OpcodeGroup group);
@@ -473,17 +605,23 @@ CS2_OpcodeGroupName(enum CS2_OpcodeGroup group);
 def emit_group_functions() -> list[str]:
     lines = [
         "enum CS2_OpcodeGroup",
-        "CS2_OpcodeGroupOf(int opcode)",
+        "CS2_WireOpcodeGroupOf(int wire)",
         "{",
     ]
     for group in OPCODE_GROUPS:
         tests = " || ".join(
-            f"(opcode >= {span.lo} && opcode < {span.hi})" for span in group.spans
+            f"(wire >= {span.lo} && wire < {span.hi})" for span in group.spans
         )
         lines.append(f"    if( {tests} )")
         lines.append(f"        return CS2_OPCODE_GROUP_{group.enum_name};")
     lines += [
         "    return CS2_OPCODE_GROUP_UNKNOWN;",
+        "}",
+        "",
+        "enum CS2_OpcodeGroup",
+        "CS2_OpcodeGroupOf(int opcode)",
+        "{",
+        "    return cs2_opcode_meta_lookup(opcode)->group;",
         "}",
         "",
         "const char*",
@@ -492,8 +630,8 @@ def emit_group_functions() -> list[str]:
         "    switch( group )",
         "    {",
     ]
-    for group in OPCODE_GROUPS:
-        lines.append(f'    case CS2_OPCODE_GROUP_{group.enum_name}: return "{group.slug}";')
+    for enum_name, slug in all_group_slugs():
+        lines.append(f'    case CS2_OPCODE_GROUP_{enum_name}: return "{slug}";')
     lines += [
         '    default: return "unknown";',
         "    }",
@@ -503,46 +641,54 @@ def emit_group_functions() -> list[str]:
     return lines
 
 
-def emit_meta_c(entries: list[tuple[str, int]]) -> str:
-    max_id = max(v for _, v in entries)
-    id_to_name = {v: n for n, v in entries}
+def instruction_operand_kind(ins: Instruction) -> str:
+    if ins.wire is None:
+        return "CS2_OPERAND_INT32"
+    if ins.rs2:
+        return operand_kind(ins.wire)
+    return meta_operand_kind(ins.wire)
+
+
+def instruction_handler_kind(ins: Instruction) -> str:
+    if ins.wire is None:
+        return "CS2_HANDLER_VM"
+    if ins.rs2:
+        return "CS2_HANDLER_HOST" if ins.name in canonical.RS2_634_HOST_COMMANDS else "CS2_HANDLER_VM"
+    return handler_kind(ins.wire)
+
+
+def emit_meta_c(instructions: list[Instruction]) -> str:
     lines = [
         "/* Generated by tools/cs2_gen_opcodes/gen_opcodes.py */",
         '#include "cs2_opcode_meta.h"',
+        '#include "cs2_opcode.h"',
         "",
-        f"const int cs2_opcode_meta_table_size = {max_id + 1};",
+        "const int cs2_opcode_meta_table_size = CS2_OP_COUNT;",
         "",
-        "const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {",
+        "const struct CS2_OpcodeMeta cs2_opcode_meta_table[CS2_OP_COUNT] = {",
     ]
-    emitted_group_spans: set[tuple[int, int]] = set()
-    for i in range(max_id + 1):
-        grouped = span_for_opcode(i)
-        if grouped:
-            group, span = grouped
-            span_key = (span.lo, span.hi)
-            if span_key not in emitted_group_spans:
-                emitted_group_spans.add(span_key)
-                lines.append("")
-                lines.append(f"    /* {group.slug}: {group.label} — {group.summary}. */")
-        if i in id_to_name:
-            name = id_to_name[i]
-            opk = meta_operand_kind(i)
-            hdk = handler_kind(i)
-            lines.append(
-                f'    [{i}] = {{ "{name}", {opk}, {hdk} }},'
-            )
-        else:
-            lines.append(
-                f'    [{i}] = {{ "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST }},'
-            )
+    current = None
+    for ins in instructions:
+        if ins.group != current:
+            current = ins.group
+            lines.append(f"    /* {ins.group} */")
+        lines.append(
+            f'    [CS2_OP_{ins.name}] = {{ "{ins.name}", {instruction_operand_kind(ins)}, '
+            f"{instruction_handler_kind(ins)}, CS2_OPCODE_GROUP_{ins.group}, "
+            f"{ins.wire if ins.wire is not None else -1} }},"
+        )
     lines += [
+        "};",
+        "",
+        "static const struct CS2_OpcodeMeta cs2_opcode_meta_unknown = {",
+        '    "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST, CS2_OPCODE_GROUP_UNKNOWN, -1',
         "};",
         "",
         "const struct CS2_OpcodeMeta*",
         "cs2_opcode_meta_lookup(int opcode)",
         "{",
-        "    if( opcode < 0 || opcode >= cs2_opcode_meta_table_size )",
-        "        return &cs2_opcode_meta_table[0];",
+        "    if( opcode < 0 || opcode >= CS2_OP_COUNT )",
+        "        return &cs2_opcode_meta_unknown;",
         "    return &cs2_opcode_meta_table[opcode];",
         "}",
         "",
@@ -555,22 +701,114 @@ def emit_meta_c(entries: list[tuple[str, int]]) -> str:
         "const char*",
         "CS2_OpCode_String(int opcode)",
         "{",
-    ]
-    negative = [(name, val) for name, val in entries if val < 0]
-    if negative:
-        lines.append("    switch( opcode )")
-        lines.append("    {")
-        for name, val in sorted(negative, key=lambda e: e[1]):
-            lines.append(f'    case {val}: return "{name}";')
-        lines.append("    }")
-    lines += [
-        "    if( opcode < 0 || opcode >= cs2_opcode_meta_table_size )",
-        '        return "_unknown";',
-        "    return cs2_opcode_meta_table[opcode].name;",
+        "    return cs2_opcode_meta_lookup(opcode)->name;",
         "}",
         "",
     ]
     lines += emit_group_functions()
+    return "\n".join(lines)
+
+
+def emit_dialects_inc(instructions: list[Instruction], dialects: list[canonical.Dialect]) -> str:
+    """Every dialect's wire table, for cs2vm2.c (cs2vm2_dialect.h)."""
+
+    index = {ins.name: i for i, ins in enumerate(instructions)}
+    lines = [
+        "/* Generated by tools/cs2_gen_opcodes/gen_opcodes.py (canonical.py's dialects).",
+        " * Not a header: cs2vm2.c includes it once. Each dialect is a complete table",
+        " * from the wire ids its caches spell to canonical instructions (sorted by",
+        " * wire id, searched at load), and the inverse the prints use. */",
+        "",
+    ]
+    for dialect in dialects:
+        lower = dialect.enum_name.lower()
+        rows = sorted(dialect.wire_to_name.items())
+        to_wire = canonical.canonical_to_wire(dialect)
+        lines.append(f"/* {dialect.name}: {dialect.summary}. {len(rows)} wire ids. */")
+        lines.append(f"static struct CS2VM2_DialectWire const g_cs2vm2_{lower}_wire[{len(rows)}] = {{")
+        for wire, name in rows:
+            lines.append(f"    {{ {wire}, CS2_OP_{name} }},")
+        lines.append("};")
+        lines.append(f"static uint16_t const g_cs2vm2_{lower}_to_wire[CS2_OP_PLAIN_COUNT] = {{")
+        for ins in instructions:
+            wire = to_wire.get(ins.name)
+            if wire is None:
+                lines.append(f"    [CS2_OP_{ins.name}] = CS2VM2_DIALECT_NO_WIRE,")
+            else:
+                lines.append(f"    [CS2_OP_{ins.name}] = {wire},")
+        lines.append("};")
+        lines.append(f"struct CS2VM2_Dialect const CS2VM2_DIALECT_{dialect.enum_name} = {{")
+        lines.append(f'    .name = "{dialect.name}",')
+        lines.append(f"    .wire_to_op = g_cs2vm2_{lower}_wire,")
+        lines.append(f"    .wire_count = {len(rows)},")
+        lines.append(f"    .op_to_wire = g_cs2vm2_{lower}_to_wire,")
+        lines.append("};")
+        lines.append("")
+        assert all(name in index for _, name in rows)
+    return "\n".join(lines)
+
+
+def parse_host_request_rows() -> list[tuple[str, int]]:
+    """(kind name, wire opcode) of every cs2vm2_host_request_kinds.def row."""
+
+    text = HOST_REQUEST_KINDS.read_text(encoding="utf-8")
+    return [
+        (name, int(wire))
+        for name, wire in re.findall(
+            r"^CS2VM_HOST_REQUEST_KIND\(\s*([A-Za-z0-9_]+)\s*,\s*(\d+)", text, re.M
+        )
+    ]
+
+
+def emit_host_kind_of_inc(instructions: list[Instruction]) -> str:
+    """Canonical instruction -> request kind + 1, for CS2VM_HostRequestKindOf.
+
+    A .def row is a wire-level command (its name and OldSchool wire id); every
+    canonical instruction that is that command asks its kind: the command
+    itself, or each version of a versioned one (CC_CREATE_V1 and _V2 both ask
+    CC_CREATE). The RS2 634 section asks nothing through this table: the one
+    RS2 command that reaches the host names its kind in its body."""
+
+    rows = parse_host_request_rows()
+    by_wire: dict[int, list[Instruction]] = {}
+    for ins in instructions:
+        if ins.wire is not None and not ins.rs2:
+            by_wire.setdefault(ins.wire, []).append(ins)
+    lines = [
+        "/* Generated by tools/cs2_gen_opcodes/gen_opcodes.py from cs2vm2_host_request_kinds.def.",
+        " * Not a header: the body of CS2VM_HostRequestKindOf's table (cs2vm2_host.h). */",
+    ]
+    for kind, wire in rows:
+        targets = by_wire.get(wire)
+        if not targets:
+            raise ValueError(f"host request {kind}: wire {wire} is no canonical instruction")
+        expect = {canonical_name_of(kind), kind}
+        aliases = set(LOCAL_ALIASES.get(wire, ()))
+        if not any(t.name in expect or t.version_of == kind for t in targets) and kind not in aliases:
+            raise ValueError(f"host request {kind}: wire {wire} is {[t.name for t in targets]}")
+        for target in targets:
+            lines.append(f"[CS2_OP_{target.name}] = (uint16_t)(CS2VM_HOST_REQUEST_{kind} + 1),")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def emit_host_instruction_inc(instructions: list[Instruction]) -> str:
+    """Request kind -> the canonical instruction a native (rev 231+) script asks
+    it with, in .def row order, for CS2VM_HostRequestInstruction."""
+
+    by_wire: dict[int, list[Instruction]] = {}
+    for ins in instructions:
+        if ins.wire is not None and not ins.rs2:
+            by_wire.setdefault(ins.wire, []).append(ins)
+    lines = [
+        "/* Generated by tools/cs2_gen_opcodes/gen_opcodes.py from cs2vm2_host_request_kinds.def.",
+        " * Not a header: the body of CS2VM_HostRequestInstruction's table (cs2vm2_host.h). */",
+    ]
+    for kind, wire in parse_host_request_rows():
+        targets = by_wire[wire]
+        native = next(t for t in targets if t.version_of is None or canonical_name_of(t.version_of) == t.name)
+        lines.append(f"CS2_OP_{native.name}, /* {kind} */")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -726,7 +964,7 @@ def emit_semantics_c() -> str:
     for semantic in OPCODE_SEMANTICS:
         lines += [
             "    {",
-            f"        CS2_OP_{semantic.name},",
+            f"        CS2_OP_{canonical_name_of(semantic.name)},",
             f"        {json.dumps(semantic.name)},",
             f"        CS2_SEM_OPERAND_{c_enum_suffix(semantic.operand.value)},",
             f"        CS2_SEM_STACK_EFFECT_{c_enum_suffix(semantic.stack_effect.value)},",
@@ -792,7 +1030,7 @@ def emit_core_dispatch_inc() -> str:
     for semantic in OPCODE_SEMANTICS:
         intrinsic = INTRINSICS[semantic.intrinsic]
         lines.append(
-            f"CS2_VM_CORE_DISPATCH_ROW(CS2_OP_{semantic.name}, "
+            f"CS2_VM_CORE_DISPATCH_ROW(CS2_OP_{canonical_name_of(semantic.name)}, "
             f"CS2_SEM_INTRINSIC_{c_enum_suffix(semantic.intrinsic)}, "
             f"{intrinsic.c_handler})"
         )
@@ -911,7 +1149,7 @@ def emit_wire_opcodes_ts(entries: list[tuple[str, int]]) -> str:
     being mistaken for an implemented intrinsic.
     """
 
-    by_opcode = {opcode: name for name, opcode in entries if opcode >= 0 and not is_vm_only(opcode)}
+    by_opcode = {opcode: name for name, opcode in entries if opcode >= 0}
     for opcode, name in parse_command_opcodes().items():
         by_opcode.setdefault(opcode, name)
     by_opcode.update(WIRE_ONLY_OPCODE_NAMES)
@@ -995,7 +1233,7 @@ def emit_rscache_decode_c(entries: list[tuple[str, int]]) -> str:
     ]
     emitted_group_spans: set[tuple[int, int]] = set()
     for i in range(max_id + 1):
-        grouped = None if is_vm_only(i) else span_for_opcode(i)
+        grouped = span_for_opcode(i)
         if grouped:
             group, span = grouped
             span_key = (span.lo, span.hi)
@@ -1003,7 +1241,7 @@ def emit_rscache_decode_c(entries: list[tuple[str, int]]) -> str:
                 emitted_group_spans.add(span_key)
                 lines.append("")
                 lines.append(f"    /* {group.slug}: {group.label} — {group.summary}. */")
-        if i in id_to_name and not is_vm_only(i):
+        if i in id_to_name:
             opk = decode_operand_kind(i)
         else:
             opk = DECODE_OPERAND_OVERRIDES.get(i, "CS2_OPERAND_INT32")
@@ -1024,6 +1262,15 @@ def emit_rscache_decode_c(entries: list[tuple[str, int]]) -> str:
     return "\n".join(lines)
 
 
+def build_canonical(entries: list[tuple[str, int]]):
+    """(instructions, dialects, numbering hash), validated."""
+
+    instructions = canonical.build_instructions(entries)
+    dialects = canonical.build_dialects(entries)
+    canonical.validate(instructions, dialects)
+    return instructions, dialects, canonical.numbering_hash(instructions)
+
+
 def main() -> int:
     if not VENDOR.is_file():
         print(f"missing {VENDOR}", file=sys.stderr)
@@ -1033,16 +1280,28 @@ def main() -> int:
     entries = merge_local(vendor_entries)
     validate_documented_names(entries)
     validate_group_coverage(entries)
-    validate_dispatch_grouping(entries)
-    validate_opcode_semantics(entries, DISPATCH_SOURCE, operand_kind, handler_kind)
+    instructions, dialects, numbering = build_canonical(entries)
+    validate_dispatch_grouping(instructions)
+    validate_opcode_semantics(
+        entries, DISPATCH_SOURCE, operand_kind, handler_kind, canonical_name_of
+    )
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUT_DIR / "cs2_opcode.h").write_text(emit_header(entries), encoding="utf-8")
+    (OUT_DIR / "cs2_opcode.h").write_text(emit_header(instructions, numbering), encoding="utf-8")
     (OUT_DIR / "cs2_opcode_renames.gen.json").write_text(
         json.dumps(retired_names(vendor_entries), indent=2) + "\n", encoding="utf-8"
     )
     (OUT_DIR / "cs2_opcode_meta.h").write_text(emit_meta_h(), encoding="utf-8")
-    (OUT_DIR / "cs2_opcode_meta.c").write_text(emit_meta_c(entries), encoding="utf-8")
+    (OUT_DIR / "cs2_opcode_meta.c").write_text(emit_meta_c(instructions), encoding="utf-8")
     (OUT_DIR / "cs2_opcode_groups.json").write_text(emit_groups_json(), encoding="utf-8")
+    (OUT_DIR / "cs2vm2_dialects.gen.inc").write_text(
+        emit_dialects_inc(instructions, dialects), encoding="utf-8"
+    )
+    (OUT_DIR / "cs2vm2_host_request_kind_of.gen.inc").write_text(
+        emit_host_kind_of_inc(instructions), encoding="utf-8"
+    )
+    (OUT_DIR / "cs2vm2_host_request_instruction.gen.inc").write_text(
+        emit_host_instruction_inc(instructions), encoding="utf-8"
+    )
     (OUT_DIR / "cs2_opcode_semantics.gen.h").write_text(
         emit_semantics_h(), encoding="utf-8"
     )
@@ -1066,7 +1325,10 @@ def main() -> int:
     (RSCACHE_OUT_DIR / "dat2a_cs2_opcode_decode.c").write_text(
         emit_rscache_decode_c(entries), encoding="utf-8"
     )
-    print(f"generated {len(entries)} opcodes -> {OUT_DIR}")
+    print(
+        f"generated {len(instructions)} canonical instructions ({len(entries)} wire commands, "
+        f"{len(dialects)} dialects) -> {OUT_DIR}"
+    )
     print(
         f"generated {len(OPCODE_SEMANTICS)} explicit VM semantics -> "
         f"{OUT_DIR}, {CS2DOM_GENERATED_OUT_DIR}"
