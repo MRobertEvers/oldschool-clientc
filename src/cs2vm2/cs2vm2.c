@@ -13364,13 +13364,17 @@ CS2VM2_OpArgCounts(
 #endif
 
 #if CS2VM2_RUNOP_SPLIT
-/* The instructions cs2vm2_run_op_outlined runs: the reference client's
- * groups from CLIENT (wire 3000) on, and the RS2 634 section after them,
- * except the string group, which is common and never asks the host, and the
- * client-state group: INV_GETOBJ and INV_GETNUM run once per bank slot, and
- * the loop function has the room since the yield mark went (53 KB of
- * JavaScriptCore's 100 KB before this group, measured 2026-11-24). Canonical
- * order is the wire order, so each is one range of the dense numbering. */
+/* The instructions cs2vm2_run_op_outlined runs: the GENERAL instructions of
+ * the reference client's groups from CLIENT (wire 3000) on, and the RS2 634
+ * section and UNDEFINED_WIRE_ID after them, except the string group, which is
+ * common and never asks the host, and the client-state group: INV_GETOBJ and
+ * INV_GETNUM run once per bank slot, and the loop function has the room since
+ * the yield mark went (53 KB of JavaScriptCore's 100 KB before this group,
+ * measured 2026-11-24). GENERAL is in wire order, so each group is one range
+ * of the dense numbering. The FAST range is below CS2_OPS_CLIENT_BEGIN: the
+ * handlers of the instructions the loop runs itself are in the inline half,
+ * beside the loop that gives them their rare stack-check and divide-by-zero
+ * cases. */
 #define CS2VM2_RUNOP_OUTLINED(opcode)                                                              \
     ((opcode) >= CS2_OPS_CLIENT_BEGIN &&                                                           \
      !((opcode) >= CS2_OPS_CLIENT_STATE_BEGIN && (opcode) < CS2_OPS_CLIENT_STATE_END) &&           \
@@ -16344,9 +16348,12 @@ CS2VM2_SetActiveAndDotComponentId(
  * of compares, three to five branches an instruction.
  *
  * The arithmetic itself is the cs2_math_* functions, the same ones the
- * general handlers call. To put another opcode here: give it a number, a row
- * in the table (cs2vm2_jit_internal.h, which bumps CS2VM2_JIT_FORMAT_VERSION)
- * and a case (cs2vm2_hot_cases.inc).
+ * general handlers call. These instructions are the FAST range of the
+ * numbering ([0, CS2_OP_FAST_END), cs2_opcode.h). To put another one here:
+ * mark it in tools/cs2_gen_opcodes/fast_instructions.py and regenerate, give
+ * it a number and a row in the table (cs2vm2_jit_internal.h, which bumps
+ * CS2VM2_JIT_FORMAT_VERSION) and a case (cs2vm2_hot_cases.inc); the build's
+ * checks (check_fast_arms.py, test-cs2-opcode-groups) fail until all agree.
  *
  * A script with a jit overlay (script->jit, cs2vm2_jit.h) runs the overlay's
  * codes: the same switch, with fused groups and proven-bounds forms beside

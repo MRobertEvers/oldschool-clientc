@@ -320,8 +320,9 @@ CS2VM2_JitDialectTag(struct CS2VM2_Dialect const* dialect)
     struct cs2vm2_jit_hasher jh;
     jh_init(&jh, CS2VM2_JIT_DIALECT_SEED, jh_str_size(dialect->name) + 4u);
     jh_str(&jh, dialect->name);
-    /* The canonical numbering: a blob holds instructions, so a regenerated
-     * cs2_opcode.h is another dialect as far as a cached blob can tell. */
+    /* The canonical numbering: a blob was built from, and fingerprinted
+     * over, canonical instructions, so a regenerated cs2_opcode.h is another
+     * dialect as far as a cached blob can tell. */
     jh_u32(&jh, (uint32_t)CS2_OP_NUMBERING_HASH);
     uint64_t const h = jh_end(&jh);
     return (uint32_t)(h ^ (h >> 32));

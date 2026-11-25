@@ -1,12 +1,14 @@
 /*
- * The plain hot instructions, one case each: included by the interpreter's
- * one loop (cs2vm2_run_script_body in cs2vm2.c), where a script's plain codes
- * and a jit overlay's plain codes meet the same text. Not a header: it is the
- * inside of a switch on a CS2VM2_HOT_* code, and reads the loop's locals by
- * name -- `operand` (args[pc]), `stack`, `top`, `pc`, `locals`,
- * `locals_dirty`, `frame`. Each case either completes its instruction (pc
- * moved on, `break`) or changes nothing and does `goto stop`, which gives the
- * instruction to its handler.
+ * The FAST instructions (tools/cs2_gen_opcodes/fast_instructions.py; the
+ * range [0, CS2_OP_FAST_END) of cs2_opcode.h), one case each and no other:
+ * tools/cs2_gen_opcodes/check_fast_arms.py fails on a difference. Included by
+ * the interpreter's one loop (cs2vm2_run_script_body in cs2vm2.c), where a
+ * script's plain codes and a jit overlay's plain codes meet the same text.
+ * Not a header: it is the inside of a switch on a CS2VM2_HOT_* code, and
+ * reads the loop's locals by name -- `operand` (args[pc]), `stack`, `top`,
+ * `pc`, `locals`, `locals_dirty`, `frame`. Each case either completes its
+ * instruction (pc moved on, `break`) or changes nothing and does `goto stop`,
+ * which gives the instruction to its handler.
  */
         case CS2VM2_HOT_PUSH_CONSTANT_INT:
             if( top >= CS2VM_STACK_MAX )

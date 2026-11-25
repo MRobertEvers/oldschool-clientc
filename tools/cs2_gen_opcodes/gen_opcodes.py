@@ -24,6 +24,7 @@ HOST_REQUEST_KINDS = OUT_DIR / "cs2vm2_host_request_kinds.def"
 
 import canonical
 import catalogue
+import check_fast_arms
 from canonical import Instruction
 from local_opcodes import (
     DECODE_OPERAND_OVERRIDES,
@@ -428,12 +429,23 @@ HEADER_PREAMBLE = """\
  *     a load-proven one is the instruction's name followed by what was proven
  *     (PUSH_INT_LOCAL_DECLARED: its local is below the script's declared count).
  *
- * ORDER: the OldSchool wire order, so each dispatch group of the reference
- * client is one contiguous range, CS2_OPS_<GROUP>_BEGIN .. _END (exclusive);
- * a versioned family takes its command's place. Then the RS2 634 section,
- * then UNDEFINED_WIRE_ID, then the jit's. CS2_OP_PLAIN_COUNT instructions
- * can appear in a loaded script; the jit's appear only in its overlay
- * (script->run_code).
+ * ORDER: three ranges, each contiguous.
+ *   - FAST, [0, CS2_OP_FAST_END): the instructions the interpreter's loop
+ *     runs itself on its registers (constants, int locals, the int branches,
+ *     int arithmetic), marked in tools/cs2_gen_opcodes/fast_instructions.py,
+ *     in wire order. None asks the host, yields or moves a frame; each has a
+ *     case in the loop (cs2vm2_hot_cases.inc, checked by check_fast_arms.py),
+ *     and a case that cannot run as it stands gives the instruction to its
+ *     handler.
+ *   - GENERAL, [CS2_OP_FAST_END, CS2_OP_PLAIN_COUNT): every other instruction
+ *     a loaded script can hold, run by its handler (CS2VM2_RunOp). The
+ *     OldSchool wire order, so each dispatch group of the reference client is
+ *     one contiguous range of its GENERAL instructions, CS2_OPS_<GROUP>_BEGIN
+ *     .. _END (exclusive; a group's FAST instructions are in the FAST range);
+ *     a versioned family takes its command's place. Then the RS2 634 section,
+ *     then UNDEFINED_WIRE_ID.
+ *   - JIT, from CS2_OP_PLAIN_COUNT: the jit's, which appear only in its
+ *     overlay (script->run_code), never in a loaded script.
  */
 """
 
@@ -462,8 +474,19 @@ def emit_header(
     current_only: str | None = None
     only_groups = {enum_name: (slug, summary) for enum_name, slug, summary in CANONICAL_ONLY_GROUPS}
     everything = instructions + jit_instructions
+    fast_end = sum(1 for ins in instructions if ins.fast)
+    if any(ins.fast for ins in instructions[fast_end:]):
+        raise ValueError("the FAST instructions are not the first of the numbering")
     for value, ins in enumerate(everything):
-        if ins.group in only_groups:
+        if ins.fast:
+            if value == 0:
+                lines += [
+                    "",
+                    "    /* === FAST: the instructions the interpreter's loop runs itself ===",
+                    "     * Marked in tools/cs2_gen_opcodes/fast_instructions.py; each keeps",
+                    "     * its dispatch group (its handler's place in CS2VM2_RunOp). */",
+                ]
+        elif ins.group in only_groups:
             if current_only != ins.group:
                 current_only = ins.group
                 slug, summary = only_groups[ins.group]
@@ -492,6 +515,9 @@ def emit_header(
             lines.append(f"    CS2_OP_{alias} = CS2_OP_{ins.name},")
     lines += ["};", ""]
     lines += [
+        "/* The FAST range is [0, CS2_OP_FAST_END); GENERAL is [CS2_OP_FAST_END,",
+        " * CS2_OP_PLAIN_COUNT). */",
+        f"#define CS2_OP_FAST_END {fast_end}",
         "/* Instructions a loaded script can hold (its opcodes[]); the jit's follow. */",
         f"#define CS2_OP_PLAIN_COUNT {len(instructions)}",
         "/* Every instruction, the jit's included: what the interpreter switches on. */",
@@ -502,14 +528,24 @@ def emit_header(
         "",
         "/* Each group's instructions: [BEGIN, END). A component group the reference",
         " * client gives two ranges (the active-component CC_ commands and the",
-        " * explicit-component IF_ ones) has a range for each. */",
+        " * explicit-component IF_ ones) has a range for each. A range holds the",
+        " * group's GENERAL instructions; its FAST ones are below CS2_OP_FAST_END. */",
     ]
     for group in OPCODE_GROUPS:
         for idx, span in enumerate(group.spans):
             suffix = "" if len(group.spans) == 1 else ("_CC" if idx == 0 else "_IF")
-            members = [i for i, ins in enumerate(instructions) if not ins.rs2 and ins.wire is not None and span.contains(ins.wire)]
+            members = [
+                i
+                for i, ins in enumerate(instructions)
+                if not ins.fast and not ins.rs2 and ins.wire is not None and span.contains(ins.wire)
+            ]
             begin = members[0] if members else next(
-                (i for i, ins in enumerate(instructions) if ins.rs2 or ins.wire is None or ins.wire >= span.hi), len(instructions)
+                (
+                    i
+                    for i, ins in enumerate(instructions)
+                    if not ins.fast and (ins.rs2 or ins.wire is None or ins.wire >= span.hi)
+                ),
+                len(instructions),
             )
             end = members[-1] + 1 if members else begin
             lines.append(f"#define CS2_OPS_{group.enum_name}{suffix}_BEGIN {begin}")
@@ -1338,7 +1374,7 @@ def main() -> int:
     wire_ids.update(WIRE_ONLY_OPCODE_NAMES)
     print(f"generated {len(wire_ids)} wire opcodes -> {CS2DOM_GENERATED_OUT_DIR}")
     print(f"generated rscache decode operands -> {RSCACHE_OUT_DIR}")
-    return 0
+    return check_fast_arms.main()
 
 
 if __name__ == "__main__":

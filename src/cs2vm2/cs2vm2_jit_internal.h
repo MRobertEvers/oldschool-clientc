@@ -61,9 +61,9 @@ struct CS2VM2_Jit
 
 /*
  * The hot loop's instruction numbers. 1..31 are the plain hot instructions,
- * the same numbers cs2vm2.c's hot loop has always switched on (formerly a
- * private enum there): the overlay code for a plain instruction at pc is
- * exactly g_cs2vm2_hot_op[opcodes[pc]].
+ * one per FAST instruction ([0, CS2_OP_FAST_END) of cs2_opcode.h), each a
+ * case of the loop (cs2vm2_hot_cases.inc): the overlay code for a plain
+ * instruction at pc is exactly g_cs2vm2_hot_op[opcodes[pc]].
  */
 enum CS2VM2_JitCode
 {
@@ -145,8 +145,10 @@ enum CS2VM2_JitCode
     CS2VM2_JIT_FUSED_LAST = 87,
 };
 
-/* opcode -> plain hot code, 0 for "not a hot instruction". Static so each
- * includer has its own copy and no link needs another object. */
+/* opcode -> plain hot code, 0 for a GENERAL instruction. Static so each
+ * includer has its own copy and no link needs another object.
+ * test-cs2-opcode-groups checks that its non-zero rows are exactly the FAST
+ * range. */
 #define CS2VM2_HOT_TABLE_SIZE ((unsigned)CS2_OP_PLAIN_COUNT)
 static const uint8_t g_cs2vm2_hot_op[CS2VM2_HOT_TABLE_SIZE] = {
     [CS2_OP_PUSH_CONSTANT_INT] = CS2VM2_HOT_PUSH_CONSTANT_INT,
@@ -181,6 +183,7 @@ static const uint8_t g_cs2vm2_hot_op[CS2VM2_HOT_TABLE_SIZE] = {
     [CS2_OP_GETBIT_RANGE] = CS2VM2_HOT_GETBIT_RANGE,
     [CS2_OP_SETBIT_RANGE_VALUE] = CS2VM2_HOT_SETBIT_RANGE_VALUE,
 };
+_Static_assert(CS2VM2_HOT_PLAIN_LAST == CS2_OP_FAST_END, "one plain hot code per FAST instruction");
 
 /* What one instruction of a fused shape must be. */
 enum CS2VM2_JitIns

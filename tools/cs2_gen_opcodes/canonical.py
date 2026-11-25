@@ -26,11 +26,18 @@ Naming (stated again at the top of the generated cs2_opcode.h):
   * The jit's instructions (the section after these, CS2_OP_JIT_FIRST ..) are
     named by what they do; see jit_instructions.py.
 
-The canonical order is the OldSchool wire order, so each dispatch group of the
-reference client (opcode_groups.py) is one contiguous range of instructions,
-named CS2_OPS_<GROUP>_BEGIN .. _END in the generated header. A versioned family
-takes its base command's place. The RS2 634 section follows, then
-UNDEFINED_WIRE_ID, then the jit's.
+The canonical order has three ranges:
+
+  * FAST, [0, CS2_OP_FAST_END): the instructions the interpreter's loop runs
+    itself (fast_instructions.py), in wire order;
+  * GENERAL, [CS2_OP_FAST_END, CS2_OP_PLAIN_COUNT): every other instruction a
+    loaded script can hold, run by its handler. The OldSchool wire order, so
+    each dispatch group of the reference client (opcode_groups.py) is one
+    contiguous range of its GENERAL instructions, named CS2_OPS_<GROUP>_BEGIN
+    .. _END in the generated header (a group's FAST instructions are in the
+    FAST range). A versioned family takes its base command's place. The RS2
+    634 section follows, then UNDEFINED_WIRE_ID;
+  * JIT, from CS2_OP_PLAIN_COUNT: the jit's.
 """
 
 from __future__ import annotations
@@ -38,6 +45,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import hashlib
 
+from fast_instructions import FAST
 from opcode_groups import OPCODE_GROUPS, group_for_opcode
 
 
@@ -140,6 +148,8 @@ class Instruction:
     version_of: str | None = None
     # True for the RS2 634 section.
     rs2: bool = False
+    # True for a FAST instruction (fast_instructions.py).
+    fast: bool = False
 
 
 @dataclass(frozen=True)
@@ -157,7 +167,7 @@ class Dialect:
 def build_instructions(entries: list[tuple[str, int]]) -> list[Instruction]:
     """The canonical instruction list, in canonical order (see module doc)."""
 
-    out: list[Instruction] = []
+    general: list[Instruction] = []
     seen: set[str] = set()
     for name, wire in sorted(((n, v) for n, v in entries if v >= 0), key=lambda e: e[1]):
         group = group_for_opcode(wire)
@@ -165,12 +175,16 @@ def build_instructions(entries: list[tuple[str, int]]) -> list[Instruction]:
             raise ValueError(f"wire {wire} ({name}) has no dispatch group")
         if wire in VERSIONED:
             for version in VERSIONED[wire]:
-                out.append(Instruction(version, wire, group.enum_name, version, version_of=name))
+                general.append(Instruction(version, wire, group.enum_name, version, version_of=name))
         else:
-            out.append(Instruction(name, wire, group.enum_name, name))
+            general.append(Instruction(name, wire, group.enum_name, name, fast=name in FAST))
     for wire, name in sorted(RS2_634_COMMANDS.items()):
-        out.append(Instruction(name, wire, RS2_634_GROUP, name, rs2=True))
-    out.append(Instruction(UNDEFINED_WIRE_ID, None, UNDEFINED_GROUP, UNDEFINED_WIRE_ID))
+        general.append(Instruction(name, wire, RS2_634_GROUP, name, rs2=True))
+    general.append(Instruction(UNDEFINED_WIRE_ID, None, UNDEFINED_GROUP, UNDEFINED_WIRE_ID))
+    missing = sorted(FAST - {ins.name for ins in general if ins.fast})
+    if missing:
+        raise ValueError(f"FAST names no unversioned OldSchool command: {missing}")
+    out = [ins for ins in general if ins.fast] + [ins for ins in general if not ins.fast]
     for ins in out:
         if ins.name in seen:
             raise ValueError(f"canonical instruction {ins.name} is named twice")

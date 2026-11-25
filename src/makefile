@@ -2357,6 +2357,7 @@ test-cs2-opcode-groups: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_group_test \
 		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_group_test
+	python3 -I $(REPO_ROOT)/tools/cs2_gen_opcodes/check_fast_arms.py
 
 # Everything lifted out of app.c so far, plus the boundary gate.
 #

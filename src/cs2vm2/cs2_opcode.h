@@ -28,21 +28,31 @@
  *     a load-proven one is the instruction's name followed by what was proven
  *     (PUSH_INT_LOCAL_DECLARED: its local is below the script's declared count).
  *
- * ORDER: the OldSchool wire order, so each dispatch group of the reference
- * client is one contiguous range, CS2_OPS_<GROUP>_BEGIN .. _END (exclusive);
- * a versioned family takes its command's place. Then the RS2 634 section,
- * then UNDEFINED_WIRE_ID, then the jit's. CS2_OP_PLAIN_COUNT instructions
- * can appear in a loaded script; the jit's appear only in its overlay
- * (script->run_code).
+ * ORDER: three ranges, each contiguous.
+ *   - FAST, [0, CS2_OP_FAST_END): the instructions the interpreter's loop
+ *     runs itself on its registers (constants, int locals, the int branches,
+ *     int arithmetic), marked in tools/cs2_gen_opcodes/fast_instructions.py,
+ *     in wire order. None asks the host, yields or moves a frame; each has a
+ *     case in the loop (cs2vm2_hot_cases.inc, checked by check_fast_arms.py),
+ *     and a case that cannot run as it stands gives the instruction to its
+ *     handler.
+ *   - GENERAL, [CS2_OP_FAST_END, CS2_OP_PLAIN_COUNT): every other instruction
+ *     a loaded script can hold, run by its handler (CS2VM2_RunOp). The
+ *     OldSchool wire order, so each dispatch group of the reference client is
+ *     one contiguous range of its GENERAL instructions, CS2_OPS_<GROUP>_BEGIN
+ *     .. _END (exclusive; a group's FAST instructions are in the FAST range);
+ *     a versioned family takes its command's place. Then the RS2 634 section,
+ *     then UNDEFINED_WIRE_ID.
+ *   - JIT, from CS2_OP_PLAIN_COUNT: the jit's, which appear only in its
+ *     overlay (script->run_code), never in a loaded script.
  */
 
 enum CS2_Op
 {
 
-    /* === CS2 opcode group: vm-core (0..99) ===
-     * VM control flow, locals, vars and arrays.
-     * rev-239 execution: inline in Statics.method4464.
-     */
+    /* === FAST: the instructions the interpreter's loop runs itself ===
+     * Marked in tools/cs2_gen_opcodes/fast_instructions.py; each keeps
+     * its dispatch group (its handler's place in CS2VM2_RunOp). */
     /* PUSH_CONSTANT_INT — Push int constant.
      * operand: int constant
      * int stack in:   -
@@ -51,31 +61,6 @@ enum CS2_Op
      * str stack out:  -
      */
     CS2_OP_PUSH_CONSTANT_INT = 0, /* wire 0 */
-    /* PUSH_VAR — Read varp.
-     * operand: varp id
-     * int stack in:   -
-     * str stack in:   -
-     * int stack out:  varp[operand]
-     * str stack out:  -
-     */
-    CS2_OP_PUSH_VAR = 1, /* wire 1 */
-    /* POP_VAR — Write varp.
-     * operand: varp id
-     * int stack in:   value
-     * str stack in:   -
-     * int stack out:  -
-     * str stack out:  -
-     * notes: varp[operand] = value
-     */
-    CS2_OP_POP_VAR = 2, /* wire 2 */
-    /* PUSH_CONSTANT_STRING — Push string constant.
-     * operand: string index
-     * int stack in:   -
-     * str stack in:   -
-     * int stack out:  -
-     * str stack out:  script_string[operand]
-     */
-    CS2_OP_PUSH_CONSTANT_STRING = 3, /* wire 3 */
     /* BRANCH — Unconditional branch.
      * operand: branch offset
      * int stack in:   -
@@ -84,7 +69,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: pc += operand
      */
-    CS2_OP_BRANCH = 4, /* wire 6 */
+    CS2_OP_BRANCH = 1, /* wire 6 */
     /* BRANCH_NOT — Branch if not equal.
      * operand: branch offset
      * int stack in:   a, b  (b = top)
@@ -93,7 +78,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: pc += operand if a != b
      */
-    CS2_OP_BRANCH_NOT = 5, /* wire 7 */
+    CS2_OP_BRANCH_NOT = 2, /* wire 7 */
     /* BRANCH_EQUALS — Branch if equal.
      * operand: branch offset
      * int stack in:   a, b  (b = top)
@@ -102,7 +87,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: pc += operand if a == b
      */
-    CS2_OP_BRANCH_EQUALS = 6, /* wire 8 */
+    CS2_OP_BRANCH_EQUALS = 3, /* wire 8 */
     /* BRANCH_LESS_THAN — Branch if less.
      * operand: branch offset
      * int stack in:   a, b  (b = top)
@@ -111,7 +96,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: pc += operand if a < b
      */
-    CS2_OP_BRANCH_LESS_THAN = 7, /* wire 9 */
+    CS2_OP_BRANCH_LESS_THAN = 4, /* wire 9 */
     /* BRANCH_GREATER_THAN — Branch if greater.
      * operand: branch offset
      * int stack in:   a, b  (b = top)
@@ -120,32 +105,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: pc += operand if a > b
      */
-    CS2_OP_BRANCH_GREATER_THAN = 8, /* wire 10 */
-    /* RETURN — Return from script.
-     * int stack in:   -
-     * str stack in:   -
-     * int stack out:  -
-     * str stack out:  -
-     * notes: pops frame
-     */
-    CS2_OP_RETURN = 9, /* wire 21 */
-    /* PUSH_VARBIT — Read varbit.
-     * operand: varbit id
-     * int stack in:   -
-     * str stack in:   -
-     * int stack out:  varbit[operand]
-     * str stack out:  -
-     */
-    CS2_OP_PUSH_VARBIT = 10, /* wire 25 */
-    /* POP_VARBIT — Write varbit.
-     * operand: varbit id
-     * int stack in:   value
-     * str stack in:   -
-     * int stack out:  -
-     * str stack out:  -
-     * notes: varbit[operand] = value
-     */
-    CS2_OP_POP_VARBIT = 11, /* wire 27 */
+    CS2_OP_BRANCH_GREATER_THAN = 5, /* wire 10 */
     /* BRANCH_LESS_THAN_OR_EQUALS — Branch if less than or equal.
      * operand: branch offset
      * int stack in:   a, b  (b = top)
@@ -154,7 +114,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: pc += operand if a <= b
      */
-    CS2_OP_BRANCH_LESS_THAN_OR_EQUALS = 12, /* wire 31 */
+    CS2_OP_BRANCH_LESS_THAN_OR_EQUALS = 6, /* wire 31 */
     /* BRANCH_GREATER_THAN_OR_EQUALS — Branch if greater than or equal.
      * operand: branch offset
      * int stack in:   a, b  (b = top)
@@ -163,7 +123,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: pc += operand if a >= b
      */
-    CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS = 13, /* wire 32 */
+    CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS = 7, /* wire 32 */
     /* PUSH_INT_LOCAL — Push int local.
      * operand: local index
      * int stack in:   -
@@ -171,7 +131,7 @@ enum CS2_Op
      * int stack out:  int_local[operand]
      * str stack out:  -
      */
-    CS2_OP_PUSH_INT_LOCAL = 14, /* wire 33 */
+    CS2_OP_PUSH_INT_LOCAL = 8, /* wire 33 */
     /* POP_INT_LOCAL — Pop int local.
      * operand: local index
      * int stack in:   value
@@ -180,7 +140,168 @@ enum CS2_Op
      * str stack out:  -
      * notes: int_local[operand] = value
      */
-    CS2_OP_POP_INT_LOCAL = 15, /* wire 34 */
+    CS2_OP_POP_INT_LOCAL = 9, /* wire 34 */
+    /* ADD — Integer add.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a + b
+     * str stack out:  -
+     */
+    CS2_OP_ADD = 10, /* wire 4000 */
+    /* SUB — Integer subtract.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a - b
+     * str stack out:  -
+     */
+    CS2_OP_SUB = 11, /* wire 4001 */
+    /* MULTIPLY — Integer multiply.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a * b
+     * str stack out:  -
+     */
+    CS2_OP_MULTIPLY = 12, /* wire 4002 */
+    /* DIVIDE — Integer divide.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a / b
+     * str stack out:  -
+     * notes: VM error if b == 0; otherwise truncates toward zero
+     */
+    CS2_OP_DIVIDE = 13, /* wire 4003 */
+    CS2_OP_ADDPERCENT = 14, /* wire 4007 */
+    /* SETBIT — Set bit in value.
+     * int stack in:   value, bit          (bit = top)
+     * str stack in:   -
+     * int stack out:  value with bit set
+     * str stack out:  -
+     */
+    CS2_OP_SETBIT = 15, /* wire 4008 */
+    /* CLEARBIT — Clear bit in value.
+     * int stack in:   value, bit              (bit = top)
+     * str stack in:   -
+     * int stack out:  value with bit cleared
+     * str stack out:  -
+     */
+    CS2_OP_CLEARBIT = 16, /* wire 4009 */
+    /* TESTBIT — Test bit set.
+     * int stack in:   value, bit                 (bit = top)
+     * str stack in:   -
+     * int stack out:  (value & (1 << bit)) != 0
+     * str stack out:  -
+     */
+    CS2_OP_TESTBIT = 17, /* wire 4010 */
+    /* MODULO — Integer modulo.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a % b
+     * str stack out:  -
+     * notes: VM error if b == 0; remainder has the dividend's sign
+     */
+    CS2_OP_MODULO = 18, /* wire 4011 */
+    /* AND — Bitwise and.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a & b
+     * str stack out:  -
+     */
+    CS2_OP_AND = 19, /* wire 4014 */
+    /* OR — Bitwise or.
+     * int stack in:   a, b   (b = top)
+     * str stack in:   -
+     * int stack out:  a | b
+     * str stack out:  -
+     */
+    CS2_OP_OR = 20, /* wire 4015 */
+    /* MIN — Minimum of two ints.  int in: a, b (b = top)  int out: min(a, b).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_MIN = 21, /* wire 4016 */
+    /* MAX — Maximum of two ints.  int in: a, b (b = top)  int out: max(a, b).
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     */
+    CS2_OP_MAX = 22, /* wire 4017 */
+    /* SCALE — Scale interpolate (c*a)/b.
+     * int stack in:   a, b, c  (c = top)
+     * str stack in:   -
+     * int stack out:  result
+     * str stack out:  -
+     * notes: b == 0 yields 0
+     */
+    CS2_OP_SCALE = 23, /* wire 4018 */
+    CS2_OP_BITCOUNT = 24, /* wire 4025 */
+    CS2_OP_TOGGLEBIT = 25, /* wire 4026 */
+    CS2_OP_SETBIT_RANGE = 26, /* wire 4027 */
+    CS2_OP_CLEARBIT_RANGE = 27, /* wire 4028 */
+    CS2_OP_GETBIT_RANGE = 28, /* wire 4029 */
+    /* SETBIT_RANGE_VALUE (a.k.a. SETBIT_RANGE_TOINT): clear the [low,high] bit range
+     * of `value` then write `newBits` (clamped to the range width) into it.
+     * int in: value, newBits, low, high (high = top)  int out: result */
+    CS2_OP_SETBIT_RANGE_TOINT = 29, /* wire 4030 */
+    CS2_OP_SETBIT_RANGE_VALUE = CS2_OP_SETBIT_RANGE_TOINT,
+    CS2_OP_ABS = 30, /* wire 4035 */
+
+    /* === CS2 opcode group: vm-core (0..99) ===
+     * VM control flow, locals, vars and arrays.
+     * rev-239 execution: inline in Statics.method4464.
+     */
+    /* PUSH_VAR — Read varp.
+     * operand: varp id
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  varp[operand]
+     * str stack out:  -
+     */
+    CS2_OP_PUSH_VAR = 31, /* wire 1 */
+    /* POP_VAR — Write varp.
+     * operand: varp id
+     * int stack in:   value
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: varp[operand] = value
+     */
+    CS2_OP_POP_VAR = 32, /* wire 2 */
+    /* PUSH_CONSTANT_STRING — Push string constant.
+     * operand: string index
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  script_string[operand]
+     */
+    CS2_OP_PUSH_CONSTANT_STRING = 33, /* wire 3 */
+    /* RETURN — Return from script.
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: pops frame
+     */
+    CS2_OP_RETURN = 34, /* wire 21 */
+    /* PUSH_VARBIT — Read varbit.
+     * operand: varbit id
+     * int stack in:   -
+     * str stack in:   -
+     * int stack out:  varbit[operand]
+     * str stack out:  -
+     */
+    CS2_OP_PUSH_VARBIT = 35, /* wire 25 */
+    /* POP_VARBIT — Write varbit.
+     * operand: varbit id
+     * int stack in:   value
+     * str stack in:   -
+     * int stack out:  -
+     * str stack out:  -
+     * notes: varbit[operand] = value
+     */
+    CS2_OP_POP_VARBIT = 36, /* wire 27 */
     /* PUSH_STRING_LOCAL — Push string local.
      * operand: local index
      * int stack in:   -
@@ -188,7 +309,7 @@ enum CS2_Op
      * int stack out:  -
      * str stack out:  str_local[operand]
      */
-    CS2_OP_PUSH_STRING_LOCAL = 16, /* wire 35 */
+    CS2_OP_PUSH_STRING_LOCAL = 37, /* wire 35 */
     /* POP_STRING_LOCAL — Pop string local.
      * operand: local index
      * int stack in:   -
@@ -197,14 +318,14 @@ enum CS2_Op
      * str stack out:  -
      * notes: str_local[operand] = value
      */
-    CS2_OP_POP_STRING_LOCAL = 17, /* wire 36 */
+    CS2_OP_POP_STRING_LOCAL = 38, /* wire 36 */
     /* JOIN_STRING — Concatenate strings.
      * int stack in:   -
      * str stack in:   a, b   (b = top)
      * int stack out:  -
      * str stack out:  a + b
      */
-    CS2_OP_JOIN_STRING = 18, /* wire 37 */
+    CS2_OP_JOIN_STRING = 39, /* wire 37 */
     /* POP_INT_DISCARD — Discard int.
      * operand: unused (a byte, like RETURN's; not a repeat count)
      * int stack in:   value
@@ -213,7 +334,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: discards exactly one value
      */
-    CS2_OP_POP_INT_DISCARD = 19, /* wire 38 */
+    CS2_OP_POP_INT_DISCARD = 40, /* wire 38 */
     /* POP_STRING_DISCARD — Discard string.
      * operand: unused (a byte, like RETURN's; not a repeat count)
      * int stack in:   -
@@ -222,14 +343,14 @@ enum CS2_Op
      * str stack out:  -
      * notes: discards exactly one value
      */
-    CS2_OP_POP_STRING_DISCARD = 20, /* wire 39 */
+    CS2_OP_POP_STRING_DISCARD = 41, /* wire 39 */
     /* GOSUB_WITH_PARAMS — Call script.
      * int stack in:   callee args per signature
      * str stack in:   -
      * int stack out:  callee returns per signature
      * str stack out:  -
      */
-    CS2_OP_GOSUB_WITH_PARAMS = 21, /* wire 40 */
+    CS2_OP_GOSUB_WITH_PARAMS = 42, /* wire 40 */
     /* PUSH_VARC_INT — Read client int varc.
      * operand: varc id
      * int stack in:   -
@@ -237,7 +358,7 @@ enum CS2_Op
      * int stack out:  varc_int[operand]
      * str stack out:  -
      */
-    CS2_OP_PUSH_VARC_INT = 22, /* wire 42 */
+    CS2_OP_PUSH_VARC_INT = 43, /* wire 42 */
     /* POP_VARC_INT — Write client int varc.
      * operand: varc id
      * int stack in:   value
@@ -246,7 +367,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: varc_int[operand] = value
      */
-    CS2_OP_POP_VARC_INT = 23, /* wire 43 */
+    CS2_OP_POP_VARC_INT = 44, /* wire 43 */
     /* DEFINE_ARRAY_V1 — Define an int array in one of the run's numbered arrays.
      * operand: (array number << 16) | element type char
      * int stack in:   size
@@ -255,7 +376,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: DEFINE_ARRAY (44) where arrays are numbered and shared by every frame of a run (OldSchool through 230).
      */
-    CS2_OP_DEFINE_ARRAY_V1 = 24, /* wire 44 */
+    CS2_OP_DEFINE_ARRAY_V1 = 45, /* wire 44 */
     /* DEFINE_ARRAY_V2 — Define int array.
      * operand: array id
      * int stack in:   size
@@ -264,7 +385,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: creates array[operand]
      */
-    CS2_OP_DEFINE_ARRAY_V2 = 25, /* wire 44 */
+    CS2_OP_DEFINE_ARRAY_V2 = 46, /* wire 44 */
     /* PUSH_ARRAY_INT_V1 — Read an element of one of the run's numbered arrays.
      * operand: array number
      * int stack in:   index
@@ -273,7 +394,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: PUSH_ARRAY_INT (45) over numbered arrays (OldSchool through 230). A string array pushes onto the string stack instead.
      */
-    CS2_OP_PUSH_ARRAY_INT_V1 = 26, /* wire 45 */
+    CS2_OP_PUSH_ARRAY_INT_V1 = 47, /* wire 45 */
     /* PUSH_ARRAY_INT_V2 — Read array element.
      * operand: array id
      * int stack in:   index
@@ -281,7 +402,7 @@ enum CS2_Op
      * int stack out:  array[operand][index]
      * str stack out:  -
      */
-    CS2_OP_PUSH_ARRAY_INT_V2 = 27, /* wire 45 */
+    CS2_OP_PUSH_ARRAY_INT_V2 = 48, /* wire 45 */
     /* POP_ARRAY_INT_V1 — Write an element of one of the run's numbered arrays.
      * operand: array number
      * int stack in:   index, value  (value = top)
@@ -290,7 +411,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: POP_ARRAY_INT (46) over numbered arrays (OldSchool through 230). A string array takes its value off the string stack.
      */
-    CS2_OP_POP_ARRAY_INT_V1 = 28, /* wire 46 */
+    CS2_OP_POP_ARRAY_INT_V1 = 49, /* wire 46 */
     /* POP_ARRAY_INT_V2 — Write array element.
      * operand: array id
      * int stack in:   index, value  (value = top)
@@ -299,9 +420,9 @@ enum CS2_Op
      * str stack out:  -
      * notes: array[operand][index] = value
      */
-    CS2_OP_POP_ARRAY_INT_V2 = 29, /* wire 46 */
-    CS2_OP_PUSH_VARC_STRING_OLD = 30, /* wire 47 */
-    CS2_OP_POP_VARC_STRING_OLD = 31, /* wire 48 */
+    CS2_OP_POP_ARRAY_INT_V2 = 50, /* wire 46 */
+    CS2_OP_PUSH_VARC_STRING_OLD = 51, /* wire 47 */
+    CS2_OP_POP_VARC_STRING_OLD = 52, /* wire 48 */
     /* PUSH_VARC_STRING — Read client string varc.
      * operand: varc id
      * int stack in:   -
@@ -309,7 +430,7 @@ enum CS2_Op
      * int stack out:  -
      * str stack out:  varc_string[operand]
      */
-    CS2_OP_PUSH_VARC_STRING = 32, /* wire 49 */
+    CS2_OP_PUSH_VARC_STRING = 53, /* wire 49 */
     /* POP_VARC_STRING — Write client string varc.
      * operand: varc id
      * int stack in:   -
@@ -318,9 +439,9 @@ enum CS2_Op
      * str stack out:  -
      * notes: varc_string[operand] = value
      */
-    CS2_OP_POP_VARC_STRING = 33, /* wire 50 */
-    CS2_OP_PUSH_VARC_LONG = 34, /* wire 51 */
-    CS2_OP_POP_VARC_LONG = 35, /* wire 52 */
+    CS2_OP_POP_VARC_STRING = 54, /* wire 50 */
+    CS2_OP_PUSH_VARC_LONG = 55, /* wire 51 */
+    CS2_OP_POP_VARC_LONG = 56, /* wire 52 */
     /* SWITCH — Switch jump.
      * int stack in:   key
      * str stack in:   -
@@ -328,22 +449,22 @@ enum CS2_Op
      * str stack out:  -
      * notes: pc = case target or fall through
      */
-    CS2_OP_SWITCH = 36, /* wire 60 */
-    CS2_OP_PUSH_CONSTANT_LONG = 37, /* wire 61 */
-    CS2_OP_POP_LONG_DISCARD = 38, /* wire 62 */
-    CS2_OP_PUSH_CONSTANT_NULL = 39, /* wire 63 */
-    CS2_OP_PUSH_VAR_LONG = 40, /* wire 64 */
-    CS2_OP_POP_VAR_LONG = 41, /* wire 65 */
-    CS2_OP_PUSH_LONG_LOCAL = 42, /* wire 66 */
-    CS2_OP_POP_LONG_LOCAL = 43, /* wire 67 */
-    CS2_OP_LONG_BRANCH_NOT = 44, /* wire 68 */
-    CS2_OP_LONG_BRANCH_EQUALS = 45, /* wire 69 */
-    CS2_OP_LONG_BRANCH_LESS_THAN = 46, /* wire 70 */
-    CS2_OP_LONG_BRANCH_GREATER_THAN = 47, /* wire 71 */
-    CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS = 48, /* wire 72 */
-    CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS = 49, /* wire 73 */
-    CS2_OP_PUSH_VARCLANSETTING = 50, /* wire 74 */
-    CS2_OP_PUSH_VARCLAN = 51, /* wire 76 */
+    CS2_OP_SWITCH = 57, /* wire 60 */
+    CS2_OP_PUSH_CONSTANT_LONG = 58, /* wire 61 */
+    CS2_OP_POP_LONG_DISCARD = 59, /* wire 62 */
+    CS2_OP_PUSH_CONSTANT_NULL = 60, /* wire 63 */
+    CS2_OP_PUSH_VAR_LONG = 61, /* wire 64 */
+    CS2_OP_POP_VAR_LONG = 62, /* wire 65 */
+    CS2_OP_PUSH_LONG_LOCAL = 63, /* wire 66 */
+    CS2_OP_POP_LONG_LOCAL = 64, /* wire 67 */
+    CS2_OP_LONG_BRANCH_NOT = 65, /* wire 68 */
+    CS2_OP_LONG_BRANCH_EQUALS = 66, /* wire 69 */
+    CS2_OP_LONG_BRANCH_LESS_THAN = 67, /* wire 70 */
+    CS2_OP_LONG_BRANCH_GREATER_THAN = 68, /* wire 71 */
+    CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS = 69, /* wire 72 */
+    CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS = 70, /* wire 73 */
+    CS2_OP_PUSH_VARCLANSETTING = 71, /* wire 74 */
+    CS2_OP_PUSH_VARCLAN = 72, /* wire 76 */
     /* BRANCH_IF_ONE — RS2-era (rev 634) conditional branch.
      * operand: branch offset
      * int stack in:   value
@@ -353,7 +474,7 @@ enum CS2_Op
      * notes: pc += operand if value == 1. Free in the OSRS numbering
      *        (nothing between 76 and 100); claimed here rather than
      *        dialect-translated. See engine/cs2_opcode_dialect.h. */
-    CS2_OP_BRANCH_IF_ONE = 52, /* wire 86 */
+    CS2_OP_BRANCH_IF_ONE = 73, /* wire 86 */
 
     /* === CS2 opcode group: component (100..999) ===
      * component construction and addressing.
@@ -367,7 +488,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: CC_CREATE (100) where the cache era pushes no is_nested flag: RS2 634 (Class66.method710) and OldSchool through 229. CC_CREATE_V1 is what wire 100 means there (the dialect's table); is_nested reaches the host as 0.
      */
-    CS2_OP_CC_CREATE_V1 = 53, /* wire 100 */
+    CS2_OP_CC_CREATE_V1 = 74, /* wire 100 */
     /* CC_CREATE_V2 — Create dynamic child component.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   parent, type, child_index, is_nested  (is_nested = top)
@@ -378,15 +499,15 @@ enum CS2_Op
      *        (rev ≥ 200 / osrs230), which was breaking stack analysis.
      *        Older revisions (< 200) used 3 args [parent, type, child_index].
      */
-    CS2_OP_CC_CREATE_V2 = 54, /* wire 100 */
-    CS2_OP_CC_DELETE = 55, /* wire 101 */
+    CS2_OP_CC_CREATE_V2 = 75, /* wire 100 */
+    CS2_OP_CC_DELETE = 76, /* wire 101 */
     /* CC_DELETEALL — Delete every dynamic child of a component.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_DELETEALL = 56, /* wire 102 */
+    CS2_OP_CC_DELETEALL = 77, /* wire 102 */
     /* CC_CREATE_ENTITYOVERLAY — Create a dynamic child in a scripted entity overlay layer.
      * int stack in:   overlay, type, child_index  (child_index = top)
      * str stack in:   -
@@ -394,14 +515,14 @@ enum CS2_Op
      * str stack out:  -
      * notes: The parent is an overlay index, not a component id. Sets the active component to the new child; dynamic layers (type 0) and child-slot gaps are rejected. See game/rs_entity_overlay.h.
      */
-    CS2_OP_CC_CREATE_ENTITYOVERLAY = 57, /* wire 103 */
+    CS2_OP_CC_CREATE_ENTITYOVERLAY = 78, /* wire 103 */
     /* CC_DELETEALL_ENTITYOVERLAY — Delete every dynamic child from a scripted entity overlay layer.
      * int stack in:   overlay
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_DELETEALL_ENTITYOVERLAY = 58, /* wire 104 */
+    CS2_OP_CC_DELETEALL_ENTITYOVERLAY = 79, /* wire 104 */
     /* CC_COPY — Clone a dynamic child into another slot under the same parent.
      * int stack in:   parent, src_sub, dst_sub  (dst_sub = top)
      * str stack in:   -
@@ -409,23 +530,23 @@ enum CS2_Op
      * str stack out:  -
      * notes: sets active to the copy; used by the bank tab strip builder
      */
-    CS2_OP_CC_COPY = 59, /* wire 105 */
-    CS2_OP_CC_CREATE_CHILD = 60, /* wire 106 */
-    CS2_OP_CC_CREATE_SIBLING = 61, /* wire 107 */
+    CS2_OP_CC_COPY = 80, /* wire 105 */
+    CS2_OP_CC_CREATE_CHILD = 81, /* wire 106 */
+    CS2_OP_CC_CREATE_SIBLING = 82, /* wire 107 */
     /* CC_FIND — Find child by sub-id.
      * int stack in:   parent, sub                     (sub = top)
      * str stack in:   -
      * int stack out:  1 if found (active set) else 0
      * str stack out:  -
      */
-    CS2_OP_CC_FIND = 62, /* wire 200 */
+    CS2_OP_CC_FIND = 83, /* wire 200 */
     /* IF_FIND — Find interface component.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  1 if found (active set) else 0
      * str stack out:  -
      */
-    CS2_OP_IF_FIND = 63, /* wire 201 */
+    CS2_OP_IF_FIND = 84, /* wire 201 */
     /* IF_FIND_ENTITYOVERLAY — Make a scripted entity overlay layer the active component.
      * int stack in:   overlay
      * str stack in:   -
@@ -433,7 +554,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: This is opcode 202 even though the vendored decompiler maps both _202 and _203 to 202. Rev-239 call sites pass one argument; treating it as the old guessed CC_FINDROOT leaks an int.
      */
-    CS2_OP_IF_FIND_ENTITYOVERLAY = 64, /* wire 202 */
+    CS2_OP_IF_FIND_ENTITYOVERLAY = 85, /* wire 202 */
     /* CC_FIND_ENTITYOVERLAY — Find a dynamic child inside a scripted entity overlay layer.
      * int stack in:   overlay, sub                    (sub = top)
      * str stack in:   -
@@ -441,17 +562,17 @@ enum CS2_Op
      * str stack out:  -
      * notes: Opcode 203; completes the reference overlay-layer family.
      */
-    CS2_OP_CC_FIND_ENTITYOVERLAY = 65, /* wire 203 */
-    CS2_OP_CC_FIND_PARENT = 66, /* wire 204 */
-    CS2_OP_CC_FIND_LAYER = 67, /* wire 205 */
-    CS2_OP_CC_FIND_NEXT_SIBLING = 68, /* wire 206 */
-    CS2_OP_CC_FIND_PREV_SIBLING = 69, /* wire 207 */
-    CS2_OP_CC_CHILDCOUNT = 70, /* wire 208 */
-    CS2_OP_CC_PARENTID = 71, /* wire 209 */
-    CS2_OP_CC_FIND_PARAM = 72, /* wire 210 */
-    CS2_OP_IF_QUERY = 73, /* wire 211 */
-    CS2_OP_CC_QUERY = 74, /* wire 212 */
-    CS2_OP_IF_QUERY_NEXT = 75, /* wire 213 */
+    CS2_OP_CC_FIND_ENTITYOVERLAY = 86, /* wire 203 */
+    CS2_OP_CC_FIND_PARENT = 87, /* wire 204 */
+    CS2_OP_CC_FIND_LAYER = 88, /* wire 205 */
+    CS2_OP_CC_FIND_NEXT_SIBLING = 89, /* wire 206 */
+    CS2_OP_CC_FIND_PREV_SIBLING = 90, /* wire 207 */
+    CS2_OP_CC_CHILDCOUNT = 91, /* wire 208 */
+    CS2_OP_CC_PARENTID = 92, /* wire 209 */
+    CS2_OP_CC_FIND_PARAM = 93, /* wire 210 */
+    CS2_OP_IF_QUERY = 94, /* wire 211 */
+    CS2_OP_CC_QUERY = 95, /* wire 212 */
+    CS2_OP_IF_QUERY_NEXT = 96, /* wire 213 */
     CS2_OP__213 = CS2_OP_IF_QUERY_NEXT,
     /* IF_QUERY_NEXTID — Advance the children iterator and push the next child sub-id.
      * int stack in:   -
@@ -460,15 +581,15 @@ enum CS2_Op
      * str stack out:  -
      * notes: Opcode 214. rev-239 Statics.method7953(class332): `cursor >= count ? -1 : ids[cursor++]` over the id list that IF_QUERY (211) and CC_QUERY (212) fill. It shares that cursor with IF_QUERY_NEXT (213), which resolves the same id to a component and makes it active instead of pushing it.
      */
-    CS2_OP_IF_QUERY_NEXTID = 76, /* wire 214 */
-    CS2_OP_IF_QUERY_IDS = 77, /* wire 215 */
-    CS2_OP_IF_QUERY_REFINE = 78, /* wire 216 */
-    CS2_OP_CC_FIND_CHILD = 79, /* wire 217 */
-    CS2_OP_CC_FIND_FIRST_SIBLING = 80, /* wire 218 */
-    CS2_OP_CC_FIND_LAST_SIBLING = 81, /* wire 219 */
-    CS2_OP_CC_FIND_FIRST_CHILD = 82, /* wire 220 */
-    CS2_OP_CC_FIND_LAST_CHILD = 83, /* wire 221 */
-    CS2_OP_CC_ASSERT = 84, /* wire 222 */
+    CS2_OP_IF_QUERY_NEXTID = 97, /* wire 214 */
+    CS2_OP_IF_QUERY_IDS = 98, /* wire 215 */
+    CS2_OP_IF_QUERY_REFINE = 99, /* wire 216 */
+    CS2_OP_CC_FIND_CHILD = 100, /* wire 217 */
+    CS2_OP_CC_FIND_FIRST_SIBLING = 101, /* wire 218 */
+    CS2_OP_CC_FIND_LAST_SIBLING = 102, /* wire 219 */
+    CS2_OP_CC_FIND_FIRST_CHILD = 103, /* wire 220 */
+    CS2_OP_CC_FIND_LAST_CHILD = 104, /* wire 221 */
+    CS2_OP_CC_ASSERT = 105, /* wire 222 */
 
     /* === CS2 opcode group: component-layout (1000..1099 / 2000..2099) ===
      * component position, size and visibility setters.
@@ -481,22 +602,22 @@ enum CS2_Op
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETPOSITION = 85, /* wire 1000 */
+    CS2_OP_CC_SETPOSITION = 106, /* wire 1000 */
     /* CC_SETSIZE — Set size modes.
      * int stack in:   w, h, w_mode, h_mode  (h_mode = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETSIZE = 86, /* wire 1001 */
+    CS2_OP_CC_SETSIZE = 107, /* wire 1001 */
     /* CC_SETHIDE — Hide active child.
      * int stack in:   hide
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETHIDE = 87, /* wire 1003 */
-    CS2_OP__1004 = 88, /* wire 1004 */
+    CS2_OP_CC_SETHIDE = 108, /* wire 1003 */
+    CS2_OP__1004 = 109, /* wire 1004 */
     /* CC_SETNOCLICKTHROUGH — Set no-click-through.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   enabled
@@ -504,29 +625,29 @@ enum CS2_Op
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETNOCLICKTHROUGH = 89, /* wire 1005 */
-    CS2_OP_CC_SETNOSCROLLTHROUGH = 90, /* wire 1006 */
+    CS2_OP_CC_SETNOCLICKTHROUGH = 110, /* wire 1005 */
+    CS2_OP_CC_SETNOSCROLLTHROUGH = 111, /* wire 1006 */
 
     /* === CS2 opcode group: component-appearance (1100..1199 / 2100..2199) ===
      * component graphic, model and text setters.
      * rev-239 dispatch: Statics.method6889 -> method4754.
      * The listed ranges deliberately share one component handler.
      */
-    CS2_OP_CC_SETSCROLLPOS = 91, /* wire 1100 */
+    CS2_OP_CC_SETSCROLLPOS = 112, /* wire 1100 */
     /* CC_SETCOLOUR — Set colour on active child.
      * int stack in:   colour
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETCOLOUR = 92, /* wire 1101 */
+    CS2_OP_CC_SETCOLOUR = 113, /* wire 1101 */
     /* CC_SETFILL — Set rectangle fill.
      * int stack in:   filled
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETFILL = 93, /* wire 1102 */
+    CS2_OP_CC_SETFILL = 114, /* wire 1102 */
     /* CC_SETTRANS — Set transparency.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   trans
@@ -535,27 +656,27 @@ enum CS2_Op
      * str stack out:  -
      * notes: 0-255 opacity (255 = fully transparent)
      */
-    CS2_OP_CC_SETTRANS = 94, /* wire 1103 */
-    CS2_OP_CC_SETLINEWID = 95, /* wire 1104 */
+    CS2_OP_CC_SETTRANS = 115, /* wire 1103 */
+    CS2_OP_CC_SETLINEWID = 116, /* wire 1104 */
     /* CC_SETGRAPHIC — Set sprite graphic.
      * int stack in:   graphic_id
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETGRAPHIC = 96, /* wire 1105 */
-    CS2_OP_CC_SET2DANGLE = 97, /* wire 1106 */
+    CS2_OP_CC_SETGRAPHIC = 117, /* wire 1105 */
+    CS2_OP_CC_SET2DANGLE = 118, /* wire 1106 */
     /* CC_SETTILING — Set sprite tiling.
      * int stack in:   tiled
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETTILING = 98, /* wire 1107 */
-    CS2_OP_CC_SETMODEL = 99, /* wire 1108 */
-    CS2_OP_CC_SETMODELANGLE = 100, /* wire 1109 */
-    CS2_OP_CC_SETMODELANIM = 101, /* wire 1110 */
-    CS2_OP_CC_SETMODELORTHOG = 102, /* wire 1111 */
+    CS2_OP_CC_SETTILING = 119, /* wire 1107 */
+    CS2_OP_CC_SETMODEL = 120, /* wire 1108 */
+    CS2_OP_CC_SETMODELANGLE = 121, /* wire 1109 */
+    CS2_OP_CC_SETMODELANIM = 122, /* wire 1110 */
+    CS2_OP_CC_SETMODELORTHOG = 123, /* wire 1111 */
     /* CC_SETTEXT — Set text on child component.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -563,70 +684,70 @@ enum CS2_Op
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETTEXT = 103, /* wire 1112 */
+    CS2_OP_CC_SETTEXT = 124, /* wire 1112 */
     /* CC_SETTEXTFONT — Set font on active child.
      * int stack in:   font_id
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETTEXTFONT = 104, /* wire 1113 */
+    CS2_OP_CC_SETTEXTFONT = 125, /* wire 1113 */
     /* CC_SETTEXTALIGN — Set text alignment.
      * int stack in:   x_align, y_align, line_height  (line_height = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETTEXTALIGN = 105, /* wire 1114 */
+    CS2_OP_CC_SETTEXTALIGN = 126, /* wire 1114 */
     /* CC_SETTEXTSHADOW — Set text shadow.
      * int stack in:   shadowed
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETTEXTSHADOW = 106, /* wire 1115 */
+    CS2_OP_CC_SETTEXTSHADOW = 127, /* wire 1115 */
     /* CC_SETOUTLINE — Set sprite outline.
      * int stack in:   outline
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETOUTLINE = 107, /* wire 1116 */
+    CS2_OP_CC_SETOUTLINE = 128, /* wire 1116 */
     /* CC_SETGRAPHICSHADOW — Set sprite shadow.
      * int stack in:   shadow
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETGRAPHICSHADOW = 108, /* wire 1117 */
-    CS2_OP_CC_SETVFLIP = 109, /* wire 1118 */
-    CS2_OP_CC_SETHFLIP = 110, /* wire 1119 */
-    CS2_OP_CC_SETSCROLLSIZE = 111, /* wire 1120 */
-    CS2_OP_CC_RESUME_PAUSEBUTTON = 112, /* wire 1121 */
+    CS2_OP_CC_SETGRAPHICSHADOW = 129, /* wire 1117 */
+    CS2_OP_CC_SETVFLIP = 130, /* wire 1118 */
+    CS2_OP_CC_SETHFLIP = 131, /* wire 1119 */
+    CS2_OP_CC_SETSCROLLSIZE = 132, /* wire 1120 */
+    CS2_OP_CC_RESUME_PAUSEBUTTON = 133, /* wire 1121 */
     /* CC_SETCLICKMASK — Set secondary sprite graphic.
      * int stack in:   graphic_id
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETCLICKMASK = 113, /* wire 1122 */
-    CS2_OP_CC_SETBLENDCOLOUR = 114, /* wire 1123 */
+    CS2_OP_CC_SETCLICKMASK = 134, /* wire 1122 */
+    CS2_OP_CC_SETBLENDCOLOUR = 135, /* wire 1123 */
     /* CC_SETBLENDTRANS — Set bottom transparency.
      * int stack in:   trans
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETBLENDTRANS = 115, /* wire 1124 */
+    CS2_OP_CC_SETBLENDTRANS = 136, /* wire 1124 */
     /* CC_SETBLENDMODE — Set fill mode.
      * int stack in:   fill_mode
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETBLENDMODE = 116, /* wire 1125 */
-    CS2_OP_CC_SETLINEDIRECTION = 117, /* wire 1126 */
-    CS2_OP_CC_SETMODELTRANSPARENT = 118, /* wire 1127 */
+    CS2_OP_CC_SETBLENDMODE = 137, /* wire 1125 */
+    CS2_OP_CC_SETLINEDIRECTION = 138, /* wire 1126 */
+    CS2_OP_CC_SETMODELTRANSPARENT = 139, /* wire 1127 */
     /* CC_SETARC — Set the arc's start and end angle on the active child.
      * int stack in:   start_angle, end_angle  (end_angle = top)
      * str stack in:   -
@@ -634,31 +755,31 @@ enum CS2_Op
      * str stack out:  -
      * notes: Widget type 10 only. 65536 is a full turn, 0 is straight up, and the sweep runs clockwise. Drawn as an annulus sector; script 5480 builds the overlay countdown pie from three of them.
      */
-    CS2_OP_CC_SETARC = 119, /* wire 1128 */
-    CS2_OP_CC_SETHTTPSPRITE = 120, /* wire 1129 */
-    CS2_OP_CC_CRMVIEW_INIT = 121, /* wire 1130 */
-    CS2_OP_CC_CRMVIEW_SETTEXTFONT = 122, /* wire 1131 */
-    CS2_OP_CC_CRMVIEW_SETSERVERTARGETS = 123, /* wire 1132 */
-    CS2_OP_CC_INPUT_SETSELECTCOLOUR = 124, /* wire 1133 */
-    CS2_OP_CC_INPUT_SETSELECTBGCOLOUR = 125, /* wire 1134 */
-    CS2_OP_CC_INPUT_SETPLACEHOLDERTEXT = 126, /* wire 1135 */
-    CS2_OP_CC_INPUT_SETPLACEHOLDERTEXTCOLOUR = 127, /* wire 1136 */
-    CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH = 128, /* wire 1137 */
-    CS2_OP_CC_INPUT_SETLINECOUNTLIMIT = 129, /* wire 1138 */
-    CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT = 130, /* wire 1139 */
-    CS2_OP_CC_INPUT_SETFOCUS = 131, /* wire 1140 */
-    CS2_OP_CC_INPUT_SETFOCUSABLE = 132, /* wire 1141 */
-    CS2_OP_CC_INPUT_SETSELECTION = 133, /* wire 1142 */
-    CS2_OP_CC_INPUT_SETCARET = 134, /* wire 1143 */
-    CS2_OP_CC_INPUT_SETWRAPMODE = 135, /* wire 1144 */
-    CS2_OP_CC_INPUT_SETSUBMITMODE = 136, /* wire 1145 */
-    CS2_OP_CC_INPUT_SETACCEPTMODE = 137, /* wire 1146 */
-    CS2_OP_CC_INPUT_SETCENSORMODE = 138, /* wire 1147 */
-    CS2_OP_CC_INPUT_SETKEYMODE = 139, /* wire 1148 */
-    CS2_OP_CC_INPUT_SETCHARMODE = 140, /* wire 1149 */
-    CS2_OP_CC_CRMVIEW_SETJSON = 141, /* wire 1150 */
-    CS2_OP_CC_CRMVIEW_INIT_V2 = 142, /* wire 1151 */
-    CS2_OP_CC_CRMVIEW_DISMISS = 143, /* wire 1152 */
+    CS2_OP_CC_SETARC = 140, /* wire 1128 */
+    CS2_OP_CC_SETHTTPSPRITE = 141, /* wire 1129 */
+    CS2_OP_CC_CRMVIEW_INIT = 142, /* wire 1130 */
+    CS2_OP_CC_CRMVIEW_SETTEXTFONT = 143, /* wire 1131 */
+    CS2_OP_CC_CRMVIEW_SETSERVERTARGETS = 144, /* wire 1132 */
+    CS2_OP_CC_INPUT_SETSELECTCOLOUR = 145, /* wire 1133 */
+    CS2_OP_CC_INPUT_SETSELECTBGCOLOUR = 146, /* wire 1134 */
+    CS2_OP_CC_INPUT_SETPLACEHOLDERTEXT = 147, /* wire 1135 */
+    CS2_OP_CC_INPUT_SETPLACEHOLDERTEXTCOLOUR = 148, /* wire 1136 */
+    CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH = 149, /* wire 1137 */
+    CS2_OP_CC_INPUT_SETLINECOUNTLIMIT = 150, /* wire 1138 */
+    CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT = 151, /* wire 1139 */
+    CS2_OP_CC_INPUT_SETFOCUS = 152, /* wire 1140 */
+    CS2_OP_CC_INPUT_SETFOCUSABLE = 153, /* wire 1141 */
+    CS2_OP_CC_INPUT_SETSELECTION = 154, /* wire 1142 */
+    CS2_OP_CC_INPUT_SETCARET = 155, /* wire 1143 */
+    CS2_OP_CC_INPUT_SETWRAPMODE = 156, /* wire 1144 */
+    CS2_OP_CC_INPUT_SETSUBMITMODE = 157, /* wire 1145 */
+    CS2_OP_CC_INPUT_SETACCEPTMODE = 158, /* wire 1146 */
+    CS2_OP_CC_INPUT_SETCENSORMODE = 159, /* wire 1147 */
+    CS2_OP_CC_INPUT_SETKEYMODE = 160, /* wire 1148 */
+    CS2_OP_CC_INPUT_SETCHARMODE = 161, /* wire 1149 */
+    CS2_OP_CC_CRMVIEW_SETJSON = 162, /* wire 1150 */
+    CS2_OP_CC_CRMVIEW_INIT_V2 = 163, /* wire 1151 */
+    CS2_OP_CC_CRMVIEW_DISMISS = 164, /* wire 1152 */
 
     /* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
      * component object and head-model setters.
@@ -671,32 +792,32 @@ enum CS2_Op
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETOBJECT = 144, /* wire 1200 */
-    CS2_OP_CC_SETNPCHEAD = 145, /* wire 1201 */
-    CS2_OP_CC_SETPLAYERHEAD_SELF = 146, /* wire 1202 */
-    CS2_OP__1203 = 147, /* wire 1203 */
-    CS2_OP__1204 = 148, /* wire 1204 */
+    CS2_OP_CC_SETOBJECT = 165, /* wire 1200 */
+    CS2_OP_CC_SETNPCHEAD = 166, /* wire 1201 */
+    CS2_OP_CC_SETPLAYERHEAD_SELF = 167, /* wire 1202 */
+    CS2_OP__1203 = 168, /* wire 1203 */
+    CS2_OP__1204 = 169, /* wire 1204 */
     /* CC_SETOBJECT_NONUM — Set the object icon, never drawing its count.
      * int stack in:   obj_id, count  (count = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETOBJECT_NONUM = 149, /* wire 1205 */
-    CS2_OP_CC_SETPLAYERMODEL_SELF = 150, /* wire 1207 */
-    CS2_OP_CC_SETPLAYERMODEL_OBJ = 151, /* wire 1208 */
-    CS2_OP_CC_SETPLAYERMODEL_BASECOLOUR = 152, /* wire 1209 */
-    CS2_OP_CC_SETPLAYERMODEL_BODYTYPE = 153, /* wire 1210 */
+    CS2_OP_CC_SETOBJECT_NONUM = 170, /* wire 1205 */
+    CS2_OP_CC_SETPLAYERMODEL_SELF = 171, /* wire 1207 */
+    CS2_OP_CC_SETPLAYERMODEL_OBJ = 172, /* wire 1208 */
+    CS2_OP_CC_SETPLAYERMODEL_BASECOLOUR = 173, /* wire 1209 */
+    CS2_OP_CC_SETPLAYERMODEL_BODYTYPE = 174, /* wire 1210 */
     /* CC_SETOBJECT_ALWAYSNUM — Set object icon always showing qty.
      * int stack in:   obj_count, obj_id  (obj_id = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETOBJECT_ALWAYSNUM = 154, /* wire 1212 */
-    CS2_OP_CC_SETOBJECT_NUMMODE = 155, /* wire 1213 */
-    CS2_OP_CC_SETLOCMODEL = 156, /* wire 1214 */
-    CS2_OP_CC_SETNPCMODEL = 157, /* wire 1215 */
+    CS2_OP_CC_SETOBJECT_ALWAYSNUM = 175, /* wire 1212 */
+    CS2_OP_CC_SETOBJECT_NUMMODE = 176, /* wire 1213 */
+    CS2_OP_CC_SETLOCMODEL = 177, /* wire 1214 */
+    CS2_OP_CC_SETNPCMODEL = 178, /* wire 1215 */
 
     /* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
      * component ops, dragging and key bindings.
@@ -711,14 +832,14 @@ enum CS2_Op
      * str stack out:  -
      * notes: index 1-10 maps to actions[index - 1]
      */
-    CS2_OP_CC_SETOP = 158, /* wire 1300 */
+    CS2_OP_CC_SETOP = 179, /* wire 1300 */
     /* CC_SETDRAGGABLE — Set draggable parent/child.
      * int stack in:   parent_uid, child_index  (child_index = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETDRAGGABLE = 159, /* wire 1301 */
+    CS2_OP_CC_SETDRAGGABLE = 180, /* wire 1301 */
     /* CC_SETDRAGRENDERBEHAVIOUR — Set drag behavior.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   behavior
@@ -727,21 +848,21 @@ enum CS2_Op
      * str stack out:  -
      * notes: behavior 1 sets isScrollBar
      */
-    CS2_OP_CC_SETDRAGRENDERBEHAVIOUR = 160, /* wire 1302 */
+    CS2_OP_CC_SETDRAGRENDERBEHAVIOUR = 181, /* wire 1302 */
     /* CC_SETDRAGDEADZONE — Set drag dead zone pixels.
      * int stack in:   zone
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETDRAGDEADZONE = 161, /* wire 1303 */
+    CS2_OP_CC_SETDRAGDEADZONE = 182, /* wire 1303 */
     /* CC_SETDRAGDEADTIME — Set drag dead time ms.
      * int stack in:   time
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETDRAGDEADTIME = 162, /* wire 1304 */
+    CS2_OP_CC_SETDRAGDEADTIME = 183, /* wire 1304 */
     /* CC_SETOPBASE — Set context-menu target label (op base).
      * int stack in:   -
      * str stack in:   text
@@ -749,21 +870,21 @@ enum CS2_Op
      * str stack out:  -
      * notes: Op base is the right-hand target text in Choose Option menus (e.g. spell name on Cast). Stored as widget opBase.
      */
-    CS2_OP_CC_SETOPBASE = 163, /* wire 1305 */
+    CS2_OP_CC_SETOPBASE = 184, /* wire 1305 */
     /* CC_SETTARGETVERB — Set target verb on the active/dot component.
      * int stack in:   -
      * str stack in:   text
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETTARGETVERB = 164, /* wire 1306 */
+    CS2_OP_CC_SETTARGETVERB = 185, /* wire 1306 */
     /* CC_CLEAROPS — Clear all ops on active child.
      * int stack in:   -
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_CLEAROPS = 165, /* wire 1307 */
+    CS2_OP_CC_CLEAROPS = 186, /* wire 1307 */
     /* CC_SETALWAYSLEFTCLICK — Force left-click to execute the op without opening the menu.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   flag
@@ -772,14 +893,14 @@ enum CS2_Op
      * str stack out:  -
      * notes: flag == 1 enables; any other value disables.
      */
-    CS2_OP_CC_SETALWAYSLEFTCLICK = 166, /* wire 1308 */
+    CS2_OP_CC_SETALWAYSLEFTCLICK = 187, /* wire 1308 */
     /* CC_SETPINCH — Client stub that discards one int.
      * int stack in:   value
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETPINCH = 167, /* wire 1309 */
+    CS2_OP_CC_SETPINCH = 188, /* wire 1309 */
     /* CC_CLEARSUBOPS — Clear submenu entries for one op slot.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   op_index
@@ -788,7 +909,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: op_index is 1-based (1..10).
      */
-    CS2_OP_CC_CLEARSUBOPS = 168, /* wire 1310 */
+    CS2_OP_CC_CLEARSUBOPS = 189, /* wire 1310 */
     /* CC_SETSUBOP — Set a submenu entry label.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   op_index, sub_index  (sub_index = top)
@@ -797,7 +918,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: op_index and sub_index are 1-based in script.
      */
-    CS2_OP_CC_SETSUBOP = 169, /* wire 1311 */
+    CS2_OP_CC_SETSUBOP = 190, /* wire 1311 */
     /* CC_SETOPPRIORITY — Set target priority.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   priority
@@ -806,7 +927,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: -1 resets to 4; 1..32 stores value-1.
      */
-    CS2_OP_CC_SETOPPRIORITY = 170, /* wire 1312 */
+    CS2_OP_CC_SETOPPRIORITY = 191, /* wire 1312 */
     /* CC_SETOPKEY — Bind up to 5 (keychar, keycode) pairs to an op slot on the active child.
      * int stack in:   opindex, k0_char, k0_code, k1_char, k1_code, k2_char, k2_code, k3_char, k3_code, k4_char, k4_code  (k4_code = top)
      * str stack in:   -
@@ -815,14 +936,14 @@ enum CS2_Op
      * notes: opindex is 1-based (1..10). Pairs are read bottom-up and stop at the
      *        first negative keychar; a negative k0_char clears the slot.
      */
-    CS2_OP_CC_SETOPKEY = 171, /* wire 1350 */
+    CS2_OP_CC_SETOPKEY = 192, /* wire 1350 */
     /* CC_SETOPTKEY — Bind one (keychar, keycode) pair to the typed-key slot (op 10).
      * int stack in:   keychar, keycode  (keycode = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETOPTKEY = 172, /* wire 1351 */
+    CS2_OP_CC_SETOPTKEY = 193, /* wire 1351 */
     /* CC_SETOPKEYRATE — Set auto-repeat rate for an op key slot.
      * int stack in:   opindex, keyrate, tickrate  (tickrate = top)
      * str stack in:   -
@@ -830,7 +951,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: tickrate == 0 disables repeat.
      */
-    CS2_OP_CC_SETOPKEYRATE = 173, /* wire 1352 */
+    CS2_OP_CC_SETOPKEYRATE = 194, /* wire 1352 */
     /* CC_SETOPTKEYRATE — Set auto-repeat rate for the typed-key slot (op 10).
      * int stack in:   tickrate, keyrate  (keyrate = top)
      * str stack in:   -
@@ -840,21 +961,21 @@ enum CS2_Op
      *        values are unused downstream, so only the count matters; mirrored
      *        rather than "corrected" without a real-cache trace.
      */
-    CS2_OP_CC_SETOPTKEYRATE = 174, /* wire 1353 */
+    CS2_OP_CC_SETOPTKEYRATE = 195, /* wire 1353 */
     /* CC_SETOPKEYIGNOREHELD — Suppress auto-repeat while the key is held.
      * int stack in:   opindex
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETOPKEYIGNOREHELD = 175, /* wire 1354 */
+    CS2_OP_CC_SETOPKEYIGNOREHELD = 196, /* wire 1354 */
     /* CC_SETOPTKEYIGNOREHELD — Suppress auto-repeat on the typed-key slot (op 10).
      * int stack in:   -
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_CC_SETOPTKEYIGNOREHELD = 176, /* wire 1355 */
+    CS2_OP_CC_SETOPTKEYIGNOREHELD = 197, /* wire 1355 */
 
     /* === CS2 opcode group: component-listener (1400..1499 / 2400..2499) ===
      * component listener registration.
@@ -869,7 +990,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_CC_SETONCLICK = 177, /* wire 1400 */
+    CS2_OP_CC_SETONCLICK = 198, /* wire 1400 */
     /* CC_SETONHOLD — Set onHold handler on active child.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -878,8 +999,8 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_CC_SETONHOLD = 178, /* wire 1401 */
-    CS2_OP_CC_SETONRELEASE = 179, /* wire 1402 */
+    CS2_OP_CC_SETONHOLD = 199, /* wire 1401 */
+    CS2_OP_CC_SETONRELEASE = 200, /* wire 1402 */
     /* CC_SETONMOUSEOVER — Set onMouseOver handler on active child.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -888,7 +1009,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_CC_SETONMOUSEOVER = 180, /* wire 1403 */
+    CS2_OP_CC_SETONMOUSEOVER = 201, /* wire 1403 */
     /* CC_SETONMOUSELEAVE — Set onMouseLeave handler on active child.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -897,7 +1018,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_CC_SETONMOUSELEAVE = 181, /* wire 1404 */
+    CS2_OP_CC_SETONMOUSELEAVE = 202, /* wire 1404 */
     /* CC_SETONDRAG — Set onDrag handler on active child.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -906,10 +1027,10 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_CC_SETONDRAG = 182, /* wire 1405 */
-    CS2_OP_CC_SETONTARGETLEAVE = 183, /* wire 1406 */
-    CS2_OP_CC_SETONVARTRANSMIT = 184, /* wire 1407 */
-    CS2_OP_CC_SETONTIMER = 185, /* wire 1408 */
+    CS2_OP_CC_SETONDRAG = 203, /* wire 1405 */
+    CS2_OP_CC_SETONTARGETLEAVE = 204, /* wire 1406 */
+    CS2_OP_CC_SETONVARTRANSMIT = 205, /* wire 1407 */
+    CS2_OP_CC_SETONTIMER = 206, /* wire 1408 */
     /* CC_SETONOP — Set onOp handler on active child.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -918,7 +1039,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_CC_SETONOP = 186, /* wire 1409 */
+    CS2_OP_CC_SETONOP = 207, /* wire 1409 */
     /* CC_SETONDRAGCOMPLETE — Set onDragComplete handler on active child.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -927,9 +1048,9 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_CC_SETONDRAGCOMPLETE = 187, /* wire 1410 */
-    CS2_OP_CC_SETONCLICKREPEAT = 188, /* wire 1411 */
-    CS2_OP_CC_SETONMOUSEREPEAT = 189, /* wire 1412 */
+    CS2_OP_CC_SETONDRAGCOMPLETE = 208, /* wire 1410 */
+    CS2_OP_CC_SETONCLICKREPEAT = 209, /* wire 1411 */
+    CS2_OP_CC_SETONMOUSEREPEAT = 210, /* wire 1412 */
     /* CC_SETONINVTRANSMIT — Register inv-transmit script on active child.
      * operand: script id
      * int stack in:   -
@@ -938,9 +1059,9 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_CC_SETONINVTRANSMIT = 190, /* wire 1414 */
-    CS2_OP_CC_SETONSTATTRANSMIT = 191, /* wire 1415 */
-    CS2_OP_CC_SETONTARGETENTER = 192, /* wire 1416 */
+    CS2_OP_CC_SETONINVTRANSMIT = 211, /* wire 1414 */
+    CS2_OP_CC_SETONSTATTRANSMIT = 212, /* wire 1415 */
+    CS2_OP_CC_SETONTARGETENTER = 213, /* wire 1416 */
     /* CC_SETONSCROLLWHEEL — Set onScroll handler on active child.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -950,8 +1071,8 @@ enum CS2_Op
      * notes: Stores onScroll (not onScrollWheel); wheel in opcode name is the trigger.
      *        signature args on stack
      */
-    CS2_OP_CC_SETONSCROLLWHEEL = 193, /* wire 1417 */
-    CS2_OP_CC_SETONCHATTRANSMIT = 194, /* wire 1418 */
+    CS2_OP_CC_SETONSCROLLWHEEL = 214, /* wire 1417 */
+    CS2_OP_CC_SETONCHATTRANSMIT = 215, /* wire 1418 */
     /* CC_SETONKEY — Set onKey handler on active child.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -960,36 +1081,36 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_CC_SETONKEY = 195, /* wire 1419 */
-    CS2_OP_CC_SETONFRIENDTRANSMIT = 196, /* wire 1420 */
-    CS2_OP_CC_SETONCLANTRANSMIT = 197, /* wire 1421 */
-    CS2_OP_CC_SETONMISCTRANSMIT = 198, /* wire 1422 */
-    CS2_OP_CC_SETONDIALOGABORT = 199, /* wire 1423 */
-    CS2_OP_CC_SETONSUBCHANGE = 200, /* wire 1424 */
-    CS2_OP_CC_SETONSTOCKTRANSMIT = 201, /* wire 1425 */
-    CS2_OP_CC_SETONACTIVEOFFERSTRANSMIT = 202, /* wire 1426 */
-    CS2_OP_CC_SETONRESIZE = 203, /* wire 1427 */
-    CS2_OP_CC_SETONCLANSETTINGSTRANSMIT = 204, /* wire 1428 */
-    CS2_OP_CC_SETONCLANCHANNELTRANSMIT = 205, /* wire 1429 */
+    CS2_OP_CC_SETONKEY = 216, /* wire 1419 */
+    CS2_OP_CC_SETONFRIENDTRANSMIT = 217, /* wire 1420 */
+    CS2_OP_CC_SETONCLANTRANSMIT = 218, /* wire 1421 */
+    CS2_OP_CC_SETONMISCTRANSMIT = 219, /* wire 1422 */
+    CS2_OP_CC_SETONDIALOGABORT = 220, /* wire 1423 */
+    CS2_OP_CC_SETONSUBCHANGE = 221, /* wire 1424 */
+    CS2_OP_CC_SETONSTOCKTRANSMIT = 222, /* wire 1425 */
+    CS2_OP_CC_SETONACTIVEOFFERSTRANSMIT = 223, /* wire 1426 */
+    CS2_OP_CC_SETONRESIZE = 224, /* wire 1427 */
+    CS2_OP_CC_SETONCLANSETTINGSTRANSMIT = 225, /* wire 1428 */
+    CS2_OP_CC_SETONCLANCHANNELTRANSMIT = 226, /* wire 1429 */
     /* More SETON* listeners with no runtime model yet — signature-driven operand
      * counts, so they are dispatched to the parse-and-discard helper like the rest
      * of the family (see the CC_SETON* discard group in cs2vm2.c). */
-    CS2_OP_CC_SETONKEYDOWN = 206, /* wire 1430 */
-    CS2_OP_CC_SETONKEYUP = 207, /* wire 1431 */
-    CS2_OP_CC_SETONMAPPRE = 208, /* wire 1432 */
-    CS2_OP_CC_SETONMAPPOST = 209, /* wire 1433 */
-    CS2_OP_CC_CRMVIEW_SETONUPDATED = 210, /* wire 1434 */
-    CS2_OP_CC_SETONOPT = 211, /* wire 1435 */
+    CS2_OP_CC_SETONKEYDOWN = 227, /* wire 1430 */
+    CS2_OP_CC_SETONKEYUP = 228, /* wire 1431 */
+    CS2_OP_CC_SETONMAPPRE = 229, /* wire 1432 */
+    CS2_OP_CC_SETONMAPPOST = 230, /* wire 1433 */
+    CS2_OP_CC_CRMVIEW_SETONUPDATED = 231, /* wire 1434 */
+    CS2_OP_CC_SETONOPT = 232, /* wire 1435 */
     /*
      * Input-field (widget type 16) listeners. Signature-driven operand counts like
      * the other SETON* opcodes, so they are dispatched to the parse-and-discard
      * helpers rather than described here; the counts below are placeholders the
      * generator ignores for SETON names.
      */
-    CS2_OP_CC_INPUT_SETONFOCUSCHANGED = 212, /* wire 1436 */
-    CS2_OP_CC_INPUT_SETONSELECT = 213, /* wire 1437 */
-    CS2_OP_CC_INPUT_SETONSUBMIT = 214, /* wire 1438 */
-    CS2_OP_CC_INPUT_SETONCHANGE = 215, /* wire 1439 */
+    CS2_OP_CC_INPUT_SETONFOCUSCHANGED = 233, /* wire 1436 */
+    CS2_OP_CC_INPUT_SETONSELECT = 234, /* wire 1437 */
+    CS2_OP_CC_INPUT_SETONSUBMIT = 235, /* wire 1438 */
+    CS2_OP_CC_INPUT_SETONCHANGE = 236, /* wire 1439 */
 
     /* === CS2 opcode group: cc-geometry (1500..1599) ===
      * active-component geometry getters.
@@ -1002,7 +1123,7 @@ enum CS2_Op
      * int stack out:  x
      * str stack out:  -
      */
-    CS2_OP_CC_GETX = 216, /* wire 1500 */
+    CS2_OP_CC_GETX = 237, /* wire 1500 */
     /* CC_GETY — Get relative Y of child component.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -1010,7 +1131,7 @@ enum CS2_Op
      * int stack out:  y
      * str stack out:  -
      */
-    CS2_OP_CC_GETY = 217, /* wire 1501 */
+    CS2_OP_CC_GETY = 238, /* wire 1501 */
     /* CC_GETWIDTH — Get layout width.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -1018,7 +1139,7 @@ enum CS2_Op
      * int stack out:  width
      * str stack out:  -
      */
-    CS2_OP_CC_GETWIDTH = 218, /* wire 1502 */
+    CS2_OP_CC_GETWIDTH = 239, /* wire 1502 */
     /* CC_GETHEIGHT — Get layout height.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   -
@@ -1026,22 +1147,22 @@ enum CS2_Op
      * int stack out:  height
      * str stack out:  -
      */
-    CS2_OP_CC_GETHEIGHT = 219, /* wire 1503 */
+    CS2_OP_CC_GETHEIGHT = 240, /* wire 1503 */
     /* CC_GETHIDE — Get hidden flag.
      * int stack in:   -
      * str stack in:   -
      * int stack out:  hidden ? 1 : 0
      * str stack out:  -
      */
-    CS2_OP_CC_GETHIDE = 220, /* wire 1504 */
+    CS2_OP_CC_GETHIDE = 241, /* wire 1504 */
     /* CC_GETLAYER — Get parent component id.
      * int stack in:   -
      * str stack in:   -
      * int stack out:  parent_id
      * str stack out:  -
      */
-    CS2_OP_CC_GETLAYER = 221, /* wire 1505 */
-    CS2_OP_CC_GETPARENTLAYER = 222, /* wire 1506 */
+    CS2_OP_CC_GETLAYER = 242, /* wire 1505 */
+    CS2_OP_CC_GETPARENTLAYER = 243, /* wire 1506 */
 
     /* === CS2 opcode group: cc-appearance (1600..1699) ===
      * active-component appearance getters.
@@ -1053,79 +1174,79 @@ enum CS2_Op
      * int stack out:  0
      * str stack out:  -
      */
-    CS2_OP_CC_GETSCROLLX = 223, /* wire 1600 */
+    CS2_OP_CC_GETSCROLLX = 244, /* wire 1600 */
     /* CC_GETSCROLLY — Get scroll Y (stub).
      * int stack in:   -
      * str stack in:   -
      * int stack out:  0
      * str stack out:  -
      */
-    CS2_OP_CC_GETSCROLLY = 224, /* wire 1601 */
+    CS2_OP_CC_GETSCROLLY = 245, /* wire 1601 */
     /* CC_GETTEXT — Get text.
      * int stack in:   -
      * str stack in:   -
      * int stack out:  -
      * str stack out:  text
      */
-    CS2_OP_CC_GETTEXT = 225, /* wire 1602 */
+    CS2_OP_CC_GETTEXT = 246, /* wire 1602 */
     /* CC_GETSCROLLWIDTH — Get scroll content width.
      * int stack in:   -
      * str stack in:   -
      * int stack out:  scroll_width
      * str stack out:  -
      */
-    CS2_OP_CC_GETSCROLLWIDTH = 226, /* wire 1603 */
+    CS2_OP_CC_GETSCROLLWIDTH = 247, /* wire 1603 */
     /* CC_GETSCROLLHEIGHT — Get scroll content height.
      * int stack in:   -
      * str stack in:   -
      * int stack out:  scroll_height
      * str stack out:  -
      */
-    CS2_OP_CC_GETSCROLLHEIGHT = 227, /* wire 1604 */
-    CS2_OP_CC_GETMODELZOOM = 228, /* wire 1605 */
-    CS2_OP_CC_GETMODELANGLE_X = 229, /* wire 1606 */
-    CS2_OP_CC_GETMODELANGLE_Z = 230, /* wire 1607 */
-    CS2_OP_CC_GETMODELANGLE_Y = 231, /* wire 1608 */
-    CS2_OP_CC_GETTRANS = 232, /* wire 1609 */
-    CS2_OP_CC_GETBLENDTRANS = 233, /* wire 1610 */
-    CS2_OP_CC_GETCOLOUR = 234, /* wire 1611 */
-    CS2_OP_CC_GETBLENDCOLOUR = 235, /* wire 1612 */
-    CS2_OP_CC_GETBLENDMODE = 236, /* wire 1613 */
-    CS2_OP_CC_GETMODELTRANSPARENT = 237, /* wire 1614 */
-    CS2_OP_CC_GETARCSTART = 238, /* wire 1615 */
-    CS2_OP_CC_GETARCEND = 239, /* wire 1616 */
-    CS2_OP_CC_INPUT_GETSELECTCOLOUR = 240, /* wire 1617 */
-    CS2_OP_CC_INPUT_GETSELECTBGCOLOUR = 241, /* wire 1618 */
-    CS2_OP_CC_INPUT_GETPLACEHOLDERTEXT = 242, /* wire 1619 */
-    CS2_OP_CC_INPUT_GETPLACEHOLDERTEXTCOLOUR = 243, /* wire 1620 */
-    CS2_OP_CC_INPUT_GETLINEWRAPPINGWIDTH = 244, /* wire 1621 */
-    CS2_OP_CC_INPUT_GETLINECOUNTLIMIT = 245, /* wire 1622 */
-    CS2_OP_CC_INPUT_GETLINEWIDTHLIMIT = 246, /* wire 1623 */
-    CS2_OP_CC_INPUT_GETFOCUS = 247, /* wire 1624 */
-    CS2_OP_CC_INPUT_GETFOCUSABLE = 248, /* wire 1625 */
-    CS2_OP_CC_INPUT_GETSELECTIONTEXT = 249, /* wire 1626 */
-    CS2_OP_CC_INPUT_GETSELECTIONBOUNDS = 250, /* wire 1627 */
-    CS2_OP_CC_INPUT_GETCARETPOSITION = 251, /* wire 1628 */
-    CS2_OP_CC_INPUT_GETLINEWRAPPINGMODE = 252, /* wire 1629 */
-    CS2_OP_CC_INPUT_GETSUBMITMODE = 253, /* wire 1630 */
-    CS2_OP_CC_INPUT_GETACCEPTMODE = 254, /* wire 1631 */
-    CS2_OP_CC_INPUT_GETCENSORMODE = 255, /* wire 1632 */
-    CS2_OP_CC_INPUT_GETKEYMODE = 256, /* wire 1633 */
-    CS2_OP_CC_INPUT_GETCHARMODE = 257, /* wire 1634 */
+    CS2_OP_CC_GETSCROLLHEIGHT = 248, /* wire 1604 */
+    CS2_OP_CC_GETMODELZOOM = 249, /* wire 1605 */
+    CS2_OP_CC_GETMODELANGLE_X = 250, /* wire 1606 */
+    CS2_OP_CC_GETMODELANGLE_Z = 251, /* wire 1607 */
+    CS2_OP_CC_GETMODELANGLE_Y = 252, /* wire 1608 */
+    CS2_OP_CC_GETTRANS = 253, /* wire 1609 */
+    CS2_OP_CC_GETBLENDTRANS = 254, /* wire 1610 */
+    CS2_OP_CC_GETCOLOUR = 255, /* wire 1611 */
+    CS2_OP_CC_GETBLENDCOLOUR = 256, /* wire 1612 */
+    CS2_OP_CC_GETBLENDMODE = 257, /* wire 1613 */
+    CS2_OP_CC_GETMODELTRANSPARENT = 258, /* wire 1614 */
+    CS2_OP_CC_GETARCSTART = 259, /* wire 1615 */
+    CS2_OP_CC_GETARCEND = 260, /* wire 1616 */
+    CS2_OP_CC_INPUT_GETSELECTCOLOUR = 261, /* wire 1617 */
+    CS2_OP_CC_INPUT_GETSELECTBGCOLOUR = 262, /* wire 1618 */
+    CS2_OP_CC_INPUT_GETPLACEHOLDERTEXT = 263, /* wire 1619 */
+    CS2_OP_CC_INPUT_GETPLACEHOLDERTEXTCOLOUR = 264, /* wire 1620 */
+    CS2_OP_CC_INPUT_GETLINEWRAPPINGWIDTH = 265, /* wire 1621 */
+    CS2_OP_CC_INPUT_GETLINECOUNTLIMIT = 266, /* wire 1622 */
+    CS2_OP_CC_INPUT_GETLINEWIDTHLIMIT = 267, /* wire 1623 */
+    CS2_OP_CC_INPUT_GETFOCUS = 268, /* wire 1624 */
+    CS2_OP_CC_INPUT_GETFOCUSABLE = 269, /* wire 1625 */
+    CS2_OP_CC_INPUT_GETSELECTIONTEXT = 270, /* wire 1626 */
+    CS2_OP_CC_INPUT_GETSELECTIONBOUNDS = 271, /* wire 1627 */
+    CS2_OP_CC_INPUT_GETCARETPOSITION = 272, /* wire 1628 */
+    CS2_OP_CC_INPUT_GETLINEWRAPPINGMODE = 273, /* wire 1629 */
+    CS2_OP_CC_INPUT_GETSUBMITMODE = 274, /* wire 1630 */
+    CS2_OP_CC_INPUT_GETACCEPTMODE = 275, /* wire 1631 */
+    CS2_OP_CC_INPUT_GETCENSORMODE = 276, /* wire 1632 */
+    CS2_OP_CC_INPUT_GETKEYMODE = 277, /* wire 1633 */
+    CS2_OP_CC_INPUT_GETCHARMODE = 278, /* wire 1634 */
 
     /* === CS2 opcode group: cc-inventory (1700..1799) ===
      * active-component inventory and identity getters.
      * rev-239 dispatch: Statics.method6889 -> method12337.
      */
-    CS2_OP_CC_GETINVOBJECT = 258, /* wire 1700 */
-    CS2_OP_CC_GETINVCOUNT = 259, /* wire 1701 */
+    CS2_OP_CC_GETINVOBJECT = 279, /* wire 1700 */
+    CS2_OP_CC_GETINVCOUNT = 280, /* wire 1701 */
     /* CC_GETID — Get active component id.
      * int stack in:   -
      * str stack in:   -
      * int stack out:  active_component
      * str stack out:  -
      */
-    CS2_OP_CC_GETID = 260, /* wire 1702 */
+    CS2_OP_CC_GETID = 281, /* wire 1702 */
     /* CC_PARAM — Read a param off the component's runtime param table.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   param_id
@@ -1134,7 +1255,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: Answers with what CC_SETPARAM wrote, else the ParamType's default_int — which is what makes the scripts' `= -1` guards mean "never tagged".
      */
-    CS2_OP_CC_PARAM = 261, /* wire 1703 */
+    CS2_OP_CC_PARAM = 282, /* wire 1703 */
     /* CC_SETPARAM — Write a param onto the component's runtime param table.
      * operand: 0 = active component, 1 = dot component
      * int stack in:   param_id, value, kind  (kind = top)
@@ -1143,41 +1264,41 @@ enum CS2_Op
      * str stack out:  -
      * notes: OldSchool-era, distinct from CC_GETBLENDMODE (1613): the table lives on the component at runtime and starts empty (IF3 files carry no param section). VARIABLE ARITY, so the counts above are the kind == 0 case only: `kind` names the ParamType's type, and kind == 2 means the value was pushed on the STRING stack, leaving just (param_id, kind) on the int stack — script 9581 writes param 1017, declared `s`, that way. Popping three ints unconditionally steals an unrelated int from under it. Dedicated dispatch in cs2vm2.c handles both shapes, so this never reaches StackMetaStub with the wrong one.
      */
-    CS2_OP_CC_SETPARAM = 262, /* wire 1704 */
-    CS2_OP_CC_CRMVIEW_GETHASRESPONSE = 263, /* wire 1707 */
-    CS2_OP_CC_CRMVIEW_GETINT = 264, /* wire 1708 */
-    CS2_OP_CC_CRMVIEW_GETSTRING = 265, /* wire 1709 */
+    CS2_OP_CC_SETPARAM = 283, /* wire 1704 */
+    CS2_OP_CC_CRMVIEW_GETHASRESPONSE = 284, /* wire 1707 */
+    CS2_OP_CC_CRMVIEW_GETINT = 285, /* wire 1708 */
+    CS2_OP_CC_CRMVIEW_GETSTRING = 286, /* wire 1709 */
 
     /* === CS2 opcode group: cc-target (1800..1899) ===
      * active-component target and op getters.
      * rev-239 dispatch: Statics.method6889 -> method6843.
      */
-    CS2_OP_CC_GETTARGETMASK = 266, /* wire 1800 */
+    CS2_OP_CC_GETTARGETMASK = 287, /* wire 1800 */
     /* CC_GETOP — Get op text.
      * int stack in:   op_index
      * str stack in:   -
      * int stack out:  -
      * str stack out:  op text
      */
-    CS2_OP_CC_GETOP = 267, /* wire 1801 */
+    CS2_OP_CC_GETOP = 288, /* wire 1801 */
     /* CC_GETOPBASE — Get op base text.
      * int stack in:   -
      * str stack in:   -
      * int stack out:  -
      * str stack out:  op_base
      */
-    CS2_OP_CC_GETOPBASE = 268, /* wire 1802 */
-    CS2_OP_DEEPLINK_GET = 269, /* wire 1826 */
-    CS2_OP_DEEPLINK_COUNT = 270, /* wire 1827 */
-    CS2_OP_DEEPLINK_CLEAR_INDEX = 271, /* wire 1828 */
+    CS2_OP_CC_GETOPBASE = 289, /* wire 1802 */
+    CS2_OP_DEEPLINK_GET = 290, /* wire 1826 */
+    CS2_OP_DEEPLINK_COUNT = 291, /* wire 1827 */
+    CS2_OP_DEEPLINK_CLEAR_INDEX = 292, /* wire 1828 */
 
     /* === CS2 opcode group: component-action (1900..1999 / 2900..2999) ===
      * component resize and trigger actions.
      * rev-239 dispatch: Statics.method6889 -> method1005.
      * The listed ranges deliberately share one component handler.
      */
-    CS2_OP_CC_CALLONRESIZE = 272, /* wire 1927 */
-    CS2_OP_CC_TRIGGEROP = 273, /* wire 1928 */
+    CS2_OP_CC_CALLONRESIZE = 293, /* wire 1927 */
+    CS2_OP_CC_TRIGGEROP = 294, /* wire 1928 */
 
     /* === CS2 opcode group: component-layout (1000..1099 / 2000..2099) ===
      * component position, size and visibility setters.
@@ -1191,7 +1312,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: component is top of int stack.
      */
-    CS2_OP_IF_SETPOSITION = 274, /* wire 2000 */
+    CS2_OP_IF_SETPOSITION = 295, /* wire 2000 */
     /* IF_SETSIZE — Set size.
      * int stack in:   width, height, width_mode, height_mode, component  (component = top)
      * str stack in:   -
@@ -1199,23 +1320,23 @@ enum CS2_Op
      * str stack out:  -
      * notes: component is top of int stack.
      */
-    CS2_OP_IF_SETSIZE = 275, /* wire 2001 */
+    CS2_OP_IF_SETSIZE = 296, /* wire 2001 */
     /* IF_SETHIDE — Set hidden.
      * int stack in:   component, hide  (hide = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETHIDE = 276, /* wire 2003 */
-    CS2_OP__2004 = 277, /* wire 2004 */
+    CS2_OP_IF_SETHIDE = 297, /* wire 2003 */
+    CS2_OP__2004 = 298, /* wire 2004 */
     /* IF_SETNOCLICKTHROUGH — Set no-click-through.
      * int stack in:   component, enabled  (enabled = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETNOCLICKTHROUGH = 278, /* wire 2005 */
-    CS2_OP_IF_SETNOSCROLLTHROUGH = 279, /* wire 2006 */
+    CS2_OP_IF_SETNOCLICKTHROUGH = 299, /* wire 2005 */
+    CS2_OP_IF_SETNOSCROLLTHROUGH = 300, /* wire 2006 */
 
     /* === CS2 opcode group: component-appearance (1100..1199 / 2100..2199) ===
      * component graphic, model and text setters.
@@ -1228,76 +1349,76 @@ enum CS2_Op
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETSCROLLPOS = 280, /* wire 2100 */
+    CS2_OP_IF_SETSCROLLPOS = 301, /* wire 2100 */
     /* IF_SETCOLOUR — Set colour.
      * int stack in:   component, colour  (colour = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETCOLOUR = 281, /* wire 2101 */
+    CS2_OP_IF_SETCOLOUR = 302, /* wire 2101 */
     /* IF_SETFILL — Set fill.
      * int stack in:   component, filled  (filled = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETFILL = 282, /* wire 2102 */
+    CS2_OP_IF_SETFILL = 303, /* wire 2102 */
     /* IF_SETTRANS — Set transparency.
      * int stack in:   component, trans  (trans = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETTRANS = 283, /* wire 2103 */
-    CS2_OP_IF_SETLINEWID = 284, /* wire 2104 */
+    CS2_OP_IF_SETTRANS = 304, /* wire 2103 */
+    CS2_OP_IF_SETLINEWID = 305, /* wire 2104 */
     /* IF_SETGRAPHIC — Set graphic.
      * int stack in:   graphic_id, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETGRAPHIC = 285, /* wire 2105 */
-    CS2_OP_IF_SET2DANGLE = 286, /* wire 2106 */
-    CS2_OP_IF_SETTILING = 287, /* wire 2107 */
+    CS2_OP_IF_SETGRAPHIC = 306, /* wire 2105 */
+    CS2_OP_IF_SET2DANGLE = 307, /* wire 2106 */
+    CS2_OP_IF_SETTILING = 308, /* wire 2107 */
     /* IF_SETMODEL — Set model id.
      * int stack in:   model_id, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETMODEL = 288, /* wire 2108 */
-    CS2_OP_IF_SETMODELANGLE = 289, /* wire 2109 */
-    CS2_OP_IF_SETMODELANIM = 290, /* wire 2110 */
-    CS2_OP_IF_SETMODELORTHOG = 291, /* wire 2111 */
+    CS2_OP_IF_SETMODEL = 309, /* wire 2108 */
+    CS2_OP_IF_SETMODELANGLE = 310, /* wire 2109 */
+    CS2_OP_IF_SETMODELANIM = 311, /* wire 2110 */
+    CS2_OP_IF_SETMODELORTHOG = 312, /* wire 2111 */
     /* IF_SETTEXT — Set text.
      * int stack in:   component
      * str stack in:   text
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETTEXT = 292, /* wire 2112 */
+    CS2_OP_IF_SETTEXT = 313, /* wire 2112 */
     /* IF_SETTEXTFONT — Set font.
      * int stack in:   component, font_id  (font_id = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETTEXTFONT = 293, /* wire 2113 */
+    CS2_OP_IF_SETTEXTFONT = 314, /* wire 2113 */
     /* IF_SETTEXTALIGN — Set text alignment.
      * int stack in:   x_align, y_align, line_height, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETTEXTALIGN = 294, /* wire 2114 */
+    CS2_OP_IF_SETTEXTALIGN = 315, /* wire 2114 */
     /* IF_SETTEXTSHADOW — Set text shadow.
      * int stack in:   component, shadow  (shadow = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETTEXTSHADOW = 295, /* wire 2115 */
+    CS2_OP_IF_SETTEXTSHADOW = 316, /* wire 2115 */
     /* IF_SETOUTLINE — Set sprite outline (border type).
      * int stack in:   outline, component  (component = top)
      * str stack in:   -
@@ -1305,48 +1426,48 @@ enum CS2_Op
      * str stack out:  -
      * notes: Sets widget borderType for sprite outline rendering.
      */
-    CS2_OP_IF_SETOUTLINE = 296, /* wire 2116 */
-    CS2_OP_IF_SETGRAPHICSHADOW = 297, /* wire 2117 */
-    CS2_OP_IF_SETVFLIP = 298, /* wire 2118 */
-    CS2_OP_IF_SETHFLIP = 299, /* wire 2119 */
+    CS2_OP_IF_SETOUTLINE = 317, /* wire 2116 */
+    CS2_OP_IF_SETGRAPHICSHADOW = 318, /* wire 2117 */
+    CS2_OP_IF_SETVFLIP = 319, /* wire 2118 */
+    CS2_OP_IF_SETHFLIP = 320, /* wire 2119 */
     /* IF_SETSCROLLSIZE — Set scroll size.
      * int stack in:   scroll_h, scroll_w, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETSCROLLSIZE = 300, /* wire 2120 */
-    CS2_OP_IF_RESUME_PAUSEBUTTON = 301, /* wire 2121 */
+    CS2_OP_IF_SETSCROLLSIZE = 321, /* wire 2120 */
+    CS2_OP_IF_RESUME_PAUSEBUTTON = 322, /* wire 2121 */
     /* IF_SETCLICKMASK — Set secondary sprite graphic.
      * int stack in:   graphic_id, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETCLICKMASK = 302, /* wire 2122 */
-    CS2_OP_IF_SETBLENDCOLOUR = 303, /* wire 2123 */
+    CS2_OP_IF_SETCLICKMASK = 323, /* wire 2122 */
+    CS2_OP_IF_SETBLENDCOLOUR = 324, /* wire 2123 */
     /* IF_SETBLENDTRANS — Set bottom transparency.
      * int stack in:   trans, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETBLENDTRANS = 304, /* wire 2124 */
+    CS2_OP_IF_SETBLENDTRANS = 325, /* wire 2124 */
     /* IF_SETBLENDMODE — Set fill mode.
      * int stack in:   fill_mode, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETBLENDMODE = 305, /* wire 2125 */
-    CS2_OP_IF_SETLINEDIRECTION = 306, /* wire 2126 */
+    CS2_OP_IF_SETBLENDMODE = 326, /* wire 2125 */
+    CS2_OP_IF_SETLINEDIRECTION = 327, /* wire 2126 */
     /* IF_SETMODELTRANSPARENT — Set model transparency.
      * int stack in:   transparent, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETMODELTRANSPARENT = 307, /* wire 2127 */
+    CS2_OP_IF_SETMODELTRANSPARENT = 328, /* wire 2127 */
     /* IF_SETARC — Set the arc's start and end angle.
      * int stack in:   start_angle, end_angle, component  (component = top)
      * str stack in:   -
@@ -1354,11 +1475,11 @@ enum CS2_Op
      * str stack out:  -
      * notes: The by-id form of CC_SETARC; same angle units.
      */
-    CS2_OP_IF_SETARC = 308, /* wire 2128 */
-    CS2_OP_IF_SETHTTPSPRITE = 309, /* wire 2129 */
-    CS2_OP_IF_CRMVIEW_INIT = 310, /* wire 2130 */
-    CS2_OP_IF_CRMVIEW_SETTEXTFONT = 311, /* wire 2131 */
-    CS2_OP_IF_CRMVIEW_SETSERVERTARGETS = 312, /* wire 2132 */
+    CS2_OP_IF_SETARC = 329, /* wire 2128 */
+    CS2_OP_IF_SETHTTPSPRITE = 330, /* wire 2129 */
+    CS2_OP_IF_CRMVIEW_INIT = 331, /* wire 2130 */
+    CS2_OP_IF_CRMVIEW_SETTEXTFONT = 332, /* wire 2131 */
+    CS2_OP_IF_CRMVIEW_SETSERVERTARGETS = 333, /* wire 2132 */
     /*
      * IF_ variants of the input-field config setters. No UITree model for these
      * fields yet, so each is forwarded as its own exact host request. Their stack
@@ -1371,102 +1492,102 @@ enum CS2_Op
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETSELECTCOLOUR = 313, /* wire 2133 */
+    CS2_OP_IF_INPUT_SETSELECTCOLOUR = 334, /* wire 2133 */
     /* IF_INPUT_SETSELECTBGCOLOUR
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETSELECTBGCOLOUR = 314, /* wire 2134 */
+    CS2_OP_IF_INPUT_SETSELECTBGCOLOUR = 335, /* wire 2134 */
     /* IF_INPUT_SETPLACEHOLDERTEXT — Set an input field's placeholder text.
      * int stack in:   component
      * str stack in:   text
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETPLACEHOLDERTEXT = 315, /* wire 2135 */
+    CS2_OP_IF_INPUT_SETPLACEHOLDERTEXT = 336, /* wire 2135 */
     /* IF_INPUT_SETPLACEHOLDERTEXTCOLOUR
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETPLACEHOLDERTEXTCOLOUR = 316, /* wire 2136 */
+    CS2_OP_IF_INPUT_SETPLACEHOLDERTEXTCOLOUR = 337, /* wire 2136 */
     /* IF_INPUT_SETLINEWRAPPINGWIDTH
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETLINEWRAPPINGWIDTH = 317, /* wire 2137 */
+    CS2_OP_IF_INPUT_SETLINEWRAPPINGWIDTH = 338, /* wire 2137 */
     /* IF_INPUT_SETLINECOUNTLIMIT
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETLINECOUNTLIMIT = 318, /* wire 2138 */
+    CS2_OP_IF_INPUT_SETLINECOUNTLIMIT = 339, /* wire 2138 */
     /* IF_INPUT_SETLINEWIDTHLIMIT
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETLINEWIDTHLIMIT = 319, /* wire 2139 */
+    CS2_OP_IF_INPUT_SETLINEWIDTHLIMIT = 340, /* wire 2139 */
     /* IF_INPUT_SETFOCUS
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETFOCUS = 320, /* wire 2140 */
+    CS2_OP_IF_INPUT_SETFOCUS = 341, /* wire 2140 */
     /* IF_INPUT_SETFOCUSABLE
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETFOCUSABLE = 321, /* wire 2141 */
+    CS2_OP_IF_INPUT_SETFOCUSABLE = 342, /* wire 2141 */
     /* IF_INPUT_SETSELECTION — Set an input field's selected range.
      * int stack in:   start, end, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETSELECTION = 322, /* wire 2142 */
+    CS2_OP_IF_INPUT_SETSELECTION = 343, /* wire 2142 */
     /* IF_INPUT_SETCARET
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETCARET = 323, /* wire 2143 */
+    CS2_OP_IF_INPUT_SETCARET = 344, /* wire 2143 */
     /* IF_INPUT_SETWRAPMODE
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETWRAPMODE = 324, /* wire 2144 */
+    CS2_OP_IF_INPUT_SETWRAPMODE = 345, /* wire 2144 */
     /* IF_INPUT_SETSUBMITMODE
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETSUBMITMODE = 325, /* wire 2145 */
+    CS2_OP_IF_INPUT_SETSUBMITMODE = 346, /* wire 2145 */
     /* IF_INPUT_SETACCEPTMODE
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_INPUT_SETACCEPTMODE = 326, /* wire 2146 */
-    CS2_OP_IF_INPUT_SETCENSORMODE = 327, /* wire 2147 */
-    CS2_OP_IF_INPUT_SETKEYMODE = 328, /* wire 2148 */
-    CS2_OP_IF_INPUT_SETCHARMODE = 329, /* wire 2149 */
-    CS2_OP_IF_CRMVIEW_SETJSON = 330, /* wire 2150 */
+    CS2_OP_IF_INPUT_SETACCEPTMODE = 347, /* wire 2146 */
+    CS2_OP_IF_INPUT_SETCENSORMODE = 348, /* wire 2147 */
+    CS2_OP_IF_INPUT_SETKEYMODE = 349, /* wire 2148 */
+    CS2_OP_IF_INPUT_SETCHARMODE = 350, /* wire 2149 */
+    CS2_OP_IF_CRMVIEW_SETJSON = 351, /* wire 2150 */
 
     /* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
      * component object and head-model setters.
@@ -1479,31 +1600,31 @@ enum CS2_Op
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETOBJECT = 331, /* wire 2200 */
-    CS2_OP_IF_SETNPCHEAD = 332, /* wire 2201 */
-    CS2_OP_IF_SETPLAYERHEAD_SELF = 333, /* wire 2202 */
-    CS2_OP__2203 = 334, /* wire 2203 */
+    CS2_OP_IF_SETOBJECT = 352, /* wire 2200 */
+    CS2_OP_IF_SETNPCHEAD = 353, /* wire 2201 */
+    CS2_OP_IF_SETPLAYERHEAD_SELF = 354, /* wire 2202 */
+    CS2_OP__2203 = 355, /* wire 2203 */
     /* IF_SETOBJECT_NONUM — Set object icon without qty.
      * int stack in:   obj_id, obj_count, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETOBJECT_NONUM = 335, /* wire 2205 */
-    CS2_OP_IF_SETPLAYERMODEL_SELF = 336, /* wire 2207 */
-    CS2_OP_IF_SETPLAYERMODEL_OBJ = 337, /* wire 2208 */
-    CS2_OP_IF_SETPLAYERMODEL_BASECOLOUR = 338, /* wire 2209 */
-    CS2_OP_IF_SETPLAYERMODEL_BODYTYPE = 339, /* wire 2210 */
+    CS2_OP_IF_SETOBJECT_NONUM = 356, /* wire 2205 */
+    CS2_OP_IF_SETPLAYERMODEL_SELF = 357, /* wire 2207 */
+    CS2_OP_IF_SETPLAYERMODEL_OBJ = 358, /* wire 2208 */
+    CS2_OP_IF_SETPLAYERMODEL_BASECOLOUR = 359, /* wire 2209 */
+    CS2_OP_IF_SETPLAYERMODEL_BODYTYPE = 360, /* wire 2210 */
     /* IF_SETOBJECT_ALWAYSNUM — Set object icon always showing qty.
      * int stack in:   obj_id, obj_count, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETOBJECT_ALWAYSNUM = 340, /* wire 2212 */
-    CS2_OP_IF_SETOBJECT_NUMMODE = 341, /* wire 2213 */
-    CS2_OP_IF_SETLOCMODEL = 342, /* wire 2214 */
-    CS2_OP_IF_SETNPCMODEL = 343, /* wire 2215 */
+    CS2_OP_IF_SETOBJECT_ALWAYSNUM = 361, /* wire 2212 */
+    CS2_OP_IF_SETOBJECT_NUMMODE = 362, /* wire 2213 */
+    CS2_OP_IF_SETLOCMODEL = 363, /* wire 2214 */
+    CS2_OP_IF_SETNPCMODEL = 364, /* wire 2215 */
 
     /* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
      * component ops, dragging and key bindings.
@@ -1516,35 +1637,35 @@ enum CS2_Op
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETOP = 344, /* wire 2300 */
+    CS2_OP_IF_SETOP = 365, /* wire 2300 */
     /* IF_SETDRAGGABLE — Set draggable.
      * int stack in:   component, parent_uid, child_index  (child_index = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETDRAGGABLE = 345, /* wire 2301 */
+    CS2_OP_IF_SETDRAGGABLE = 366, /* wire 2301 */
     /* IF_SETDRAGRENDERBEHAVIOUR — Set drag behavior.
      * int stack in:   component, behavior  (behavior = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETDRAGRENDERBEHAVIOUR = 346, /* wire 2302 */
+    CS2_OP_IF_SETDRAGRENDERBEHAVIOUR = 367, /* wire 2302 */
     /* IF_SETDRAGDEADZONE — Set drag dead zone.
      * int stack in:   component, zone  (zone = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETDRAGDEADZONE = 347, /* wire 2303 */
+    CS2_OP_IF_SETDRAGDEADZONE = 368, /* wire 2303 */
     /* IF_SETDRAGDEADTIME — Set drag dead time.
      * int stack in:   component, time  (time = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETDRAGDEADTIME = 348, /* wire 2304 */
+    CS2_OP_IF_SETDRAGDEADTIME = 369, /* wire 2304 */
     /* IF_SETOPBASE — Set context-menu target label (op base).
      * int stack in:   component
      * str stack in:   text
@@ -1552,36 +1673,36 @@ enum CS2_Op
      * str stack out:  -
      * notes: Op base is the right-hand target text in Choose Option menus (e.g. spell name on Cast). Stored as widget opBase.
      */
-    CS2_OP_IF_SETOPBASE = 349, /* wire 2305 */
+    CS2_OP_IF_SETOPBASE = 370, /* wire 2305 */
     /* IF_SETTARGETVERB — Set target verb on a named component.
      * int stack in:   component
      * str stack in:   text
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETTARGETVERB = 350, /* wire 2306 */
+    CS2_OP_IF_SETTARGETVERB = 371, /* wire 2306 */
     /* IF_CLEAROPS — Clear ops.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_CLEAROPS = 351, /* wire 2307 */
+    CS2_OP_IF_CLEAROPS = 372, /* wire 2307 */
     /* IF_SETALWAYSLEFTCLICK — Set click mask.
      * int stack in:   click_mask, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETALWAYSLEFTCLICK = 352, /* wire 2308 */
+    CS2_OP_IF_SETALWAYSLEFTCLICK = 373, /* wire 2308 */
     /* IF_SETPINCH — Client stub: pop component + one int and discard.
      * int stack in:   value, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETPINCH = 353, /* wire 2309 */
-    CS2_OP_IF_CLEARSUBOPS = 354, /* wire 2310 */
+    CS2_OP_IF_SETPINCH = 374, /* wire 2309 */
+    CS2_OP_IF_CLEARSUBOPS = 375, /* wire 2310 */
     /* IF_SETSUBOP — Set op submenu label.
      * int stack in:   op_index, sub_index, component  (component = top)
      * str stack in:   text
@@ -1589,14 +1710,14 @@ enum CS2_Op
      * str stack out:  -
      * notes: op_index and sub_index are 1-based in script
      */
-    CS2_OP_IF_SETSUBOP = 355, /* wire 2311 */
+    CS2_OP_IF_SETSUBOP = 376, /* wire 2311 */
     /* IF_SETOPPRIORITY — Set target priority (stub).
      * int stack in:   component, priority  (priority = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETOPPRIORITY = 356, /* wire 2312 */
+    CS2_OP_IF_SETOPPRIORITY = 377, /* wire 2312 */
     /* IF_SETOPKEY — Bind one (keychar, keycode) pair to an op slot by component uid.
      * int stack in:   opindex, keychar, keycode, component  (component = top)
      * str stack in:   -
@@ -1604,14 +1725,14 @@ enum CS2_Op
      * str stack out:  -
      * notes: component is on top (popped first). opindex is 1-based (1..10).
      */
-    CS2_OP_IF_SETOPKEY = 357, /* wire 2350 */
+    CS2_OP_IF_SETOPKEY = 378, /* wire 2350 */
     /* IF_SETOPTKEY — Bind one (keychar, keycode) pair to the typed-key slot (op 10).
      * int stack in:   keychar, keycode, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETOPTKEY = 358, /* wire 2351 */
+    CS2_OP_IF_SETOPTKEY = 379, /* wire 2351 */
     /* IF_SETOPKEYRATE — Set auto-repeat rate for an op key slot by component uid.
      * int stack in:   opindex, keyrate, tickrate, component  (component = top)
      * str stack in:   -
@@ -1619,37 +1740,37 @@ enum CS2_Op
      * str stack out:  -
      * notes: tickrate == 0 disables repeat.
      */
-    CS2_OP_IF_SETOPKEYRATE = 359, /* wire 2352 */
+    CS2_OP_IF_SETOPKEYRATE = 380, /* wire 2352 */
     /* IF_SETOPTKEYRATE — Set auto-repeat rate for the typed-key slot (op 10).
      * int stack in:   tickrate, keyrate, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETOPTKEYRATE = 360, /* wire 2353 */
+    CS2_OP_IF_SETOPTKEYRATE = 381, /* wire 2353 */
     /* IF_SETOPKEYIGNOREHELD — Suppress auto-repeat while the key is held.
      * int stack in:   opindex, component  (component = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETOPKEYIGNOREHELD = 361, /* wire 2354 */
+    CS2_OP_IF_SETOPKEYIGNOREHELD = 382, /* wire 2354 */
     /* IF_SETOPTKEYIGNOREHELD — Suppress auto-repeat on the typed-key slot (op 10).
      * int stack in:   component
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_IF_SETOPTKEYIGNOREHELD = 362, /* wire 2355 */
+    CS2_OP_IF_SETOPTKEYIGNOREHELD = 383, /* wire 2355 */
 
     /* === CS2 opcode group: component-listener (1400..1499 / 2400..2499) ===
      * component listener registration.
      * rev-239 dispatch: Statics.method6889 -> method4487.
      * The listed ranges deliberately share one component handler.
      */
-    CS2_OP_IF_SETONCLICK = 363, /* wire 2400 */
-    CS2_OP_IF_SETONHOLD = 364, /* wire 2401 */
-    CS2_OP_IF_SETONRELEASE = 365, /* wire 2402 */
+    CS2_OP_IF_SETONCLICK = 384, /* wire 2400 */
+    CS2_OP_IF_SETONHOLD = 385, /* wire 2401 */
+    CS2_OP_IF_SETONRELEASE = 386, /* wire 2402 */
     /* IF_SETONMOUSEOVER — Set onMouseOver handler.
      * int stack in:   component
      * str stack in:   -
@@ -1657,11 +1778,11 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_IF_SETONMOUSEOVER = 366, /* wire 2403 */
-    CS2_OP_IF_SETONMOUSELEAVE = 367, /* wire 2404 */
-    CS2_OP_IF_SETONDRAG = 368, /* wire 2405 */
-    CS2_OP_IF_SETONTARGETLEAVE = 369, /* wire 2406 */
-    CS2_OP_IF_SETONVARTRANSMIT = 370, /* wire 2407 */
+    CS2_OP_IF_SETONMOUSEOVER = 387, /* wire 2403 */
+    CS2_OP_IF_SETONMOUSELEAVE = 388, /* wire 2404 */
+    CS2_OP_IF_SETONDRAG = 389, /* wire 2405 */
+    CS2_OP_IF_SETONTARGETLEAVE = 390, /* wire 2406 */
+    CS2_OP_IF_SETONVARTRANSMIT = 391, /* wire 2407 */
     /* IF_SETONTIMER — Set onTimer handler.
      * int stack in:   component
      * str stack in:   -
@@ -1669,11 +1790,11 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_IF_SETONTIMER = 371, /* wire 2408 */
-    CS2_OP_IF_SETONOP = 372, /* wire 2409 */
-    CS2_OP_IF_SETONDRAGCOMPLETE = 373, /* wire 2410 */
-    CS2_OP_IF_SETONCLICKREPEAT = 374, /* wire 2411 */
-    CS2_OP_IF_SETONMOUSEREPEAT = 375, /* wire 2412 */
+    CS2_OP_IF_SETONTIMER = 392, /* wire 2408 */
+    CS2_OP_IF_SETONOP = 393, /* wire 2409 */
+    CS2_OP_IF_SETONDRAGCOMPLETE = 394, /* wire 2410 */
+    CS2_OP_IF_SETONCLICKREPEAT = 395, /* wire 2411 */
+    CS2_OP_IF_SETONMOUSEREPEAT = 396, /* wire 2412 */
     /* IF_SETONINVTRANSMIT — Register inv-transmit script.
      * operand: script id
      * int stack in:   component
@@ -1682,9 +1803,9 @@ enum CS2_Op
      * str stack out:  -
      * notes: signature args on stack
      */
-    CS2_OP_IF_SETONINVTRANSMIT = 376, /* wire 2414 */
-    CS2_OP_IF_SETONSTATTRANSMIT = 377, /* wire 2415 */
-    CS2_OP_IF_SETONTARGETENTER = 378, /* wire 2416 */
+    CS2_OP_IF_SETONINVTRANSMIT = 397, /* wire 2414 */
+    CS2_OP_IF_SETONSTATTRANSMIT = 398, /* wire 2415 */
+    CS2_OP_IF_SETONTARGETENTER = 399, /* wire 2416 */
     /* IF_SETONSCROLLWHEEL — Set onScroll handler.
      * int stack in:   component
      * str stack in:   -
@@ -1693,35 +1814,35 @@ enum CS2_Op
      * notes: Stores onScroll (not onScrollWheel); wheel in opcode name is the trigger.
      *        signature args on stack
      */
-    CS2_OP_IF_SETONSCROLLWHEEL = 379, /* wire 2417 */
-    CS2_OP_IF_SETONCHATTRANSMIT = 380, /* wire 2418 */
-    CS2_OP_IF_SETONKEY = 381, /* wire 2419 */
-    CS2_OP_IF_SETONFRIENDTRANSMIT = 382, /* wire 2420 */
-    CS2_OP_IF_SETONCLANTRANSMIT = 383, /* wire 2421 */
-    CS2_OP_IF_SETONMISCTRANSMIT = 384, /* wire 2422 */
-    CS2_OP_IF_SETONDIALOGABORT = 385, /* wire 2423 */
-    CS2_OP_IF_SETONSUBCHANGE = 386, /* wire 2424 */
-    CS2_OP_IF_SETONSTOCKTRANSMIT = 387, /* wire 2425 */
-    CS2_OP_IF_SETONACTIVEOFFERSTRANSMIT = 388, /* wire 2426 */
-    CS2_OP_IF_SETONRESIZE = 389, /* wire 2427 */
-    CS2_OP_IF_SETONCLANSETTINGSTRANSMIT = 390, /* wire 2428 */
-    CS2_OP_IF_SETONCLANCHANNELTRANSMIT = 391, /* wire 2429 */
+    CS2_OP_IF_SETONSCROLLWHEEL = 400, /* wire 2417 */
+    CS2_OP_IF_SETONCHATTRANSMIT = 401, /* wire 2418 */
+    CS2_OP_IF_SETONKEY = 402, /* wire 2419 */
+    CS2_OP_IF_SETONFRIENDTRANSMIT = 403, /* wire 2420 */
+    CS2_OP_IF_SETONCLANTRANSMIT = 404, /* wire 2421 */
+    CS2_OP_IF_SETONMISCTRANSMIT = 405, /* wire 2422 */
+    CS2_OP_IF_SETONDIALOGABORT = 406, /* wire 2423 */
+    CS2_OP_IF_SETONSUBCHANGE = 407, /* wire 2424 */
+    CS2_OP_IF_SETONSTOCKTRANSMIT = 408, /* wire 2425 */
+    CS2_OP_IF_SETONACTIVEOFFERSTRANSMIT = 409, /* wire 2426 */
+    CS2_OP_IF_SETONRESIZE = 410, /* wire 2427 */
+    CS2_OP_IF_SETONCLANSETTINGSTRANSMIT = 411, /* wire 2428 */
+    CS2_OP_IF_SETONCLANCHANNELTRANSMIT = 412, /* wire 2429 */
     /* IF_ counterparts of CC_SETONKEYDOWN/CLANSETTINGS/MAPPOST (1430/1431/1433):
      * set the listener by widget UID instead of on the active/dot child. No runtime
      * model yet — signature-driven operand counts, so they are dispatched to the
      * parse-and-discard helper (see the IF_SETON* discard group in cs2vm2.c). Used
      * by the magic spellbook redraw (script 2610) — without a dispatch case op 2430
      * fell through to StackMetaStub and aborted, blanking the spell icons. */
-    CS2_OP_IF_SETONKEYDOWN = 392, /* wire 2430 */
-    CS2_OP_IF_SETONKEYUP = 393, /* wire 2431 */
-    CS2_OP_IF_SETONMAPPRE = 394, /* wire 2432 */
-    CS2_OP_IF_SETONMAPPOST = 395, /* wire 2433 */
-    CS2_OP_IF_CRMVIEW_SETONUPDATED = 396, /* wire 2434 */
-    CS2_OP_IF_SETONOPT = 397, /* wire 2435 */
-    CS2_OP_IF_INPUT_SETONFOCUSCHANGED = 398, /* wire 2436 */
-    CS2_OP_IF_INPUT_SETONSELECT = 399, /* wire 2437 */
-    CS2_OP_IF_INPUT_SETONSUBMIT = 400, /* wire 2438 */
-    CS2_OP_IF_INPUT_SETONCHANGE = 401, /* wire 2439 */
+    CS2_OP_IF_SETONKEYDOWN = 413, /* wire 2430 */
+    CS2_OP_IF_SETONKEYUP = 414, /* wire 2431 */
+    CS2_OP_IF_SETONMAPPRE = 415, /* wire 2432 */
+    CS2_OP_IF_SETONMAPPOST = 416, /* wire 2433 */
+    CS2_OP_IF_CRMVIEW_SETONUPDATED = 417, /* wire 2434 */
+    CS2_OP_IF_SETONOPT = 418, /* wire 2435 */
+    CS2_OP_IF_INPUT_SETONFOCUSCHANGED = 419, /* wire 2436 */
+    CS2_OP_IF_INPUT_SETONSELECT = 420, /* wire 2437 */
+    CS2_OP_IF_INPUT_SETONSUBMIT = 421, /* wire 2438 */
+    CS2_OP_IF_INPUT_SETONCHANGE = 422, /* wire 2439 */
 
     /* === CS2 opcode group: if-geometry (2500..2599) ===
      * explicit-component geometry getters.
@@ -1733,43 +1854,43 @@ enum CS2_Op
      * int stack out:  x
      * str stack out:  -
      */
-    CS2_OP_IF_GETX = 402, /* wire 2500 */
+    CS2_OP_IF_GETX = 423, /* wire 2500 */
     /* IF_GETY — Get relative Y.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  y
      * str stack out:  -
      */
-    CS2_OP_IF_GETY = 403, /* wire 2501 */
+    CS2_OP_IF_GETY = 424, /* wire 2501 */
     /* IF_GETWIDTH — Get layout width.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  width
      * str stack out:  -
      */
-    CS2_OP_IF_GETWIDTH = 404, /* wire 2502 */
+    CS2_OP_IF_GETWIDTH = 425, /* wire 2502 */
     /* IF_GETHEIGHT — Get layout height.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  height
      * str stack out:  -
      */
-    CS2_OP_IF_GETHEIGHT = 405, /* wire 2503 */
+    CS2_OP_IF_GETHEIGHT = 426, /* wire 2503 */
     /* IF_GETHIDE — Get hidden flag.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  hidden ? 1 : 0
      * str stack out:  -
      */
-    CS2_OP_IF_GETHIDE = 406, /* wire 2504 */
+    CS2_OP_IF_GETHIDE = 427, /* wire 2504 */
     /* IF_GETLAYER — Get parent component id.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  parent_id
      * str stack out:  -
      */
-    CS2_OP_IF_GETLAYER = 407, /* wire 2505 */
-    CS2_OP_IF_GETPARENTLAYER = 408, /* wire 2506 */
+    CS2_OP_IF_GETLAYER = 428, /* wire 2505 */
+    CS2_OP_IF_GETPARENTLAYER = 429, /* wire 2506 */
 
     /* === CS2 opcode group: if-appearance (2600..2699) ===
      * explicit-component appearance getters.
@@ -1781,73 +1902,73 @@ enum CS2_Op
      * int stack out:  0
      * str stack out:  -
      */
-    CS2_OP_IF_GETSCROLLX = 409, /* wire 2600 */
+    CS2_OP_IF_GETSCROLLX = 430, /* wire 2600 */
     /* IF_GETSCROLLY — Get scroll Y (stub).
      * int stack in:   component
      * str stack in:   -
      * int stack out:  0
      * str stack out:  -
      */
-    CS2_OP_IF_GETSCROLLY = 410, /* wire 2601 */
+    CS2_OP_IF_GETSCROLLY = 431, /* wire 2601 */
     /* IF_GETTEXT — Get text.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  -
      * str stack out:  text
      */
-    CS2_OP_IF_GETTEXT = 411, /* wire 2602 */
+    CS2_OP_IF_GETTEXT = 432, /* wire 2602 */
     /* IF_GETSCROLLWIDTH — Get scroll content width.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  scroll_width
      * str stack out:  -
      */
-    CS2_OP_IF_GETSCROLLWIDTH = 412, /* wire 2603 */
+    CS2_OP_IF_GETSCROLLWIDTH = 433, /* wire 2603 */
     /* IF_GETSCROLLHEIGHT — Get scroll content height.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  scroll_height
      * str stack out:  -
      */
-    CS2_OP_IF_GETSCROLLHEIGHT = 413, /* wire 2604 */
-    CS2_OP_IF_GETMODELZOOM = 414, /* wire 2605 */
-    CS2_OP_IF_GETMODELANGLE_X = 415, /* wire 2606 */
-    CS2_OP_IF_GETMODELANGLE_Z = 416, /* wire 2607 */
-    CS2_OP_IF_GETMODELANGLE_Y = 417, /* wire 2608 */
-    CS2_OP_IF_GETTRANS = 418, /* wire 2609 */
-    CS2_OP_IF_GETBLENDTRANS = 419, /* wire 2610 */
-    CS2_OP_IF_GETCOLOUR = 420, /* wire 2611 */
-    CS2_OP_IF_GETBLENDCOLOUR = 421, /* wire 2612 */
-    CS2_OP_IF_GETBLENDMODE = 422, /* wire 2613 */
-    CS2_OP_IF_GETMODELTRANSPARENT = 423, /* wire 2614 */
-    CS2_OP_IF_GETARCSTART = 424, /* wire 2615 */
-    CS2_OP_IF_GETARCEND = 425, /* wire 2616 */
-    CS2_OP_IF_INPUT_GETSELECTCOLOUR = 426, /* wire 2617 */
-    CS2_OP_IF_INPUT_GETSELECTBGCOLOUR = 427, /* wire 2618 */
-    CS2_OP_IF_INPUT_GETPLACEHOLDERTEXT = 428, /* wire 2619 */
-    CS2_OP_IF_INPUT_GETPLACEHOLDERTEXTCOLOUR = 429, /* wire 2620 */
-    CS2_OP_IF_INPUT_GETLINEWRAPPINGWIDTH = 430, /* wire 2621 */
-    CS2_OP_IF_INPUT_GETLINECOUNTLIMIT = 431, /* wire 2622 */
-    CS2_OP_IF_INPUT_GETLINEWIDTHLIMIT = 432, /* wire 2623 */
-    CS2_OP_IF_INPUT_GETFOCUS = 433, /* wire 2624 */
-    CS2_OP_IF_INPUT_GETFOCUSABLE = 434, /* wire 2625 */
-    CS2_OP_IF_INPUT_GETSELECTIONTEXT = 435, /* wire 2626 */
-    CS2_OP_IF_INPUT_GETSELECTIONBOUNDS = 436, /* wire 2627 */
-    CS2_OP_IF_INPUT_GETCARETPOSITION = 437, /* wire 2628 */
-    CS2_OP_IF_INPUT_GETLINEWRAPPINGMODE = 438, /* wire 2629 */
-    CS2_OP_IF_INPUT_GETSUBMITMODE = 439, /* wire 2630 */
-    CS2_OP_IF_INPUT_GETACCEPTMODE = 440, /* wire 2631 */
-    CS2_OP_IF_INPUT_GETCENSORMODE = 441, /* wire 2632 */
-    CS2_OP_IF_INPUT_GETKEYMODE = 442, /* wire 2633 */
-    CS2_OP_IF_INPUT_GETCHARMODE = 443, /* wire 2634 */
+    CS2_OP_IF_GETSCROLLHEIGHT = 434, /* wire 2604 */
+    CS2_OP_IF_GETMODELZOOM = 435, /* wire 2605 */
+    CS2_OP_IF_GETMODELANGLE_X = 436, /* wire 2606 */
+    CS2_OP_IF_GETMODELANGLE_Z = 437, /* wire 2607 */
+    CS2_OP_IF_GETMODELANGLE_Y = 438, /* wire 2608 */
+    CS2_OP_IF_GETTRANS = 439, /* wire 2609 */
+    CS2_OP_IF_GETBLENDTRANS = 440, /* wire 2610 */
+    CS2_OP_IF_GETCOLOUR = 441, /* wire 2611 */
+    CS2_OP_IF_GETBLENDCOLOUR = 442, /* wire 2612 */
+    CS2_OP_IF_GETBLENDMODE = 443, /* wire 2613 */
+    CS2_OP_IF_GETMODELTRANSPARENT = 444, /* wire 2614 */
+    CS2_OP_IF_GETARCSTART = 445, /* wire 2615 */
+    CS2_OP_IF_GETARCEND = 446, /* wire 2616 */
+    CS2_OP_IF_INPUT_GETSELECTCOLOUR = 447, /* wire 2617 */
+    CS2_OP_IF_INPUT_GETSELECTBGCOLOUR = 448, /* wire 2618 */
+    CS2_OP_IF_INPUT_GETPLACEHOLDERTEXT = 449, /* wire 2619 */
+    CS2_OP_IF_INPUT_GETPLACEHOLDERTEXTCOLOUR = 450, /* wire 2620 */
+    CS2_OP_IF_INPUT_GETLINEWRAPPINGWIDTH = 451, /* wire 2621 */
+    CS2_OP_IF_INPUT_GETLINECOUNTLIMIT = 452, /* wire 2622 */
+    CS2_OP_IF_INPUT_GETLINEWIDTHLIMIT = 453, /* wire 2623 */
+    CS2_OP_IF_INPUT_GETFOCUS = 454, /* wire 2624 */
+    CS2_OP_IF_INPUT_GETFOCUSABLE = 455, /* wire 2625 */
+    CS2_OP_IF_INPUT_GETSELECTIONTEXT = 456, /* wire 2626 */
+    CS2_OP_IF_INPUT_GETSELECTIONBOUNDS = 457, /* wire 2627 */
+    CS2_OP_IF_INPUT_GETCARETPOSITION = 458, /* wire 2628 */
+    CS2_OP_IF_INPUT_GETLINEWRAPPINGMODE = 459, /* wire 2629 */
+    CS2_OP_IF_INPUT_GETSUBMITMODE = 460, /* wire 2630 */
+    CS2_OP_IF_INPUT_GETACCEPTMODE = 461, /* wire 2631 */
+    CS2_OP_IF_INPUT_GETCENSORMODE = 462, /* wire 2632 */
+    CS2_OP_IF_INPUT_GETKEYMODE = 463, /* wire 2633 */
+    CS2_OP_IF_INPUT_GETCHARMODE = 464, /* wire 2634 */
 
     /* === CS2 opcode group: if-inventory (2700..2799) ===
      * interface inventory, parent and identity getters.
      * rev-239 dispatch: Statics.method6889 -> method3056.
      */
-    CS2_OP_IF_GETINVOBJECT = 444, /* wire 2700 */
-    CS2_OP_IF_GETINVCOUNT = 445, /* wire 2701 */
-    CS2_OP_IF_HASSUB = 446, /* wire 2702 */
+    CS2_OP_IF_GETINVOBJECT = 465, /* wire 2700 */
+    CS2_OP_IF_GETINVCOUNT = 466, /* wire 2701 */
+    CS2_OP_IF_HASSUB = 467, /* wire 2702 */
     /* IF_PARAM — Read a runtime param from a named component.
      * operand: unused
      * int stack in:   param, component, fallback                    (fallback = top)
@@ -1856,7 +1977,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: Absent from both vendored tables. All 16 rev-239 call sites push three ints and use literal -1 as the fallback; see the derivation in local_opcodes.py.
      */
-    CS2_OP_IF_PARAM = 447, /* wire 2703 */
+    CS2_OP_IF_PARAM = 468, /* wire 2703 */
     /* IF_SETPARAM — Write a runtime param onto a named component.
      * int stack in:   param_id, value, component_uid, child_index, type  (type = top)
      * str stack in:   value when type names a string
@@ -1864,7 +1985,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: Variable arity: type 2/115 takes the value from the string stack, so the integer `value` is absent. child_index -1 names the component itself. Rev-239 call sites identify this opcode; IF_HASCHILD_MODAL is retained only as a legacy source alias.
      */
-    CS2_OP_IF_SETPARAM = 448, /* wire 2704 */
+    CS2_OP_IF_SETPARAM = 469, /* wire 2704 */
     CS2_OP_IF_HASCHILD_MODAL = CS2_OP_IF_SETPARAM,
     /* IF_HASCHILD_OVERLAY (2705) — legacy interface-parent probe.
      * operand: unused
@@ -1874,23 +1995,23 @@ enum CS2_Op
      * str stack out:  -
      * notes: retained from the rev-634 interface-parent family. Opcode
      *        2704 is IF_SETPARAM in the current rev-239 dialect. */
-    CS2_OP__2705 = 449, /* wire 2705 */
+    CS2_OP__2705 = 470, /* wire 2705 */
     /* IF_GETTOP — Get root component id.
      * int stack in:   -
      * str stack in:   -
      * int stack out:  top component or -1
      * str stack out:  -
      */
-    CS2_OP_IF_GETTOP = 450, /* wire 2706 */
-    CS2_OP_IF_CRMVIEW_GETHASRESPONSE = 451, /* wire 2707 */
-    CS2_OP_IF_CRMVIEW_GETINT = 452, /* wire 2708 */
-    CS2_OP_IF_CRMVIEW_GETSTRING = 453, /* wire 2709 */
+    CS2_OP_IF_GETTOP = 471, /* wire 2706 */
+    CS2_OP_IF_CRMVIEW_GETHASRESPONSE = 472, /* wire 2707 */
+    CS2_OP_IF_CRMVIEW_GETINT = 473, /* wire 2708 */
+    CS2_OP_IF_CRMVIEW_GETSTRING = 474, /* wire 2709 */
 
     /* === CS2 opcode group: if-target (2800..2899) ===
      * explicit-component target and op getters.
      * rev-239 dispatch: Statics.method6889 -> method2.
      */
-    CS2_OP_IF_GETTARGETMASK = 454, /* wire 2800 */
+    CS2_OP_IF_GETTARGETMASK = 475, /* wire 2800 */
     /* IF_GETOP — Get op text.
      * int stack in:   op_index, component  (component = top)
      * str stack in:   -
@@ -1898,22 +2019,22 @@ enum CS2_Op
      * str stack out:  op text
      * notes: The rev-239 handler pops the explicit component first, then the one-based op index.
      */
-    CS2_OP_IF_GETOP = 455, /* wire 2801 */
+    CS2_OP_IF_GETOP = 476, /* wire 2801 */
     /* IF_GETOPBASE — Get op base text.
      * int stack in:   component
      * str stack in:   -
      * int stack out:  -
      * str stack out:  op_base
      */
-    CS2_OP_IF_GETOPBASE = 456, /* wire 2802 */
+    CS2_OP_IF_GETOPBASE = 477, /* wire 2802 */
 
     /* === CS2 opcode group: component-action (1900..1999 / 2900..2999) ===
      * component resize and trigger actions.
      * rev-239 dispatch: Statics.method6889 -> method1005.
      * The listed ranges deliberately share one component handler.
      */
-    CS2_OP_IF_CALLONRESIZE = 457, /* wire 2927 */
-    CS2_OP_IF_TRIGGEROP = 458, /* wire 2928 */
+    CS2_OP_IF_CALLONRESIZE = 478, /* wire 2927 */
+    CS2_OP_IF_TRIGGEROP = 479, /* wire 2928 */
     /* IF_SCRIPT_TRIGGER — Synthesize a server component click with typed arguments.
      * int stack in:   crc, component, child_index, typed ints          (typed ints = top)
      * str stack in:   signature (plus any typed strings it describes)
@@ -1921,41 +2042,41 @@ enum CS2_Op
      * str stack out:  -
      * notes: Variable arity is described by the signature. The rev-239 wire op is IF_SCRIPT_TRIGGER; this client adapts it to IF_BUTTON1.
      */
-    CS2_OP_IF_SCRIPT_TRIGGER = 459, /* wire 2929 */
+    CS2_OP_IF_SCRIPT_TRIGGER = 480, /* wire 2929 */
 
     /* === CS2 opcode group: client (3000..3199) ===
      * general client commands and preferences.
      * rev-239 dispatch: Statics.method6889 -> method6397.
      */
-    CS2_OP_MES = 460, /* wire 3100 */
-    CS2_OP_ANIM = 461, /* wire 3101 */
-    CS2_OP_MES_TYPED = 462, /* wire 3102 */
-    CS2_OP_IF_CLOSE = 463, /* wire 3103 */
-    CS2_OP_RESUME_COUNTDIALOG = 464, /* wire 3104 */
-    CS2_OP_RESUME_NAMEDIALOG = 465, /* wire 3105 */
-    CS2_OP_RESUME_STRINGDIALOG = 466, /* wire 3106 */
-    CS2_OP_OPPLAYER = 467, /* wire 3107 */
-    CS2_OP_IF_DRAGPICKUP = 468, /* wire 3108 */
-    CS2_OP_CC_DRAGPICKUP = 469, /* wire 3109 */
-    CS2_OP_SETMOUSECAM = 470, /* wire 3110 */
-    CS2_OP_GETREMOVEROOFS = 471, /* wire 3111 */
-    CS2_OP_SETREMOVEROOFS = 472, /* wire 3112 */
-    CS2_OP_OPENURL = 473, /* wire 3113 */
-    CS2_OP_RESUME_COUNTDIALOG_LONG = 474, /* wire 3114 */
-    CS2_OP_RESUME_OBJDIALOG = 475, /* wire 3115 */
-    CS2_OP_BUG_REPORT = 476, /* wire 3116 */
-    CS2_OP_SETSHIFTCLICKENABLED = 477, /* wire 3117 */
-    CS2_OP_SETSHOWMOUSEOVERTEXT = 478, /* wire 3118 */
-    CS2_OP_RENDERSELF = 479, /* wire 3119 */
-    CS2_OP_SETDRAWPLAYERNAMES_FRIENDS = 480, /* wire 3120 */
-    CS2_OP_SETDRAWPLAYERNAMES_CLANMATES = 481, /* wire 3121 */
-    CS2_OP_SETDRAWPLAYERNAMES_OTHERS = 482, /* wire 3122 */
-    CS2_OP_SETDRAWPLAYERNAMES_SELF = 483, /* wire 3123 */
-    CS2_OP_RESETDRAWPLAYERNAMES = 484, /* wire 3124 */
-    CS2_OP_SETSHOWMOUSECROSS = 485, /* wire 3125 */
-    CS2_OP_SETSHOWLOADINGMESSAGES = 486, /* wire 3126 */
-    CS2_OP_SETSIMULATEDSHIFTACTIVE = 487, /* wire 3127 */
-    CS2_OP_GETSIMULATEDSHIFTACTIVE = 488, /* wire 3128 */
+    CS2_OP_MES = 481, /* wire 3100 */
+    CS2_OP_ANIM = 482, /* wire 3101 */
+    CS2_OP_MES_TYPED = 483, /* wire 3102 */
+    CS2_OP_IF_CLOSE = 484, /* wire 3103 */
+    CS2_OP_RESUME_COUNTDIALOG = 485, /* wire 3104 */
+    CS2_OP_RESUME_NAMEDIALOG = 486, /* wire 3105 */
+    CS2_OP_RESUME_STRINGDIALOG = 487, /* wire 3106 */
+    CS2_OP_OPPLAYER = 488, /* wire 3107 */
+    CS2_OP_IF_DRAGPICKUP = 489, /* wire 3108 */
+    CS2_OP_CC_DRAGPICKUP = 490, /* wire 3109 */
+    CS2_OP_SETMOUSECAM = 491, /* wire 3110 */
+    CS2_OP_GETREMOVEROOFS = 492, /* wire 3111 */
+    CS2_OP_SETREMOVEROOFS = 493, /* wire 3112 */
+    CS2_OP_OPENURL = 494, /* wire 3113 */
+    CS2_OP_RESUME_COUNTDIALOG_LONG = 495, /* wire 3114 */
+    CS2_OP_RESUME_OBJDIALOG = 496, /* wire 3115 */
+    CS2_OP_BUG_REPORT = 497, /* wire 3116 */
+    CS2_OP_SETSHIFTCLICKENABLED = 498, /* wire 3117 */
+    CS2_OP_SETSHOWMOUSEOVERTEXT = 499, /* wire 3118 */
+    CS2_OP_RENDERSELF = 500, /* wire 3119 */
+    CS2_OP_SETDRAWPLAYERNAMES_FRIENDS = 501, /* wire 3120 */
+    CS2_OP_SETDRAWPLAYERNAMES_CLANMATES = 502, /* wire 3121 */
+    CS2_OP_SETDRAWPLAYERNAMES_OTHERS = 503, /* wire 3122 */
+    CS2_OP_SETDRAWPLAYERNAMES_SELF = 504, /* wire 3123 */
+    CS2_OP_RESETDRAWPLAYERNAMES = 505, /* wire 3124 */
+    CS2_OP_SETSHOWMOUSECROSS = 506, /* wire 3125 */
+    CS2_OP_SETSHOWLOADINGMESSAGES = 507, /* wire 3126 */
+    CS2_OP_SETSIMULATEDSHIFTACTIVE = 508, /* wire 3127 */
+    CS2_OP_GETSIMULATEDSHIFTACTIVE = 509, /* wire 3128 */
     /* SETFREECAMSPEED — Set the free camera's speed.
      * int stack in:   x1, x2  (x2 = top)
      * str stack in:   -
@@ -1963,15 +2084,15 @@ enum CS2_Op
      * str stack out:  -
      * notes: Not implemented here; the stack stub pops both.
      */
-    CS2_OP_SETFREECAMSPEED = 489, /* wire 3129 */
-    CS2_OP_SETFEEDBACKSPRITE = 490, /* wire 3130 */
-    CS2_OP_SETFEEDBACKSHOWPOPUPTEXT = 491, /* wire 3131 */
-    CS2_OP_GETCANVASSIZE = 492, /* wire 3132 */
-    CS2_OP_MOBILE_SETFPS = 493, /* wire 3133 */
-    CS2_OP_SHOP_OPEN = 494, /* wire 3134 */
-    CS2_OP_SHOP_OPENSUBSET = 495, /* wire 3135 */
-    CS2_OP_SETKEYINPUTMODE_COMPONENT = 496, /* wire 3136 */
-    CS2_OP_SETKEYINPUTMODE_INTERFACE = 497, /* wire 3137 */
+    CS2_OP_SETFREECAMSPEED = 510, /* wire 3129 */
+    CS2_OP_SETFEEDBACKSPRITE = 511, /* wire 3130 */
+    CS2_OP_SETFEEDBACKSHOWPOPUPTEXT = 512, /* wire 3131 */
+    CS2_OP_GETCANVASSIZE = 513, /* wire 3132 */
+    CS2_OP_MOBILE_SETFPS = 514, /* wire 3133 */
+    CS2_OP_SHOP_OPEN = 515, /* wire 3134 */
+    CS2_OP_SHOP_OPENSUBSET = 516, /* wire 3135 */
+    CS2_OP_SETKEYINPUTMODE_COMPONENT = 517, /* wire 3136 */
+    CS2_OP_SETKEYINPUTMODE_INTERFACE = 518, /* wire 3137 */
     /* SETKEYINPUTMODE_ALL — Release keyboard capture (input dialog type 0).
      * int stack in:   -
      * str stack in:   -
@@ -1980,7 +2101,7 @@ enum CS2_Op
      * notes: takes no args despite the SET prefix — the doc comment is required to
      *        stop the generator's "SET* pops one" heuristic guessing wrong.
      */
-    CS2_OP_SETKEYINPUTMODE_ALL = 498, /* wire 3138 */
+    CS2_OP_SETKEYINPUTMODE_ALL = 519, /* wire 3138 */
     /* SETKEYINPUTMODE_NONE — Capture keyboard for a dialog (input dialog type 1).
      * int stack in:   -
      * str stack in:   -
@@ -1988,7 +2109,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: takes no args despite the SET prefix (see SETKEYINPUTMODE_ALL).
      */
-    CS2_OP_SETKEYINPUTMODE_NONE = 499, /* wire 3139 */
+    CS2_OP_SETKEYINPUTMODE_NONE = 520, /* wire 3139 */
     /* SETKEYINPUTMODE_ACTIVECOMPONENT — Route keyboard input to the active component.
      * int stack in:   -
      * str stack in:   -
@@ -1996,36 +2117,36 @@ enum CS2_Op
      * str stack out:  -
      * notes: rev-239 Statics 3140 sets the key-input mode and takes the active (or dot) component; nothing on the stacks.
      */
-    CS2_OP_SETKEYINPUTMODE_ACTIVECOMPONENT = 500, /* wire 3140 */
-    CS2_OP_SETHIDEUSERNAME = 501, /* wire 3141 */
-    CS2_OP_GETHIDEUSERNAME = 502, /* wire 3142 */
-    CS2_OP_SETREMEMBERUSERNAME = 503, /* wire 3143 */
-    CS2_OP_GETREMEMBERUSERNAME = 504, /* wire 3144 */
-    CS2_OP_SHOW_IOS_REVIEW = 505, /* wire 3145 */
-    CS2_OP_SETTITLESCREENSOUND = 506, /* wire 3146 */
-    CS2_OP_GETTITLESCREENSOUND = 507, /* wire 3147 */
-    CS2_OP_SETTERMSANDPRIVACY = 508, /* wire 3148 */
-    CS2_OP_GETTERMSANDPRIVACY = 509, /* wire 3149 */
-    CS2_OP_ELIGIBLEFORFREETRIAL = 510, /* wire 3150 */
-    CS2_OP_ELIGIBLEFORINTRODUCTORYPRICE = 511, /* wire 3151 */
-    CS2_OP_GETPUCHASEHISTORYSTATUS = 512, /* wire 3152 */
-    CS2_OP_GETLOADINGPROGRESS = 513, /* wire 3153 */
-    CS2_OP_GETPRELOADPROGRESS = 514, /* wire 3154 */
-    CS2_OP_SHOP_PURCHASEITEM = 515, /* wire 3155 */
-    CS2_OP_SHOP_REQUESTDATA = 516, /* wire 3156 */
-    CS2_OP_SHOP_OPENCATEGORIES = 517, /* wire 3157 */
-    CS2_OP_SHOP_PURCHASEITEMSTATUS = 518, /* wire 3158 */
-    CS2_OP_SHOP_REQUESTDATASTATUS = 519, /* wire 3159 */
-    CS2_OP_SHOP_GETCATEGORYCOUNT = 520, /* wire 3160 */
-    CS2_OP_SHOP_GETCATEGORYID = 521, /* wire 3161 */
-    CS2_OP_SHOP_GETINDEXFORCATEGORYID = 522, /* wire 3162 */
-    CS2_OP_SHOP_GETINDEXFORCATEGORYNAME = 523, /* wire 3163 */
-    CS2_OP_SHOP_GETCATEGORYDESCRIPTION = 524, /* wire 3164 */
-    CS2_OP_SHOP_GETPRODUCTCOUNT = 525, /* wire 3165 */
-    CS2_OP_SHOP_ISPRODUCTAVAILABLE = 526, /* wire 3166 */
-    CS2_OP_SHOP_ISPRODUCTRECOMMENDED = 527, /* wire 3167 */
-    CS2_OP_SHOP_GETPRODUCTDETAILS = 528, /* wire 3168 */
-    CS2_OP_UNKNOWN_COMMAND_3169 = 529, /* wire 3169 */
+    CS2_OP_SETKEYINPUTMODE_ACTIVECOMPONENT = 521, /* wire 3140 */
+    CS2_OP_SETHIDEUSERNAME = 522, /* wire 3141 */
+    CS2_OP_GETHIDEUSERNAME = 523, /* wire 3142 */
+    CS2_OP_SETREMEMBERUSERNAME = 524, /* wire 3143 */
+    CS2_OP_GETREMEMBERUSERNAME = 525, /* wire 3144 */
+    CS2_OP_SHOW_IOS_REVIEW = 526, /* wire 3145 */
+    CS2_OP_SETTITLESCREENSOUND = 527, /* wire 3146 */
+    CS2_OP_GETTITLESCREENSOUND = 528, /* wire 3147 */
+    CS2_OP_SETTERMSANDPRIVACY = 529, /* wire 3148 */
+    CS2_OP_GETTERMSANDPRIVACY = 530, /* wire 3149 */
+    CS2_OP_ELIGIBLEFORFREETRIAL = 531, /* wire 3150 */
+    CS2_OP_ELIGIBLEFORINTRODUCTORYPRICE = 532, /* wire 3151 */
+    CS2_OP_GETPUCHASEHISTORYSTATUS = 533, /* wire 3152 */
+    CS2_OP_GETLOADINGPROGRESS = 534, /* wire 3153 */
+    CS2_OP_GETPRELOADPROGRESS = 535, /* wire 3154 */
+    CS2_OP_SHOP_PURCHASEITEM = 536, /* wire 3155 */
+    CS2_OP_SHOP_REQUESTDATA = 537, /* wire 3156 */
+    CS2_OP_SHOP_OPENCATEGORIES = 538, /* wire 3157 */
+    CS2_OP_SHOP_PURCHASEITEMSTATUS = 539, /* wire 3158 */
+    CS2_OP_SHOP_REQUESTDATASTATUS = 540, /* wire 3159 */
+    CS2_OP_SHOP_GETCATEGORYCOUNT = 541, /* wire 3160 */
+    CS2_OP_SHOP_GETCATEGORYID = 542, /* wire 3161 */
+    CS2_OP_SHOP_GETINDEXFORCATEGORYID = 543, /* wire 3162 */
+    CS2_OP_SHOP_GETINDEXFORCATEGORYNAME = 544, /* wire 3163 */
+    CS2_OP_SHOP_GETCATEGORYDESCRIPTION = 545, /* wire 3164 */
+    CS2_OP_SHOP_GETPRODUCTCOUNT = 546, /* wire 3165 */
+    CS2_OP_SHOP_ISPRODUCTAVAILABLE = 547, /* wire 3166 */
+    CS2_OP_SHOP_ISPRODUCTRECOMMENDED = 548, /* wire 3167 */
+    CS2_OP_SHOP_GETPRODUCTDETAILS = 549, /* wire 3168 */
+    CS2_OP_UNKNOWN_COMMAND_3169 = 550, /* wire 3169 */
     /*
      * Mobile local (push) notifications, 3170..3173. Newer than the vendored RuneStar
      * table, which has nothing between 3157 and 3181. Desktop has no notification
@@ -2041,46 +2162,46 @@ enum CS2_Op
      *        (proc,local_notification) POP_INT_LOCALs it straight after the call, so
      *        the push is required or that store underflows.
      */
-    CS2_OP_NOTIFICATIONS_SENDLOCAL = 530, /* wire 3170 */
+    CS2_OP_NOTIFICATIONS_SENDLOCAL = 551, /* wire 3170 */
     /* NOTIFICATIONS_SENDGROUPEDLOCAL — Schedule a grouped mobile notification.
      * int stack in:   x4, x5, x6                                           (x6 = top)
      * str stack in:   x1, x2, x3                                           (x3 = top)
      * int stack out:  handle (0 here: desktop has no notification centre)
      * str stack out:  -
      */
-    CS2_OP_NOTIFICATIONS_SENDGROUPEDLOCAL = 531, /* wire 3171 */
+    CS2_OP_NOTIFICATIONS_SENDGROUPEDLOCAL = 552, /* wire 3171 */
     /* NOTIFICATIONS_CANCELLOCAL — Cancel one scheduled mobile notification.
      * int stack in:   handle
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_NOTIFICATIONS_CANCELLOCAL = 532, /* wire 3172 */
+    CS2_OP_NOTIFICATIONS_CANCELLOCAL = 553, /* wire 3172 */
     /* NOTIFICATIONS_ISLOCALSCHEDULED — Is a mobile notification scheduled?.
      * int stack in:   handle
      * str stack in:   -
      * int stack out:  0 here
      * str stack out:  -
      */
-    CS2_OP_NOTIFICATIONS_ISLOCALSCHEDULED = 533, /* wire 3173 */
-    CS2_OP_UNKNOWN_COMMAND_3174 = 534, /* wire 3174 */
-    CS2_OP_NOTIFICATIONS_GETENABLED = 535, /* wire 3175 */
-    CS2_OP_UNKNOWN_COMMAND_3176 = 536, /* wire 3176 */
-    CS2_OP_MARKETING_INITANALYTICS = 537, /* wire 3177 */
-    CS2_OP_MARKETING_SENDANALYTICSEVENT = 538, /* wire 3178 */
-    CS2_OP_MARKETING_INITATTRIBUTION = 539, /* wire 3179 */
-    CS2_OP_MARKETING_SENDATTRIBUTIONEVENT = 540, /* wire 3180 */
-    CS2_OP_SETBRIGHTNESS = 541, /* wire 3181 */
-    CS2_OP_GETBRIGHTNESS = 542, /* wire 3182 */
-    CS2_OP_SETANTIDRAG = 543, /* wire 3183 */
-    CS2_OP_GETANTIDRAG = 544, /* wire 3184 */
-    CS2_OP_SETDRAWDISTANCE = 545, /* wire 3185 */
-    CS2_OP_GETDRAWDISTANCE = 546, /* wire 3186 */
-    CS2_OP_UNKNOWN_COMMAND_3187 = 547, /* wire 3187 */
-    CS2_OP_UNKNOWN_COMMAND_3188 = 548, /* wire 3188 */
-    CS2_OP_SEQ_PREFETCH = 549, /* wire 3189 */
-    CS2_OP_UNKNOWN_COMMAND_3197 = 550, /* wire 3197 */
-    CS2_OP_UNKNOWN_COMMAND_3198 = 551, /* wire 3198 */
+    CS2_OP_NOTIFICATIONS_ISLOCALSCHEDULED = 554, /* wire 3173 */
+    CS2_OP_UNKNOWN_COMMAND_3174 = 555, /* wire 3174 */
+    CS2_OP_NOTIFICATIONS_GETENABLED = 556, /* wire 3175 */
+    CS2_OP_UNKNOWN_COMMAND_3176 = 557, /* wire 3176 */
+    CS2_OP_MARKETING_INITANALYTICS = 558, /* wire 3177 */
+    CS2_OP_MARKETING_SENDANALYTICSEVENT = 559, /* wire 3178 */
+    CS2_OP_MARKETING_INITATTRIBUTION = 560, /* wire 3179 */
+    CS2_OP_MARKETING_SENDATTRIBUTIONEVENT = 561, /* wire 3180 */
+    CS2_OP_SETBRIGHTNESS = 562, /* wire 3181 */
+    CS2_OP_GETBRIGHTNESS = 563, /* wire 3182 */
+    CS2_OP_SETANTIDRAG = 564, /* wire 3183 */
+    CS2_OP_GETANTIDRAG = 565, /* wire 3184 */
+    CS2_OP_SETDRAWDISTANCE = 566, /* wire 3185 */
+    CS2_OP_GETDRAWDISTANCE = 567, /* wire 3186 */
+    CS2_OP_UNKNOWN_COMMAND_3187 = 568, /* wire 3187 */
+    CS2_OP_UNKNOWN_COMMAND_3188 = 569, /* wire 3188 */
+    CS2_OP_SEQ_PREFETCH = 570, /* wire 3189 */
+    CS2_OP_UNKNOWN_COMMAND_3197 = 571, /* wire 3197 */
+    CS2_OP_UNKNOWN_COMMAND_3198 = 572, /* wire 3198 */
 
     /* === CS2 opcode group: audio-options (3200..3299) ===
      * audio and client option commands.
@@ -2093,7 +2214,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: About 600 rev-239 call sites use sound_synth(synth, 1, 0); these are the interface interaction sounds.
      */
-    CS2_OP_SOUND_SYNTH = 552, /* wire 3200 */
+    CS2_OP_SOUND_SYNTH = 573, /* wire 3200 */
     /* SOUND_SONG — Play a song with fade-out and fade-in settings.
      * int stack in:   id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed  (fade_in_speed = top)
      * str stack in:   -
@@ -2101,32 +2222,32 @@ enum CS2_Op
      * str stack out:  -
      * notes: The CS2 twin of MIDI_SONG_V2. Script 9630 and RSProt's MidiSongV2 agree on the default fade tuple 0/60/60/0.
      */
-    CS2_OP_SOUND_SONG = 553, /* wire 3201 */
+    CS2_OP_SOUND_SONG = 574, /* wire 3201 */
     /* SOUND_JINGLE — Play a MIDI jingle.
      * int stack in:   id, delay  (delay = top)
      * str stack in:   -
      * int stack out:  -
      * str stack out:  -
      */
-    CS2_OP_SOUND_JINGLE = 554, /* wire 3202 */
-    CS2_OP_SETVOLUMEMUSIC = 555, /* wire 3203 */
-    CS2_OP_GETVOLUMEMUSIC = 556, /* wire 3204 */
-    CS2_OP_SETVOLUMESOUNDS = 557, /* wire 3205 */
-    CS2_OP_GETVOLUMESOUNDS = 558, /* wire 3206 */
-    CS2_OP_SETVOLUMEAREASOUNDS = 559, /* wire 3207 */
-    CS2_OP_GETVOLUMEAREASOUNDS = 560, /* wire 3208 */
-    CS2_OP_CLIENTOPTION_SET = 561, /* wire 3209 */
-    CS2_OP_CLIENTOPTION_GET = 562, /* wire 3210 */
-    CS2_OP_UNKNOWN_COMMAND_3211 = 563, /* wire 3211 */
-    CS2_OP_DEVICEOPTION_SET = 564, /* wire 3212 */
-    CS2_OP_GAMEOPTION_SET = 565, /* wire 3213 */
-    CS2_OP_DEVICEOPTION_GET = 566, /* wire 3214 */
-    CS2_OP_GAMEOPTION_GET = 567, /* wire 3215 */
-    CS2_OP_DEVICEOPTION_EXISTS = 568, /* wire 3216 */
-    CS2_OP_DEVICEOPTION_GETRANGE = 569, /* wire 3217 */
-    CS2_OP_GAMEOPTION_EXISTS = 570, /* wire 3218 */
-    CS2_OP_GAMEOPTION_GETRANGE = 571, /* wire 3219 */
-    CS2_OP_SOUND_SONG_STOP = 572, /* wire 3220 */
+    CS2_OP_SOUND_JINGLE = 575, /* wire 3202 */
+    CS2_OP_SETVOLUMEMUSIC = 576, /* wire 3203 */
+    CS2_OP_GETVOLUMEMUSIC = 577, /* wire 3204 */
+    CS2_OP_SETVOLUMESOUNDS = 578, /* wire 3205 */
+    CS2_OP_GETVOLUMESOUNDS = 579, /* wire 3206 */
+    CS2_OP_SETVOLUMEAREASOUNDS = 580, /* wire 3207 */
+    CS2_OP_GETVOLUMEAREASOUNDS = 581, /* wire 3208 */
+    CS2_OP_CLIENTOPTION_SET = 582, /* wire 3209 */
+    CS2_OP_CLIENTOPTION_GET = 583, /* wire 3210 */
+    CS2_OP_UNKNOWN_COMMAND_3211 = 584, /* wire 3211 */
+    CS2_OP_DEVICEOPTION_SET = 585, /* wire 3212 */
+    CS2_OP_GAMEOPTION_SET = 586, /* wire 3213 */
+    CS2_OP_DEVICEOPTION_GET = 587, /* wire 3214 */
+    CS2_OP_GAMEOPTION_GET = 588, /* wire 3215 */
+    CS2_OP_DEVICEOPTION_EXISTS = 589, /* wire 3216 */
+    CS2_OP_DEVICEOPTION_GETRANGE = 590, /* wire 3217 */
+    CS2_OP_GAMEOPTION_EXISTS = 591, /* wire 3218 */
+    CS2_OP_GAMEOPTION_GETRANGE = 592, /* wire 3219 */
+    CS2_OP_SOUND_SONG_STOP = 593, /* wire 3220 */
     /* SOUND_SONG_WITHSECONDARY — Play a song with a secondary track and cross-fade settings.
      * int stack in:   primary, secondary, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed  (fade_in_speed = top)
      * str stack in:   -
@@ -2134,15 +2255,15 @@ enum CS2_Op
      * str stack out:  -
      * notes: Named _3221 upstream. Script 9630 falls back to SOUND_SONG when its secondary lookup returns -1, which identifies the operation.
      */
-    CS2_OP_SOUND_SONG_WITHSECONDARY = 573, /* wire 3221 */
-    CS2_OP_SOUND_SONG_SWAP = 574, /* wire 3222 */
-    CS2_OP_RT7_SETENABLED = 575, /* wire 3223 */
-    CS2_OP_RT7_SD = 576, /* wire 3224 */
-    CS2_OP_RT7_HD = 577, /* wire 3225 */
-    CS2_OP_UNKNOWN_COMMAND_3226 = 578, /* wire 3226 */
-    CS2_OP_RT7_GETENABLED = 579, /* wire 3227 */
-    CS2_OP_TRANSLATIONS_SET = 580, /* wire 3228 */
-    CS2_OP_TRANSLATIONS_CLEAR = 581, /* wire 3229 */
+    CS2_OP_SOUND_SONG_WITHSECONDARY = 594, /* wire 3221 */
+    CS2_OP_SOUND_SONG_SWAP = 595, /* wire 3222 */
+    CS2_OP_RT7_SETENABLED = 596, /* wire 3223 */
+    CS2_OP_RT7_SD = 597, /* wire 3224 */
+    CS2_OP_RT7_HD = 598, /* wire 3225 */
+    CS2_OP_UNKNOWN_COMMAND_3226 = 599, /* wire 3226 */
+    CS2_OP_RT7_GETENABLED = 600, /* wire 3227 */
+    CS2_OP_TRANSLATIONS_SET = 601, /* wire 3228 */
+    CS2_OP_TRANSLATIONS_CLEAR = 602, /* wire 3229 */
 
     /* === CS2 opcode group: client-state (3300..3399) ===
      * client state, inventory, stats and coordinates.
@@ -2154,133 +2275,133 @@ enum CS2_Op
      * int stack out:  clock_ticks
      * str stack out:  -
      */
-    CS2_OP_CLIENTCLOCK = 582, /* wire 3300 */
+    CS2_OP_CLIENTCLOCK = 603, /* wire 3300 */
     /* INV_GETOBJ — Get inventory item id.
      * int stack in:   inv_id, slot           (slot = top)
      * str stack in:   -
      * int stack out:  obj_id or -1 if empty
      * str stack out:  -
      */
-    CS2_OP_INV_GETOBJ = 583, /* wire 3301 */
+    CS2_OP_INV_GETOBJ = 604, /* wire 3301 */
     /* INV_GETNUM — Get inventory stack size.
      * int stack in:   inv_id, slot  (slot = top)
      * str stack in:   -
      * int stack out:  count
      * str stack out:  -
      */
-    CS2_OP_INV_GETNUM = 584, /* wire 3302 */
+    CS2_OP_INV_GETNUM = 605, /* wire 3302 */
     /* INV_TOTAL — Count item across inventory.
      * int stack in:   inv_id, item_id  (item_id = top)
      * str stack in:   -
      * int stack out:  total qty
      * str stack out:  -
      */
-    CS2_OP_INV_TOTAL = 585, /* wire 3303 */
+    CS2_OP_INV_TOTAL = 606, /* wire 3303 */
     /* INV_SIZE — Get inventory capacity.
      * int stack in:   inv_id
      * str stack in:   -
      * int stack out:  slot_count
      * str stack out:  -
      */
-    CS2_OP_INV_SIZE = 586, /* wire 3304 */
-    CS2_OP_STAT = 587, /* wire 3305 */
-    CS2_OP_STAT_BASE = 588, /* wire 3306 */
-    CS2_OP_STAT_VISIBLE_XP = 589, /* wire 3307 */
+    CS2_OP_INV_SIZE = 607, /* wire 3304 */
+    CS2_OP_STAT = 608, /* wire 3305 */
+    CS2_OP_STAT_BASE = 609, /* wire 3306 */
+    CS2_OP_STAT_VISIBLE_XP = 610, /* wire 3307 */
     /* COORD — Get player coord packed (stub).
      * int stack in:   -
      * str stack in:   -
      * int stack out:  0
      * str stack out:  -
      */
-    CS2_OP_COORD = 590, /* wire 3308 */
+    CS2_OP_COORD = 611, /* wire 3308 */
     /* COORDX — Extract X from packed coord.
      * int stack in:   packed
      * str stack in:   -
      * int stack out:  (packed >> 14) & 0x3FFF
      * str stack out:  -
      */
-    CS2_OP_COORDX = 591, /* wire 3309 */
+    CS2_OP_COORDX = 612, /* wire 3309 */
     /* COORDY — Extract the plane from packed coord. RuneScript's axes are x/y/z with y as the level, so "y" here is the plane and COORDZ is the second tile axis — not the other way round.
      * int stack in:   packed
      * str stack in:   -
      * int stack out:  (packed >> 28) & 0x3
      * str stack out:  -
      */
-    CS2_OP_COORDY = 592, /* wire 3310 */
+    CS2_OP_COORDY = 613, /* wire 3310 */
     /* COORDZ — Extract Z (the second tile axis) from packed coord.
      * int stack in:   packed
      * str stack in:   -
      * int stack out:  packed & 0x3FFF
      * str stack out:  -
      */
-    CS2_OP_COORDZ = 593, /* wire 3311 */
+    CS2_OP_COORDZ = 614, /* wire 3311 */
     /* MAP_MEMBERS — Is members world (stub).
      * int stack in:   -
      * str stack in:   -
      * int stack out:  1
      * str stack out:  -
      */
-    CS2_OP_MAP_MEMBERS = 594, /* wire 3312 */
-    CS2_OP_INVOTHER_GETOBJ = 595, /* wire 3313 */
-    CS2_OP_INVOTHER_GETNUM = 596, /* wire 3314 */
-    CS2_OP_INVOTHER_TOTAL = 597, /* wire 3315 */
-    CS2_OP_STAFFMODLEVEL = 598, /* wire 3316 */
-    CS2_OP_REBOOTTIMER = 599, /* wire 3317 */
+    CS2_OP_MAP_MEMBERS = 615, /* wire 3312 */
+    CS2_OP_INVOTHER_GETOBJ = 616, /* wire 3313 */
+    CS2_OP_INVOTHER_GETNUM = 617, /* wire 3314 */
+    CS2_OP_INVOTHER_TOTAL = 618, /* wire 3315 */
+    CS2_OP_STAFFMODLEVEL = 619, /* wire 3316 */
+    CS2_OP_REBOOTTIMER = 620, /* wire 3317 */
     /* MAP_WORLD — Get world id (stub).
      * int stack in:   -
      * str stack in:   -
      * int stack out:  301
      * str stack out:  -
      */
-    CS2_OP_MAP_WORLD = 600, /* wire 3318 */
-    CS2_OP_RUNENERGY_VISIBLE = 601, /* wire 3321 */
+    CS2_OP_MAP_WORLD = 621, /* wire 3318 */
+    CS2_OP_RUNENERGY_VISIBLE = 622, /* wire 3321 */
     /* RUNWEIGHT_VISIBLE — Get visible player weight.
      * int stack in:   -
      * str stack in:   -
      * int stack out:  weight kg (0 default)
      * str stack out:  -
      */
-    CS2_OP_RUNWEIGHT_VISIBLE = 602, /* wire 3322 */
-    CS2_OP_PLAYERMOD = 603, /* wire 3323 */
-    CS2_OP_WORLDFLAGS = 604, /* wire 3324 */
+    CS2_OP_RUNWEIGHT_VISIBLE = 623, /* wire 3322 */
+    CS2_OP_PLAYERMOD = 624, /* wire 3323 */
+    CS2_OP_WORLDFLAGS = 625, /* wire 3324 */
     /* MOVECOORD — Offset a packed coord by (x, y, z), where y is the plane.
      * int stack in:   packed, x, plane, z                       (z = top)
      * str stack in:   -
      * int stack out:  packed + ((plane << 28) | (x << 14) | z)
      * str stack out:  -
      */
-    CS2_OP_MOVECOORD = 605, /* wire 3325 */
-    CS2_OP_MOUSE_GETX = 606, /* wire 3326 */
-    CS2_OP_MOUSE_GETY = 607, /* wire 3327 */
-    CS2_OP_IDLETIMER_GET = 608, /* wire 3328 */
-    CS2_OP_IDLETIMER_RESET = 609, /* wire 3329 */
-    CS2_OP_DESTINATIONCOORD = 610, /* wire 3330 */
+    CS2_OP_MOVECOORD = 626, /* wire 3325 */
+    CS2_OP_MOUSE_GETX = 627, /* wire 3326 */
+    CS2_OP_MOUSE_GETY = 628, /* wire 3327 */
+    CS2_OP_IDLETIMER_GET = 629, /* wire 3328 */
+    CS2_OP_IDLETIMER_RESET = 630, /* wire 3329 */
+    CS2_OP_DESTINATIONCOORD = 631, /* wire 3330 */
     CS2_OP__3330 = CS2_OP_DESTINATIONCOORD,
-    CS2_OP_RUNENERGY = 611, /* wire 3331 */
-    CS2_OP_STAT_UNKNOWN = 612, /* wire 3332 */
-    CS2_OP_UNKNOWN_COMMAND_3333 = 613, /* wire 3333 */
-    CS2_OP_REBOOTMESSAGE = 614, /* wire 3334 */
-    CS2_OP_WEC_NAME = 615, /* wire 3339 */
+    CS2_OP_RUNENERGY = 632, /* wire 3331 */
+    CS2_OP_STAT_UNKNOWN = 633, /* wire 3332 */
+    CS2_OP_UNKNOWN_COMMAND_3333 = 634, /* wire 3333 */
+    CS2_OP_REBOOTMESSAGE = 635, /* wire 3334 */
+    CS2_OP_WEC_NAME = 636, /* wire 3339 */
 
     /* === CS2 opcode group: enum (3400..3499) ===
      * enum lookups.
      * rev-239 dispatch: Statics.method6889 -> method6018.
      */
-    CS2_OP_ENUM_STRING = 616, /* wire 3400 */
+    CS2_OP_ENUM_STRING = 637, /* wire 3400 */
     /* ENUM — Enum lookup.
      * int stack in:   input_type, output_type, enum_id, key  (key = top)
      * str stack in:   -
      * int stack out:  mapped value or -1
      * str stack out:  -
      */
-    CS2_OP_ENUM = 617, /* wire 3408 */
+    CS2_OP_ENUM = 638, /* wire 3408 */
     /* ENUM_GETOUTPUTCOUNT — Get enum output count.
      * int stack in:   enum_id
      * str stack in:   -
      * int stack out:  count
      * str stack out:  -
      */
-    CS2_OP_ENUM_GETOUTPUTCOUNT = 618, /* wire 3411 */
+    CS2_OP_ENUM_GETOUTPUTCOUNT = 639, /* wire 3411 */
 
     /* === CS2 opcode group: keyboard (3500..3599) ===
      * keyboard state.
@@ -2293,7 +2414,7 @@ enum CS2_Op
      * str stack out:  -
      * notes: keycode is an OSRS internal key code (see torirs_keymap.h), not ASCII.
      */
-    CS2_OP_KEYHELD = 619, /* wire 3500 */
+    CS2_OP_KEYHELD = 640, /* wire 3500 */
     /* KEYPRESSED — Was the given key pressed during this frame?.
      * int stack in:   keycode
      * str stack in:   -
@@ -2301,183 +2422,154 @@ enum CS2_Op
      * str stack out:  -
      * notes: edge-triggered; cleared each frame. OSRS internal key code.
      */
-    CS2_OP_KEYPRESSED = 620, /* wire 3501 */
-    CS2_OP_KEYRELEASED = 621, /* wire 3502 */
+    CS2_OP_KEYPRESSED = 641, /* wire 3501 */
+    CS2_OP_KEYRELEASED = 642, /* wire 3502 */
 
     /* === CS2 opcode group: social (3600..3699) ===
      * friends, ignores and legacy clan chat.
      * rev-239 dispatch: Statics.method6889 -> method7997.
      */
-    CS2_OP_FRIEND_COUNT = 622, /* wire 3600 */
-    CS2_OP_FRIEND_GETNAME = 623, /* wire 3601 */
-    CS2_OP_FRIEND_GETWORLD = 624, /* wire 3602 */
-    CS2_OP_FRIEND_GETRANK = 625, /* wire 3603 */
-    CS2_OP_FRIEND_SETRANK = 626, /* wire 3604 */
-    CS2_OP_FRIEND_ADD = 627, /* wire 3605 */
-    CS2_OP_FRIEND_DEL = 628, /* wire 3606 */
-    CS2_OP_IGNORE_ADD = 629, /* wire 3607 */
-    CS2_OP_IGNORE_DEL = 630, /* wire 3608 */
-    CS2_OP_FRIEND_TEST = 631, /* wire 3609 */
-    CS2_OP_FRIENDSCHAT_GETCHATDISPLAYNAME = 632, /* wire 3611 */
-    CS2_OP_FRIENDSCHAT_GETCHATCOUNT = 633, /* wire 3612 */
-    CS2_OP_FRIENDSCHAT_GETCHATUSERNAME = 634, /* wire 3613 */
-    CS2_OP_FRIENDSCHAT_GETCHATUSERWORLD = 635, /* wire 3614 */
-    CS2_OP_FRIENDSCHAT_GETCHATUSERRANK = 636, /* wire 3615 */
-    CS2_OP_FRIENDSCHAT_GETCHATMINKICK = 637, /* wire 3616 */
-    CS2_OP_FRIENDSCHAT_KICKUSER = 638, /* wire 3617 */
-    CS2_OP_FRIENDSCHAT_GETCHATRANK = 639, /* wire 3618 */
-    CS2_OP_FRIENDSCHAT_JOINCHAT = 640, /* wire 3619 */
-    CS2_OP_FRIENDSCHAT_LEAVECHAT = 641, /* wire 3620 */
-    CS2_OP_IGNORE_COUNT = 642, /* wire 3621 */
-    CS2_OP_IGNORE_GETNAME = 643, /* wire 3622 */
-    CS2_OP_IGNORE_TEST = 644, /* wire 3623 */
-    CS2_OP_FRIENDSCHAT_ISSELF = 645, /* wire 3624 */
-    CS2_OP_FRIENDSCHAT_GETCHATOWNERNAME = 646, /* wire 3625 */
-    CS2_OP_FRIENDSCHAT_ISFRIEND = 647, /* wire 3626 */
-    CS2_OP_FRIENDSCHAT_ISIGNORE = 648, /* wire 3627 */
-    CS2_OP_FRIENDLIST_SORT_RESET = 649, /* wire 3628 */
-    CS2_OP_FRIENDLIST_SORT_LEGACY = 650, /* wire 3629 */
-    CS2_OP_FRIENDLIST_SORT_NAME = 651, /* wire 3630 */
-    CS2_OP_FRIENDLIST_SORT_WORLD = 652, /* wire 3631 */
-    CS2_OP_FRIENDLIST_SORT_LASTWORLDCHANGE = 653, /* wire 3632 */
-    CS2_OP_FRIENDLIST_SORT_ONLINE_STATUS = 654, /* wire 3633 */
-    CS2_OP_FRIENDLIST_SORT_ONLINE_NAME = 655, /* wire 3634 */
-    CS2_OP_FRIENDLIST_SORT_ONLINE_LASTWORLDCHANGE = 656, /* wire 3635 */
-    CS2_OP_FRIENDLIST_SORT_ONLINE_WORLD = 657, /* wire 3636 */
-    CS2_OP_FRIENDLIST_SORT_OWNWORLD_NAME = 658, /* wire 3637 */
-    CS2_OP_FRIENDLIST_SORT_OWNWORLD_WORLD = 659, /* wire 3638 */
-    CS2_OP_FRIENDLIST_SORT_APPLY = 660, /* wire 3639 */
-    CS2_OP_IGNORELIST_SORT_RESET = 661, /* wire 3640 */
-    CS2_OP_IGNORELIST_SORT_LEGACY = 662, /* wire 3641 */
-    CS2_OP_IGNORELIST_SORT_NAME = 663, /* wire 3642 */
-    CS2_OP_IGNORELIST_SORT_APPLY = 664, /* wire 3643 */
-    CS2_OP_FRIENDSCHAT_SORT_RESET = 665, /* wire 3644 */
-    CS2_OP_FRIENDSCHAT_SORT_LEGACY = 666, /* wire 3645 */
-    CS2_OP_FRIENDSCHAT_SORT_NAME = 667, /* wire 3646 */
-    CS2_OP_FRIENDSCHAT_SORT_WORLD = 668, /* wire 3647 */
-    CS2_OP_FRIENDSCHAT_SORT_LASTWORLDCHANGE = 669, /* wire 3648 */
-    CS2_OP_FRIENDSCHAT_SORT_ONLINE_STATUS = 670, /* wire 3649 */
-    CS2_OP_FRIENDSCHAT_SORT_ONLINE_NAME = 671, /* wire 3650 */
-    CS2_OP_FRIENDSCHAT_SORT_ONLINE_LASTWORLDCHANGE = 672, /* wire 3651 */
-    CS2_OP_FRIENDSCHAT_SORT_ONLINE_WORLD = 673, /* wire 3652 */
-    CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_NAME = 674, /* wire 3653 */
-    CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_WORLD = 675, /* wire 3654 */
-    CS2_OP_FRIENDSCHAT_SORT_APPLY = 676, /* wire 3655 */
-    CS2_OP_FRIENDLIST_SORT_RANK = 677, /* wire 3656 */
-    CS2_OP_FRIENDSCHAT_SORT_RANK = 678, /* wire 3657 */
+    CS2_OP_FRIEND_COUNT = 643, /* wire 3600 */
+    CS2_OP_FRIEND_GETNAME = 644, /* wire 3601 */
+    CS2_OP_FRIEND_GETWORLD = 645, /* wire 3602 */
+    CS2_OP_FRIEND_GETRANK = 646, /* wire 3603 */
+    CS2_OP_FRIEND_SETRANK = 647, /* wire 3604 */
+    CS2_OP_FRIEND_ADD = 648, /* wire 3605 */
+    CS2_OP_FRIEND_DEL = 649, /* wire 3606 */
+    CS2_OP_IGNORE_ADD = 650, /* wire 3607 */
+    CS2_OP_IGNORE_DEL = 651, /* wire 3608 */
+    CS2_OP_FRIEND_TEST = 652, /* wire 3609 */
+    CS2_OP_FRIENDSCHAT_GETCHATDISPLAYNAME = 653, /* wire 3611 */
+    CS2_OP_FRIENDSCHAT_GETCHATCOUNT = 654, /* wire 3612 */
+    CS2_OP_FRIENDSCHAT_GETCHATUSERNAME = 655, /* wire 3613 */
+    CS2_OP_FRIENDSCHAT_GETCHATUSERWORLD = 656, /* wire 3614 */
+    CS2_OP_FRIENDSCHAT_GETCHATUSERRANK = 657, /* wire 3615 */
+    CS2_OP_FRIENDSCHAT_GETCHATMINKICK = 658, /* wire 3616 */
+    CS2_OP_FRIENDSCHAT_KICKUSER = 659, /* wire 3617 */
+    CS2_OP_FRIENDSCHAT_GETCHATRANK = 660, /* wire 3618 */
+    CS2_OP_FRIENDSCHAT_JOINCHAT = 661, /* wire 3619 */
+    CS2_OP_FRIENDSCHAT_LEAVECHAT = 662, /* wire 3620 */
+    CS2_OP_IGNORE_COUNT = 663, /* wire 3621 */
+    CS2_OP_IGNORE_GETNAME = 664, /* wire 3622 */
+    CS2_OP_IGNORE_TEST = 665, /* wire 3623 */
+    CS2_OP_FRIENDSCHAT_ISSELF = 666, /* wire 3624 */
+    CS2_OP_FRIENDSCHAT_GETCHATOWNERNAME = 667, /* wire 3625 */
+    CS2_OP_FRIENDSCHAT_ISFRIEND = 668, /* wire 3626 */
+    CS2_OP_FRIENDSCHAT_ISIGNORE = 669, /* wire 3627 */
+    CS2_OP_FRIENDLIST_SORT_RESET = 670, /* wire 3628 */
+    CS2_OP_FRIENDLIST_SORT_LEGACY = 671, /* wire 3629 */
+    CS2_OP_FRIENDLIST_SORT_NAME = 672, /* wire 3630 */
+    CS2_OP_FRIENDLIST_SORT_WORLD = 673, /* wire 3631 */
+    CS2_OP_FRIENDLIST_SORT_LASTWORLDCHANGE = 674, /* wire 3632 */
+    CS2_OP_FRIENDLIST_SORT_ONLINE_STATUS = 675, /* wire 3633 */
+    CS2_OP_FRIENDLIST_SORT_ONLINE_NAME = 676, /* wire 3634 */
+    CS2_OP_FRIENDLIST_SORT_ONLINE_LASTWORLDCHANGE = 677, /* wire 3635 */
+    CS2_OP_FRIENDLIST_SORT_ONLINE_WORLD = 678, /* wire 3636 */
+    CS2_OP_FRIENDLIST_SORT_OWNWORLD_NAME = 679, /* wire 3637 */
+    CS2_OP_FRIENDLIST_SORT_OWNWORLD_WORLD = 680, /* wire 3638 */
+    CS2_OP_FRIENDLIST_SORT_APPLY = 681, /* wire 3639 */
+    CS2_OP_IGNORELIST_SORT_RESET = 682, /* wire 3640 */
+    CS2_OP_IGNORELIST_SORT_LEGACY = 683, /* wire 3641 */
+    CS2_OP_IGNORELIST_SORT_NAME = 684, /* wire 3642 */
+    CS2_OP_IGNORELIST_SORT_APPLY = 685, /* wire 3643 */
+    CS2_OP_FRIENDSCHAT_SORT_RESET = 686, /* wire 3644 */
+    CS2_OP_FRIENDSCHAT_SORT_LEGACY = 687, /* wire 3645 */
+    CS2_OP_FRIENDSCHAT_SORT_NAME = 688, /* wire 3646 */
+    CS2_OP_FRIENDSCHAT_SORT_WORLD = 689, /* wire 3647 */
+    CS2_OP_FRIENDSCHAT_SORT_LASTWORLDCHANGE = 690, /* wire 3648 */
+    CS2_OP_FRIENDSCHAT_SORT_ONLINE_STATUS = 691, /* wire 3649 */
+    CS2_OP_FRIENDSCHAT_SORT_ONLINE_NAME = 692, /* wire 3650 */
+    CS2_OP_FRIENDSCHAT_SORT_ONLINE_LASTWORLDCHANGE = 693, /* wire 3651 */
+    CS2_OP_FRIENDSCHAT_SORT_ONLINE_WORLD = 694, /* wire 3652 */
+    CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_NAME = 695, /* wire 3653 */
+    CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_WORLD = 696, /* wire 3654 */
+    CS2_OP_FRIENDSCHAT_SORT_APPLY = 697, /* wire 3655 */
+    CS2_OP_FRIENDLIST_SORT_RANK = 698, /* wire 3656 */
+    CS2_OP_FRIENDSCHAT_SORT_RANK = 699, /* wire 3657 */
 
     /* === CS2 opcode group: unused-3700 (3700..3799) ===
      * unhandled 3700-series commands.
      * rev-239 dispatch: Statics.method6889 -> method13645.
      */
-    CS2_OP_STEAM_SETACHIEVEMENT = 679, /* wire 3700 */
-    CS2_OP_STEAM_SETSTAT = 680, /* wire 3701 */
-    CS2_OP_STEAM_STORESTATS = 681, /* wire 3702 */
+    CS2_OP_STEAM_SETACHIEVEMENT = 700, /* wire 3700 */
+    CS2_OP_STEAM_SETSTAT = 701, /* wire 3701 */
+    CS2_OP_STEAM_STORESTATS = 702, /* wire 3702 */
 
     /* === CS2 opcode group: clan (3800..3899) ===
      * clan settings and channels.
      * rev-239 dispatch: Statics.method6889 -> method4507.
      */
-    CS2_OP_ACTIVECLANSETTINGS_FIND_LISTENED = 682, /* wire 3800 */
-    CS2_OP_ACTIVECLANSETTINGS_FIND_AFFINED = 683, /* wire 3801 */
-    CS2_OP_ACTIVECLANSETTINGS_GETCLANNAME = 684, /* wire 3802 */
-    CS2_OP_ACTIVECLANSETTINGS_GETALLOWUNAFFINED = 685, /* wire 3803 */
-    CS2_OP_ACTIVECLANSETTINGS_GETRANKTALK = 686, /* wire 3804 */
-    CS2_OP_ACTIVECLANSETTINGS_GETRANKKICK = 687, /* wire 3805 */
-    CS2_OP_ACTIVECLANSETTINGS_GETRANKLOOTSHARE = 688, /* wire 3806 */
-    CS2_OP_ACTIVECLANSETTINGS_GETCOINSHARE = 689, /* wire 3807 */
-    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDCOUNT = 690, /* wire 3809 */
-    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDDISPLAYNAME = 691, /* wire 3810 */
-    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDRANK = 692, /* wire 3811 */
-    CS2_OP_ACTIVECLANSETTINGS_GETBANNEDCOUNT = 693, /* wire 3812 */
-    CS2_OP_ACTIVECLANSETTINGS_GETBANNEDDISPLAYNAME = 694, /* wire 3813 */
-    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDEXTRAINFO = 695, /* wire 3814 */
-    CS2_OP_ACTIVECLANSETTINGS_GETCURRENTOWNER_SLOT = 696, /* wire 3815 */
-    CS2_OP_ACTIVECLANSETTINGS_GETREPLACEMENTOWNER_SLOT = 697, /* wire 3816 */
-    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDSLOT = 698, /* wire 3817 */
-    CS2_OP_ACTIVECLANSETTINGS_GETSORTEDAFFINEDSLOT = 699, /* wire 3818 */
-    CS2_OP_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL = 700, /* wire 3819 */
-    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDJOINRUNEDAY = 701, /* wire 3820 */
-    CS2_OP_AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL = 702, /* wire 3821 */
-    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDMUTED = 703, /* wire 3822 */
-    CS2_OP_ACTIVECLANCHANNEL_FIND_LISTENED = 704, /* wire 3850 */
-    CS2_OP_ACTIVECLANCHANNEL_FIND_AFFINED = 705, /* wire 3851 */
-    CS2_OP_ACTIVECLANCHANNEL_GETCLANNAME = 706, /* wire 3852 */
-    CS2_OP_ACTIVECLANCHANNEL_GETRANKKICK = 707, /* wire 3853 */
-    CS2_OP_ACTIVECLANCHANNEL_GETRANKTALK = 708, /* wire 3854 */
-    CS2_OP_ACTIVECLANCHANNEL_GETUSERCOUNT = 709, /* wire 3855 */
-    CS2_OP_ACTIVECLANCHANNEL_GETUSERDISPLAYNAME = 710, /* wire 3856 */
-    CS2_OP_ACTIVECLANCHANNEL_GETUSERRANK = 711, /* wire 3857 */
-    CS2_OP_ACTIVECLANCHANNEL_GETUSERWORLD = 712, /* wire 3858 */
-    CS2_OP_ACTIVECLANCHANNEL_KICKUSER = 713, /* wire 3859 */
-    CS2_OP_ACTIVECLANCHANNEL_GETUSERSLOT = 714, /* wire 3860 */
-    CS2_OP_ACTIVECLANCHANNEL_GETSORTEDUSERSLOT = 715, /* wire 3861 */
-    CS2_OP_CLANPROFILE_FIND = 716, /* wire 3890 */
+    CS2_OP_ACTIVECLANSETTINGS_FIND_LISTENED = 703, /* wire 3800 */
+    CS2_OP_ACTIVECLANSETTINGS_FIND_AFFINED = 704, /* wire 3801 */
+    CS2_OP_ACTIVECLANSETTINGS_GETCLANNAME = 705, /* wire 3802 */
+    CS2_OP_ACTIVECLANSETTINGS_GETALLOWUNAFFINED = 706, /* wire 3803 */
+    CS2_OP_ACTIVECLANSETTINGS_GETRANKTALK = 707, /* wire 3804 */
+    CS2_OP_ACTIVECLANSETTINGS_GETRANKKICK = 708, /* wire 3805 */
+    CS2_OP_ACTIVECLANSETTINGS_GETRANKLOOTSHARE = 709, /* wire 3806 */
+    CS2_OP_ACTIVECLANSETTINGS_GETCOINSHARE = 710, /* wire 3807 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDCOUNT = 711, /* wire 3809 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDDISPLAYNAME = 712, /* wire 3810 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDRANK = 713, /* wire 3811 */
+    CS2_OP_ACTIVECLANSETTINGS_GETBANNEDCOUNT = 714, /* wire 3812 */
+    CS2_OP_ACTIVECLANSETTINGS_GETBANNEDDISPLAYNAME = 715, /* wire 3813 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDEXTRAINFO = 716, /* wire 3814 */
+    CS2_OP_ACTIVECLANSETTINGS_GETCURRENTOWNER_SLOT = 717, /* wire 3815 */
+    CS2_OP_ACTIVECLANSETTINGS_GETREPLACEMENTOWNER_SLOT = 718, /* wire 3816 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDSLOT = 719, /* wire 3817 */
+    CS2_OP_ACTIVECLANSETTINGS_GETSORTEDAFFINEDSLOT = 720, /* wire 3818 */
+    CS2_OP_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL = 721, /* wire 3819 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDJOINRUNEDAY = 722, /* wire 3820 */
+    CS2_OP_AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL = 723, /* wire 3821 */
+    CS2_OP_ACTIVECLANSETTINGS_GETAFFINEDMUTED = 724, /* wire 3822 */
+    CS2_OP_ACTIVECLANCHANNEL_FIND_LISTENED = 725, /* wire 3850 */
+    CS2_OP_ACTIVECLANCHANNEL_FIND_AFFINED = 726, /* wire 3851 */
+    CS2_OP_ACTIVECLANCHANNEL_GETCLANNAME = 727, /* wire 3852 */
+    CS2_OP_ACTIVECLANCHANNEL_GETRANKKICK = 728, /* wire 3853 */
+    CS2_OP_ACTIVECLANCHANNEL_GETRANKTALK = 729, /* wire 3854 */
+    CS2_OP_ACTIVECLANCHANNEL_GETUSERCOUNT = 730, /* wire 3855 */
+    CS2_OP_ACTIVECLANCHANNEL_GETUSERDISPLAYNAME = 731, /* wire 3856 */
+    CS2_OP_ACTIVECLANCHANNEL_GETUSERRANK = 732, /* wire 3857 */
+    CS2_OP_ACTIVECLANCHANNEL_GETUSERWORLD = 733, /* wire 3858 */
+    CS2_OP_ACTIVECLANCHANNEL_KICKUSER = 734, /* wire 3859 */
+    CS2_OP_ACTIVECLANCHANNEL_GETUSERSLOT = 735, /* wire 3860 */
+    CS2_OP_ACTIVECLANCHANNEL_GETSORTEDUSERSLOT = 736, /* wire 3861 */
+    CS2_OP_CLANPROFILE_FIND = 737, /* wire 3890 */
 
     /* === CS2 opcode group: market (3900..3999) ===
      * Grand Exchange and trading-post commands.
      * rev-239 dispatch: Statics.method6889 -> method3202.
      */
-    CS2_OP_STOCKMARKET_GETOFFERTYPE = 717, /* wire 3903 */
-    CS2_OP_STOCKMARKET_GETOFFERITEM = 718, /* wire 3904 */
-    CS2_OP_STOCKMARKET_GETOFFERPRICE = 719, /* wire 3905 */
-    CS2_OP_STOCKMARKET_GETOFFERCOUNT = 720, /* wire 3906 */
-    CS2_OP_STOCKMARKET_GETOFFERCOMPLETEDCOUNT = 721, /* wire 3907 */
-    CS2_OP_STOCKMARKET_GETOFFERCOMPLETEDGOLD = 722, /* wire 3908 */
-    CS2_OP_STOCKMARKET_ISOFFEREMPTY = 723, /* wire 3910 */
-    CS2_OP_STOCKMARKET_ISOFFERSTABLE = 724, /* wire 3911 */
-    CS2_OP_STOCKMARKET_ISOFFERFINISHED = 725, /* wire 3912 */
-    CS2_OP_STOCKMARKET_ISOFFERADDING = 726, /* wire 3913 */
-    CS2_OP_TRADINGPOST_SORTBY_NAME = 727, /* wire 3914 */
-    CS2_OP_TRADINGPOST_SORTBY_PRICE = 728, /* wire 3915 */
-    CS2_OP_TRADINGPOST_SORTFILTERBY_WORLD = 729, /* wire 3916 */
-    CS2_OP_TRADINGPOST_SORTBY_AGE = 730, /* wire 3917 */
-    CS2_OP_TRADINGPOST_SORTBY_COUNT = 731, /* wire 3918 */
-    CS2_OP_TRADINGPOST_GETTOTALOFFERS = 732, /* wire 3919 */
-    CS2_OP_TRADINGPOST_GETOFFERWORLD = 733, /* wire 3920 */
-    CS2_OP_TRADINGPOST_GETOFFERNAME = 734, /* wire 3921 */
-    CS2_OP_TRADINGPOST_GETOFFERPREVIOUSNAME = 735, /* wire 3922 */
-    CS2_OP_TRADINGPOST_GETOFFERAGE = 736, /* wire 3923 */
-    CS2_OP_TRADINGPOST_GETOFFERCOUNT = 737, /* wire 3924 */
-    CS2_OP_TRADINGPOST_GETOFFERPRICE = 738, /* wire 3925 */
-    CS2_OP_TRADINGPOST_GETOFFERITEM = 739, /* wire 3926 */
-    CS2_OP_STOCKMARKET_SELLABLE = 740, /* wire 3931 */
-    CS2_OP_STOCKMARKET_VALUE = 741, /* wire 3932 */
-    CS2_OP_STOCKMARKET_BUYABLE = 742, /* wire 3939 */
+    CS2_OP_STOCKMARKET_GETOFFERTYPE = 738, /* wire 3903 */
+    CS2_OP_STOCKMARKET_GETOFFERITEM = 739, /* wire 3904 */
+    CS2_OP_STOCKMARKET_GETOFFERPRICE = 740, /* wire 3905 */
+    CS2_OP_STOCKMARKET_GETOFFERCOUNT = 741, /* wire 3906 */
+    CS2_OP_STOCKMARKET_GETOFFERCOMPLETEDCOUNT = 742, /* wire 3907 */
+    CS2_OP_STOCKMARKET_GETOFFERCOMPLETEDGOLD = 743, /* wire 3908 */
+    CS2_OP_STOCKMARKET_ISOFFEREMPTY = 744, /* wire 3910 */
+    CS2_OP_STOCKMARKET_ISOFFERSTABLE = 745, /* wire 3911 */
+    CS2_OP_STOCKMARKET_ISOFFERFINISHED = 746, /* wire 3912 */
+    CS2_OP_STOCKMARKET_ISOFFERADDING = 747, /* wire 3913 */
+    CS2_OP_TRADINGPOST_SORTBY_NAME = 748, /* wire 3914 */
+    CS2_OP_TRADINGPOST_SORTBY_PRICE = 749, /* wire 3915 */
+    CS2_OP_TRADINGPOST_SORTFILTERBY_WORLD = 750, /* wire 3916 */
+    CS2_OP_TRADINGPOST_SORTBY_AGE = 751, /* wire 3917 */
+    CS2_OP_TRADINGPOST_SORTBY_COUNT = 752, /* wire 3918 */
+    CS2_OP_TRADINGPOST_GETTOTALOFFERS = 753, /* wire 3919 */
+    CS2_OP_TRADINGPOST_GETOFFERWORLD = 754, /* wire 3920 */
+    CS2_OP_TRADINGPOST_GETOFFERNAME = 755, /* wire 3921 */
+    CS2_OP_TRADINGPOST_GETOFFERPREVIOUSNAME = 756, /* wire 3922 */
+    CS2_OP_TRADINGPOST_GETOFFERAGE = 757, /* wire 3923 */
+    CS2_OP_TRADINGPOST_GETOFFERCOUNT = 758, /* wire 3924 */
+    CS2_OP_TRADINGPOST_GETOFFERPRICE = 759, /* wire 3925 */
+    CS2_OP_TRADINGPOST_GETOFFERITEM = 760, /* wire 3926 */
+    CS2_OP_STOCKMARKET_SELLABLE = 761, /* wire 3931 */
+    CS2_OP_STOCKMARKET_VALUE = 762, /* wire 3932 */
+    CS2_OP_STOCKMARKET_BUYABLE = 763, /* wire 3939 */
 
     /* === CS2 opcode group: math (4000..4099) ===
      * integer maths and bit operations.
      * rev-239 dispatch: Statics.method6889 -> method2838.
      */
-    /* ADD — Integer add.
-     * int stack in:   a, b   (b = top)
-     * str stack in:   -
-     * int stack out:  a + b
-     * str stack out:  -
-     */
-    CS2_OP_ADD = 743, /* wire 4000 */
-    /* SUB — Integer subtract.
-     * int stack in:   a, b   (b = top)
-     * str stack in:   -
-     * int stack out:  a - b
-     * str stack out:  -
-     */
-    CS2_OP_SUB = 744, /* wire 4001 */
-    /* MULTIPLY — Integer multiply.
-     * int stack in:   a, b   (b = top)
-     * str stack in:   -
-     * int stack out:  a * b
-     * str stack out:  -
-     */
-    CS2_OP_MULTIPLY = 745, /* wire 4002 */
-    /* DIVIDE — Integer divide.
-     * int stack in:   a, b   (b = top)
-     * str stack in:   -
-     * int stack out:  a / b
-     * str stack out:  -
-     * notes: VM error if b == 0; otherwise truncates toward zero
-     */
-    CS2_OP_DIVIDE = 746, /* wire 4003 */
     /* RANDOM — Random exclusive.
      * int stack in:   max
      * str stack in:   -
@@ -2485,103 +2577,26 @@ enum CS2_Op
      * str stack out:  -
      * notes: Returns 0 when max <= 0. LostCity engine.rs2 documents the range as 0 through max - 1; the input is required for stack balance.
      */
-    CS2_OP_RANDOM = 747, /* wire 4004 */
+    CS2_OP_RANDOM = 764, /* wire 4004 */
     /* RANDOMINC — Random inclusive.
      * int stack in:   max
      * str stack in:   -
      * int stack out:  rand() % (max + 1)
      * str stack out:  -
      */
-    CS2_OP_RANDOMINC = 748, /* wire 4005 */
+    CS2_OP_RANDOMINC = 765, /* wire 4005 */
     /* INTERPOLATE — Linear interpolate.
      * int stack in:   a, b, c, d, e                    (e = top)
      * str stack in:   -
      * int stack out:  a + (b - a) * (e - c) / (d - c)
      * str stack out:  -
      */
-    CS2_OP_INTERPOLATE = 749, /* wire 4006 */
-    CS2_OP_ADDPERCENT = 750, /* wire 4007 */
-    /* SETBIT — Set bit in value.
-     * int stack in:   value, bit          (bit = top)
-     * str stack in:   -
-     * int stack out:  value with bit set
-     * str stack out:  -
-     */
-    CS2_OP_SETBIT = 751, /* wire 4008 */
-    /* CLEARBIT — Clear bit in value.
-     * int stack in:   value, bit              (bit = top)
-     * str stack in:   -
-     * int stack out:  value with bit cleared
-     * str stack out:  -
-     */
-    CS2_OP_CLEARBIT = 752, /* wire 4009 */
-    /* TESTBIT — Test bit set.
-     * int stack in:   value, bit                 (bit = top)
-     * str stack in:   -
-     * int stack out:  (value & (1 << bit)) != 0
-     * str stack out:  -
-     */
-    CS2_OP_TESTBIT = 753, /* wire 4010 */
-    /* MODULO — Integer modulo.
-     * int stack in:   a, b   (b = top)
-     * str stack in:   -
-     * int stack out:  a % b
-     * str stack out:  -
-     * notes: VM error if b == 0; remainder has the dividend's sign
-     */
-    CS2_OP_MODULO = 754, /* wire 4011 */
-    CS2_OP_POW = 755, /* wire 4012 */
-    CS2_OP_INVPOW = 756, /* wire 4013 */
-    /* AND — Bitwise and.
-     * int stack in:   a, b   (b = top)
-     * str stack in:   -
-     * int stack out:  a & b
-     * str stack out:  -
-     */
-    CS2_OP_AND = 757, /* wire 4014 */
-    /* OR — Bitwise or.
-     * int stack in:   a, b   (b = top)
-     * str stack in:   -
-     * int stack out:  a | b
-     * str stack out:  -
-     */
-    CS2_OP_OR = 758, /* wire 4015 */
-    /* MIN — Minimum of two ints.  int in: a, b (b = top)  int out: min(a, b).
-     * int stack in:   -
-     * str stack in:   -
-     * int stack out:  -
-     * str stack out:  -
-     */
-    CS2_OP_MIN = 759, /* wire 4016 */
-    /* MAX — Maximum of two ints.  int in: a, b (b = top)  int out: max(a, b).
-     * int stack in:   -
-     * str stack in:   -
-     * int stack out:  -
-     * str stack out:  -
-     */
-    CS2_OP_MAX = 760, /* wire 4017 */
-    /* SCALE — Scale interpolate (c*a)/b.
-     * int stack in:   a, b, c  (c = top)
-     * str stack in:   -
-     * int stack out:  result
-     * str stack out:  -
-     * notes: b == 0 yields 0
-     */
-    CS2_OP_SCALE = 761, /* wire 4018 */
-    CS2_OP_BITCOUNT = 762, /* wire 4025 */
-    CS2_OP_TOGGLEBIT = 763, /* wire 4026 */
-    CS2_OP_SETBIT_RANGE = 764, /* wire 4027 */
-    CS2_OP_CLEARBIT_RANGE = 765, /* wire 4028 */
-    CS2_OP_GETBIT_RANGE = 766, /* wire 4029 */
-    /* SETBIT_RANGE_VALUE (a.k.a. SETBIT_RANGE_TOINT): clear the [low,high] bit range
-     * of `value` then write `newBits` (clamped to the range width) into it.
-     * int in: value, newBits, low, high (high = top)  int out: result */
-    CS2_OP_SETBIT_RANGE_TOINT = 767, /* wire 4030 */
-    CS2_OP_SETBIT_RANGE_VALUE = CS2_OP_SETBIT_RANGE_TOINT,
-    CS2_OP_SIN = 768, /* wire 4032 */
-    CS2_OP_COS = 769, /* wire 4033 */
-    CS2_OP_ATAN2 = 770, /* wire 4034 */
-    CS2_OP_ABS = 771, /* wire 4035 */
+    CS2_OP_INTERPOLATE = 766, /* wire 4006 */
+    CS2_OP_POW = 767, /* wire 4012 */
+    CS2_OP_INVPOW = 768, /* wire 4013 */
+    CS2_OP_SIN = 769, /* wire 4032 */
+    CS2_OP_COS = 770, /* wire 4033 */
+    CS2_OP_ATAN2 = 771, /* wire 4034 */
     CS2_OP_PARSEINT = 772, /* wire 4036 */
     CS2_OP_LONG_ADD = 773, /* wire 4037 */
     CS2_OP_LONG_SUB = 774, /* wire 4038 */
@@ -4522,80 +4537,84 @@ enum CS2_Op
     CS2_OP_UNDEFINED_WIRE_ID = 1375,
 };
 
+/* The FAST range is [0, CS2_OP_FAST_END); GENERAL is [CS2_OP_FAST_END,
+ * CS2_OP_PLAIN_COUNT). */
+#define CS2_OP_FAST_END 31
 /* Instructions a loaded script can hold (its opcodes[]); the jit's follow. */
 #define CS2_OP_PLAIN_COUNT 1376
 /* Every instruction, the jit's included: what the interpreter switches on. */
 #define CS2_OP_COUNT 1376
 /* Names this exact numbering (canonical.numbering_hash); the jit's blob
  * format folds it in, so a regenerated numbering never reads an old blob. */
-#define CS2_OP_NUMBERING_HASH 0x948e9f87u
+#define CS2_OP_NUMBERING_HASH 0xee150b14u
 
 /* Each group's instructions: [BEGIN, END). A component group the reference
  * client gives two ranges (the active-component CC_ commands and the
- * explicit-component IF_ ones) has a range for each. */
-#define CS2_OPS_VM_CORE_BEGIN 0
-#define CS2_OPS_VM_CORE_END 53
-#define CS2_OPS_COMPONENT_BEGIN 53
-#define CS2_OPS_COMPONENT_END 85
-#define CS2_OPS_COMPONENT_LAYOUT_CC_BEGIN 85
-#define CS2_OPS_COMPONENT_LAYOUT_CC_END 91
-#define CS2_OPS_COMPONENT_LAYOUT_IF_BEGIN 274
-#define CS2_OPS_COMPONENT_LAYOUT_IF_END 280
-#define CS2_OPS_COMPONENT_APPEARANCE_CC_BEGIN 91
-#define CS2_OPS_COMPONENT_APPEARANCE_CC_END 144
-#define CS2_OPS_COMPONENT_APPEARANCE_IF_BEGIN 280
-#define CS2_OPS_COMPONENT_APPEARANCE_IF_END 331
-#define CS2_OPS_COMPONENT_MODEL_CC_BEGIN 144
-#define CS2_OPS_COMPONENT_MODEL_CC_END 158
-#define CS2_OPS_COMPONENT_MODEL_IF_BEGIN 331
-#define CS2_OPS_COMPONENT_MODEL_IF_END 344
-#define CS2_OPS_COMPONENT_OP_CC_BEGIN 158
-#define CS2_OPS_COMPONENT_OP_CC_END 177
-#define CS2_OPS_COMPONENT_OP_IF_BEGIN 344
-#define CS2_OPS_COMPONENT_OP_IF_END 363
-#define CS2_OPS_COMPONENT_LISTENER_CC_BEGIN 177
-#define CS2_OPS_COMPONENT_LISTENER_CC_END 216
-#define CS2_OPS_COMPONENT_LISTENER_IF_BEGIN 363
-#define CS2_OPS_COMPONENT_LISTENER_IF_END 402
-#define CS2_OPS_CC_GEOMETRY_BEGIN 216
-#define CS2_OPS_CC_GEOMETRY_END 223
-#define CS2_OPS_CC_APPEARANCE_BEGIN 223
-#define CS2_OPS_CC_APPEARANCE_END 258
-#define CS2_OPS_CC_INVENTORY_BEGIN 258
-#define CS2_OPS_CC_INVENTORY_END 266
-#define CS2_OPS_CC_TARGET_BEGIN 266
-#define CS2_OPS_CC_TARGET_END 272
-#define CS2_OPS_COMPONENT_ACTION_CC_BEGIN 272
-#define CS2_OPS_COMPONENT_ACTION_CC_END 274
-#define CS2_OPS_COMPONENT_ACTION_IF_BEGIN 457
-#define CS2_OPS_COMPONENT_ACTION_IF_END 460
-#define CS2_OPS_IF_GEOMETRY_BEGIN 402
-#define CS2_OPS_IF_GEOMETRY_END 409
-#define CS2_OPS_IF_APPEARANCE_BEGIN 409
-#define CS2_OPS_IF_APPEARANCE_END 444
-#define CS2_OPS_IF_INVENTORY_BEGIN 444
-#define CS2_OPS_IF_INVENTORY_END 454
-#define CS2_OPS_IF_TARGET_BEGIN 454
-#define CS2_OPS_IF_TARGET_END 457
-#define CS2_OPS_CLIENT_BEGIN 460
-#define CS2_OPS_CLIENT_END 552
-#define CS2_OPS_AUDIO_OPTIONS_BEGIN 552
-#define CS2_OPS_AUDIO_OPTIONS_END 582
-#define CS2_OPS_CLIENT_STATE_BEGIN 582
-#define CS2_OPS_CLIENT_STATE_END 616
-#define CS2_OPS_ENUM_BEGIN 616
-#define CS2_OPS_ENUM_END 619
-#define CS2_OPS_KEYBOARD_BEGIN 619
-#define CS2_OPS_KEYBOARD_END 622
-#define CS2_OPS_SOCIAL_BEGIN 622
-#define CS2_OPS_SOCIAL_END 679
-#define CS2_OPS_UNUSED_3700_BEGIN 679
-#define CS2_OPS_UNUSED_3700_END 682
-#define CS2_OPS_CLAN_BEGIN 682
-#define CS2_OPS_CLAN_END 717
-#define CS2_OPS_MARKET_BEGIN 717
-#define CS2_OPS_MARKET_END 743
-#define CS2_OPS_MATH_BEGIN 743
+ * explicit-component IF_ ones) has a range for each. A range holds the
+ * group's GENERAL instructions; its FAST ones are below CS2_OP_FAST_END. */
+#define CS2_OPS_VM_CORE_BEGIN 31
+#define CS2_OPS_VM_CORE_END 74
+#define CS2_OPS_COMPONENT_BEGIN 74
+#define CS2_OPS_COMPONENT_END 106
+#define CS2_OPS_COMPONENT_LAYOUT_CC_BEGIN 106
+#define CS2_OPS_COMPONENT_LAYOUT_CC_END 112
+#define CS2_OPS_COMPONENT_LAYOUT_IF_BEGIN 295
+#define CS2_OPS_COMPONENT_LAYOUT_IF_END 301
+#define CS2_OPS_COMPONENT_APPEARANCE_CC_BEGIN 112
+#define CS2_OPS_COMPONENT_APPEARANCE_CC_END 165
+#define CS2_OPS_COMPONENT_APPEARANCE_IF_BEGIN 301
+#define CS2_OPS_COMPONENT_APPEARANCE_IF_END 352
+#define CS2_OPS_COMPONENT_MODEL_CC_BEGIN 165
+#define CS2_OPS_COMPONENT_MODEL_CC_END 179
+#define CS2_OPS_COMPONENT_MODEL_IF_BEGIN 352
+#define CS2_OPS_COMPONENT_MODEL_IF_END 365
+#define CS2_OPS_COMPONENT_OP_CC_BEGIN 179
+#define CS2_OPS_COMPONENT_OP_CC_END 198
+#define CS2_OPS_COMPONENT_OP_IF_BEGIN 365
+#define CS2_OPS_COMPONENT_OP_IF_END 384
+#define CS2_OPS_COMPONENT_LISTENER_CC_BEGIN 198
+#define CS2_OPS_COMPONENT_LISTENER_CC_END 237
+#define CS2_OPS_COMPONENT_LISTENER_IF_BEGIN 384
+#define CS2_OPS_COMPONENT_LISTENER_IF_END 423
+#define CS2_OPS_CC_GEOMETRY_BEGIN 237
+#define CS2_OPS_CC_GEOMETRY_END 244
+#define CS2_OPS_CC_APPEARANCE_BEGIN 244
+#define CS2_OPS_CC_APPEARANCE_END 279
+#define CS2_OPS_CC_INVENTORY_BEGIN 279
+#define CS2_OPS_CC_INVENTORY_END 287
+#define CS2_OPS_CC_TARGET_BEGIN 287
+#define CS2_OPS_CC_TARGET_END 293
+#define CS2_OPS_COMPONENT_ACTION_CC_BEGIN 293
+#define CS2_OPS_COMPONENT_ACTION_CC_END 295
+#define CS2_OPS_COMPONENT_ACTION_IF_BEGIN 478
+#define CS2_OPS_COMPONENT_ACTION_IF_END 481
+#define CS2_OPS_IF_GEOMETRY_BEGIN 423
+#define CS2_OPS_IF_GEOMETRY_END 430
+#define CS2_OPS_IF_APPEARANCE_BEGIN 430
+#define CS2_OPS_IF_APPEARANCE_END 465
+#define CS2_OPS_IF_INVENTORY_BEGIN 465
+#define CS2_OPS_IF_INVENTORY_END 475
+#define CS2_OPS_IF_TARGET_BEGIN 475
+#define CS2_OPS_IF_TARGET_END 478
+#define CS2_OPS_CLIENT_BEGIN 481
+#define CS2_OPS_CLIENT_END 573
+#define CS2_OPS_AUDIO_OPTIONS_BEGIN 573
+#define CS2_OPS_AUDIO_OPTIONS_END 603
+#define CS2_OPS_CLIENT_STATE_BEGIN 603
+#define CS2_OPS_CLIENT_STATE_END 637
+#define CS2_OPS_ENUM_BEGIN 637
+#define CS2_OPS_ENUM_END 640
+#define CS2_OPS_KEYBOARD_BEGIN 640
+#define CS2_OPS_KEYBOARD_END 643
+#define CS2_OPS_SOCIAL_BEGIN 643
+#define CS2_OPS_SOCIAL_END 700
+#define CS2_OPS_UNUSED_3700_BEGIN 700
+#define CS2_OPS_UNUSED_3700_END 703
+#define CS2_OPS_CLAN_BEGIN 703
+#define CS2_OPS_CLAN_END 738
+#define CS2_OPS_MARKET_BEGIN 738
+#define CS2_OPS_MARKET_END 764
+#define CS2_OPS_MATH_BEGIN 764
 #define CS2_OPS_MATH_END 798
 #define CS2_OPS_STRING_BEGIN 798
 #define CS2_OPS_STRING_END 826
