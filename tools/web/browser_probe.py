@@ -223,7 +223,8 @@ def background_longest(text: str):
 def print_background(text: str) -> None:
     b = background_longest(text)
     if b["step"] is None and b["unit"] is None:
-        print("=== background queue: no trace lines (add &env=TORIRS_QUEUE_CONTRACT_TRACE=1) ===")
+        print("=== background queue: no trace lines (add &env=TORIRS_QUEUE_CONTRACT_TRACE=1, "
+              "on a client built with TASK_PROFILING=1) ===")
         return
     step = "%.2f ms (%s)" % b["step"] if b["step"] else "-"
     unit = "%.2f ms (%s)" % b["unit"] if b["unit"] else "-"
@@ -303,7 +304,8 @@ def main() -> int:
     ap.add_argument("--summary", action="store_true",
                     help="after the last sample, print the boot telemetry (marks, runner counters, "
                          "wire stats), with TORIRS_QUEUE_CONTRACT_TRACE=1 in the URL the background "
-                         "queue's longest step and longest unit, and with TORIRS_IO_TRACE=1 the IO "
+                         "queue's longest step and longest unit (a client built with "
+                         "TASK_PROFILING=1), and with TORIRS_IO_TRACE=1 the IO "
                          "trace's idle gaps and serialized read chains")
     ap.add_argument("--until", help="stop early once the client log contains this text "
                          "(e.g. 'boot: world ready'), checked every sample")

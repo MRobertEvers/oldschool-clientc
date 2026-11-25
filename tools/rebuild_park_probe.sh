@@ -24,7 +24,9 @@
 # The client is the capped native loop with its in-process server (an
 # EMBED_SERVER=1 binary), not a content test (whose rebuilds are blocking),
 # headless (SDL dummy drivers, --soft3d), strict and traced
-# (TORIRS_QUEUE_CONTRACT_STRICT=1, _TRACE=1).
+# (TORIRS_QUEUE_CONTRACT_STRICT=1, _TRACE=1). The compute check and the
+# longest-step trace it reads are compiled in only with TASK_PROFILING=1:
+# build the binary this is pointed at with that.
 #
 # STATUS (lo-checks, 2026-11-19): no run has shown a park yet. Five runs of
 # 240-600 s gave one background REBUILD (park10: primed by the job, gather
