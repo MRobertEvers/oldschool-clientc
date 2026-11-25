@@ -32,6 +32,7 @@ player_info_osrs(RsprotRev rev)
     case RSPROT_OSRS_ID(240): return player_info_osrs240;
     case RSPROT_OSRS_ID(241): return player_info_osrs241;
     case RSPROT_OSRS_ID(242): return player_info_osrs242;
+    case RSPROT_OSRS_ID(243): return player_info_osrs243;
     default: return NULL;
     }
 }

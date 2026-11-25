@@ -65,6 +65,7 @@ worldentity_info_v7_osrs(RsprotRev rev)
     case RSPROT_OSRS_ID(240): return worldentity_info_v7_osrs240;
     case RSPROT_OSRS_ID(241): return worldentity_info_v7_osrs241;
     case RSPROT_OSRS_ID(242): return worldentity_info_v7_osrs242;
+    case RSPROT_OSRS_ID(243): return worldentity_info_v7_osrs243;
     default: return NULL;
     }
 }
