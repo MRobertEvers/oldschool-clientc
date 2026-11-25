@@ -144,7 +144,7 @@ lane_open(
     runner_init(&lane->parallel, lane->px, TASK_RUNNER_ROLE_PARALLEL, now);
     runner_init(&lane->background, lane->px, TASK_RUNNER_ROLE_BACKGROUND, now);
     /* Measures every parallel step (longest_step_us) without naming any. */
-    lane->parallel.slow_task_us = UINT64_MAX / 2;
+    TaskProf_SetSlowTask(&lane->parallel, UINT64_MAX / 2);
     lane->bc = dat1_buildcache_new();
     lane->provider = dat1_buildcache_as_provider(lane->bc);
     CacheProvider_SetProfile(lane->provider, &lane->profile);
@@ -360,15 +360,15 @@ test_the_longest_step(char const* root)
     /* The bank's one-time decode is a read of its own; take it first. */
     load(&lane, 65000);
     printf("   the bank's one-time decode (sounds.dat): longest asset-queue step %.3f ms\n",
-        (double)lane.parallel.longest_step_us / 1000.0);
+        (double)lane.parallel.prof.longest_step_us / 1000.0);
     for( int id = 0; id < bank->count; id++ )
     {
         int frames = 0;
 
         if( !bank->effects[id] )
             continue;
-        lane.parallel.longest_step_us = 0;
-        lane.background.longest_step_us = 0;
+        lane.parallel.prof.longest_step_us = 0;
+        lane.background.prof.longest_step_us = 0;
         ToriRS_TaskQueue_Add(lane.parallel.queue, CreateTask_SoundLoad(lane.provider, id));
         while( (lane.parallel.queue->head || lane.background.queue->head) && frames < 1000000 )
         {
@@ -376,14 +376,14 @@ test_the_longest_step(char const* root)
             frames++;
         }
         CHECK(CacheProvider_SoundHas(lane.provider, id), "effect %d is not resident", id);
-        if( lane.parallel.longest_step_us > worst_read_us )
+        if( lane.parallel.prof.longest_step_us > worst_read_us )
         {
-            worst_read_us = lane.parallel.longest_step_us;
+            worst_read_us = lane.parallel.prof.longest_step_us;
             worst_read_id = id;
         }
-        if( lane.background.longest_step_us > worst_render_us )
+        if( lane.background.prof.longest_step_us > worst_render_us )
         {
-            worst_render_us = lane.background.longest_step_us;
+            worst_render_us = lane.background.prof.longest_step_us;
             worst_render_id = id;
         }
     }

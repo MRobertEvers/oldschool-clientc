@@ -963,7 +963,7 @@ PlatformWindow_TicksUs(void);
  * COST, as against how long it took. A step measured while other processes
  * load every core takes longer on the wall clock but costs the same here, so
  * a check that asks "did this step compute too much" reads this (the parallel
- * queue's compute check, TaskRunner_SetCostClock).
+ * queue's compute check, TaskProf_SetCostClock).
  *
  * Per lane: CLOCK_THREAD_CPUTIME_ID on macOS, linux and android;
  * QueryThreadCycleTime scaled by the time-stamp counter's rate on windows;

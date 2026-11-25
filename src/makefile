@@ -175,11 +175,24 @@ CS2VM2_PROFILING_SUFFIX =
 ifeq ($(CS2VM2_PROFILING),1)
 CS2VM2_PROFILING_SUFFIX = _cs2prof
 endif
+# TASK_PROFILING=1 compiles in what the task queues measure about the tasks
+# they run: TORIRS_TASK_SLOW_MS's task_slow lines, the parallel queue's compute
+# check, the background queue's longest step and its unit meter
+# (src/task_profiling.h). Off by default, where TaskRunner_Step reads no clock
+# for any of them (in the browser each read is a call to performance.now()).
+# The one-line default: set it to 1 here to measure every build. It changes
+# CFLAGS for every unit, so it owns its object directory suffix.
+# docs/PERF_HARNESS.md "Build knobs".
+TASK_PROFILING ?= 0
+TASK_PROFILING_SUFFIX =
+ifeq ($(TASK_PROFILING),1)
+TASK_PROFILING_SUFFIX = _taskprof
+endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(PROFILE_SUFFIX)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)$(CS2VM2_PROFILING_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(PROFILE_SUFFIX)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)$(CS2VM2_PROFILING_SUFFIX)$(TASK_PROFILING_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)$(CS2VM2_PROFILING_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)$(CS2VM2_PROFILING_SUFFIX)$(TASK_PROFILING_SUFFIX)
 O_LEVEL = $(PLATFORM_DEBUG_O_LEVEL)
 endif
 
@@ -448,6 +461,9 @@ CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
 	$(RSPROT_HDR_INCLUDES)
 ifeq ($(CS2VM2_PROFILING),1)
 CFLAGS += -DCS2VM2_PROFILING=1
+endif
+ifeq ($(TASK_PROFILING),1)
+CFLAGS += -DTASK_PROFILING=1
 endif
 
 # Just the two directories holding rsprot's headers, for the main build.
@@ -5862,10 +5878,16 @@ test-task-budget: $(OBJ_DIR)
 # The frame contract's queue half (app.h): results by queue, the parallel pump
 # drains, every task gets its turn, who steps the background queue. Asserts
 # live (the death checks fork and expect SIGABRT).
+# Built twice: as this build is (TASK_PROFILING off: no clock read for any
+# measurement) and with the measurements compiled in (the compute check, the
+# unit meter).
 test-queue-contract: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/queue_contract_test $(TORIMEM_SRCS) game/test/queue_contract_test.c \
 		game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/queue_contract_test
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -DTASK_PROFILING=1 -o $(OBJ_DIR)/queue_contract_test_prof $(TORIMEM_SRCS) \
+		game/test/queue_contract_test.c game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c -lm
+	./$(OBJ_DIR)/queue_contract_test_prof
 
 # What a parked task waits on (task_trigger.h): prime, await, fire, the
 # owner's end, a second prime, cancel, loops, turns, counts, cycles, the
@@ -6664,7 +6686,7 @@ test-wev-seq-wants: $(OBJ_DIR) $(OBJS)
 # (the background queue), and the song is installed only after the decode
 # job: engine/dat2/task_dat2_music_load.c, against the real osrs239 cache.
 test-music-load: $(OBJ_DIR) $(OBJS)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/music_load_split_test \
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -DTASK_PROFILING=1 -o $(OBJ_DIR)/music_load_split_test \
 		engine/dat2/test/music_load_split_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/music_load_split_test ..
@@ -6674,7 +6696,7 @@ test-music-load: $(OBJ_DIR) $(OBJS)
 # task_dat2_worldmap_load.c, against the real osrs242 cache.
 .PHONY: test-worldmap-load
 test-worldmap-load: $(OBJ_DIR) $(OBJS)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/worldmap_load_split_test \
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -DTASK_PROFILING=1 -o $(OBJ_DIR)/worldmap_load_split_test \
 		engine/dat2/test/worldmap_load_split_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/worldmap_load_split_test ..
@@ -6700,14 +6722,14 @@ test-loc-seq-bind: $(OBJ_DIR) $(OBJS)
 # waiting for it, and is the per-member decode byte for byte.
 .PHONY: test-loc-load-split
 test-loc-load-split: $(OBJ_DIR) $(OBJS)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/loc_load_split_test \
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -DTASK_PROFILING=1 -o $(OBJ_DIR)/loc_load_split_test \
 		engine/dat2/test/loc_load_split_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/loc_load_split_test ..
 
 .PHONY: test-sound-load
 test-sound-load: $(OBJ_DIR) $(OBJS)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/sound_load_split_test \
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -DTASK_PROFILING=1 -o $(OBJ_DIR)/sound_load_split_test \
 		engine/dat2/test/sound_load_split_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/sound_load_split_test ..
@@ -6717,7 +6739,7 @@ test-sound-load: $(OBJ_DIR) $(OBJS)
 # against the real cache254.lostcity.
 .PHONY: test-dat1-sound-load
 test-dat1-sound-load: $(OBJ_DIR) $(OBJS)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/dat1_sound_load_split_test \
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -DTASK_PROFILING=1 -o $(OBJ_DIR)/dat1_sound_load_split_test \
 		engine/dat1/test/dat1_sound_load_split_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/dat1_sound_load_split_test ..

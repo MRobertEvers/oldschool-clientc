@@ -59,6 +59,41 @@ on stderr when `TORIRS_CS2_PROFILE` is set. `tools/perf/compare.py` lists such
 rows as "not compiled in" rather than as zeros; compare two runs built the
 same way.
 
+### The task queues' own numbers: `TASK_PROFILING=1`
+
+```bash
+make -C src PLATFORM_OBJ_BASE=build_perf EMBED_SERVER=1 TASK_PROFILING=1 torirs
+```
+
+What the task runner measures about each task it runs is compiled in only on
+request (`src/task_profiling.h`, `src/task_runner_profiling.h`):
+
+- `TORIRS_TASK_SLOW_MS=<n>`: a `task_slow: <task> <ms>` line for every task on
+  any queue whose single run took at least n ms;
+- the parallel queue's compute check: `queue_contract: parallel task <t>
+  computed <ms> in one step ...`, once per task name, over the lane's threshold
+  (4 ms; `TORIRS_QUEUE_CONTRACT_COMPUTE_MS`), aborting under
+  `TORIRS_QUEUE_CONTRACT_STRICT=1`;
+- the background queue's longest step and its unit meter: the
+  `queue_contract: trace background longest step|unit` lines of
+  `TORIRS_QUEUE_CONTRACT_TRACE` (what `tools/web/browser_probe.py` reads), and
+  `queue_contract: background task <t> ran <ms> between two slice checks` over
+  the unit limit (`TORIRS_QUEUE_CONTRACT_UNIT_MS`).
+
+Without the switch -- the default -- `TaskRunner_Step` reads no clock for any of
+them. With them it read the wall clock and the cost clock around every task on
+the parallel and the background queue, in every build: in the browser each
+read is a call to `performance.now()`, about 3% of a bank-open frame. A clock a
+decision rests on (a pass's deadline, the slice's "is it over?", the paced
+catch-up) is not a measurement and runs in every build. A build without the
+switch says `TORIRS_TASK_SLOW_MS: not compiled in (build with
+TASK_PROFILING=1)` once when that variable is set, and the contract trace line
+says `longest step not compiled in ...`. It changes CFLAGS for every unit, so it
+has its own object-directory suffix (`_taskprof`). The load-split tests
+(`test-music-load`, `test-loc-load-split`, ...) bound the runners' longest step,
+so they compile their own unit with `-DTASK_PROFILING=1`; `test-queue-contract`
+runs both ways.
+
 ## Running scenarios
 
 ```bash

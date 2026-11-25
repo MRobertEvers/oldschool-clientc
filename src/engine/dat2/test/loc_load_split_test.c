@@ -121,7 +121,7 @@ lane_open(
     lane->background.parallel = 1;
     TaskRunner_SetClock(&lane->background, now, NULL);
     /* Measures every step (longest_step_us) without naming any. */
-    lane->background.slow_task_us = UINT64_MAX / 2;
+    TaskProf_SetSlowTask(&lane->background, UINT64_MAX / 2);
     lane->bc = dat2_buildcache_new();
     lane->provider = dat2_buildcache_as_provider(lane->bc);
     CacheProvider_SetProfile(lane->provider, &lane->profile);
@@ -352,11 +352,11 @@ test_the_longest_step(char const* root)
     }
     CHECK(!lane.background.queue->head, "work left after %d frames", frames);
     printf("LONGEST STEP: %.3f ms (%s), %d frames; UNCUT SPLIT %.3f ms in this build, bound %.3f ms\n",
-        (double)lane.background.longest_step_us / 1000.0, lane.background.longest_step_name, frames,
+        (double)lane.background.prof.longest_step_us / 1000.0, lane.background.prof.longest_step_name, frames,
         (double)whole_us / 1000.0, (double)(whole_us / LONGEST_STEP_DIVISOR) / 1000.0);
-    CHECK(lane.background.longest_step_us < whole_us / LONGEST_STEP_DIVISOR,
+    CHECK(lane.background.prof.longest_step_us < whole_us / LONGEST_STEP_DIVISOR,
         "a background step took %.3f ms (bound %.3f ms, the uncut split / %d)",
-        (double)lane.background.longest_step_us / 1000.0,
+        (double)lane.background.prof.longest_step_us / 1000.0,
         (double)(whole_us / LONGEST_STEP_DIVISOR) / 1000.0, LONGEST_STEP_DIVISOR);
     RSCache_Dat2DiskArchiveFree(archive);
     lane_close(&lane);

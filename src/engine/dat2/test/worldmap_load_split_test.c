@@ -104,7 +104,7 @@ runner_init(
     runner->parallel = 1;
     TaskRunner_SetClock(runner, cpu_now, NULL);
     /* Measures every step (longest_step_us) without naming any. */
-    runner->slow_task_us = UINT64_MAX / 2;
+    TaskProf_SetSlowTask(runner, UINT64_MAX / 2);
 }
 
 static void
@@ -183,21 +183,21 @@ main(
     printf("   %d frame(s); the decode on the compute queue across %d; %d area(s), %d with an overview\n",
         frames, decode_seen_frames, areas ? areas->count : 0, textured);
     printf("   longest read step on the parallel queue %.3f ms (%s); longest background step %.3f ms (%s)\n",
-        (double)parallel.longest_step_us / 1000.0, parallel.longest_step_name,
-        (double)background.longest_step_us / 1000.0,
-        background.longest_step_name[0] ? background.longest_step_name : "-");
+        (double)parallel.prof.longest_step_us / 1000.0, parallel.prof.longest_step_name,
+        (double)background.prof.longest_step_us / 1000.0,
+        background.prof.longest_step_name[0] ? background.prof.longest_step_name : "-");
 
     CHECK(!parallel.queue->head && !background.queue->head, "work left after %d frames", frames);
     CHECK(!decode_on_asset_queue, "the decode ran on the asset queue");
     CHECK(decode_seen_frames > 1,
         "the decode was on the compute queue for %d frame(s), not sliced across several",
         decode_seen_frames);
-    CHECK(parallel.longest_step_us < LONGEST_READ_STEP_US,
+    CHECK(parallel.prof.longest_step_us < LONGEST_READ_STEP_US,
         "a step on the asset queue computed %.3f ms (the compute check's threshold is %.3f ms)",
-        (double)parallel.longest_step_us / 1000.0, LONGEST_READ_STEP_US / 1000.0);
+        (double)parallel.prof.longest_step_us / 1000.0, LONGEST_READ_STEP_US / 1000.0);
 #if defined(__OPTIMIZE__)
-    CHECK(background.longest_step_us < LONGEST_DECODE_STEP_US,
-        "a background step took %.3f ms (bound %.3f ms)", (double)background.longest_step_us / 1000.0,
+    CHECK(background.prof.longest_step_us < LONGEST_DECODE_STEP_US,
+        "a background step took %.3f ms (bound %.3f ms)", (double)background.prof.longest_step_us / 1000.0,
         LONGEST_DECODE_STEP_US / 1000.0);
 #endif
     CHECK(areas && areas->count > 1, "the provider holds no world map (%d areas)", areas ? areas->count : 0);

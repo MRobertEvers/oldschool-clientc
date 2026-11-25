@@ -167,7 +167,7 @@ uncut_unpack_us(
     return least;
 }
 
-/* The same clock in a cost clock's shape (TaskRunner_SetCostClock): the
+/* The same clock in a cost clock's shape (TaskProf_SetCostClock): the
  * background runner meters each UNIT on it -- the work between two asks of
  * "is the slice over?", which is what can overrun a slice (G2). */
 static uint64_t
@@ -247,11 +247,11 @@ run_song(
     {
         TaskRunner_SetClock(&parallel, real_now, NULL);
         TaskRunner_SetClock(&background, real_now, NULL);
-        TaskRunner_SetCostClock(&background, real_cost_now);
-        background.unit_limit_us = g_unit_limit_us;
+        TaskProf_SetCostClock(&background, real_cost_now);
+        TaskProf_SetUnitLimit(&background, g_unit_limit_us);
         /* Measures every parallel step (longest_step_us) without naming
          * any: nothing here is slower than this. */
-        parallel.slow_task_us = UINT64_MAX / 2;
+        TaskProf_SetSlowTask(&parallel, UINT64_MAX / 2);
     }
     bc = dat2_buildcache_new();
     provider = dat2_buildcache_as_provider(bc);
@@ -305,13 +305,13 @@ run_song(
     {
         printf("   longest background step %.3f ms (%s), longest unit %.3f ms (%s); longest read step on the "
                "parallel queue %.3f ms (%s)\n",
-            (double)background.longest_step_us / 1000.0, background.longest_step_name,
-            (double)background.longest_unit_us / 1000.0, background.longest_unit_name,
-            (double)parallel.longest_step_us / 1000.0, parallel.longest_step_name);
-        CHECK(background.unit_named_count == 0, "a background unit was over %.3f ms", (double)g_unit_limit_us / 1000.0);
-        *out_longest_decode_us = background.longest_step_us;
-        *out_longest_unit_us = background.longest_unit_us;
-        *out_longest_read_us = parallel.longest_step_us;
+            (double)background.prof.longest_step_us / 1000.0, background.prof.longest_step_name,
+            (double)background.prof.longest_unit_us / 1000.0, background.prof.longest_unit_name,
+            (double)parallel.prof.longest_step_us / 1000.0, parallel.prof.longest_step_name);
+        CHECK(background.prof.unit_named_count == 0, "a background unit was over %.3f ms", (double)g_unit_limit_us / 1000.0);
+        *out_longest_decode_us = background.prof.longest_step_us;
+        *out_longest_unit_us = background.prof.longest_unit_us;
+        *out_longest_read_us = parallel.prof.longest_step_us;
     }
 
     ToriRS_Music_Free(&player);

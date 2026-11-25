@@ -319,15 +319,24 @@ App_QueueContractTraceLine(
             out + len,
             (size_t)(out_size - len),
             "; parallel pumps=%d (between frames %d: main passes %ld, all the boot's; background passes %ld) "
-            "ended waiting=%d; background floor pumps=%d longest step %.2f ms (%s)",
+            "ended waiting=%d; background floor pumps=%d",
             g_contract_tally.pumps,
             g_contract_tally.pumps_between,
             g_contract_tally.between_boot_passes,
             g_contract_tally.between_background_passes,
             g_contract_tally.pumps_waiting,
-            g_contract_tally.floor_pumps,
-            (double)app->background_runner.longest_step_us / 1000.0,
-            app->background_runner.longest_step_name[0] ? app->background_runner.longest_step_name : "-");
+            g_contract_tally.floor_pumps);
+    /* The longest step is a measurement (task_profiling.h). */
+    if( len < out_size && !TASK_PROFILING )
+        len += snprintf(out + len, (size_t)(out_size - len), " longest step " TASK_PROFILING_NOT_COMPILED_IN);
+    else if( len < out_size )
+        len += snprintf(
+            out + len,
+            (size_t)(out_size - len),
+            " longest step %.2f ms (%s)",
+            (double)TaskProf_LongestStepUs(&app->background_runner) / 1000.0,
+            TaskProf_LongestStepName(&app->background_runner)[0] ? TaskProf_LongestStepName(&app->background_runner)
+                                                                 : "-");
     memset(&g_contract_tally, 0, sizeof(g_contract_tally));
     return len;
 }
@@ -1014,7 +1023,7 @@ App_PumpAsync(
         BootPumpStats_PassBegin(&app->pump_stats);
         if( !from_frame )
             g_contract_tally.pumps_between++;
-        app->frame_runner.compute_check_off = booting;
+        TaskProf_ComputeCheckOff(&app->frame_runner, booting);
         if( booting && TaskRunner_RenderOwed(&app->packet_runner) )
         {
             /* The frame the boot asked for has not run yet: the boot waits

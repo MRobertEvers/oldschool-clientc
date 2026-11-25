@@ -1200,6 +1200,10 @@ burn_once(struct TaskRunner* runner, char const* name, uint64_t wall_us, uint64_
     (void)TaskRunner_Step(runner);
 }
 
+/* The compute check and the unit meter are measurements: compiled in only
+ * with TASK_PROFILING (task_profiling.h). The make target runs this test
+ * both ways. */
+#if TASK_PROFILING
 static void
 test_the_compute_check_reads_the_cost_clock(void)
 {
@@ -1207,28 +1211,72 @@ test_the_compute_check_reads_the_cost_clock(void)
     struct PlatformX_IO px = { 0 };
 
     runner_init(&runner, &px, &g_burn_wall, TASK_RUNNER_ROLE_PARALLEL);
-    runner.compute_step_us = 4000;
-    TaskRunner_SetCostClock(&runner, burn_cost_now);
+    TaskProf_SetComputeStep(&runner, 4000);
+    TaskProf_SetCostClock(&runner, burn_cost_now);
     /* 12 ms on the wall, 1 ms of processor: a loaded machine, not work. */
     burn_once(&runner, "Waited", 12000, 1000);
-    CHECK(runner.compute_named_count == 0);
+    CHECK(runner.prof.compute_named_count == 0);
     /* 1 ms on the wall cannot hide 5 ms of processor (clocks disagree only
      * in a test, but the check must follow the cost one). */
     burn_once(&runner, "Computed", 1000, 5000);
-    CHECK(runner.compute_named_count == 1);
-    CHECK(runner.compute_named_count == 1 && strcmp(runner.compute_named[0], "Computed") == 0);
+    CHECK(runner.prof.compute_named_count == 1);
+    CHECK(runner.prof.compute_named_count == 1 && strcmp(runner.prof.compute_named[0], "Computed") == 0);
     /* Named once per name. */
     burn_once(&runner, "Computed", 1000, 5000);
-    CHECK(runner.compute_named_count == 1);
+    CHECK(runner.prof.compute_named_count == 1);
     runner_free(&runner);
 
     /* No cost clock: the wall time is the cost. */
     runner_init(&runner, &px, &g_burn_wall, TASK_RUNNER_ROLE_PARALLEL);
-    runner.compute_step_us = 4000;
+    TaskProf_SetComputeStep(&runner, 4000);
     burn_once(&runner, "WallOnly", 12000, 1000);
-    CHECK(runner.compute_named_count == 1);
+    CHECK(runner.prof.compute_named_count == 1);
     runner_free(&runner);
 }
+#else
+/* Counts every read of the wall and the cost clock. */
+static int g_clock_reads;
+
+static uint64_t
+counted_wall(void* ud)
+{
+    g_clock_reads++;
+    return ((struct FakeClock*)ud)->now_us;
+}
+
+static uint64_t
+counted_cost(void)
+{
+    g_clock_reads++;
+    return burn_cost_now();
+}
+
+static void
+test_no_clock_is_read_without_task_profiling(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+
+    printf("TEST: without TASK_PROFILING a pass with no deadline reads no clock, on any queue\n");
+    for( int role = TASK_RUNNER_ROLE_MAIN; role <= TASK_RUNNER_ROLE_BACKGROUND; role++ )
+    {
+        runner_init(&runner, &px, NULL, role);
+        TaskRunner_SetClock(&runner, counted_wall, &g_burn_wall);
+        /* Every threshold the App sets, set: none of them is read. */
+        TaskProf_SetComputeStep(&runner, 4000);
+        TaskProf_SetCostClock(&runner, counted_cost);
+        TaskProf_SetUnitLimit(&runner, 4000);
+        uint64_t const before = g_burn_wall.now_us;
+        g_clock_reads = 0;
+        burn_once(&runner, "Burner", 12000, 5000);
+        /* It ran (its run advances the clock it never had read). */
+        CHECK(g_burn_wall.now_us == before + 12000);
+        CHECK(g_clock_reads == 0);
+        CHECK(TaskProf_LongestStepUs(&runner) == 0);
+        runner_free(&runner);
+    }
+}
+#endif
 
 /* --- a frame is published over a parallel queue at a standstill -------------
  *
@@ -1358,8 +1406,9 @@ test_a_cancel_after_the_last_pump_is_not_a_breach(void)
  * what can overrun a slice is the work a task does between two asks of "is the
  * slice over?" -- a unit. The runner meters units on the background queue's
  * sliced passes, on its cost clock, and names a task whose unit is over the
- * limit (TaskRunner::unit_limit_us, TORIRS_QUEUE_CONTRACT_UNIT_MS), once per
+ * limit (TaskRunnerProf::unit_limit_us, TORIRS_QUEUE_CONTRACT_UNIT_MS), once per
  * name, aborting under strict as the parallel compute check does. */
+#if TASK_PROFILING
 static uint64_t g_unit_cost_us;
 static struct FakeClock g_unit_wall;
 
@@ -1434,7 +1483,7 @@ lump_in_a_child(char const* path)
     (void)!freopen(path, "w", stderr);
     setenv("TORIRS_QUEUE_CONTRACT_UNIT_MS", "4", 1);
     runner_init(&runner, &px, &g_unit_wall, TASK_RUNNER_ROLE_BACKGROUND);
-    TaskRunner_SetCostClock(&runner, unit_cost_now);
+    TaskProf_SetCostClock(&runner, unit_cost_now);
     add_lumpy(&runner, "Lump", 6000, 500, 4);
     floor_slices(&runner);
     runner_free(&runner);
@@ -1485,48 +1534,49 @@ test_background_units_are_metered(void)
 
     printf("TEST: background units are metered on the cost clock, on sliced passes only (G2)\n");
     runner_init(&runner, &px, &g_unit_wall, TASK_RUNNER_ROLE_BACKGROUND);
-    TaskRunner_SetCostClock(&runner, unit_cost_now);
-    runner.unit_limit_us = 4000;
+    TaskProf_SetCostClock(&runner, unit_cost_now);
+    TaskProf_SetUnitLimit(&runner, 4000);
     /* Twelve 1 ms units: steps of a whole slice each, units of 1 ms, no breach. */
     add_lumpy(&runner, "Fine", 0, 1000, 12);
     floor_slices(&runner);
-    CHECK(runner.unit_named_count == 0);
-    CHECK(runner.longest_unit_us == 1000);
-    CHECK(runner.longest_step_us >= 2000);
+    CHECK(runner.prof.unit_named_count == 0);
+    CHECK(runner.prof.longest_unit_us == 1000);
+    CHECK(runner.prof.longest_step_us >= 2000);
     /* One 6 ms unit: named, once, though it is given several slices. */
     add_lumpy(&runner, "Lump", 6000, 6000, 3);
     floor_slices(&runner);
-    CHECK(runner.unit_named_count == 1);
-    CHECK(runner.unit_named_count == 1 && strcmp(runner.unit_named[0], "Lump") == 0);
-    CHECK(runner.longest_unit_us == 6000);
-    CHECK(strcmp(runner.longest_unit_name, "Lump") == 0);
+    CHECK(runner.prof.unit_named_count == 1);
+    CHECK(runner.prof.unit_named_count == 1 && strcmp(runner.prof.unit_named[0], "Lump") == 0);
+    CHECK(runner.prof.longest_unit_us == 6000);
+    CHECK(strcmp(runner.prof.longest_unit_name, "Lump") == 0);
     /* A 6 ms unit in the guaranteed step of a slice already over: the same. */
     add_lumpy(&runner, "Late", 6000, 100, 1);
     (void)TaskRunner_RunUntil(&runner, g_unit_wall.now_us + 1);
     floor_slices(&runner);
-    CHECK(runner.unit_named_count == 2);
+    CHECK(runner.prof.unit_named_count == 2);
     runner_free(&runner);
 
     /* An owner running a job to its end (no deadline) is not metered: no
      * slice bounds that pass. */
     runner_init(&runner, &px, &g_unit_wall, TASK_RUNNER_ROLE_BACKGROUND);
-    TaskRunner_SetCostClock(&runner, unit_cost_now);
-    runner.unit_limit_us = 4000;
+    TaskProf_SetCostClock(&runner, unit_cost_now);
+    TaskProf_SetUnitLimit(&runner, 4000);
     add_lumpy(&runner, "Promoted", 9000, 9000, 2);
     (void)TaskRunner_RunUntil(&runner, 0);
     CHECK(!runner.queue->head);
-    CHECK(runner.unit_named_count == 0);
+    CHECK(runner.prof.unit_named_count == 0);
     runner_free(&runner);
 
     /* The parallel queue is not sliced: its own check is the compute one. */
     runner_init(&runner, &px, &g_unit_wall, TASK_RUNNER_ROLE_PARALLEL);
-    TaskRunner_SetCostClock(&runner, unit_cost_now);
-    runner.unit_limit_us = 4000;
+    TaskProf_SetCostClock(&runner, unit_cost_now);
+    TaskProf_SetUnitLimit(&runner, 4000);
     add_lumpy(&runner, "Parallel", 9000, 0, 0);
     (void)TaskRunner_Step(&runner);
-    CHECK(runner.unit_named_count == 0);
+    CHECK(runner.prof.unit_named_count == 0);
     runner_free(&runner);
 }
+#endif
 
 int
 main(void)
@@ -1541,16 +1591,22 @@ main(void)
     test_who_steps_the_background_queue();
     test_named_waits_resume_and_cancel();
     test_the_between_frames_pump();
+#if TASK_PROFILING
     test_the_compute_check_reads_the_cost_clock();
+#else
+    test_no_clock_is_read_without_task_profiling();
+#endif
     test_a_frame_is_published_at_a_standstill();
     test_a_cancel_after_the_last_pump_is_not_a_breach();
+#if TASK_PROFILING
     test_a_background_unit_over_its_limit_is_named();
     test_background_units_are_metered();
+#endif
     if( g_failures )
     {
         printf("queue_contract_test: %d failure(s)\n", g_failures);
         return 1;
     }
-    printf("queue_contract_test: all passed\n");
+    printf("queue_contract_test: all passed (TASK_PROFILING=%d)\n", TASK_PROFILING);
     return 0;
 }

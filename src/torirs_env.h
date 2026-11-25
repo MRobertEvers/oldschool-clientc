@@ -106,7 +106,8 @@ TORIRS_ENV_KNOB(torirs_env_compat, "TORIRS_COMPAT")
 TORIRS_ENV_KNOB(torirs_env_trigger_debug, "TORIRS_TRIGGER_DEBUG")
 /* Name every task whose single run took at least this many ms, on the packet
  * FIFO, the frame queue and the background queue (task_slow:). The companion
- * of TORIRS_PKT_SLOW_MS, for the work a packet leaves behind it. */
+ * of TORIRS_PKT_SLOW_MS, for the work a packet leaves behind it. Needs a
+ * TASK_PROFILING=1 build (task_profiling.h); without one it says so once. */
 TORIRS_ENV_KNOB(torirs_env_task_slow_ms, "TORIRS_TASK_SLOW_MS")
 /* The paced catch-up after a background rebuild's commit (App_PaceArm): the
  * packet and script work one frame may do, in microseconds (default 4000; 0

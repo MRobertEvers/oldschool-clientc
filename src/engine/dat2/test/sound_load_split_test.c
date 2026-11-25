@@ -178,7 +178,7 @@ lane_open(
     runner_init(&lane->parallel, lane->px, TASK_RUNNER_ROLE_PARALLEL, now);
     runner_init(&lane->background, lane->px, TASK_RUNNER_ROLE_BACKGROUND, now);
     /* Measures every parallel step (longest_step_us) without naming any. */
-    lane->parallel.slow_task_us = UINT64_MAX / 2;
+    TaskProf_SetSlowTask(&lane->parallel, UINT64_MAX / 2);
     lane->bc = dat2_buildcache_new();
     lane->provider = dat2_buildcache_as_provider(lane->bc);
     CacheProvider_SetProfile(lane->provider, &lane->profile);
@@ -357,19 +357,19 @@ test_the_longest_step(char const* root)
     }
     CHECK(CacheProvider_SoundHas(lane.provider, LONG_EFFECT), "the effect is not resident");
     printf("LONGEST STEP: asset queue %.3f ms (%s), compute queue %.3f ms (%s), %d frames\n",
-        (double)lane.parallel.longest_step_us / 1000.0, lane.parallel.longest_step_name,
-        (double)lane.background.longest_step_us / 1000.0, lane.background.longest_step_name,
+        (double)lane.parallel.prof.longest_step_us / 1000.0, lane.parallel.prof.longest_step_name,
+        (double)lane.background.prof.longest_step_us / 1000.0, lane.background.prof.longest_step_name,
         frames);
     printf("UNCUT RENDER: %.3f ms in this build; bounds %.3f ms (asset queue), %.3f ms (compute queue)\n",
         (double)whole_us / 1000.0, (double)(whole_us / LONGEST_READ_STEP_DIVISOR) / 1000.0,
         (double)(whole_us / LONGEST_RENDER_STEP_DIVISOR) / 1000.0);
-    CHECK(lane.parallel.longest_step_us < whole_us / LONGEST_READ_STEP_DIVISOR,
+    CHECK(lane.parallel.prof.longest_step_us < whole_us / LONGEST_READ_STEP_DIVISOR,
         "an asset-queue step took %.3f ms (bound %.3f ms, the uncut render / %d)",
-        (double)lane.parallel.longest_step_us / 1000.0,
+        (double)lane.parallel.prof.longest_step_us / 1000.0,
         (double)(whole_us / LONGEST_READ_STEP_DIVISOR) / 1000.0, LONGEST_READ_STEP_DIVISOR);
-    CHECK(lane.background.longest_step_us < whole_us / LONGEST_RENDER_STEP_DIVISOR,
+    CHECK(lane.background.prof.longest_step_us < whole_us / LONGEST_RENDER_STEP_DIVISOR,
         "a compute-queue step took %.3f ms (bound %.3f ms, the uncut render / %d)",
-        (double)lane.background.longest_step_us / 1000.0,
+        (double)lane.background.prof.longest_step_us / 1000.0,
         (double)(whole_us / LONGEST_RENDER_STEP_DIVISOR) / 1000.0, LONGEST_RENDER_STEP_DIVISOR);
     lane_close(&lane);
 }

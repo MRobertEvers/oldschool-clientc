@@ -524,7 +524,8 @@ struct App
      *      lands (torirs_web_io_pump), inside a client script's settle, and
      *      from the packet pump while the main queue's head is parked on it. Its processor time lands in the
      *      current frame, so a parallel task waits, then does a little; a
-     *      step that computes is named (TaskRunner::compute_step_us).
+     *      step that computes is named (TaskRunnerProf::compute_step_us,
+     *      a TASK_PROFILING build).
      *   4. THE BACKGROUND QUEUE (background_runner) is CPU-heavy work and is
      *      GIVEN TIME: a floor slice every App_RunOnce
      *      (app_run_background_floor) plus whatever slack the platform loop

@@ -50,7 +50,7 @@ PlatformWindow_ThreadCpuUs(void);
  * loop moves it with no change of its own. */
 #define APP_BACKGROUND_FLOOR_US 2000u
 
-/* The background unit limit (TaskRunner::unit_limit_us) as a multiple of the
+/* The background unit limit (TaskRunnerProf::unit_limit_us) as a multiple of the
  * floor slice: a task may do at most this many floors' worth of processor
  * time between two asks of "is the slice over?", because that is how far it
  * can carry the floor's guaranteed step past its deadline. Two floors: 4 ms,
@@ -134,7 +134,7 @@ app_background_entry_check(
 }
 
 /*
- * The parallel queue's "computes" threshold (TaskRunner::compute_step_us),
+ * The parallel queue's "computes" threshold (TaskRunnerProf::compute_step_us),
  * per lane, ONE table. A step's cost is read on PlatformWindow_ThreadCpuUs:
  * the stepping thread's processor time where the lane has that clock, so a
  * strict run on a loaded machine no longer aborts on a step that waited for
@@ -275,13 +275,15 @@ app_background_runner_init(struct App* app)
     app->packet_runner.role = TASK_RUNNER_ROLE_MAIN;
     app->frame_runner.role = TASK_RUNNER_ROLE_PARALLEL;
     app->background_runner.role = TASK_RUNNER_ROLE_BACKGROUND;
-    app->frame_runner.compute_step_us = app_parallel_compute_us();
+    /* The measurements (task_profiling.h): set in every build, read only
+     * in a TASK_PROFILING one. */
+    TaskProf_SetComputeStep(&app->frame_runner, app_parallel_compute_us());
     /* What a parallel step costs is read on the stepping thread's processor
      * clock (the lane table above). */
-    TaskRunner_SetCostClock(&app->frame_runner, PlatformWindow_ThreadCpuUs);
+    TaskProf_SetCostClock(&app->frame_runner, PlatformWindow_ThreadCpuUs);
     /* And what a background unit costs, on the same clock. */
-    TaskRunner_SetCostClock(&app->background_runner, PlatformWindow_ThreadCpuUs);
-    app->background_runner.unit_limit_us = APP_BACKGROUND_UNIT_FACTOR * APP_BACKGROUND_FLOOR_US;
+    TaskProf_SetCostClock(&app->background_runner, PlatformWindow_ThreadCpuUs);
+    TaskProf_SetUnitLimit(&app->background_runner, APP_BACKGROUND_UNIT_FACTOR * APP_BACKGROUND_FLOOR_US);
     RebuildPace_Reset(&app->pace);
     WorldRebuildJob_Reset(&app->world_job);
     RebuildFrameStats_Reset(&app->rebuild_frames);
@@ -298,9 +300,9 @@ app_background_runner_init(struct App* app)
         char const* slow = torirs_env_task_slow_ms();
         uint64_t const slow_us = (slow && slow[0]) ? (uint64_t)atoi(slow) * 1000u : 0;
 
-        app->background_runner.slow_task_us = slow_us;
-        app->frame_runner.slow_task_us = slow_us;
-        app->packet_runner.slow_task_us = slow_us;
+        TaskProf_SetSlowTask(&app->background_runner, slow_us);
+        TaskProf_SetSlowTask(&app->frame_runner, slow_us);
+        TaskProf_SetSlowTask(&app->packet_runner, slow_us);
     }
     App_WorldRebuildModeInit(app);
 }
@@ -1382,30 +1384,38 @@ app_background_step_report(struct App* app)
 {
     static uint64_t reported_us;
     static uint64_t reported_unit_us;
+    uint64_t step_us;
+    uint64_t unit_us;
+    char const* name;
 
     assert(app);
     if( !TaskRunner_ContractTrace() )
         return;
-    if( app->background_runner.longest_step_us > reported_us )
+    /* Both are 0 without TASK_PROFILING, so nothing is printed. */
+    step_us = TaskProf_LongestStepUs(&app->background_runner);
+    if( step_us > reported_us )
     {
-        reported_us = app->background_runner.longest_step_us;
+        reported_us = step_us;
+        name = TaskProf_LongestStepName(&app->background_runner);
         fprintf(
             stderr,
             "queue_contract: trace background longest step %.2f ms (%s)\n",
             (double)reported_us / 1000.0,
-            app->background_runner.longest_step_name[0] ? app->background_runner.longest_step_name : "(unnamed)");
+            name[0] ? name : "(unnamed)");
     }
     /* A step runs until its slice is over -- the floor's, or the loop's whole
      * slack -- so its length is the slice's. The UNIT is what can overrun a
-     * slice: the work between two asks (TaskRunner::unit_limit_us). */
-    if( app->background_runner.longest_unit_us > reported_unit_us )
+     * slice: the work between two asks (TaskRunnerProf::unit_limit_us). */
+    unit_us = TaskProf_LongestUnitUs(&app->background_runner);
+    if( unit_us > reported_unit_us )
     {
-        reported_unit_us = app->background_runner.longest_unit_us;
+        reported_unit_us = unit_us;
+        name = TaskProf_LongestUnitName(&app->background_runner);
         fprintf(
             stderr,
             "queue_contract: trace background longest unit %.2f ms (%s)\n",
             (double)reported_unit_us / 1000.0,
-            app->background_runner.longest_unit_name[0] ? app->background_runner.longest_unit_name : "(unnamed)");
+            name[0] ? name : "(unnamed)");
     }
 }
 

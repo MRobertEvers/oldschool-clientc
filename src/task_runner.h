@@ -87,9 +87,10 @@ struct TaskRunner
      *  that is to show it -- steps this queue while it is set (App_PumpAsync). */
     int render_owed;
     struct TaskRunnerTelemetry telemetry;
-    /* TORIRS_TASK_SLOW_MS: name every task whose single run took at least
-     * this long (0: off). Needs the queue's clock (TaskRunner_SetClock). */
-    uint64_t slow_task_us;
+    /* What this queue measures about the tasks it runs: the slow-task line,
+     * the compute check, the longest step and the unit meter. Touched only
+     * in a TASK_PROFILING build (task_profiling.h). */
+    struct TaskRunnerProf prof;
 
     /** Which of the App's queues this is (enum TaskRunnerRole); 0 for a
      *  runner that is none of them. Changes only what is asserted and what
@@ -104,37 +105,6 @@ struct TaskRunner
     int stepping;
     /** Why the last pump ended (TORIRS_QUEUE_CONTRACT_TRACE). */
     char const* pump_end;
-    /** A parallel task whose one step COST at least this much processor
-     *  time is computing, not waiting: named once per name per session (0:
-     *  off). Read on `cost_now_us` when the runner has one (the stepping
-     *  thread's CPU clock, TaskRunner_SetCostClock), else on the queue's
-     *  wall clock; the breach line gives both. */
-    uint64_t compute_step_us;
-    /** The clock a step's cost is read on (NULL: the wall clock). */
-    uint64_t (*cost_now_us)(void);
-    /** Set while the App boots: the boot's loads are not what that
-     *  threshold measures. */
-    int compute_check_off;
-    /** The longest single step run on this queue so far, and whose: on the
-     *  background queue the unit by which a slice can be overrun. */
-    uint64_t longest_step_us;
-    char longest_step_name[32];
-    char compute_named[16][32];
-    int compute_named_count;
-    /** The background queue's unit limit: the most processor time a task
-     *  may spend between two asks of "is the slice over?"
-     *  (TASK_YIELD_IF_SPENT), which is the most a sliced pass can overrun
-     *  its deadline by. A unit over it is named once per name, and aborts
-     *  under TORIRS_QUEUE_CONTRACT_STRICT, as the parallel compute check
-     *  does. Read on `cost_now_us` (TaskRunner_SetCostClock: a runner
-     *  without one is not metered), on sliced passes only; 0: off.
-     *  TORIRS_QUEUE_CONTRACT_UNIT_MS overrides it (0: off). */
-    uint64_t unit_limit_us;
-    /** The longest unit run on this queue so far, and whose. */
-    uint64_t longest_unit_us;
-    char longest_unit_name[32];
-    char unit_named[16][32];
-    int unit_named_count;
 };
 
 /* Which queue a runner is. 0 (none) is a runner of a test or a private
@@ -202,26 +172,6 @@ TaskRunner_ContractStrict(void)
         strict = (env && env[0] && env[0] != '0') ? 1 : 0;
     }
     return strict;
-}
-
-/* TORIRS_QUEUE_CONTRACT_UNIT_MS: the background unit limit in force for a
- * runner whose own is `runner_us` (TaskRunner::unit_limit_us). Unset: the
- * runner's; set: that many milliseconds for every runner, 0 turning the check
- * off. */
-static inline uint64_t
-TaskRunner_ContractUnitUs(uint64_t runner_us)
-{
-    static int read;
-    static int set;
-    static uint64_t env_us;
-    if( !read )
-    {
-        char const* env = getenv("TORIRS_QUEUE_CONTRACT_UNIT_MS");
-        read = 1;
-        set = env && env[0];
-        env_us = set ? (uint64_t)(atof(env) * 1000.0) : 0;
-    }
-    return set ? env_us : runner_us;
 }
 
 static inline int
@@ -380,23 +330,6 @@ TaskRunner_SetClock(
     assert(now_us);
     runner->io->slice.now_us = now_us;
     runner->io->slice.now_ud = now_ud;
-}
-
-/*
- * The clock the compute check reads a step's COST on: processor time of the
- * thread that steps the queue (PlatformWindow_ThreadCpuUs on the App's
- * queues), so a step measured on a loaded machine reads what it computed,
- * not how long it waited for a core. Without one the check reads the wall
- * clock. The runner names no platform: the clock is handed in.
- */
-static inline void
-TaskRunner_SetCostClock(
-    struct TaskRunner* runner,
-    uint64_t (*cost_now_us)(void))
-{
-    assert(runner);
-    assert(cost_now_us);
-    runner->cost_now_us = cost_now_us;
 }
 
 static inline uint64_t
@@ -702,6 +635,9 @@ TaskRunner_PumpBegin(struct TaskRunner* runner)
         runner->pump = 1;
 }
 
+/* What the runner measures (TASK_PROFILING): empty without the switch. */
+#include "task_runner_profiling.h"
+
 /*
  * One pass: land what has arrived, run every task that can run, send what
  * they asked for.
@@ -733,61 +669,6 @@ TaskRunner_PumpBegin(struct TaskRunner* runner)
  * is every pass of the main and the parallel queue, reads no clock for any
  * of this.
  */
-/*
- * The step just run on a metered (background, sliced) pass: its longest
- * unit, the work between two asks of "is the slice over?", against the limit.
- * A unit is what a sliced pass can overrun its deadline by -- the guaranteed
- * turn of a pass whose slice is already over (the floor's special case: the
- * step runs whatever the clock says) runs one unit, and asks; a pass with
- * time left runs units until an ask finds it over. So a unit over the limit
- * is a task that cannot keep to a slice, however short the slice is made.
- */
-static inline void
-TaskRunner_UnitCheck(
-    struct TaskRunner* runner,
-    char const* name)
-{
-    uint64_t unit;
-    uint64_t limit_us;
-    char line[256];
-    int seen = 0;
-
-    assert(runner);
-    assert(name);
-    assert(runner->io->slice.unit_cost_us);
-    ToriRS_SliceUnitEnd(&runner->io->slice);
-    unit = runner->io->slice.unit_longest;
-    if( unit > runner->longest_unit_us )
-    {
-        runner->longest_unit_us = unit;
-        memcpy(runner->longest_unit_name, name, sizeof(runner->longest_unit_name));
-        runner->longest_unit_name[sizeof(runner->longest_unit_name) - 1] = '\0';
-    }
-    limit_us = TaskRunner_ContractUnitUs(runner->unit_limit_us);
-    if( limit_us == 0 || unit <= limit_us )
-        return;
-    for( int i = 0; i < runner->unit_named_count; i++ )
-        if( strcmp(runner->unit_named[i], name) == 0 )
-            seen = 1;
-    if( seen )
-        return;
-    if( runner->unit_named_count < (int)(sizeof(runner->unit_named) / sizeof(runner->unit_named[0])) )
-    {
-        memcpy(runner->unit_named[runner->unit_named_count], name, sizeof(runner->unit_named[0]));
-        runner->unit_named[runner->unit_named_count][sizeof(runner->unit_named[0]) - 1] = '\0';
-        runner->unit_named_count++;
-    }
-    snprintf(
-        line,
-        sizeof(line),
-        "background task %s ran %.2f ms between two slice checks (its cost clock; limit %.2f ms): it "
-        "overruns any slice by that much, so its work must be cut into smaller steps",
-        name[0] ? name : "(unnamed)",
-        (double)unit / 1000.0,
-        (double)limit_us / 1000.0);
-    TaskRunner_ContractBreach(line);
-}
-
 static inline enum TaskRunnerStat
 TaskRunner_Step(struct TaskRunner* runner)
 {
@@ -799,22 +680,14 @@ TaskRunner_Step(struct TaskRunner* runner)
     int render = 0;
     int spent = 0;
     int timed;
-    int measure;
-    int metered;
-    char unit_name[sizeof(((struct ToriRS_Task*)0)->name)];
+    struct TaskProfPass prof;
 
     assert(runner);
     assert(runner->queue);
     assert(runner->io);
     assert(runner->px);
     timed = runner->io->slice.deadline_us != 0;
-    measure = runner->io->slice.now_us &&
-              (runner->slow_task_us || runner->compute_step_us || runner->role == TASK_RUNNER_ROLE_BACKGROUND);
-    /* The unit meter: on the background queue's sliced passes only. A pass
-     * with no deadline is an owner running a job to its end, which no slice
-     * bounds. */
-    metered = runner->role == TASK_RUNNER_ROLE_BACKGROUND && timed && runner->io->slice.sliced &&
-              runner->cost_now_us && TaskRunner_ContractUnitUs(runner->unit_limit_us) != 0;
+    TaskProf_PassBegin(runner, &prof, timed);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_STEPS, 1);
     TaskRunnerTelemetry_Pass(&runner->telemetry);
 
@@ -886,67 +759,10 @@ TaskRunner_Step(struct TaskRunner* runner)
             runs++;
             task->turn = runner->pump;
             runner->io->slice.grace = timed && runner->parallel && !had_turn;
-            if( metered )
-            {
-                memcpy(unit_name, task->name, sizeof(unit_name));
-                runner->io->slice.unit_cost_us = runner->cost_now_us;
-                runner->io->slice.unit_mark = runner->io->slice.unit_cost_us();
-                runner->io->slice.unit_longest = 0;
-            }
-            if( measure )
-            {
-                /* The name is copied first: a task that ends is freed by its run. */
-                char name[sizeof(task->name)];
-                int const ordinary = !task->render_blocking;
-                uint64_t const c0 = runner->cost_now_us ? runner->cost_now_us() : 0;
-                uint64_t t0 = TaskRunner_Now(runner);
-                uint64_t dt;
-                uint64_t cost;
-
-                memcpy(name, task->name, sizeof(name));
-                stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
-                dt = TaskRunner_Now(runner) - t0;
-                /* What the step computed: its thread's processor time where
-                 * the runner has that clock, else the wall time it took. */
-                cost = runner->cost_now_us ? runner->cost_now_us() - c0 : dt;
-                if( runner->slow_task_us && dt >= runner->slow_task_us )
-                    fprintf(stderr, "task_slow: %s %.2f ms\n", name[0] ? name : "(unnamed)", (double)dt / 1000.0);
-                if( dt > runner->longest_step_us )
-                {
-                    runner->longest_step_us = dt;
-                    memcpy(runner->longest_step_name, name, sizeof(runner->longest_step_name));
-                }
-                if( runner->role == TASK_RUNNER_ROLE_PARALLEL && runner->compute_step_us && ordinary &&
-                    !runner->compute_check_off && cost >= runner->compute_step_us )
-                {
-                    int seen = 0;
-                    for( int i = 0; i < runner->compute_named_count; i++ )
-                        if( strcmp(runner->compute_named[i], name) == 0 )
-                            seen = 1;
-                    if( !seen )
-                    {
-                        char line[256];
-                        if( runner->compute_named_count < (int)(sizeof(runner->compute_named) / sizeof(runner->compute_named[0])) )
-                            memcpy(runner->compute_named[runner->compute_named_count++], name, sizeof(name));
-                        snprintf(
-                            line,
-                            sizeof(line),
-                            "parallel task %s computed %.2f ms in one step (%s; %.2f ms wall; threshold "
-                            "%.2f ms): CPU work belongs on the background queue",
-                            name[0] ? name : "(unnamed)",
-                            (double)cost / 1000.0,
-                            runner->cost_now_us ? "thread CPU time" : "wall time",
-                            (double)dt / 1000.0,
-                            (double)runner->compute_step_us / 1000.0);
-                        TaskRunner_ContractBreach(line);
-                    }
-                }
-            }
-            else
-                stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
+            TaskProf_StepBegin(runner, &prof, task);
+            stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
+            TaskProf_StepEnd(runner, &prof);
             runner->io->slice.grace = 0;
-            if( metered )
-                TaskRunner_UnitCheck(runner, unit_name);
             if( stat == TORIRS_ASYNCIO_STAT_DONE )
             {
                 /* Freed; the successor taken before it ran stands. */
@@ -993,7 +809,7 @@ TaskRunner_Step(struct TaskRunner* runner)
         }
     }
     runner->stepping--;
-    runner->io->slice.unit_cost_us = NULL;
+    TaskProf_PassEnd(runner);
 
     TaskRunnerTelemetry_PassEnd(&runner->telemetry, runner->io->active_count, ran, waiting);
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
