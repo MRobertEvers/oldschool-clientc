@@ -17,7 +17,7 @@ typedef struct MsgFriendchatJoinLeave {
 	const char *name;
 } MsgFriendchatJoinLeave;
 
-/* v1 -- revs 222-242. */
+/* v1 -- revs 222-243. */
 void packet_friendchat_join_leave_v1_in(RsprotExec *x, MsgFriendchatJoinLeave *m);
 
 /* osrsm241 -- the Android 241.4 client. */
@@ -44,6 +44,7 @@ void packet_friendchat_join_leave_osrsm241_in(RsprotExec *x, MsgFriendchatJoinLe
 #define packet_friendchat_join_leave_osrs240_in packet_friendchat_join_leave_v1_in
 #define packet_friendchat_join_leave_osrs241_in packet_friendchat_join_leave_v1_in
 #define packet_friendchat_join_leave_osrs242_in packet_friendchat_join_leave_v1_in
+#define packet_friendchat_join_leave_osrs243_in packet_friendchat_join_leave_v1_in
 #define packet_friendchat_join_leave_osrsm241_in packet_friendchat_join_leave_osrsm241_in
 #define packet_friendchat_join_leave_osrsm242_in packet_friendchat_join_leave_osrsm241_in
 

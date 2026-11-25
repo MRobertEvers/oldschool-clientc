@@ -230,9 +230,19 @@ packet_send_ping_reply_v22_in(RsprotExec *x, MsgSendPingReply *m)
     RSPROT_U1_SUB128(x, m->gc_percent_time);
 }
 
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrs243. */
 void
 packet_send_ping_reply_v23_in(RsprotExec *x, MsgSendPingReply *m)
+{
+    RSPROT_U4_3412(x, m->value1);
+    RSPROT_U4_2143(x, m->value2);
+    RSPROT_U1_NEG(x, m->fps);
+    RSPROT_U1_NEG(x, m->gc_percent_time);
+}
+
+/* v24 -- revs osrsm241. */
+void
+packet_send_ping_reply_v24_in(RsprotExec *x, MsgSendPingReply *m)
 {
     RSPROT_U1_NEG(x, m->fps);
     RSPROT_U4_4321(x, m->value1);
@@ -240,9 +250,9 @@ packet_send_ping_reply_v23_in(RsprotExec *x, MsgSendPingReply *m)
     RSPROT_U1(x, m->gc_percent_time);
 }
 
-/* v24 -- revs osrsm242. */
+/* v25 -- revs osrsm242. */
 void
-packet_send_ping_reply_v24_in(RsprotExec *x, MsgSendPingReply *m)
+packet_send_ping_reply_v25_in(RsprotExec *x, MsgSendPingReply *m)
 {
     RSPROT_U1_ADD128(x, m->fps);
     RSPROT_U4_1234(x, m->value1);
@@ -251,7 +261,7 @@ packet_send_ping_reply_v24_in(RsprotExec *x, MsgSendPingReply *m)
 }
 
 /*
- * 24 row(s) for 24 layout(s). A revision not listed has no SEND_PING_REPLY and
+ * 25 row(s) for 25 layout(s). A revision not listed has no SEND_PING_REPLY and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_send_ping_reply_in[] = {
@@ -277,8 +287,9 @@ const RsprotVersionRange rsprot_send_ping_reply_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_send_ping_reply_v20_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_send_ping_reply_v21_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_send_ping_reply_v22_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_send_ping_reply_v23_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_send_ping_reply_v24_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_send_ping_reply_v23_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_send_ping_reply_v24_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_send_ping_reply_v25_in },
 };
 
 const int rsprot_send_ping_reply_in_count =

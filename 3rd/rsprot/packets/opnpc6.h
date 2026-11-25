@@ -19,7 +19,7 @@ typedef struct MsgOpNpc6 {
 
 /* v1 -- revs osrs221-222, osrs235, osrs240. */
 void packet_opnpc6_v1_in(RsprotExec *x, MsgOpNpc6 *m);
-/* v2 -- revs osrs223-224, osrs227, osrs229-230, osrs234. */
+/* v2 -- revs osrs223-224, osrs227, osrs229-230, osrs234, osrs243. */
 void packet_opnpc6_v2_in(RsprotExec *x, MsgOpNpc6 *m);
 /* v3 -- revs osrs225, osrs228, osrs236-237. */
 void packet_opnpc6_v3_in(RsprotExec *x, MsgOpNpc6 *m);
@@ -53,6 +53,7 @@ void packet_opnpc6_v6_in(RsprotExec *x, MsgOpNpc6 *m);
 #define packet_opnpc6_osrs240_in packet_opnpc6_v1_in
 #define packet_opnpc6_osrs241_in packet_opnpc6_v4_in
 #define packet_opnpc6_osrs242_in packet_opnpc6_v4_in
+#define packet_opnpc6_osrs243_in packet_opnpc6_v2_in
 #define packet_opnpc6_osrsm241_in packet_opnpc6_v5_in
 #define packet_opnpc6_osrsm242_in packet_opnpc6_v6_in
 

@@ -13,7 +13,7 @@ user_hash(RsprotExec *x, MsgClanchannelDeltaEvent *e)
     }
 }
 
-/* v1 -- revs 222-242. */
+/* v1 -- revs 222-243. */
 void
 packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
 {
@@ -76,7 +76,7 @@ packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
 }
 
 const RsprotVersionRange rsprot_clanchannel_delta_out[] = {
-    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_clanchannel_delta_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_clanchannel_delta_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_clanchannel_delta_v1_out },
 };
 

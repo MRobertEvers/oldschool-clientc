@@ -62,9 +62,22 @@ packet_cam_moveto_cycles_v3_v4_out(RsprotExec *x, MsgCamMoveToCyclesV3 *m)
     RSPROT_U2_12(x, m->z);
 }
 
-/* v5 -- revs osrsm241. */
+/* v5 -- revs osrs243. */
 void
 packet_cam_moveto_cycles_v3_v5_out(RsprotExec *x, MsgCamMoveToCyclesV3 *m)
+{
+    RSPROT_U2_12_ADD128(x, m->height);
+    RSPROT_U2_21_ADD128(x, m->cycles);
+    RSPROT_U1(x, m->height_relative);
+    RSPROT_U1(x, m->easing_id);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U1_NEG(x, m->ignore_terrain);
+}
+
+/* v6 -- revs osrsm241. */
+void
+packet_cam_moveto_cycles_v3_v6_out(RsprotExec *x, MsgCamMoveToCyclesV3 *m)
 {
     RSPROT_U1_SUB128(x, m->easing_id);
     RSPROT_U2_12(x, m->x);
@@ -75,9 +88,9 @@ packet_cam_moveto_cycles_v3_v5_out(RsprotExec *x, MsgCamMoveToCyclesV3 *m)
     RSPROT_U2_12(x, m->height);
 }
 
-/* v6 -- revs osrsm242. */
+/* v7 -- revs osrsm242. */
 void
-packet_cam_moveto_cycles_v3_v6_out(RsprotExec *x, MsgCamMoveToCyclesV3 *m)
+packet_cam_moveto_cycles_v3_v7_out(RsprotExec *x, MsgCamMoveToCyclesV3 *m)
 {
     RSPROT_U2_21(x, m->x);
     RSPROT_U1_ADD128(x, m->easing_id);
@@ -89,7 +102,7 @@ packet_cam_moveto_cycles_v3_v6_out(RsprotExec *x, MsgCamMoveToCyclesV3 *m)
 }
 
 /*
- * 6 row(s) for 6 layout(s). A revision not listed has no CAM_MOVETO_CYCLES_V3 and
+ * 7 row(s) for 7 layout(s). A revision not listed has no CAM_MOVETO_CYCLES_V3 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_moveto_cycles_v3_out[] = {
@@ -97,8 +110,9 @@ const RsprotVersionRange rsprot_cam_moveto_cycles_v3_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_cam_moveto_cycles_v3_v2_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_moveto_cycles_v3_v3_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_moveto_cycles_v3_v4_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_moveto_cycles_v3_v5_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_moveto_cycles_v3_v6_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_cam_moveto_cycles_v3_v5_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_moveto_cycles_v3_v6_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_moveto_cycles_v3_v7_out },
 };
 
 const int rsprot_cam_moveto_cycles_v3_out_count =

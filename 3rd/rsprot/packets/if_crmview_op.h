@@ -66,10 +66,12 @@ void packet_if_crmview_op_v20_in(RsprotExec *x, MsgIfCrmViewOp *m);
 void packet_if_crmview_op_v21_in(RsprotExec *x, MsgIfCrmViewOp *m);
 /* v22 -- revs osrs242. */
 void packet_if_crmview_op_v22_in(RsprotExec *x, MsgIfCrmViewOp *m);
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrs243. */
 void packet_if_crmview_op_v23_in(RsprotExec *x, MsgIfCrmViewOp *m);
-/* v24 -- revs osrsm242. */
+/* v24 -- revs osrsm241. */
 void packet_if_crmview_op_v24_in(RsprotExec *x, MsgIfCrmViewOp *m);
+/* v25 -- revs osrsm242. */
+void packet_if_crmview_op_v25_in(RsprotExec *x, MsgIfCrmViewOp *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_crmview_op_<R>_in. */
 #define packet_if_crmview_op_osrs221_in packet_if_crmview_op_v1_in
@@ -94,8 +96,9 @@ void packet_if_crmview_op_v24_in(RsprotExec *x, MsgIfCrmViewOp *m);
 #define packet_if_crmview_op_osrs240_in packet_if_crmview_op_v20_in
 #define packet_if_crmview_op_osrs241_in packet_if_crmview_op_v21_in
 #define packet_if_crmview_op_osrs242_in packet_if_crmview_op_v22_in
-#define packet_if_crmview_op_osrsm241_in packet_if_crmview_op_v23_in
-#define packet_if_crmview_op_osrsm242_in packet_if_crmview_op_v24_in
+#define packet_if_crmview_op_osrs243_in packet_if_crmview_op_v23_in
+#define packet_if_crmview_op_osrsm241_in packet_if_crmview_op_v24_in
+#define packet_if_crmview_op_osrsm242_in packet_if_crmview_op_v25_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_crmview_op_in[];

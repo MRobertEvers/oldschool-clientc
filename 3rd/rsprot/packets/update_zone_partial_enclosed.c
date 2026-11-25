@@ -210,9 +210,19 @@ packet_update_zone_partial_enclosed_v20_out(RsprotExec *x, MsgDesktopUpdateZoneP
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
-/* v21 -- revs osrsm241. */
+/* v21 -- revs osrs243. */
 void
 packet_update_zone_partial_enclosed_v21_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+{
+    RSPROT_U1_NEG(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->zone_x);
+    RSPROT_U1(x, m->level);
+    RSPROT_REST(x, m->payload, m->payload_length);
+}
+
+/* v22 -- revs osrsm241. */
+void
+packet_update_zone_partial_enclosed_v22_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1_ADD128(x, m->level);
     RSPROT_U1_SUB128(x, m->zone_z);
@@ -220,9 +230,9 @@ packet_update_zone_partial_enclosed_v21_out(RsprotExec *x, MsgDesktopUpdateZoneP
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
-/* v22 -- revs osrsm242. */
+/* v23 -- revs osrsm242. */
 void
-packet_update_zone_partial_enclosed_v22_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+packet_update_zone_partial_enclosed_v23_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1_NEG(x, m->level);
     RSPROT_U1_SUB128(x, m->zone_z);
@@ -231,7 +241,7 @@ packet_update_zone_partial_enclosed_v22_out(RsprotExec *x, MsgDesktopUpdateZoneP
 }
 
 /*
- * 24 row(s) for 22 layout(s). A revision not listed has no UPDATE_ZONE_PARTIAL_ENCLOSED and
+ * 25 row(s) for 23 layout(s). A revision not listed has no UPDATE_ZONE_PARTIAL_ENCLOSED and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_zone_partial_enclosed_out[] = {
@@ -257,8 +267,9 @@ const RsprotVersionRange rsprot_update_zone_partial_enclosed_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_update_zone_partial_enclosed_v16_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_zone_partial_enclosed_v19_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_update_zone_partial_enclosed_v20_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_zone_partial_enclosed_v21_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_update_zone_partial_enclosed_v22_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_update_zone_partial_enclosed_v21_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_zone_partial_enclosed_v22_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_update_zone_partial_enclosed_v23_out },
 };
 
 const int rsprot_update_zone_partial_enclosed_out_count =

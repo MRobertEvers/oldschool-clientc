@@ -19,7 +19,7 @@ typedef struct MsgFriendListLoaded {
 	int32_t _unused;
 } MsgFriendListLoaded;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_friendlist_loaded_v1_out(RsprotExec *x, MsgFriendListLoaded *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_friendlist_loaded_v2_out(RsprotExec *x, MsgFriendListLoaded *m);
@@ -47,6 +47,7 @@ void packet_friendlist_loaded_v2_out(RsprotExec *x, MsgFriendListLoaded *m);
 #define packet_friendlist_loaded_osrs240_out packet_friendlist_loaded_v1_out
 #define packet_friendlist_loaded_osrs241_out packet_friendlist_loaded_v1_out
 #define packet_friendlist_loaded_osrs242_out packet_friendlist_loaded_v1_out
+#define packet_friendlist_loaded_osrs243_out packet_friendlist_loaded_v1_out
 #define packet_friendlist_loaded_osrsm241_out packet_friendlist_loaded_v2_out
 #define packet_friendlist_loaded_osrsm242_out packet_friendlist_loaded_v2_out
 

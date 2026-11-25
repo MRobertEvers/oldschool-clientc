@@ -46,7 +46,7 @@ void packet_loc_del_v12_out(RsprotExec *x, MsgLocDel *m);
 void packet_loc_del_v13_out(RsprotExec *x, MsgLocDel *m);
 /* v14 -- revs osrs238. */
 void packet_loc_del_v14_out(RsprotExec *x, MsgLocDel *m);
-/* v15 -- revs osrs239. */
+/* v15 -- revs osrs239, osrs243. */
 void packet_loc_del_v15_out(RsprotExec *x, MsgLocDel *m);
 /* v16 -- revs rs245.2, rs254, rs289. */
 void packet_loc_del_v16_out(RsprotExec *x, MsgLocDel *m);
@@ -78,6 +78,7 @@ void packet_loc_del_v18_out(RsprotExec *x, MsgLocDel *m);
 #define packet_loc_del_osrs240_out packet_loc_del_v4_out
 #define packet_loc_del_osrs241_out packet_loc_del_v7_out
 #define packet_loc_del_osrs242_out packet_loc_del_v9_out
+#define packet_loc_del_osrs243_out packet_loc_del_v15_out
 #define packet_loc_del_rs245_2_out packet_loc_del_v16_out
 #define packet_loc_del_rs254_out packet_loc_del_v16_out
 #define packet_loc_del_rs289_out packet_loc_del_v16_out

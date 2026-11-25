@@ -30,7 +30,7 @@ void packet_opworldentity3_v4_in(RsprotExec *x, MsgOpWorldEntity3 *m);
 void packet_opworldentity3_v5_in(RsprotExec *x, MsgOpWorldEntity3 *m);
 /* v6 -- revs osrs238-239. */
 void packet_opworldentity3_v6_in(RsprotExec *x, MsgOpWorldEntity3 *m);
-/* v7 -- revs osrs240. */
+/* v7 -- revs osrs240, osrs243. */
 void packet_opworldentity3_v7_in(RsprotExec *x, MsgOpWorldEntity3 *m);
 /* v8 -- revs osrs241. */
 void packet_opworldentity3_v8_in(RsprotExec *x, MsgOpWorldEntity3 *m);
@@ -50,6 +50,7 @@ void packet_opworldentity3_v10_in(RsprotExec *x, MsgOpWorldEntity3 *m);
 #define packet_opworldentity3_osrs240_in packet_opworldentity3_v7_in
 #define packet_opworldentity3_osrs241_in packet_opworldentity3_v8_in
 #define packet_opworldentity3_osrs242_in packet_opworldentity3_v4_in
+#define packet_opworldentity3_osrs243_in packet_opworldentity3_v7_in
 #define packet_opworldentity3_osrsm241_in packet_opworldentity3_v9_in
 #define packet_opworldentity3_osrsm242_in packet_opworldentity3_v10_in
 

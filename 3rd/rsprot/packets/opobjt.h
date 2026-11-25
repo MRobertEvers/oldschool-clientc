@@ -69,10 +69,12 @@ void packet_opobjt_v21_in(RsprotExec *x, MsgOpObjT *m);
 void packet_opobjt_v22_in(RsprotExec *x, MsgOpObjT *m);
 /* v23 -- revs rs245.2, rs254, rs289. */
 void packet_opobjt_v23_in(RsprotExec *x, MsgOpObjT *m);
-/* v24 -- revs osrsm241. */
+/* v24 -- revs osrs243. */
 void packet_opobjt_v24_in(RsprotExec *x, MsgOpObjT *m);
-/* v25 -- revs osrsm242. */
+/* v25 -- revs osrsm241. */
 void packet_opobjt_v25_in(RsprotExec *x, MsgOpObjT *m);
+/* v26 -- revs osrsm242. */
+void packet_opobjt_v26_in(RsprotExec *x, MsgOpObjT *m);
 
 /* Per-revision entry points: what revision R calls is packet_opobjt_<R>_in. */
 #define packet_opobjt_osrs221_in packet_opobjt_v1_in
@@ -97,11 +99,12 @@ void packet_opobjt_v25_in(RsprotExec *x, MsgOpObjT *m);
 #define packet_opobjt_osrs240_in packet_opobjt_v20_in
 #define packet_opobjt_osrs241_in packet_opobjt_v21_in
 #define packet_opobjt_osrs242_in packet_opobjt_v22_in
+#define packet_opobjt_osrs243_in packet_opobjt_v24_in
 #define packet_opobjt_rs245_2_in packet_opobjt_v23_in
 #define packet_opobjt_rs254_in packet_opobjt_v23_in
 #define packet_opobjt_rs289_in packet_opobjt_v23_in
-#define packet_opobjt_osrsm241_in packet_opobjt_v24_in
-#define packet_opobjt_osrsm242_in packet_opobjt_v25_in
+#define packet_opobjt_osrsm241_in packet_opobjt_v25_in
+#define packet_opobjt_osrsm242_in packet_opobjt_v26_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_opobjt_in[];

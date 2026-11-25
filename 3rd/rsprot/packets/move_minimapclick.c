@@ -409,9 +409,28 @@ packet_move_minimapclick_v21_in(RsprotExec *x, MsgMoveMinimapClick *m)
     RSPROT_U1(x, m->checkpoint5);
 }
 
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs243. */
 void
 packet_move_minimapclick_v22_in(RsprotExec *x, MsgMoveMinimapClick *m)
+{
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U1_ADD128(x, m->key_combination);
+    RSPROT_U1(x, m->minimap_width);
+    RSPROT_U1(x, m->minimap_height);
+    RSPROT_U2_12(x, m->camera_angle_y);
+    RSPROT_U1(x, m->checkpoint1);
+    RSPROT_U1(x, m->checkpoint2);
+    RSPROT_U1(x, m->checkpoint3);
+    RSPROT_U1(x, m->checkpoint4);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
+    RSPROT_U1(x, m->checkpoint5);
+}
+
+/* v23 -- revs osrsm241. */
+void
+packet_move_minimapclick_v23_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
     RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_U2_12_ADD128(x, m->z);
@@ -428,9 +447,9 @@ packet_move_minimapclick_v22_in(RsprotExec *x, MsgMoveMinimapClick *m)
     RSPROT_U1(x, m->checkpoint5);
 }
 
-/* v23 -- revs osrsm242. */
+/* v24 -- revs osrsm242. */
 void
-packet_move_minimapclick_v23_in(RsprotExec *x, MsgMoveMinimapClick *m)
+packet_move_minimapclick_v24_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
     RSPROT_U1(x, m->key_combination);
     RSPROT_U2_21(x, m->z);
@@ -448,7 +467,7 @@ packet_move_minimapclick_v23_in(RsprotExec *x, MsgMoveMinimapClick *m)
 }
 
 /*
- * 24 row(s) for 23 layout(s). A revision not listed has no MOVE_MINIMAPCLICK and
+ * 25 row(s) for 24 layout(s). A revision not listed has no MOVE_MINIMAPCLICK and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_move_minimapclick_in[] = {
@@ -474,8 +493,9 @@ const RsprotVersionRange rsprot_move_minimapclick_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_move_minimapclick_v19_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_move_minimapclick_v20_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_move_minimapclick_v21_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_move_minimapclick_v22_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_move_minimapclick_v23_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_move_minimapclick_v22_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_move_minimapclick_v23_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_move_minimapclick_v24_in },
 };
 
 const int rsprot_move_minimapclick_in_count =

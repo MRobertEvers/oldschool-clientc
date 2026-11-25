@@ -230,9 +230,19 @@ packet_teleport_v22_in(RsprotExec *x, MsgTeleport *m)
     RSPROT_U4_1234(x, m->oculus_sync_value);
 }
 
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrs243. */
 void
 packet_teleport_v23_in(RsprotExec *x, MsgTeleport *m)
+{
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U4_1234(x, m->oculus_sync_value);
+    RSPROT_U1(x, m->level);
+}
+
+/* v24 -- revs osrsm241. */
+void
+packet_teleport_v24_in(RsprotExec *x, MsgTeleport *m)
 {
     RSPROT_U1_NEG(x, m->level);
     RSPROT_U2_21_ADD128(x, m->x);
@@ -240,9 +250,9 @@ packet_teleport_v23_in(RsprotExec *x, MsgTeleport *m)
     RSPROT_U4_2143(x, m->oculus_sync_value);
 }
 
-/* v24 -- revs osrsm242. */
+/* v25 -- revs osrsm242. */
 void
-packet_teleport_v24_in(RsprotExec *x, MsgTeleport *m)
+packet_teleport_v25_in(RsprotExec *x, MsgTeleport *m)
 {
     RSPROT_U4_4321(x, m->oculus_sync_value);
     RSPROT_U1_ADD128(x, m->level);
@@ -251,7 +261,7 @@ packet_teleport_v24_in(RsprotExec *x, MsgTeleport *m)
 }
 
 /*
- * 24 row(s) for 24 layout(s). A revision not listed has no TELEPORT and
+ * 25 row(s) for 25 layout(s). A revision not listed has no TELEPORT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_teleport_in[] = {
@@ -277,8 +287,9 @@ const RsprotVersionRange rsprot_teleport_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_teleport_v20_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_teleport_v21_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_teleport_v22_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_teleport_v23_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_teleport_v24_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_teleport_v23_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_teleport_v24_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_teleport_v25_in },
 };
 
 const int rsprot_teleport_in_count =

@@ -20,7 +20,7 @@ typedef struct MsgMessageGame {
 	const char *message;
 } MsgMessageGame;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_message_game_v1_out(RsprotExec *x, MsgMessageGame *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_message_game_v2_out(RsprotExec *x, MsgMessageGame *m);
@@ -48,6 +48,7 @@ void packet_message_game_v2_out(RsprotExec *x, MsgMessageGame *m);
 #define packet_message_game_osrs240_out packet_message_game_v1_out
 #define packet_message_game_osrs241_out packet_message_game_v1_out
 #define packet_message_game_osrs242_out packet_message_game_v1_out
+#define packet_message_game_osrs243_out packet_message_game_v1_out
 #define packet_message_game_osrsm241_out packet_message_game_v2_out
 #define packet_message_game_osrsm242_out packet_message_game_v2_out
 

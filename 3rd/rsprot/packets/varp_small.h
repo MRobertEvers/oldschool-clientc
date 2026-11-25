@@ -28,7 +28,7 @@ void packet_varp_small_v3_out(RsprotExec *x, MsgVarpSmall *m);
 void packet_varp_small_v4_out(RsprotExec *x, MsgVarpSmall *m);
 /* v5 -- revs osrs227. */
 void packet_varp_small_v5_out(RsprotExec *x, MsgVarpSmall *m);
-/* v6 -- revs osrs228, osrs239. */
+/* v6 -- revs osrs228, osrs239, osrs243. */
 void packet_varp_small_v6_out(RsprotExec *x, MsgVarpSmall *m);
 /* v7 -- revs osrs230. */
 void packet_varp_small_v7_out(RsprotExec *x, MsgVarpSmall *m);
@@ -78,6 +78,7 @@ void packet_varp_small_v18_out(RsprotExec *x, MsgVarpSmall *m);
 #define packet_varp_small_osrs240_out packet_varp_small_v15_out
 #define packet_varp_small_osrs241_out packet_varp_small_v4_out
 #define packet_varp_small_osrs242_out packet_varp_small_v11_out
+#define packet_varp_small_osrs243_out packet_varp_small_v6_out
 #define packet_varp_small_rs245_2_out packet_varp_small_v16_out
 #define packet_varp_small_rs254_out packet_varp_small_v16_out
 #define packet_varp_small_rs289_out packet_varp_small_v16_out

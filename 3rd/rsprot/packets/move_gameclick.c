@@ -199,18 +199,27 @@ packet_move_gameclick_v21_in(RsprotExec *x, MsgMoveGameClick *m)
     RSPROT_U2_12_ADD128(x, m->z);
 }
 
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs243. */
 void
 packet_move_gameclick_v22_in(RsprotExec *x, MsgMoveGameClick *m)
+{
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U1_ADD128(x, m->key_combination);
+}
+
+/* v23 -- revs osrsm241. */
+void
+packet_move_gameclick_v23_in(RsprotExec *x, MsgMoveGameClick *m)
 {
     RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_U2_12_ADD128(x, m->z);
     RSPROT_U1_SUB128(x, m->key_combination);
 }
 
-/* v23 -- revs osrsm242. */
+/* v24 -- revs osrsm242. */
 void
-packet_move_gameclick_v23_in(RsprotExec *x, MsgMoveGameClick *m)
+packet_move_gameclick_v24_in(RsprotExec *x, MsgMoveGameClick *m)
 {
     RSPROT_U1(x, m->key_combination);
     RSPROT_U2_21(x, m->z);
@@ -218,7 +227,7 @@ packet_move_gameclick_v23_in(RsprotExec *x, MsgMoveGameClick *m)
 }
 
 /*
- * 24 row(s) for 23 layout(s). A revision not listed has no MOVE_GAMECLICK and
+ * 25 row(s) for 24 layout(s). A revision not listed has no MOVE_GAMECLICK and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_move_gameclick_in[] = {
@@ -244,8 +253,9 @@ const RsprotVersionRange rsprot_move_gameclick_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_move_gameclick_v19_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_move_gameclick_v20_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_move_gameclick_v21_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_move_gameclick_v22_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_move_gameclick_v23_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_move_gameclick_v22_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_move_gameclick_v23_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_move_gameclick_v24_in },
 };
 
 const int rsprot_move_gameclick_in_count =

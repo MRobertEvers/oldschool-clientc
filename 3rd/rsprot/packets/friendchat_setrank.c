@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221, osrs225, osrs231, osrs233. */
+/* v1 -- revs osrs221, osrs225, osrs231, osrs233, osrs243. */
 void
 packet_friendchat_setrank_v1_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -91,7 +91,7 @@ packet_friendchat_setrank_v10_in(RsprotExec *x, MsgFriendChatSetRank *m)
 }
 
 /*
- * 22 row(s) for 10 layout(s). A revision not listed has no FRIENDCHAT_SETRANK and
+ * 23 row(s) for 10 layout(s). A revision not listed has no FRIENDCHAT_SETRANK and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_friendchat_setrank_in[] = {
@@ -115,6 +115,7 @@ const RsprotVersionRange rsprot_friendchat_setrank_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_friendchat_setrank_v2_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_friendchat_setrank_v7_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_friendchat_setrank_v8_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_friendchat_setrank_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_friendchat_setrank_v9_in },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_friendchat_setrank_v10_in },
 };

@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs227-241, osrs242. */
+/* v1 -- revs osrs227-241, osrs242, osrs243. */
 void
 packet_event_mouse_click_v1_v1_in(RsprotExec *x, MsgEventMouseClickV1 *m)
 {
@@ -37,12 +37,13 @@ packet_event_mouse_click_v1_v2_in(RsprotExec *x, MsgEventMouseClickV1 *m)
 }
 
 /*
- * 4 row(s) for 2 layout(s). A revision not listed has no EVENT_MOUSE_CLICK_V1 and
+ * 5 row(s) for 2 layout(s). A revision not listed has no EVENT_MOUSE_CLICK_V1 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_event_mouse_click_v1_in[] = {
     { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_mouse_click_v1_v1_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_event_mouse_click_v1_v1_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_event_mouse_click_v1_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_event_mouse_click_v1_v2_in },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_event_mouse_click_v1_v2_in },
 };

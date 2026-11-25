@@ -90,24 +90,32 @@ packet_opworldentity2_v10_in(RsprotExec *x, MsgOpWorldEntity2 *m)
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
-/* v11 -- revs osrsm241. */
+/* v11 -- revs osrs243. */
 void
 packet_opworldentity2_v11_in(RsprotExec *x, MsgOpWorldEntity2 *m)
+{
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
+}
+
+/* v12 -- revs osrsm241. */
+void
+packet_opworldentity2_v12_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
     RSPROT_U2_12(x, m->index);
     RSPROT_U1_NEG(x, m->control_key);
 }
 
-/* v12 -- revs osrsm242. */
+/* v13 -- revs osrsm242. */
 void
-packet_opworldentity2_v12_in(RsprotExec *x, MsgOpWorldEntity2 *m)
+packet_opworldentity2_v13_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
     RSPROT_U2_12_ADD128(x, m->index);
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
 /*
- * 12 row(s) for 12 layout(s). A revision not listed has no OPWORLDENTITY2 and
+ * 13 row(s) for 13 layout(s). A revision not listed has no OPWORLDENTITY2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opworldentity2_in[] = {
@@ -121,8 +129,9 @@ const RsprotVersionRange rsprot_opworldentity2_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opworldentity2_v8_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opworldentity2_v9_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opworldentity2_v10_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opworldentity2_v11_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opworldentity2_v12_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_opworldentity2_v11_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opworldentity2_v12_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opworldentity2_v13_in },
 };
 
 const int rsprot_opworldentity2_in_count =

@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221, osrs225, osrs232, osrs237. */
+/* v1 -- revs osrs221, osrs225, osrs232, osrs237, osrs243. */
 void
 packet_event_camera_position_v1_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -139,7 +139,7 @@ packet_event_camera_position_v16_in(RsprotExec *x, MsgEventCameraPosition *m)
 }
 
 /*
- * 24 row(s) for 16 layout(s). A revision not listed has no EVENT_CAMERA_POSITION and
+ * 25 row(s) for 16 layout(s). A revision not listed has no EVENT_CAMERA_POSITION and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_event_camera_position_in[] = {
@@ -165,6 +165,7 @@ const RsprotVersionRange rsprot_event_camera_position_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_event_camera_position_v13_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_camera_position_v11_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_event_camera_position_v14_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_event_camera_position_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_event_camera_position_v15_in },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_event_camera_position_v16_in },
 };

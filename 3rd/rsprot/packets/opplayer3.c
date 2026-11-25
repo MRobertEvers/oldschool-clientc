@@ -137,24 +137,32 @@ packet_opplayer3_v16_in(RsprotExec *x, MsgOpPlayer3 *m)
     RSPROT_U2_12(x, m->index);
 }
 
-/* v17 -- revs osrsm241. */
+/* v17 -- revs osrs243. */
 void
 packet_opplayer3_v17_in(RsprotExec *x, MsgOpPlayer3 *m)
+{
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
+}
+
+/* v18 -- revs osrsm241. */
+void
+packet_opplayer3_v18_in(RsprotExec *x, MsgOpPlayer3 *m)
 {
     RSPROT_U2_21(x, m->index);
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
-/* v18 -- revs osrsm242. */
+/* v19 -- revs osrsm242. */
 void
-packet_opplayer3_v18_in(RsprotExec *x, MsgOpPlayer3 *m)
+packet_opplayer3_v19_in(RsprotExec *x, MsgOpPlayer3 *m)
 {
     RSPROT_U2_12(x, m->index);
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
 /*
- * 27 row(s) for 18 layout(s). A revision not listed has no OPPLAYER3 and
+ * 28 row(s) for 19 layout(s). A revision not listed has no OPPLAYER3 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opplayer3_in[] = {
@@ -180,11 +188,12 @@ const RsprotVersionRange rsprot_opplayer3_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opplayer3_v15_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opplayer3_v3_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opplayer3_v2_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_opplayer3_v17_in },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_opplayer3_v16_in },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_opplayer3_v16_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_opplayer3_v16_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opplayer3_v17_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opplayer3_v18_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opplayer3_v18_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opplayer3_v19_in },
 };
 
 const int rsprot_opplayer3_in_count =

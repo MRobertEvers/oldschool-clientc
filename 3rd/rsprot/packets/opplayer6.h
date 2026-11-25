@@ -26,7 +26,7 @@ void packet_opplayer6_v2_in(RsprotExec *x, MsgOpPlayer6 *m);
 void packet_opplayer6_v3_in(RsprotExec *x, MsgOpPlayer6 *m);
 /* v4 -- revs osrs224. */
 void packet_opplayer6_v4_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v5 -- revs osrs225, osrs234. */
+/* v5 -- revs osrs225, osrs234, osrs243. */
 void packet_opplayer6_v5_in(RsprotExec *x, MsgOpPlayer6 *m);
 /* v6 -- revs osrs226, osrs230. */
 void packet_opplayer6_v6_in(RsprotExec *x, MsgOpPlayer6 *m);
@@ -84,6 +84,7 @@ void packet_opplayer6_v21_in(RsprotExec *x, MsgOpPlayer6 *m);
 #define packet_opplayer6_osrs240_in packet_opplayer6_v18_in
 #define packet_opplayer6_osrs241_in packet_opplayer6_v19_in
 #define packet_opplayer6_osrs242_in packet_opplayer6_v1_in
+#define packet_opplayer6_osrs243_in packet_opplayer6_v5_in
 #define packet_opplayer6_osrsm241_in packet_opplayer6_v20_in
 #define packet_opplayer6_osrsm242_in packet_opplayer6_v21_in
 

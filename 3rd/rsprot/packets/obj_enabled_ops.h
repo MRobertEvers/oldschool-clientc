@@ -59,10 +59,12 @@ void packet_obj_enabled_ops_v18_out(RsprotExec *x, MsgObjEnabledOps *m);
 void packet_obj_enabled_ops_v19_out(RsprotExec *x, MsgObjEnabledOps *m);
 /* v20 -- revs osrs242. */
 void packet_obj_enabled_ops_v20_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v21 -- revs osrsm241. */
+/* v21 -- revs osrs243. */
 void packet_obj_enabled_ops_v21_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v22 -- revs osrsm242. */
+/* v22 -- revs osrsm241. */
 void packet_obj_enabled_ops_v22_out(RsprotExec *x, MsgObjEnabledOps *m);
+/* v23 -- revs osrsm242. */
+void packet_obj_enabled_ops_v23_out(RsprotExec *x, MsgObjEnabledOps *m);
 
 /* Per-revision entry points: what revision R calls is packet_obj_enabled_ops_<R>_out. */
 #define packet_obj_enabled_ops_osrs223_out packet_obj_enabled_ops_v1_out
@@ -85,8 +87,9 @@ void packet_obj_enabled_ops_v22_out(RsprotExec *x, MsgObjEnabledOps *m);
 #define packet_obj_enabled_ops_osrs240_out packet_obj_enabled_ops_v18_out
 #define packet_obj_enabled_ops_osrs241_out packet_obj_enabled_ops_v19_out
 #define packet_obj_enabled_ops_osrs242_out packet_obj_enabled_ops_v20_out
-#define packet_obj_enabled_ops_osrsm241_out packet_obj_enabled_ops_v21_out
-#define packet_obj_enabled_ops_osrsm242_out packet_obj_enabled_ops_v22_out
+#define packet_obj_enabled_ops_osrs243_out packet_obj_enabled_ops_v21_out
+#define packet_obj_enabled_ops_osrsm241_out packet_obj_enabled_ops_v22_out
+#define packet_obj_enabled_ops_osrsm242_out packet_obj_enabled_ops_v23_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_enabled_ops_out[];

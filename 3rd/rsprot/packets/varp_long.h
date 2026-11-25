@@ -23,16 +23,19 @@ typedef struct MsgVarpLong {
 void packet_varp_long_v1_out(RsprotExec *x, MsgVarpLong *m);
 /* v2 -- revs osrs242. */
 void packet_varp_long_v2_out(RsprotExec *x, MsgVarpLong *m);
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrs243. */
 void packet_varp_long_v3_out(RsprotExec *x, MsgVarpLong *m);
-/* v4 -- revs osrsm242. */
+/* v4 -- revs osrsm241. */
 void packet_varp_long_v4_out(RsprotExec *x, MsgVarpLong *m);
+/* v5 -- revs osrsm242. */
+void packet_varp_long_v5_out(RsprotExec *x, MsgVarpLong *m);
 
 /* Per-revision entry points: what revision R calls is packet_varp_long_<R>_out. */
 #define packet_varp_long_osrs241_out packet_varp_long_v1_out
 #define packet_varp_long_osrs242_out packet_varp_long_v2_out
-#define packet_varp_long_osrsm241_out packet_varp_long_v3_out
-#define packet_varp_long_osrsm242_out packet_varp_long_v4_out
+#define packet_varp_long_osrs243_out packet_varp_long_v3_out
+#define packet_varp_long_osrsm241_out packet_varp_long_v4_out
+#define packet_varp_long_osrsm242_out packet_varp_long_v5_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varp_long_out[];

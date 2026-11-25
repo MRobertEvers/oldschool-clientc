@@ -197,9 +197,20 @@ packet_midi_song_v2_v17_out(RsprotExec *x, MsgMidiSongV2 *m)
     RSPROT_U2_21(x, m->fade_in_delay);
 }
 
-/* v18 -- revs osrsm241. */
+/* v18 -- revs osrs243. */
 void
 packet_midi_song_v2_v18_out(RsprotExec *x, MsgMidiSongV2 *m)
+{
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_12_ADD128(x, m->fade_out_delay);
+}
+
+/* v19 -- revs osrsm241. */
+void
+packet_midi_song_v2_v19_out(RsprotExec *x, MsgMidiSongV2 *m)
 {
     RSPROT_U2_12_ADD128(x, m->fade_in_delay);
     RSPROT_U2_12(x, m->id);
@@ -208,9 +219,9 @@ packet_midi_song_v2_v18_out(RsprotExec *x, MsgMidiSongV2 *m)
     RSPROT_U2_12(x, m->fade_out_delay);
 }
 
-/* v19 -- revs osrsm242. */
+/* v20 -- revs osrsm242. */
 void
-packet_midi_song_v2_v19_out(RsprotExec *x, MsgMidiSongV2 *m)
+packet_midi_song_v2_v20_out(RsprotExec *x, MsgMidiSongV2 *m)
 {
     RSPROT_U2_12(x, m->fade_out_delay);
     RSPROT_U2_12(x, m->fade_in_speed);
@@ -220,7 +231,7 @@ packet_midi_song_v2_v19_out(RsprotExec *x, MsgMidiSongV2 *m)
 }
 
 /*
- * 19 row(s) for 19 layout(s). A revision not listed has no MIDI_SONG_V2 and
+ * 20 row(s) for 20 layout(s). A revision not listed has no MIDI_SONG_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_midi_song_v2_out[] = {
@@ -241,8 +252,9 @@ const RsprotVersionRange rsprot_midi_song_v2_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_midi_song_v2_v15_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_midi_song_v2_v16_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_midi_song_v2_v17_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_song_v2_v18_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_midi_song_v2_v19_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_midi_song_v2_v18_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_song_v2_v19_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_midi_song_v2_v20_out },
 };
 
 const int rsprot_midi_song_v2_out_count =

@@ -230,9 +230,19 @@ packet_if_setangle_v22_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2_21(x, m->angle_x);
 }
 
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrs243. */
 void
 packet_if_setangle_v23_out(RsprotExec *x, MsgIfSetAngle *m)
+{
+    RSPROT_U2_12(x, m->angle_y);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->angle_x);
+    RSPROT_U2_12(x, m->zoom);
+}
+
+/* v24 -- revs osrsm241. */
+void
+packet_if_setangle_v24_out(RsprotExec *x, MsgIfSetAngle *m)
 {
     RSPROT_U2_12_ADD128(x, m->zoom);
     RSPROT_U2_12_ADD128(x, m->angle_x);
@@ -240,9 +250,9 @@ packet_if_setangle_v23_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_COM_1234(x, m->combined_id);
 }
 
-/* v24 -- revs osrsm242. */
+/* v25 -- revs osrsm242. */
 void
-packet_if_setangle_v24_out(RsprotExec *x, MsgIfSetAngle *m)
+packet_if_setangle_v25_out(RsprotExec *x, MsgIfSetAngle *m)
 {
     RSPROT_U2_21_ADD128(x, m->angle_y);
     RSPROT_U2_12_ADD128(x, m->angle_x);
@@ -251,7 +261,7 @@ packet_if_setangle_v24_out(RsprotExec *x, MsgIfSetAngle *m)
 }
 
 /*
- * 24 row(s) for 24 layout(s). A revision not listed has no IF_SETANGLE and
+ * 25 row(s) for 25 layout(s). A revision not listed has no IF_SETANGLE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setangle_out[] = {
@@ -277,8 +287,9 @@ const RsprotVersionRange rsprot_if_setangle_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setangle_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setangle_v21_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setangle_v22_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setangle_v23_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_setangle_v24_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_if_setangle_v23_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setangle_v24_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_setangle_v25_out },
 };
 
 const int rsprot_if_setangle_out_count =

@@ -37,7 +37,7 @@ typedef struct MsgEventNativeMouseMove {
 	MsgEventNativeMouseMoveMove moves[MSG_EVENT_NATIVE_MOUSE_MOVE_MAX];
 } MsgEventNativeMouseMove;
 
-/* v1 -- revs 223-242. */
+/* v1 -- revs 223-243. */
 void packet_event_native_mouse_move_v1_in(RsprotExec *x, MsgEventNativeMouseMove *m);
 
 /* osrsm241 -- the Android 241.4 client. */
@@ -63,6 +63,7 @@ void packet_event_native_mouse_move_osrsm241_in(RsprotExec *x, MsgEventNativeMou
 #define packet_event_native_mouse_move_osrs240_in packet_event_native_mouse_move_v1_in
 #define packet_event_native_mouse_move_osrs241_in packet_event_native_mouse_move_v1_in
 #define packet_event_native_mouse_move_osrs242_in packet_event_native_mouse_move_v1_in
+#define packet_event_native_mouse_move_osrs243_in packet_event_native_mouse_move_v1_in
 #define packet_event_native_mouse_move_osrsm241_in packet_event_native_mouse_move_osrsm241_in
 #define packet_event_native_mouse_move_osrsm242_in packet_event_native_mouse_move_osrsm241_in
 

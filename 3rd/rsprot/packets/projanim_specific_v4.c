@@ -214,9 +214,26 @@ packet_projanim_specific_v4_v12_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U4_1234(x, m->start_packed);
 }
 
-/* v13 -- revs osrsm241. */
+/* v13 -- revs osrs243. */
 void
 packet_projanim_specific_v4_v13_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
+{
+    RSPROT_U4_4321(x, m->end_packed);
+    RSPROT_U4_1234(x, m->start_packed);
+    RSPROT_U1_ADD128(x, m->angle);
+    RSPROT_U3_132(x, m->target_index);
+    RSPROT_U2_12(x, m->start_time);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->start_height);
+    RSPROT_U3_321(x, m->source_index);
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U2_21_ADD128(x, m->end_height);
+    RSPROT_U2_12_ADD128(x, m->progress);
+}
+
+/* v14 -- revs osrsm241. */
+void
+packet_projanim_specific_v4_v14_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
     RSPROT_U3_132(x, m->source_index);
     RSPROT_U2_12(x, m->progress);
@@ -231,9 +248,9 @@ packet_projanim_specific_v4_v13_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U2_21_ADD128(x, m->end_height);
 }
 
-/* v14 -- revs osrsm242. */
+/* v15 -- revs osrsm242. */
 void
-packet_projanim_specific_v4_v14_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
+packet_projanim_specific_v4_v15_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
     RSPROT_U2_12_ADD128(x, m->start_time);
     RSPROT_U2_21_ADD128(x, m->id);
@@ -249,7 +266,7 @@ packet_projanim_specific_v4_v14_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 }
 
 /*
- * 14 row(s) for 14 layout(s). A revision not listed has no PROJANIM_SPECIFIC_V4 and
+ * 15 row(s) for 15 layout(s). A revision not listed has no PROJANIM_SPECIFIC_V4 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_projanim_specific_v4_out[] = {
@@ -265,8 +282,9 @@ const RsprotVersionRange rsprot_projanim_specific_v4_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_projanim_specific_v4_v10_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_projanim_specific_v4_v11_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_projanim_specific_v4_v12_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_projanim_specific_v4_v13_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_projanim_specific_v4_v14_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_projanim_specific_v4_v13_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_projanim_specific_v4_v14_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_projanim_specific_v4_v15_out },
 };
 
 const int rsprot_projanim_specific_v4_out_count =

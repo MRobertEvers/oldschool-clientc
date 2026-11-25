@@ -35,7 +35,7 @@ typedef struct MsgIfResyncV2 {
 	int32_t events_count;
 } MsgIfResyncV2;
 
-/* v1 -- revs osrs231-241, osrs242. */
+/* v1 -- revs osrs231-241, osrs242, osrs243. */
 void packet_if_resync_v2_v1_out(RsprotExec *x, MsgIfResyncV2 *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_if_resync_v2_v2_out(RsprotExec *x, MsgIfResyncV2 *m);
@@ -53,6 +53,7 @@ void packet_if_resync_v2_v2_out(RsprotExec *x, MsgIfResyncV2 *m);
 #define packet_if_resync_v2_osrs240_out packet_if_resync_v2_v1_out
 #define packet_if_resync_v2_osrs241_out packet_if_resync_v2_v1_out
 #define packet_if_resync_v2_osrs242_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs243_out packet_if_resync_v2_v1_out
 #define packet_if_resync_v2_osrsm241_out packet_if_resync_v2_v2_out
 #define packet_if_resync_v2_osrsm242_out packet_if_resync_v2_v2_out
 

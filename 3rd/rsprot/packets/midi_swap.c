@@ -230,9 +230,19 @@ packet_midi_swap_v22_out(RsprotExec *x, MsgMidiSwap *m)
     RSPROT_U2_12(x, m->fade_out_speed);
 }
 
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrs243. */
 void
 packet_midi_swap_v23_out(RsprotExec *x, MsgMidiSwap *m)
+{
+    RSPROT_U2_21(x, m->fade_out_delay);
+    RSPROT_U2_12(x, m->fade_out_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->fade_in_speed);
+}
+
+/* v24 -- revs osrsm241. */
+void
+packet_midi_swap_v24_out(RsprotExec *x, MsgMidiSwap *m)
 {
     RSPROT_U2_12(x, m->fade_in_delay);
     RSPROT_U2_21_ADD128(x, m->fade_in_speed);
@@ -240,9 +250,9 @@ packet_midi_swap_v23_out(RsprotExec *x, MsgMidiSwap *m)
     RSPROT_U2_21_ADD128(x, m->fade_out_delay);
 }
 
-/* v24 -- revs osrsm242. */
+/* v25 -- revs osrsm242. */
 void
-packet_midi_swap_v24_out(RsprotExec *x, MsgMidiSwap *m)
+packet_midi_swap_v25_out(RsprotExec *x, MsgMidiSwap *m)
 {
     RSPROT_U2_12_ADD128(x, m->fade_out_speed);
     RSPROT_U2_12(x, m->fade_out_delay);
@@ -251,7 +261,7 @@ packet_midi_swap_v24_out(RsprotExec *x, MsgMidiSwap *m)
 }
 
 /*
- * 24 row(s) for 24 layout(s). A revision not listed has no MIDI_SWAP and
+ * 25 row(s) for 25 layout(s). A revision not listed has no MIDI_SWAP and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_midi_swap_out[] = {
@@ -277,8 +287,9 @@ const RsprotVersionRange rsprot_midi_swap_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_midi_swap_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_midi_swap_v21_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_midi_swap_v22_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_swap_v23_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_midi_swap_v24_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_midi_swap_v23_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_swap_v24_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_midi_swap_v25_out },
 };
 
 const int rsprot_midi_swap_out_count =

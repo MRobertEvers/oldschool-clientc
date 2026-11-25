@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs223-241, osrs242. */
+/* v1 -- revs osrs223-241, osrs242, osrs243. */
 void
 packet_hidenpcops_v1_out(RsprotExec *x, MsgHideNpcOps *m)
 {
@@ -25,12 +25,13 @@ packet_hidenpcops_v2_out(RsprotExec *x, MsgHideNpcOps *m)
 }
 
 /*
- * 4 row(s) for 2 layout(s). A revision not listed has no HIDENPCOPS and
+ * 5 row(s) for 2 layout(s). A revision not listed has no HIDENPCOPS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_hidenpcops_out[] = {
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_hidenpcops_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_hidenpcops_v1_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_hidenpcops_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_hidenpcops_v2_out },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_hidenpcops_v2_out },
 };

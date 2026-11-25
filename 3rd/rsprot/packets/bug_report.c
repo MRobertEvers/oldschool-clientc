@@ -55,18 +55,27 @@ packet_bug_report_v5_in(RsprotExec *x, MsgBugReport *m)
     RSPROT_JSTR(x, m->instructions);
 }
 
-/* v6 -- revs osrsm241. */
+/* v6 -- revs osrs243. */
 void
 packet_bug_report_v6_in(RsprotExec *x, MsgBugReport *m)
+{
+    RSPROT_U1_SUB128(x, m->type);
+    RSPROT_JSTR(x, m->instructions);
+    RSPROT_JSTR(x, m->description);
+}
+
+/* v7 -- revs osrsm241. */
+void
+packet_bug_report_v7_in(RsprotExec *x, MsgBugReport *m)
 {
     RSPROT_JSTR(x, m->description);
     RSPROT_U1(x, m->type);
     RSPROT_JSTR(x, m->instructions);
 }
 
-/* v7 -- revs osrsm242. */
+/* v8 -- revs osrsm242. */
 void
-packet_bug_report_v7_in(RsprotExec *x, MsgBugReport *m)
+packet_bug_report_v8_in(RsprotExec *x, MsgBugReport *m)
 {
     RSPROT_JSTR(x, m->description);
     RSPROT_JSTR(x, m->instructions);
@@ -74,7 +83,7 @@ packet_bug_report_v7_in(RsprotExec *x, MsgBugReport *m)
 }
 
 /*
- * 7 row(s) for 7 layout(s). A revision not listed has no BUG_REPORT and
+ * 8 row(s) for 8 layout(s). A revision not listed has no BUG_REPORT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_bug_report_in[] = {
@@ -83,8 +92,9 @@ const RsprotVersionRange rsprot_bug_report_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_bug_report_v3_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_bug_report_v4_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_bug_report_v5_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_bug_report_v6_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_bug_report_v7_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_bug_report_v6_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_bug_report_v7_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_bug_report_v8_in },
 };
 
 const int rsprot_bug_report_in_count =

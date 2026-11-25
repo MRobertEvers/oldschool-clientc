@@ -28,18 +28,27 @@ packet_varp_long_v2_out(RsprotExec *x, MsgVarpLong *m)
     RSPROT_U4_2143(x, m->low);
 }
 
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrs243. */
 void
 packet_varp_long_v3_out(RsprotExec *x, MsgVarpLong *m)
+{
+    RSPROT_U4_3412(x, m->high);
+    RSPROT_U4_3412(x, m->low);
+    RSPROT_U2_21(x, m->id);
+}
+
+/* v4 -- revs osrsm241. */
+void
+packet_varp_long_v4_out(RsprotExec *x, MsgVarpLong *m)
 {
     RSPROT_U4_4321(x, m->high);
     RSPROT_U4_4321(x, m->low);
     RSPROT_U2_12(x, m->id);
 }
 
-/* v4 -- revs osrsm242. */
+/* v5 -- revs osrsm242. */
 void
-packet_varp_long_v4_out(RsprotExec *x, MsgVarpLong *m)
+packet_varp_long_v5_out(RsprotExec *x, MsgVarpLong *m)
 {
     RSPROT_U4_3412(x, m->high);
     RSPROT_U4_3412(x, m->low);
@@ -47,14 +56,15 @@ packet_varp_long_v4_out(RsprotExec *x, MsgVarpLong *m)
 }
 
 /*
- * 4 row(s) for 4 layout(s). A revision not listed has no VARP_LONG and
+ * 5 row(s) for 5 layout(s). A revision not listed has no VARP_LONG and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varp_long_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varp_long_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_varp_long_v2_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_varp_long_v3_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_varp_long_v4_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_varp_long_v3_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_varp_long_v4_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_varp_long_v5_out },
 };
 
 const int rsprot_varp_long_out_count =

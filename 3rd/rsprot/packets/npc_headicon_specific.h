@@ -34,7 +34,7 @@ void packet_npc_headicon_specific_v5_out(RsprotExec *x, MsgNpcHeadIconSpecific *
 void packet_npc_headicon_specific_v6_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
 /* v7 -- revs osrs227. */
 void packet_npc_headicon_specific_v7_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
-/* v8 -- revs osrs228. */
+/* v8 -- revs osrs228, osrs243. */
 void packet_npc_headicon_specific_v8_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
 /* v9 -- revs osrs229. */
 void packet_npc_headicon_specific_v9_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
@@ -92,6 +92,7 @@ void packet_npc_headicon_specific_v24_out(RsprotExec *x, MsgNpcHeadIconSpecific 
 #define packet_npc_headicon_specific_osrs240_out packet_npc_headicon_specific_v20_out
 #define packet_npc_headicon_specific_osrs241_out packet_npc_headicon_specific_v21_out
 #define packet_npc_headicon_specific_osrs242_out packet_npc_headicon_specific_v22_out
+#define packet_npc_headicon_specific_osrs243_out packet_npc_headicon_specific_v8_out
 #define packet_npc_headicon_specific_osrsm241_out packet_npc_headicon_specific_v23_out
 #define packet_npc_headicon_specific_osrsm242_out packet_npc_headicon_specific_v24_out
 

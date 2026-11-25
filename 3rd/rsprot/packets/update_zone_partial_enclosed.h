@@ -64,10 +64,12 @@ void packet_update_zone_partial_enclosed_v18_out(RsprotExec *x, MsgDesktopUpdate
 void packet_update_zone_partial_enclosed_v19_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
 /* v20 -- revs osrs242. */
 void packet_update_zone_partial_enclosed_v20_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v21 -- revs osrsm241. */
+/* v21 -- revs osrs243. */
 void packet_update_zone_partial_enclosed_v21_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v22 -- revs osrsm242. */
+/* v22 -- revs osrsm241. */
 void packet_update_zone_partial_enclosed_v22_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
+/* v23 -- revs osrsm242. */
+void packet_update_zone_partial_enclosed_v23_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
 
 /* Per-revision entry points: what revision R calls is packet_update_zone_partial_enclosed_<R>_out. */
 #define packet_update_zone_partial_enclosed_osrs221_out packet_update_zone_partial_enclosed_v1_out
@@ -92,8 +94,9 @@ void packet_update_zone_partial_enclosed_v22_out(RsprotExec *x, MsgDesktopUpdate
 #define packet_update_zone_partial_enclosed_osrs240_out packet_update_zone_partial_enclosed_v16_out
 #define packet_update_zone_partial_enclosed_osrs241_out packet_update_zone_partial_enclosed_v19_out
 #define packet_update_zone_partial_enclosed_osrs242_out packet_update_zone_partial_enclosed_v20_out
-#define packet_update_zone_partial_enclosed_osrsm241_out packet_update_zone_partial_enclosed_v21_out
-#define packet_update_zone_partial_enclosed_osrsm242_out packet_update_zone_partial_enclosed_v22_out
+#define packet_update_zone_partial_enclosed_osrs243_out packet_update_zone_partial_enclosed_v21_out
+#define packet_update_zone_partial_enclosed_osrsm241_out packet_update_zone_partial_enclosed_v22_out
+#define packet_update_zone_partial_enclosed_osrsm242_out packet_update_zone_partial_enclosed_v23_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_zone_partial_enclosed_out[];

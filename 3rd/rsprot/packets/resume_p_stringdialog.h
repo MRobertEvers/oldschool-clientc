@@ -17,7 +17,7 @@ typedef struct MsgResumePStringDialog {
 	const char *string;
 } MsgResumePStringDialog;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_resume_p_stringdialog_v1_in(RsprotExec *x, MsgResumePStringDialog *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_resume_p_stringdialog_v2_in(RsprotExec *x, MsgResumePStringDialog *m);
@@ -45,6 +45,7 @@ void packet_resume_p_stringdialog_v2_in(RsprotExec *x, MsgResumePStringDialog *m
 #define packet_resume_p_stringdialog_osrs240_in packet_resume_p_stringdialog_v1_in
 #define packet_resume_p_stringdialog_osrs241_in packet_resume_p_stringdialog_v1_in
 #define packet_resume_p_stringdialog_osrs242_in packet_resume_p_stringdialog_v1_in
+#define packet_resume_p_stringdialog_osrs243_in packet_resume_p_stringdialog_v1_in
 #define packet_resume_p_stringdialog_osrsm241_in packet_resume_p_stringdialog_v2_in
 #define packet_resume_p_stringdialog_osrsm242_in packet_resume_p_stringdialog_v2_in
 

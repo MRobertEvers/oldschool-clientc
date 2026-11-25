@@ -55,7 +55,7 @@ void packet_obj_del_v16_out(RsprotExec *x, MsgObjDel *m);
 void packet_obj_del_v17_out(RsprotExec *x, MsgObjDel *m);
 /* v18 -- revs osrs240. */
 void packet_obj_del_v18_out(RsprotExec *x, MsgObjDel *m);
-/* v19 -- revs osrs241. */
+/* v19 -- revs osrs241, osrs243. */
 void packet_obj_del_v19_out(RsprotExec *x, MsgObjDel *m);
 /* v20 -- revs osrs242. */
 void packet_obj_del_v20_out(RsprotExec *x, MsgObjDel *m);
@@ -89,6 +89,7 @@ void packet_obj_del_v23_out(RsprotExec *x, MsgObjDel *m);
 #define packet_obj_del_osrs240_out packet_obj_del_v18_out
 #define packet_obj_del_osrs241_out packet_obj_del_v19_out
 #define packet_obj_del_osrs242_out packet_obj_del_v20_out
+#define packet_obj_del_osrs243_out packet_obj_del_v19_out
 #define packet_obj_del_rs245_2_out packet_obj_del_v21_out
 #define packet_obj_del_rs254_out packet_obj_del_v21_out
 #define packet_obj_del_rs289_out packet_obj_del_v21_out

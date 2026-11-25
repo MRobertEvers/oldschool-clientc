@@ -64,10 +64,12 @@ void packet_midi_swap_v20_out(RsprotExec *x, MsgMidiSwap *m);
 void packet_midi_swap_v21_out(RsprotExec *x, MsgMidiSwap *m);
 /* v22 -- revs osrs242. */
 void packet_midi_swap_v22_out(RsprotExec *x, MsgMidiSwap *m);
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrs243. */
 void packet_midi_swap_v23_out(RsprotExec *x, MsgMidiSwap *m);
-/* v24 -- revs osrsm242. */
+/* v24 -- revs osrsm241. */
 void packet_midi_swap_v24_out(RsprotExec *x, MsgMidiSwap *m);
+/* v25 -- revs osrsm242. */
+void packet_midi_swap_v25_out(RsprotExec *x, MsgMidiSwap *m);
 
 /* Per-revision entry points: what revision R calls is packet_midi_swap_<R>_out. */
 #define packet_midi_swap_osrs221_out packet_midi_swap_v1_out
@@ -92,8 +94,9 @@ void packet_midi_swap_v24_out(RsprotExec *x, MsgMidiSwap *m);
 #define packet_midi_swap_osrs240_out packet_midi_swap_v20_out
 #define packet_midi_swap_osrs241_out packet_midi_swap_v21_out
 #define packet_midi_swap_osrs242_out packet_midi_swap_v22_out
-#define packet_midi_swap_osrsm241_out packet_midi_swap_v23_out
-#define packet_midi_swap_osrsm242_out packet_midi_swap_v24_out
+#define packet_midi_swap_osrs243_out packet_midi_swap_v23_out
+#define packet_midi_swap_osrsm241_out packet_midi_swap_v24_out
+#define packet_midi_swap_osrsm242_out packet_midi_swap_v25_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_midi_swap_out[];

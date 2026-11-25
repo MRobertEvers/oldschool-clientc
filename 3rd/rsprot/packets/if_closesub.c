@@ -17,7 +17,7 @@ packet_if_closesub_v1_out(RsprotExec *x, MsgIfCloseSub *m)
     RSPROT_U4_1234(x, m->combined_id);
 }
 
-/* v2 -- revs osrs222-241, osrs242. */
+/* v2 -- revs osrs222-241, osrs242, osrs243. */
 void
 packet_if_closesub_v2_out(RsprotExec *x, MsgIfCloseSub *m)
 {
@@ -32,13 +32,14 @@ packet_if_closesub_v3_out(RsprotExec *x, MsgIfCloseSub *m)
 }
 
 /*
- * 5 row(s) for 3 layout(s). A revision not listed has no IF_CLOSESUB and
+ * 6 row(s) for 3 layout(s). A revision not listed has no IF_CLOSESUB and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_closesub_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_if_closesub_v1_out },
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_closesub_v2_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_closesub_v2_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_if_closesub_v2_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_closesub_v3_out },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_closesub_v3_out },
 };

@@ -172,7 +172,7 @@ packet_obj_del_v18_out(RsprotExec *x, MsgObjDel *m)
     RSPROT_U4_1234(x, m->quantity);
 }
 
-/* v19 -- revs osrs241. */
+/* v19 -- revs osrs241, osrs243. */
 void
 packet_obj_del_v19_out(RsprotExec *x, MsgObjDel *m)
 {
@@ -217,7 +217,7 @@ packet_obj_del_v23_out(RsprotExec *x, MsgObjDel *m)
 }
 
 /*
- * 27 row(s) for 23 layout(s). A revision not listed has no OBJ_DEL and
+ * 28 row(s) for 23 layout(s). A revision not listed has no OBJ_DEL and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_del_out[] = {
@@ -243,6 +243,7 @@ const RsprotVersionRange rsprot_obj_del_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_obj_del_v18_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_del_v19_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_obj_del_v20_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_obj_del_v19_out },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_obj_del_v21_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_obj_del_v21_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_obj_del_v21_out },

@@ -260,9 +260,20 @@ packet_opnpct_v23_in(RsprotExec *x, MsgOpNpcT *m)
     RSPROT_U2_12(x, m->selected_combined_id);
 }
 
-/* v24 -- revs osrsm241. */
+/* v24 -- revs osrs243. */
 void
 packet_opnpct_v24_in(RsprotExec *x, MsgOpNpcT *m)
+{
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U2_21(x, m->selected_sub);
+    RSPROT_U1_SUB128(x, m->control_key);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_U2_12(x, m->selected_obj);
+}
+
+/* v25 -- revs osrsm241. */
+void
+packet_opnpct_v25_in(RsprotExec *x, MsgOpNpcT *m)
 {
     RSPROT_U2_12_ADD128(x, m->selected_sub);
     RSPROT_U2_12_ADD128(x, m->index);
@@ -271,9 +282,9 @@ packet_opnpct_v24_in(RsprotExec *x, MsgOpNpcT *m)
     RSPROT_U2_21_ADD128(x, m->selected_obj);
 }
 
-/* v25 -- revs osrsm242. */
+/* v26 -- revs osrsm242. */
 void
-packet_opnpct_v25_in(RsprotExec *x, MsgOpNpcT *m)
+packet_opnpct_v26_in(RsprotExec *x, MsgOpNpcT *m)
 {
     RSPROT_U2_21(x, m->index);
     RSPROT_COM_2143(x, m->selected_combined_id);
@@ -283,7 +294,7 @@ packet_opnpct_v25_in(RsprotExec *x, MsgOpNpcT *m)
 }
 
 /*
- * 27 row(s) for 25 layout(s). A revision not listed has no OPNPCT and
+ * 28 row(s) for 26 layout(s). A revision not listed has no OPNPCT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opnpct_in[] = {
@@ -309,11 +320,12 @@ const RsprotVersionRange rsprot_opnpct_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opnpct_v20_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opnpct_v21_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opnpct_v22_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_opnpct_v24_in },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_opnpct_v23_in },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_opnpct_v23_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_opnpct_v23_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opnpct_v24_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opnpct_v25_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opnpct_v25_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opnpct_v26_in },
 };
 
 const int rsprot_opnpct_in_count =

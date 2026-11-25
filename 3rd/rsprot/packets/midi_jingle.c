@@ -154,24 +154,32 @@ packet_midi_jingle_v18_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U2_12(x, m->length_in_millis);
 }
 
-/* v19 -- revs osrsm241. */
+/* v19 -- revs osrs243. */
 void
 packet_midi_jingle_v19_out(RsprotExec *x, MsgMidiJingle *m)
+{
+    RSPROT_U3_213(x, m->length_in_millis);
+    RSPROT_U2_21(x, m->id);
+}
+
+/* v20 -- revs osrsm241. */
+void
+packet_midi_jingle_v20_out(RsprotExec *x, MsgMidiJingle *m)
 {
     RSPROT_U3_132(x, m->length_in_millis);
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v20 -- revs osrsm242. */
+/* v21 -- revs osrsm242. */
 void
-packet_midi_jingle_v20_out(RsprotExec *x, MsgMidiJingle *m)
+packet_midi_jingle_v21_out(RsprotExec *x, MsgMidiJingle *m)
 {
     RSPROT_U2_12(x, m->id);
     RSPROT_U3_132(x, m->length_in_millis);
 }
 
 /*
- * 27 row(s) for 20 layout(s). A revision not listed has no MIDI_JINGLE and
+ * 28 row(s) for 21 layout(s). A revision not listed has no MIDI_JINGLE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_midi_jingle_out[] = {
@@ -197,11 +205,12 @@ const RsprotVersionRange rsprot_midi_jingle_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_midi_jingle_v5_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_midi_jingle_v17_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_midi_jingle_v5_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_midi_jingle_v19_out },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_midi_jingle_v18_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_midi_jingle_v18_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_midi_jingle_v18_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_jingle_v19_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_midi_jingle_v20_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_jingle_v20_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_midi_jingle_v21_out },
 };
 
 const int rsprot_midi_jingle_out_count =

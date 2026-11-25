@@ -23,7 +23,7 @@ void packet_ambientsound_stop_v1_out(RsprotExec *x, MsgAmbientSoundStop *m);
 void packet_ambientsound_stop_v2_out(RsprotExec *x, MsgAmbientSoundStop *m);
 /* v3 -- revs osrs241. */
 void packet_ambientsound_stop_v3_out(RsprotExec *x, MsgAmbientSoundStop *m);
-/* v4 -- revs osrs242. */
+/* v4 -- revs osrs242, osrs243. */
 void packet_ambientsound_stop_v4_out(RsprotExec *x, MsgAmbientSoundStop *m);
 /* v5 -- revs osrsm241. */
 void packet_ambientsound_stop_v5_out(RsprotExec *x, MsgAmbientSoundStop *m);
@@ -36,6 +36,7 @@ void packet_ambientsound_stop_v6_out(RsprotExec *x, MsgAmbientSoundStop *m);
 #define packet_ambientsound_stop_osrs240_out packet_ambientsound_stop_v1_out
 #define packet_ambientsound_stop_osrs241_out packet_ambientsound_stop_v3_out
 #define packet_ambientsound_stop_osrs242_out packet_ambientsound_stop_v4_out
+#define packet_ambientsound_stop_osrs243_out packet_ambientsound_stop_v4_out
 #define packet_ambientsound_stop_osrsm241_out packet_ambientsound_stop_v5_out
 #define packet_ambientsound_stop_osrsm242_out packet_ambientsound_stop_v6_out
 

@@ -17,7 +17,7 @@ typedef struct MsgUpdateRunWeight {
 	int32_t runweight;
 } MsgUpdateRunWeight;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_update_runweight_v1_out(RsprotExec *x, MsgUpdateRunWeight *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_update_runweight_v2_out(RsprotExec *x, MsgUpdateRunWeight *m);
@@ -47,6 +47,7 @@ void packet_update_runweight_v3_out(RsprotExec *x, MsgUpdateRunWeight *m);
 #define packet_update_runweight_osrs240_out packet_update_runweight_v1_out
 #define packet_update_runweight_osrs241_out packet_update_runweight_v1_out
 #define packet_update_runweight_osrs242_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs243_out packet_update_runweight_v1_out
 #define packet_update_runweight_rs245_2_out packet_update_runweight_v2_out
 #define packet_update_runweight_rs254_out packet_update_runweight_v2_out
 #define packet_update_runweight_rs289_out packet_update_runweight_v2_out

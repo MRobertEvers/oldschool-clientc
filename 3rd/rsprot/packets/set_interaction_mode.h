@@ -19,7 +19,7 @@ typedef struct MsgSetInteractionMode {
 	int32_t entity_interaction_mode;
 } MsgSetInteractionMode;
 
-/* v1 -- revs osrs226-241, osrs242. */
+/* v1 -- revs osrs226-241, osrs242, osrs243. */
 void packet_set_interaction_mode_v1_out(RsprotExec *x, MsgSetInteractionMode *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_set_interaction_mode_v2_out(RsprotExec *x, MsgSetInteractionMode *m);
@@ -42,6 +42,7 @@ void packet_set_interaction_mode_v2_out(RsprotExec *x, MsgSetInteractionMode *m)
 #define packet_set_interaction_mode_osrs240_out packet_set_interaction_mode_v1_out
 #define packet_set_interaction_mode_osrs241_out packet_set_interaction_mode_v1_out
 #define packet_set_interaction_mode_osrs242_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs243_out packet_set_interaction_mode_v1_out
 #define packet_set_interaction_mode_osrsm241_out packet_set_interaction_mode_v2_out
 #define packet_set_interaction_mode_osrsm242_out packet_set_interaction_mode_v2_out
 

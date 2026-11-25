@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs242. */
+/* v1 -- revs osrs242, osrs243. */
 void
 packet_oploc6_v2_v1_in(RsprotExec *x, MsgOpLoc6V2 *m)
 {
@@ -25,11 +25,12 @@ packet_oploc6_v2_v2_in(RsprotExec *x, MsgOpLoc6V2 *m)
 }
 
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no OPLOC6_V2 and
+ * 3 row(s) for 2 layout(s). A revision not listed has no OPLOC6_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_oploc6_v2_in[] = {
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_oploc6_v2_v1_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_oploc6_v2_v1_in },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_oploc6_v2_v2_in },
 };
 

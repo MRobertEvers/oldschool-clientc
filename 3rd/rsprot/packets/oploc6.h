@@ -25,7 +25,7 @@ void packet_oploc6_v2_in(RsprotExec *x, MsgOpLoc6 *m);
 void packet_oploc6_v3_in(RsprotExec *x, MsgOpLoc6 *m);
 /* v4 -- revs osrs225, osrs232, osrs237. */
 void packet_oploc6_v4_in(RsprotExec *x, MsgOpLoc6 *m);
-/* v5 -- revs osrs242. */
+/* v5 -- revs osrs242, osrs243. */
 void packet_oploc6_v5_in(RsprotExec *x, MsgOpLoc6 *m);
 /* v6 -- revs osrsm241. */
 void packet_oploc6_v6_in(RsprotExec *x, MsgOpLoc6 *m);
@@ -55,6 +55,7 @@ void packet_oploc6_v7_in(RsprotExec *x, MsgOpLoc6 *m);
 #define packet_oploc6_osrs240_in packet_oploc6_v2_in
 #define packet_oploc6_osrs241_in packet_oploc6_v3_in
 #define packet_oploc6_osrs242_in packet_oploc6_v5_in
+#define packet_oploc6_osrs243_in packet_oploc6_v5_in
 #define packet_oploc6_osrsm241_in packet_oploc6_v6_in
 #define packet_oploc6_osrsm242_in packet_oploc6_v7_in
 

@@ -274,9 +274,21 @@ packet_sound_area_v22_out(RsprotExec *x, MsgSoundArea *m)
     RSPROT_U2_21(x, m->id);
 }
 
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrs243. */
 void
 packet_sound_area_v23_out(RsprotExec *x, MsgSoundArea *m)
+{
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->drop_off_range);
+    RSPROT_U1_ADD128(x, m->loops);
+    RSPROT_U1_SUB128(x, m->range);
+    RSPROT_U1(x, m->coord_in_zone_packed);
+    RSPROT_U1(x, m->delay);
+}
+
+/* v24 -- revs osrsm241. */
+void
+packet_sound_area_v24_out(RsprotExec *x, MsgSoundArea *m)
 {
     RSPROT_U2_21_ADD128(x, m->id);
     RSPROT_U1_NEG(x, m->loops);
@@ -286,9 +298,9 @@ packet_sound_area_v23_out(RsprotExec *x, MsgSoundArea *m)
     RSPROT_U1(x, m->coord_in_zone_packed);
 }
 
-/* v24 -- revs osrsm242. */
+/* v25 -- revs osrsm242. */
 void
-packet_sound_area_v24_out(RsprotExec *x, MsgSoundArea *m)
+packet_sound_area_v25_out(RsprotExec *x, MsgSoundArea *m)
 {
     RSPROT_U1_ADD128(x, m->loops);
     RSPROT_U1(x, m->drop_off_range);
@@ -299,7 +311,7 @@ packet_sound_area_v24_out(RsprotExec *x, MsgSoundArea *m)
 }
 
 /*
- * 24 row(s) for 24 layout(s). A revision not listed has no SOUND_AREA and
+ * 25 row(s) for 25 layout(s). A revision not listed has no SOUND_AREA and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_sound_area_out[] = {
@@ -325,8 +337,9 @@ const RsprotVersionRange rsprot_sound_area_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_sound_area_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_sound_area_v21_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_sound_area_v22_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_sound_area_v23_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_sound_area_v24_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_sound_area_v23_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_sound_area_v24_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_sound_area_v25_out },
 };
 
 const int rsprot_sound_area_out_count =

@@ -17,7 +17,7 @@ typedef struct MsgIf1Button {
 	int32_t combined_id;
 } MsgIf1Button;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_if_button_v1_in(RsprotExec *x, MsgIf1Button *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_if_button_v2_in(RsprotExec *x, MsgIf1Button *m);
@@ -47,6 +47,7 @@ void packet_if_button_v3_in(RsprotExec *x, MsgIf1Button *m);
 #define packet_if_button_osrs240_in packet_if_button_v1_in
 #define packet_if_button_osrs241_in packet_if_button_v1_in
 #define packet_if_button_osrs242_in packet_if_button_v1_in
+#define packet_if_button_osrs243_in packet_if_button_v1_in
 #define packet_if_button_rs245_2_in packet_if_button_v2_in
 #define packet_if_button_rs254_in packet_if_button_v2_in
 #define packet_if_button_rs289_in packet_if_button_v2_in

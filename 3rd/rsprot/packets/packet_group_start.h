@@ -19,7 +19,7 @@ typedef struct MsgPacketGroupStart {
 	int32_t length;
 } MsgPacketGroupStart;
 
-/* v1 -- revs osrs227-241, osrs242. */
+/* v1 -- revs osrs227-241, osrs242, osrs243. */
 void packet_packet_group_start_v1_out(RsprotExec *x, MsgPacketGroupStart *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_packet_group_start_v2_out(RsprotExec *x, MsgPacketGroupStart *m);
@@ -41,6 +41,7 @@ void packet_packet_group_start_v2_out(RsprotExec *x, MsgPacketGroupStart *m);
 #define packet_packet_group_start_osrs240_out packet_packet_group_start_v1_out
 #define packet_packet_group_start_osrs241_out packet_packet_group_start_v1_out
 #define packet_packet_group_start_osrs242_out packet_packet_group_start_v1_out
+#define packet_packet_group_start_osrs243_out packet_packet_group_start_v1_out
 #define packet_packet_group_start_osrsm241_out packet_packet_group_start_v2_out
 #define packet_packet_group_start_osrsm242_out packet_packet_group_start_v2_out
 

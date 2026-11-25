@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void
 packet_varp_sync_v1_out(RsprotExec *x, MsgVarpSync *m)
 {
@@ -35,12 +35,13 @@ packet_varp_sync_v3_out(RsprotExec *x, MsgVarpSync *m)
 }
 
 /*
- * 7 row(s) for 3 layout(s). A revision not listed has no VARP_SYNC and
+ * 8 row(s) for 3 layout(s). A revision not listed has no VARP_SYNC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varp_sync_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varp_sync_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_varp_sync_v1_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_varp_sync_v1_out },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_varp_sync_v2_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_varp_sync_v2_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_varp_sync_v2_out },

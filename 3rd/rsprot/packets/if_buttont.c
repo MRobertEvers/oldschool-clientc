@@ -274,9 +274,21 @@ packet_if_buttont_v22_in(RsprotExec *x, MsgIfButtonT *m)
     RSPROT_U2_12(x, m->target_obj);
 }
 
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrs243. */
 void
 packet_if_buttont_v23_in(RsprotExec *x, MsgIfButtonT *m)
+{
+    RSPROT_U2_21_ADD128(x, m->target_sub);
+    RSPROT_COM_4321(x, m->target_combined_id);
+    RSPROT_U2_21(x, m->selected_sub);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_U2_12(x, m->target_obj);
+    RSPROT_U2_12(x, m->selected_obj);
+}
+
+/* v24 -- revs osrsm241. */
+void
+packet_if_buttont_v24_in(RsprotExec *x, MsgIfButtonT *m)
 {
     RSPROT_COM_1234(x, m->target_combined_id);
     RSPROT_U2_12(x, m->selected_sub);
@@ -286,9 +298,9 @@ packet_if_buttont_v23_in(RsprotExec *x, MsgIfButtonT *m)
     RSPROT_U2_21(x, m->selected_obj);
 }
 
-/* v24 -- revs osrsm242. */
+/* v25 -- revs osrsm242. */
 void
-packet_if_buttont_v24_in(RsprotExec *x, MsgIfButtonT *m)
+packet_if_buttont_v25_in(RsprotExec *x, MsgIfButtonT *m)
 {
     RSPROT_U2_21_ADD128(x, m->target_sub);
     RSPROT_COM_2143(x, m->target_combined_id);
@@ -299,7 +311,7 @@ packet_if_buttont_v24_in(RsprotExec *x, MsgIfButtonT *m)
 }
 
 /*
- * 24 row(s) for 24 layout(s). A revision not listed has no IF_BUTTONT and
+ * 25 row(s) for 25 layout(s). A revision not listed has no IF_BUTTONT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_buttont_in[] = {
@@ -325,8 +337,9 @@ const RsprotVersionRange rsprot_if_buttont_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_buttont_v20_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_buttont_v21_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_buttont_v22_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_buttont_v23_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_buttont_v24_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_if_buttont_v23_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_buttont_v24_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_buttont_v25_in },
 };
 
 const int rsprot_if_buttont_in_count =

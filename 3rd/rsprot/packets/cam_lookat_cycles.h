@@ -30,18 +30,21 @@ void packet_cam_lookat_cycles_v2_out(RsprotExec *x, MsgCamLookAtCycles *m);
 void packet_cam_lookat_cycles_v3_out(RsprotExec *x, MsgCamLookAtCycles *m);
 /* v4 -- revs osrs242. */
 void packet_cam_lookat_cycles_v4_out(RsprotExec *x, MsgCamLookAtCycles *m);
-/* v5 -- revs osrsm241. */
+/* v5 -- revs osrs243. */
 void packet_cam_lookat_cycles_v5_out(RsprotExec *x, MsgCamLookAtCycles *m);
-/* v6 -- revs osrsm242. */
+/* v6 -- revs osrsm241. */
 void packet_cam_lookat_cycles_v6_out(RsprotExec *x, MsgCamLookAtCycles *m);
+/* v7 -- revs osrsm242. */
+void packet_cam_lookat_cycles_v7_out(RsprotExec *x, MsgCamLookAtCycles *m);
 
 /* Per-revision entry points: what revision R calls is packet_cam_lookat_cycles_<R>_out. */
 #define packet_cam_lookat_cycles_osrs239_out packet_cam_lookat_cycles_v1_out
 #define packet_cam_lookat_cycles_osrs240_out packet_cam_lookat_cycles_v2_out
 #define packet_cam_lookat_cycles_osrs241_out packet_cam_lookat_cycles_v3_out
 #define packet_cam_lookat_cycles_osrs242_out packet_cam_lookat_cycles_v4_out
-#define packet_cam_lookat_cycles_osrsm241_out packet_cam_lookat_cycles_v5_out
-#define packet_cam_lookat_cycles_osrsm242_out packet_cam_lookat_cycles_v6_out
+#define packet_cam_lookat_cycles_osrs243_out packet_cam_lookat_cycles_v5_out
+#define packet_cam_lookat_cycles_osrsm241_out packet_cam_lookat_cycles_v6_out
+#define packet_cam_lookat_cycles_osrsm242_out packet_cam_lookat_cycles_v7_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_lookat_cycles_out[];

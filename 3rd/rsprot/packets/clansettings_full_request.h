@@ -17,7 +17,7 @@ typedef struct MsgClanSettingsFullRequest {
 	int32_t clan_id;
 } MsgClanSettingsFullRequest;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_clansettings_full_request_v1_in(RsprotExec *x, MsgClanSettingsFullRequest *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_clansettings_full_request_v2_in(RsprotExec *x, MsgClanSettingsFullRequest *m);
@@ -45,6 +45,7 @@ void packet_clansettings_full_request_v2_in(RsprotExec *x, MsgClanSettingsFullRe
 #define packet_clansettings_full_request_osrs240_in packet_clansettings_full_request_v1_in
 #define packet_clansettings_full_request_osrs241_in packet_clansettings_full_request_v1_in
 #define packet_clansettings_full_request_osrs242_in packet_clansettings_full_request_v1_in
+#define packet_clansettings_full_request_osrs243_in packet_clansettings_full_request_v1_in
 #define packet_clansettings_full_request_osrsm241_in packet_clansettings_full_request_v2_in
 #define packet_clansettings_full_request_osrsm242_in packet_clansettings_full_request_v2_in
 

@@ -145,24 +145,32 @@ packet_resume_pausebutton_v17_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_U2_12(x, m->combined_id);
 }
 
-/* v18 -- revs osrsm241. */
+/* v18 -- revs osrs243. */
 void
 packet_resume_pausebutton_v18_in(RsprotExec *x, MsgResumePauseButton *m)
+{
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->sub);
+}
+
+/* v19 -- revs osrsm241. */
+void
+packet_resume_pausebutton_v19_in(RsprotExec *x, MsgResumePauseButton *m)
 {
     RSPROT_COM_4321(x, m->combined_id);
     RSPROT_U2_21(x, m->sub);
 }
 
-/* v19 -- revs osrsm242. */
+/* v20 -- revs osrsm242. */
 void
-packet_resume_pausebutton_v19_in(RsprotExec *x, MsgResumePauseButton *m)
+packet_resume_pausebutton_v20_in(RsprotExec *x, MsgResumePauseButton *m)
 {
     RSPROT_COM_1234(x, m->combined_id);
     RSPROT_U2_21(x, m->sub);
 }
 
 /*
- * 27 row(s) for 19 layout(s). A revision not listed has no RESUME_PAUSEBUTTON and
+ * 28 row(s) for 20 layout(s). A revision not listed has no RESUME_PAUSEBUTTON and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_resume_pausebutton_in[] = {
@@ -188,11 +196,12 @@ const RsprotVersionRange rsprot_resume_pausebutton_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_resume_pausebutton_v1_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_resume_pausebutton_v14_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_resume_pausebutton_v15_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_resume_pausebutton_v18_in },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_resume_pausebutton_v17_in },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_resume_pausebutton_v17_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_resume_pausebutton_v17_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_resume_pausebutton_v18_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_resume_pausebutton_v19_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_resume_pausebutton_v19_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_resume_pausebutton_v20_in },
 };
 
 const int rsprot_resume_pausebutton_in_count =

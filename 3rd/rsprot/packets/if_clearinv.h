@@ -21,7 +21,7 @@ typedef struct MsgIfClearInv {
 void packet_if_clearinv_v1_out(RsprotExec *x, MsgIfClearInv *m);
 /* v2 -- revs osrs222, osrs227, osrs230, osrs235-236, osrs242. */
 void packet_if_clearinv_v2_out(RsprotExec *x, MsgIfClearInv *m);
-/* v3 -- revs osrs223, osrs237, osrs240. */
+/* v3 -- revs osrs223, osrs237, osrs240, osrs243. */
 void packet_if_clearinv_v3_out(RsprotExec *x, MsgIfClearInv *m);
 /* v4 -- revs osrs224-226, osrs228, osrs231, osrs233, osrs238, osrs241. */
 void packet_if_clearinv_v4_out(RsprotExec *x, MsgIfClearInv *m);
@@ -55,6 +55,7 @@ void packet_if_clearinv_v7_out(RsprotExec *x, MsgIfClearInv *m);
 #define packet_if_clearinv_osrs240_out packet_if_clearinv_v3_out
 #define packet_if_clearinv_osrs241_out packet_if_clearinv_v4_out
 #define packet_if_clearinv_osrs242_out packet_if_clearinv_v2_out
+#define packet_if_clearinv_osrs243_out packet_if_clearinv_v3_out
 #define packet_if_clearinv_osrsm241_out packet_if_clearinv_v6_out
 #define packet_if_clearinv_osrsm242_out packet_if_clearinv_v7_out
 

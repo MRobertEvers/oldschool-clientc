@@ -21,7 +21,7 @@ typedef struct MsgSetHeading {
 void packet_set_heading_v1_in(RsprotExec *x, MsgSetHeading *m);
 /* v2 -- revs osrs227, osrs232-233, osrs235-236, osrs240-241. */
 void packet_set_heading_v2_in(RsprotExec *x, MsgSetHeading *m);
-/* v3 -- revs osrs228, osrs237. */
+/* v3 -- revs osrs228, osrs237, osrs243. */
 void packet_set_heading_v3_in(RsprotExec *x, MsgSetHeading *m);
 /* v4 -- revs osrs230-231, osrs234, osrs239, osrs242. */
 void packet_set_heading_v4_in(RsprotExec *x, MsgSetHeading *m);
@@ -48,6 +48,7 @@ void packet_set_heading_v6_in(RsprotExec *x, MsgSetHeading *m);
 #define packet_set_heading_osrs240_in packet_set_heading_v2_in
 #define packet_set_heading_osrs241_in packet_set_heading_v2_in
 #define packet_set_heading_osrs242_in packet_set_heading_v4_in
+#define packet_set_heading_osrs243_in packet_set_heading_v3_in
 #define packet_set_heading_osrsm241_in packet_set_heading_v5_in
 #define packet_set_heading_osrsm242_in packet_set_heading_v6_in
 

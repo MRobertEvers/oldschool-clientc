@@ -145,24 +145,32 @@ packet_opplayer5_v17_in(RsprotExec *x, MsgOpPlayer5 *m)
     RSPROT_U2_12(x, m->index);
 }
 
-/* v18 -- revs osrsm241. */
+/* v18 -- revs osrs243. */
 void
 packet_opplayer5_v18_in(RsprotExec *x, MsgOpPlayer5 *m)
+{
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U1(x, m->control_key);
+}
+
+/* v19 -- revs osrsm241. */
+void
+packet_opplayer5_v19_in(RsprotExec *x, MsgOpPlayer5 *m)
 {
     RSPROT_U2_12(x, m->index);
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
-/* v19 -- revs osrsm242. */
+/* v20 -- revs osrsm242. */
 void
-packet_opplayer5_v19_in(RsprotExec *x, MsgOpPlayer5 *m)
+packet_opplayer5_v20_in(RsprotExec *x, MsgOpPlayer5 *m)
 {
     RSPROT_U2_12_ADD128(x, m->index);
     RSPROT_U1(x, m->control_key);
 }
 
 /*
- * 27 row(s) for 19 layout(s). A revision not listed has no OPPLAYER5 and
+ * 28 row(s) for 20 layout(s). A revision not listed has no OPPLAYER5 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opplayer5_in[] = {
@@ -188,11 +196,12 @@ const RsprotVersionRange rsprot_opplayer5_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opplayer5_v16_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opplayer5_v7_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opplayer5_v2_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_opplayer5_v18_in },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_opplayer5_v17_in },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_opplayer5_v17_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_opplayer5_v17_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opplayer5_v18_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opplayer5_v19_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opplayer5_v19_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opplayer5_v20_in },
 };
 
 const int rsprot_opplayer5_in_count =

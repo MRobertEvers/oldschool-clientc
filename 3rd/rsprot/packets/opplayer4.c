@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221. */
+/* v1 -- revs osrs221, osrs243. */
 void
 packet_opplayer4_v1_in(RsprotExec *x, MsgOpPlayer4 *m)
 {
@@ -170,7 +170,7 @@ packet_opplayer4_v20_in(RsprotExec *x, MsgOpPlayer4 *m)
 }
 
 /*
- * 26 row(s) for 20 layout(s). A revision not listed has no OPPLAYER4 and
+ * 27 row(s) for 20 layout(s). A revision not listed has no OPPLAYER4 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opplayer4_in[] = {
@@ -195,6 +195,7 @@ const RsprotVersionRange rsprot_opplayer4_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opplayer4_v3_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opplayer4_v16_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opplayer4_v17_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_opplayer4_v1_in },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_opplayer4_v18_in },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_opplayer4_v18_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_opplayer4_v18_in },

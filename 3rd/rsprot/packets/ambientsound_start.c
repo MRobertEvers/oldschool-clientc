@@ -42,24 +42,32 @@ packet_ambientsound_start_v4_out(RsprotExec *x, MsgAmbientSoundStart *m)
     RSPROT_U2_12_ADD128(x, m->id);
 }
 
-/* v5 -- revs osrsm241. */
+/* v5 -- revs osrs243. */
 void
 packet_ambientsound_start_v5_out(RsprotExec *x, MsgAmbientSoundStart *m)
+{
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_NEG(x, m->fade);
+}
+
+/* v6 -- revs osrsm241. */
+void
+packet_ambientsound_start_v6_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
     RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_U1(x, m->fade);
 }
 
-/* v6 -- revs osrsm242. */
+/* v7 -- revs osrsm242. */
 void
-packet_ambientsound_start_v6_out(RsprotExec *x, MsgAmbientSoundStart *m)
+packet_ambientsound_start_v7_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
     RSPROT_U2_12(x, m->id);
     RSPROT_U1(x, m->fade);
 }
 
 /*
- * 6 row(s) for 6 layout(s). A revision not listed has no AMBIENTSOUND_START and
+ * 7 row(s) for 7 layout(s). A revision not listed has no AMBIENTSOUND_START and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_ambientsound_start_out[] = {
@@ -67,8 +75,9 @@ const RsprotVersionRange rsprot_ambientsound_start_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_ambientsound_start_v2_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_ambientsound_start_v3_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_ambientsound_start_v4_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_ambientsound_start_v5_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_ambientsound_start_v6_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_ambientsound_start_v5_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_ambientsound_start_v6_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_ambientsound_start_v7_out },
 };
 
 const int rsprot_ambientsound_start_out_count =

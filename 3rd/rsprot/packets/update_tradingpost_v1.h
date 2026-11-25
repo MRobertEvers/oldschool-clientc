@@ -32,7 +32,7 @@ typedef struct MsgUpdateTradingpostV1 {
 	MsgUpdateTradingpostV1Offer offers[MSG_UPDATE_TRADINGPOST_V1_MAX_OFFERS];
 } MsgUpdateTradingpostV1;
 
-/* v1 -- revs 222-242. */
+/* v1 -- revs 222-243. */
 void packet_update_tradingpost_v1_v1_out(RsprotExec *x, MsgUpdateTradingpostV1 *m);
 
 #define packet_update_tradingpost_v1_osrs222_out packet_update_tradingpost_v1_v1_out
@@ -56,6 +56,7 @@ void packet_update_tradingpost_v1_v1_out(RsprotExec *x, MsgUpdateTradingpostV1 *
 #define packet_update_tradingpost_v1_osrs240_out packet_update_tradingpost_v1_v1_out
 #define packet_update_tradingpost_v1_osrs241_out packet_update_tradingpost_v1_v1_out
 #define packet_update_tradingpost_v1_osrs242_out packet_update_tradingpost_v1_v1_out
+#define packet_update_tradingpost_v1_osrs243_out packet_update_tradingpost_v1_v1_out
 #define packet_update_tradingpost_v1_osrsm241_out packet_update_tradingpost_v1_v1_out
 #define packet_update_tradingpost_v1_osrsm242_out packet_update_tradingpost_v1_v1_out
 

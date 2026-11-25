@@ -34,7 +34,7 @@ void packet_if_setplayermodel_obj_v6_out(RsprotExec *x, MsgIfSetPlayerModelObj *
 void packet_if_setplayermodel_obj_v7_out(RsprotExec *x, MsgIfSetPlayerModelObj *m);
 /* v8 -- revs osrs228. */
 void packet_if_setplayermodel_obj_v8_out(RsprotExec *x, MsgIfSetPlayerModelObj *m);
-/* v9 -- revs osrs229. */
+/* v9 -- revs osrs229, osrs243. */
 void packet_if_setplayermodel_obj_v9_out(RsprotExec *x, MsgIfSetPlayerModelObj *m);
 /* v10 -- revs osrs230. */
 void packet_if_setplayermodel_obj_v10_out(RsprotExec *x, MsgIfSetPlayerModelObj *m);
@@ -82,6 +82,7 @@ void packet_if_setplayermodel_obj_v20_out(RsprotExec *x, MsgIfSetPlayerModelObj 
 #define packet_if_setplayermodel_obj_osrs240_out packet_if_setplayermodel_obj_v18_out
 #define packet_if_setplayermodel_obj_osrs241_out packet_if_setplayermodel_obj_v12_out
 #define packet_if_setplayermodel_obj_osrs242_out packet_if_setplayermodel_obj_v16_out
+#define packet_if_setplayermodel_obj_osrs243_out packet_if_setplayermodel_obj_v9_out
 #define packet_if_setplayermodel_obj_osrsm241_out packet_if_setplayermodel_obj_v19_out
 #define packet_if_setplayermodel_obj_osrsm242_out packet_if_setplayermodel_obj_v20_out
 

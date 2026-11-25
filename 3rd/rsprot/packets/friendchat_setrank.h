@@ -18,7 +18,7 @@ typedef struct MsgFriendChatSetRank {
 	int32_t rank;
 } MsgFriendChatSetRank;
 
-/* v1 -- revs osrs221, osrs225, osrs231, osrs233. */
+/* v1 -- revs osrs221, osrs225, osrs231, osrs233, osrs243. */
 void packet_friendchat_setrank_v1_in(RsprotExec *x, MsgFriendChatSetRank *m);
 /* v2 -- revs osrs222, osrs240. */
 void packet_friendchat_setrank_v2_in(RsprotExec *x, MsgFriendChatSetRank *m);
@@ -62,6 +62,7 @@ void packet_friendchat_setrank_v10_in(RsprotExec *x, MsgFriendChatSetRank *m);
 #define packet_friendchat_setrank_osrs240_in packet_friendchat_setrank_v2_in
 #define packet_friendchat_setrank_osrs241_in packet_friendchat_setrank_v7_in
 #define packet_friendchat_setrank_osrs242_in packet_friendchat_setrank_v8_in
+#define packet_friendchat_setrank_osrs243_in packet_friendchat_setrank_v1_in
 #define packet_friendchat_setrank_osrsm241_in packet_friendchat_setrank_v9_in
 #define packet_friendchat_setrank_osrsm242_in packet_friendchat_setrank_v10_in
 

@@ -40,7 +40,7 @@ void packet_opplayer2_v9_in(RsprotExec *x, MsgOpPlayer2 *m);
 void packet_opplayer2_v10_in(RsprotExec *x, MsgOpPlayer2 *m);
 /* v11 -- revs osrs236. */
 void packet_opplayer2_v11_in(RsprotExec *x, MsgOpPlayer2 *m);
-/* v12 -- revs osrs237-238. */
+/* v12 -- revs osrs237-238, osrs243. */
 void packet_opplayer2_v12_in(RsprotExec *x, MsgOpPlayer2 *m);
 /* v13 -- revs osrs240. */
 void packet_opplayer2_v13_in(RsprotExec *x, MsgOpPlayer2 *m);
@@ -76,6 +76,7 @@ void packet_opplayer2_v17_in(RsprotExec *x, MsgOpPlayer2 *m);
 #define packet_opplayer2_osrs240_in packet_opplayer2_v13_in
 #define packet_opplayer2_osrs241_in packet_opplayer2_v2_in
 #define packet_opplayer2_osrs242_in packet_opplayer2_v14_in
+#define packet_opplayer2_osrs243_in packet_opplayer2_v12_in
 #define packet_opplayer2_rs245_2_in packet_opplayer2_v15_in
 #define packet_opplayer2_rs254_in packet_opplayer2_v15_in
 #define packet_opplayer2_rs289_in packet_opplayer2_v15_in

@@ -38,7 +38,7 @@ void packet_anim_specific_v8_out(RsprotExec *x, MsgAnimSpecific *m);
 void packet_anim_specific_v9_out(RsprotExec *x, MsgAnimSpecific *m);
 /* v10 -- revs osrs230. */
 void packet_anim_specific_v10_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v11 -- revs osrs231-232. */
+/* v11 -- revs osrs231-232, osrs243. */
 void packet_anim_specific_v11_out(RsprotExec *x, MsgAnimSpecific *m);
 /* v12 -- revs osrs233. */
 void packet_anim_specific_v12_out(RsprotExec *x, MsgAnimSpecific *m);
@@ -80,6 +80,7 @@ void packet_anim_specific_v19_out(RsprotExec *x, MsgAnimSpecific *m);
 #define packet_anim_specific_osrs240_out packet_anim_specific_v16_out
 #define packet_anim_specific_osrs241_out packet_anim_specific_v8_out
 #define packet_anim_specific_osrs242_out packet_anim_specific_v17_out
+#define packet_anim_specific_osrs243_out packet_anim_specific_v11_out
 #define packet_anim_specific_osrsm241_out packet_anim_specific_v18_out
 #define packet_anim_specific_osrsm242_out packet_anim_specific_v19_out
 

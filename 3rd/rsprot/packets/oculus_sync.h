@@ -17,7 +17,7 @@ typedef struct MsgOculusSync {
 	int32_t value;
 } MsgOculusSync;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_oculus_sync_v1_out(RsprotExec *x, MsgOculusSync *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_oculus_sync_v2_out(RsprotExec *x, MsgOculusSync *m);
@@ -45,6 +45,7 @@ void packet_oculus_sync_v2_out(RsprotExec *x, MsgOculusSync *m);
 #define packet_oculus_sync_osrs240_out packet_oculus_sync_v1_out
 #define packet_oculus_sync_osrs241_out packet_oculus_sync_v1_out
 #define packet_oculus_sync_osrs242_out packet_oculus_sync_v1_out
+#define packet_oculus_sync_osrs243_out packet_oculus_sync_v1_out
 #define packet_oculus_sync_osrsm241_out packet_oculus_sync_v2_out
 #define packet_oculus_sync_osrsm242_out packet_oculus_sync_v2_out
 

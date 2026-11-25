@@ -21,7 +21,7 @@ typedef struct MsgOpWorldEntity6 {
 void packet_opworldentity6_v1_in(RsprotExec *x, MsgOpWorldEntity6 *m);
 /* v2 -- revs osrs234, osrs239. */
 void packet_opworldentity6_v2_in(RsprotExec *x, MsgOpWorldEntity6 *m);
-/* v3 -- revs osrs235-237. */
+/* v3 -- revs osrs235-237, osrs243. */
 void packet_opworldentity6_v3_in(RsprotExec *x, MsgOpWorldEntity6 *m);
 /* v4 -- revs osrs238, osrs240-241, osrs242. */
 void packet_opworldentity6_v4_in(RsprotExec *x, MsgOpWorldEntity6 *m);
@@ -41,6 +41,7 @@ void packet_opworldentity6_v6_in(RsprotExec *x, MsgOpWorldEntity6 *m);
 #define packet_opworldentity6_osrs240_in packet_opworldentity6_v4_in
 #define packet_opworldentity6_osrs241_in packet_opworldentity6_v4_in
 #define packet_opworldentity6_osrs242_in packet_opworldentity6_v4_in
+#define packet_opworldentity6_osrs243_in packet_opworldentity6_v3_in
 #define packet_opworldentity6_osrsm241_in packet_opworldentity6_v5_in
 #define packet_opworldentity6_osrsm242_in packet_opworldentity6_v6_in
 

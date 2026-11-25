@@ -122,7 +122,7 @@ packet_midi_song_stop_v14_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_12_ADD128(x, m->fade_out_speed);
 }
 
-/* v15 -- revs osrs242. */
+/* v15 -- revs osrs242, osrs243. */
 void
 packet_midi_song_stop_v15_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -147,7 +147,7 @@ packet_midi_song_stop_v17_out(RsprotExec *x, MsgMidiSongStop *m)
 }
 
 /*
- * 23 row(s) for 17 layout(s). A revision not listed has no MIDI_SONG_STOP and
+ * 24 row(s) for 17 layout(s). A revision not listed has no MIDI_SONG_STOP and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_midi_song_stop_out[] = {
@@ -172,6 +172,7 @@ const RsprotVersionRange rsprot_midi_song_stop_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_midi_song_stop_v13_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_midi_song_stop_v14_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_midi_song_stop_v15_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_midi_song_stop_v15_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_song_stop_v16_out },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_midi_song_stop_v17_out },
 };

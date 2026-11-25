@@ -286,9 +286,23 @@ packet_player_spotanim_specific_v20_out(RsprotExec *x, MsgPlayerSpotanimSpecific
     RSPROT_U2_12(x, m->id);
 }
 
-/* v21 -- revs osrsm241. */
+/* v21 -- revs osrs243. */
 void
 packet_player_spotanim_specific_v21_out(RsprotExec *x, MsgPlayerSpotanimSpecific *m)
+{
+    /* RSProx derives, after the reads:
+     *   val height = packed ushr 16
+     *   val delay = packed and 0xFFFF
+     */
+    RSPROT_U1_SUB128(x, m->slot);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U4_2143(x, m->packed);
+    RSPROT_U2_21(x, m->index);
+}
+
+/* v22 -- revs osrsm241. */
+void
+packet_player_spotanim_specific_v22_out(RsprotExec *x, MsgPlayerSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -300,9 +314,9 @@ packet_player_spotanim_specific_v21_out(RsprotExec *x, MsgPlayerSpotanimSpecific
     RSPROT_U1_NEG(x, m->slot);
 }
 
-/* v22 -- revs osrsm242. */
+/* v23 -- revs osrsm242. */
 void
-packet_player_spotanim_specific_v22_out(RsprotExec *x, MsgPlayerSpotanimSpecific *m)
+packet_player_spotanim_specific_v23_out(RsprotExec *x, MsgPlayerSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -315,7 +329,7 @@ packet_player_spotanim_specific_v22_out(RsprotExec *x, MsgPlayerSpotanimSpecific
 }
 
 /*
- * 23 row(s) for 22 layout(s). A revision not listed has no PLAYER_SPOTANIM_SPECIFIC and
+ * 24 row(s) for 23 layout(s). A revision not listed has no PLAYER_SPOTANIM_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_player_spotanim_specific_out[] = {
@@ -340,8 +354,9 @@ const RsprotVersionRange rsprot_player_spotanim_specific_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_player_spotanim_specific_v19_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_player_spotanim_specific_v20_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_player_spotanim_specific_v20_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_player_spotanim_specific_v21_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_player_spotanim_specific_v22_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_player_spotanim_specific_v21_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_player_spotanim_specific_v22_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_player_spotanim_specific_v23_out },
 };
 
 const int rsprot_player_spotanim_specific_out_count =

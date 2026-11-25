@@ -17,7 +17,7 @@ typedef struct MsgClanChannelFullRequest {
 	int32_t clan_id;
 } MsgClanChannelFullRequest;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_clanchannel_full_request_v1_in(RsprotExec *x, MsgClanChannelFullRequest *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_clanchannel_full_request_v2_in(RsprotExec *x, MsgClanChannelFullRequest *m);
@@ -45,6 +45,7 @@ void packet_clanchannel_full_request_v2_in(RsprotExec *x, MsgClanChannelFullRequ
 #define packet_clanchannel_full_request_osrs240_in packet_clanchannel_full_request_v1_in
 #define packet_clanchannel_full_request_osrs241_in packet_clanchannel_full_request_v1_in
 #define packet_clanchannel_full_request_osrs242_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs243_in packet_clanchannel_full_request_v1_in
 #define packet_clanchannel_full_request_osrsm241_in packet_clanchannel_full_request_v2_in
 #define packet_clanchannel_full_request_osrsm242_in packet_clanchannel_full_request_v2_in
 

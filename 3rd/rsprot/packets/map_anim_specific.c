@@ -220,9 +220,19 @@ packet_map_anim_specific_v21_out(RsprotExec *x, MsgMapAnimSpecific *m)
     RSPROT_U3_132(x, m->coord_in_build_area_packed);
 }
 
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs243. */
 void
 packet_map_anim_specific_v22_out(RsprotExec *x, MsgMapAnimSpecific *m)
+{
+    RSPROT_U3_213(x, m->coord_in_build_area_packed);
+    RSPROT_U1(x, m->height);
+    RSPROT_U2_12(x, m->delay);
+    RSPROT_U2_21_ADD128(x, m->id);
+}
+
+/* v23 -- revs osrsm241. */
+void
+packet_map_anim_specific_v23_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
     RSPROT_U2_21_ADD128(x, m->delay);
     RSPROT_U1_SUB128(x, m->height);
@@ -230,9 +240,9 @@ packet_map_anim_specific_v22_out(RsprotExec *x, MsgMapAnimSpecific *m)
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v23 -- revs osrsm242. */
+/* v24 -- revs osrsm242. */
 void
-packet_map_anim_specific_v23_out(RsprotExec *x, MsgMapAnimSpecific *m)
+packet_map_anim_specific_v24_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
     RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_U3_321(x, m->coord_in_build_area_packed);
@@ -241,7 +251,7 @@ packet_map_anim_specific_v23_out(RsprotExec *x, MsgMapAnimSpecific *m)
 }
 
 /*
- * 24 row(s) for 23 layout(s). A revision not listed has no MAP_ANIM_SPECIFIC and
+ * 25 row(s) for 24 layout(s). A revision not listed has no MAP_ANIM_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_map_anim_specific_out[] = {
@@ -267,8 +277,9 @@ const RsprotVersionRange rsprot_map_anim_specific_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_map_anim_specific_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_map_anim_specific_v21_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_map_anim_specific_v6_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_map_anim_specific_v22_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_map_anim_specific_v23_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_map_anim_specific_v22_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_map_anim_specific_v23_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_map_anim_specific_v24_out },
 };
 
 const int rsprot_map_anim_specific_out_count =

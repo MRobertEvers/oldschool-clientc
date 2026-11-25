@@ -17,7 +17,7 @@ typedef struct MsgUrlOpen {
 	const char *url;
 } MsgUrlOpen;
 
-/* v1 -- revs osrs222-241, osrs242. */
+/* v1 -- revs osrs222-241, osrs242, osrs243. */
 void packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_url_open_v2_out(RsprotExec *x, MsgUrlOpen *m);
@@ -44,6 +44,7 @@ void packet_url_open_v2_out(RsprotExec *x, MsgUrlOpen *m);
 #define packet_url_open_osrs240_out packet_url_open_v1_out
 #define packet_url_open_osrs241_out packet_url_open_v1_out
 #define packet_url_open_osrs242_out packet_url_open_v1_out
+#define packet_url_open_osrs243_out packet_url_open_v1_out
 #define packet_url_open_osrsm241_out packet_url_open_v2_out
 #define packet_url_open_osrsm242_out packet_url_open_v2_out
 

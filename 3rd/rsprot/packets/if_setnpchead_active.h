@@ -20,7 +20,7 @@ typedef struct MsgIfSetNpcHeadActive {
 
 /* v1 -- revs osrs221. */
 void packet_if_setnpchead_active_v1_out(RsprotExec *x, MsgIfSetNpcHeadActive *m);
-/* v2 -- revs osrs222. */
+/* v2 -- revs osrs222, osrs243. */
 void packet_if_setnpchead_active_v2_out(RsprotExec *x, MsgIfSetNpcHeadActive *m);
 /* v3 -- revs osrs223. */
 void packet_if_setnpchead_active_v3_out(RsprotExec *x, MsgIfSetNpcHeadActive *m);
@@ -82,6 +82,7 @@ void packet_if_setnpchead_active_v20_out(RsprotExec *x, MsgIfSetNpcHeadActive *m
 #define packet_if_setnpchead_active_osrs240_out packet_if_setnpchead_active_v17_out
 #define packet_if_setnpchead_active_osrs241_out packet_if_setnpchead_active_v18_out
 #define packet_if_setnpchead_active_osrs242_out packet_if_setnpchead_active_v13_out
+#define packet_if_setnpchead_active_osrs243_out packet_if_setnpchead_active_v2_out
 #define packet_if_setnpchead_active_osrsm241_out packet_if_setnpchead_active_v19_out
 #define packet_if_setnpchead_active_osrsm242_out packet_if_setnpchead_active_v20_out
 

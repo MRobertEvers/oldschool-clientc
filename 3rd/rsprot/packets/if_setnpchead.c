@@ -162,24 +162,32 @@ packet_if_setnpchead_v19_out(RsprotExec *x, MsgIfSetNpcHead *m)
     RSPROT_U2_12(x, m->npc);
 }
 
-/* v20 -- revs osrsm241. */
+/* v20 -- revs osrs243. */
 void
 packet_if_setnpchead_v20_out(RsprotExec *x, MsgIfSetNpcHead *m)
+{
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->npc);
+}
+
+/* v21 -- revs osrsm241. */
+void
+packet_if_setnpchead_v21_out(RsprotExec *x, MsgIfSetNpcHead *m)
 {
     RSPROT_COM_1234(x, m->combined_id);
     RSPROT_U2_21(x, m->npc);
 }
 
-/* v21 -- revs osrsm242. */
+/* v22 -- revs osrsm242. */
 void
-packet_if_setnpchead_v21_out(RsprotExec *x, MsgIfSetNpcHead *m)
+packet_if_setnpchead_v22_out(RsprotExec *x, MsgIfSetNpcHead *m)
 {
     RSPROT_COM_3412(x, m->combined_id);
     RSPROT_U2_21(x, m->npc);
 }
 
 /*
- * 26 row(s) for 21 layout(s). A revision not listed has no IF_SETNPCHEAD and
+ * 27 row(s) for 22 layout(s). A revision not listed has no IF_SETNPCHEAD and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setnpchead_out[] = {
@@ -204,11 +212,12 @@ const RsprotVersionRange rsprot_if_setnpchead_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setnpchead_v16_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setnpchead_v17_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setnpchead_v18_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_if_setnpchead_v20_out },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setnpchead_v19_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setnpchead_v19_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setnpchead_v19_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setnpchead_v20_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_setnpchead_v21_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setnpchead_v21_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_setnpchead_v22_out },
 };
 
 const int rsprot_if_setnpchead_out_count =

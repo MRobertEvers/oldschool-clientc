@@ -180,9 +180,19 @@ packet_update_stat_v2_v17_out(RsprotExec *x, MsgUpdateStatV2 *m)
     RSPROT_U1_SUB128(x, m->current_level);
 }
 
-/* v18 -- revs osrsm241. */
+/* v18 -- revs osrs243. */
 void
 packet_update_stat_v2_v18_out(RsprotExec *x, MsgUpdateStatV2 *m)
+{
+    RSPROT_U1_SUB128(x, m->stat);
+    RSPROT_U4_1234(x, m->experience);
+    RSPROT_U1_SUB128(x, m->invisible_boosted_level);
+    RSPROT_U1_NEG(x, m->current_level);
+}
+
+/* v19 -- revs osrsm241. */
+void
+packet_update_stat_v2_v19_out(RsprotExec *x, MsgUpdateStatV2 *m)
 {
     RSPROT_U1(x, m->current_level);
     RSPROT_U1_SUB128(x, m->invisible_boosted_level);
@@ -190,9 +200,9 @@ packet_update_stat_v2_v18_out(RsprotExec *x, MsgUpdateStatV2 *m)
     RSPROT_U4_4321(x, m->experience);
 }
 
-/* v19 -- revs osrsm242. */
+/* v20 -- revs osrsm242. */
 void
-packet_update_stat_v2_v19_out(RsprotExec *x, MsgUpdateStatV2 *m)
+packet_update_stat_v2_v20_out(RsprotExec *x, MsgUpdateStatV2 *m)
 {
     RSPROT_U1_SUB128(x, m->current_level);
     RSPROT_U1(x, m->invisible_boosted_level);
@@ -201,7 +211,7 @@ packet_update_stat_v2_v19_out(RsprotExec *x, MsgUpdateStatV2 *m)
 }
 
 /*
- * 19 row(s) for 19 layout(s). A revision not listed has no UPDATE_STAT_V2 and
+ * 20 row(s) for 20 layout(s). A revision not listed has no UPDATE_STAT_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_stat_v2_out[] = {
@@ -222,8 +232,9 @@ const RsprotVersionRange rsprot_update_stat_v2_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_update_stat_v2_v15_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_stat_v2_v16_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_update_stat_v2_v17_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_stat_v2_v18_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_update_stat_v2_v19_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_update_stat_v2_v18_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_stat_v2_v19_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_update_stat_v2_v20_out },
 };
 
 const int rsprot_update_stat_v2_out_count =

@@ -8,7 +8,7 @@ packet_clickworldmap_v1_in(RsprotExec *x, MsgClickworldmap *m)
     RSPROT_U4_3412(x, m->packed);
 }
 
-/* v2 -- revs 224, 226, 230, 235, 238. */
+/* v2 -- revs 224, 226, 230, 235, 238, 243. */
 void
 packet_clickworldmap_v2_in(RsprotExec *x, MsgClickworldmap *m)
 {
@@ -61,6 +61,7 @@ const RsprotVersionRange rsprot_clickworldmap_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_clickworldmap_v4_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clickworldmap_v1_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_clickworldmap_v3_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_clickworldmap_v2_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_clickworldmap_osrsm241_in },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_clickworldmap_osrsm242_in },
 };

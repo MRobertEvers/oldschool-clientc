@@ -17,7 +17,7 @@ packet_cam_skybox_v1_out(RsprotExec *x, MsgCamSkybox *m)
     RSPROT_U4_2143(x, m->model);
 }
 
-/* v2 -- revs osrs239-240. */
+/* v2 -- revs osrs239-240, osrs243. */
 void
 packet_cam_skybox_v2_out(RsprotExec *x, MsgCamSkybox *m)
 {
@@ -46,7 +46,7 @@ packet_cam_skybox_v5_out(RsprotExec *x, MsgCamSkybox *m)
 }
 
 /*
- * 6 row(s) for 5 layout(s). A revision not listed has no CAM_SKYBOX and
+ * 7 row(s) for 5 layout(s). A revision not listed has no CAM_SKYBOX and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_skybox_out[] = {
@@ -54,6 +54,7 @@ const RsprotVersionRange rsprot_cam_skybox_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_cam_skybox_v2_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_skybox_v3_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_skybox_v1_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_cam_skybox_v2_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_skybox_v4_out },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_skybox_v5_out },
 };

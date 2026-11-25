@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs224-241, osrs242. */
+/* v1 -- revs osrs224-241, osrs242, osrs243. */
 void
 packet_unknown_string_v1_out(RsprotExec *x, MsgUnknownString *m)
 {
@@ -25,12 +25,13 @@ packet_unknown_string_v2_out(RsprotExec *x, MsgUnknownString *m)
 }
 
 /*
- * 4 row(s) for 2 layout(s). A revision not listed has no UNKNOWN_STRING and
+ * 5 row(s) for 2 layout(s). A revision not listed has no UNKNOWN_STRING and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_unknown_string_out[] = {
     { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_unknown_string_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_unknown_string_v1_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_unknown_string_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_unknown_string_v2_out },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_unknown_string_v2_out },
 };

@@ -208,18 +208,27 @@ packet_npc_anim_specific_v22_out(RsprotExec *x, MsgNpcAnimSpecific *m)
     RSPROT_U2_12_ADD128(x, m->id);
 }
 
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrs243. */
 void
 packet_npc_anim_specific_v23_out(RsprotExec *x, MsgNpcAnimSpecific *m)
+{
+    RSPROT_U1_ADD128(x, m->delay);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U2_21(x, m->id);
+}
+
+/* v24 -- revs osrsm241. */
+void
+packet_npc_anim_specific_v24_out(RsprotExec *x, MsgNpcAnimSpecific *m)
 {
     RSPROT_U2_12(x, m->index);
     RSPROT_U2_12(x, m->id);
     RSPROT_U1_NEG(x, m->delay);
 }
 
-/* v24 -- revs osrsm242. */
+/* v25 -- revs osrsm242. */
 void
-packet_npc_anim_specific_v24_out(RsprotExec *x, MsgNpcAnimSpecific *m)
+packet_npc_anim_specific_v25_out(RsprotExec *x, MsgNpcAnimSpecific *m)
 {
     RSPROT_U2_12(x, m->index);
     RSPROT_U2_12(x, m->id);
@@ -227,7 +236,7 @@ packet_npc_anim_specific_v24_out(RsprotExec *x, MsgNpcAnimSpecific *m)
 }
 
 /*
- * 24 row(s) for 24 layout(s). A revision not listed has no NPC_ANIM_SPECIFIC and
+ * 25 row(s) for 25 layout(s). A revision not listed has no NPC_ANIM_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_npc_anim_specific_out[] = {
@@ -253,8 +262,9 @@ const RsprotVersionRange rsprot_npc_anim_specific_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_npc_anim_specific_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_npc_anim_specific_v21_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_npc_anim_specific_v22_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_npc_anim_specific_v23_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_npc_anim_specific_v24_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_npc_anim_specific_v23_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_npc_anim_specific_v24_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_npc_anim_specific_v25_out },
 };
 
 const int rsprot_npc_anim_specific_out_count =

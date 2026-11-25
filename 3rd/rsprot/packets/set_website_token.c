@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs242. */
+/* v1 -- revs osrs242, osrs243. */
 void
 packet_set_website_token_v1_out(RsprotExec *x, MsgSetWebsiteToken *m)
 {
@@ -25,11 +25,12 @@ packet_set_website_token_v2_out(RsprotExec *x, MsgSetWebsiteToken *m)
 }
 
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no SET_WEBSITE_TOKEN and
+ * 3 row(s) for 2 layout(s). A revision not listed has no SET_WEBSITE_TOKEN and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_set_website_token_out[] = {
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_set_website_token_v1_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_set_website_token_v1_out },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_set_website_token_v2_out },
 };
 

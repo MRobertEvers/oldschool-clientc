@@ -30,6 +30,7 @@ void packet_objunlock_update_v1_out(RsprotExec *x, MsgObjunlockUpdate *m);
 
 #define packet_objunlock_update_osrs241_out packet_objunlock_update_v1_out
 #define packet_objunlock_update_osrs242_out packet_objunlock_update_v1_out
+#define packet_objunlock_update_osrs243_out packet_objunlock_update_v1_out
 #define packet_objunlock_update_osrsm241_out packet_objunlock_update_v1_out
 #define packet_objunlock_update_osrsm242_out packet_objunlock_update_v1_out
 

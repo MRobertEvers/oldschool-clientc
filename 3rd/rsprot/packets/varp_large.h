@@ -36,7 +36,7 @@ void packet_varp_large_v7_out(RsprotExec *x, MsgVarpLarge *m);
 void packet_varp_large_v8_out(RsprotExec *x, MsgVarpLarge *m);
 /* v9 -- revs osrs231. */
 void packet_varp_large_v9_out(RsprotExec *x, MsgVarpLarge *m);
-/* v10 -- revs osrs232. */
+/* v10 -- revs osrs232, osrs243. */
 void packet_varp_large_v10_out(RsprotExec *x, MsgVarpLarge *m);
 /* v11 -- revs osrs233. */
 void packet_varp_large_v11_out(RsprotExec *x, MsgVarpLarge *m);
@@ -80,6 +80,7 @@ void packet_varp_large_v19_out(RsprotExec *x, MsgVarpLarge *m);
 #define packet_varp_large_osrs240_out packet_varp_large_v4_out
 #define packet_varp_large_osrs241_out packet_varp_large_v15_out
 #define packet_varp_large_osrs242_out packet_varp_large_v16_out
+#define packet_varp_large_osrs243_out packet_varp_large_v10_out
 #define packet_varp_large_rs245_2_out packet_varp_large_v17_out
 #define packet_varp_large_rs254_out packet_varp_large_v17_out
 #define packet_varp_large_rs289_out packet_varp_large_v17_out

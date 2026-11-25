@@ -19,7 +19,7 @@ typedef struct MsgIfCloseSub {
 
 /* v1 -- revs osrs221. */
 void packet_if_closesub_v1_out(RsprotExec *x, MsgIfCloseSub *m);
-/* v2 -- revs osrs222-241, osrs242. */
+/* v2 -- revs osrs222-241, osrs242, osrs243. */
 void packet_if_closesub_v2_out(RsprotExec *x, MsgIfCloseSub *m);
 /* v3 -- revs osrsm241, osrsm242. */
 void packet_if_closesub_v3_out(RsprotExec *x, MsgIfCloseSub *m);
@@ -47,6 +47,7 @@ void packet_if_closesub_v3_out(RsprotExec *x, MsgIfCloseSub *m);
 #define packet_if_closesub_osrs240_out packet_if_closesub_v2_out
 #define packet_if_closesub_osrs241_out packet_if_closesub_v2_out
 #define packet_if_closesub_osrs242_out packet_if_closesub_v2_out
+#define packet_if_closesub_osrs243_out packet_if_closesub_v2_out
 #define packet_if_closesub_osrsm241_out packet_if_closesub_v3_out
 #define packet_if_closesub_osrsm242_out packet_if_closesub_v3_out
 

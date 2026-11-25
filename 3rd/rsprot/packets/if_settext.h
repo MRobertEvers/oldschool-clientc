@@ -24,7 +24,7 @@ void packet_if_settext_v1_out(RsprotExec *x, MsgIfSetText *m);
 void packet_if_settext_v2_out(RsprotExec *x, MsgIfSetText *m);
 /* v3 -- revs osrs223, osrs228, osrs242. */
 void packet_if_settext_v3_out(RsprotExec *x, MsgIfSetText *m);
-/* v4 -- revs osrs224, osrs237-238, osrs241. */
+/* v4 -- revs osrs224, osrs237-238, osrs241, osrs243. */
 void packet_if_settext_v4_out(RsprotExec *x, MsgIfSetText *m);
 /* v5 -- revs osrs225, osrs229, osrs234. */
 void packet_if_settext_v5_out(RsprotExec *x, MsgIfSetText *m);
@@ -62,6 +62,7 @@ void packet_if_settext_v10_out(RsprotExec *x, MsgIfSetText *m);
 #define packet_if_settext_osrs240_out packet_if_settext_v7_out
 #define packet_if_settext_osrs241_out packet_if_settext_v4_out
 #define packet_if_settext_osrs242_out packet_if_settext_v3_out
+#define packet_if_settext_osrs243_out packet_if_settext_v4_out
 #define packet_if_settext_osrsm241_out packet_if_settext_v9_out
 #define packet_if_settext_osrsm242_out packet_if_settext_v10_out
 

@@ -23,7 +23,7 @@ void packet_update_inv_stoptransmit_v1_out(RsprotExec *x, MsgUpdateInvStopTransm
 void packet_update_inv_stoptransmit_v2_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
 /* v3 -- revs osrs224, osrs227, osrs230, osrs232, osrs236, osrs242. */
 void packet_update_inv_stoptransmit_v3_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
-/* v4 -- revs osrs235, osrs237, osrs240. */
+/* v4 -- revs osrs235, osrs237, osrs240, osrs243. */
 void packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
 /* v5 -- revs osrsm241, osrsm242. */
 void packet_update_inv_stoptransmit_v5_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
@@ -51,6 +51,7 @@ void packet_update_inv_stoptransmit_v5_out(RsprotExec *x, MsgUpdateInvStopTransm
 #define packet_update_inv_stoptransmit_osrs240_out packet_update_inv_stoptransmit_v4_out
 #define packet_update_inv_stoptransmit_osrs241_out packet_update_inv_stoptransmit_v2_out
 #define packet_update_inv_stoptransmit_osrs242_out packet_update_inv_stoptransmit_v3_out
+#define packet_update_inv_stoptransmit_osrs243_out packet_update_inv_stoptransmit_v4_out
 #define packet_update_inv_stoptransmit_osrsm241_out packet_update_inv_stoptransmit_v5_out
 #define packet_update_inv_stoptransmit_osrsm242_out packet_update_inv_stoptransmit_v5_out
 

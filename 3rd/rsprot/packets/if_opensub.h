@@ -61,10 +61,12 @@ void packet_if_opensub_v19_out(RsprotExec *x, MsgIfOpenSub *m);
 void packet_if_opensub_v20_out(RsprotExec *x, MsgIfOpenSub *m);
 /* v21 -- revs osrs242. */
 void packet_if_opensub_v21_out(RsprotExec *x, MsgIfOpenSub *m);
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs243. */
 void packet_if_opensub_v22_out(RsprotExec *x, MsgIfOpenSub *m);
-/* v23 -- revs osrsm242. */
+/* v23 -- revs osrsm241. */
 void packet_if_opensub_v23_out(RsprotExec *x, MsgIfOpenSub *m);
+/* v24 -- revs osrsm242. */
+void packet_if_opensub_v24_out(RsprotExec *x, MsgIfOpenSub *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_opensub_<R>_out. */
 #define packet_if_opensub_osrs221_out packet_if_opensub_v1_out
@@ -89,8 +91,9 @@ void packet_if_opensub_v23_out(RsprotExec *x, MsgIfOpenSub *m);
 #define packet_if_opensub_osrs240_out packet_if_opensub_v19_out
 #define packet_if_opensub_osrs241_out packet_if_opensub_v20_out
 #define packet_if_opensub_osrs242_out packet_if_opensub_v21_out
-#define packet_if_opensub_osrsm241_out packet_if_opensub_v22_out
-#define packet_if_opensub_osrsm242_out packet_if_opensub_v23_out
+#define packet_if_opensub_osrs243_out packet_if_opensub_v22_out
+#define packet_if_opensub_osrsm241_out packet_if_opensub_v23_out
+#define packet_if_opensub_osrsm242_out packet_if_opensub_v24_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_opensub_out[];

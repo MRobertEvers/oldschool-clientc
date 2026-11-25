@@ -17,13 +17,14 @@ typedef struct MsgOpLoc6V2 {
 	int32_t id;
 } MsgOpLoc6V2;
 
-/* v1 -- revs osrs242. */
+/* v1 -- revs osrs242, osrs243. */
 void packet_oploc6_v2_v1_in(RsprotExec *x, MsgOpLoc6V2 *m);
 /* v2 -- revs osrsm242. */
 void packet_oploc6_v2_v2_in(RsprotExec *x, MsgOpLoc6V2 *m);
 
 /* Per-revision entry points: what revision R calls is packet_oploc6_v2_<R>_in. */
 #define packet_oploc6_v2_osrs242_in packet_oploc6_v2_v1_in
+#define packet_oploc6_v2_osrs243_in packet_oploc6_v2_v1_in
 #define packet_oploc6_v2_osrsm242_in packet_oploc6_v2_v2_in
 
 /** Revision -> layout. See the .c for the rows. */

@@ -76,9 +76,20 @@ packet_oploc2_v2_v6_in(RsprotExec *x, MsgOpLoc2V2 *m)
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
-/* v7 -- revs osrsm241. */
+/* v7 -- revs osrs243. */
 void
 packet_oploc2_v2_v7_in(RsprotExec *x, MsgOpLoc2V2 *m)
+{
+    RSPROT_U1_ADD128(x, m->subop);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U1(x, m->control_key);
+}
+
+/* v8 -- revs osrsm241. */
+void
+packet_oploc2_v2_v8_in(RsprotExec *x, MsgOpLoc2V2 *m)
 {
     RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_U2_12(x, m->z);
@@ -87,9 +98,9 @@ packet_oploc2_v2_v7_in(RsprotExec *x, MsgOpLoc2V2 *m)
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
-/* v8 -- revs osrsm242. */
+/* v9 -- revs osrsm242. */
 void
-packet_oploc2_v2_v8_in(RsprotExec *x, MsgOpLoc2V2 *m)
+packet_oploc2_v2_v9_in(RsprotExec *x, MsgOpLoc2V2 *m)
 {
     RSPROT_U2_12(x, m->z);
     RSPROT_U1_SUB128(x, m->subop);
@@ -99,7 +110,7 @@ packet_oploc2_v2_v8_in(RsprotExec *x, MsgOpLoc2V2 *m)
 }
 
 /*
- * 8 row(s) for 8 layout(s). A revision not listed has no OPLOC2_V2 and
+ * 9 row(s) for 9 layout(s). A revision not listed has no OPLOC2_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_oploc2_v2_in[] = {
@@ -109,8 +120,9 @@ const RsprotVersionRange rsprot_oploc2_v2_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_oploc2_v2_v4_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_oploc2_v2_v5_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_oploc2_v2_v6_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_oploc2_v2_v7_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_oploc2_v2_v8_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_oploc2_v2_v7_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_oploc2_v2_v8_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_oploc2_v2_v9_in },
 };
 
 const int rsprot_oploc2_v2_in_count =

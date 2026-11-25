@@ -18,7 +18,7 @@ typedef struct MsgEventCameraPosition {
 	int32_t angle_y;
 } MsgEventCameraPosition;
 
-/* v1 -- revs osrs221, osrs225, osrs232, osrs237. */
+/* v1 -- revs osrs221, osrs225, osrs232, osrs237, osrs243. */
 void packet_event_camera_position_v1_in(RsprotExec *x, MsgEventCameraPosition *m);
 /* v2 -- revs osrs222. */
 void packet_event_camera_position_v2_in(RsprotExec *x, MsgEventCameraPosition *m);
@@ -74,6 +74,7 @@ void packet_event_camera_position_v16_in(RsprotExec *x, MsgEventCameraPosition *
 #define packet_event_camera_position_osrs240_in packet_event_camera_position_v13_in
 #define packet_event_camera_position_osrs241_in packet_event_camera_position_v11_in
 #define packet_event_camera_position_osrs242_in packet_event_camera_position_v14_in
+#define packet_event_camera_position_osrs243_in packet_event_camera_position_v1_in
 #define packet_event_camera_position_osrsm241_in packet_event_camera_position_v15_in
 #define packet_event_camera_position_osrsm242_in packet_event_camera_position_v16_in
 

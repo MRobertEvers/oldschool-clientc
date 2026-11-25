@@ -190,18 +190,27 @@ packet_obj_enabled_ops_v20_out(RsprotExec *x, MsgObjEnabledOps *m)
     RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
-/* v21 -- revs osrsm241. */
+/* v21 -- revs osrs243. */
 void
 packet_obj_enabled_ops_v21_out(RsprotExec *x, MsgObjEnabledOps *m)
+{
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U2_21(x, m->id);
+}
+
+/* v22 -- revs osrsm241. */
+void
+packet_obj_enabled_ops_v22_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
     RSPROT_U1(x, m->coord_in_zone_packed);
     RSPROT_U2_12(x, m->id);
     RSPROT_U1(x, m->op_flags);
 }
 
-/* v22 -- revs osrsm242. */
+/* v23 -- revs osrsm242. */
 void
-packet_obj_enabled_ops_v22_out(RsprotExec *x, MsgObjEnabledOps *m)
+packet_obj_enabled_ops_v23_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
     RSPROT_U2_12(x, m->id);
     RSPROT_U1(x, m->coord_in_zone_packed);
@@ -209,7 +218,7 @@ packet_obj_enabled_ops_v22_out(RsprotExec *x, MsgObjEnabledOps *m)
 }
 
 /*
- * 22 row(s) for 22 layout(s). A revision not listed has no OBJ_ENABLED_OPS and
+ * 23 row(s) for 23 layout(s). A revision not listed has no OBJ_ENABLED_OPS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_enabled_ops_out[] = {
@@ -233,8 +242,9 @@ const RsprotVersionRange rsprot_obj_enabled_ops_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_obj_enabled_ops_v18_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_enabled_ops_v19_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_obj_enabled_ops_v20_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_enabled_ops_v21_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_obj_enabled_ops_v22_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_obj_enabled_ops_v21_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_enabled_ops_v22_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_obj_enabled_ops_v23_out },
 };
 
 const int rsprot_obj_enabled_ops_out_count =

@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs237-242. */
+/* v1 -- revs osrs237-242, osrs243. */
 void
 packet_resume_p_countdialog_long_v1_in(RsprotExec *x, MsgResumePCountDialogLong *m)
 {
@@ -25,11 +25,12 @@ packet_resume_p_countdialog_long_v2_in(RsprotExec *x, MsgResumePCountDialogLong 
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no RESUME_P_COUNTDIALOG_LONG and
+ * 4 row(s) for 2 layout(s). A revision not listed has no RESUME_P_COUNTDIALOG_LONG and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_resume_p_countdialog_long_in[] = {
     { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_resume_p_countdialog_long_v1_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_resume_p_countdialog_long_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_resume_p_countdialog_long_v2_in },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_resume_p_countdialog_long_v2_in },
 };

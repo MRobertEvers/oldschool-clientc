@@ -42,24 +42,32 @@ packet_update_reboot_timer_v2_v4_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
     RSPROT_U2_12(x, m->game_cycles);
 }
 
-/* v5 -- revs osrsm241. */
+/* v5 -- revs osrs243. */
 void
 packet_update_reboot_timer_v2_v5_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
+{
+    RSPROT_JSTR(x, m->message);
+    RSPROT_U2_21(x, m->game_cycles);
+}
+
+/* v6 -- revs osrsm241. */
+void
+packet_update_reboot_timer_v2_v6_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
     RSPROT_U2_12(x, m->game_cycles);
     RSPROT_JSTR(x, m->message);
 }
 
-/* v6 -- revs osrsm242. */
+/* v7 -- revs osrsm242. */
 void
-packet_update_reboot_timer_v2_v6_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
+packet_update_reboot_timer_v2_v7_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
     RSPROT_JSTR(x, m->message);
     RSPROT_U2_21_ADD128(x, m->game_cycles);
 }
 
 /*
- * 8 row(s) for 6 layout(s). A revision not listed has no UPDATE_REBOOT_TIMER_V2 and
+ * 9 row(s) for 7 layout(s). A revision not listed has no UPDATE_REBOOT_TIMER_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_reboot_timer_v2_out[] = {
@@ -69,8 +77,9 @@ const RsprotVersionRange rsprot_update_reboot_timer_v2_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_reboot_timer_v2_v4_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_reboot_timer_v2_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_update_reboot_timer_v2_v4_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_reboot_timer_v2_v5_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_update_reboot_timer_v2_v6_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_update_reboot_timer_v2_v5_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_reboot_timer_v2_v6_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_update_reboot_timer_v2_v7_out },
 };
 
 const int rsprot_update_reboot_timer_v2_out_count =

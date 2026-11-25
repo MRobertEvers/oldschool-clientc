@@ -24,7 +24,7 @@ void packet_if_setscrollpos_v1_out(RsprotExec *x, MsgIfSetScrollPos *m);
 void packet_if_setscrollpos_v2_out(RsprotExec *x, MsgIfSetScrollPos *m);
 /* v3 -- revs osrs223, osrs234. */
 void packet_if_setscrollpos_v3_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v4 -- revs osrs224, osrs233. */
+/* v4 -- revs osrs224, osrs233, osrs243. */
 void packet_if_setscrollpos_v4_out(RsprotExec *x, MsgIfSetScrollPos *m);
 /* v5 -- revs osrs225. */
 void packet_if_setscrollpos_v5_out(RsprotExec *x, MsgIfSetScrollPos *m);
@@ -80,6 +80,7 @@ void packet_if_setscrollpos_v19_out(RsprotExec *x, MsgIfSetScrollPos *m);
 #define packet_if_setscrollpos_osrs240_out packet_if_setscrollpos_v10_out
 #define packet_if_setscrollpos_osrs241_out packet_if_setscrollpos_v14_out
 #define packet_if_setscrollpos_osrs242_out packet_if_setscrollpos_v16_out
+#define packet_if_setscrollpos_osrs243_out packet_if_setscrollpos_v4_out
 #define packet_if_setscrollpos_rs245_2_out packet_if_setscrollpos_v17_out
 #define packet_if_setscrollpos_rs254_out packet_if_setscrollpos_v17_out
 #define packet_if_setscrollpos_rs289_out packet_if_setscrollpos_v17_out

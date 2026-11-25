@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void
 packet_hiscore_request_v1_in(RsprotExec *x, MsgHiscoreRequest *m)
 {
@@ -29,12 +29,13 @@ packet_hiscore_request_v2_in(RsprotExec *x, MsgHiscoreRequest *m)
 }
 
 /*
- * 4 row(s) for 2 layout(s). A revision not listed has no HISCORE_REQUEST and
+ * 5 row(s) for 2 layout(s). A revision not listed has no HISCORE_REQUEST and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_hiscore_request_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_hiscore_request_v1_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_hiscore_request_v1_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_hiscore_request_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_hiscore_request_v2_in },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_hiscore_request_v2_in },
 };

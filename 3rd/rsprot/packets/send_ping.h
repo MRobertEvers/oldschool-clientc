@@ -18,7 +18,7 @@ typedef struct MsgSendPing {
 	int32_t value2;
 } MsgSendPing;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_send_ping_v1_out(RsprotExec *x, MsgSendPing *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_send_ping_v2_out(RsprotExec *x, MsgSendPing *m);
@@ -46,6 +46,7 @@ void packet_send_ping_v2_out(RsprotExec *x, MsgSendPing *m);
 #define packet_send_ping_osrs240_out packet_send_ping_v1_out
 #define packet_send_ping_osrs241_out packet_send_ping_v1_out
 #define packet_send_ping_osrs242_out packet_send_ping_v1_out
+#define packet_send_ping_osrs243_out packet_send_ping_v1_out
 #define packet_send_ping_osrsm241_out packet_send_ping_v2_out
 #define packet_send_ping_osrsm242_out packet_send_ping_v2_out
 

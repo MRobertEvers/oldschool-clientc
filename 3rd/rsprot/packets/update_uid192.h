@@ -16,7 +16,7 @@ typedef struct MsgUpdateUid192 {
 	int32_t crc;         /* CRC-32 of `data`; RSProx rejects a mismatch */
 } MsgUpdateUid192;
 
-/* v1 -- revs 222-242. */
+/* v1 -- revs 222-243. */
 void packet_update_uid192_v1_out(RsprotExec *x, MsgUpdateUid192 *m);
 
 #define packet_update_uid192_osrs222_out packet_update_uid192_v1_out
@@ -40,6 +40,7 @@ void packet_update_uid192_v1_out(RsprotExec *x, MsgUpdateUid192 *m);
 #define packet_update_uid192_osrs240_out packet_update_uid192_v1_out
 #define packet_update_uid192_osrs241_out packet_update_uid192_v1_out
 #define packet_update_uid192_osrs242_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs243_out packet_update_uid192_v1_out
 #define packet_update_uid192_osrsm241_out packet_update_uid192_v1_out
 #define packet_update_uid192_osrsm242_out packet_update_uid192_v1_out
 

@@ -82,7 +82,7 @@ packet_varp_large_v9_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4_3412(x, m->value);
 }
 
-/* v10 -- revs osrs232. */
+/* v10 -- revs osrs232, osrs243. */
 void
 packet_varp_large_v10_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -163,7 +163,7 @@ packet_varp_large_v19_out(RsprotExec *x, MsgVarpLarge *m)
 }
 
 /*
- * 27 row(s) for 19 layout(s). A revision not listed has no VARP_LARGE and
+ * 28 row(s) for 19 layout(s). A revision not listed has no VARP_LARGE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varp_large_out[] = {
@@ -189,6 +189,7 @@ const RsprotVersionRange rsprot_varp_large_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_varp_large_v4_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varp_large_v15_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_varp_large_v16_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_varp_large_v10_out },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_varp_large_v17_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_varp_large_v17_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_varp_large_v17_out },

@@ -63,10 +63,12 @@ void packet_npc_anim_specific_v20_out(RsprotExec *x, MsgNpcAnimSpecific *m);
 void packet_npc_anim_specific_v21_out(RsprotExec *x, MsgNpcAnimSpecific *m);
 /* v22 -- revs osrs242. */
 void packet_npc_anim_specific_v22_out(RsprotExec *x, MsgNpcAnimSpecific *m);
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrs243. */
 void packet_npc_anim_specific_v23_out(RsprotExec *x, MsgNpcAnimSpecific *m);
-/* v24 -- revs osrsm242. */
+/* v24 -- revs osrsm241. */
 void packet_npc_anim_specific_v24_out(RsprotExec *x, MsgNpcAnimSpecific *m);
+/* v25 -- revs osrsm242. */
+void packet_npc_anim_specific_v25_out(RsprotExec *x, MsgNpcAnimSpecific *m);
 
 /* Per-revision entry points: what revision R calls is packet_npc_anim_specific_<R>_out. */
 #define packet_npc_anim_specific_osrs221_out packet_npc_anim_specific_v1_out
@@ -91,8 +93,9 @@ void packet_npc_anim_specific_v24_out(RsprotExec *x, MsgNpcAnimSpecific *m);
 #define packet_npc_anim_specific_osrs240_out packet_npc_anim_specific_v20_out
 #define packet_npc_anim_specific_osrs241_out packet_npc_anim_specific_v21_out
 #define packet_npc_anim_specific_osrs242_out packet_npc_anim_specific_v22_out
-#define packet_npc_anim_specific_osrsm241_out packet_npc_anim_specific_v23_out
-#define packet_npc_anim_specific_osrsm242_out packet_npc_anim_specific_v24_out
+#define packet_npc_anim_specific_osrs243_out packet_npc_anim_specific_v23_out
+#define packet_npc_anim_specific_osrsm241_out packet_npc_anim_specific_v24_out
+#define packet_npc_anim_specific_osrsm242_out packet_npc_anim_specific_v25_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_npc_anim_specific_out[];

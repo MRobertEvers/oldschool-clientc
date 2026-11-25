@@ -44,7 +44,7 @@ void packet_opplayer8_v11_in(RsprotExec *x, MsgOpPlayer8 *m);
 void packet_opplayer8_v12_in(RsprotExec *x, MsgOpPlayer8 *m);
 /* v13 -- revs osrs234. */
 void packet_opplayer8_v13_in(RsprotExec *x, MsgOpPlayer8 *m);
-/* v14 -- revs osrs235. */
+/* v14 -- revs osrs235, osrs243. */
 void packet_opplayer8_v14_in(RsprotExec *x, MsgOpPlayer8 *m);
 /* v15 -- revs osrs236, osrs239. */
 void packet_opplayer8_v15_in(RsprotExec *x, MsgOpPlayer8 *m);
@@ -82,6 +82,7 @@ void packet_opplayer8_v20_in(RsprotExec *x, MsgOpPlayer8 *m);
 #define packet_opplayer8_osrs240_in packet_opplayer8_v17_in
 #define packet_opplayer8_osrs241_in packet_opplayer8_v2_in
 #define packet_opplayer8_osrs242_in packet_opplayer8_v18_in
+#define packet_opplayer8_osrs243_in packet_opplayer8_v14_in
 #define packet_opplayer8_osrsm241_in packet_opplayer8_v19_in
 #define packet_opplayer8_osrsm242_in packet_opplayer8_v20_in
 

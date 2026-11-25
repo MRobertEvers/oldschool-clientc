@@ -61,10 +61,12 @@ void packet_if_setplayermodel_basecolour_v19_out(RsprotExec *x, MsgIfSetPlayerMo
 void packet_if_setplayermodel_basecolour_v20_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
 /* v21 -- revs osrs242. */
 void packet_if_setplayermodel_basecolour_v21_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs243. */
 void packet_if_setplayermodel_basecolour_v22_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v23 -- revs osrsm242. */
+/* v23 -- revs osrsm241. */
 void packet_if_setplayermodel_basecolour_v23_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
+/* v24 -- revs osrsm242. */
+void packet_if_setplayermodel_basecolour_v24_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_setplayermodel_basecolour_<R>_out. */
 #define packet_if_setplayermodel_basecolour_osrs221_out packet_if_setplayermodel_basecolour_v1_out
@@ -89,8 +91,9 @@ void packet_if_setplayermodel_basecolour_v23_out(RsprotExec *x, MsgIfSetPlayerMo
 #define packet_if_setplayermodel_basecolour_osrs240_out packet_if_setplayermodel_basecolour_v19_out
 #define packet_if_setplayermodel_basecolour_osrs241_out packet_if_setplayermodel_basecolour_v20_out
 #define packet_if_setplayermodel_basecolour_osrs242_out packet_if_setplayermodel_basecolour_v21_out
-#define packet_if_setplayermodel_basecolour_osrsm241_out packet_if_setplayermodel_basecolour_v22_out
-#define packet_if_setplayermodel_basecolour_osrsm242_out packet_if_setplayermodel_basecolour_v23_out
+#define packet_if_setplayermodel_basecolour_osrs243_out packet_if_setplayermodel_basecolour_v22_out
+#define packet_if_setplayermodel_basecolour_osrsm241_out packet_if_setplayermodel_basecolour_v23_out
+#define packet_if_setplayermodel_basecolour_osrsm242_out packet_if_setplayermodel_basecolour_v24_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setplayermodel_basecolour_out[];

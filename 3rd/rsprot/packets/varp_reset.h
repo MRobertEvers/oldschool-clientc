@@ -19,7 +19,7 @@ typedef struct MsgVarpReset {
 	int32_t _unused;
 } MsgVarpReset;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_varp_reset_v1_out(RsprotExec *x, MsgVarpReset *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_varp_reset_v2_out(RsprotExec *x, MsgVarpReset *m);
@@ -49,6 +49,7 @@ void packet_varp_reset_v3_out(RsprotExec *x, MsgVarpReset *m);
 #define packet_varp_reset_osrs240_out packet_varp_reset_v1_out
 #define packet_varp_reset_osrs241_out packet_varp_reset_v1_out
 #define packet_varp_reset_osrs242_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs243_out packet_varp_reset_v1_out
 #define packet_varp_reset_rs245_2_out packet_varp_reset_v2_out
 #define packet_varp_reset_rs254_out packet_varp_reset_v2_out
 #define packet_varp_reset_rs289_out packet_varp_reset_v2_out

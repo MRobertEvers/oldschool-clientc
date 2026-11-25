@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs223-241, osrs242. */
+/* v1 -- revs osrs223-241, osrs242, osrs243. */
 void
 packet_cam_rotateto_v1_out(RsprotExec *x, MsgCamRotateTo *m)
 {
@@ -31,12 +31,13 @@ packet_cam_rotateto_v2_out(RsprotExec *x, MsgCamRotateTo *m)
 }
 
 /*
- * 4 row(s) for 2 layout(s). A revision not listed has no CAM_ROTATETO and
+ * 5 row(s) for 2 layout(s). A revision not listed has no CAM_ROTATETO and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_rotateto_out[] = {
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_rotateto_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_rotateto_v1_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_cam_rotateto_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_rotateto_v2_out },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_rotateto_v2_out },
 };

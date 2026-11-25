@@ -18,7 +18,7 @@ typedef struct MsgOpPlayer4 {
 	int32_t control_key;
 } MsgOpPlayer4;
 
-/* v1 -- revs osrs221. */
+/* v1 -- revs osrs221, osrs243. */
 void packet_opplayer4_v1_in(RsprotExec *x, MsgOpPlayer4 *m);
 /* v2 -- revs osrs222. */
 void packet_opplayer4_v2_in(RsprotExec *x, MsgOpPlayer4 *m);
@@ -82,6 +82,7 @@ void packet_opplayer4_v20_in(RsprotExec *x, MsgOpPlayer4 *m);
 #define packet_opplayer4_osrs240_in packet_opplayer4_v3_in
 #define packet_opplayer4_osrs241_in packet_opplayer4_v16_in
 #define packet_opplayer4_osrs242_in packet_opplayer4_v17_in
+#define packet_opplayer4_osrs243_in packet_opplayer4_v1_in
 #define packet_opplayer4_rs245_2_in packet_opplayer4_v18_in
 #define packet_opplayer4_rs254_in packet_opplayer4_v18_in
 #define packet_opplayer4_rs289_in packet_opplayer4_v18_in

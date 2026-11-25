@@ -38,10 +38,12 @@ void packet_opworldentity2_v8_in(RsprotExec *x, MsgOpWorldEntity2 *m);
 void packet_opworldentity2_v9_in(RsprotExec *x, MsgOpWorldEntity2 *m);
 /* v10 -- revs osrs242. */
 void packet_opworldentity2_v10_in(RsprotExec *x, MsgOpWorldEntity2 *m);
-/* v11 -- revs osrsm241. */
+/* v11 -- revs osrs243. */
 void packet_opworldentity2_v11_in(RsprotExec *x, MsgOpWorldEntity2 *m);
-/* v12 -- revs osrsm242. */
+/* v12 -- revs osrsm241. */
 void packet_opworldentity2_v12_in(RsprotExec *x, MsgOpWorldEntity2 *m);
+/* v13 -- revs osrsm242. */
+void packet_opworldentity2_v13_in(RsprotExec *x, MsgOpWorldEntity2 *m);
 
 /* Per-revision entry points: what revision R calls is packet_opworldentity2_<R>_in. */
 #define packet_opworldentity2_osrs233_in packet_opworldentity2_v1_in
@@ -54,8 +56,9 @@ void packet_opworldentity2_v12_in(RsprotExec *x, MsgOpWorldEntity2 *m);
 #define packet_opworldentity2_osrs240_in packet_opworldentity2_v8_in
 #define packet_opworldentity2_osrs241_in packet_opworldentity2_v9_in
 #define packet_opworldentity2_osrs242_in packet_opworldentity2_v10_in
-#define packet_opworldentity2_osrsm241_in packet_opworldentity2_v11_in
-#define packet_opworldentity2_osrsm242_in packet_opworldentity2_v12_in
+#define packet_opworldentity2_osrs243_in packet_opworldentity2_v11_in
+#define packet_opworldentity2_osrsm241_in packet_opworldentity2_v12_in
+#define packet_opworldentity2_osrsm242_in packet_opworldentity2_v13_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_opworldentity2_in[];

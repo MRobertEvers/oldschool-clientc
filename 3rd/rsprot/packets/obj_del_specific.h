@@ -39,10 +39,12 @@ void packet_obj_del_specific_v8_out(RsprotExec *x, MsgObjDelSpecific *m);
 void packet_obj_del_specific_v9_out(RsprotExec *x, MsgObjDelSpecific *m);
 /* v10 -- revs osrs242. */
 void packet_obj_del_specific_v10_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v11 -- revs osrsm241. */
+/* v11 -- revs osrs243. */
 void packet_obj_del_specific_v11_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v12 -- revs osrsm242. */
+/* v12 -- revs osrsm241. */
 void packet_obj_del_specific_v12_out(RsprotExec *x, MsgObjDelSpecific *m);
+/* v13 -- revs osrsm242. */
+void packet_obj_del_specific_v13_out(RsprotExec *x, MsgObjDelSpecific *m);
 
 /* Per-revision entry points: what revision R calls is packet_obj_del_specific_<R>_out. */
 #define packet_obj_del_specific_osrs232_out packet_obj_del_specific_v1_out
@@ -56,8 +58,9 @@ void packet_obj_del_specific_v12_out(RsprotExec *x, MsgObjDelSpecific *m);
 #define packet_obj_del_specific_osrs240_out packet_obj_del_specific_v9_out
 #define packet_obj_del_specific_osrs241_out packet_obj_del_specific_v9_out
 #define packet_obj_del_specific_osrs242_out packet_obj_del_specific_v10_out
-#define packet_obj_del_specific_osrsm241_out packet_obj_del_specific_v11_out
-#define packet_obj_del_specific_osrsm242_out packet_obj_del_specific_v12_out
+#define packet_obj_del_specific_osrs243_out packet_obj_del_specific_v11_out
+#define packet_obj_del_specific_osrsm241_out packet_obj_del_specific_v12_out
+#define packet_obj_del_specific_osrsm242_out packet_obj_del_specific_v13_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_del_specific_out[];

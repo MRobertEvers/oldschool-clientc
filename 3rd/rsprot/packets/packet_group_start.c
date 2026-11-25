@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs227-241, osrs242. */
+/* v1 -- revs osrs227-241, osrs242, osrs243. */
 void
 packet_packet_group_start_v1_out(RsprotExec *x, MsgPacketGroupStart *m)
 {
@@ -25,12 +25,13 @@ packet_packet_group_start_v2_out(RsprotExec *x, MsgPacketGroupStart *m)
 }
 
 /*
- * 4 row(s) for 2 layout(s). A revision not listed has no PACKET_GROUP_START and
+ * 5 row(s) for 2 layout(s). A revision not listed has no PACKET_GROUP_START and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_packet_group_start_out[] = {
     { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_packet_group_start_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_packet_group_start_v1_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_packet_group_start_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_packet_group_start_v2_out },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_packet_group_start_v2_out },
 };

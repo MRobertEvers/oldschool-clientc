@@ -19,7 +19,7 @@ typedef struct MsgExitFreecam {
 	int32_t _unused;
 } MsgExitFreecam;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_exit_freecam_v1_in(RsprotExec *x, MsgExitFreecam *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_exit_freecam_v2_in(RsprotExec *x, MsgExitFreecam *m);
@@ -47,6 +47,7 @@ void packet_exit_freecam_v2_in(RsprotExec *x, MsgExitFreecam *m);
 #define packet_exit_freecam_osrs240_in packet_exit_freecam_v1_in
 #define packet_exit_freecam_osrs241_in packet_exit_freecam_v1_in
 #define packet_exit_freecam_osrs242_in packet_exit_freecam_v1_in
+#define packet_exit_freecam_osrs243_in packet_exit_freecam_v1_in
 #define packet_exit_freecam_osrsm241_in packet_exit_freecam_v2_in
 #define packet_exit_freecam_osrsm242_in packet_exit_freecam_v2_in
 

@@ -56,10 +56,12 @@ void packet_if_setnpchead_v17_out(RsprotExec *x, MsgIfSetNpcHead *m);
 void packet_if_setnpchead_v18_out(RsprotExec *x, MsgIfSetNpcHead *m);
 /* v19 -- revs rs245.2, rs254, rs289. */
 void packet_if_setnpchead_v19_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v20 -- revs osrsm241. */
+/* v20 -- revs osrs243. */
 void packet_if_setnpchead_v20_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v21 -- revs osrsm242. */
+/* v21 -- revs osrsm241. */
 void packet_if_setnpchead_v21_out(RsprotExec *x, MsgIfSetNpcHead *m);
+/* v22 -- revs osrsm242. */
+void packet_if_setnpchead_v22_out(RsprotExec *x, MsgIfSetNpcHead *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_setnpchead_<R>_out. */
 #define packet_if_setnpchead_osrs221_out packet_if_setnpchead_v1_out
@@ -84,11 +86,12 @@ void packet_if_setnpchead_v21_out(RsprotExec *x, MsgIfSetNpcHead *m);
 #define packet_if_setnpchead_osrs240_out packet_if_setnpchead_v16_out
 #define packet_if_setnpchead_osrs241_out packet_if_setnpchead_v17_out
 #define packet_if_setnpchead_osrs242_out packet_if_setnpchead_v18_out
+#define packet_if_setnpchead_osrs243_out packet_if_setnpchead_v20_out
 #define packet_if_setnpchead_rs245_2_out packet_if_setnpchead_v19_out
 #define packet_if_setnpchead_rs254_out packet_if_setnpchead_v19_out
 #define packet_if_setnpchead_rs289_out packet_if_setnpchead_v19_out
-#define packet_if_setnpchead_osrsm241_out packet_if_setnpchead_v20_out
-#define packet_if_setnpchead_osrsm242_out packet_if_setnpchead_v21_out
+#define packet_if_setnpchead_osrsm241_out packet_if_setnpchead_v21_out
+#define packet_if_setnpchead_osrsm242_out packet_if_setnpchead_v22_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setnpchead_out[];

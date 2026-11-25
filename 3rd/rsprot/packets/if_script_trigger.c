@@ -142,9 +142,20 @@ packet_if_script_trigger_v12_in(RsprotExec *x, MsgIfScriptTrigger *m)
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
-/* v13 -- revs osrsm241. */
+/* v13 -- revs osrs243. */
 void
 packet_if_script_trigger_v13_in(RsprotExec *x, MsgIfScriptTrigger *m)
+{
+    RSPROT_U2_12(x, m->obj);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U4_3412(x, m->crc);
+    RSPROT_REST(x, m->copy, m->copy_length);
+}
+
+/* v14 -- revs osrsm241. */
+void
+packet_if_script_trigger_v14_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
     RSPROT_COM_2143(x, m->combined_id);
     RSPROT_U2_12(x, m->obj);
@@ -153,9 +164,9 @@ packet_if_script_trigger_v13_in(RsprotExec *x, MsgIfScriptTrigger *m)
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
-/* v14 -- revs osrsm242. */
+/* v15 -- revs osrsm242. */
 void
-packet_if_script_trigger_v14_in(RsprotExec *x, MsgIfScriptTrigger *m)
+packet_if_script_trigger_v15_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
     RSPROT_COM_2143(x, m->combined_id);
     RSPROT_U4_4321(x, m->crc);
@@ -165,7 +176,7 @@ packet_if_script_trigger_v14_in(RsprotExec *x, MsgIfScriptTrigger *m)
 }
 
 /*
- * 14 row(s) for 14 layout(s). A revision not listed has no IF_SCRIPT_TRIGGER and
+ * 15 row(s) for 15 layout(s). A revision not listed has no IF_SCRIPT_TRIGGER and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_script_trigger_in[] = {
@@ -181,8 +192,9 @@ const RsprotVersionRange rsprot_if_script_trigger_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_script_trigger_v10_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_script_trigger_v11_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_script_trigger_v12_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_script_trigger_v13_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_script_trigger_v14_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_if_script_trigger_v13_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_script_trigger_v14_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_script_trigger_v15_in },
 };
 
 const int rsprot_if_script_trigger_in_count =

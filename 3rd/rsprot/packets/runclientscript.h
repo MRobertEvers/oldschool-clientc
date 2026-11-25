@@ -89,6 +89,7 @@ void packet_runclientscript_v1_out(RsprotExec *x, MsgRunClientScript *m);
 #define packet_runclientscript_osrs240_out packet_runclientscript_v1_out
 #define packet_runclientscript_osrs241_out packet_runclientscript_v1_out
 #define packet_runclientscript_osrs242_out packet_runclientscript_v1_out
+#define packet_runclientscript_osrs243_out packet_runclientscript_v1_out
 #define packet_runclientscript_osrsm241_out packet_runclientscript_v1_out
 #define packet_runclientscript_osrsm242_out packet_runclientscript_v1_out
 

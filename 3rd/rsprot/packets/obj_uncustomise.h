@@ -53,10 +53,12 @@ void packet_obj_uncustomise_v15_out(RsprotExec *x, MsgObjUncustomise *m);
 void packet_obj_uncustomise_v16_out(RsprotExec *x, MsgObjUncustomise *m);
 /* v17 -- revs osrs242. */
 void packet_obj_uncustomise_v17_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v18 -- revs osrsm241. */
+/* v18 -- revs osrs243. */
 void packet_obj_uncustomise_v18_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v19 -- revs osrsm242. */
+/* v19 -- revs osrsm241. */
 void packet_obj_uncustomise_v19_out(RsprotExec *x, MsgObjUncustomise *m);
+/* v20 -- revs osrsm242. */
+void packet_obj_uncustomise_v20_out(RsprotExec *x, MsgObjUncustomise *m);
 
 /* Per-revision entry points: what revision R calls is packet_obj_uncustomise_<R>_out. */
 #define packet_obj_uncustomise_osrs226_out packet_obj_uncustomise_v1_out
@@ -76,8 +78,9 @@ void packet_obj_uncustomise_v19_out(RsprotExec *x, MsgObjUncustomise *m);
 #define packet_obj_uncustomise_osrs240_out packet_obj_uncustomise_v15_out
 #define packet_obj_uncustomise_osrs241_out packet_obj_uncustomise_v16_out
 #define packet_obj_uncustomise_osrs242_out packet_obj_uncustomise_v17_out
-#define packet_obj_uncustomise_osrsm241_out packet_obj_uncustomise_v18_out
-#define packet_obj_uncustomise_osrsm242_out packet_obj_uncustomise_v19_out
+#define packet_obj_uncustomise_osrs243_out packet_obj_uncustomise_v18_out
+#define packet_obj_uncustomise_osrsm241_out packet_obj_uncustomise_v19_out
+#define packet_obj_uncustomise_osrsm242_out packet_obj_uncustomise_v20_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_uncustomise_out[];

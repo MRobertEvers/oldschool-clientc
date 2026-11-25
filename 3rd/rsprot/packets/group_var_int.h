@@ -19,7 +19,7 @@ typedef struct MsgGroupVarInt {
 	int32_t update_variable_value;
 } MsgGroupVarInt;
 
-/* v1 -- revs osrs239-241, osrs242. */
+/* v1 -- revs osrs239-241, osrs242, osrs243. */
 void packet_group_var_int_v1_out(RsprotExec *x, MsgGroupVarInt *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_group_var_int_v2_out(RsprotExec *x, MsgGroupVarInt *m);
@@ -29,6 +29,7 @@ void packet_group_var_int_v2_out(RsprotExec *x, MsgGroupVarInt *m);
 #define packet_group_var_int_osrs240_out packet_group_var_int_v1_out
 #define packet_group_var_int_osrs241_out packet_group_var_int_v1_out
 #define packet_group_var_int_osrs242_out packet_group_var_int_v1_out
+#define packet_group_var_int_osrs243_out packet_group_var_int_v1_out
 #define packet_group_var_int_osrsm241_out packet_group_var_int_v2_out
 #define packet_group_var_int_osrsm242_out packet_group_var_int_v2_out
 

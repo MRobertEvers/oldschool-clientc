@@ -21,9 +21,20 @@ packet_oploc5_v3_v1_in(RsprotExec *x, MsgOpLoc5V3 *m)
     RSPROT_U2_12_ADD128(x, m->z);
 }
 
-/* v2 -- revs osrsm242. */
+/* v2 -- revs osrs243. */
 void
 packet_oploc5_v3_v2_in(RsprotExec *x, MsgOpLoc5V3 *m)
+{
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U3_213(x, m->id);
+    RSPROT_U1_SUB128(x, m->subop);
+    RSPROT_U2_12_ADD128(x, m->z);
+}
+
+/* v3 -- revs osrsm242. */
+void
+packet_oploc5_v3_v3_in(RsprotExec *x, MsgOpLoc5V3 *m)
 {
     RSPROT_U3_321(x, m->id);
     RSPROT_U2_21(x, m->x);
@@ -33,12 +44,13 @@ packet_oploc5_v3_v2_in(RsprotExec *x, MsgOpLoc5V3 *m)
 }
 
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no OPLOC5_V3 and
+ * 3 row(s) for 3 layout(s). A revision not listed has no OPLOC5_V3 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_oploc5_v3_in[] = {
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_oploc5_v3_v1_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_oploc5_v3_v2_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_oploc5_v3_v2_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_oploc5_v3_v3_in },
 };
 
 const int rsprot_oploc5_v3_in_count =

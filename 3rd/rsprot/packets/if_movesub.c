@@ -122,7 +122,7 @@ packet_if_movesub_v14_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_1234(x, m->source_combined_id);
 }
 
-/* v15 -- revs osrsm241. */
+/* v15 -- revs osrs243. */
 void
 packet_if_movesub_v15_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -130,16 +130,24 @@ packet_if_movesub_v15_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_1234(x, m->source_combined_id);
 }
 
-/* v16 -- revs osrsm242. */
+/* v16 -- revs osrsm241. */
 void
 packet_if_movesub_v16_out(RsprotExec *x, MsgIfMoveSub *m)
+{
+    RSPROT_COM_1234(x, m->destination_combined_id);
+    RSPROT_COM_1234(x, m->source_combined_id);
+}
+
+/* v17 -- revs osrsm242. */
+void
+packet_if_movesub_v17_out(RsprotExec *x, MsgIfMoveSub *m)
 {
     RSPROT_COM_3412(x, m->destination_combined_id);
     RSPROT_COM_3412(x, m->source_combined_id);
 }
 
 /*
- * 23 row(s) for 16 layout(s). A revision not listed has no IF_MOVESUB and
+ * 24 row(s) for 17 layout(s). A revision not listed has no IF_MOVESUB and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_movesub_out[] = {
@@ -164,8 +172,9 @@ const RsprotVersionRange rsprot_if_movesub_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_movesub_v8_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_movesub_v4_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_movesub_v11_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_movesub_v15_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_movesub_v16_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_if_movesub_v15_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_movesub_v16_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_movesub_v17_out },
 };
 
 const int rsprot_if_movesub_out_count =

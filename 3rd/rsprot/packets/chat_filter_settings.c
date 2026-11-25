@@ -146,24 +146,32 @@ packet_chat_filter_settings_v17_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1(x, m->trade_chat_filter);
 }
 
-/* v18 -- revs osrsm241. */
+/* v18 -- revs osrs243. */
 void
 packet_chat_filter_settings_v18_out(RsprotExec *x, MsgChatFilterSettings *m)
+{
+    RSPROT_U1_NEG(x, m->public_chat_filter);
+    RSPROT_U1(x, m->trade_chat_filter);
+}
+
+/* v19 -- revs osrsm241. */
+void
+packet_chat_filter_settings_v19_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
     RSPROT_U1_ADD128(x, m->trade_chat_filter);
     RSPROT_U1_SUB128(x, m->public_chat_filter);
 }
 
-/* v19 -- revs osrsm242. */
+/* v20 -- revs osrsm242. */
 void
-packet_chat_filter_settings_v19_out(RsprotExec *x, MsgChatFilterSettings *m)
+packet_chat_filter_settings_v20_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
     RSPROT_U1_NEG(x, m->trade_chat_filter);
     RSPROT_U1_NEG(x, m->public_chat_filter);
 }
 
 /*
- * 24 row(s) for 19 layout(s). A revision not listed has no CHAT_FILTER_SETTINGS and
+ * 25 row(s) for 20 layout(s). A revision not listed has no CHAT_FILTER_SETTINGS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_chat_filter_settings_out[] = {
@@ -189,8 +197,9 @@ const RsprotVersionRange rsprot_chat_filter_settings_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_chat_filter_settings_v14_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_chat_filter_settings_v16_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_chat_filter_settings_v17_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_chat_filter_settings_v18_out },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_chat_filter_settings_v19_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_chat_filter_settings_v18_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_chat_filter_settings_v19_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_chat_filter_settings_v20_out },
 };
 
 const int rsprot_chat_filter_settings_out_count =

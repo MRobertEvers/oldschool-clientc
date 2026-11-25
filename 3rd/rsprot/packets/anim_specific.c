@@ -90,7 +90,7 @@ packet_anim_specific_v10_out(RsprotExec *x, MsgAnimSpecific *m)
     RSPROT_U1(x, m->delay);
 }
 
-/* v11 -- revs osrs231-232. */
+/* v11 -- revs osrs231-232, osrs243. */
 void
 packet_anim_specific_v11_out(RsprotExec *x, MsgAnimSpecific *m)
 {
@@ -163,7 +163,7 @@ packet_anim_specific_v19_out(RsprotExec *x, MsgAnimSpecific *m)
 }
 
 /*
- * 23 row(s) for 19 layout(s). A revision not listed has no ANIM_SPECIFIC and
+ * 24 row(s) for 19 layout(s). A revision not listed has no ANIM_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_anim_specific_out[] = {
@@ -188,6 +188,7 @@ const RsprotVersionRange rsprot_anim_specific_out[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_anim_specific_v16_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_anim_specific_v8_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_anim_specific_v17_out },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_anim_specific_v11_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_anim_specific_v18_out },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_anim_specific_v19_out },
 };

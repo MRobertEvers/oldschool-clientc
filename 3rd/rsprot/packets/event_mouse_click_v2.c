@@ -164,9 +164,23 @@ packet_event_mouse_click_v2_v11_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v12 -- revs osrsm241. */
+/* v12 -- revs osrs243. */
 void
 packet_event_mouse_click_v2_v12_in(RsprotExec *x, MsgEventMouseClickV2 *m)
+{
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->y);
+    RSPROT_U1_ADD128(x, m->code);
+    RSPROT_U2_12_ADD128(x, m->packed);
+    int32_t right_click = (m->packed & (0x1 != 0));
+    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
+    m->last_transmitted_mouse_click = last_transmitted_mouse_click;
+    m->right_click = right_click;
+}
+
+/* v13 -- revs osrsm241. */
+void
+packet_event_mouse_click_v2_v13_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
     RSPROT_U2_12(x, m->packed);
     RSPROT_U2_12_ADD128(x, m->y);
@@ -178,9 +192,9 @@ packet_event_mouse_click_v2_v12_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v13 -- revs osrsm242. */
+/* v14 -- revs osrsm242. */
 void
-packet_event_mouse_click_v2_v13_in(RsprotExec *x, MsgEventMouseClickV2 *m)
+packet_event_mouse_click_v2_v14_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
     RSPROT_U1(x, m->code);
     RSPROT_U2_12(x, m->x);
@@ -193,7 +207,7 @@ packet_event_mouse_click_v2_v13_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 }
 
 /*
- * 13 row(s) for 13 layout(s). A revision not listed has no EVENT_MOUSE_CLICK_V2 and
+ * 14 row(s) for 14 layout(s). A revision not listed has no EVENT_MOUSE_CLICK_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_event_mouse_click_v2_in[] = {
@@ -208,8 +222,9 @@ const RsprotVersionRange rsprot_event_mouse_click_v2_in[] = {
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_event_mouse_click_v2_v9_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_mouse_click_v2_v10_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_event_mouse_click_v2_v11_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_event_mouse_click_v2_v12_in },
-    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_event_mouse_click_v2_v13_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_event_mouse_click_v2_v12_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_event_mouse_click_v2_v13_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_event_mouse_click_v2_v14_in },
 };
 
 const int rsprot_event_mouse_click_v2_in_count =

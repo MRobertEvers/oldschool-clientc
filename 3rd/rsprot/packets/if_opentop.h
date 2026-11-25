@@ -116,6 +116,7 @@ void packet_if_opentop_v4_out(RsprotExec *x, MsgIfOpenTop *m);
 #define packet_if_opentop_osrs240_out packet_if_opentop_v2_out
 #define packet_if_opentop_osrs241_out packet_if_opentop_v4_out
 #define packet_if_opentop_osrs242_out packet_if_opentop_v4_out
+#define packet_if_opentop_osrs243_out packet_if_opentop_v2_out
 /* osrsm242 -- the Android 242.3 client. */
 void packet_if_opentop_osrsm242_out(RsprotExec *x, MsgIfOpenTop *m);
 #define packet_if_opentop_osrsm241_out packet_if_opentop_v2_out

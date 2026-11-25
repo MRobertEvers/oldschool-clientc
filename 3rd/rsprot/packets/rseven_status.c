@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs227-241, osrs242. */
+/* v1 -- revs osrs227-241, osrs242, osrs243. */
 void
 packet_rseven_status_v1_in(RsprotExec *x, MsgRSevenStatus *m)
 {
@@ -25,12 +25,13 @@ packet_rseven_status_v2_in(RsprotExec *x, MsgRSevenStatus *m)
 }
 
 /*
- * 4 row(s) for 2 layout(s). A revision not listed has no RSEVEN_STATUS and
+ * 5 row(s) for 2 layout(s). A revision not listed has no RSEVEN_STATUS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_rseven_status_in[] = {
     { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_rseven_status_v1_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_rseven_status_v1_in },
+    { RSPROT_OSRS_ID(243), RSPROT_OSRS_ID(243), (RsprotCodecFn)packet_rseven_status_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_rseven_status_v2_in },
     { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_rseven_status_v2_in },
 };

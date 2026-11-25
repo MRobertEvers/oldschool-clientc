@@ -19,7 +19,7 @@ typedef struct MsgVarClanEnable {
 	int32_t _unused;
 } MsgVarClanEnable;
 
-/* v1 -- revs osrs221-241, osrs242. */
+/* v1 -- revs osrs221-241, osrs242, osrs243. */
 void packet_varclan_enable_v1_out(RsprotExec *x, MsgVarClanEnable *m);
 /* v2 -- revs osrsm241, osrsm242. */
 void packet_varclan_enable_v2_out(RsprotExec *x, MsgVarClanEnable *m);
@@ -47,6 +47,7 @@ void packet_varclan_enable_v2_out(RsprotExec *x, MsgVarClanEnable *m);
 #define packet_varclan_enable_osrs240_out packet_varclan_enable_v1_out
 #define packet_varclan_enable_osrs241_out packet_varclan_enable_v1_out
 #define packet_varclan_enable_osrs242_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs243_out packet_varclan_enable_v1_out
 #define packet_varclan_enable_osrsm241_out packet_varclan_enable_v2_out
 #define packet_varclan_enable_osrsm242_out packet_varclan_enable_v2_out
 
