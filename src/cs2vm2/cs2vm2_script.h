@@ -79,18 +79,18 @@ struct CS2VM2_Script
     struct CS2VM2_Str** string_constants;
     int switch_table_count;
     struct CS2VM2_ScriptSwitch* switch_tables;
-    /* The load-time jit's overlay (cs2vm2_jit.h): NULL runs the plain codes
-     * below. Built or attached only while no frame references the script;
-     * freed by CS2VM2_ScriptFree. */
+    /* The load-time jit's overlay (cs2vm2_jit.h), NULL when none was built
+     * or attached. Built or attached only while no frame references the
+     * script; freed by CS2VM2_ScriptFree. */
     struct CS2VM2_Jit* jit;
-    /* What the interpreter's one loop switches on: a code per pc
-     * (enum CS2VM2_JitCode). run_code is the jit overlay's codes while one is
-     * attached and plain_code otherwise; plain_code is the script's own
-     * (g_cs2vm2_hot_op of each opcode, 0 = call the opcode's handler), built
-     * by CS2VM2_ScriptPrepare. The loop never looks an opcode up to decide
-     * how to run it. */
-    uint8_t* plain_code;
-    uint8_t const* run_code;
+    /* What the interpreter's loop switches on, one enum CS2_Op per pc and
+     * END_OF_SCRIPT at op_count: the jit overlay's array while one is
+     * attached, prepared_ops otherwise. prepared_ops is the script's own,
+     * made by CS2VM2_ScriptPrepare (CS2VM2_ScriptBuildRunOps): opcodes, with
+     * RUN_HANDLER where a FAST case cannot be trusted. The loop never looks
+     * an instruction up to decide how to run it. */
+    uint16_t* prepared_ops;
+    uint16_t const* run_ops;
     /* Remembered gosub callees (cs2vm2_callee.h): per pc, the script the
      * gosub there pushed last, good while callees_epoch is the process's
      * script epoch. NULL for a script with no GOSUB_WITH_PARAMS. Made by
@@ -134,10 +134,11 @@ CS2VM2_ScriptEnsureConstants(struct CS2VM2_Script* script);
 /*
  * Everything a run assumes of a script, done once when it is loaded: its
  * string constants (a constant row for every pc, NULL where an op has none)
- * and its dispatch codes (plain_code, and run_code while no jit overlay is
- * attached). Every loader and CS2VM2_ScriptCopy call it after the opcodes are
- * final (the dialect's translation, CS2VM2_ScriptResolveDialect); whoever builds a script by hand
- * calls it before the script first runs, and again after changing an opcode.
+ * and the array the loop runs (prepared_ops, and run_ops while no jit overlay
+ * is attached). Every loader and CS2VM2_ScriptCopy call it after the opcodes
+ * are final (the dialect's translation, CS2VM2_ScriptResolveDialect); whoever
+ * builds a script by hand calls it before the script first runs, and again
+ * after changing an opcode.
  * CS2VM2_PushCallScript asserts it was done and checks nothing itself.
  */
 void

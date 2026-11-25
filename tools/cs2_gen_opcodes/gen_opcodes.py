@@ -24,7 +24,7 @@ HOST_REQUEST_KINDS = OUT_DIR / "cs2vm2_host_request_kinds.def"
 
 import canonical
 import catalogue
-import check_fast_arms
+import check_loop_arms
 from canonical import Instruction
 from local_opcodes import (
     DECODE_OPERAND_OVERRIDES,
@@ -423,29 +423,44 @@ HEADER_PREAMBLE = """\
  *     229; CC_CREATE_V2 four, from 230);
  *   - a command of the RS2 634 client that is not OldSchool's command at the
  *     same wire id is RS2_<what it does> (RS2_CC_GETPARAM);
- *   - the jit's instructions (the section from CS2_OP_JIT_FIRST) are named by
- *     what they do: a fused instruction joins the names of the instructions
- *     it replaces, in order, with "__" (PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD__POP_INT_LOCAL);
- *     a load-proven one is the instruction's name followed by what was proven
- *     (PUSH_INT_LOCAL_DECLARED: its local is below the script's declared count).
+ *   - the JIT section's instructions are named by what they do: a fused
+ *     instruction joins the names of the instructions it replaces, in order,
+ *     with "__" (PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD__POP_INT_LOCAL); a
+ *     load-proven one is the instruction's name followed by what was proven
+ *     (PUSH_INT_LOCAL_DECLARED: its local is below the script's declared
+ *     count); END_OF_SCRIPT and RUN_HANDLER say what they do.
  *
  * ORDER: three ranges, each contiguous.
- *   - FAST, [0, CS2_OP_FAST_END): the instructions the interpreter's loop
- *     runs itself on its registers (constants, int locals, the int branches,
- *     int arithmetic), marked in tools/cs2_gen_opcodes/fast_instructions.py,
- *     in wire order. None asks the host, yields or moves a frame; each has a
- *     case in the loop (cs2vm2_hot_cases.inc, checked by check_fast_arms.py),
- *     and a case that cannot run as it stands gives the instruction to its
- *     handler.
- *   - GENERAL, [CS2_OP_FAST_END, CS2_OP_PLAIN_COUNT): every other instruction
- *     a loaded script can hold, run by its handler (CS2VM2_RunOp). The
- *     OldSchool wire order, so each dispatch group of the reference client is
- *     one contiguous range of its GENERAL instructions, CS2_OPS_<GROUP>_BEGIN
- *     .. _END (exclusive; a group's FAST instructions are in the FAST range);
- *     a versioned family takes its command's place. Then the RS2 634 section,
- *     then UNDEFINED_WIRE_ID.
- *   - JIT, from CS2_OP_PLAIN_COUNT: the jit's, which appear only in its
- *     overlay (script->run_code), never in a loaded script.
+ *   - GENERAL, [0, CS2_OP_FAST_BEGIN): every instruction a loaded script can
+ *     hold that its handler runs (CS2VM2_RunOp). The OldSchool wire order, so
+ *     each dispatch group of the reference client is one contiguous range of
+ *     its GENERAL instructions, CS2_OPS_<GROUP>_BEGIN .. _END (exclusive; a
+ *     group's FAST instructions are in the FAST range); a versioned family
+ *     takes its command's place. Then the RS2 634 section, then
+ *     UNDEFINED_WIRE_ID. The loop has no case for these: its default gives
+ *     the instruction it switched on to the handler.
+ *   - FAST, [CS2_OP_FAST_BEGIN, CS2_OP_PLAIN_COUNT): the instructions the
+ *     interpreter's loop runs itself on its registers (constants, int
+ *     locals, the int branches, int arithmetic), marked in
+ *     tools/cs2_gen_opcodes/fast_instructions.py, in wire order. None asks
+ *     the host, yields or moves a frame; each has a case in the loop
+ *     (cs2vm2_fast_cases.inc, checked by check_loop_arms.py), and a case that
+ *     cannot run as it stands gives the instruction to its handler.
+ *   - JIT, [CS2_OP_JIT_FIRST == CS2_OP_PLAIN_COUNT, CS2_OP_COUNT): written
+ *     only by the loader into the array the loop runs (script->run_ops: END_OF_SCRIPT
+ *     and RUN_HANDLER by CS2VM2_ScriptPrepare, the rest by the load-time
+ *     jit), never in a loaded script's opcodes. Each has a case in the loop
+ *     (cs2vm2_jit_cases.inc). Listed in tools/cs2_gen_opcodes/jit_instructions.py,
+ *     whose order is the jit blob's.
+ *
+ * FAST and JIT are adjacent, so the loop's cases are one contiguous range
+ * and its switch is one bounds test and one table jump (canonical.py).
+ *
+ * LOAD, then RUN: a script's wire ids become these instructions once
+ * (opcodes); a load pass then makes the array the loop runs, op_count + 1
+ * long (the jit's when it builds or attaches one, otherwise
+ * CS2VM2_ScriptPrepare's: opcodes, END_OF_SCRIPT at op_count, RUN_HANDLER
+ * where a FAST case cannot be trusted); the loop switches on that array.
  */
 """
 
@@ -474,12 +489,12 @@ def emit_header(
     current_only: str | None = None
     only_groups = {enum_name: (slug, summary) for enum_name, slug, summary in CANONICAL_ONLY_GROUPS}
     everything = instructions + jit_instructions
-    fast_end = sum(1 for ins in instructions if ins.fast)
-    if any(ins.fast for ins in instructions[fast_end:]):
-        raise ValueError("the FAST instructions are not the first of the numbering")
+    fast_begin = sum(1 for ins in instructions if not ins.fast)
+    if any(not ins.fast for ins in instructions[fast_begin:]):
+        raise ValueError("the FAST instructions are not the last of what a script can hold")
     for value, ins in enumerate(everything):
         if ins.fast:
-            if value == 0:
+            if value == fast_begin:
                 lines += [
                     "",
                     "    /* === FAST: the instructions the interpreter's loop runs itself ===",
@@ -502,7 +517,9 @@ def emit_header(
         if ins.wire is not None and not ins.rs2 and ins.wire in SECTION_COMMENTS and ins.version_of is None:
             lines.extend("    " + l for l in SECTION_COMMENTS[ins.wire])
         doc = OPCODE_DOCS.get(ins.doc_name) or (OPCODE_DOCS.get(ins.version_of) if ins.version_of else None)
-        if doc:
+        if ins.summary:
+            lines.append(f"    /* {ins.name} -- {ins.summary}. */")
+        elif doc:
             lines.extend("    " + l for l in format_opcode_comment(ins.name, doc))
         if ins.wire is None:
             tail = ""
@@ -515,12 +532,14 @@ def emit_header(
             lines.append(f"    CS2_OP_{alias} = CS2_OP_{ins.name},")
     lines += ["};", ""]
     lines += [
-        "/* The FAST range is [0, CS2_OP_FAST_END); GENERAL is [CS2_OP_FAST_END,",
-        " * CS2_OP_PLAIN_COUNT). */",
-        f"#define CS2_OP_FAST_END {fast_end}",
-        "/* Instructions a loaded script can hold (its opcodes[]); the jit's follow. */",
+        "/* GENERAL is [0, CS2_OP_FAST_BEGIN); FAST is [CS2_OP_FAST_BEGIN, CS2_OP_PLAIN_COUNT). */",
+        f"#define CS2_OP_FAST_BEGIN {fast_begin}",
+        "/* Instructions a loaded script can hold (its opcodes[]); the JIT section follows. */",
         f"#define CS2_OP_PLAIN_COUNT {len(instructions)}",
-        "/* Every instruction, the jit's included: what the interpreter switches on. */",
+        "/* The JIT section, [CS2_OP_JIT_FIRST, CS2_OP_COUNT): only the loader writes these,",
+        " * into the array the loop runs. Its order is the jit blob's (jit_instructions.py). */",
+        "#define CS2_OP_JIT_FIRST CS2_OP_PLAIN_COUNT",
+        "/* Every instruction, the JIT section's included: what the interpreter's loop switches on. */",
         f"#define CS2_OP_COUNT {len(everything)}",
         "/* Names this exact numbering (canonical.numbering_hash); the jit's blob",
         " * format folds it in, so a regenerated numbering never reads an old blob. */",
@@ -529,7 +548,7 @@ def emit_header(
         "/* Each group's instructions: [BEGIN, END). A component group the reference",
         " * client gives two ranges (the active-component CC_ commands and the",
         " * explicit-component IF_ ones) has a range for each. A range holds the",
-        " * group's GENERAL instructions; its FAST ones are below CS2_OP_FAST_END. */",
+        " * group's GENERAL instructions; its FAST ones are in the FAST range. */",
     ]
     for group in OPCODE_GROUPS:
         for idx, span in enumerate(group.spans):
@@ -556,6 +575,13 @@ def emit_header(
         end = members[-1] + 1 if members else begin
         lines.append(f"#define CS2_OPS_{enum_name}_BEGIN {begin}")
         lines.append(f"#define CS2_OPS_{enum_name}_END {end}")
+    if jit_instructions:
+        import jit_instructions as jit_list
+
+        fused = next(i for i, ins in enumerate(everything) if ins.name == jit_list.FIRST_FUSED)
+        lines.append("/* The JIT section's fused instructions: [BEGIN, END). */")
+        lines.append(f"#define CS2_OPS_JIT_FUSED_BEGIN {fused}")
+        lines.append(f"#define CS2_OPS_JIT_FUSED_END {len(everything)}")
     lines += ["", "#endif", ""]
     return "\n".join(lines)
 
@@ -1026,21 +1052,15 @@ def emit_semantics_c() -> str:
         "int const cs2_opcode_semantics_count =",
         "    (int)(sizeof(cs2_opcode_semantics) / sizeof(cs2_opcode_semantics[0]));",
         "",
+        "/* A scan, not a search: the rows are in wire order, which is not the",
+        " * canonical numbering's (the FAST range sits after GENERAL). */",
         "struct CS2_OpcodeSemantics const*",
         "CS2_OpcodeSemanticsLookup(int opcode)",
         "{",
-        "    int lo = 0;",
-        "    int hi = cs2_opcode_semantics_count - 1;",
-        "    while( lo <= hi )",
+        "    for( int i = 0; i < cs2_opcode_semantics_count; i++ )",
         "    {",
-        "        int mid = lo + (hi - lo) / 2;",
-        "        int value = cs2_opcode_semantics[mid].opcode;",
-        "        if( value == opcode )",
-        "            return &cs2_opcode_semantics[mid];",
-        "        if( value < opcode )",
-        "            lo = mid + 1;",
-        "        else",
-        "            hi = mid - 1;",
+        "        if( cs2_opcode_semantics[i].opcode == opcode )",
+        "            return &cs2_opcode_semantics[i];",
         "    }",
         "    return NULL;",
         "}",
@@ -1304,7 +1324,8 @@ def build_canonical(entries: list[tuple[str, int]]):
     instructions = canonical.build_instructions(entries)
     dialects = canonical.build_dialects(entries)
     canonical.validate(instructions, dialects)
-    return instructions, dialects, canonical.numbering_hash(instructions)
+    jit = canonical.build_jit_instructions(instructions)
+    return instructions, jit, dialects, canonical.numbering_hash(instructions + jit)
 
 
 def main() -> int:
@@ -1316,18 +1337,18 @@ def main() -> int:
     entries = merge_local(vendor_entries)
     validate_documented_names(entries)
     validate_group_coverage(entries)
-    instructions, dialects, numbering = build_canonical(entries)
+    instructions, jit, dialects, numbering = build_canonical(entries)
     validate_dispatch_grouping(instructions)
     validate_opcode_semantics(
         entries, DISPATCH_SOURCE, operand_kind, handler_kind, canonical_name_of
     )
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUT_DIR / "cs2_opcode.h").write_text(emit_header(instructions, numbering), encoding="utf-8")
+    (OUT_DIR / "cs2_opcode.h").write_text(emit_header(instructions, numbering, jit), encoding="utf-8")
     (OUT_DIR / "cs2_opcode_renames.gen.json").write_text(
         json.dumps(retired_names(vendor_entries), indent=2) + "\n", encoding="utf-8"
     )
     (OUT_DIR / "cs2_opcode_meta.h").write_text(emit_meta_h(), encoding="utf-8")
-    (OUT_DIR / "cs2_opcode_meta.c").write_text(emit_meta_c(instructions), encoding="utf-8")
+    (OUT_DIR / "cs2_opcode_meta.c").write_text(emit_meta_c(instructions + jit), encoding="utf-8")
     (OUT_DIR / "cs2_opcode_groups.json").write_text(emit_groups_json(), encoding="utf-8")
     (OUT_DIR / "cs2vm2_dialects.gen.inc").write_text(
         emit_dialects_inc(instructions, dialects), encoding="utf-8"
@@ -1374,7 +1395,7 @@ def main() -> int:
     wire_ids.update(WIRE_ONLY_OPCODE_NAMES)
     print(f"generated {len(wire_ids)} wire opcodes -> {CS2DOM_GENERATED_OUT_DIR}")
     print(f"generated rscache decode operands -> {RSCACHE_OUT_DIR}")
-    return check_fast_arms.main()
+    return check_loop_arms.main()
 
 
 if __name__ == "__main__":

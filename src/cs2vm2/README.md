@@ -21,11 +21,12 @@ is delegated to a single host callback (`CS2VM2_HostExec_Fn`).
 | `cs2vm2_host.h` | `CS2VM_HostRequest` union and `CS2VM2_HostExec_Fn` |
 | `cs2vm2_script.h` / `.c` | Decoded clientscript container (`CS2VM2_Script`) |
 | `cs2vm2_jit.h` / `.c` | The load-time jit: build, serialize, validate, copy and free a script's overlay |
-| `cs2vm2_jit_internal.h` | VM-private: `struct CS2VM2_Jit`, the overlay codes (incl. the hot loop's `CS2VM2_HOT_*`), `g_cs2vm2_hot_op`, the fused shapes |
-| `cs2vm2_hot_cases.inc` | The plain hot instructions' cases, included by both hot loops |
+| `cs2vm2_jit_internal.h` | VM-private: `struct CS2VM2_Jit`, `cs2vm2_run_op_at`, the fused shapes |
+| `cs2vm2_fast_cases.inc` | The loop's cases for the FAST instructions |
+| `cs2vm2_jit_cases.inc` | The loop's cases for the JIT-section instructions |
 | `cs2vm2_trigger_args.h` / `.c` | Parse SETON* hook stack layout (`CS2VM2_TriggerArgsParse`) |
 | `cs2vm2_strpool.h` / `.c` | Per-thread string pool backing every VM string (`CS2VM2_StrPool`) |
-| `cs2_opcode.h` | Generated opcode constants |
+| `cs2_opcode.h` | The VM's instruction set, `enum CS2_Op` (generated; its header comment gives the three ranges) |
 | `cs2_opcode_meta.c` / `.h` | Operand kind and VM-vs-host dispatch metadata |
 | `cs2vm2_opcode_stack.gen.h` | Per-opcode int/str stack push/pop deltas |
 | `gen_opcode_stack.py` | Regenerates `cs2vm2_opcode_stack.gen.h` |
@@ -98,40 +99,41 @@ Each thread is a self-contained interpreter state (formerly all of `CS2VMX`):
 Populated by the external decoder. Holds `opcodes`, `int_operands`,
 `string_operands`, switch tables, and argument/local counts. Use
 `CS2VM2_ScriptInit` / `CS2VM2_ScriptFree` for lifecycle. `jit` is the
-load-time overlay (below), NULL for the plain path.
+load-time overlay (below), NULL when the script runs its `prepared_ops`.
 
 ## The load-time jit
 
 Design: [`docs/CS2_JIT.md`](../../docs/CS2_JIT.md). API: `cs2vm2_jit.h`.
 
-A script keeps its opcodes and operands exactly as the cache decoded them
-(the owner's ruling, 2026-11-22: "the packing of the script should be as it
-appears in the cache"). Beside them the VM can hang an **overlay**,
-`script->jit`: one byte per pc, chosen when the script loads, saying what the
-hot loop runs there.
+A script keeps its opcodes (canonical instructions, `enum CS2_Op`, translated
+once from its dialect's wire ids) and operands exactly as they were loaded (the
+owner's ruling, 2026-11-22: "the packing of the script should be as it appears
+in the cache"). The loop runs a second array, `script->run_ops`, `op_count + 1`
+instructions long: `prepared_ops`, made by `CS2VM2_ScriptPrepare` (each pc's
+own instruction, `RUN_HANDLER` where a FAST int branch leaves the script,
+`END_OF_SCRIPT` at `op_count`), or, when one is built or attached, the jit's
+**overlay**, `script->jit`: the same, with an instruction of the JIT section
+(`cs2_opcode.h`, from `CS2_OP_JIT_FIRST`) where the jit proved more:
 
-| code | meaning |
+| instruction | meaning |
 |------|---------|
-| 0 | the general path (`CS2VM2_RunOp`) |
-| 1..31 | the plain hot instruction, `g_cs2vm2_hot_op[opcode]` |
-| 32 `LD` / 33 `PD` | push / pop a declared local (below `local_int_count`), no range or mark test |
-| 34 `CSTR` | push the script's constant string by pointer |
-| 64..87 | a fused group of 2-4 instructions starting at this pc (`g_cs2vm2_jit_shapes`) |
+| `PUSH_INT_LOCAL_DECLARED` / `POP_INT_LOCAL_DECLARED` | push / pop a declared local (below `local_int_count`), no range or mark test |
+| `PUSH_CONSTANT_STRING_PRESENT` | push the script's constant string by pointer |
+| `PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD__POP_INT_LOCAL` and 23 more | a fused group of 2-4 instructions starting at this pc (`g_cs2vm2_jit_shapes`) |
 
-Inner pcs of a group keep their own code, so a branch into the middle of a
-group lands on a valid entry. There is one loop, `cs2vm2_run_script_body`: it
-switches on `script->run_code[pc]`, which is the overlay's codes while one is
-attached and otherwise the script's own plain codes (`plain_code`, built by
-`CS2VM2_ScriptPrepare` when the script is loaded). Code 0 calls the opcode's
-handler from inside the loop; the stack top and pc are written back before the
-call and read again after it.
+Inner pcs of a group keep their own instruction, so a branch into the middle
+of a group lands on a valid entry. There is one loop, `cs2vm2_run_script_body`:
+it switches on `run_ops[pc]`. FAST and JIT-section instructions are its cases;
+a GENERAL instruction is the default, which calls its handler from inside the
+loop; the stack top and pc are written back before the call and read again
+after it.
 
 What keeps it equivalent to the plain VM:
 
 - each fused group checks, before it touches anything, that the int stack
   holds what it needs and has room for its peak, and that the cycle limit
-  cannot fall inside it; otherwise the general path runs its first
-  instruction alone. A group of k counts k cycles.
+  cannot fall inside it; otherwise the handler runs its first instruction
+  alone. A group of k counts k cycles.
 - no group contains an instruction that can fail, yield or ask the host.
 - `CS2VM2_PushCallScript` sizes every frame's int locals to the script's
   declared count (when `0 < n <= CS2VM_MAX_LOCALS`), which is what lets `LD`,
@@ -141,8 +143,8 @@ What keeps it equivalent to the plain VM:
   `LOWERCASE` allocate their result, and a host must treat request strings
   as read-only. A debug build re-hashes a script's constants in
   `CS2VM2_JitFree` and asserts they did not change.
-- traced and profiled runs, and RS2-dialect scripts, never enter either hot
-  loop.
+- a traced or profiled run gives every instruction to its handler and runs
+  no loop case.
 
 Who calls what: the HOST builds (`CS2VM2_JitBuild`) or attaches a cached blob
 (`CS2VM2_JitAttachBlob`, which re-proves every byte against the script, so no
@@ -189,8 +191,8 @@ total.
 
 `CS2VM2_RunScript` runs a fetch-decode-execute loop on the current thread:
 
-1. Switch on the script's dispatch code for `pc` (`script->run_code`, built at load). A hot or jit code runs as a case of the loop.
-2. Code 0: read `opcode`, `operand` and `str_operand`, and dispatch to `CS2VM2_RunOp` — VM opcodes execute inline; host opcodes ask through `CS2VM2_Ask`, which calls `thread->vm->host_exec(thread, &request)`. Nothing is saved first.
+1. Switch on the script's run array at `pc` (`script->run_ops`, built at load). A FAST or JIT-section instruction runs as a case of the loop.
+2. A GENERAL instruction (the default) is the `opcode`; read `operand` and `str_operand`, and dispatch to `CS2VM2_RunOp` — VM opcodes execute inline; host opcodes ask through `CS2VM2_Ask`, which calls `thread->vm->host_exec(thread, &request)`. Nothing is saved first.
 3. On `OK`: advance and continue (up to `CS2VM_MAX_CYCLES` = 1,000,000).
 4. On `YIELD`: the instruction has put back what it took (below); the loop steps `pc` back and returns to the host.
 5. On `ERROR`: record `last_error_opcode` / `last_error_pc` / `last_error_script_id` and return.

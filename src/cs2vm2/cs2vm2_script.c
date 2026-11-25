@@ -90,7 +90,7 @@ CS2VM2_ScriptFree(struct CS2VM2_Script* script)
             ToriMem_Free(ToriMem_Script(), script->string_constants[i]);
         ToriMem_Free(ToriMem_Script(), script->string_constants);
     }
-    ToriMem_Free(ToriMem_Script(), script->plain_code);
+    ToriMem_Free(ToriMem_Script(), script->prepared_ops);
     memset(script, 0, sizeof(*script));
 }
 
@@ -248,14 +248,15 @@ CS2VM2_ScriptPrepare(struct CS2VM2_Script* script)
 
     /* Written again on every call, so a script whose opcodes were changed by
      * hand (a test) is prepared again by calling this again. */
-    if( !script->plain_code )
+    if( !script->prepared_ops )
     {
-        script->plain_code = ToriMem_Calloc(ToriMem_Script(), (size_t)script->op_count + 1u, 1u);
-        assert(script->plain_code);
+        script->prepared_ops =
+            ToriMem_Calloc(ToriMem_Script(), (size_t)script->op_count + 1u, sizeof(*script->prepared_ops));
+        assert(script->prepared_ops);
     }
-    CS2VM2_JitPlainCodes(script, script->plain_code);
+    CS2VM2_ScriptBuildRunOps(script, script->prepared_ops);
     if( !script->jit )
-        script->run_code = script->plain_code;
+        script->run_ops = script->prepared_ops;
     /* A table for the gosubs' callees, empty: the first call at each asks. */
     CS2VM2_CalleePrepare(script);
 }

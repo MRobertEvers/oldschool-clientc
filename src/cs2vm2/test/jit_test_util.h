@@ -14,6 +14,7 @@
  */
 
 #include "cs2vm2/cs2_opcode.h"
+#include "cs2vm2/cs2_opcode_meta.h"
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_jit.h"
 #include "cs2vm2/cs2vm2_jit_internal.h"
@@ -359,7 +360,7 @@ jt_ab_asm(
     jt_ab(&s, setup, label);
     int code = -1;
     if( s.jit && pc_probe >= 0 && pc_probe < s.op_count )
-        code = s.jit->code[pc_probe];
+        code = s.jit->ops[pc_probe];
     CS2VM2_ScriptFree(&s);
     return code;
 }

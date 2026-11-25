@@ -13371,12 +13371,12 @@ CS2VM2_OpArgCounts(
  * INV_GETNUM run once per bank slot, and the loop function has the room since
  * the yield mark went (53 KB of JavaScriptCore's 100 KB before this group,
  * measured 2026-11-24). GENERAL is in wire order, so each group is one range
- * of the dense numbering. The FAST range is below CS2_OPS_CLIENT_BEGIN: the
+ * of the dense numbering. The FAST range, after GENERAL, is excluded: the
  * handlers of the instructions the loop runs itself are in the inline half,
  * beside the loop that gives them their rare stack-check and divide-by-zero
  * cases. */
 #define CS2VM2_RUNOP_OUTLINED(opcode)                                                              \
-    ((opcode) >= CS2_OPS_CLIENT_BEGIN &&                                                           \
+    ((opcode) >= CS2_OPS_CLIENT_BEGIN && (opcode) < CS2_OP_FAST_BEGIN &&                           \
      !((opcode) >= CS2_OPS_CLIENT_STATE_BEGIN && (opcode) < CS2_OPS_CLIENT_STATE_END) &&           \
      !((opcode) >= CS2_OPS_STRING_BEGIN && (opcode) < CS2_OPS_STRING_END))
 /* The definition below is the body both halves inline. */
@@ -16241,24 +16241,23 @@ CS2VM2_DebugPrintOpCode(
 
 #ifndef NDEBUG
 /* Whether `script` was prepared (CS2VM2_ScriptPrepare) and not changed since:
- * a constant row, and dispatch codes that are its jit overlay's or, with no
- * overlay, exactly its opcodes' plain codes. A debug build walks them. */
+ * a constant row, prepared_ops exactly what its opcodes make, and run_ops its
+ * jit overlay's or, with no overlay, prepared_ops. A debug build walks them. */
 static bool
 cs2vm2_script_prepared(struct CS2VM2_Script const* script)
 {
-    if( !script->string_constants || !script->run_code )
-        return false;
-    if( script->jit )
-        return script->run_code == script->jit->code &&
-               script->jit->code[script->op_count] == CS2VM2_JIT_END;
-    if( script->run_code != script->plain_code )
+    if( !script->string_constants || !script->run_ops || !script->prepared_ops )
         return false;
     for( int pc = 0; pc < script->op_count; pc++ )
     {
-        if( script->plain_code[pc] != cs2vm2_plain_code_at(script, pc) )
+        if( script->prepared_ops[pc] != cs2vm2_run_op_at(script, pc) )
             return false;
     }
-    return script->plain_code[script->op_count] == CS2VM2_JIT_END;
+    if( script->prepared_ops[script->op_count] != CS2_OP_END_OF_SCRIPT )
+        return false;
+    if( script->jit )
+        return script->run_ops == script->jit->ops && script->jit->ops[script->op_count] == CS2_OP_END_OF_SCRIPT;
+    return script->run_ops == script->prepared_ops;
 }
 #endif
 
@@ -16326,46 +16325,41 @@ CS2VM2_SetActiveAndDotComponentId(
  * lives in cs2vm2_profiling.c, behind CS2VM2_PROFILING. */
 
 /*
- * THE HOT LOOP.
+ * THE LOOP.
  *
  * Pushing a constant or a local, storing a local, the int branches and the
  * int arithmetic are most of the instructions a client script executes (81%
  * of the bank's build scripts for the first nine alone), and each is a move
- * or two. They are cases of the interpreter's one loop
- * (cs2vm2_run_script_body): the program counter, the int stack's top and the
- * locals are held in registers for as long as the loop runs a frame, and no
- * such instruction is a call. None of these asks the host, so none can yield.
+ * or two. They are the FAST instructions ([CS2_OP_FAST_BEGIN,
+ * CS2_OP_PLAIN_COUNT) of cs2_opcode.h), and each is a case of the interpreter's one loop
+ * (cs2vm2_run_script_body, cases in cs2vm2_fast_cases.inc): the program
+ * counter, the int stack's top and the locals are held in registers for as
+ * long as the loop runs a frame, and no such instruction is a call. None of
+ * these asks the host, so none can yield.
  *
  * A case that cannot run as it stands (a stack too shallow or too deep, a
  * divide by zero) does `goto stop`, having changed nothing: the instruction's
  * handler then runs it and reports whatever is wrong exactly as it always did.
  *
- * The loop switches on a code per pc that the script was given when it was
- * loaded (script->run_code): g_cs2vm2_hot_op maps an opcode to the loop's own
- * small dense number, 0 for "call the handler", so the dispatch is one table
- * jump and no opcode is looked up while the script runs. Switched on the
- * opcodes directly (0, 6..10, 31..34, 4000..4035) the compiler built a tree
- * of compares, three to five branches an instruction.
+ * The loop switches on the array the script was given when it was loaded
+ * (script->run_ops): enum CS2_Op values, so the dispatch is one bounds test
+ * and one table jump, and nothing is looked up while the script runs. A
+ * GENERAL instruction is the switch's default, which gives the value it
+ * switched on to its handler (CS2VM2_RunOp's switch). The JIT section's
+ * instructions are cases too (cs2vm2_jit_cases.inc): END_OF_SCRIPT, at
+ * op_count of every run array; RUN_HANDLER; and, in a script with a jit
+ * overlay (cs2vm2_jit.h), its fused and proven forms.
  *
  * The arithmetic itself is the cs2_math_* functions, the same ones the
- * general handlers call. These instructions are the FAST range of the
- * numbering ([0, CS2_OP_FAST_END), cs2_opcode.h). To put another one here:
- * mark it in tools/cs2_gen_opcodes/fast_instructions.py and regenerate, give
- * it a number and a row in the table (cs2vm2_jit_internal.h, which bumps
- * CS2VM2_JIT_FORMAT_VERSION) and a case (cs2vm2_hot_cases.inc); the build's
- * checks (check_fast_arms.py, test-cs2-opcode-groups) fail until all agree.
- *
- * A script with a jit overlay (script->jit, cs2vm2_jit.h) runs the overlay's
- * codes: the same switch, with fused groups and proven-bounds forms beside
- * the plain cases.
+ * handlers call. To make another instruction FAST: mark it in
+ * tools/cs2_gen_opcodes/fast_instructions.py, regenerate, and give it a case
+ * in cs2vm2_fast_cases.inc; check_loop_arms.py fails until both agree.
  */
-/* The CS2VM2_HOT_* numbers and g_cs2vm2_hot_op live in cs2vm2_jit_internal.h:
- * they are the jit overlay's plain codes too, frozen by its blob format. */
 
 /* The shapes the arithmetic cases share. `a` is under `b`, `b` is the top;
  * with three operands `c` is the top. Each leaves one result where its
  * deepest operand was. */
-#define CS2VM2_HOT_UNARY(expr)                                                                     \
+#define CS2VM2_FAST_UNARY(expr)                                                                     \
     {                                                                                              \
         if( top < 1 )                                                                              \
             goto stop;                                                                             \
@@ -16374,7 +16368,7 @@ CS2VM2_SetActiveAndDotComponentId(
         pc += 1;                                                                                   \
     }                                                                                              \
     break
-#define CS2VM2_HOT_BINARY(expr)                                                                    \
+#define CS2VM2_FAST_BINARY(expr)                                                                    \
     {                                                                                              \
         if( top < 2 )                                                                              \
             goto stop;                                                                             \
@@ -16386,7 +16380,7 @@ CS2VM2_SetActiveAndDotComponentId(
     }                                                                                              \
     break
 /* `call` answers false where the reference ends the script. */
-#define CS2VM2_HOT_BINARY_CHECKED(call)                                                            \
+#define CS2VM2_FAST_BINARY_CHECKED(call)                                                            \
     {                                                                                              \
         int out;                                                                                   \
         if( top < 2 )                                                                              \
@@ -16400,7 +16394,7 @@ CS2VM2_SetActiveAndDotComponentId(
         pc += 1;                                                                                   \
     }                                                                                              \
     break
-#define CS2VM2_HOT_TERNARY_CHECKED(call)                                                           \
+#define CS2VM2_FAST_TERNARY_CHECKED(call)                                                           \
     {                                                                                              \
         int out;                                                                                   \
         if( top < 3 )                                                                              \
@@ -16415,7 +16409,7 @@ CS2VM2_SetActiveAndDotComponentId(
         pc += 1;                                                                                   \
     }                                                                                              \
     break
-#define CS2VM2_HOT_BRANCH_IF(cmp)                                                                  \
+#define CS2VM2_FAST_BRANCH_IF(cmp)                                                                  \
     {                                                                                              \
         if( top < 2 )                                                                              \
             goto stop;                                                                             \
@@ -16440,52 +16434,37 @@ CS2VM2_SetActiveAndDotComponentId(
  * head runs exactly as it would after the group's last instruction unfused.
  * No group contains an instruction that can fail, yield or ask the host.
  */
-#define CS2VM2_JIT_SHAPE_OF(code_) (g_cs2vm2_jit_shapes[(code_) - CS2VM2_JIT_FUSED_FIRST])
-#define CS2VM2_JIT_GUARD(code_)                                                                    \
-    if( top < CS2VM2_JIT_SHAPE_OF(code_).need ||                                                   \
-        top > CS2VM_STACK_MAX - CS2VM2_JIT_SHAPE_OF(code_).peak ||                                 \
-        cycles > CS2VM_MAX_CYCLES - (CS2VM2_JIT_SHAPE_OF(code_).k - 1) )                           \
+#define CS2VM2_JIT_SHAPE_OF(op_) (g_cs2vm2_jit_shapes[(op_) - CS2_OPS_JIT_FUSED_BEGIN])
+#define CS2VM2_JIT_GUARD(op_)                                                                    \
+    if( top < CS2VM2_JIT_SHAPE_OF(op_).need ||                                                   \
+        top > CS2VM_STACK_MAX - CS2VM2_JIT_SHAPE_OF(op_).peak ||                                 \
+        cycles > CS2VM_MAX_CYCLES - (CS2VM2_JIT_SHAPE_OF(op_).k - 1) )                           \
     goto stop
-#define CS2VM2_JIT_DONE(code_)                                                                     \
-    pc += CS2VM2_JIT_SHAPE_OF(code_).k;                                                            \
-    cycles += CS2VM2_JIT_SHAPE_OF(code_).k - 1;                                                    \
+#define CS2VM2_JIT_DONE(op_)                                                                     \
+    pc += CS2VM2_JIT_SHAPE_OF(op_).k;                                                            \
+    cycles += CS2VM2_JIT_SHAPE_OF(op_).k - 1;                                                    \
     break
 /* C x; BRcc o -- BRcc pops b (top) and a (under it) and tests a cc b, so this
  * tests the value that was on the stack against x. */
-#define CS2VM2_JIT_CBR(code_, cmp)                                                                 \
-    CS2VM2_JIT_GUARD(code_);                                                                       \
+#define CS2VM2_JIT_CBR(op_, cmp)                                                                 \
+    CS2VM2_JIT_GUARD(op_);                                                                       \
     {                                                                                              \
         int const off = args[pc + 1];                                                              \
         int const v = stack[--top];                                                                \
         if( v cmp operand )                                                                        \
             pc += off;                                                                             \
     }                                                                                              \
-    CS2VM2_JIT_DONE(code_)
+    CS2VM2_JIT_DONE(op_)
 /* L a; C x; BRcc o / L a; L b; BRcc o: taken if loc[a] cc rhs. */
-#define CS2VM2_JIT_LBR(code_, rhs, cmp)                                                            \
-    CS2VM2_JIT_GUARD(code_);                                                                       \
+#define CS2VM2_JIT_LBR(op_, rhs, cmp)                                                            \
+    CS2VM2_JIT_GUARD(op_);                                                                       \
     {                                                                                              \
         int const off = args[pc + 2];                                                              \
         if( locals[operand] cmp(rhs) )                                                             \
             pc += off;                                                                             \
     }                                                                                              \
-    CS2VM2_JIT_DONE(code_)
+    CS2VM2_JIT_DONE(op_)
 
-/*
- * The jit overlay's own cases of the loop below, beside the plain ones.
- *
- * LD, PD and the fused groups index `locals` without the plain cases' range
- * and dirty-mark tests. That is sound for every frame: the overlay names
- * only locals below the script's declared local_int_count (<=
- * CS2VM_MAX_LOCALS), proven when it was built or attached, and
- * CS2VM2_PushCallScript sizes every frame's int locals to that count and
- * raises the mark over them. A plain POP_INT_LOCAL above the declared count
- * still grows the buffer, and `locals` is re-read after it.
- *
- * Dead slots above `top` that an unfused run would have written in passing
- * (the pushes a compare-and-branch pops again) are left as they were. Nothing
- * reads above `top`.
- */
 /* Every return of a script body counts the instructions it ran: the perf
  * counter, and thread->cycles_run (cs2vm2.h), which tests and the replay rig
  * compare between a jitted and a plain run. One add per return, none per
@@ -16548,18 +16527,19 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
 
     /*
      * ONE LOOP. Every instruction of the run is dispatched here, on its
-     * script's code for that pc (script->run_code, given at load): a hot or
-     * jit code is a case below and runs on the registers; code 0 is `stop`,
-     * which writes the stack top and the pc back, calls the opcode's handler
-     * (CS2VM2_RunOp's switch) and reads them again. Nothing is looked up per
-     * instruction, and the loop is left only by a return.
+     * script's run array at that pc (script->run_ops, made at load): a FAST
+     * or JIT-section instruction is a case below and runs on the registers;
+     * a GENERAL one is the default, which writes the stack top and the pc
+     * back, calls the instruction's handler (CS2VM2_RunOp's switch) and reads
+     * them again. Nothing is looked up per instruction, and the loop is left
+     * only by a return.
      *
      * The running frame and its script's arrays are read at `frame_moved`:
      * at entry, and after a handler that pushed, popped or reset a frame
      * (vm->frame_epoch moved). Any other handler leaves them where they were.
      */
     struct CS2VM2_Frame* frame;
-    uint8_t const* code;
+    uint16_t const* code;
     uint16_t const* ops;
     int const* args;
     struct CS2VM2_Str* const* cstrs;
@@ -16570,6 +16550,8 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
     int locals_dirty;
     int top;
     int pc;
+    /* The instruction the handler path runs. */
+    int opcode;
 
 frame_moved:
     /* An instruction is about to begin, as at the loop's head: the cycle
@@ -16585,7 +16567,7 @@ frame_moved:
     frame = CS2VM_FRAME(vm);
     {
         struct CS2VM2_Script const* const script = frame->script;
-        code = script->run_code;
+        code = script->run_ops;
         ops = script->opcodes;
         args = script->int_operands;
         cstrs = script->string_constants;
@@ -16611,138 +16593,31 @@ frame_moved:
     for( ;; )
     {
         /* The head: at most CS2VM_MAX_CYCLES instructions begin. There is no
-         * test for the script's end: the code at index op_count is
-         * CS2VM2_JIT_END, and every way the pc moves keeps it in
-         * [0, op_count] (a hot branch was range-checked when the script was
-         * loaded, cs2vm2_plain_code_at; a handler's pc is checked below). */
+         * test for the script's end: the instruction at index op_count is
+         * END_OF_SCRIPT, and every way the pc moves keeps it in
+         * [0, op_count] (a FAST branch was range-checked when the script was
+         * loaded, cs2vm2_run_op_at; a handler's pc is checked below). */
         if( cycles >= CS2VM_MAX_CYCLES )
             goto cycle_limit_live;
         cycles++;
         assert(pc >= 0 && pc <= op_count);
         {
-/* The instruction's operand, read by the cases that use it (and not for the
- * end code, which has none: args holds op_count operands). Every case reads
- * it before it moves the pc. */
+/* The instruction's operand, read by the cases that use it (and not by
+ * END_OF_SCRIPT, which has none: args holds op_count operands). Every case
+ * reads it before it moves the pc. */
 #define operand (args[pc])
-            switch( code[pc] )
+            unsigned const instruction = code[pc];
+            switch( instruction )
             {
-#include "cs2vm2_hot_cases.inc"
-
-            case CS2VM2_JIT_LD:
-                if( top >= CS2VM_STACK_MAX )
-                    goto stop;
-                stack[top++] = locals[operand];
-                pc += 1;
-                break;
-            case CS2VM2_JIT_PD:
-                if( top <= 0 )
-                    goto stop;
-                locals[operand] = stack[--top];
-                pc += 1;
-                break;
-            case CS2VM2_JIT_CSTR:
-                /* The script's own constant, not a pool copy: nothing writes
-                 * through a string it popped (UPPERCASE and LOWERCASE allocate). */
-                if( vm->strs_stack_top >= CS2VM_STACK_MAX )
-                    goto stop;
-                vm->strs_stack[vm->strs_stack_top++] = cstrs[pc];
-                pc += 1;
-                break;
-
-            case CS2VM2_JIT_LL:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_LL);
-                stack[top] = locals[operand];
-                stack[top + 1] = locals[args[pc + 1]];
-                top += 2;
-                CS2VM2_JIT_DONE(CS2VM2_JIT_LL);
-            case CS2VM2_JIT_LC:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_LC);
-                stack[top] = locals[operand];
-                stack[top + 1] = args[pc + 1];
-                top += 2;
-                CS2VM2_JIT_DONE(CS2VM2_JIT_LC);
-            case CS2VM2_JIT_CL:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_CL);
-                stack[top] = operand;
-                stack[top + 1] = locals[args[pc + 1]];
-                top += 2;
-                CS2VM2_JIT_DONE(CS2VM2_JIT_CL);
-            case CS2VM2_JIT_CC:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_CC);
-                stack[top] = operand;
-                stack[top + 1] = args[pc + 1];
-                top += 2;
-                CS2VM2_JIT_DONE(CS2VM2_JIT_CC);
-            case CS2VM2_JIT_LLL:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_LLL);
-                stack[top] = locals[operand];
-                stack[top + 1] = locals[args[pc + 1]];
-                stack[top + 2] = locals[args[pc + 2]];
-                top += 3;
-                CS2VM2_JIT_DONE(CS2VM2_JIT_LLL);
-            case CS2VM2_JIT_LCAP:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_LCAP);
-                locals[args[pc + 3]] = cs2_math_add(locals[operand], args[pc + 1]);
-                CS2VM2_JIT_DONE(CS2VM2_JIT_LCAP);
-            case CS2VM2_JIT_LCA:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_LCA);
-                stack[top++] = cs2_math_add(locals[operand], args[pc + 1]);
-                CS2VM2_JIT_DONE(CS2VM2_JIT_LCA);
-            case CS2VM2_JIT_CA:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_CA);
-                stack[top - 1] = cs2_math_add(stack[top - 1], operand);
-                CS2VM2_JIT_DONE(CS2VM2_JIT_CA);
-            case CS2VM2_JIT_AP:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_AP);
-                locals[args[pc + 1]] = cs2_math_add(stack[top - 2], stack[top - 1]);
-                top -= 2;
-                CS2VM2_JIT_DONE(CS2VM2_JIT_AP);
-            case CS2VM2_JIT_CP:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_CP);
-                locals[args[pc + 1]] = operand;
-                CS2VM2_JIT_DONE(CS2VM2_JIT_CP);
-            case CS2VM2_JIT_LP:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_LP);
-                locals[args[pc + 1]] = locals[operand];
-                CS2VM2_JIT_DONE(CS2VM2_JIT_LP);
-            case CS2VM2_JIT_PBR:
-                CS2VM2_JIT_GUARD(CS2VM2_JIT_PBR);
-                {
-                    int const off = args[pc + 1];
-                    locals[operand] = stack[--top];
-                    pc += off;
-                }
-                CS2VM2_JIT_DONE(CS2VM2_JIT_PBR);
-
-            case CS2VM2_JIT_CBREQ:
-                CS2VM2_JIT_CBR(CS2VM2_JIT_CBREQ, ==);
-            case CS2VM2_JIT_CBRNE:
-                CS2VM2_JIT_CBR(CS2VM2_JIT_CBRNE, !=);
-            case CS2VM2_JIT_CBRLT:
-                CS2VM2_JIT_CBR(CS2VM2_JIT_CBRLT, <);
-            case CS2VM2_JIT_CBRGT:
-                CS2VM2_JIT_CBR(CS2VM2_JIT_CBRGT, >);
-            case CS2VM2_JIT_LCBREQ:
-                CS2VM2_JIT_LBR(CS2VM2_JIT_LCBREQ, args[pc + 1], ==);
-            case CS2VM2_JIT_LCBRNE:
-                CS2VM2_JIT_LBR(CS2VM2_JIT_LCBRNE, args[pc + 1], !=);
-            case CS2VM2_JIT_LCBRLT:
-                CS2VM2_JIT_LBR(CS2VM2_JIT_LCBRLT, args[pc + 1], <);
-            case CS2VM2_JIT_LCBRGT:
-                CS2VM2_JIT_LBR(CS2VM2_JIT_LCBRGT, args[pc + 1], >);
-            case CS2VM2_JIT_LLBREQ:
-                CS2VM2_JIT_LBR(CS2VM2_JIT_LLBREQ, locals[args[pc + 1]], ==);
-            case CS2VM2_JIT_LLBRNE:
-                CS2VM2_JIT_LBR(CS2VM2_JIT_LLBRNE, locals[args[pc + 1]], !=);
-            case CS2VM2_JIT_LLBRLT:
-                CS2VM2_JIT_LBR(CS2VM2_JIT_LLBRLT, locals[args[pc + 1]], <);
-            case CS2VM2_JIT_LLBRGT:
-                CS2VM2_JIT_LBR(CS2VM2_JIT_LLBRGT, locals[args[pc + 1]], >);
-
-            case CS2VM2_JIT_END:
-                goto script_end;
+#include "cs2vm2_fast_cases.inc"
+#include "cs2vm2_jit_cases.inc"
             default:
-                goto stop;
+                /* GENERAL, [0, CS2_OP_FAST_BEGIN): the value switched on is
+                 * the instruction. The cases above are one contiguous range,
+                 * [CS2_OP_FAST_BEGIN, CS2_OP_COUNT), so this switch is one
+                 * bounds test and one table jump (cs2_opcode.h, ORDER). */
+                opcode = (int)instruction;
+                goto run_handler;
             }
 #undef operand
         }
@@ -16757,15 +16632,19 @@ frame_moved:
         if( pc >= op_count )
             goto script_end;
 
-    stop:;
+    stop:
+        /* A FAST or JIT case that could not run as it stands, RUN_HANDLER,
+         * or an observed run: the script's own instruction at pc. */
+        opcode = ops[pc];
+    run_handler:;
         /* The instruction at pc, already counted, by its handler. The
          * handlers read the stack top and the pc from the thread and the
          * frame, so the registers are written back first. */
         assert(vm->frame_sp > 0);
         assert(frame == CS2VM_FRAME(vm));
+        assert(opcode == ops[pc]);
         vm->ints_stack_top = top;
 
-        int const opcode = ops[pc];
         int const operand = args[pc];
         struct CS2VM2_Str* const str_operand_str = cstrs[pc];
 
@@ -16962,11 +16841,11 @@ cycle_limit:
 #undef CS2VM2_JIT_DONE
 #undef CS2VM2_JIT_CBR
 #undef CS2VM2_JIT_LBR
-#undef CS2VM2_HOT_UNARY
-#undef CS2VM2_HOT_BINARY
-#undef CS2VM2_HOT_BINARY_CHECKED
-#undef CS2VM2_HOT_TERNARY_CHECKED
-#undef CS2VM2_HOT_BRANCH_IF
+#undef CS2VM2_FAST_UNARY
+#undef CS2VM2_FAST_BINARY
+#undef CS2VM2_FAST_BINARY_CHECKED
+#undef CS2VM2_FAST_TERNARY_CHECKED
+#undef CS2VM2_FAST_BRANCH_IF
 
 
 /* One script body under the cs2_script stage (cs2vm2_profiling.h): nested

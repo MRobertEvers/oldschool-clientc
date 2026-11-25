@@ -12,6 +12,10 @@
 
 #include <limits.h>
 
+/* What a blob stores for an overlay instruction: its position in the JIT
+ * section, 0 for the pc's own instruction (cs2vm2_jit.c). */
+#define BLOB_BYTE(op) ((uint8_t)((unsigned)(op) < CS2_OP_JIT_FIRST ? 0u : (unsigned)(op) - CS2_OP_JIT_FIRST))
+
 /* CS2VM2_JitHash64(bytes (i * 37 + 11) & 0xFF for i < len, len, this seed). */
 #define GOLDEN_SEED 0x0123456789ABCDEFull
 static uint64_t const g_golden_hash[18] = {
@@ -285,6 +289,30 @@ test_golden(void)
     jt_check(fp == want, "golden fingerprint %016llx (the documented stream %016llx)", (unsigned long long)fp,
         (unsigned long long)want);
     CS2VM2_ScriptFree(&s);
+    /* The JIT section's order is the blob format (CS2VM2_JIT_FORMAT_VERSION 3):
+     * each instruction's byte, pinned. Reordering jit_instructions.py fails
+     * here until the version is bumped and these are rewritten. */
+    static struct
+    {
+        unsigned op;
+        uint8_t byte;
+    } const pins[] = {
+        { CS2_OP_END_OF_SCRIPT, 0 },
+        { CS2_OP_RUN_HANDLER, 1 },
+        { CS2_OP_PUSH_INT_LOCAL_DECLARED, 2 },
+        { CS2_OP_POP_INT_LOCAL_DECLARED, 3 },
+        { CS2_OP_PUSH_CONSTANT_STRING_PRESENT, 4 },
+        { CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL, 5 },
+        { CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD__POP_INT_LOCAL, 10 },
+        { CS2_OP_POP_INT_LOCAL__BRANCH, 16 },
+        { CS2_OP_PUSH_CONSTANT_INT__BRANCH_EQUALS, 17 },
+        { CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_GREATER_THAN, 28 },
+    };
+    for( size_t i = 0; i < sizeof(pins) / sizeof(pins[0]); i++ )
+        jt_check(BLOB_BYTE(pins[i].op) == pins[i].byte, "%s is blob byte %u (pinned %u)",
+            CS2_OpCode_String((int)pins[i].op), BLOB_BYTE(pins[i].op), pins[i].byte);
+    jt_check(CS2_OP_COUNT - CS2_OP_JIT_FIRST == 29, "the JIT section holds 29 instructions");
+    jt_check(CS2VM2_JIT_FORMAT_VERSION == 3u, "format version 3");
     jt_check(CS2VM2_JitDialectTag(NULL) == CS2VM2_JitDialectTag(&CS2VM2_DIALECT_OSRS),
         "NULL dialect tags as OSRS (%08x)", CS2VM2_JitDialectTag(NULL));
     jt_check(CS2VM2_JitDialectTag(&CS2VM2_DIALECT_OSRS) != CS2VM2_JitDialectTag(&CS2VM2_DIALECT_OSRS_230) &&
@@ -394,7 +422,7 @@ test_round_trip(void)
     copy_plain(&s, &c);
     enum CS2VM2_JitAttachResult const r = CS2VM2_JitAttachBlob(&c, CS2VM2_JitFingerprint(&c), blob, size);
     jt_check(r == CS2VM2_JIT_ATTACHED, "attach to a fresh copy: %s", CS2VM2_JitAttachResultName(r));
-    jt_check(c.jit && !memcmp(c.jit->code, s.jit->code, (size_t)s.op_count), "identical code");
+    jt_check(c.jit && !memcmp(c.jit->ops, s.jit->ops, (size_t)s.op_count * sizeof(c.jit->ops[0])), "identical ops");
     struct jt_obs attached, built;
     jt_run(&c, NULL, &attached);
     jt_run(&s, NULL, &built);
@@ -407,7 +435,7 @@ test_round_trip(void)
     /* CS2VM2_ScriptCopy carries the overlay. */
     struct CS2VM2_Script cc;
     CS2VM2_ScriptCopy(&c, &cc);
-    jt_check(cc.jit && cc.jit != c.jit && !memcmp(cc.jit->code, c.jit->code, (size_t)c.op_count),
+    jt_check(cc.jit && cc.jit != c.jit && !memcmp(cc.jit->ops, c.jit->ops, (size_t)c.op_count * sizeof(c.jit->ops[0])),
         "ScriptCopy copies the overlay");
     struct CS2VM2_JitInfo i1, i2;
     CS2VM2_JitGetInfo(&c, &i1);
@@ -466,14 +494,18 @@ test_rejections(void)
     REJECT("a flipped checksum byte", CS2VM2_JIT_REJECT_CHECKSUM, b[47] ^= 0x10);
     REJECT("an illegal code byte, resealed", CS2VM2_JIT_REJECT_ILLEGAL_CODE, (b[48 + 3] = 200, reseal(b, size)));
     REJECT("a fused code at the wrong pc, resealed", CS2VM2_JIT_REJECT_ILLEGAL_CODE,
-        (b[48 + 0] = CS2VM2_JIT_LLL, reseal(b, size)));
+        (b[48 + 0] = BLOB_BYTE(CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__PUSH_INT_LOCAL), reseal(b, size)));
     REJECT("a group over instructions it does not name, resealed", CS2VM2_JIT_REJECT_ILLEGAL_CODE,
-        (b[48 + n - 2] = CS2VM2_JIT_LC, reseal(b, size)));
-    REJECT("CSTR on an int push, resealed", CS2VM2_JIT_REJECT_ILLEGAL_CODE,
-        (b[48 + 0] = CS2VM2_JIT_CSTR, reseal(b, size)));
-    REJECT("a plain code for another opcode, resealed", CS2VM2_JIT_REJECT_ILLEGAL_CODE,
-        (b[48 + 0] = CS2VM2_HOT_SUB, reseal(b, size)));
-    REJECT("a general-path code (legal), resealed", CS2VM2_JIT_ATTACHED, (b[48 + 2] = 0, reseal(b, size)));
+        (b[48 + n - 2] = BLOB_BYTE(CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT), reseal(b, size)));
+    REJECT("PUSH_CONSTANT_STRING_PRESENT on an int push, resealed", CS2VM2_JIT_REJECT_ILLEGAL_CODE,
+        (b[48 + 0] = BLOB_BYTE(CS2_OP_PUSH_CONSTANT_STRING_PRESENT), reseal(b, size)));
+    REJECT("END_OF_SCRIPT's byte is the pc's own instruction (legal), resealed", CS2VM2_JIT_ATTACHED,
+        (b[48 + 0] = BLOB_BYTE(CS2_OP_END_OF_SCRIPT), reseal(b, size)));
+    REJECT("the first byte past the JIT section, resealed", CS2VM2_JIT_REJECT_ILLEGAL_CODE,
+        (b[48 + 0] = (uint8_t)(CS2_OP_COUNT - CS2_OP_JIT_FIRST), reseal(b, size)));
+    REJECT("the pc's own instruction (legal), resealed", CS2VM2_JIT_ATTACHED, (b[48 + 2] = 0, reseal(b, size)));
+    REJECT("RUN_HANDLER (legal anywhere), resealed", CS2VM2_JIT_ATTACHED,
+        (b[48 + 2] = BLOB_BYTE(CS2_OP_RUN_HANDLER), reseal(b, size)));
 #undef REJECT
 
     /* A local above the declared count, in a blob made for a script where
@@ -534,12 +566,14 @@ test_rejections(void)
         jt_build(&a, &t, 905, 1);
         size_t tsize;
         uint8_t* tb = make_blob(&t, &tsize);
-        jt_check(t.jit->code[1] == CS2VM2_JIT_LD, "the last L is LD (got %d)", t.jit->code[1]);
-        tb[48 + 1] = CS2VM2_JIT_LL;
+        jt_check(t.jit->ops[1] == CS2_OP_PUSH_INT_LOCAL_DECLARED, "the last L is PUSH_INT_LOCAL_DECLARED (got %s)",
+            CS2_OpCode_String(t.jit->ops[1]));
+        jt_check(tb[48 + 1] == BLOB_BYTE(CS2_OP_PUSH_INT_LOCAL_DECLARED), "stored as its JIT position");
+        tb[48 + 1] = BLOB_BYTE(CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL);
         reseal(tb, tsize);
         jt_check(attach_to_copy(&t, tb, tsize) == CS2VM2_JIT_REJECT_ILLEGAL_CODE, "LL on the last pc is illegal");
-        tb[48 + 0] = CS2VM2_JIT_CL;
-        tb[48 + 1] = CS2VM2_HOT_PUSH_INT_LOCAL;
+        tb[48 + 0] = BLOB_BYTE(CS2_OP_PUSH_CONSTANT_INT__PUSH_INT_LOCAL);
+        tb[48 + 1] = 0;
         reseal(tb, tsize);
         jt_check(attach_to_copy(&t, tb, tsize) == CS2VM2_JIT_ATTACHED, "CL ending exactly at op_count is legal");
         free(tb);
@@ -612,7 +646,7 @@ random_script(
     jt_build(&a, s, id, nl);
 }
 
-/* A code byte worth trying at `pc`: legal ones mostly, anything sometimes. */
+/* A blob byte worth trying at `pc`: legal ones mostly, anything sometimes. */
 static uint8_t
 candidate_code(
     struct CS2VM2_Script const* s,
@@ -620,17 +654,13 @@ candidate_code(
 {
     uint32_t const r = rnd() % 10u;
     if( r < 3 )
-        return s->jit->code[pc];
+        return BLOB_BYTE(s->jit->ops[pc]);
     if( r < 5 )
         return 0;
     if( r < 6 )
-        return g_cs2vm2_hot_op[s->opcodes[pc]];
+        return BLOB_BYTE(CS2_OP_RUN_HANDLER);
     if( r < 9 )
-    {
-        static uint8_t const pool[] = { 32, 33, 34, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75,
-                                        76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87 };
-        return pool[rnd() % sizeof(pool)];
-    }
+        return (uint8_t)(1u + rnd() % (uint32_t)(CS2_OP_COUNT - CS2_OP_JIT_FIRST - 1));
     return (uint8_t)rnd();
 }
 
@@ -670,7 +700,7 @@ fz_ins_is(
     }
 }
 
-/* A random code that is legal at `pc`, not necessarily the builder's. */
+/* A random blob byte that is legal at `pc`, not necessarily the builder's. */
 static uint8_t
 legal_code(
     struct CS2VM2_Script const* s,
@@ -679,14 +709,13 @@ legal_code(
     uint8_t opts[40];
     int n = 0;
     opts[n++] = 0;
-    if( g_cs2vm2_hot_op[s->opcodes[pc]] )
-        opts[n++] = g_cs2vm2_hot_op[s->opcodes[pc]];
+    opts[n++] = BLOB_BYTE(CS2_OP_RUN_HANDLER);
     if( fz_ins_is(s, pc, CS2VM2_JIT_INS_L) )
-        opts[n++] = CS2VM2_JIT_LD;
+        opts[n++] = BLOB_BYTE(CS2_OP_PUSH_INT_LOCAL_DECLARED);
     if( fz_ins_is(s, pc, CS2VM2_JIT_INS_P) )
-        opts[n++] = CS2VM2_JIT_PD;
+        opts[n++] = BLOB_BYTE(CS2_OP_POP_INT_LOCAL_DECLARED);
     if( s->opcodes[pc] == CS2_OP_PUSH_CONSTANT_STRING && s->string_operands[pc] )
-        opts[n++] = CS2VM2_JIT_CSTR;
+        opts[n++] = BLOB_BYTE(CS2_OP_PUSH_CONSTANT_STRING_PRESENT);
     for( int i = 0; i < CS2VM2_JIT_SHAPE_COUNT; i++ )
     {
         struct CS2VM2_JitShape const* sh = &g_cs2vm2_jit_shapes[i];
@@ -694,7 +723,7 @@ legal_code(
         for( int j = 0; ok && j < sh->k; j++ )
             ok = fz_ins_is(s, pc + j, sh->ins[j]);
         if( ok )
-            opts[n++] = sh->code;
+            opts[n++] = BLOB_BYTE(sh->op);
     }
     return opts[rnd() % (uint32_t)n];
 }

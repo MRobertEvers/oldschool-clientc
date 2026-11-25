@@ -95,7 +95,7 @@ test_pointer(void)
     struct jt_obs o;
     jt_run(&s, NULL, &o);
     jt_check(o.str_top_ptr == s.string_constants[0], "general path pushes the script's own pointer");
-    jt_check(CS2VM2_JitBuild(&s) == CS2VM2_JIT_BUILT && s.jit->code[0] == CS2VM2_JIT_CSTR, "CSTR built");
+    jt_check(CS2VM2_JitBuild(&s) == CS2VM2_JIT_BUILT && s.jit->ops[0] == CS2_OP_PUSH_CONSTANT_STRING_PRESENT, "CSTR built");
     jt_run(&s, NULL, &o);
     jt_check(o.str_top_ptr == s.string_constants[0], "CSTR pushes the script's own pointer");
 
@@ -112,7 +112,7 @@ test_pointer(void)
     jt_op(&a, CS2_OP_PUSH_CONSTANT_STRING, 0);
     jt_op(&a, CS2_OP_PUSH_CONSTANT_STRING, 0);
     jt_build(&a, &s, 803, 0);
-    jt_check(CS2VM2_JitBuild(&s) == CS2VM2_JIT_BUILT && s.jit->code[0] == CS2VM2_HOT_NONE,
+    jt_check(CS2VM2_JitBuild(&s) == CS2VM2_JIT_BUILT && s.jit->ops[0] == CS2_OP_PUSH_CONSTANT_STRING,
         "a NULL constant stays on the general path");
     CS2VM2_Init(&g_jt_vm);
     struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&g_jt_vm);

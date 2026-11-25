@@ -134,7 +134,7 @@ test_stack_edges(void)
             snprintf(label, sizeof(label), "%s with %d ints on the stack (need %d, peak %d)", sh->name,
                 fills[f], sh->need, sh->peak);
             int const code = jt_ab_asm(&a, 8, &setup, 0, label);
-            jt_check(code == sh->code, "%s placed (got %d)", sh->name, code);
+            jt_check(code == sh->op, "%s placed (got %d)", sh->name, code);
         }
     }
 
@@ -149,12 +149,12 @@ test_stack_edges(void)
         jt_op(&a, CS2_OP_PUSH_INT_LOCAL, 2);
         jt_op(&a, CS2_OP_RETURN, 0);
         snprintf(label, sizeof(label), "LD with %d ints on the stack", edges[e]);
-        jt_check(jt_ab_asm(&a, 8, &setup, 0, label) == CS2VM2_JIT_LD, "LD placed");
+        jt_check(jt_ab_asm(&a, 8, &setup, 0, label) == CS2_OP_PUSH_INT_LOCAL_DECLARED, "LD placed");
         jt_asm_init(&a);
         jt_op(&a, CS2_OP_POP_INT_LOCAL, 2);
         jt_op(&a, CS2_OP_RETURN, 0);
         snprintf(label, sizeof(label), "PD with %d ints on the stack", edges[e]);
-        jt_check(jt_ab_asm(&a, 8, &setup, 0, label) == CS2VM2_JIT_PD, "PD placed");
+        jt_check(jt_ab_asm(&a, 8, &setup, 0, label) == CS2_OP_POP_INT_LOCAL_DECLARED, "PD placed");
     }
 
     /* CSTR against the string stack. */
@@ -168,7 +168,7 @@ test_stack_edges(void)
         jt_str(&a, "edge");
         jt_str(&a, "edge2");
         snprintf(label, sizeof(label), "CSTR x2 with %d strings on the stack", sedges[e]);
-        jt_check(jt_ab_asm(&a, 8, &setup, 0, label) == CS2VM2_JIT_CSTR, "CSTR placed");
+        jt_check(jt_ab_asm(&a, 8, &setup, 0, label) == CS2_OP_PUSH_CONSTANT_STRING_PRESENT, "CSTR placed");
     }
 }
 
@@ -195,7 +195,7 @@ emit_cycle_loop(
     int const start = a->n;
     if( !sh )
     {
-        if( single == CS2VM2_JIT_LD )
+        if( single == CS2_OP_PUSH_INT_LOCAL_DECLARED )
         {
             jt_op(a, CS2_OP_PUSH_INT_LOCAL, 3);
             jt_op(a, CS2_OP_POP_INT_DISCARD, 0);
@@ -225,19 +225,19 @@ emit_cycle_loop(
         return a->n - start; /* the group's own branch is the back edge */
     /* Pop what it left. */
     int left = 0;
-    switch( sh->code )
+    switch( sh->op )
     {
-    case CS2VM2_JIT_LL:
-    case CS2VM2_JIT_LC:
-    case CS2VM2_JIT_CL:
-    case CS2VM2_JIT_CC:
+    case CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL:
+    case CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT:
+    case CS2_OP_PUSH_CONSTANT_INT__PUSH_INT_LOCAL:
+    case CS2_OP_PUSH_CONSTANT_INT__PUSH_CONSTANT_INT:
         left = 2;
         break;
-    case CS2VM2_JIT_LLL:
+    case CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__PUSH_INT_LOCAL:
         left = 3;
         break;
-    case CS2VM2_JIT_LCA:
-    case CS2VM2_JIT_CA:
+    case CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD:
+    case CS2_OP_PUSH_CONSTANT_INT__ADD:
         left = 1;
         break;
     default:
@@ -257,8 +257,8 @@ test_cycle_limit(void)
     for( int i = -2; i < CS2VM2_JIT_SHAPE_COUNT; i++ )
     {
         struct CS2VM2_JitShape const* sh = i >= 0 ? &g_cs2vm2_jit_shapes[i] : NULL;
-        int const single = i == -2 ? CS2VM2_JIT_LD : CS2VM2_JIT_PD;
-        char const* name = sh ? sh->name : (single == CS2VM2_JIT_LD ? "LD" : "PD");
+        int const single = i == -2 ? CS2_OP_PUSH_INT_LOCAL_DECLARED : CS2_OP_POP_INT_LOCAL_DECLARED;
+        char const* name = sh ? sh->name : (single == CS2_OP_PUSH_INT_LOCAL_DECLARED ? "LD" : "PD");
         struct jt_asm probe;
         int const body = emit_cycle_loop(&probe, sh, single, 0);
         int const fail0 = g_jt_fail;
@@ -303,11 +303,11 @@ test_locals(void)
         struct CS2VM2_Script s;
         jt_build(&a, &s, 51, 8);
         jt_ab(&s, &setup, "locals 7 (last declared) and 8 (undeclared)");
-        jt_check(s.jit->code[0] == CS2VM2_HOT_PUSH_CONSTANT_INT, "C; P 8 is not CP (got %d)", s.jit->code[0]);
-        jt_check(s.jit->code[1] == CS2VM2_HOT_POP_INT_LOCAL, "P 8 is plain (got %d)", s.jit->code[1]);
-        jt_check(s.jit->code[2] == CS2VM2_JIT_LD, "L 7 before L 8 is LD, not LL (got %d)", s.jit->code[2]);
-        jt_check(s.jit->code[3] == CS2VM2_HOT_PUSH_INT_LOCAL, "L 8 is plain (got %d)", s.jit->code[3]);
-        jt_check(s.jit->code[4] == CS2VM2_JIT_AP, "ADD; P 7 is AP (got %d)", s.jit->code[4]);
+        jt_check(s.jit->ops[0] == CS2_OP_PUSH_CONSTANT_INT, "C; P 8 is not CP (got %d)", s.jit->ops[0]);
+        jt_check(s.jit->ops[1] == CS2_OP_POP_INT_LOCAL, "P 8 is plain (got %d)", s.jit->ops[1]);
+        jt_check(s.jit->ops[2] == CS2_OP_PUSH_INT_LOCAL_DECLARED, "L 7 before L 8 is LD, not LL (got %d)", s.jit->ops[2]);
+        jt_check(s.jit->ops[3] == CS2_OP_PUSH_INT_LOCAL, "L 8 is plain (got %d)", s.jit->ops[3]);
+        jt_check(s.jit->ops[4] == CS2_OP_ADD__POP_INT_LOCAL, "ADD; P 7 is AP (got %d)", s.jit->ops[4]);
         CS2VM2_ScriptFree(&s);
     }
 
@@ -324,8 +324,8 @@ test_locals(void)
         struct CS2VM2_Script s;
         jt_build(&a, &s, 52, CS2VM_MAX_LOCALS);
         jt_ab(&s, &setup, "local_int_count == CS2VM_MAX_LOCALS");
-        jt_check(s.jit->code[0] == CS2VM2_JIT_CP, "CP into local 1023 (got %d)", s.jit->code[0]);
-        jt_check(s.jit->code[2] == CS2VM2_JIT_LL, "LL of 1023, 0 (got %d)", s.jit->code[2]);
+        jt_check(s.jit->ops[0] == CS2_OP_PUSH_CONSTANT_INT__POP_INT_LOCAL, "CP into local 1023 (got %d)", s.jit->ops[0]);
+        jt_check(s.jit->ops[2] == CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL, "LL of 1023, 0 (got %d)", s.jit->ops[2]);
         CS2VM2_ScriptFree(&s);
     }
 
@@ -339,7 +339,7 @@ test_locals(void)
         jt_check(info.declared_local_pcs == 0 && info.fused_group_pcs == 0,
             "no declared-local code above the maximum (%d LD/PD, %d groups)", info.declared_local_pcs,
             info.fused_group_pcs);
-        jt_check(s.jit->code[2] == CS2VM2_HOT_PUSH_INT_LOCAL, "L 1023 plain (got %d)", s.jit->code[2]);
+        jt_check(s.jit->ops[2] == CS2_OP_PUSH_INT_LOCAL, "L 1023 plain (got %d)", s.jit->ops[2]);
         CS2VM2_ScriptFree(&s);
     }
 
@@ -354,8 +354,8 @@ test_locals(void)
         setup.locals_count = 0;
         jt_build(&a, &s, 54, 0);
         jt_ab(&s, &setup, "local_int_count == 0");
-        jt_check(s.jit->code[0] == CS2VM2_HOT_PUSH_INT_LOCAL && s.jit->code[2] == CS2VM2_HOT_PUSH_CONSTANT_INT,
-            "plain codes only (got %d, %d)", s.jit->code[0], s.jit->code[2]);
+        jt_check(s.jit->ops[0] == CS2_OP_PUSH_INT_LOCAL && s.jit->ops[2] == CS2_OP_PUSH_CONSTANT_INT,
+            "plain codes only (got %d, %d)", s.jit->ops[0], s.jit->ops[2]);
         CS2VM2_ScriptFree(&s);
     }
 }

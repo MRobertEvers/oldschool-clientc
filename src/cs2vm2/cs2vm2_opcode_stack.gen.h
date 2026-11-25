@@ -32,37 +32,6 @@ struct CS2VM2OpcodeStack {
 };
 
 static struct CS2VM2OpcodeStack const g_cs2vm2_opcode_stack[CS2VM2_OPCODE_STACK_MAX] = {
-    [CS2_OP_PUSH_CONSTANT_INT] = { 0, 0, 1, 0, 1 }, /* wire 0 */
-    [CS2_OP_BRANCH] = { 0, 0, 0, 0, 1 }, /* wire 6 */
-    [CS2_OP_BRANCH_NOT] = { 2, 0, 0, 0, 1 }, /* wire 7 */
-    [CS2_OP_BRANCH_EQUALS] = { 2, 0, 0, 0, 1 }, /* wire 8 */
-    [CS2_OP_BRANCH_LESS_THAN] = { 2, 0, 0, 0, 1 }, /* wire 9 */
-    [CS2_OP_BRANCH_GREATER_THAN] = { 2, 0, 0, 0, 1 }, /* wire 10 */
-    [CS2_OP_BRANCH_LESS_THAN_OR_EQUALS] = { 2, 0, 0, 0, 1 }, /* wire 31 */
-    [CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS] = { 2, 0, 0, 0, 1 }, /* wire 32 */
-    [CS2_OP_PUSH_INT_LOCAL] = { 0, 0, 1, 0, 1 }, /* wire 33 */
-    [CS2_OP_POP_INT_LOCAL] = { 1, 0, 0, 0, 1 }, /* wire 34 */
-    [CS2_OP_ADD] = { 2, 0, 1, 0, 1 }, /* wire 4000 */
-    [CS2_OP_SUB] = { 2, 0, 1, 0, 1 }, /* wire 4001 */
-    [CS2_OP_MULTIPLY] = { 2, 0, 1, 0, 1 }, /* wire 4002 */
-    [CS2_OP_DIVIDE] = { 2, 0, 1, 0, 1 }, /* wire 4003 */
-    [CS2_OP_ADDPERCENT] = { 2, 0, 1, 0, 1 }, /* wire 4007 */
-    [CS2_OP_SETBIT] = { 2, 0, 1, 0, 1 }, /* wire 4008 */
-    [CS2_OP_CLEARBIT] = { 2, 0, 1, 0, 1 }, /* wire 4009 */
-    [CS2_OP_TESTBIT] = { 2, 0, 1, 0, 1 }, /* wire 4010 */
-    [CS2_OP_MODULO] = { 2, 0, 1, 0, 1 }, /* wire 4011 */
-    [CS2_OP_AND] = { 2, 0, 1, 0, 1 }, /* wire 4014 */
-    [CS2_OP_OR] = { 2, 0, 1, 0, 1 }, /* wire 4015 */
-    [CS2_OP_MIN] = { 2, 0, 1, 0, 1 }, /* wire 4016 */
-    [CS2_OP_MAX] = { 2, 0, 1, 0, 1 }, /* wire 4017 */
-    [CS2_OP_SCALE] = { 3, 0, 1, 0, 1 }, /* wire 4018 */
-    [CS2_OP_BITCOUNT] = { 1, 0, 1, 0, 1 }, /* wire 4025 */
-    [CS2_OP_TOGGLEBIT] = { 2, 0, 1, 0, 1 }, /* wire 4026 */
-    [CS2_OP_SETBIT_RANGE] = { 3, 0, 1, 0, 1 }, /* wire 4027 */
-    [CS2_OP_CLEARBIT_RANGE] = { 3, 0, 1, 0, 1 }, /* wire 4028 */
-    [CS2_OP_GETBIT_RANGE] = { 3, 0, 1, 0, 1 }, /* wire 4029 */
-    [CS2_OP_SETBIT_RANGE_TOINT] = { 4, 0, 1, 0, 1 }, /* wire 4030 */
-    [CS2_OP_ABS] = { 1, 0, 1, 0, 1 }, /* wire 4035 */
     [CS2_OP_PUSH_VAR] = { 0, 0, 1, 0, 1 }, /* wire 1 */
     [CS2_OP_POP_VAR] = { 1, 0, 0, 0, 1 }, /* wire 2 */
     [CS2_OP_PUSH_CONSTANT_STRING] = { 0, 0, 0, 1, 1 }, /* wire 3 */
@@ -1408,6 +1377,37 @@ static struct CS2VM2OpcodeStack const g_cs2vm2_opcode_stack[CS2VM2_OPCODE_STACK_
     [CS2_OP_RS2_GETINT_C] = { 0, 0, 1, 0, 1 },
     [CS2_OP_RS2_GETINT_D] = { 0, 0, 1, 0, 1 },
     [CS2_OP_UNDEFINED_WIRE_ID] = { 0, 0, 0, 0, 1 },
+    [CS2_OP_PUSH_CONSTANT_INT] = { 0, 0, 1, 0, 1 }, /* wire 0 */
+    [CS2_OP_BRANCH] = { 0, 0, 0, 0, 1 }, /* wire 6 */
+    [CS2_OP_BRANCH_NOT] = { 2, 0, 0, 0, 1 }, /* wire 7 */
+    [CS2_OP_BRANCH_EQUALS] = { 2, 0, 0, 0, 1 }, /* wire 8 */
+    [CS2_OP_BRANCH_LESS_THAN] = { 2, 0, 0, 0, 1 }, /* wire 9 */
+    [CS2_OP_BRANCH_GREATER_THAN] = { 2, 0, 0, 0, 1 }, /* wire 10 */
+    [CS2_OP_BRANCH_LESS_THAN_OR_EQUALS] = { 2, 0, 0, 0, 1 }, /* wire 31 */
+    [CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS] = { 2, 0, 0, 0, 1 }, /* wire 32 */
+    [CS2_OP_PUSH_INT_LOCAL] = { 0, 0, 1, 0, 1 }, /* wire 33 */
+    [CS2_OP_POP_INT_LOCAL] = { 1, 0, 0, 0, 1 }, /* wire 34 */
+    [CS2_OP_ADD] = { 2, 0, 1, 0, 1 }, /* wire 4000 */
+    [CS2_OP_SUB] = { 2, 0, 1, 0, 1 }, /* wire 4001 */
+    [CS2_OP_MULTIPLY] = { 2, 0, 1, 0, 1 }, /* wire 4002 */
+    [CS2_OP_DIVIDE] = { 2, 0, 1, 0, 1 }, /* wire 4003 */
+    [CS2_OP_ADDPERCENT] = { 2, 0, 1, 0, 1 }, /* wire 4007 */
+    [CS2_OP_SETBIT] = { 2, 0, 1, 0, 1 }, /* wire 4008 */
+    [CS2_OP_CLEARBIT] = { 2, 0, 1, 0, 1 }, /* wire 4009 */
+    [CS2_OP_TESTBIT] = { 2, 0, 1, 0, 1 }, /* wire 4010 */
+    [CS2_OP_MODULO] = { 2, 0, 1, 0, 1 }, /* wire 4011 */
+    [CS2_OP_AND] = { 2, 0, 1, 0, 1 }, /* wire 4014 */
+    [CS2_OP_OR] = { 2, 0, 1, 0, 1 }, /* wire 4015 */
+    [CS2_OP_MIN] = { 2, 0, 1, 0, 1 }, /* wire 4016 */
+    [CS2_OP_MAX] = { 2, 0, 1, 0, 1 }, /* wire 4017 */
+    [CS2_OP_SCALE] = { 3, 0, 1, 0, 1 }, /* wire 4018 */
+    [CS2_OP_BITCOUNT] = { 1, 0, 1, 0, 1 }, /* wire 4025 */
+    [CS2_OP_TOGGLEBIT] = { 2, 0, 1, 0, 1 }, /* wire 4026 */
+    [CS2_OP_SETBIT_RANGE] = { 3, 0, 1, 0, 1 }, /* wire 4027 */
+    [CS2_OP_CLEARBIT_RANGE] = { 3, 0, 1, 0, 1 }, /* wire 4028 */
+    [CS2_OP_GETBIT_RANGE] = { 3, 0, 1, 0, 1 }, /* wire 4029 */
+    [CS2_OP_SETBIT_RANGE_TOINT] = { 4, 0, 1, 0, 1 }, /* wire 4030 */
+    [CS2_OP_ABS] = { 1, 0, 1, 0, 1 }, /* wire 4035 */
 };
 
 /* Every instruction CS2VM2_RunOp has no case of its own for: it runs them

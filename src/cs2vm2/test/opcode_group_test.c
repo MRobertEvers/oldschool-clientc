@@ -1,10 +1,9 @@
 /* Generated opcode-group metadata must match the rev-239 dispatch boundaries
- * (by wire id), and the canonical numbering must keep each group one range;
- * the FAST range is exactly the instructions the loop runs itself. */
+ * (by wire id), and the canonical numbering must keep each group one range,
+ * with the JIT section after everything a script can hold. */
 
 #include "cs2vm2/cs2_opcode.h"
 #include "cs2vm2/cs2_opcode_meta.h"
-#include "cs2vm2/cs2vm2_jit_internal.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -81,7 +80,7 @@ main(void)
             failures++;
         }
         /* Wire order within each of the FAST and GENERAL ranges. */
-        if( op > 0 && op != CS2_OP_FAST_END && !CANONICAL_ONLY(meta) &&
+        if( op > 0 && op != CS2_OP_FAST_BEGIN && !CANONICAL_ONLY(meta) &&
             !CANONICAL_ONLY(cs2_opcode_meta_lookup(op - 1)) && cs2_opcode_meta_lookup(op - 1)->wire > meta->wire )
         {
             fprintf(stderr, "instruction %d %s is out of wire order\n", op, meta->name);
@@ -118,17 +117,20 @@ main(void)
         failures++;
     }
 
-    /* The FAST range is the loop's own cases: exactly the instructions with a
-     * plain hot code (g_cs2vm2_hot_op, one per case of cs2vm2_hot_cases.inc;
-     * tools/cs2_gen_opcodes/check_fast_arms.py ties the cases to the list). */
-    for( int op = 0; op < CS2_OP_PLAIN_COUNT; op++ )
+    /* The JIT section follows everything a script can hold, and every one of
+     * its instructions has a name and the JIT group (the loop's cases are
+     * tied to the FAST and JIT lists by tools/cs2_gen_opcodes/check_loop_arms.py). */
+    if( CS2_OP_JIT_FIRST != CS2_OP_PLAIN_COUNT || CS2_OPS_JIT_BEGIN != CS2_OP_JIT_FIRST ||
+        CS2_OPS_JIT_END != CS2_OP_COUNT || CS2_OP_END_OF_SCRIPT != CS2_OP_JIT_FIRST )
     {
-        int const fast = op < CS2_OP_FAST_END;
-        int const hot = g_cs2vm2_hot_op[op] != CS2VM2_HOT_NONE;
-        if( fast != hot )
+        fprintf(stderr, "the JIT section is not [CS2_OP_PLAIN_COUNT, CS2_OP_COUNT) from END_OF_SCRIPT\n");
+        failures++;
+    }
+    for( int op = CS2_OP_JIT_FIRST; op < CS2_OP_COUNT; op++ )
+    {
+        if( CS2_OpcodeGroupOf(op) != CS2_OPCODE_GROUP_JIT || !CS2_OpCode_String(op) )
         {
-            fprintf(stderr, "%s: %s, but %s a case of the loop\n", CS2_OpCode_String(op),
-                fast ? "FAST" : "GENERAL", hot ? "has" : "has no");
+            fprintf(stderr, "JIT instruction %d: group %s\n", op, CS2_OpcodeGroupName(CS2_OpcodeGroupOf(op)));
             failures++;
         }
     }

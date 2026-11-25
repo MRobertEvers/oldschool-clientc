@@ -1044,21 +1044,15 @@ struct CS2_OpcodeSemantics const cs2_opcode_semantics[] =
 int const cs2_opcode_semantics_count =
     (int)(sizeof(cs2_opcode_semantics) / sizeof(cs2_opcode_semantics[0]));
 
+/* A scan, not a search: the rows are in wire order, which is not the
+ * canonical numbering's (the FAST range sits after GENERAL). */
 struct CS2_OpcodeSemantics const*
 CS2_OpcodeSemanticsLookup(int opcode)
 {
-    int lo = 0;
-    int hi = cs2_opcode_semantics_count - 1;
-    while( lo <= hi )
+    for( int i = 0; i < cs2_opcode_semantics_count; i++ )
     {
-        int mid = lo + (hi - lo) / 2;
-        int value = cs2_opcode_semantics[mid].opcode;
-        if( value == opcode )
-            return &cs2_opcode_semantics[mid];
-        if( value < opcode )
-            lo = mid + 1;
-        else
-            hi = mid - 1;
+        if( cs2_opcode_semantics[i].opcode == opcode )
+            return &cs2_opcode_semantics[i];
     }
     return NULL;
 }

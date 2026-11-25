@@ -28,16 +28,24 @@ Naming (stated again at the top of the generated cs2_opcode.h):
 
 The canonical order has three ranges:
 
-  * FAST, [0, CS2_OP_FAST_END): the instructions the interpreter's loop runs
-    itself (fast_instructions.py), in wire order;
-  * GENERAL, [CS2_OP_FAST_END, CS2_OP_PLAIN_COUNT): every other instruction a
-    loaded script can hold, run by its handler. The OldSchool wire order, so
-    each dispatch group of the reference client (opcode_groups.py) is one
-    contiguous range of its GENERAL instructions, named CS2_OPS_<GROUP>_BEGIN
-    .. _END in the generated header (a group's FAST instructions are in the
-    FAST range). A versioned family takes its base command's place. The RS2
-    634 section follows, then UNDEFINED_WIRE_ID;
-  * JIT, from CS2_OP_PLAIN_COUNT: the jit's.
+  * GENERAL, [0, CS2_OP_FAST_BEGIN): every instruction a loaded script can
+    hold that its handler runs. The OldSchool wire order, so each dispatch
+    group of the reference client (opcode_groups.py) is one contiguous range
+    of its GENERAL instructions, named CS2_OPS_<GROUP>_BEGIN .. _END in the
+    generated header (a group's FAST instructions are in the FAST range). A
+    versioned family takes its base command's place. The RS2 634 section
+    follows, then UNDEFINED_WIRE_ID;
+  * FAST, [CS2_OP_FAST_BEGIN, CS2_OP_PLAIN_COUNT): the instructions the
+    interpreter's loop runs itself (fast_instructions.py), in wire order;
+  * JIT, [CS2_OP_JIT_FIRST == CS2_OP_PLAIN_COUNT, CS2_OP_COUNT): what only
+    the loader writes into the array the loop runs (jit_instructions.py).
+
+FAST and JIT are adjacent so that the loop's switch, whose cases are exactly
+those two ranges and whose default is GENERAL, compiles to one bounds test and
+one table jump. With FAST first and JIT last, clang built two tables behind
+two tests (GENERAL between them), whether GENERAL was the default, a case
+range or 1,345 case labels (2026-11-25, Apple clang 17 arm64 and x86-64,
+emcc wasm32).
 """
 
 from __future__ import annotations
@@ -150,6 +158,8 @@ class Instruction:
     rs2: bool = False
     # True for a FAST instruction (fast_instructions.py).
     fast: bool = False
+    # A JIT instruction's one-line description (jit_instructions.py).
+    summary: str | None = None
 
 
 @dataclass(frozen=True)
@@ -184,7 +194,7 @@ def build_instructions(entries: list[tuple[str, int]]) -> list[Instruction]:
     missing = sorted(FAST - {ins.name for ins in general if ins.fast})
     if missing:
         raise ValueError(f"FAST names no unversioned OldSchool command: {missing}")
-    out = [ins for ins in general if ins.fast] + [ins for ins in general if not ins.fast]
+    out = [ins for ins in general if not ins.fast] + [ins for ins in general if ins.fast]
     for ins in out:
         if ins.name in seen:
             raise ValueError(f"canonical instruction {ins.name} is named twice")
@@ -243,6 +253,15 @@ def canonical_to_wire(dialect: Dialect) -> dict[str, int]:
         out.setdefault(name, wire)
     out.update(dialect.preferred_wire)
     return out
+
+
+def build_jit_instructions(plain: list[Instruction]) -> list[Instruction]:
+    """The JIT section, in its frozen order (jit_instructions.py)."""
+
+    import jit_instructions
+
+    jit_instructions.validate({ins.name for ins in plain})
+    return [Instruction(name, None, "JIT", name, summary=summary) for name, summary in jit_instructions.JIT_INSTRUCTIONS]
 
 
 def numbering_hash(instructions: list[Instruction]) -> int:

@@ -149,7 +149,7 @@ test_straight(
     snprintf(label, sizeof(label), "%s straight l%d/l%d c%d/c%d%s", sh->name, l0, l1, c0, c1,
         trailing_return ? " +RETURN" : "");
     int const code = jt_ab_asm(&a, 8, &setup, 0, label);
-    jt_check(code == sh->code, "%s placed at pc 0 (got %d)", sh->name, code);
+    jt_check(code == sh->op, "%s placed at pc 0 (got %d)", sh->name, code);
 }
 
 /*
@@ -197,7 +197,7 @@ test_branch(
     snprintf(label, sizeof(label), "%s %s l%d/l%d c%d prefill %d", sh->name, negative ? "backward" : "forward",
         l0, l1, c0, ints_prefill);
     int const code = jt_ab_asm(&a, 8, &setup, start, label);
-    jt_check(code == sh->code, "%s placed at pc %d (got %d)", sh->name, start, code);
+    jt_check(code == sh->op, "%s placed at pc %d (got %d)", sh->name, start, code);
     /* Which way it went, so both are known to be covered. */
     int const last = g_jt_plain.int_top > 0 ? g_jt_plain.ints[g_jt_plain.int_top - 1] : -1;
     if( !g_jt_quiet )
@@ -210,7 +210,7 @@ static void
 note_direction(struct CS2VM2_JitShape const* sh)
 {
     int const last = g_jt_plain.int_top > 0 ? g_jt_plain.ints[g_jt_plain.int_top - 1] : -1;
-    g_taken_seen[sh->code - CS2VM2_JIT_FUSED_FIRST][last == 111 ? 0 : 1] = 1;
+    g_taken_seen[sh->op - CS2_OPS_JIT_FUSED_BEGIN][last == 111 ? 0 : 1] = 1;
 }
 
 /* A branch lands on instruction `inner` of the group (1 .. k-1). The group
@@ -232,7 +232,7 @@ test_inner(
     struct jt_setup const setup = shapes_setup(4);
     snprintf(label, sizeof(label), "%s entered at inner pc %d", sh->name, inner);
     int const code = jt_ab_asm(&a, 8, &setup, 1, label);
-    jt_check(code == sh->code, "%s still placed at its first pc (got %d)", sh->name, code);
+    jt_check(code == sh->op, "%s still placed at its first pc (got %d)", sh->name, code);
 }
 
 static void
@@ -245,21 +245,21 @@ test_singletons(void)
     jt_asm_init(&a);
     jt_op(&a, CS2_OP_PUSH_INT_LOCAL, 3);
     jt_op(&a, CS2_OP_RETURN, 0);
-    jt_check(jt_ab_asm(&a, 8, &setup, 0, "LD of local 3") == CS2VM2_JIT_LD, "LD placed");
+    jt_check(jt_ab_asm(&a, 8, &setup, 0, "LD of local 3") == CS2_OP_PUSH_INT_LOCAL_DECLARED, "LD placed");
     jt_asm_init(&a);
     jt_op(&a, CS2_OP_PUSH_INT_LOCAL, 7);
-    jt_check(jt_ab_asm(&a, 8, &setup, 0, "LD of local 7 (last declared) at the end") == CS2VM2_JIT_LD,
+    jt_check(jt_ab_asm(&a, 8, &setup, 0, "LD of local 7 (last declared) at the end") == CS2_OP_PUSH_INT_LOCAL_DECLARED,
         "LD placed on the last declared local");
 
     /* PD. */
     jt_asm_init(&a);
     jt_op(&a, CS2_OP_POP_INT_LOCAL, 4);
     jt_op(&a, CS2_OP_RETURN, 0);
-    jt_check(jt_ab_asm(&a, 8, &setup, 0, "PD into local 4") == CS2VM2_JIT_PD, "PD placed");
+    jt_check(jt_ab_asm(&a, 8, &setup, 0, "PD into local 4") == CS2_OP_POP_INT_LOCAL_DECLARED, "PD placed");
     setup.ints_prefill = 0;
     jt_asm_init(&a);
     jt_op(&a, CS2_OP_POP_INT_LOCAL, 4);
-    jt_check(jt_ab_asm(&a, 8, &setup, 0, "PD on an empty stack (general path's error)") == CS2VM2_JIT_PD,
+    jt_check(jt_ab_asm(&a, 8, &setup, 0, "PD on an empty stack (general path's error)") == CS2_OP_POP_INT_LOCAL_DECLARED,
         "PD placed on an empty-stack script");
 
     /* CSTR, and a NULL constant that gets no CSTR. */
@@ -267,10 +267,10 @@ test_singletons(void)
     jt_str(&a, "constant");
     jt_str(&a, "second");
     jt_op(&a, CS2_OP_RETURN, 0);
-    jt_check(jt_ab_asm(&a, 8, NULL, 0, "CSTR x2") == CS2VM2_JIT_CSTR, "CSTR placed");
+    jt_check(jt_ab_asm(&a, 8, NULL, 0, "CSTR x2") == CS2_OP_PUSH_CONSTANT_STRING_PRESENT, "CSTR placed");
     jt_asm_init(&a);
     jt_op(&a, CS2_OP_PUSH_CONSTANT_STRING, 0); /* no string operand */
-    jt_check(jt_ab_asm(&a, 8, NULL, 0, "PUSH_CONSTANT_STRING with a NULL operand") == CS2VM2_HOT_NONE,
+    jt_check(jt_ab_asm(&a, 8, NULL, 0, "PUSH_CONSTANT_STRING with a NULL operand") == CS2_OP_PUSH_CONSTANT_STRING,
         "NULL constant left on the general path");
 
     /* Plain codes are exactly the old table. */
@@ -279,7 +279,7 @@ test_singletons(void)
     jt_op(&a, CS2_OP_PUSH_CONSTANT_INT, 0);
     jt_op(&a, CS2_OP_DIVIDE, 0); /* divide by zero: the plain case stops, general path errors */
     setup.ints_prefill = 0;
-    jt_check(jt_ab_asm(&a, 8, &setup, 2, "divide by zero") == CS2VM2_HOT_DIVIDE, "plain DIVIDE code");
+    jt_check(jt_ab_asm(&a, 8, &setup, 2, "divide by zero") == CS2_OP_DIVIDE, "plain DIVIDE code");
 }
 
 /* ---- the builder census ------------------------------------------------ */
@@ -410,7 +410,7 @@ test_census(void)
             bad++;
         for( int pc = 0; pc < s.op_count; pc++ )
         {
-            unsigned const code = s.jit->code[pc];
+            unsigned const code = s.jit->ops[pc];
             struct CS2VM2_JitShape const* sh = cs2vm2_jit_shape(code);
             if( sh )
             {
@@ -426,23 +426,21 @@ test_census(void)
                         bad++;
                 }
             }
-            else if( code == CS2VM2_JIT_LD || code == CS2VM2_JIT_PD )
+            else if( code == CS2_OP_PUSH_INT_LOCAL_DECLARED || code == CS2_OP_POP_INT_LOCAL_DECLARED )
             {
                 singles++;
                 if( !named_local_ok(&s, pc) ||
-                    s.opcodes[pc] != (code == CS2VM2_JIT_LD ? CS2_OP_PUSH_INT_LOCAL : CS2_OP_POP_INT_LOCAL) )
+                    s.opcodes[pc] != (code == CS2_OP_PUSH_INT_LOCAL_DECLARED ? CS2_OP_PUSH_INT_LOCAL : CS2_OP_POP_INT_LOCAL) )
                     bad++;
             }
-            else if( code == CS2VM2_JIT_CSTR )
+            else if( code == CS2_OP_PUSH_CONSTANT_STRING_PRESENT )
             {
                 cstr++;
                 if( s.opcodes[pc] != CS2_OP_PUSH_CONSTANT_STRING || !s.string_operands[pc] )
                     bad++;
             }
-            else if( code > CS2VM2_HOT_PLAIN_LAST || (code != 0 && code != g_cs2vm2_hot_op[s.opcodes[pc]]) )
-                bad++;
-            else if( code == 0 && g_cs2vm2_hot_op[s.opcodes[pc]] != 0 )
-                bad++; /* the builder leaves no plain instruction on the general path */
+            else if( code != s.opcodes[pc] )
+                bad++; /* anything else is the pc's own instruction */
         }
         if( nl > CS2VM_MAX_LOCALS )
         {
@@ -486,9 +484,9 @@ int
 main(void)
 {
     printf("test-cs2-jit-shapes\n");
-    jt_check(CS2VM2_JIT_SHAPE_COUNT == CS2VM2_JIT_FUSED_LAST - CS2VM2_JIT_FUSED_FIRST + 1, "24 codes, 24 shapes");
+    jt_check(CS2VM2_JIT_SHAPE_COUNT == CS2_OPS_JIT_FUSED_END - CS2_OPS_JIT_FUSED_BEGIN, "24 fused instructions, 24 shapes");
     for( int i = 0; i < CS2VM2_JIT_SHAPE_COUNT; i++ )
-        jt_check(g_cs2vm2_jit_shapes[i].code == CS2VM2_JIT_FUSED_FIRST + i, "shape %s at its code",
+        jt_check(g_cs2vm2_jit_shapes[i].op == CS2_OPS_JIT_FUSED_BEGIN + i, "shape %s at its code",
             g_cs2vm2_jit_shapes[i].name);
 
     for( int i = 0; i < CS2VM2_JIT_SHAPE_COUNT; i++ )

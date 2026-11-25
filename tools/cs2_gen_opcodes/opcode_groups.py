@@ -165,7 +165,7 @@ def group_for_opcode(opcode: int) -> OpcodeGroup | None:
 CANONICAL_ONLY_GROUPS: tuple[tuple[str, str, str], ...] = (
     ("RS2_634", "rs2-634", "the RS2 634 client's commands that differ from OldSchool's"),
     ("UNDEFINED", "undefined", "what a wire id the script's dialect does not define becomes at load"),
-    ("JIT", "jit", "the load-time jit's fused and proven instructions"),
+    ("JIT", "jit", "what only the loader writes into the array the loop runs: the end, the hand to a handler, the jit's proven and fused forms"),
 )
 
 

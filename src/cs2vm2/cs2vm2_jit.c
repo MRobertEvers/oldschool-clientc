@@ -336,7 +336,7 @@ CS2VM2_JitDialectTag(struct CS2VM2_Dialect const* dialect)
  * branches, long compares, BRANCH_IF_ONE), and each case of each SWITCH whose
  * table exists (`pc + 1 + target_pc`, CS2VM2_JumpRelative after the pc moved
  * on).
- * The hot loop is entered at whatever pc such a jump leaves, and indexes the
+ * The loop is entered at whatever pc such a jump leaves, and indexes the
  * overlay there, so a script that fails this gets no overlay at all.
  */
 static bool
@@ -427,63 +427,62 @@ cs2vm2_jit_shape_matches(
     return true;
 }
 
-static inline unsigned
-cs2vm2_jit_plain_code(
-    struct CS2VM2_Script const* script,
-    int pc)
-{
-    return cs2vm2_plain_code_at(script, pc);
-}
-
 /*
- * Whether `code` may stand at `pc` of `script`: the validator's rule, and
- * what the builder's every choice satisfies. Every code but 0 names the
- * instruction(s) it replaces, so a legal code is semantics-preserving on its
- * own, whoever chose it.
+ * Whether `op` may stand at `pc` of `script`: the validator's rule, and what
+ * the builder's every choice satisfies. Every instruction but the pc's own
+ * and RUN_HANDLER names the instruction(s) it replaces, so a legal one is
+ * semantics-preserving on its own, whoever chose it.
  */
 static bool
-cs2vm2_jit_code_legal(
+cs2vm2_jit_op_legal(
     struct CS2VM2_Script const* script,
     int pc,
-    unsigned code)
+    unsigned op)
 {
-    if( code == CS2VM2_HOT_NONE )
+    if( op == cs2vm2_run_op_at(script, pc) || op == CS2_OP_RUN_HANDLER )
         return true;
-    if( code <= CS2VM2_HOT_PLAIN_LAST )
-        return cs2vm2_jit_plain_code(script, pc) == code;
-    if( code == CS2VM2_JIT_LD )
+    if( op == CS2_OP_PUSH_INT_LOCAL_DECLARED )
         return cs2vm2_jit_ins_is(script, pc, CS2VM2_JIT_INS_L);
-    if( code == CS2VM2_JIT_PD )
+    if( op == CS2_OP_POP_INT_LOCAL_DECLARED )
         return cs2vm2_jit_ins_is(script, pc, CS2VM2_JIT_INS_P);
-    if( code == CS2VM2_JIT_CSTR )
+    if( op == CS2_OP_PUSH_CONSTANT_STRING_PRESENT )
         return script->opcodes[pc] == CS2_OP_PUSH_CONSTANT_STRING && script->string_operands &&
                script->string_operands[pc];
-    struct CS2VM2_JitShape const* shape = cs2vm2_jit_shape(code);
+    struct CS2VM2_JitShape const* shape = cs2vm2_jit_shape(op);
     if( !shape )
         return false;
     return cs2vm2_jit_shape_matches(script, pc, shape);
 }
 
 /* The builder's priority (vmfuse_pre.inc, the lab's measured order). */
-static const uint8_t g_cs2vm2_jit_build_order[CS2VM2_JIT_SHAPE_COUNT] = {
-    CS2VM2_JIT_LCAP,
-    CS2VM2_JIT_LCBREQ, CS2VM2_JIT_LCBRNE, CS2VM2_JIT_LCBRLT, CS2VM2_JIT_LCBRGT,
-    CS2VM2_JIT_LLBREQ, CS2VM2_JIT_LLBRNE, CS2VM2_JIT_LLBRLT, CS2VM2_JIT_LLBRGT,
-    CS2VM2_JIT_LCA,
-    CS2VM2_JIT_LLL,
-    CS2VM2_JIT_LL,
-    CS2VM2_JIT_LC,
-    CS2VM2_JIT_LP,
-    CS2VM2_JIT_CBREQ, CS2VM2_JIT_CBRNE, CS2VM2_JIT_CBRLT, CS2VM2_JIT_CBRGT,
-    CS2VM2_JIT_CA,
-    CS2VM2_JIT_CP,
-    CS2VM2_JIT_CL,
-    CS2VM2_JIT_CC,
-    CS2VM2_JIT_AP,
-    CS2VM2_JIT_PBR,
+static const uint16_t g_cs2vm2_jit_build_order[CS2VM2_JIT_SHAPE_COUNT] = {
+    CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD__POP_INT_LOCAL,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_EQUALS,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_NOT,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_LESS_THAN,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_GREATER_THAN,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_EQUALS,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_NOT,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_LESS_THAN,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_GREATER_THAN,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__PUSH_INT_LOCAL,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL,
+    CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT,
+    CS2_OP_PUSH_INT_LOCAL__POP_INT_LOCAL,
+    CS2_OP_PUSH_CONSTANT_INT__BRANCH_EQUALS,
+    CS2_OP_PUSH_CONSTANT_INT__BRANCH_NOT,
+    CS2_OP_PUSH_CONSTANT_INT__BRANCH_LESS_THAN,
+    CS2_OP_PUSH_CONSTANT_INT__BRANCH_GREATER_THAN,
+    CS2_OP_PUSH_CONSTANT_INT__ADD,
+    CS2_OP_PUSH_CONSTANT_INT__POP_INT_LOCAL,
+    CS2_OP_PUSH_CONSTANT_INT__PUSH_INT_LOCAL,
+    CS2_OP_PUSH_CONSTANT_INT__PUSH_CONSTANT_INT,
+    CS2_OP_ADD__POP_INT_LOCAL,
+    CS2_OP_POP_INT_LOCAL__BRANCH,
 };
 
-static uint8_t
+static uint16_t
 cs2vm2_jit_choose(
     struct CS2VM2_Script const* script,
     int pc)
@@ -497,18 +496,18 @@ cs2vm2_jit_choose(
         {
             struct CS2VM2_JitShape const* shape = cs2vm2_jit_shape(g_cs2vm2_jit_build_order[i]);
             if( cs2vm2_jit_shape_matches(script, pc, shape) )
-                return shape->code;
+                return shape->op;
         }
     }
     if( op == CS2_OP_PUSH_CONSTANT_STRING && script->string_operands && script->string_operands[pc] )
-        return CS2VM2_JIT_CSTR;
+        return CS2_OP_PUSH_CONSTANT_STRING_PRESENT;
 #ifndef CS2VM2_JIT_NO_SINGLETONS /* a rig-only switch: docs/CS2_JIT.md section 7 step 2 */
     if( cs2vm2_jit_ins_is(script, pc, CS2VM2_JIT_INS_L) )
-        return CS2VM2_JIT_LD;
+        return CS2_OP_PUSH_INT_LOCAL_DECLARED;
     if( cs2vm2_jit_ins_is(script, pc, CS2VM2_JIT_INS_P) )
-        return CS2VM2_JIT_PD;
+        return CS2_OP_POP_INT_LOCAL_DECLARED;
 #endif
-    return (uint8_t)cs2vm2_jit_plain_code(script, pc);
+    return cs2vm2_run_op_at(script, pc);
 }
 
 /* ---- the debug canary -------------------------------------------------- */
@@ -535,15 +534,20 @@ cs2vm2_jit_strings_hash(struct CS2VM2_Script const* script)
 
 /* ---- build, attach, copy, free ----------------------------------------- */
 
+static size_t
+cs2vm2_jit_bytes(int op_count)
+{
+    /* One instruction past the script's: END_OF_SCRIPT. */
+    return sizeof(struct CS2VM2_Jit) + ((size_t)op_count + 1u) * sizeof(uint16_t);
+}
+
 static struct CS2VM2_Jit*
 cs2vm2_jit_alloc(int op_count)
 {
     assert(op_count > 0);
-    /* One code past the script's: CS2VM2_JIT_END (cs2vm2_jit_internal.h). */
-    struct CS2VM2_Jit* jit = (struct CS2VM2_Jit*)ToriMem_Alloc(
-        ToriMem_Script(), sizeof(struct CS2VM2_Jit) + (size_t)op_count + 1u);
+    struct CS2VM2_Jit* jit = (struct CS2VM2_Jit*)ToriMem_Alloc(ToriMem_Script(), cs2vm2_jit_bytes(op_count));
     assert(jit);
-    jit->code[op_count] = CS2VM2_JIT_END;
+    jit->ops[op_count] = CS2_OP_END_OF_SCRIPT;
     return jit;
 }
 
@@ -575,11 +579,11 @@ CS2VM2_JitBuild(struct CS2VM2_Script* script)
     jit->op_count = script->op_count;
     jit->local_int_count = script->local_int_count;
     for( int pc = 0; pc < script->op_count; pc++ )
-        jit->code[pc] = cs2vm2_jit_choose(script, pc);
+        jit->ops[pc] = cs2vm2_jit_choose(script, pc);
     CS2VM2_ScriptEnsureConstants(script); /* the canary hashes what a run reads */
     jit->strings_hash = cs2vm2_jit_strings_hash(script);
     script->jit = jit;
-    script->run_code = jit->code;
+    script->run_ops = jit->ops;
     return CS2VM2_JIT_BUILT;
 }
 
@@ -633,7 +637,7 @@ cs2vm2_jit_r32(uint8_t const* p)
 }
 
 /* The blob checksum: the hash, seeded with the magic, over header bytes
- * [0, 40) followed by the code. */
+ * [0, 40) followed by the per-pc bytes. */
 static uint64_t
 cs2vm2_jit_blob_checksum(
     uint8_t const* header,
@@ -673,7 +677,24 @@ CS2VM2_JitSerialize(
     cs2vm2_jit_w32(out + 28, (uint32_t)script->local_int_count);
     cs2vm2_jit_w32(out + 32, n);
     cs2vm2_jit_w32(out + 36, 0u);
-    memcpy(out + CS2VM2_JIT_BLOB_HEADER_SIZE, script->jit->code, n);
+    uint8_t* const bytes = out + CS2VM2_JIT_BLOB_HEADER_SIZE;
+    for( uint32_t pc = 0; pc < n; pc++ )
+    {
+        /* The instruction's position in the JIT section; 0 (END_OF_SCRIPT's,
+         * which no pc before op_count holds) for the pc's own instruction. */
+        unsigned const op = script->jit->ops[pc];
+        if( op < CS2_OP_JIT_FIRST )
+        {
+            assert(op == cs2vm2_run_op_at(script, (int)pc));
+            bytes[pc] = 0;
+        }
+        else
+        {
+            assert(op > CS2_OP_END_OF_SCRIPT);
+            assert(op < CS2_OP_COUNT);
+            bytes[pc] = (uint8_t)(op - CS2_OP_JIT_FIRST);
+        }
+    }
     cs2vm2_jit_w64(out + 40, cs2vm2_jit_blob_checksum(out, out + CS2VM2_JIT_BLOB_HEADER_SIZE, n));
 }
 
@@ -718,9 +739,9 @@ CS2VM2_JitAttachBlob(
         return CS2VM2_JIT_REJECT_SHAPE;
 
     /* 9: unchanged since it was written. */
-    uint8_t const* code = blob + CS2VM2_JIT_BLOB_HEADER_SIZE;
+    uint8_t const* bytes = blob + CS2VM2_JIT_BLOB_HEADER_SIZE;
     uint64_t const sum = (uint64_t)cs2vm2_jit_r32(blob + 40) | ((uint64_t)cs2vm2_jit_r32(blob + 44) << 32);
-    if( sum != cs2vm2_jit_blob_checksum(blob, code, header_ops) )
+    if( sum != cs2vm2_jit_blob_checksum(blob, bytes, header_ops) )
         return CS2VM2_JIT_REJECT_CHECKSUM;
 
     /* 10, 11: the safety check. Every byte re-proven against THIS script. */
@@ -728,7 +749,8 @@ CS2VM2_JitAttachBlob(
         return CS2VM2_JIT_REJECT_UNJITTABLE;
     for( int pc = 0; pc < script->op_count; pc++ )
     {
-        if( !cs2vm2_jit_code_legal(script, pc, code[pc]) )
+        unsigned const op = bytes[pc] == 0 ? cs2vm2_run_op_at(script, pc) : CS2_OP_JIT_FIRST + bytes[pc];
+        if( op >= CS2_OP_COUNT || !cs2vm2_jit_op_legal(script, pc, op) )
             return CS2VM2_JIT_REJECT_ILLEGAL_CODE;
     }
 
@@ -736,11 +758,12 @@ CS2VM2_JitAttachBlob(
     struct CS2VM2_Jit* jit = cs2vm2_jit_alloc(script->op_count);
     jit->op_count = script->op_count;
     jit->local_int_count = script->local_int_count;
-    memcpy(jit->code, code, (size_t)script->op_count);
+    for( int pc = 0; pc < script->op_count; pc++ )
+        jit->ops[pc] = bytes[pc] == 0 ? cs2vm2_run_op_at(script, pc) : (uint16_t)(CS2_OP_JIT_FIRST + bytes[pc]);
     CS2VM2_ScriptEnsureConstants(script); /* the canary hashes what a run reads */
     jit->strings_hash = cs2vm2_jit_strings_hash(script);
     script->jit = jit;
-    script->run_code = jit->code;
+    script->run_ops = jit->ops;
     return CS2VM2_JIT_ATTACHED;
 }
 
@@ -757,12 +780,12 @@ CS2VM2_JitCopy(
     assert(src->jit->op_count == src->op_count);
 
     struct CS2VM2_Jit* jit = cs2vm2_jit_alloc(src->op_count);
-    memcpy(jit, src->jit, sizeof(struct CS2VM2_Jit) + (size_t)src->op_count + 1u);
+    memcpy(jit, src->jit, cs2vm2_jit_bytes(src->op_count));
     /* The copy's strings are its own buffers with the same bytes. */
     CS2VM2_ScriptEnsureConstants(dst); /* the canary hashes what a run reads */
     jit->strings_hash = cs2vm2_jit_strings_hash(dst);
     dst->jit = jit;
-    dst->run_code = jit->code;
+    dst->run_ops = jit->ops;
 }
 
 void
@@ -776,21 +799,22 @@ CS2VM2_JitFree(struct CS2VM2_Script* script)
     assert(cs2vm2_jit_strings_hash(script) == script->jit->strings_hash);
     ToriMem_Free(ToriMem_Script(), script->jit);
     script->jit = NULL;
-    /* Back to the script's own codes (NULL for one never prepared). */
-    script->run_code = script->plain_code;
+    /* Back to the array CS2VM2_ScriptPrepare made (NULL for a script never
+     * prepared). */
+    script->run_ops = script->prepared_ops;
 }
 
 void
-CS2VM2_JitPlainCodes(
+CS2VM2_ScriptBuildRunOps(
     struct CS2VM2_Script const* script,
-    uint8_t* out)
+    uint16_t* out)
 {
     assert(script);
     assert(out);
     assert(script->opcodes);
     for( int pc = 0; pc < script->op_count; pc++ )
-        out[pc] = (uint8_t)cs2vm2_jit_plain_code(script, pc);
-    out[script->op_count] = CS2VM2_JIT_END;
+        out[pc] = cs2vm2_run_op_at(script, pc);
+    out[script->op_count] = CS2_OP_END_OF_SCRIPT;
 }
 
 void
@@ -806,15 +830,15 @@ CS2VM2_JitGetInfo(
     out->op_count = script->jit->op_count;
     for( int pc = 0; pc < script->jit->op_count; pc++ )
     {
-        unsigned const code = script->jit->code[pc];
-        struct CS2VM2_JitShape const* shape = cs2vm2_jit_shape(code);
-        if( code == CS2VM2_HOT_NONE )
-            out->general_pcs++;
-        else if( code <= CS2VM2_HOT_PLAIN_LAST )
+        unsigned const op = script->jit->ops[pc];
+        struct CS2VM2_JitShape const* shape = cs2vm2_jit_shape(op);
+        if( op >= CS2_OP_FAST_BEGIN && op < CS2_OP_PLAIN_COUNT )
             out->plain_pcs++;
-        else if( code == CS2VM2_JIT_LD || code == CS2VM2_JIT_PD )
+        else if( op < CS2_OP_PLAIN_COUNT || op == CS2_OP_RUN_HANDLER )
+            out->general_pcs++;
+        else if( op == CS2_OP_PUSH_INT_LOCAL_DECLARED || op == CS2_OP_POP_INT_LOCAL_DECLARED )
             out->declared_local_pcs++;
-        else if( code == CS2VM2_JIT_CSTR )
+        else if( op == CS2_OP_PUSH_CONSTANT_STRING_PRESENT )
             out->constant_string_pcs++;
         else if( shape )
         {

@@ -2,20 +2,23 @@
 #define CS2VM2_JIT_H
 
 /*
- * THE LOAD-TIME JIT: an in-memory form of a decoded script that the hot loop
- * runs faster, built when the script loads. Design: docs/CS2_JIT.md.
+ * THE LOAD-TIME JIT: the array the interpreter's loop runs for a script,
+ * made when the script loads, with JIT-section instructions where it could
+ * prove more than the plain array says. Design: docs/CS2_JIT.md.
  *
- * What it is, in one paragraph. A script keeps its opcodes, operands, strings
- * and switch tables exactly as the cache decoded them (the owner's ruling of
- * 2026-11-22: "the packing of the script should be as it appears in the
- * cache"). Beside them the VM keeps an OVERLAY: one byte per pc, chosen at
- * load, saying what the hot loop runs when it reaches that pc -- the plain hot
- * instruction, a fused group of two to four instructions that STARTS at that
- * pc, a declared-local push/pop whose bounds were proven at load, a constant
- * string pushed by pointer, or nothing (the general path). Inner pcs of a group
- * keep their own byte, so a branch into the middle of a group lands on a valid
- * entry and no pc is ever rewritten. A script without an overlay runs exactly
- * as it did before this file existed.
+ * What it is, in one paragraph. A script keeps its opcodes (canonical
+ * instructions, enum CS2_Op), operands, strings and switch tables exactly as
+ * they were decoded and translated. The loop runs a second array, op_count + 1
+ * instructions long (script->run_ops). CS2VM2_ScriptPrepare always makes one:
+ * the opcodes, END_OF_SCRIPT at op_count, and RUN_HANDLER where a FAST case
+ * cannot be trusted (CS2VM2_ScriptBuildRunOps). The jit makes the other, an
+ * OVERLAY: the same, except that at a pc where a fused group of two to four
+ * instructions STARTS it holds the fused instruction, a declared-local
+ * push/pop whose bounds were proven at load is its _DECLARED form, and a
+ * constant string push is its _PRESENT form. Inner pcs of a group keep their
+ * own instruction, so a branch into the middle of a group lands on a valid
+ * entry and no pc is ever rewritten. While an overlay is attached it is the
+ * array the loop runs.
  *
  * WHO CALLS WHAT. The VM side (this header, cs2vm2_jit.c) is pure: it builds,
  * serializes, validates, copies and frees an overlay. It does no IO, reads no
@@ -27,7 +30,7 @@
  *
  * WHERE IT HANGS. struct CS2VM2_Script gains one field (cs2vm2_script.h):
  *
- *     struct CS2VM2_Jit* jit;   NULL: no overlay, the hot loop runs as before
+ *     struct CS2VM2_Jit* jit;   NULL: no overlay, the loop runs prepared_ops
  *
  * CS2VM2_ScriptInit leaves it NULL (the memset). CS2VM2_ScriptFree calls
  * CS2VM2_JitFree. CS2VM2_ScriptCopy copies it when the source has one
@@ -38,8 +41,8 @@
  * WHEN IT MAY CHANGE. Build, attach and free happen while NO frame references
  * the script: in the load task between decode and CacheProvider_ClientScriptAdd,
  * in a test before the first PushCallScript, or at teardown. The VM cannot
- * check that cheaply, so it is the caller's contract. The hot loop reads
- * `frame->script->jit` once when it enters.
+ * check that cheaply, so it is the caller's contract. The loop reads
+ * `frame->script->run_ops` whenever it enters a frame.
  *
  * WHAT IT MUST NEVER CHANGE. Same host requests, in the same order, with the
  * same arguments; same errors at the same pc with the same last_error_*;
@@ -47,20 +50,26 @@
  * entered where the cycle limit would fall inside it); same yields. Every
  * fused group checks, before it touches anything, the stack depth and the
  * cycle budget its unfused instructions would have needed, and otherwise
- * leaves the pc where it is for the general path to run one instruction --
- * the general path is the reference for every opcode.
+ * leaves the pc where it is for the handler of the instruction there to run
+ * it alone -- the handler is the reference for every instruction.
  *
  * WHAT A BAD BLOB CAN DO. Nothing. CS2VM2_JitAttachBlob re-proves every byte
  * of the overlay against the script it is being attached to (the shape at that
  * pc, every local index below the script's declared count, every branch target
  * inside the script) before it allocates anything; the checksum and the
  * fingerprint only decide WHICH rejection a bad blob gets. No byte sequence
- * that passes can make the hot loop index outside the script's arrays or a
+ * that passes can make the loop index outside the script's arrays or a
  * frame's locals.
  *
- * NUMBERS THAT ARE PART OF THE FORMAT. The overlay code numbering, the fusion
- * rules, the blob layout, CS2VM2_JitHash64 and the fingerprint's field order
- * are all frozen under CS2VM2_JIT_FORMAT_VERSION. Changing any of them bumps
+ * NUMBERS THAT ARE PART OF THE FORMAT. A blob stores one byte per pc: the
+ * position of the overlay's instruction in the JIT section
+ * (tools/cs2_gen_opcodes/jit_instructions.py), 0 standing for the pc's own
+ * plain instruction (CS2VM2_ScriptBuildRunOps); never a CS2_OP_ value, whose
+ * numbering changes when cs2_opcode.h is regenerated (the dialect tag folds
+ * CS2_OP_NUMBERING_HASH in, so that makes a stored blob stale, not wrong).
+ * The JIT section's order, the fusion rules, the blob layout,
+ * CS2VM2_JitHash64 and the fingerprint's field order are all frozen under
+ * CS2VM2_JIT_FORMAT_VERSION. Changing any of them bumps
  * it, which turns every cached blob into a miss (REJECT_VERSION) -- never a
  * misread. test-cs2-jit-blob pins the hash and the fingerprint with golden
  * values so the bump cannot be forgotten.
@@ -79,14 +88,15 @@
 #include <stdint.h>
 
 /* Bumped whenever a blob made by an older build could mean something else
- * to this one: the code numbering, the fusion rules, the blob layout, the
- * hash, the fingerprint's inputs, the dialect tag. */
-#define CS2VM2_JIT_FORMAT_VERSION 2u
+ * to this one: the JIT section's order, the fusion rules, the blob layout, the
+ * hash, the fingerprint's inputs, the dialect tag. 3: a byte is a position in
+ * the JIT section (2 stored the loop's own code numbering). */
+#define CS2VM2_JIT_FORMAT_VERSION 3u
 
 /* The blob's first four bytes, 'C' 'J' 'I' 'T', read as a little-endian u32. */
 #define CS2VM2_JIT_BLOB_MAGIC 0x54494A43u
 
-/* The fixed header in front of a blob's code bytes (layout in docs/CS2_JIT.md
+/* The fixed header in front of a blob's per-pc bytes (layout in docs/CS2_JIT.md
  * "Blob"). A blob is exactly CS2VM2_JIT_BLOB_HEADER_SIZE + op_count bytes. */
 #define CS2VM2_JIT_BLOB_HEADER_SIZE 48u
 
@@ -98,19 +108,18 @@
 struct CS2VM2_Jit;
 
 /* Why CS2VM2_JitBuild gave a script no overlay. Not errors: the script runs
- * on the plain path exactly as it does today. */
+ * its prepared_ops. */
 enum CS2VM2_JitBuildResult
 {
     CS2VM2_JIT_BUILT = 0,
     /* op_count <= 0: nothing to run. */
     CS2VM2_JIT_REFUSED_EMPTY,
-    /* A jump by operand (the hot branches BRANCH, BRANCH_EQUALS ..
+    /* A jump by operand (the FAST branches BRANCH, BRANCH_EQUALS ..
      * BRANCH_GREATER_THAN_OR_EQUALS, the long compares LONG_BRANCH_NOT ..
      * LONG_BRANCH_GREATER_THAN_OR_EQUALS, BRANCH_IF_ONE; the one list is
      * cs2vm2_op_jumps_by_operand), or a case of a SWITCH whose table
-     * exists, targets a pc outside
-     * [0, op_count]. The plain loop would read out of range there too; the
-     * overlay does not cover such a script at all. */
+     * exists, targets a pc outside [0, op_count]. The overlay does not cover
+     * such a script at all. */
     CS2VM2_JIT_REFUSED_BRANCH_RANGE,
 
     CS2VM2_JIT_BUILD_RESULT_COUNT
@@ -145,13 +154,13 @@ enum CS2VM2_JitAttachResult
     /* The checksum over header and code does not match: the bytes changed
      * after they were written. */
     CS2VM2_JIT_REJECT_CHECKSUM,
-    /* A code byte is not one the builder could have placed at that pc for
-     * this script (unknown value, wrong shape, a local at or above the
+    /* A byte is not one the builder could have placed at that pc for this
+     * script (past the JIT section, wrong shape, a local at or above the
      * declared count, a branch out of range, a string push with no string).
      * The safety check; a blob with a valid checksum still goes through it. */
     CS2VM2_JIT_REJECT_ILLEGAL_CODE,
-    /* The script itself is one CS2VM2_JitBuild refuses (empty, rs2 dialect,
-     * branch out of range), so no blob can be valid for it. */
+    /* The script itself is one CS2VM2_JitBuild refuses (empty, branch out
+     * of range), so no blob can be valid for it. */
     CS2VM2_JIT_REJECT_UNJITTABLE,
 
     CS2VM2_JIT_ATTACH_RESULT_COUNT
@@ -162,17 +171,17 @@ enum CS2VM2_JitAttachResult
 struct CS2VM2_JitInfo
 {
     int op_count;
-    /* pcs whose code is 0: the general path runs them. */
+    /* pcs whose instruction is GENERAL (or RUN_HANDLER): a handler runs them. */
     int general_pcs;
-    /* pcs whose code is the plain hot instruction (g_cs2vm2_hot_op). */
+    /* pcs whose instruction is FAST: the loop's own case runs it. */
     int plain_pcs;
-    /* pcs whose code is a declared-local push/pop with its bounds proven. */
+    /* pcs whose instruction is PUSH_INT_LOCAL_DECLARED or POP_INT_LOCAL_DECLARED. */
     int declared_local_pcs;
-    /* pcs whose code pushes a constant string by pointer. */
+    /* pcs whose instruction is PUSH_CONSTANT_STRING_PRESENT. */
     int constant_string_pcs;
     /* pcs at which a fused group starts, and the instructions those groups
      * cover counted at their starting pc (a group of 4 adds 4). Inner pcs of
-     * a group are counted again under whatever code they carry themselves. */
+     * a group are counted again under whatever instruction they hold themselves. */
     int fused_group_pcs;
     int fused_group_ops;
     /* CS2VM2_JitBlobSize for this script. */
@@ -222,12 +231,13 @@ CS2VM2_JitDialectTag(struct CS2VM2_Dialect const* dialect);
  * Build the overlay for `script` and attach it (script->jit).
  *
  * One pass over op_count with a lookahead of three instructions, plus the
- * branch-range check; one ToriMem_Script allocation of about op_count bytes.
+ * branch-range check; one ToriMem_Script allocation of 2 * (op_count + 1)
+ * bytes and the header.
  * Does not compute the fingerprint (CS2VM2_JitSerialize is told it).
  *
  * Asserts `script`, that it has no overlay yet, and that its opcode and
  * int-operand arrays exist when op_count > 0. A refusal leaves script->jit
- * NULL and is returned; the script then runs on the plain path.
+ * NULL and is returned; the script then runs its prepared_ops.
  */
 enum CS2VM2_JitBuildResult
 CS2VM2_JitBuild(struct CS2VM2_Script* script);
@@ -263,9 +273,8 @@ CS2VM2_JitSerialize(
  * the blob as soon as this returns.
  *
  * The checks, in order, are the enum above; the last of them re-proves every
- * code byte against the script (docs/CS2_JIT.md "Validation"), which is what
- * makes it impossible for any byte sequence to send the hot loop out of
- * range. Cost: one pass over op_count, about what CS2VM2_JitBuild costs --
+ * byte against the script (docs/CS2_JIT.md "Validation"), which is what
+ * makes it impossible for any byte sequence to send the loop out of range. Cost: one pass over op_count, about what CS2VM2_JitBuild costs --
  * which is why the cache's worth has to be measured, not assumed.
  *
  * Asserts `script`, `blob`, and that the script has no overlay yet. A
@@ -291,8 +300,9 @@ CS2VM2_JitCopy(
     struct CS2VM2_Script* dst);
 
 /*
- * Free `script`'s overlay and set script->jit to NULL. A deallocator: a
- * script with no overlay is a no-op. Asserts `script` itself.
+ * Free `script`'s overlay, set script->jit to NULL and point run_ops back at
+ * prepared_ops. A deallocator: a script with no overlay is a no-op. Asserts
+ * `script` itself.
  *
  * Debug builds also re-hash the script's constant strings here and assert
  * they still match what CS2VM2_JitBuild / AttachBlob saw: constants are
@@ -303,17 +313,17 @@ void
 CS2VM2_JitFree(struct CS2VM2_Script* script);
 
 /*
- * The plain dispatch code of every instruction of `script`, into
- * out[0 .. op_count), and the end code at out[op_count] (so `out` holds
- * op_count + 1): g_cs2vm2_hot_op of its opcode, 0 (CS2VM2_HOT_NONE) for an
- * instruction its handler runs, which includes a hot branch whose target is
- * outside the script. What a script with no overlay runs
- * (CS2VM2_ScriptPrepare); an overlay's plain codes are these.
+ * The array a script runs when nothing more is proven about it, into
+ * out[0 .. op_count], which holds op_count + 1: each pc's own instruction,
+ * except RUN_HANDLER for a FAST int branch whose target is outside the
+ * script (the loop runs a FAST branch with no range test), and END_OF_SCRIPT
+ * at op_count. CS2VM2_ScriptPrepare makes prepared_ops with it; an overlay
+ * holds the same instruction at every pc it proved nothing more about.
  */
 void
-CS2VM2_JitPlainCodes(
+CS2VM2_ScriptBuildRunOps(
     struct CS2VM2_Script const* script,
-    uint8_t* out);
+    uint16_t* out);
 
 /* Describe `script`'s overlay. Asserts `script`, script->jit and `out`. */
 void

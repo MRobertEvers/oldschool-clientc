@@ -60,7 +60,7 @@ import gen_opcodes  # noqa: E402
 def canonical_instructions():
     """The VM's canonical instruction list (tools/cs2_gen_opcodes/canonical.py)."""
     entries = gen_opcodes.merge_local(gen_opcodes.parse_opcodes(gen_opcodes.VENDOR))
-    instructions, _dialects, _numbering = gen_opcodes.build_canonical(entries)
+    instructions, _jit, _dialects, _numbering = gen_opcodes.build_canonical(entries)
     return instructions
 
 

@@ -8,7 +8,7 @@
  * made at load by CS2VM2_ScriptPrepare for a script that has a
  * GOSUB_WITH_PARAMS): the script the host pushed the last time the gosub at
  * that pc ran. The script's own bytes are untouched -- this is derived data
- * beside them, like plain_code and the jit overlay.
+ * beside them, like prepared_ops and the jit overlay.
  *
  * WHAT IT REPLACES. Every GOSUB_WITH_PARAMS asked the host which script its
  * id names (CS2VM2_Ask -> RS_CS2Host_Exec -> exec_push_script ->

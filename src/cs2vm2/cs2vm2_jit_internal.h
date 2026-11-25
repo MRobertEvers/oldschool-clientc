@@ -10,8 +10,9 @@
  * through struct fields alone and the standalone test links that compile
  * cs2vm2.c without cs2vm2_script.c / cs2vm2_jit.c keep linking.
  *
- * The overlay code numbering below is PART OF THE BLOB FORMAT. Changing a
- * number, a shape, or what a code means bumps CS2VM2_JIT_FORMAT_VERSION.
+ * The overlay holds enum CS2_Op instructions. What a blob stores for them is
+ * the instruction's position in the JIT section (jit_instructions.py), whose
+ * order is frozen under CS2VM2_JIT_FORMAT_VERSION, as are the shapes below.
  */
 
 #include "cs2_opcode.h"
@@ -24,9 +25,10 @@
 /*
  * The default of a switch over canonical instructions, which no loaded script
  * can reach: CS2VM2_ScriptResolveDialect gives every script only instructions
- * below CS2_OP_PLAIN_COUNT (an id it cannot translate is UNDEFINED_WIRE_ID), CS2VM2_ScriptPrepare
- * asserts the same of a script built by hand, and an overlay holds only codes
- * the jit's builder or validator placed. Loud in a debug build; in a release
+ * below CS2_OP_PLAIN_COUNT (an id it cannot translate is UNDEFINED_WIRE_ID),
+ * CS2VM2_ScriptPrepare asserts the same of a script built by hand, and a run
+ * array holds only what CS2VM2_ScriptPrepare or the jit's builder or
+ * validator placed. Loud in a debug build; in a release
  * build the compiler drops the range check in front of the jump table.
  */
 #ifndef NDEBUG
@@ -42,7 +44,7 @@
 
 /*
  * One script's overlay, in ONE ToriMem_Script block: this header followed by
- * op_count code bytes. It holds indices only, never a pointer into the
+ * op_count + 1 instructions. It holds indices only, never a pointer into the
  * script, so a byte-for-byte copy is valid for a copy of the script.
  */
 struct CS2VM2_Jit
@@ -55,135 +57,11 @@ struct CS2VM2_Jit
      * made (debug builds only; 0 under NDEBUG). Constants are pushed by
      * pointer, so CS2VM2_JitFree asserts nobody wrote through one. */
     uint64_t strings_hash;
-    /* code[pc]: what the hot loop runs at pc (enum CS2VM2_JitCode). */
-    uint8_t code[];
+    /* ops[pc]: what the loop runs at pc (enum CS2_Op): the pc's own run
+     * instruction (cs2vm2_run_op_at) or a JIT-section one; END_OF_SCRIPT at
+     * op_count. */
+    uint16_t ops[];
 };
-
-/*
- * The hot loop's instruction numbers. 1..31 are the plain hot instructions,
- * one per FAST instruction ([0, CS2_OP_FAST_END) of cs2_opcode.h), each a
- * case of the loop (cs2vm2_hot_cases.inc): the overlay code for a plain
- * instruction at pc is exactly g_cs2vm2_hot_op[opcodes[pc]].
- */
-enum CS2VM2_JitCode
-{
-    CS2VM2_HOT_NONE = 0, /* general path (CS2VM2_RunOp); legal at any pc */
-    CS2VM2_HOT_PUSH_CONSTANT_INT,
-    CS2VM2_HOT_PUSH_INT_LOCAL,
-    CS2VM2_HOT_POP_INT_LOCAL,
-    CS2VM2_HOT_BRANCH,
-    CS2VM2_HOT_BRANCH_EQUALS,
-    CS2VM2_HOT_BRANCH_NOT,
-    CS2VM2_HOT_BRANCH_LESS_THAN,
-    CS2VM2_HOT_BRANCH_GREATER_THAN,
-    CS2VM2_HOT_BRANCH_LESS_THAN_OR_EQUALS,
-    CS2VM2_HOT_BRANCH_GREATER_THAN_OR_EQUALS,
-    CS2VM2_HOT_ADD,
-    CS2VM2_HOT_SUB,
-    CS2VM2_HOT_MULTIPLY,
-    CS2VM2_HOT_DIVIDE,
-    CS2VM2_HOT_MODULO,
-    CS2VM2_HOT_AND,
-    CS2VM2_HOT_OR,
-    CS2VM2_HOT_MIN,
-    CS2VM2_HOT_MAX,
-    CS2VM2_HOT_ADDPERCENT,
-    CS2VM2_HOT_SCALE,
-    CS2VM2_HOT_ABS,
-    CS2VM2_HOT_BITCOUNT,
-    CS2VM2_HOT_SETBIT,
-    CS2VM2_HOT_CLEARBIT,
-    CS2VM2_HOT_TESTBIT,
-    CS2VM2_HOT_TOGGLEBIT,
-    CS2VM2_HOT_SETBIT_RANGE,
-    CS2VM2_HOT_CLEARBIT_RANGE,
-    CS2VM2_HOT_GETBIT_RANGE,
-    CS2VM2_HOT_SETBIT_RANGE_VALUE, /* 31 */
-    CS2VM2_HOT_PLAIN_LAST = CS2VM2_HOT_SETBIT_RANGE_VALUE,
-
-    /* PUSH_INT_LOCAL a, 0 <= a < local_int_count <= CS2VM_MAX_LOCALS. */
-    CS2VM2_JIT_LD = 32,
-    /* POP_INT_LOCAL b, same bound. */
-    CS2VM2_JIT_PD = 33,
-    /* PUSH_CONSTANT_STRING whose string_operands[pc] is not NULL. */
-    CS2VM2_JIT_CSTR = 34,
-    /* Not an instruction and never in a blob: the code at index op_count of
-     * every code array the loop runs (a script's plain codes, an overlay's
-     * codes in memory). Running off the script's last instruction dispatches
-     * it and the run is over, so the loop has no "is the pc past the end"
-     * test of its own. */
-    CS2VM2_JIT_END = 35,
-
-    /* The 24 fused groups (docs/CS2_JIT.md 2.1). L = declared-local push,
-     * C = constant int push, P = declared-local pop, A = ADD, BR = BRANCH,
-     * BRcc = BRANCH_EQUALS / _NOT / _LESS_THAN / _GREATER_THAN. */
-    CS2VM2_JIT_FUSED_FIRST = 64,
-    CS2VM2_JIT_LL = 64,
-    CS2VM2_JIT_LC = 65,
-    CS2VM2_JIT_CL = 66,
-    CS2VM2_JIT_CC = 67,
-    CS2VM2_JIT_LLL = 68,
-    CS2VM2_JIT_LCAP = 69,
-    CS2VM2_JIT_LCA = 70,
-    CS2VM2_JIT_CA = 71,
-    CS2VM2_JIT_AP = 72,
-    CS2VM2_JIT_CP = 73,
-    CS2VM2_JIT_LP = 74,
-    CS2VM2_JIT_PBR = 75,
-    CS2VM2_JIT_CBREQ = 76,
-    CS2VM2_JIT_CBRNE = 77,
-    CS2VM2_JIT_CBRLT = 78,
-    CS2VM2_JIT_CBRGT = 79,
-    CS2VM2_JIT_LCBREQ = 80,
-    CS2VM2_JIT_LCBRNE = 81,
-    CS2VM2_JIT_LCBRLT = 82,
-    CS2VM2_JIT_LCBRGT = 83,
-    CS2VM2_JIT_LLBREQ = 84,
-    CS2VM2_JIT_LLBRNE = 85,
-    CS2VM2_JIT_LLBRLT = 86,
-    CS2VM2_JIT_LLBRGT = 87,
-    CS2VM2_JIT_FUSED_LAST = 87,
-};
-
-/* opcode -> plain hot code, 0 for a GENERAL instruction. Static so each
- * includer has its own copy and no link needs another object.
- * test-cs2-opcode-groups checks that its non-zero rows are exactly the FAST
- * range. */
-#define CS2VM2_HOT_TABLE_SIZE ((unsigned)CS2_OP_PLAIN_COUNT)
-static const uint8_t g_cs2vm2_hot_op[CS2VM2_HOT_TABLE_SIZE] = {
-    [CS2_OP_PUSH_CONSTANT_INT] = CS2VM2_HOT_PUSH_CONSTANT_INT,
-    [CS2_OP_PUSH_INT_LOCAL] = CS2VM2_HOT_PUSH_INT_LOCAL,
-    [CS2_OP_POP_INT_LOCAL] = CS2VM2_HOT_POP_INT_LOCAL,
-    [CS2_OP_BRANCH] = CS2VM2_HOT_BRANCH,
-    [CS2_OP_BRANCH_EQUALS] = CS2VM2_HOT_BRANCH_EQUALS,
-    [CS2_OP_BRANCH_NOT] = CS2VM2_HOT_BRANCH_NOT,
-    [CS2_OP_BRANCH_LESS_THAN] = CS2VM2_HOT_BRANCH_LESS_THAN,
-    [CS2_OP_BRANCH_GREATER_THAN] = CS2VM2_HOT_BRANCH_GREATER_THAN,
-    [CS2_OP_BRANCH_LESS_THAN_OR_EQUALS] = CS2VM2_HOT_BRANCH_LESS_THAN_OR_EQUALS,
-    [CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS] = CS2VM2_HOT_BRANCH_GREATER_THAN_OR_EQUALS,
-    [CS2_OP_ADD] = CS2VM2_HOT_ADD,
-    [CS2_OP_SUB] = CS2VM2_HOT_SUB,
-    [CS2_OP_MULTIPLY] = CS2VM2_HOT_MULTIPLY,
-    [CS2_OP_DIVIDE] = CS2VM2_HOT_DIVIDE,
-    [CS2_OP_MODULO] = CS2VM2_HOT_MODULO,
-    [CS2_OP_AND] = CS2VM2_HOT_AND,
-    [CS2_OP_OR] = CS2VM2_HOT_OR,
-    [CS2_OP_MIN] = CS2VM2_HOT_MIN,
-    [CS2_OP_MAX] = CS2VM2_HOT_MAX,
-    [CS2_OP_ADDPERCENT] = CS2VM2_HOT_ADDPERCENT,
-    [CS2_OP_SCALE] = CS2VM2_HOT_SCALE,
-    [CS2_OP_ABS] = CS2VM2_HOT_ABS,
-    [CS2_OP_BITCOUNT] = CS2VM2_HOT_BITCOUNT,
-    [CS2_OP_SETBIT] = CS2VM2_HOT_SETBIT,
-    [CS2_OP_CLEARBIT] = CS2VM2_HOT_CLEARBIT,
-    [CS2_OP_TESTBIT] = CS2VM2_HOT_TESTBIT,
-    [CS2_OP_TOGGLEBIT] = CS2VM2_HOT_TOGGLEBIT,
-    [CS2_OP_SETBIT_RANGE] = CS2VM2_HOT_SETBIT_RANGE,
-    [CS2_OP_CLEARBIT_RANGE] = CS2VM2_HOT_CLEARBIT_RANGE,
-    [CS2_OP_GETBIT_RANGE] = CS2VM2_HOT_GETBIT_RANGE,
-    [CS2_OP_SETBIT_RANGE_VALUE] = CS2VM2_HOT_SETBIT_RANGE_VALUE,
-};
-_Static_assert(CS2VM2_HOT_PLAIN_LAST == CS2_OP_FAST_END, "one plain hot code per FAST instruction");
 
 /* What one instruction of a fused shape must be. */
 enum CS2VM2_JitIns
@@ -203,11 +81,11 @@ enum CS2VM2_JitIns
  * One fused group. `k` instructions; on entry the int stack must hold at
  * least `need` values and have room for `peak` more (how far above the entry
  * top the unfused sequence reaches). Shared by the builder, the validator,
- * the hot loop's guards (as constants) and the tests.
+ * the loop's guards (as constants) and the tests.
  */
 struct CS2VM2_JitShape
 {
-    uint8_t code;
+    uint16_t op;
     uint8_t k;
     uint8_t need;
     uint8_t peak;
@@ -215,46 +93,84 @@ struct CS2VM2_JitShape
     char const* name;
 };
 
-#define CS2VM2_JIT_SHAPE_COUNT 24
+#define CS2VM2_JIT_SHAPE_COUNT (CS2_OPS_JIT_FUSED_END - CS2_OPS_JIT_FUSED_BEGIN)
+_Static_assert(CS2VM2_JIT_SHAPE_COUNT == 24, "a shape row for every fused instruction");
 
-/* Indexed by code - CS2VM2_JIT_FUSED_FIRST. */
+/* Indexed by instruction - CS2_OPS_JIT_FUSED_BEGIN. */
 static const struct CS2VM2_JitShape g_cs2vm2_jit_shapes[CS2VM2_JIT_SHAPE_COUNT] = {
 #define CS2VM2_JIT_I_(x) CS2VM2_JIT_INS_##x
-    { CS2VM2_JIT_LL, 2, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L) }, "LL" },
-    { CS2VM2_JIT_LC, 2, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C) }, "LC" },
-    { CS2VM2_JIT_CL, 2, 0, 2, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(L) }, "CL" },
-    { CS2VM2_JIT_CC, 2, 0, 2, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(C) }, "CC" },
-    { CS2VM2_JIT_LLL, 3, 0, 3, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L) }, "LLL" },
-    { CS2VM2_JIT_LCAP, 4, 0, 2,
-      { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(ADD), CS2VM2_JIT_I_(P) }, "LCAP" },
-    { CS2VM2_JIT_LCA, 3, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(ADD) }, "LCA" },
-    { CS2VM2_JIT_CA, 2, 1, 1, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(ADD) }, "CA" },
-    { CS2VM2_JIT_AP, 2, 2, 0, { CS2VM2_JIT_I_(ADD), CS2VM2_JIT_I_(P) }, "AP" },
-    { CS2VM2_JIT_CP, 2, 0, 1, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(P) }, "CP" },
-    { CS2VM2_JIT_LP, 2, 0, 1, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(P) }, "LP" },
-    { CS2VM2_JIT_PBR, 2, 1, 0, { CS2VM2_JIT_I_(P), CS2VM2_JIT_I_(BR) }, "PBR" },
-    { CS2VM2_JIT_CBREQ, 2, 1, 1, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BREQ) }, "CBREQ" },
-    { CS2VM2_JIT_CBRNE, 2, 1, 1, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRNE) }, "CBRNE" },
-    { CS2VM2_JIT_CBRLT, 2, 1, 1, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRLT) }, "CBRLT" },
-    { CS2VM2_JIT_CBRGT, 2, 1, 1, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRGT) }, "CBRGT" },
-    { CS2VM2_JIT_LCBREQ, 3, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BREQ) }, "LCBREQ" },
-    { CS2VM2_JIT_LCBRNE, 3, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRNE) }, "LCBRNE" },
-    { CS2VM2_JIT_LCBRLT, 3, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRLT) }, "LCBRLT" },
-    { CS2VM2_JIT_LCBRGT, 3, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRGT) }, "LCBRGT" },
-    { CS2VM2_JIT_LLBREQ, 3, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(BREQ) }, "LLBREQ" },
-    { CS2VM2_JIT_LLBRNE, 3, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(BRNE) }, "LLBRNE" },
-    { CS2VM2_JIT_LLBRLT, 3, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(BRLT) }, "LLBRLT" },
-    { CS2VM2_JIT_LLBRGT, 3, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(BRGT) }, "LLBRGT" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL, 2, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L) }, "LL" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT, 2, 0, 2, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C) }, "LC" },
+    [CS2_OP_PUSH_CONSTANT_INT__PUSH_INT_LOCAL - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_CONSTANT_INT__PUSH_INT_LOCAL, 2, 0, 2, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(L) }, "CL" },
+    [CS2_OP_PUSH_CONSTANT_INT__PUSH_CONSTANT_INT - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_CONSTANT_INT__PUSH_CONSTANT_INT, 2, 0, 2, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(C) }, "CC" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__PUSH_INT_LOCAL - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__PUSH_INT_LOCAL, 3, 0, 3,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L) }, "LLL" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD__POP_INT_LOCAL - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD__POP_INT_LOCAL, 4, 0, 2,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(ADD), CS2VM2_JIT_I_(P) }, "LCAP" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__ADD, 3, 0, 2,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(ADD) }, "LCA" },
+    [CS2_OP_PUSH_CONSTANT_INT__ADD - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_CONSTANT_INT__ADD, 2, 1, 1, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(ADD) }, "CA" },
+    [CS2_OP_ADD__POP_INT_LOCAL - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_ADD__POP_INT_LOCAL, 2, 2, 0, { CS2VM2_JIT_I_(ADD), CS2VM2_JIT_I_(P) }, "AP" },
+    [CS2_OP_PUSH_CONSTANT_INT__POP_INT_LOCAL - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_CONSTANT_INT__POP_INT_LOCAL, 2, 0, 1, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(P) }, "CP" },
+    [CS2_OP_PUSH_INT_LOCAL__POP_INT_LOCAL - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__POP_INT_LOCAL, 2, 0, 1, { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(P) }, "LP" },
+    [CS2_OP_POP_INT_LOCAL__BRANCH - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_POP_INT_LOCAL__BRANCH, 2, 1, 0, { CS2VM2_JIT_I_(P), CS2VM2_JIT_I_(BR) }, "PBR" },
+    [CS2_OP_PUSH_CONSTANT_INT__BRANCH_EQUALS - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_CONSTANT_INT__BRANCH_EQUALS, 2, 1, 1,
+        { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BREQ) }, "CBREQ" },
+    [CS2_OP_PUSH_CONSTANT_INT__BRANCH_NOT - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_CONSTANT_INT__BRANCH_NOT, 2, 1, 1, { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRNE) }, "CBRNE" },
+    [CS2_OP_PUSH_CONSTANT_INT__BRANCH_LESS_THAN - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_CONSTANT_INT__BRANCH_LESS_THAN, 2, 1, 1,
+        { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRLT) }, "CBRLT" },
+    [CS2_OP_PUSH_CONSTANT_INT__BRANCH_GREATER_THAN - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_CONSTANT_INT__BRANCH_GREATER_THAN, 2, 1, 1,
+        { CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRGT) }, "CBRGT" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_EQUALS - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_EQUALS, 3, 0, 2,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BREQ) }, "LCBREQ" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_NOT - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_NOT, 3, 0, 2,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRNE) }, "LCBRNE" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_LESS_THAN - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_LESS_THAN, 3, 0, 2,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRLT) }, "LCBRLT" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_GREATER_THAN - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_CONSTANT_INT__BRANCH_GREATER_THAN, 3, 0, 2,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(C), CS2VM2_JIT_I_(BRGT) }, "LCBRGT" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_EQUALS - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_EQUALS, 3, 0, 2,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(BREQ) }, "LLBREQ" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_NOT - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_NOT, 3, 0, 2,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(BRNE) }, "LLBRNE" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_LESS_THAN - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_LESS_THAN, 3, 0, 2,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(BRLT) }, "LLBRLT" },
+    [CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_GREATER_THAN - CS2_OPS_JIT_FUSED_BEGIN] = {
+        CS2_OP_PUSH_INT_LOCAL__PUSH_INT_LOCAL__BRANCH_GREATER_THAN, 3, 0, 2,
+        { CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(L), CS2VM2_JIT_I_(BRGT) }, "LLBRGT" },
 #undef CS2VM2_JIT_I_
 };
 
-/* The shape for a fused code, or NULL for any other byte. */
+/* The shape of a fused instruction, or NULL for any other. */
 static inline struct CS2VM2_JitShape const*
-cs2vm2_jit_shape(unsigned code)
+cs2vm2_jit_shape(unsigned op)
 {
-    if( code < CS2VM2_JIT_FUSED_FIRST || code > CS2VM2_JIT_FUSED_LAST )
+    if( op < CS2_OPS_JIT_FUSED_BEGIN || op >= CS2_OPS_JIT_FUSED_END )
         return NULL;
-    return &g_cs2vm2_jit_shapes[code - CS2VM2_JIT_FUSED_FIRST];
+    return &g_cs2vm2_jit_shapes[op - CS2_OPS_JIT_FUSED_BEGIN];
 }
 
 /*
@@ -280,29 +196,39 @@ cs2vm2_op_jumps_by_operand(int op)
            op == CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS || op == CS2_OP_BRANCH_IF_ONE;
 }
 
+/* Whether `op` is one of the FAST int branches, which the loop runs with no
+ * range test of its own. */
+static inline int
+cs2vm2_op_is_fast_branch(unsigned op)
+{
+    return op == CS2_OP_BRANCH || op == CS2_OP_BRANCH_NOT || op == CS2_OP_BRANCH_EQUALS ||
+           op == CS2_OP_BRANCH_LESS_THAN || op == CS2_OP_BRANCH_GREATER_THAN ||
+           op == CS2_OP_BRANCH_LESS_THAN_OR_EQUALS || op == CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS;
+}
+
 /*
- * The plain code of the instruction at `pc`: g_cs2vm2_hot_op of its opcode,
- * except that a hot branch whose target is outside [0, op_count] is 0, the
- * handler's. The loop runs a hot branch with no range test, which is sound
- * only because every one it can reach was checked here, when the script was
- * loaded; the handler path checks the pc after each handler instead. (An
- * overlay is only built for a script all of whose jumps are in range, so this
- * is the overlay's plain code too.)
+ * The instruction the loop runs at `pc` when nothing proved more about it:
+ * the script's own opcodes[pc], except that a FAST int branch whose target
+ * is outside [0, op_count] is RUN_HANDLER, which gives it to its handler.
+ * The loop runs a FAST branch with no range test, which is sound only because
+ * every one it can reach was checked here, when the script was loaded; the
+ * handler path checks the pc after each handler instead. (An overlay is only
+ * built for a script all of whose jumps are in range, so there this is
+ * always opcodes[pc].)
  */
-static inline unsigned
-cs2vm2_plain_code_at(
+static inline uint16_t
+cs2vm2_run_op_at(
     struct CS2VM2_Script const* script,
     int pc)
 {
     unsigned const op = script->opcodes[pc];
-    unsigned const code = op < CS2VM2_HOT_TABLE_SIZE ? g_cs2vm2_hot_op[op] : CS2VM2_HOT_NONE;
-    if( code >= CS2VM2_HOT_BRANCH && code <= CS2VM2_HOT_BRANCH_GREATER_THAN_OR_EQUALS )
+    if( cs2vm2_op_is_fast_branch(op) )
     {
         int64_t const target = (int64_t)pc + 1 + (int64_t)script->int_operands[pc];
         if( target < 0 || target > (int64_t)script->op_count )
-            return CS2VM2_HOT_NONE;
+            return CS2_OP_RUN_HANDLER;
     }
-    return code;
+    return (uint16_t)op;
 }
 
 #endif /* CS2VM2_JIT_INTERNAL_H */

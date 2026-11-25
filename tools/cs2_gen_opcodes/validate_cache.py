@@ -20,7 +20,7 @@ def load_known_opcodes() -> set[int]:
     import gen_opcodes  # noqa: E402
 
     entries = gen_opcodes.merge_local(gen_opcodes.parse_opcodes(gen_opcodes.VENDOR))
-    _instructions, dialects, _numbering = gen_opcodes.build_canonical(entries)
+    _instructions, _jit, dialects, _numbering = gen_opcodes.build_canonical(entries)
     native = next(d for d in dialects if d.enum_name == "OSRS")
     return set(native.wire_to_name)
 
