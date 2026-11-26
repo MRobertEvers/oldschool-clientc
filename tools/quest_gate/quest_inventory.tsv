@@ -24,7 +24,7 @@ quest_coldwar	Cold War	%varb3293_peng_quest	^coldwar_not_started	^coldwar_comple
 quest_contact	Contact!	%varb3274_contact	^contact_not_started	^contact_complete	yes	contactrun	77	yes	0	3	yes	contact	yes	contact_scarab_boss	^contact_osman_outside;^contact_scarab_killed	yes	9 TODO/stub markers; 3 leftover items (unimplemented)
 quest_cook	Cook's Assistant	%varp29_cookquest	^cook_not_started	^cook_complete	yes	cookrun	13	no	0	0	yes	cook	no			no	unnumbered bmp scheme (13 scenes); 14 TODO/stub markers
 quest_corsaircurse	The Corsair Curse	%varb6071_corscurs_progress	^cc_not_started	^cc_complete	yes	ccrun	59	yes	6	7	yes	corsaircurse	no			yes	6 TODO/stub markers; 7 leftover items (unimplemented)
-quest_crest	Family Crest	%varp6864_crest_spells_levers_gauntlets	^crest_not_started	^crest_complete	yes	crestrun	0	?	0	0	no	?	yes	chronozon	^crest_cured_johnathon	no	
+quest_crest	Family Crest	%varp148_crestquest	^crest_not_started	^crest_complete	no		0	?	0	0	no	?	yes	chronozon	^crest_cured_johnathon	no	
 quest_currentaffairs	Current Affairs	%varb18282_current_affairs	^ca_not_started	^ca_complete	yes	carun	0	?	0	0	yes	currentaffairs	no			no	5 TODO/stub markers
 quest_curseofarrav	The Curse of Arrav	%varb11479_coa	^coa_not_started	^coa_complete	yes	coarun	46	no	5	9	yes	curseofarrav	no			no	unnumbered bmp scheme (32 scenes); 4 TODO/stub markers; 9 leftover items (unimplemented)
 quest_darknessofhallowvale	Darkness of Hallowvale	%varb2573_myq3_main_quest	^doh_not_started	^doh_complete	yes	dohrun	133	yes	21	3	yes	darknessofhallowvale	no			yes	10 legacy/unnumbered bmp names alongside numbered; 15 TODO/stub markers; 3 leftover items (unimplemented)

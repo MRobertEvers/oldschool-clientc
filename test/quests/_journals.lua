@@ -21,6 +21,8 @@
 --   The Golem, nine states of stages 1..7: RSProx index 4473, exactly.
 --   Shadow of the Storm, nine states of stages 10..100: RSProx index 4475 and
 --   4477, exactly.
+--   Family Crest, stages 1..10 and stage 7 with the jewellery: RSProx index 4680,
+--   4683 and 4682, exactly.
 --   Misthalin Mystery and Vampyre Slayer (the wiki's journal transcripts): every
 --   state opens with its current step.
 -- The driver reads a row's text without its tags, so rows are compared as plain
@@ -1957,6 +1959,244 @@ local CHOMPY_4503 = {
         "<col=000080>better take it to them before they <col=800000>starve<col=000080>!",
     } },
 }
+-- Sheep Herder, RSProx 4685 (rev 243): every state the recorder opened.
+local SH_4685 = {
+    ["310"] = {
+        "<col=000080>I spoke to <col=800000>Councillor Halgrive<col=000080> north of <col=800000>Ardougne Zoo<col=000080>. He",
+        "<col=000080>asked me to help deal with some <col=800000>Diseased Sheep<col=000080> north of the",
+        "<col=000080>city. He gave me some <col=800000>Poisoned Sheep Feed<col=000080> to do this. He",
+        "<col=000080>also told me to get some <col=800000>Protective Clothing<col=000080> from <col=800000>Doctor",
+        "<col=800000>Orbon<col=000080> before I begin. I can find him in the chapel in <col=800000>East",
+        "<col=800000>Ardougne<col=000080>.",
+    },
+    ["414"] = {
+        "<str>I spoke to Councillor Halgrive north of Ardougne Zoo. He",
+        "<str>asked me to help deal with some Diseased Sheep north of the",
+        "<str>city.",
+        "<col=000080>I purchased some <col=800000>Protective Clothing<col=000080> from <col=800000>Doctor Orbon<col=000080> to",
+        "<col=000080>protect me from the <col=800000>Diseased Sheep<col=000080>. I can now deal with them.",
+        "",
+        "<col=000080>I must find the first sheep and herd it into the pen.",
+        "",
+        "<col=000080>I must find the second sheep and herd it into the pen.",
+        "",
+        "<col=000080>I must find the third sheep and herd it into the pen.",
+        "",
+        "<col=000080>I must find the fourth sheep and herd it into the pen.",
+    },
+    ["1016"] = {
+        "<str>I spoke to Councillor Halgrive north of Ardougne Zoo. He",
+        "<str>asked me to help deal with some Diseased Sheep north of the",
+        "<str>city.",
+        "<col=000080>I purchased some <col=800000>Protective Clothing<col=000080> from <col=800000>Doctor Orbon<col=000080> to",
+        "<col=000080>protect me from the <col=800000>Diseased Sheep<col=000080>. I can now deal with them.",
+        "",
+        "<col=000080>I must find the first sheep and herd it into the pen.",
+        "",
+        "<col=000080>I must find the second sheep and herd it into the pen.",
+        "",
+        "<col=000080>I must find the third sheep and herd it into the pen.",
+        "",
+        "<col=000080>I must find the fourth sheep and herd it into the pen.",
+    },
+    ["1033"] = {
+        "<str>I spoke to Councillor Halgrive north of Ardougne Zoo. He",
+        "<str>asked me to help deal with some Diseased Sheep north of the",
+        "<str>city.",
+        "<col=000080>I purchased some <col=800000>Protective Clothing<col=000080> from <col=800000>Doctor Orbon<col=000080> to",
+        "<col=000080>protect me from the <col=800000>Diseased Sheep<col=000080>. I can now deal with them.",
+        "",
+        "<col=000080>I have killed the first sheep. Now I must incinerate its bones.",
+        "",
+        "<col=000080>I must find the second sheep and herd it into the pen.",
+        "",
+        "<col=000080>I must find the third sheep and herd it into the pen.",
+        "",
+        "<col=000080>I must find the fourth sheep and herd it into the pen.",
+    },
+    ["1483"] = {
+        "<str>I spoke to Councillor Halgrive north of Ardougne Zoo. He",
+        "<str>asked me to help deal with some Diseased Sheep north of the",
+        "<str>city.",
+        "<col=000080>I purchased some <col=800000>Protective Clothing<col=000080> from <col=800000>Doctor Orbon<col=000080> to",
+        "<col=000080>protect me from the <col=800000>Diseased Sheep<col=000080>. I can now deal with them.",
+        "",
+        "<str>I have killed the first sheep and incinerated its bones.",
+        "",
+        "<col=000080>I have herded the second sheep to the pen. Now I must kill it.",
+        "",
+        "<col=000080>I must find the third sheep and herd it into the pen.",
+        "",
+        "<col=000080>I have herded the fourth sheep to the pen. Now I must kill it.",
+    },
+    ["1885"] = {
+        "<str>I spoke to Councillor Halgrive north of Ardougne Zoo. He",
+        "<str>asked me to help deal with some Diseased Sheep north of the",
+        "<str>city.",
+        "<col=000080>I purchased some <col=800000>Protective Clothing<col=000080> from <col=800000>Doctor Orbon<col=000080> to",
+        "<col=000080>protect me from the <col=800000>Diseased Sheep<col=000080>. I can now deal with them.",
+        "",
+        "<str>I have killed the first sheep and incinerated its bones.",
+        "",
+        "<col=000080>I have killed the second sheep. Now I must incinerate its",
+        "<col=000080>bones.",
+        "",
+        "<str>I have killed the third sheep and incinerated its bones.",
+        "",
+        "<str>I have killed the fourth sheep and incinerated its bones.",
+    },
+    ["2059"] = {
+        "<str>I spoke to Councillor Halgrive north of Ardougne Zoo. He",
+        "<str>asked me to help deal with some Diseased Sheep north of the",
+        "<str>city.",
+        "<col=000080>I managed to herd all of the <col=800000>Diseased Sheep<col=000080> into a pen. I then",
+        "<col=000080>safely disposed of them. I should return to <col=800000>Councillor Halgrive<col=000080>",
+        "<col=000080>and let him know.",
+    },
+}
+-- Family Crest, RSProx 4680, 4683, 4682 (rev 243): every started stage, and stage
+-- 7 again with the perfect ring and necklace in the pack (4682 [2474]).
+local FC_REC = {
+    ["1"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<col=000080>I need to find his son <col=800000>Caleb<col=000080>. The last Dimintheis heard <col=000080>of him",
+        "<col=000080>he was a great <col=800000>chef<col=000080> beyond <col=800000>White Wolf Mountain",
+    },
+    ["2"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<str>I found Caleb working as a Chef in Catherby and told him <str>of my",
+        "<str>Quest for his father to restore his Family Crest.",
+        "<str>I discovered the Crest had been split into three with <str>each of",
+        "<str>Dimintheis' three sons taking a piece each.",
+        "<col=800000>Caleb<col=000080> will let me have <col=800000>his piece<col=000080> in return for:",
+        "<col=800000>one cooked Tuna",
+        "<col=800000>one cooked Bass",
+        "<col=800000>one cooked Salmon",
+        "<col=800000>one cooked Shrimp",
+        "<col=800000>one cooked Swordfish",
+    },
+    ["3"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<str>I found Caleb working as a Chef in Catherby and told him <str>of my",
+        "<str>Quest for his father to restore his Family Crest.",
+        "<str>I discovered the Crest had been split into three with <str>each of",
+        "<str>Dimintheis' three sons taking a piece each.",
+        "<str>I gave Caleb the Swordfish, Bass, Tuna, Salmon and Shrimp <str>he",
+        "<str>needed for his salad in return for his crest piece.",
+        "<col=000080>I have <col=800000>one<col=000080> crest piece, I need to find the other <col=800000>two",
+    },
+    ["4"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<str>I found Caleb working as a Chef in Catherby and told him <str>of my",
+        "<str>Quest for his father to restore his Family Crest.",
+        "<str>I discovered the Crest had been split into three with <str>each of",
+        "<str>Dimintheis' three sons taking a piece each.",
+        "<str>I gave Caleb the Swordfish, Bass, Tuna, Salmon and Shrimp <str>he",
+        "<str>needed for his salad in return for his crest piece.",
+        "<col=800000>Caleb<col=000080> told me his brother <col=800000>Avan<col=000080> is on a treasure hunt in <col=000080>the",
+        "<col=800000><col=800000>desert<col=000080> somewhere - I should search for him there",
+    },
+    ["5"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<str>I found Caleb working as a Chef in Catherby and told him <str>of my",
+        "<str>Quest for his father to restore his Family Crest.",
+        "<str>I discovered the Crest had been split into three with <str>each of",
+        "<str>Dimintheis' three sons taking a piece each.",
+        "<str>I gave Caleb the Swordfish, Bass, Tuna, Salmon and Shrimp <str>he",
+        "<str>needed for his salad in return for his crest piece.",
+        "<col=000080>The <col=800000>Al Kharid Gem Trader<col=000080> told me that <col=800000>Avan<col=000080> is wearing a <col=800000>yellow",
+        "<col=800000>cape<col=000080>, and headed into the <col=800000>desert<col=000080> by the <col=800000>scorpions",
+    },
+    ["6"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<str>I found Caleb working as a Chef in Catherby and told him <str>of my",
+        "<str>Quest for his father to restore his Family Crest.",
+        "<str>I discovered the Crest had been split into three with <str>each of",
+        "<str>Dimintheis' three sons taking a piece each.",
+        "<str>I gave Caleb the Swordfish, Bass, Tuna, Salmon and Shrimp <str>he",
+        "<str>needed for his salad in return for his crest piece.",
+        "<col=000080>I should find a dwarf named <col=800000>Boot<col=000080> who lives somewhere in <col=800000>the",
+        "<col=800000>mountains<col=000080> and knows where to find <col=800000>'Perfect Gold'",
+    },
+    ["7"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<str>I found Caleb working as a Chef in Catherby and told him <str>of my",
+        "<str>Quest for his father to restore his Family Crest.",
+        "<str>I discovered the Crest had been split into three with <str>each of",
+        "<str>Dimintheis' three sons taking a piece each.",
+        "<str>I gave Caleb the Swordfish, Bass, Tuna, Salmon and Shrimp <str>he",
+        "<str>needed for his salad in return for his crest piece.",
+        "<str>I found Avan by some gold rocks North of Al Kharid.",
+        "<col=800000>Avan<col=000080> will give me his <col=800000>crest piece<col=000080> if I can bring him a <col=800000>ruby ring<col=000080>",
+        "<col=000080>and <col=800000>ruby necklace<col=000080> made from <col=800000>'perfect gold'",
+        "<col=800000>Boot<col=000080> told me <col=800000>'perfect gold'<col=000080> can be found <col=800000>underground",
+        "<col=000080><col=000080>somewhere <col=800000>East<col=000080> of <col=800000>Ardougne<col=000080>, but is difficult to get to",
+        "<col=000080>I need to make a <col=800000>ruby ring<col=000080> made of <col=800000>'perfect gold'",
+        "<col=000080>I need to make a <col=800000>ruby necklace<col=000080> made of <col=800000>'perfect gold'",
+    },
+    ["7b"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<str>I found Caleb working as a Chef in Catherby and told him <str>of my",
+        "<str>Quest for his father to restore his Family Crest.",
+        "<str>I discovered the Crest had been split into three with <str>each of",
+        "<str>Dimintheis' three sons taking a piece each.",
+        "<str>I gave Caleb the Swordfish, Bass, Tuna, Salmon and Shrimp <str>he",
+        "<str>needed for his salad in return for his crest piece.",
+        "<str>I found Avan by some gold rocks North of Al Kharid.",
+        "<col=800000>Avan<col=000080> will give me his <col=800000>crest piece<col=000080> if I can bring him a <col=800000>ruby ring<col=000080>",
+        "<col=000080>and <col=800000>ruby necklace<col=000080> made from <col=800000>'perfect gold'",
+        "<col=800000>Boot<col=000080> told me <col=800000>'perfect gold'<col=000080> can be found <col=800000>underground",
+        "<col=000080><col=000080>somewhere <col=800000>East<col=000080> of <col=800000>Ardougne<col=000080>, but is difficult to get to",
+        "<str>I have a ruby ring made of 'perfect gold' with me",
+        "<str>I have a ruby necklace made of 'perfect gold' with me",
+    },
+    ["8"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<str>I found Caleb working as a Chef in Catherby and told him <str>of my",
+        "<str>Quest for his father to restore his Family Crest.",
+        "<str>I discovered the Crest had been split into three with <str>each of",
+        "<str>Dimintheis' three sons taking a piece each.",
+        "<str>I gave Caleb the Swordfish, Bass, Tuna, Salmon and Shrimp <str>he",
+        "<str>needed for his salad in return for his crest piece.",
+        "<str>I found Avan by some gold rocks North of Al Kharid.",
+        "<str>Avan gave me his crest piece in return for a ruby ring <str>and",
+        "<str>ruby necklace made of high quality 'perfect gold'.",
+        "<col=000080>The <col=800000>final crest<col=000080> piece is with their brother <col=800000>Johnathon<col=000080> who <col=000080>is a",
+        "<col=000080>magical demon hunter at a <col=800000>tavern<col=000080> near the <col=800000>wilderness",
+    },
+    ["9"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<str>I found Caleb working as a Chef in Catherby and told him <str>of my",
+        "<str>Quest for his father to restore his Family Crest.",
+        "<str>I discovered the Crest had been split into three with <str>each of",
+        "<str>Dimintheis' three sons taking a piece each.",
+        "<str>I gave Caleb the Swordfish, Bass, Tuna, Salmon and Shrimp <str>he",
+        "<str>needed for his salad in return for his crest piece.",
+        "<str>I found Avan by some gold rocks North of Al Kharid.",
+        "<str>Avan gave me his crest piece in return for a ruby ring <str>and",
+        "<str>ruby necklace made of high quality 'perfect gold'.",
+        "<col=000080>I found <col=800000>Johnathon<col=000080> looking very <col=800000>ill<col=000080> at the <col=800000>Jolly Boar Inn",
+    },
+    ["10"] = {
+        "<str>I have agreed to restore Dimintheis' family crest to him.",
+        "<str>I found Caleb working as a Chef in Catherby and told him <str>of my",
+        "<str>Quest for his father to restore his Family Crest.",
+        "<str>I discovered the Crest had been split into three with <str>each of",
+        "<str>Dimintheis' three sons taking a piece each.",
+        "<str>I gave Caleb the Swordfish, Bass, Tuna, Salmon and Shrimp <str>he",
+        "<str>needed for his salad in return for his crest piece.",
+        "<str>I found Avan by some gold rocks North of Al Kharid.",
+        "<str>Avan gave me his crest piece in return for a ruby ring <str>and",
+        "<str>ruby necklace made of high quality 'perfect gold'.",
+        "<str>I found Johnathon looking very ill at the Jolly Boar Inn.",
+        "<str>He soon recovered when I used an antipoison potion on him.",
+        "<col=800000>Johnathon<col=000080> lost his piece of the family crest to a demon",
+        "<col=000080><col=000080>named <col=800000>Chronozon<col=000080> under the <col=800000>Air Obelisk<col=000080> in the <col=800000>Wilderness",
+        "<col=800000><col=800000>Chronozon<col=000080> is very powerful. I need to hit him with each <col=000080>of the",
+        "<col=800000><col=800000>four spells of death<col=000080> before he can be defeated",
+    },
+}
+
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -2105,6 +2345,41 @@ return {
         set("::clearinv")
         set("::setvar varp6436_excalibur_components_progress 0")
         set("::setvar varp14_arthur 0")
+
+        -- Family Crest, RSProx 4680, 4683, 4682: every started stage.
+        for _, st in ipairs({ "1", "2", "3", "4", "5", "6", "7", "8", "9", "10" }) do
+            set("::setvar varp148_crestquest " .. st)
+            exact("journal.familycrest." .. st, "Family Crest", FC_REC[st])
+        end
+        set("::setvar varp148_crestquest 7")
+        set("::give perfect_ruby_ring 1")
+        set("::give perfect_ruby_necklace 1")
+        exact("journal.familycrest.7b", "Family Crest", FC_REC["7b"])
+        set("::clearinv")
+        set("::setvar varp148_crestquest 0")
+
+        -- Sheep Herder, RSProx 4685: the stage and the four sheep varbits (and
+        -- the bones held) as each recorded open had them.
+        local function sheep(stage, a, b, c, d, give)
+            set("::clearinv")
+            set("::setvar varb2231_sheepherder_sheep_a " .. a)
+            set("::setvar varb2232_sheepherder_sheep_b " .. b)
+            set("::setvar varb2233_sheepherder_sheep_c " .. c)
+            set("::setvar varb2234_sheepherder_sheep_d " .. d)
+            set("::setvar varp60_sheepherderquest " .. stage)
+            if give then
+                set("::give " .. give .. " 1")
+            end
+        end
+        sheep(1, 0, 0, 0, 0) exact("journal.sheepherder.310", "Sheep Herder", SH_4685["310"])
+        sheep(2, 0, 0, 0, 0) exact("journal.sheepherder.414", "Sheep Herder", SH_4685["414"])
+        sheep(2, 2, 0, 0, 0) exact("journal.sheepherder.1016", "Sheep Herder", SH_4685["1016"])
+        sheep(2, 2, 0, 0, 0, "sheepbonesa") exact("journal.sheepherder.1033", "Sheep Herder", SH_4685["1033"])
+        sheep(2, 6, 1, 0, 1) exact("journal.sheepherder.1483", "Sheep Herder", SH_4685["1483"])
+        sheep(2, 6, 2, 6, 6, "sheepbonesb") exact("journal.sheepherder.1885", "Sheep Herder", SH_4685["1885"])
+        sheep(2, 6, 6, 6, 6) exact("journal.sheepherder.2059", "Sheep Herder", SH_4685["2059"])
+        sheep(0, 0, 0, 0, 0)
+        set("::clearinv")
 
         -- Death Plateau, RSProx index 4431: every state the recorder opened.
         -- Stage 70's paragraphs follow the path's progress (varp6442_death_map

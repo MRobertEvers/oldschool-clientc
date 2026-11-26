@@ -6240,6 +6240,89 @@ var_player_missing(
     return 1;
 }
 
+/*
+ * A script moved a quest's stage: content's [proc,quest_progress_changed]
+ * keeps the recent-quest varbits Jagex sends with every stage (RSProx 4680
+ * [288], 4682 [264] and [4141]: right after the stage's varp, before the
+ * script's next packet).
+ *
+ * Which vars are stages is content's table (quests/configs/quest_progress.enum,
+ * generated from the client's quest_progress_get), read once into two dense
+ * maps, dbrow + 1 per var. Every %varp and %varbit write asks, so the miss is
+ * one array read. Run now, nested, rather than queued: a queue would put the
+ * varbits after the page the same script opens next.
+ */
+enum
+{
+    QUEST_PROGRESS_VARBITS = 0x10000
+};
+
+static int32_t g_quest_progress_varp[TORIRSSERVER_VARP_COUNT];
+static int32_t g_quest_progress_varbit[QUEST_PROGRESS_VARBITS];
+static const struct ToriRSServerEnumDef* g_quest_progress_from[2];
+static int g_quest_progress_count[2] = { -1, -1 };
+
+static void
+quest_progress_map_load(
+    const char* symbol,
+    int which,
+    int32_t* map,
+    int capacity)
+{
+    const struct ToriRSServerEnumDef* def = ToriRSServer_ContentEnum(symbol);
+    int count = def ? def->count : 0;
+
+    if( def == g_quest_progress_from[which] && count == g_quest_progress_count[which] )
+        return;
+    memset(map, 0, sizeof(int32_t) * (size_t)capacity);
+    for( int i = 0; i < count; i++ )
+    {
+        assert(def->values[i].key >= 0);
+        assert(def->values[i].key < capacity);
+        map[def->values[i].key] = def->values[i].value + 1;
+    }
+    g_quest_progress_from[which] = def;
+    g_quest_progress_count[which] = count;
+}
+
+static void
+quest_progress_written(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* target,
+    int is_varbit,
+    int var,
+    int32_t old_value,
+    int32_t new_value)
+{
+    int32_t row_plus1;
+    int32_t args[3];
+
+    assert(srv);
+    assert(target);
+    if( old_value == new_value || target != srv->active_player )
+        return;
+    if( is_varbit )
+    {
+        quest_progress_map_load("quest_progress_varbit", 1, g_quest_progress_varbit,
+                                QUEST_PROGRESS_VARBITS);
+        if( var < 0 || var >= QUEST_PROGRESS_VARBITS )
+            return;
+        row_plus1 = g_quest_progress_varbit[var];
+    }
+    else
+    {
+        quest_progress_map_load("quest_progress_varp", 0, g_quest_progress_varp,
+                                TORIRSSERVER_VARP_COUNT);
+        row_plus1 = g_quest_progress_varp[var];
+    }
+    if( row_plus1 == 0 )
+        return;
+    args[0] = row_plus1 - 1;
+    args[1] = old_value;
+    args[2] = new_value;
+    ToriRSServer_ScriptsRunProc(srv, "[proc,quest_progress_changed]", args, 3);
+}
+
 static int
 script_command(
     struct SSVM_State* state,
@@ -7316,6 +7399,7 @@ script_command(
         struct ToriRSServerPlayer* target = var_player(state, player);
         if( var_player_missing(state, target, "%varp", varp) )
             return 1;
+        int32_t const old_value = ToriRSServer_Varp(target, varp);
         /*
          * Assignment always marks the varp for transmission, even when the
          * value is unchanged.
@@ -7342,6 +7426,7 @@ script_command(
          * (`ToriRSServer_WorldSetVarpOn`'s rule). */
         if( target == player || target == srv->active_player )
             ToriRSServer_WorldVarpWritten(srv, varp, value);
+        quest_progress_written(srv, target, 0, varp, old_value, value);
         return 1;
     }
 
@@ -17019,8 +17104,16 @@ script_command(
             ToriRSServer_BusyHold(srv, target, (int)value);
             return 1;
         }
-        if( ToriRSServer_VarbitSetOn(srv, target, varbit_id, (int)value) < 0 )
-            SSVM_Abort(state, "varbit %d is not in the cache", varbit_id);
+        {
+            int32_t const old_value = ToriRSServer_VarbitGet(target, varbit_id);
+
+            if( ToriRSServer_VarbitSetOn(srv, target, varbit_id, (int)value) < 0 )
+            {
+                SSVM_Abort(state, "varbit %d is not in the cache", varbit_id);
+                return 1;
+            }
+            quest_progress_written(srv, target, 1, varbit_id, old_value, value);
+        }
         return 1;
     }
 

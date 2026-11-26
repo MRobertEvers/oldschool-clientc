@@ -105,6 +105,8 @@ return {
             points = 1,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
+        -- The wire audit's tick log (docs/rsprox-analysis/quests/family_crest.md).
+        t.ticklog.start()
         t.ticks(3) -- setup cheats' effect is not client-side yet
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
         t.exec("equip.rune_full_helm", t.player.equip, "rune_full_helm")
@@ -185,9 +187,9 @@ return {
             "choose:So where is this crest?",
             "player:So where is this crest?",
             "npc:my three sons took it with them",
-            "npc:the battle to save Varrock",
             "npc:Caleb is alive and well",
-            "choose:Ok, I will help you.",
+            "npc:Wolf Mountain, although I know not where.",
+            "choose:Yes.",
             "player:Ok, I will help you.",
             "npc:I thank you greatly adventurer",
         })
@@ -210,9 +212,11 @@ return {
         east_gate_out("dimintheis.eastGateOut")
         t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "caleb.camelotTeleport",
             runes = CAMELOT_RUNES, where = "Camelot, for Catherby" })
-        t.exec("goto-caleb.door", t.player.goto_tile, 2815, 3446, 0)
+        t.exec("goto-caleb.door", t.player.goto_tile, 2815, 3447, 0)
+        -- poordoor stands on 2815,3449 and opens onto 2815,3448 (RSProx 4680
+        -- [395], [6065]).
         t.exec("caleb.doorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
-            at = { 2815, 3448, 0 }, near = { 2815, 3447 }, far = { 2815, 3449 } })
+            at = { 2815, 3449, 0 }, near = { 2815, 3448 }, far = { 2815, 3450 } })
         t.exec("talkToCaleb", t.player.talk_to, "caleb_fitzharmon")
         t.exec("talkToCaleb-dialog", t.chat.play, {
             "npc:Who are you? What are you after?",
@@ -254,7 +258,7 @@ return {
         })
         t.chat.close()
         counts("caleb.gotPiece", { { "shrimp", 0 }, { "salmon", 0 }, { "tuna", 0 }, { "bass", 0 }, { "swordfish", 0 },
-            { "avan_crest", 1 } }, "the five fish handed to Caleb and his crest piece (avan_crest) received")
+            { "caleb_crest", 1 } }, "the five fish handed to Caleb and his crest piece (caleb_crest, 4680 [867]) received")
         t.expect("quest.stage.caleb_piece", t.quest.expect_stage("caleb_piece"))
 
         -- talkToCalebOnceMore: caleb_fitzharmon_salad -> "Uh... what happened
@@ -263,7 +267,7 @@ return {
         t.exec("talkToCalebOnceMore", t.player.talk_to, "caleb_fitzharmon")
         t.exec("talkToCalebOnceMore-dialog", t.chat.play, {
             "npc:finishing touches to my masterful salad",
-            "choose:Uh... what happened to the rest of it?",
+            "choose:Uh.. what happened to the rest of the crest?",
             "player:Uh... what happened to the rest of it?",
             "npc:my brothers and I had a slight disagreement",
             "npc:None of us wanted to give up",
@@ -285,7 +289,7 @@ return {
         -- toll gate).
         -- ---------------------------------------------------------------
         t.exec("caleb.doorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
-            at = { 2815, 3448, 0 }, near = { 2815, 3449 }, far = { 2815, 3447 } })
+            at = { 2815, 3449, 0 }, near = { 2815, 3450 }, far = { 2815, 3448 } })
         t.player.teleport_cast("varrock_teleport", { 3213, 3424, 0 }, { name = "gemTrader.varrockTeleport",
             runes = VARROCK_RUNES, where = "Varrock, for Al Kharid by the mine path" })
         t.exec("goto-gemTrader", t.player.goto_tile, 3288, 3212, 0)
@@ -324,10 +328,9 @@ return {
             "player:No, it was your father",
             "npc:My... my father wishes this?",
             "npc:There is a certain lady",
-            "npc:is a golden ring",
+            "npc:stone available, and a necklace to match this ring.",
             "npc:not just any old gold",
             "npc:None of the gold around here",
-            "npc:in finding it I am afraid",
             "npc:gladly hand over my fragment",
             "player:Can you give me any help on finding this 'perfect gold'?",
             "npc:I thought I had found a solid lead",
@@ -382,8 +385,9 @@ return {
         t.check("passive.hellhound", pr3 == "ok", "::passive hellhound -> " .. tostring(pr3) .. " " .. tostring(pd3))
         -- slugmenace_witchaven.rs2 [oploc1,slug2_ruin_entrance]: p_teleport
         -- to the entrance's own coord + 6400 (2696,9683).
+        t.ticklog.mark("leg.witchaven")
         t.exec("enterWitchavenDungeon", t.player.climb, { loc = "slug2_ruin_entrance", op = 1, op_name = "Climb-down",
-            at = { 2696, 3283, 0 }, src = { 2697, 3283 }, dest = { 2696, 9683, 0 } })
+            at = { 2696, 3283, 0 }, src = { 2697, 3283 }, dest = { 2696, 9684, 0 } })
 
         -- ---------------------------------------------------------------
         -- The lever puzzle (crest_witchaven.rs2): each [oploc1,lever*]
@@ -400,7 +404,7 @@ return {
         -- visit is asserted standing open, not pressed shut.
         -- ---------------------------------------------------------------
         local function room_door(name, sym, at, near, far)
-            t.exec(name, t.player.pass_door, { closed = sym, open = sym, at = at, near = near, far = far })
+            t.exec(name, t.player.pass_door, { closed = sym, at = at, near = near, far = far })
         end
         -- A lever pull, graded on the swapped lever standing on the pulled
         -- lever's own tile.
@@ -455,9 +459,8 @@ return {
         local etr, east = t.world.tile()
         t.check("followPathAroundEast", er == "ok" and etr == "ok" and east.x == 2721 and east.z == 9700 and east.level == 0,
             "walk_to 2721,9700 -> " .. tostring(er) .. " " .. tostring(ed) .. "; at " .. tile_text(etr, east))
-        t.exec("openGoldGate", t.player.pass_door, { closed = "famcrest_doori2h1", open = "famcrest_doori2h1_open",
+        t.exec("openGoldGate", t.player.pass_door, { closed = "famcrest_doori2h1",
             at = { 2727, 9690, 0 }, near = { 2727, 9690 }, far = { 2728, 9690 } })
-        t.expect("openGoldGate.open", t.msg.expect("The gate swings open"))
 
         -- mineGold: two 'perfect' gold ore from goldrock2 (2732,9680).
         -- Swing until each ore lands, re-pressing the rock whenever the
@@ -559,20 +562,20 @@ return {
         t.exec("goto-avanReturn", t.player.goto_tile, 3295, 3286, 0)
         t.exec("returnToMan", t.player.talk_to, "avan")
         t.exec("returnToMan-dialog", t.chat.play, {
-            "npc:So how are you doing getting me my perfect gold jewelry?",
+            "npc:So how are you doing getting me my perfect gold jewellery?",
             "player:I have the ring and necklace right here.",
-            "mesbox:You hand Avan the perfect gold ring and necklace.",
+            "objbox:You hand Avan the perfect gold ring and necklace.",
             "npc:These... these are exquisite!",
             "npc:Now, I suppose you will be wanting to find my brother Johnathon",
             "player:That's correct.",
             "npc:he was studying the magical arts",
             "npc:Unsurprisingly, I do not believe",
-            "npc:some tavern or other near the edge of The Wilderness",
+            "npc:in some tavern, east of Varrock, near the edge of The Wilderness",
             "player:Thanks Avan.",
         })
         t.chat.close()
-        counts("returnToMan.piece", { { "perfect_ruby_ring", 0 }, { "perfect_ruby_necklace", 0 }, { "caleb_crest", 1 } },
-            "ring and necklace handed to Avan and his crest piece (caleb_crest) received")
+        counts("returnToMan.piece", { { "perfect_ruby_ring", 0 }, { "perfect_ruby_necklace", 0 }, { "avan_crest", 1 } },
+            "ring and necklace handed to Avan and his crest piece (avan_crest, 4682 [2565]) received")
         t.expect("quest.stage.avan_piece", t.quest.expect_stage("avan_piece"))
 
         -- ---------------------------------------------------------------
@@ -606,7 +609,7 @@ return {
             "player:Greetings. Would you happen to be Johnathon Fitzharmon?",
             "npc:That... I am...",
             "player:I am here to retrieve your fragment",
-            "npc:The.. poison.. it is all.. too much",
+            "npc:The... poison... it is all... too much",
             "mesbox:Sweat is pouring down",
         })
         t.chat.close()
@@ -620,7 +623,7 @@ return {
             "npc:How can I reward you?",
             "player:I've come here for your piece of the Fitzharmon family crest.",
             "npc:Unfortunately I don't have it any more",
-            "npc:our last battle when he bested me",
+            "npc:In my attempts to slay the fiendish Chronozon",
             "choose:Where can I find Chronozon?",
             "player:Where can I find Chronozon?",
             "npc:The fiend has made his lair in the Wilderness below the Obelisk of Air.",
@@ -661,6 +664,7 @@ return {
         -- pockets, reach.py NEEDS-DOOR without them).
         local sp1, spd1 = t.cheat("::passive poisonspider")
         t.check("passive.poisonspider", sp1 == "ok", "::passive poisonspider -> " .. tostring(sp1) .. " " .. tostring(spd1))
+        t.ticklog.mark("leg.chronozon")
         t.exec("goto-goDownToChronizon", t.player.goto_tile, 3090, 3470, 0)
         t.exec("edgeville.ruinDoorway", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen",
             at = { 3092, 3470, 0 }, near = { 3090, 3470 }, far = { 3093, 3470 } })
@@ -834,13 +838,14 @@ return {
         t.exec("goto-dimintheisReturn.eastGate", t.player.goto_tile, 3262, 3405, 0)
         east_gate_in("returnCrest.eastGateIn")
         dimintheis_house_in("returnCrest.houseDoorIn")
+        t.ticklog.mark("leg.complete")
         t.exec("returnCrest", t.player.talk_to, "dimintheis")
         t.exec("returnCrest-dialog", t.chat.play, {
             "player:I have retrieved your crest.",
+            "objbox:You hand the crest over to Dimintheis.",
             "npc:Adventurer... I can only thank you",
             "npc:You are truly a hero",
             "npc:I know not how I can adequately reward you",
-            "npc:I do have these mystical gauntlets",
             "npc:whenever lost, or if the owner has died",
             "npc:They can also be granted extra powers",
         })

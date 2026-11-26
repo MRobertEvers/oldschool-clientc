@@ -121,7 +121,7 @@ changed without more players' gear (Open).
 | hit synth to the dealer, a 0 included | synth 10527 (`gem_stone_crab_hit_01`), 616/616 | `sound_synth(synth_10527)` on the splat tick | matched |
 | no defend seq | none in 772 crab seqs | defend_anim null | matched |
 | xp 87.5% | wiki | `combat_xp_multiplier` 875 | wiki (rev 242 stat packets transcribe garbled) |
-| varbit 5934 +1 with chance min(d,10)/10 per hit | 595 increments over 1,453 recorder hits: 22/259, 20/116, 29/96, 46/122, 68/143, 58/95, 86/117, 86/111, 110/129, 62/62, 8/8 for d=1..11; per-login, never reset | same rule, at the landing; varp 1653 sent (9 points in the solo run) | matched, one tick late for melee (Open) |
+| varbit 5934 +1 with chance min(d,10)/10 per hit | 595 increments over 1,453 recorder hits: 22/259, 20/116, 29/96, 46/122, 68/143, 58/95, 86/117, 86/111, 110/129, 62/62, 8/8 for d=1..11; per-login, never reset | same rule, at the swing, for every npc (`~combat_hit_points`); varp 1653 sent | matched |
 | ruby bolts (e) treat it as 300 hp (60 dmg) | wiki | our ruby proc reads current hp (timer + reserve) | Open |
 
 ## Messages
@@ -232,8 +232,10 @@ above held; one new divergence.
 2. The boss HUD's `hp_hud_fade_in` x4 at the death is not sent (torirs_server_hpbar.c
    says it is not modelled for any boss).
 3. The crab's `teleport` +4,+2 at D+2 (3 of 9 burrows) is not modelled: no rule found.
-4. Varbit 5934 is counted at the landing, one tick after Jagex's for melee; moving
-   it to the swing needs a hook in combat_stats.rs2 (another session's file).
+4. ~~Varbit 5934 is counted at the landing, one tick after Jagex's for melee.~~
+   Fixed 2026-11-26: it is every player hit's (Family Crest 4682, Troll
+   Stronghold 4455), counted at the swing in `~give_combat_experience`
+   (combat.rs2 `~combat_hit_points`).
 5. Ruby bolts (e) and any effect reading the crab's current hitpoints see the
    timer plus the reserve (player_hit_npc_prepare.rs2 / combat procs, another
    session's files); the wiki says Jagex treats it as 300 hp.

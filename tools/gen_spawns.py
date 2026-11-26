@@ -364,6 +364,23 @@ NPC_SPAWN_RELOCATIONS = {
     # study's east wall -- the Dragon Slayer test could not reach him from
     # the door in three runs (2026-11-12).
     ("duke_of_lumbridge", 3212, 3220, 1): (3209, 3223, 1),
+    # Motherlode Mine (RSProx index 4658..4674, rev 242.1, 2026-11-23/24): every
+    # recorded add of each dwarf is on one tile (miner_3 44/44 on 3727,5642,
+    # miner_6 62/62 on 3766,5667, ...); miner_4 and miner_10 walk between
+    # veins and are relocated to the post they were added on most.
+    ("motherlode_miner_2", 3720, 5661, 0): (3722, 5654, 0),
+    ("motherlode_miner_1", 3721, 5679, 0): (3720, 5680, 0),
+    ("motherlode_miner_3", 3728, 5641, 0): (3727, 5642, 0),
+    ("motherlode_miner_12", 3738, 5685, 0): (3735, 5686, 0),
+    ("motherlode_miner_9", 3741, 5689, 0): (3749, 5686, 0),
+    ("motherlode_miner_4", 3745, 5638, 0): (3742, 5640, 0),
+    ("motherlode_miner_8", 3755, 5688, 0): (3754, 5687, 0),
+    ("motherlode_miner_10", 3758, 5673, 0): (3762, 5676, 0),
+    ("motherlode_miner_11", 3764, 5668, 0): (3764, 5667, 0),
+    ("motherlode_miner_5", 3766, 5644, 0): (3769, 5646, 0),
+    ("motherlode_miner_6", 3768, 5663, 0): (3766, 5667, 0),
+    ("motherlode_miner_7", 3768, 5681, 0): (3768, 5676, 0),
+    ("motherlode_mguild_guard", 3719, 5678, 0): (3720, 5677, 0),
 }
 
 

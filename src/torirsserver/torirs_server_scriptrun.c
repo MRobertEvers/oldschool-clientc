@@ -2539,6 +2539,27 @@ push_beyond_draw(
     return 1;
 }
 
+/* The tile a perceived npc stands on: its route head, as d_npcs reads it.
+ * This client never runs the movers that advance grid_position
+ * (ScriptrunCore_BeginTick sets only the cycle), so grid_position stays at the
+ * npc's last placement: a sheep herded 29 tiles from where it was added read
+ * as still standing there, and every press on it was refused as beyond the
+ * draw distance (Sheep Herder, 2026-11-26). */
+static void
+npc_world_tile(
+    struct ScriptrunCore const* c,
+    struct WorldEntity_NPC const* npc,
+    int* x,
+    int* z)
+{
+    assert(c);
+    assert(npc);
+    *x = c->world->_base_tile_x +
+         (npc->pathing.route_length > 0 ? npc->pathing.route_x[0] : npc->grid_position.x);
+    *z = c->world->_base_tile_z +
+         (npc->pathing.route_length > 0 ? npc->pathing.route_z[0] : npc->grid_position.z);
+}
+
 /* The nearest perceived npc of a content type (base or live rung), or the
  * pinned element: the copy a player would click. NULL: none in view. */
 static struct WorldEntity_NPC const*
@@ -2563,8 +2584,7 @@ pick_npc(
             continue;
         if( want_element >= 0 && npc->element_id != want_element )
             continue;
-        tx = c->world->_base_tile_x + npc->grid_position.x;
-        tz = c->world->_base_tile_z + npc->grid_position.z;
+        npc_world_tile(c, npc, &tx, &tz);
         d = DrivePick_Distance(tx, tz, npc->grid_position.level, px, pz, plevel);
         if( DrivePick_Better(best != NULL, d, tx, tz, npc->server_slot, best_d, best_tx, best_tz,
                              best ? best->server_slot : 0) )
@@ -2701,8 +2721,7 @@ d_cast_npc(lua_State* L)
             continue;
         if( want_element >= 0 && npc->element_id != want_element )
             continue;
-        tx = c->world->_base_tile_x + npc->grid_position.x;
-        tz = c->world->_base_tile_z + npc->grid_position.z;
+        npc_world_tile(c, npc, &tx, &tz);
         d = DrivePick_Distance(tx, tz, npc->grid_position.level, px, pz, plevel);
         if( DrivePick_Better(best != NULL, d, tx, tz, npc->server_slot, best_d, best_tx, best_tz,
                              best ? best->server_slot : 0) )
@@ -2792,9 +2811,12 @@ d_world_op(lua_State* L)
         if( !best )
             return push_result(L, "not_found", want_element >= 0 ? "that npc copy is not in view"
                                                                   : "no such npc in view");
-        if( push_beyond_draw(L, c->world->_base_tile_x + best->grid_position.x,
-                             c->world->_base_tile_z + best->grid_position.z, px, pz) )
-            return 2;
+        {
+            int bx, bz;
+            npc_world_tile(c, best, &bx, &bz);
+            if( push_beyond_draw(L, bx, bz, px, pz) )
+                return 2;
+        }
         /* The rows are the LIVE record's (the rung the core spawned and
          * re-resolves on every varp change). */
         info = ToriRSServer_NpcInfoRecord(best->npc_id);
@@ -3018,9 +3040,12 @@ d_world_use(lua_State* L)
         best = pick_npc(c, type_id, want_element, px, pz, plevel);
         if( !best )
             return push_result(L, "not_found", "no such npc in view");
-        if( push_beyond_draw(L, c->world->_base_tile_x + best->grid_position.x,
-                             c->world->_base_tile_z + best->grid_position.z, px, pz) )
-            return 2;
+        {
+            int bx, bz;
+            npc_world_tile(c, best, &bx, &bz);
+            if( push_beyond_draw(L, bx, bz, px, pz) )
+                return 2;
+        }
         put2(payload, best->server_slot);
         put4(payload + 2, spell);
         disarm(bot);
@@ -3051,9 +3076,12 @@ d_world_use(lua_State* L)
         struct WorldEntity_NPC const* best = pick_npc(c, type_id, want_element, px, pz, plevel);
         if( !best )
             return push_result(L, "not_found", "no such npc in view");
-        if( push_beyond_draw(L, c->world->_base_tile_x + best->grid_position.x,
-                             c->world->_base_tile_z + best->grid_position.z, px, pz) )
-            return 2;
+        {
+            int bx, bz;
+            npc_world_tile(c, best, &bx, &bz);
+            if( push_beyond_draw(L, bx, bz, px, pz) )
+                return 2;
+        }
         put2(payload, best->server_slot);
         put2(payload + 2, bot->armed_obj);
         put2(payload + 4, bot->armed_slot);

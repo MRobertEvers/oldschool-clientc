@@ -4,8 +4,9 @@
 -- OSRS-Content/osrs-content/server/scripts/quests/quest_sheepherder/.
 -- Tier (quest_inventory.tsv): 1.
 --
--- Rewards (quest_sheepherder.rs2 [queue,sheepherder_complete]): 3100 coins,
--- 4 quest points, no item, no xp. No CHECK markers remain.
+-- Rewards (councillor_halgrive.rs2 [label,halgrive_sheep_herder_complete],
+-- RSProx 4685 [2133]): 3,100 coins, 4 quest points, 1,000 Hunter XP; the
+-- feed is taken. No CHECK markers remain.
 --
 -- Fixture start: fresh_lumbridge.ini stands the player at 3206,3233,0
 -- (Lumbridge, beside Hans). 100 coins is a genuine prerequisite -- Doctor
@@ -190,24 +191,27 @@ return {
         t.exec("goto-talkToHalgrive", t.player.goto_tile, 2615, 3298, 0)
         t.exec("talkToHalgrive", t.player.talk_to, "councillor_halgrive")
         t.exec("talkToHalgrive-dialog", t.chat.play, {
-            "player:Hello.",
+            -- RSProx 4685 [227..301], page for page.
+            "player:Hello. How are you?",
             "npc:I've been better.",
             "choose:What's wrong?",
             "player:What's wrong?",
             "npc:You may or may not be aware,",
-            "npc:However, four sheep recently e",
+            "npc:However, some sheep recently e",
             "npc:They believe that the sheep ha",
+            "player:Are you sure it's the plague?",
+            "npc:Well the mourners seemed convi",
             "npc:As the councillor responsible ",
-            "npc:in a special incinerator.",
-            "npc:Unfortunately nobody wants to ",
-            "choose:I can do that for you.",
+            "npc:We need someone to herd these ",
+            "npc:Unfortunately, nobody wants to",
+            "choose:Yes.",
             "player:I can do that for you.",
-            "npc:Y-you will??? That is excellen",
+            "npc:You will? That is excellent ne",
             "npc:Before you will be allowed to ",
             "player:Where can I find some protecti",
-            "npc:Doctor Orbon wears it when con",
+            "npc:Doctor Orbon should have somet",
             "npc:Please also take this poisoned",
-            "mesbox:The councillor gives you some ",
+            "objbox:The councillor gives you some ",
             "player:How will I know which sheep ar",
             "npc:The poor creatures have develo",
         })
@@ -221,13 +225,13 @@ return {
         t.exec("goto-talkToOrbon", t.player.goto_tile, 2614, 3306, 0)
         t.exec("talkToOrbon", t.player.talk_to, "doctor_orbon")
         t.exec("talkToOrbon-dialog", t.chat.play, {
-            "player:Hi Doctor.",
-            "player:I need to acquire some protect",
+            -- RSProx 4685 [388..399].
+            "player:Hello doctor. I need to acquire",
             "npc:Protective clothing? I'm afrai",
             "npc:I suppose I could sell you thi",
-            "choose:Ok, I'll take it.",
-            "player:Ok, I'll take it.",
-            "mesbox:You give Doctor Orbon 100 coin",
+            "choose:Okay, I'll take it.",
+            "player:Okay, I'll take it.",
+            "objbox:You give Doctor Orbon 100 coin",
             "npc:These should protect you from",
         })
         t.expect("quest.stage.tasked_with_disposing_of_sheep", t.quest.expect_stage("tasked_with_disposing_of_sheep"))
@@ -320,7 +324,7 @@ return {
         -- sheep on, used below to aim a real approach tile at each one
         -- rather than trust a generic walk_near.
         local sheep_defs = {
-            { id = "1", npc = "plaguesheep_1", enclosure = "herder_plaguesheep_1_enclosure", bitvar = "varb2231_sheepherder_sheep_a", bones = "sheepbonesa", goto_x = 2612, goto_z = 3342, pen_x = 2596, pen_z = 3362 },
+            { id = "1", npc = "plaguesheep_1", enclosure = "herder_plaguesheep_1_enclosure", bitvar = "varb2231_sheepherder_sheep_a", bones = "sheepbonesa", goto_x = 2612, goto_z = 3342, pen_x = 2597, pen_z = 3362 },
             -- plaguesheep_2's own spawn rows (m40_52.spawn) are 2621-2623,
             -- 3366-3367 -- x=2624 (this file's own earlier goto, kept from
             -- the scaffold) is the FIRST tile of the next map square
@@ -329,7 +333,7 @@ return {
             -- (measured: 68 of 75 presses `out_of_range`, the walk never
             -- actually leaving 2624 despite a valid open target). 2618 is
             -- comfortably inside the loaded square instead.
-            { id = "2", npc = "plaguesheep_2", enclosure = "herder_plaguesheep_2_enclosure", bitvar = "varb2232_sheepherder_sheep_b", bones = "sheepbonesb", goto_x = 2618, goto_z = 3367, pen_x = 2597, pen_z = 3363 },
+            { id = "2", npc = "plaguesheep_2", enclosure = "herder_plaguesheep_2_enclosure", bitvar = "varb2232_sheepherder_sheep_b", bones = "sheepbonesb", goto_x = 2618, goto_z = 3367, pen_x = 2598, pen_z = 3361 },
             { id = "3", npc = "plaguesheep_3", enclosure = "herder_plaguesheep_3_enclosure", bitvar = "varb2233_sheepherder_sheep_c", bones = "sheepbonesc", goto_x = 2558, goto_z = 3391, pen_x = 2597, pen_z = 3360 },
             -- Same map-square-boundary lesson as plaguesheep_2 above:
             -- m40_52 spans world z=3328..3391, and z=3393 (this file's own
@@ -339,7 +343,9 @@ return {
             { id = "4", npc = "plaguesheep_4", enclosure = "herder_plaguesheep_4_enclosure", bitvar = "varb2234_sheepherder_sheep_d", bones = "sheepbonesd", goto_x = 2613, goto_z = 3388, pen_x = 2596, pen_z = 3359 },
         }
         local GATE_X_MIN, GATE_X_MAX = 2592, 2594
-        local GATE_Z_MIN, GATE_Z_MAX = 3360, 3363
+        -- sheepherder_area.dbrow: 3364 is in (RSProx 4685 [1449] jumped from
+        -- 2593,3364).
+        local GATE_Z_MIN, GATE_Z_MAX = 3360, 3364
 
         -- RETRY after 52f0b3a88 (seam13): t.player.press now takes an npc
         -- SELECTOR (`{ slot = n }`) that aims ONE named live copy and
@@ -425,6 +431,29 @@ return {
             -- not only while z is still short of 3365.
             if x > GATE_X_MAX and z < SAFE_NORTH_Z then
                 return "z", x, z - 1, "north"
+            end
+            -- A prod walks the sheep four tiles (RSProx 4685), more than
+            -- the three-wide band, so west of it the sheep is first brought
+            -- down to the gate's rows and then pushed east: the gate and
+            -- the pen's west wall stop it at x 2594, inside the band
+            -- (4685 [1205] then [1212]). Only within a push of the band:
+            -- from farther west the eastward push comes first.
+            -- A prod moves the sheep exactly four tiles, so pushes alone
+            -- never change x or z mod 4; walls and the sheep's own wander
+            -- do. The pen's west wall (rows 3363-3364) and the gate (rows
+            -- 3361-3362) stop an east push at x 2594, inside the band, so
+            -- west of it the aim is one of those rows. A row a south push
+            -- cannot reach (3365, 3366) waits for the sheep to wander off
+            -- it; so does 2591 on 3360-3362, whose stand tile (2590) is
+            -- fenced (Farmer Brumty's yard).
+            if x < GATE_X_MIN and x >= GATE_X_MIN - 4 and z > GATE_Z_MAX then
+                if z >= GATE_Z_MAX + 3 then
+                    return "z", x, z + 1, "south-west-of-gate"
+                end
+                return "wait", x, z, "wait-for-wander"
+            end
+            if x == GATE_X_MIN - 1 and z < 3363 then
+                return "wait", x, z, "wait-for-wander"
             end
             if x < GATE_X_MIN then
                 return "x", x - 1, z, "east"
@@ -577,6 +606,16 @@ return {
                 resync(slot)
                 local x, z = tracked_x, tracked_z
                 local axis, want_x, want_z, desc = herd_plan_move(x, z)
+                if axis == "wait" then
+                    -- Let it wander (its bleat puts it back in wander mode
+                    -- every 20..39 ticks), then re-plan.
+                    t.ticks(8)
+                    drifted = drifted + 1
+                    if drifted >= DRIFT_MAX then
+                        break
+                    end
+                    goto herd_next
+                end
                 if axis == nil then
                     confirm_tries = confirm_tries + 1
                     if confirm_tries > 4 then
@@ -813,6 +852,7 @@ return {
                     end
                 end
                 bit_result, bit_value = t.var.varbit(def.bitvar)
+                ::herd_next::
             end
 
             -- RETRY (sonnet-b21, run 2): trap 24 -- the engine writes the
@@ -840,6 +880,8 @@ return {
             -- sheep that never reached the gate zone is a FAIL row and the
             -- run stops there (the press history is in the detail).
             local herded = bit_result == "ok" and bit_value ~= 0
+            -- The jump's box (RSProx 4685 [970]).
+            t.chat.close()
             t.check("herd.sheep" .. def.id .. "_in_pen", herded,
                 string.format("herded=%s, %s=%s after %d press(es) (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d wrong_side=%d, re-planned %d drift(s)) -- %s",
                     tostring(herded), def.bitvar, tostring(bit_value), pressed,
@@ -911,8 +953,14 @@ return {
             -- The use's effect: [label,poison_sheep] writes this sheep's
             -- 3-bit lane to 2 (poisoned) BEFORE its mesbox
             -- (diseased_sheep.rs2:206); the herd left it at 1.
+            -- RSProx 4685 [999..1005]: the feed's box, on its click the
+            -- death seq, three ticks later the bones, the varbit 2 and the
+            -- second box.
+            t.exec("poison" .. def.id .. "-dialog", t.chat.play, {
+                "mesbox:You feed some poisoned sheep-food",
+            })
             local poisoned_result, poisoned_value = t.var.varbit(def.bitvar)
-            for _ = 1, 3 do
+            for _ = 1, 6 do
                 if poisoned_result == "ok" and poisoned_value == 2 then
                     break
                 end
@@ -929,8 +977,8 @@ return {
             -- page still up and found no bones (seam8 scratch,
             -- build/quest_gate/seam8_sheep_mesbox2 row 5: not_found with
             -- chat.kind=mesbox).
-            t.exec("poison" .. def.id .. "-dialog", t.chat.play, {
-                "mesbox:You feed the poisoned food",
+            t.exec("poison" .. def.id .. "-dead", t.chat.play, {
+                "mesbox:You watch as the sheep collapses",
             })
             -- p_delay(0) + npc_anim + p_delay(2) + npc_del + obj_add: the
             -- bones land a few ticks behind the continue.
@@ -1006,7 +1054,10 @@ return {
         local coins_after_result, coins_after = t.inv.count("coins")
         t.check("reward.coins",
             coins_before_result == "ok" and coins_after_result == "ok" and coins_after == coins_before + 3100,
-            string.format("coins %s -> %s (want +3100, the literal [queue,sheepherder_complete] grant)", tostring(coins_before), tostring(coins_after)))
+            string.format("coins %s -> %s (want +3100, RSProx 4685 [2133])", tostring(coins_before), tostring(coins_after)))
+        local feed_result, feed_left = t.inv.count("poisoned_feed")
+        t.check("reward.feed_taken", feed_result == "ok" and feed_left == 0,
+            string.format("poisoned_feed %s after the hand-in (RSProx 4685 [2133]: taken)", tostring(feed_left)))
 
         t.finish(0)
     end,
