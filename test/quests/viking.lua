@@ -184,7 +184,7 @@ return {
                 "npc:Well, that I cannot answer",
                 "npc:There are twelve council",
                 "npc:So what say you",
-                "choose:I want to become a Fremennik!",
+                "choose:Yes.",
                 "player:I think I would enjoy",
                 "npc:As I say outerlander",
                 "npc:If you can gain",
@@ -427,47 +427,38 @@ return {
             local _, tal = t.inv.count("viking_draugen_talisman_uncharged")
             t.check("talkToSigli.talisman", tal == 1, "uncharged talismans=" .. tostring(tal))
 
-            -- huntDraugen: the talisman's spot is a hidden varp; the hunt walks to it (viking_sigli.rs2 talisman op1)
+            -- huntDraugen (RSProx 4687 [1958..2045]): the first locate raises a butterfly
+            -- (viking_draugen_safe) at one of six places (viking_sigli.rs2
+            -- ~viking_draugen_butterfly_add); the talisman points at it, and a locate within 3
+            -- tiles of it raises the Draugen beside the hunter. So: locate once here, visit the
+            -- places until the butterfly is in view, then close on it and locate until he rises.
             t.exec("huntDraugen.wield", t.player.equip, "rune_scimitar")
-            -- The Draugen hides within 20 tiles of one of four forest anchors (LostCity
-            -- [proc,spawn_draugen_butterfly]; viking_sigli.rs2 ~viking_draugen_target): the varp holds the
-            -- anchor (1..4) until the hunter is within 24 of it, then the drawn spot's coord -- an open tile
-            -- with a straight walk back to the anchor. The talisman reveals only on the spot's exact tile
-            -- (OSRS wiki The_Fremennik_Trials?oldid=15360756: "Use the talisman on the exact tile the Draugen
-            -- is on to fight him") and adds the Draugen beside the hunter. So: walk to the anchor, track (draws
-            -- the spot; reveals only when the draw answered the anchor itself), walk onto the spot's tile,
-            -- track again. A move during the walk is a retry.
-            local anchors = {{2688,3572},{2720,3616},{2656,3616},{2720,3680}}
+            t.exec("huntDraugen.first", t.player.inv_op, "viking_draugen_talisman_uncharged", 1)
+            t.ticks(2)
+            local places = {{2606,3647},{2685,3627},{2656,3616},{2720,3616},{2720,3680},{2688,3572}}
             local rn = "not_tried"
             local tries = {}
-            local function spot_now()
-                local _, v = t.var.server("varp7432_viking_draugen_spot")
-                return math.tointeger(tonumber(v) or 0) or 0
+            local function butterfly()
+                local r, _, rows = t.npc.tiles("viking_draugen_safe", 40)
+                if r == "ok" and rows and #rows > 0 then return rows[1] end
+                return nil
             end
-            for attempt = 1, 4 do
-                local suffix = attempt == 1 and "" or (".retry" .. attempt)
-                local spot = spot_now()
-                local an = anchors[spot]
-                if an then
-                    t.exec("goto-huntDraugen.anchor" .. suffix, t.player.goto_tile, an[1], an[2], 0)
-                    t.exec("huntDraugen.track" .. suffix, t.player.inv_op, "viking_draugen_talisman_uncharged", 1)
-                    t.ticks(2)
-                    rn = t.npc.nearest("viking_draugen", 10)
-                    tries[#tries + 1] = "anchor " .. spot .. " -> " .. tostring(rn)
-                    if rn == "ok" then break end
-                    spot = spot_now()
-                end
-                local x, z = (spot >> 14) & 0x3fff, spot & 0x3fff
-                t.check("huntDraugen.spot" .. suffix, spot > #anchors, "draugen spot=" .. tostring(spot)
-                    .. (spot > #anchors and (" = " .. x .. "," .. z) or ""))
-                if spot > #anchors then
-                    t.exec("goto-huntDraugen" .. suffix, t.player.goto_tile, x, z, 0)
-                    t.exec("huntDraugen" .. suffix, t.player.inv_op, "viking_draugen_talisman_uncharged", 1)
-                    t.ticks(2)
-                    rn = t.npc.nearest("viking_draugen", 10)
-                    tries[#tries + 1] = "spot " .. x .. "," .. z .. " -> " .. tostring(rn)
-                    if rn == "ok" then break end
-                end
+            local bf = butterfly()
+            for p_i = 1, #places do
+                if bf then break end
+                t.exec("goto-huntDraugen.place" .. p_i, t.player.goto_tile, places[p_i][1], places[p_i][2], 0)
+                bf = butterfly()
+                tries[#tries + 1] = "place " .. p_i .. (bf and (" -> butterfly at " .. bf.x .. "," .. bf.z) or " -> none")
+            end
+            for attempt = 1, 12 do
+                if not bf then break end
+                t.exec("goto-huntDraugen.near" .. attempt, t.player.goto_tile, bf.x, bf.z, 0)
+                t.exec("huntDraugen.locate" .. attempt, t.player.inv_op, "viking_draugen_talisman_uncharged", 1)
+                t.ticks(2)
+                rn = t.npc.nearest("viking_draugen", 10)
+                tries[#tries + 1] = "locate " .. attempt .. " -> " .. tostring(rn)
+                if rn == "ok" then break end
+                bf = butterfly()
             end
             t.check("huntDraugen.appeared", rn == "ok", "draugen nearest=" .. tostring(rn) .. " (" .. table.concat(tries, "; ") .. ")")
             t.exec("huntDraugen.attack", t.player.attack, "viking_draugen", 2, 40)
@@ -740,54 +731,50 @@ return {
             -- Koschei arrives after 20-70 ticks (viking_thorvald.rs2:154)
             t.exec("waitForKoschei", t.npc.await_present, "viking_enemy1", 60, 90)
 
-            -- three kills, each a real fight; unarmed, with food eaten
-            t.exec("killKoschei2", t.player.attack, "viking_enemy1", 2, 80)
-            local _, k1_food = t.inv.count("lobster")
-            local _, k1_detail = t.exec("killKoschei2.dead", t.npc.await_dead_engaged, 300, 4, { eat = { item = "lobster", below = 40 } })
-            fight_margin(t, "killKoschei2.margin", { k1_detail }, k1_food, "Koschei's first form (viking_enemy1)")
-            t.ticks(2)
-            t.exec("killKoschei2-again", t.player.attack, "viking_enemy2", 2, 80)
-            local _, k2_food = t.inv.count("lobster")
-            local _, k2_detail = t.exec("killKoschei2-again.dead", t.npc.await_dead_engaged, 300, 4, { eat = { item = "lobster", below = 40 } })
-            fight_margin(t, "killKoschei2-again.margin", { k2_detail }, k2_food, "Koschei's second form (viking_enemy2)")
-            t.ticks(2)
-            t.exec("killKoschei3", t.player.attack, "viking_enemy3", 2, 80)
-            -- The third form's death spawns the fourth at once (viking_thorvald.rs2:229), and await_dead_engaged
-            -- matches by npc TYPE, so it would carry on into the fourth fight (leg 7). Wait on the phase varp instead.
-            local phase3 = 0
-            local trace = {}
-            local k3_details = {}
-            local _, k3_food = t.inv.count("lobster")
-            for i = 1, 20 do
-                local res, res_detail = t.npc.await_dead_engaged(40, 4, { eat = { item = "lobster", below = 40 } })
-                k3_details[#k3_details + 1] = res_detail
-                phase3 = select(2, t.var.server("varp7434_viking_koschei_phase")) or 0
-                trace[#trace + 1] = tostring(res) .. "/" .. tostring(phase3)
-                if phase3 == 4 or phase3 == 0 then break end
+            -- One Koschei through four forms (RSProx 4688 [8474..8956]): at zero hitpoints he changes
+            -- form where he stands (the phase varp moves on), his page opens two ticks after, his
+            -- line on its click. So each form is fought until the phase moves, then the page drained.
+            local function fight_form(name, typ, target, what)
+                t.exec(name, t.player.attack, typ, 2, 80)
+                local _, food0 = t.inv.count("lobster")
+                local details, trace, ph = {}, {}, 0
+                for i = 1, 30 do
+                    local res, det = t.npc.await_dead_engaged(40, 4, { eat = { item = "lobster", below = 40 } })
+                    details[#details + 1] = det
+                    ph = select(2, t.var.server("varp7434_viking_koschei_phase")) or 0
+                    trace[#trace + 1] = tostring(res) .. "/" .. tostring(ph)
+                    if ph >= target or ph == 0 then break end
+                end
+                t.check(name .. ".dead", ph >= target, what .. " beaten: koschei phase=" .. tostring(ph) .. " trace " .. table.concat(trace, " "))
+                fight_margin(t, name .. ".margin", details, food0, what)
+                t.ticks(3)
+                t.exec(name .. ".page", t.chat.drain, {})
             end
-            t.check("killKoschei3.dead", phase3 == 4, "third form beaten: koschei phase=" .. tostring(phase3) .. " trace " .. table.concat(trace, " "))
-            fight_margin(t, "killKoschei3.margin", k3_details, k3_food, "Koschei's third form (viking_enemy3)")
+            fight_form("killKoschei2", "viking_enemy1", 2, "Koschei's first form (viking_enemy1)")
+            fight_form("killKoschei2-again", "viking_enemy2", 3, "Koschei's second form (viking_enemy2)")
+            fight_form("killKoschei3", "viking_enemy3", 4, "Koschei's third form (viking_enemy3)")
 
-            -- The fourth form cannot be left alone: it attacks at once, and a checkpoint is refused in combat.
-            -- Guide killKoschei4: "You must now either die (SAFE DEATH), or defeat Koschei once more." The player's
-            -- death here is the SAFE one (viking_thorvald.rs2 viking_koschei_monitor: hp <= 1 in phase 4 ->
-            -- viking_koschei_finish(false), hp healed to 1, sent upstairs with the vote; player/death.rs2:36 routes a
-            -- real death the same way), so no food is eaten in this fight and it has no margin row: fight until
-            -- the monitor sends the player up (this is leg 7's first step, done here so leg 6 ends outside the arena).
+            -- The fourth form (RSProx 4688 [8835..9044]): every hit 0 or 1, every tick, prayer gone;
+            -- at one hitpoint the honour death (viking_thorvald.rs2 [queue,viking_koschei_honour])
+            -- kneels, wakes the player upstairs in Thorvald's house and Thorvald talks. No food is
+            -- eaten, so no margin row.
             t.exec("killKoschei4", t.player.attack, "viking_enemy4", 2, 80)
             local phase4 = 4
-            for i = 1, 40 do
+            for i = 1, 60 do
                 t.npc.await_dead_engaged(30, 2)
                 phase4 = select(2, t.var.server("varp7434_viking_koschei_phase")) or 0
                 if phase4 == 0 then break end
             end
-            t.ticks(4)
+            t.ticks(8)
             t.exec("killKoschei4.chat", t.chat.drain, {})
             local _, tile = t.world.tile()
+            local _, active = t.var.server("varp7433_viking_koschei_active")
+            t.check("killKoschei4.done", phase4 == 0 and active == 0 and tile.level == 1, string.format("koschei phase=%s active=%s; woke on tile %s,%s level %s", tostring(phase4), tostring(active), tostring(tile.x), tostring(tile.z), tostring(tile.level)))
+            t.exec("killKoschei4.down", t.player.click_loc, "viking_warrior_ladder_down", 1)
+            t.ticks(4)
             local _, stage = t.quest.stage()
             local _, lobsters = t.inv.count("lobster")
-            local _, active = t.var.server("varp7433_viking_koschei_active")
-            t.check("killKoschei4.done", phase4 == 0 and active == 0 and tile.level == 0, string.format("koschei phase=%s active=%s; back on tile %s,%s level %s; varp347_viking=%s", tostring(phase4), tostring(active), tostring(tile.x), tostring(tile.z), tostring(tile.level), tostring(stage)))
+            tile = select(2, t.world.tile())
             t.check("leg.6.end", stage == 6 and tile.level == 0, string.format("tile %s,%s level %s; varp347_viking=%s (Thorvald's vote earned; trial over, outside the arena); lobster x%s, everything else banked with Peer",
                 tostring(tile.x), tostring(tile.z), tostring(tile.level), tostring(stage), tostring(lobsters)))
         end },
@@ -1099,8 +1086,16 @@ return {
                 "npc:I know outerlander",
                 "npc:Then let us put the formality aside",
             })
-            t.exec("finishQuest.drain", t.chat.drain, { max_pages = 8 })
+            -- RSProx 4688 [9087..9093]: the scroll and the rating box on that page's click; a
+            -- rating shuts both and Brundt names the player on the same tick.
+            t.check("finishQuest.rating", t.ui.await_open("quest_rating", 8) == "ok", "quest_rating open with the scroll")
+            local _, five = t.ui.widget("quest_rating:5")
+            t.exec("finishQuest.rate", t.ui.invoke, five, 1)
+            t.ticks(2)
+            t.exec("fremennikName", t.chat.play, { "npc:From this day onward, you are outerlander no more!" })
+            t.chat.close()
             t.ticks(3)
+            t.expect("quest.stage.complete", t.quest.expect_stage("viking_complete"))
             for _, skill in ipairs({ "attack", "defence", "strength", "hitpoints", "woodcutting", "fletching", "fishing", "crafting", "agility", "thieving" }) do
                 -- quest_viking.rs2:134 stat_advance(<skill>, 28124) = 2812.4 xp. The client's whole-xp reading floors
                 -- the server's tenths, so the delta is 2812 or 2813 by the fraction the skill already held (b69 run 3:
@@ -1114,9 +1109,6 @@ return {
                     .. tostring(type(after) == "table" and after.experience or after) .. " delta=" .. tostring(delta)
                     .. " (want 2812.4 xp: 2812 or 2813 whole, or 28124 tenths)")
             end
-            t.quest.expect_complete()
-            -- the Fremennik name speech (quest_viking.rs2:150) closes the leg at a quiet point
-            t.exec("fremennikName", t.chat.drain, { max_pages = 4 })
             t.ticks(2)
         end },
         -- LEG 11 END

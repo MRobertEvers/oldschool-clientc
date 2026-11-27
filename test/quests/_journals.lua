@@ -1960,6 +1960,103 @@ local CHOMPY_4503 = {
     } },
 }
 -- Sheep Herder, RSProx 4685 (rev 243): every state the recorder opened.
+-- The Fremennik Trials, RSProx 4686..4688: every distinct journal the recorder
+-- opened (session_tick), its rows as sent; the trailing blank rows Jagex also
+-- sends are dropped, the reader stopping at the last row with text.
+local FT_REC = {
+    ["4686_1739"] = {
+        "<str>I spoke to Brundt the Fremennik chieftain, and he told me <str>that",
+        "<str>I could join their tribe if I could pass some trials <str>and get",
+        "<str>seven of the twelve council members votes.",
+        "<col=000080>I don't have any votes yet",
+        "<col=000080>I should try and find some of the <col=800000>council members",
+    },
+    ["4687_474"] = {
+        "<str>I spoke to Brundt the Fremennik chieftain, and he told me <str>that",
+        "<str>I could join their tribe if I could pass some trials <str>and get",
+        "<str>seven of the twelve council members votes.",
+        "<col=000080>I don't have any votes yet",
+        "<col=000080>I should try and find some of the <col=800000>council members",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "<col=000080>The <col=800000>Reveller<col=000080> will vote for me if I can pass his trial",
+        "<col=000080>I have to defeat him in a <col=800000>drinking contest<col=000080> somehow!",
+    },
+    ["4687_1581"] = {
+        "<str>I spoke to Brundt the Fremennik chieftain, and he told me <str>that",
+        "<str>I could join their tribe if I could pass some trials <str>and get",
+        "<str>seven of the twelve council members votes.",
+        "<col=000080>I have <col=800000>one<col=000080> vote so far",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "<str>I now have the Reveller's vote at the council",
+    },
+    ["4687_2166"] = {
+        "<str>I spoke to Brundt the Fremennik chieftain, and he told me <str>that",
+        "<str>I could join their tribe if I could pass some trials <str>and get",
+        "<str>seven of the twelve council members votes.",
+        "<col=000080>I have <col=800000>one<col=000080> vote so far",
+        "",
+        "",
+        "",
+        "",
+        "<col=000080>The <col=800000>Hunter<col=000080> will vote for me if I can pass his trial.",
+        "<col=000080>I need to <col=800000>track and defeat<col=000080> a creature called the <col=800000>Draugen",
+        "",
+        "",
+        "<str>I now have the Reveller's vote at the council",
+    },
+    ["4688_2757"] = {
+        "<str>I spoke to Brundt the Fremennik chieftain, and he told me <str>that",
+        "<str>I could join their tribe if I could pass some trials <str>and get",
+        "<str>seven of the twelve council members votes.",
+        "<col=000080>I have <col=800000>four<col=000080> votes so far",
+        "<str>I now have the Navigator's vote at the council.",
+        "",
+        "",
+        "",
+        "<str>I now have the Hunter's vote at the council.",
+        "<str>I now have the Seer's vote at the council",
+        "",
+        "<str>I now have the Reveller's vote at the council",
+        "<col=000080>The <col=800000>Bard<col=000080> will vote for me if I can pass his trial",
+        "<col=000080>I must make myself <col=800000>a lyre<col=000080> and play it in the <col=800000>longhall",
+        "<col=000080>First I need to get some <col=800000>wood<col=000080> from a <col=800000>special musical tree",
+        "<col=000080>Next I need to get some <col=800000>Golden Wool<col=000080> from a local troll",
+        "<col=000080>Finally I need to get the <col=800000>Lake Spirit<col=000080> to <col=800000>enchant my lyre",
+    },
+    ["4688_4412"] = {
+        "<str>I spoke to Brundt the Fremennik chieftain, and he told me <str>that",
+        "<str>I could join their tribe if I could pass some trials <str>and get",
+        "<str>seven of the twelve council members votes.",
+        "<col=000080>I have <col=800000>four<col=000080> votes so far",
+        "<str>I now have the Navigator's vote at the council.",
+        "",
+        "",
+        "",
+        "<str>I now have the Hunter's vote at the council.",
+        "<str>I now have the Seer's vote at the council",
+        "",
+        "<str>I now have the Reveller's vote at the council",
+        "<col=000080>The <col=800000>Bard<col=000080> will vote for me if I can pass his trial",
+        "<col=000080>I must make myself <col=800000>a lyre<col=000080> and play it in the <col=800000>longhall",
+        "<col=000080>First I need to get some <col=800000>wood<col=000080> from a <col=800000>special musical tree",
+        "<col=000080>Next I need to get some <col=800000>Golden Wool<col=000080> from a local troll",
+        "<col=000080>Finally I need to get the <col=800000>Lake Spirit<col=000080> to <col=800000>enchant my lyre",
+        "<col=000080>Now I have my lyre, I should get it <col=800000>enchanted",
+    },
+}
+
 local SH_4685 = {
     ["310"] = {
         "<col=000080>I spoke to <col=800000>Councillor Halgrive<col=000080> north of <col=800000>Ardougne Zoo<col=000080>. He",
@@ -2379,6 +2476,26 @@ return {
         sheep(2, 6, 2, 6, 6, "sheepbonesb") exact("journal.sheepherder.1885", "Sheep Herder", SH_4685["1885"])
         sheep(2, 6, 6, 6, 6) exact("journal.sheepherder.2059", "Sheep Herder", SH_4685["2059"])
         sheep(0, 0, 0, 0, 0)
+        set("::clearinv")
+
+        -- The Fremennik Trials (RSProx 4686..4688): the stage, the trial bits
+        -- (varp6874: reveller 12..13, sigli 14..15, swensen 10..11, peer 18..19,
+        -- olaf 20..22) and the lyre held, as each recorded open had them.
+        local function ft(stage, bits, give)
+            set("::clearinv")
+            set("::setvar varp6874_viking_bits " .. bits)
+            set("::setvar varp347_viking " .. stage)
+            if give then
+                set("::give " .. give .. " 1")
+            end
+        end
+        ft(1, 0) exact("journal.viking.4686_1739", "The Fremennik Trials", FT_REC["4686_1739"])
+        ft(1, 4096) exact("journal.viking.4687_474", "The Fremennik Trials", FT_REC["4687_474"])
+        ft(2, 8192) exact("journal.viking.4687_1581", "The Fremennik Trials", FT_REC["4687_1581"])
+        ft(2, 8192 + 16384) exact("journal.viking.4687_2166", "The Fremennik Trials", FT_REC["4687_2166"])
+        ft(5, 2048 + 49152 + 786432 + 8192 + 1048576) exact("journal.viking.4688_2757", "The Fremennik Trials", FT_REC["4688_2757"])
+        ft(5, 2048 + 49152 + 786432 + 8192 + 1048576, "viking_strung_lyre") exact("journal.viking.4688_4412", "The Fremennik Trials", FT_REC["4688_4412"])
+        ft(0, 0)
         set("::clearinv")
 
         -- Death Plateau, RSProx index 4431: every state the recorder opened.
