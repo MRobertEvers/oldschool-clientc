@@ -550,7 +550,7 @@ app_cs2_flush_triggeroplocal(struct App* app)
                 int object_id = -1;
                 int node = UITree_FindByComponentId(app->tree, trig.component_id);
                 if( node >= 0 && trig.child >= 0 )
-                    node = UITree_FindChildBySubid(app->tree, node, trig.component_id, trig.child);
+                    node = UITree_FindDynamicChildBySubid(app->tree, node, trig.child);
                 if( node >= 0 && app->tree->components[node].item_id >= 0 )
                     object_id = app->tree->components[node].item_id;
                 APP_NET_SEND(

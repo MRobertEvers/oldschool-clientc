@@ -4327,8 +4327,8 @@ UITree_CcCreate(
     /* Replace-in-slot semantics: reclaim any existing dynamic child with this
      * sub_id BEFORE allocating a uid, so the freed slot and uid are immediately
      * reusable and repeated rebuild scripts don't grow the array. */
-    int32_t existing = UITree_FindChildBySubid(tree, parent_index, parent_component_id, sub_id);
-    if( existing >= 0 && tree->components[existing].dynamic )
+    int32_t existing = UITree_FindDynamicChildBySubid(tree, parent_index, sub_id);
+    if( existing >= 0 )
     {
         uitree_park_edits(tree, parent_index, existing);
         UITree_UnlinkChild(tree, parent_index, existing);
@@ -4459,8 +4459,8 @@ UITree_EntityOverlayCreateLayer(struct UITree* tree, int sub_id, int width, int 
 
     /* Replace in slot, like CC_CREATE: a script that rebuilds its overlay every
      * tick must cost one node, not one per tick. */
-    int32_t existing = UITree_FindChildBySubid(tree, parent, parent_component_id, sub_id);
-    if( existing >= 0 && tree->components[existing].dynamic )
+    int32_t existing = UITree_FindDynamicChildBySubid(tree, parent, sub_id);
+    if( existing >= 0 )
     {
         UITree_UnlinkChild(tree, parent, existing);
         uitree_reclaim_subtree(tree, existing);
@@ -4527,8 +4527,7 @@ UITree_CcCopy(
     if( src_sub_id == dst_sub_id )
         return -1;
 
-    int32_t const src_idx =
-        UITree_FindChildBySubid(tree, parent_index, parent_component_id, src_sub_id);
+    int32_t const src_idx = UITree_FindDynamicChildBySubid(tree, parent_index, src_sub_id);
     if( src_idx < 0 )
         return -1;
 
@@ -4538,9 +4537,8 @@ UITree_CcCopy(
 
     int const iface_id = parent_component_id >= 0 ? (parent_component_id >> 16) : 0;
 
-    int32_t existing =
-        UITree_FindChildBySubid(tree, parent_index, parent_component_id, dst_sub_id);
-    if( existing >= 0 && tree->components[existing].dynamic )
+    int32_t existing = UITree_FindDynamicChildBySubid(tree, parent_index, dst_sub_id);
+    if( existing >= 0 )
     {
         UITree_UnlinkChild(tree, parent_index, existing);
         uitree_reclaim_subtree(tree, existing);
@@ -8444,11 +8442,8 @@ UITree_ResolveDragRenderArea(
      * (scrollbar track = child 0), falling back to the parent if missing. */
     if( src->drag_render_area_child_index >= 0 )
     {
-        int32_t child = UITree_FindChildBySubid(
-            tree,
-            parent_idx,
-            src->drag_render_area_uid,
-            src->drag_render_area_child_index);
+        int32_t child = UITree_FindDynamicChildBySubid(
+            tree, parent_idx, src->drag_render_area_child_index);
         if( child >= 0 )
             return child;
     }

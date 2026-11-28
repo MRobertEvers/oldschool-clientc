@@ -2293,7 +2293,7 @@ rs_cs2_triggeroplocal_push(struct RS_CS2Host* host,
         int32_t target = UITree_FindByComponentId(rs_cs2_tree(host), request->component_id);
         if( target >= 0 && request->sub >= 0 )
         {
-            int32_t child = UITree_FindChildBySubid(host->tree, target, request->component_id, request->sub);
+            int32_t child = UITree_FindDynamicChildBySubid(host->tree, target, request->sub);
             if( child >= 0 )
                 target = child;
         }
@@ -5607,7 +5607,7 @@ exec_cc_copy(
     if( child_idx < 0 )
         return CS2VM_EXECNO_ERROR;
 
-    int32_t source = UITree_FindChildBySubid(tree, parent_idx, parent_id, src_sub_id);
+    int32_t source = UITree_FindDynamicChildBySubid(tree, parent_idx, src_sub_id);
     if( source < 0 || !rs_cs2_copy_transmit_hooks(host, tree->components[source].component_id,
                                                tree->components[child_idx].component_id) )
     {
@@ -5870,7 +5870,7 @@ exec_entity_overlay(
                              ? UITree_FindByComponentId(tree, component_id)
                              : -1;
         int32_t child =
-            parent >= 0 ? UITree_FindChildBySubid(tree, parent, component_id, a[1]) : -1;
+            parent >= 0 ? UITree_FindDynamicChildBySubid(tree, parent, a[1]) : -1;
         if( child >= 0 )
             rs_cs2_set_cc_target(vm, dot_operand, tree->components[child].component_id);
         return CS2VM2_PushInt(vm, child >= 0 ? 1 : 0);
@@ -6270,7 +6270,7 @@ exec_if_query_refine(
     {
         int const sub_id = vm->children_iter_indices[i];
         int32_t const child_idx =
-            parent_idx >= 0 ? UITree_FindChildBySubid(tree, parent_idx, parent_id, sub_id) : -1;
+            parent_idx >= 0 ? UITree_FindDynamicChildBySubid(tree, parent_idx, sub_id) : -1;
         if( child_idx < 0 )
             continue;
         int const component_id = tree->components[child_idx].component_id;
@@ -10334,7 +10334,7 @@ exec_widget_set_draggable(
         if( parent_idx >= 0 )
         {
             int32_t const child =
-                UITree_FindChildBySubid(tree, parent_idx, parent_uid, child_index);
+                UITree_FindDynamicChildBySubid(tree, parent_idx, child_index);
             if( child >= 0 )
                 area_uid = tree->components[child].component_id;
         }

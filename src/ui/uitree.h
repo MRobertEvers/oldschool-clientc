@@ -2442,9 +2442,13 @@ UITree_FindChildBySubid(
     int sub_id);
 
 /**
- * The script's cc_find: the cc_create child of `parent_index` in slot `sub_id`,
- * or -1. Only dynamic children answer, as in the reference, where cc_find
- * reads `component.children[sub]` and a static subcomponent is never there.
+ * A component's child slot as every script op addresses it: the cc_create
+ * child of `parent_index` in slot `sub_id`, or -1. Only dynamic children
+ * answer, as in the reference, whose one child-slot lookup (deob
+ * Statics.method7204) reads `component.children[sub]`, the array cc_create
+ * fills; a static subcomponent is never there. cc_find, cc_create's and
+ * cc_copy's slots, if_query's refine, cc_setdraggable's area, the entity
+ * overlay ops and IF_SCRIPT_TRIGGER's child all go through it.
  * UITree_FindChildBySubid's static fallback is wrong for a script: a rebuild
  * that runs before its init has created the rows (chatbox:59, whose static
  * line boxes 162:60..559 share the row slots' numbers) would write a chat line
