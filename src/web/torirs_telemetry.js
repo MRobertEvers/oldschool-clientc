@@ -28,6 +28,18 @@
  *                rebuild began / staged / committed / finished, how many
  *                vertices the GPU world build holds, a world buffer that
  *                could not be allocated
+ *   big_block    ToriMem made an ordinary block over 4 MiB (the first from a
+ *                site, and the second -- `churn`: a site that keeps doing it
+ *                fragments the heap)
+ *   cpu_storage  a renderer buffer's CPU pages passed another step
+ *                (trspk_vbo.h): which buffer (`label`) and how big it is now
+ *   gl_buffer_grow  a GL buffer of 8 MiB or more grew and took the context's
+ *                buffer total to a new high (by 16 MiB since the last one),
+ *                or grew 32 MiB at once: the GPU side of the same question
+ *                -- those three carry `stack`, the wasm frames that made the
+ *                call (`#1234` is function 1234 of the module: the build's
+ *                torirs.js.symbols names it; telemetry_report.py --symbols)
+ *   module       the wasm's size in bytes, once: which build's symbols to use
  *   js_error, promise_rejection, wasm_abort, stderr
  *   hidden / visible / pagehide / resize
  *   touch_js     one per finger lifted, as the BROWSER saw it (CSS pixels)
@@ -69,6 +81,19 @@
   const STALL_URGENT_MS = 2000;
   const WATCHDOG_STEPS_MS = [5000, 20000, 60000];
   const BIG_UPLOAD_BYTES = 4 * 1024 * 1024;
+  /* A GL buffer (re)made at least this big, and bigger than it was, is
+   * recorded with the call's stack -- the GPU memory a tab is killed for --
+   * when it raised the context's buffer total to a new high by
+   * GL_PEAK_STEP_BYTES since the last one recorded, or grew by
+   * GL_JUMP_BYTES itself. Every growth would be a per-frame stream's small
+   * steps, 136 in a three-minute replay, pushing the ring out. */
+  const GL_BUFFER_GROW_BYTES = 8 * 1024 * 1024;
+  const GL_PEAK_STEP_BYTES = 16 * 1024 * 1024;
+  const GL_JUMP_BYTES = 32 * 1024 * 1024;
+  const STACK_FRAMES = 24;
+  /* Native events that say "memory grew here": recorded with the wasm stack
+   * of the call that sent them. */
+  const STACK_KINDS = new Set(['big_block', 'cpu_storage']);
   const BIG_UPLOAD_SLOW_MS = 50;
   const GL_ERRORS_RECORDED = 20;
   const STDERR_PER_MINUTE = 40;
@@ -137,6 +162,49 @@
     return ev;
   }
 
+  /*
+   * The wasm frames of the current call, innermost first: `#1234` for function
+   * 1234 of the module (a release build strips the names; the link's
+   * torirs.js.symbols maps them), or the name when the module kept it. JS
+   * frames -- this file, the GL wrapper, the EM_JS -- are left out. Called only
+   * for rare events: a stack is a string the engine builds.
+   */
+  function wasmStack() {
+    let text = '';
+    /* V8 keeps 10 frames by default, and this file's own take most of them. */
+    const limit = Error.stackTraceLimit;
+    try {
+      Error.stackTraceLimit = 64;
+      text = String(new Error().stack || '');
+    } catch (err) { return []; } finally { Error.stackTraceLimit = limit; }
+    const frames = [];
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length && frames.length < STACK_FRAMES; i++) {
+      const line = lines[i];
+      if (line.indexOf('wasm') < 0) { continue; }
+      let m = /wasm-function\[(\d+)\]/.exec(line);
+      if (m) { frames.push('#' + m[1]); continue; }
+      /* Chrome: "at name (wasm://...)"; Safari/Firefox: "name@...wasm..." */
+      m = /at\s+([^\s(]+)\s+\(wasm/.exec(line) || /^\s*([^@\s]+)@.*wasm/.exec(line);
+      if (m) { frames.push(m[1].replace(/^\$/, '')); }
+    }
+    return frames;
+  }
+
+  let moduleRecorded = false;
+  /* Once, when the module first speaks: its size names the build, and so the
+   * symbols a stack's `#1234` needs. */
+  function recordModule() {
+    if (moduleRecorded) { return; }
+    moduleRecorded = true;
+    try {
+      const entries = performance.getEntriesByType('resource').filter(e => /\.wasm(\?|$)/.test(e.name));
+      const e = entries.length ? entries[entries.length - 1] : null;
+      record('module', { wasm_bytes: e ? (e.decodedBodySize || e.encodedBodySize || 0) : 0,
+        url: e ? e.name.replace(/^.*\//, '') : null });
+    } catch (err) { /* no timing API: nothing to name the build by */ }
+  }
+
   // ------------------------------------------------------------------ GL
 
   /* One per context made. A renderer switch replaces the canvas, so the old
@@ -203,7 +271,7 @@
   function instrument(gl, type, canvas, attrs) {
     const c = {
       id: contexts.length + 1, type: String(type), gl, canvas, lost: false,
-      bufBytes: 0, bufCount: 0, texBytes: 0, texCount: 0, rbBytes: 0, peakBytes: 0,
+      bufBytes: 0, bufCount: 0, texBytes: 0, texCount: 0, rbBytes: 0, peakBytes: 0, bufReported: 0,
       errors: 0,
     };
     contexts.push(c);
@@ -248,6 +316,15 @@
         c.bufBytes += bytes - (before || 0);
         bufferSize.set(buf, bytes);
         peak();
+        const jump = bytes - (before || 0);
+        if (bytes >= GL_BUFFER_GROW_BYTES && jump > 0 &&
+            (jump >= GL_JUMP_BYTES || c.bufBytes >= c.bufReported + GL_PEAK_STEP_BYTES)) {
+          if (c.bufBytes > c.bufReported) { c.bufReported = c.bufBytes; }
+          record('gl_buffer_grow', {
+            bytes, prev: before || 0, target: a[0], usage: a[2], ctx: c.id,
+            total: c.bufBytes, stack: wasmStack(),
+          });
+        }
       }
       return timed('bufferData', bytes, orig, a);
     });
@@ -738,6 +815,8 @@
     if (!TOUCH_DEVICE && INPUT_KINDS.has(kind)) { return; }
     let d = detail;
     try { d = JSON.parse(detail); } catch (err) { /* keep the string */ }
+    recordModule();
+    if (STACK_KINDS.has(kind) && d && typeof d === 'object') { d.stack = wasmStack(); }
     const urgent = kind === 'gpu_world_alloc' && d && d.ok === 0;
     record(String(kind), d, urgent);
     if (kind === 'gpu_world_end' || kind === 'gpu_world_swap' || kind === 'world_load_finish' ||

@@ -135,12 +135,15 @@ trspk_pose_pool_place(
     slot = trspk_modelarena_get(arena, slot_index);
     if( !slot )
         return UINT32_MAX;
-    assert(slot->vertex_base % 3u == 0u);
-    assert((slot->vertex_base + entry->vertex_count) / 3u <= triangles->cap);
-    memcpy((uint8_t*)vbo->vertices.as_webgl1 + (size_t)slot->vertex_base * entry->vertex_size,
+    /* A slot's triangles are floor(vertex / 3) from its base, whatever the
+     * base: one that starts a page (core/trspk_vbo.h) is not a multiple of 3,
+     * and its first triangle is still past the previous slot's last. */
+    assert(slot->vertex_base / 3u + entry->vertex_count / 3u <= triangles->cap);
+    memcpy(trspk_vbo_span(vbo, slot->vertex_base, entry->vertex_count),
         entry->vertices,
         (size_t)entry->vertex_count * entry->vertex_size);
-    memcpy(&triangles->config[slot->vertex_base / 3u], entry->configs,
+    memcpy(trspk_triangles_span(triangles, slot->vertex_base / 3u, entry->vertex_count / 3u),
+        entry->configs,
         (size_t)(entry->vertex_count / 3u) * sizeof(int));
     trspk_vbo_mark_dirty_range(vbo, slot->vertex_base, entry->vertex_count);
     entry->last_used = pool->frame;
@@ -163,7 +166,6 @@ trspk_pose_pool_store(
     assert(pool);
     assert(key);
     assert(triangles);
-    assert(vertex_base % 3u == 0u);
     /* A model too big to be worth a quarter of the pool is not kept. */
     if( vertex_count == 0u || bytes > TRSPK_POSE_POOL_BYTES / 4u )
         return;
@@ -198,9 +200,9 @@ trspk_pose_pool_store(
         (int*)ToriMem_Alloc(ToriMem_Renderer(), (size_t)(vertex_count / 3u) * sizeof(int));
     assert(entry->configs);
     memcpy(entry->vertices,
-        (const uint8_t*)vbo->vertices.as_webgl1 + (size_t)vertex_base * vertex_size,
+        trspk_vbo_span(vbo, vertex_base, vertex_count),
         (size_t)vertex_count * vertex_size);
-    memcpy(entry->configs, &triangles->config[vertex_base / 3u],
+    memcpy(entry->configs, trspk_triangles_span(triangles, vertex_base / 3u, vertex_count / 3u),
         (size_t)(vertex_count / 3u) * sizeof(int));
     entry->last_used = pool->frame;
     pool->bytes += bytes;

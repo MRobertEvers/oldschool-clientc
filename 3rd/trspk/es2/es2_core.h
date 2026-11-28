@@ -1239,6 +1239,14 @@ void
 es2_stream_sets_begin_frame(struct TRSPK_Renderer_ES2* renderer);
 void
 es2_reset_group(struct ES2ModelGroup* group);
+/* A scene reset: the group emptied AND its storage given back -- the arena's
+ * pages to the pool, its GPU buffer to ES2_GPU_BUFFER_INIT -- so the next
+ * region is made of them. es2_reset_group keeps the storage, for the
+ * per-frame group. */
+void
+es2_release_group(
+    struct TRSPK_Renderer_ES2* renderer,
+    struct ES2ModelGroup* group);
 
 /* Textures. */
 void

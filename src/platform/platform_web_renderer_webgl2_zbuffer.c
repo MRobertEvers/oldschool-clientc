@@ -2097,7 +2097,7 @@ es3_zbuffer_dispatch_retained(
             /* A scene reset: the retained models went with it. */
             trspk_pose_table_clear(&renderer->poses);
             trspk_anim_track_forget_all(&renderer->anim_tracks);
-            es3_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
+            es3_release_group(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC]);
         }
         break;
     case TORIRSRC_CLEAR_RECT:

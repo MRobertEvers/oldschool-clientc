@@ -291,6 +291,71 @@ test_nested_groups(void)
     ToriMem_GroupEnd(&session);
 }
 
+/* Pages: charged to the group that takes them, handed out again by size once
+ * given back -- the same memory, not new -- and an ended group proves they
+ * all came back. With arenas off a give-back frees, for ASan. */
+static void
+test_pages(void)
+{
+    struct ToriMem_Group g;
+    size_t const page = (size_t)256 * 1024;
+    size_t const other = (size_t)512 * 1024;
+    ToriMem_GroupInit(&g, "paged", ToriMem_Process());
+    size_t const pool_before = ToriMem_PagePoolBytes();
+
+    unsigned char* a = ToriMem_PageAlloc(&g, page);
+    unsigned char* b = ToriMem_PageAlloc(&g, page);
+    unsigned char* c = ToriMem_PageAlloc(&g, other);
+    check_aligned(a, 16);
+    memset(a, 1, page);
+    memset(b, 2, page);
+    memset(c, 3, other);
+    CHECK(g.live_blocks == 3);
+    CHECK(g.live_bytes == (intptr_t)(2 * page + other));
+    CHECK(ToriMem_GroupOf(a) == &g);
+
+    ToriMem_PageFree(&g, a);
+    ToriMem_PageFree(&g, c);
+    CHECK(g.live_blocks == 1);
+    if( ToriMem_ArenasOn() )
+    {
+        CHECK(ToriMem_PagePoolBytes() == pool_before + page + other);
+        /* The next page of a size is the one given back; the other size's
+         * page waits for its own. */
+        unsigned char* again = ToriMem_PageAlloc(&g, page);
+        CHECK(again == a);
+        CHECK(ToriMem_PagePoolBytes() == pool_before + other);
+        unsigned char* again_other = ToriMem_PageAlloc(&g, other);
+        CHECK(again_other == c);
+        ToriMem_PageFree(&g, again);
+        ToriMem_PageFree(&g, again_other);
+    }
+    else
+    {
+        CHECK(ToriMem_PagePoolBytes() == pool_before);
+    }
+    ToriMem_PageFree(&g, b);
+    ToriMem_PageFree(&g, NULL);
+    CHECK(g.live_blocks == 0);
+    CHECK(g.live_bytes == 0);
+    ToriMem_GroupEnd(&g);
+
+    /* A big ordinary block is counted; pages are not. */
+    {
+        struct ToriMem_Group big;
+        intptr_t const before = ToriMem_BigBlocks();
+        ToriMem_GroupInit(&big, "big", ToriMem_Process());
+        void* block = ToriMem_Alloc(&big, TORIMEM_BIG_BLOCK_BYTES + 1);
+        void* small = ToriMem_Alloc(&big, TORIMEM_BIG_BLOCK_BYTES);
+        void* pg = ToriMem_PageAlloc(&big, TORIMEM_BIG_BLOCK_BYTES * 2);
+        CHECK(ToriMem_BigBlocks() == before + 1);
+        ToriMem_Free(&big, block);
+        ToriMem_Free(&big, small);
+        ToriMem_PageFree(&big, pg);
+        ToriMem_GroupEnd(&big);
+    }
+}
+
 /* ---- Cases that must abort ----------------------------------------------- */
 
 static void
@@ -388,6 +453,61 @@ die_pool_chunk_size(void)
 }
 
 static void
+die_page_leak(void)
+{
+    struct ToriMem_Group g;
+    ToriMem_GroupInit(&g, "page_leak", ToriMem_Process());
+    ToriMem_PageAlloc(&g, (size_t)64 * 1024);
+    ToriMem_GroupEnd(&g);
+}
+
+static void
+die_page_freed_as_block(void)
+{
+    struct ToriMem_Group g;
+    ToriMem_GroupInit(&g, "page_as_block", ToriMem_Process());
+    ToriMem_Free(&g, ToriMem_PageAlloc(&g, (size_t)64 * 1024));
+}
+
+static void
+die_page_too_small(void)
+{
+    struct ToriMem_Group g;
+    ToriMem_GroupInit(&g, "tiny_page", ToriMem_Process());
+    ToriMem_PageAlloc(&g, 4096);
+}
+
+static void
+die_page_in_arena(void)
+{
+    struct ToriMem_Group g;
+    ToriMem_ArenaInit(&g, "paged_arena", ToriMem_Process(), 1024);
+    ToriMem_PageAlloc(&g, (size_t)64 * 1024);
+}
+
+static void
+die_page_double_give_back(void)
+{
+    struct ToriMem_Group g;
+    ToriMem_GroupInit(&g, "page_twice", ToriMem_Process());
+    void* page = ToriMem_PageAlloc(&g, (size_t)64 * 1024);
+    void* keep = ToriMem_PageAlloc(&g, (size_t)64 * 1024);
+    (void)keep;
+    ToriMem_PageFree(&g, page);
+    ToriMem_PageFree(&g, page);
+}
+
+static void
+die_big_block_churn(void)
+{
+    /* Run with TORIRS_MEM_STRICT=1: the second big block from one site. */
+    struct ToriMem_Group g;
+    ToriMem_GroupInit(&g, "churn", ToriMem_Process());
+    for( int i = 0; i < 2; i++ )
+        ToriMem_Free(&g, ToriMem_Alloc(&g, TORIMEM_BIG_BLOCK_BYTES + 16 * (size_t)i + 1));
+}
+
+static void
 die_strict_exit(void)
 {
     /* Run with TORIRS_MEM_STRICT=1: an exit finding is fatal. */
@@ -417,6 +537,12 @@ static const struct death_case DEATHS[] = {
     { "pool_alloc", die_pool_alloc, 1, NULL },
     { "pool_chunk_size", die_pool_chunk_size, 1, NULL },
     { "strict_exit", die_strict_exit, 1, "TORIRS_MEM_STRICT=1" },
+    { "page_leak", die_page_leak, 1, NULL },
+    { "page_freed_as_block", die_page_freed_as_block, 1, NULL },
+    { "page_too_small", die_page_too_small, 1, NULL },
+    { "page_in_arena", die_page_in_arena, 1, NULL },
+    { "page_double_give_back", die_page_double_give_back, 1, NULL },
+    { "big_block_churn", die_big_block_churn, 1, "TORIRS_MEM_STRICT=1" },
 };
 
 static int
@@ -467,6 +593,7 @@ main(
     test_move();
     test_frame();
     test_nested_groups();
+    test_pages();
 
     int failed = 0;
     for( size_t i = 0; i < sizeof(DEATHS) / sizeof(DEATHS[0]); i++ )

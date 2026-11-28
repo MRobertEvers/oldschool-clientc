@@ -15,6 +15,7 @@
 #include "../es3/es3_os241tfa_vertex.h"
 // clang-format on
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -22,12 +23,45 @@
 
 #define TRSPK_VBO_FLAG_DIRTY TRSPK_FLAG(0)
 
+/*
+ * A VBO's CPU vertices, in PAGES.
+ *
+ * Vertex `i` lives in page i >> TRSPK_PAGE_SHIFT at slot i & TRSPK_PAGE_MASK.
+ * Every page holds TRSPK_PAGE_VERTICES vertices of the VBO's format, so a page
+ * is one of a few fixed sizes (one per format), and a page given back fits the
+ * next request for one exactly. That is what keeps a heap that cannot shrink
+ * (the web's) from growing a hole at a time: a world build of 1.5M vertices
+ * and the next one of 4.5M take the same pages, where one block each left a
+ * 78 MB hole the 235 MB build could not use (2026-11-28, an iPhone killed at a
+ * 1.3 GB heap with half of it free). See trspk_alloc.h's page hooks.
+ *
+ * A pose -- the vertices one reservation hands out -- never crosses a page:
+ * trspk_vbo_place and trspk_vbo_append start the next page when the current
+ * one cannot hold it whole, leaving the tail unused. So a pose is contiguous
+ * (trspk_vbo_span), and the GPU buffer, which holds vertex i at byte
+ * i * stride, sees the pages laid end to end. TRSPK_PAGE_VERTICES is the
+ * 16-bit lanes' page (ES2_VBO_PAGE, D3D9_VBO_PAGE), and a pose is at most
+ * TRSPK_POSE_MAX_VERTICES, their limit.
+ *
+ * A VBO that never holds more than TRSPK_VBO_SMALL_BYTES is one ordinary block
+ * that grows by doubling (`small`, no page table): a frame's UI quad stream
+ * should not take a page. Past that it moves into pages and stays there.
+ *
+ * There is no pointer to "the vertices": walk them with trspk_vbo_at (one
+ * vertex), trspk_vbo_span (one pose) or trspk_vbo_run (the contiguous run from
+ * an index, for an upload or a copy).
+ */
+#define TRSPK_PAGE_SHIFT 16u
+#define TRSPK_PAGE_VERTICES (1u << TRSPK_PAGE_SHIFT)
+#define TRSPK_PAGE_MASK (TRSPK_PAGE_VERTICES - 1u)
+#define TRSPK_POSE_MAX_VERTICES 65535u
+#define TRSPK_VBO_SMALL_BYTES ((size_t)256u * 1024u)
+
 struct TRSPK_VBO
 {
     uint32_t vertex_count;
     uint32_t capacity;
     uint32_t flags;
-
     enum TRSPK_VertexFormat format;
 
     /* Which vertices changed since the last upload.
@@ -41,19 +75,127 @@ struct TRSPK_VBO
     uint32_t dirty_first;
     uint32_t dirty_end;
 
-    union
-    {
-        struct TRSPK_VertexWebGL1* as_webgl1;
-        struct TRSPK_VertexOpenGl3Os1* as_opengl3_os1;
-        struct TRSPK_VertexD3D9* as_d3d9;
-        struct TRSPK_VertexGLES2Os1* as_gles2_os1;
-        struct TRSPK_VertexES3Os235Sailing* as_es3_os235sailing;
-        struct TRSPK_VertexES3Os241Tfa* as_es3_os241tfa;
-        struct TRSPK_VertexOpenGl3Os241Tfa* as_opengl3_os241tfa;
-    } vertices;
+    /* Bytes per vertex: trspk_vbo_vertex_size(format). */
+    uint32_t stride;
+    /* Paged: page i holds vertices [i << TRSPK_PAGE_SHIFT, (i + 1) << ...),
+     * and capacity == page_count << TRSPK_PAGE_SHIFT. NULL while small. */
+    uint8_t** pages;
+    uint32_t page_count;
+    uint32_t page_table_capacity;
+    /* Small: the whole storage, `capacity` vertices. NULL once paged. */
+    uint8_t* small;
+    /* What this buffer is ("world build", "static models"), for the storage
+     * hook. A string literal; NULL reads as "vbo". */
+    char const* label;
 };
 
-/** Bytes per vertex in `format`: the stride of vertices.as_*. */
+/*
+ * Told when a VBO's pages pass another TRSPK_VBO_REPORT_PAGES: which buffer,
+ * how many pages, how many bytes. Paged storage never makes one big block,
+ * so ToriMem's big-block census cannot see a buffer that grows by hundreds of
+ * megabytes a page at a time (the iPhone's renderer, +268 MB in six seconds,
+ * 2026-11-28); this names it. A host sends it where it can be read -- the web
+ * page's black box. Called inside the growth: the hook must not touch the VBO.
+ * NULL removes it.
+ */
+#define TRSPK_VBO_REPORT_PAGES 16u
+
+typedef void (*TRSPK_StorageHook)(
+    char const* label,
+    enum TRSPK_VertexFormat format,
+    uint32_t pages,
+    size_t bytes);
+
+void
+TRSPK_SetStorageHook(TRSPK_StorageHook hook);
+
+static inline void
+trspk_vbo_set_label(
+    struct TRSPK_VBO* vbo,
+    char const* label)
+{
+    vbo->label = label;
+}
+
+static inline bool
+trspk_vbo_is_paged(const struct TRSPK_VBO* vbo)
+{
+    return vbo->pages != NULL;
+}
+
+/** Vertex `index`. */
+static inline void*
+trspk_vbo_at(
+    const struct TRSPK_VBO* vbo,
+    uint32_t index)
+{
+    assert(index < vbo->capacity);
+    if( !vbo->pages )
+        return vbo->small + (size_t)index * vbo->stride;
+    return vbo->pages[index >> TRSPK_PAGE_SHIFT] + (size_t)(index & TRSPK_PAGE_MASK) * vbo->stride;
+}
+
+/** The `count` vertices from `first`, contiguous: one pose, or any range
+ *  inside one page. */
+static inline void*
+trspk_vbo_span(
+    const struct TRSPK_VBO* vbo,
+    uint32_t first,
+    uint32_t count)
+{
+    (void)count; /* the asserts alone read it under NDEBUG */
+    assert(count > 0u);
+    assert(first + count <= vbo->capacity);
+    assert(!vbo->pages || (first >> TRSPK_PAGE_SHIFT) == ((first + count - 1u) >> TRSPK_PAGE_SHIFT));
+    return trspk_vbo_at(vbo, first);
+}
+
+/** How many vertices from `first` (below `end`) are contiguous with it: to
+ *  `end`, or to the end of first's page. An upload of [first, end) is one
+ *  copy per run. */
+static inline uint32_t
+trspk_vbo_run(
+    const struct TRSPK_VBO* vbo,
+    uint32_t first,
+    uint32_t end)
+{
+    uint32_t page_end;
+    assert(first < end);
+    if( !vbo->pages )
+        return end - first;
+    page_end = (first & ~TRSPK_PAGE_MASK) + TRSPK_PAGE_VERTICES;
+    return (end < page_end ? end : page_end) - first;
+}
+
+#define TRSPK_VBO_AT(vbo, Type, index) ((Type*)trspk_vbo_at((vbo), (index)))
+
+/*
+ * What a GPU buffer that has to hold `needed` (bytes, or vertices) is made:
+ * that and half again, in whole `granule`s, at least `initial`. Never the next
+ * power of two. A GL buffer is the GPU's memory, not the wasm heap, but on iOS
+ * it is the tab's footprint all the same, and doubling a retained buffer held
+ * up to twice what it drew: the iPhone's GL buffers went 268 -> 459 MB in one
+ * step before the tab was killed (2026-11-28). Half again rather than a
+ * quarter: a retained buffer that grows is uploaded again whole, and a quarter
+ * made the static group of a replay regrow (and re-upload) eight times on its
+ * way to 49 MB where doubling did it three times. The growth is from what is
+ * needed, so one step covers any jump.
+ */
+static inline uint32_t
+trspk_gpu_capacity_for(
+    uint32_t initial,
+    uint32_t needed,
+    uint32_t granule)
+{
+    uint64_t capacity = (uint64_t)needed + needed / 2u;
+    assert(granule > 0u);
+    if( capacity < initial )
+        capacity = initial;
+    capacity = (capacity + granule - 1u) / granule * granule;
+    return capacity > UINT32_MAX ? needed : (uint32_t)capacity;
+}
+
+/** Bytes per vertex in `format`: a VBO's stride. */
 size_t
 trspk_vbo_vertex_size(enum TRSPK_VertexFormat format);
 
@@ -62,10 +204,44 @@ trspk_vbo_create(
     uint32_t index_count_hint,
     enum TRSPK_VertexFormat format);
 
+/* Extend vertex_count by `amount` zeroed vertices, in place: the grown range
+ * may not cross a page (padding a page's tail does not). A pose goes through
+ * trspk_vbo_append instead, which picks where it starts. */
 void
 trspk_vbo_growby(
     struct TRSPK_VBO* vbo,
     uint32_t amount);
+
+/* Where `count` vertices (one pose, at most TRSPK_POSE_MAX_VERTICES) go, at
+ * `cursor` or later: `cursor` itself, or the start of the next page when the
+ * pose would cross one. Storage is made for them, vertex_count covers them
+ * (zeroed when new), and their range is marked dirty. Returns the first. */
+uint32_t
+trspk_vbo_place(
+    struct TRSPK_VBO* vbo,
+    uint32_t cursor,
+    uint32_t count);
+
+/* trspk_vbo_place at the end: the next pose. */
+uint32_t
+trspk_vbo_append(
+    struct TRSPK_VBO* vbo,
+    uint32_t count);
+
+/* Move `count` vertices from `src` to `dst` (memmove: they may overlap). Each
+ * range must lie inside one page -- a pose does. */
+void
+trspk_vbo_move(
+    struct TRSPK_VBO* vbo,
+    uint32_t dst,
+    uint32_t src,
+    uint32_t count);
+
+/* Give the storage back -- every page to the pool -- and empty the VBO. It
+ * may be used again. A build dropped for the next one calls this, so the
+ * next one is made of the same pages. */
+void
+trspk_vbo_release(struct TRSPK_VBO* vbo);
 
 /* Room for `capacity` vertices without changing vertex_count. An empty VBO
  * takes fresh storage instead of copying its old contents. A deferred world
@@ -149,7 +325,7 @@ trspk_vbo_write_vertex_webgl1(
     float v,
     float tex_id)
 {
-    struct TRSPK_VertexWebGL1* vertex = &vbo->vertices.as_webgl1[index];
+    struct TRSPK_VertexWebGL1* vertex = TRSPK_VBO_AT(vbo, struct TRSPK_VertexWebGL1, index);
 
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -178,7 +354,7 @@ trspk_vbo_write_vertex_opengl3_os1(
     float v,
     float tex_id)
 {
-    struct TRSPK_VertexOpenGl3Os1* vertex = &vbo->vertices.as_opengl3_os1[index];
+    struct TRSPK_VertexOpenGl3Os1* vertex = TRSPK_VBO_AT(vbo, struct TRSPK_VertexOpenGl3Os1, index);
 
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -236,7 +412,7 @@ trspk_vbo_write_vertex_d3d9_argb(
     float v,
     float tex_id)
 {
-    struct TRSPK_VertexD3D9* vertex = &vbo->vertices.as_d3d9[index];
+    struct TRSPK_VertexD3D9* vertex = TRSPK_VBO_AT(vbo, struct TRSPK_VertexD3D9, index);
 
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -260,7 +436,7 @@ trspk_vbo_write_vertex_d3d9(
     float v,
     float tex_id)
 {
-    struct TRSPK_VertexD3D9* vertex = &vbo->vertices.as_d3d9[index];
+    struct TRSPK_VertexD3D9* vertex = TRSPK_VBO_AT(vbo, struct TRSPK_VertexD3D9, index);
 
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -297,7 +473,7 @@ trspk_vbo_write_vertex_gles2_os1(
     uint8_t anim_u,
     uint8_t anim_v)
 {
-    struct TRSPK_VertexGLES2Os1* vertex = &vbo->vertices.as_gles2_os1[index];
+    struct TRSPK_VertexGLES2Os1* vertex = TRSPK_VBO_AT(vbo, struct TRSPK_VertexGLES2Os1, index);
 
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -330,7 +506,7 @@ trspk_vbo_write_vertex_es3_os235sailing(
     uint8_t anim_v,
     int8_t depth_bias)
 {
-    struct TRSPK_VertexES3Os235Sailing* vertex = &vbo->vertices.as_es3_os235sailing[index];
+    struct TRSPK_VertexES3Os235Sailing* vertex = TRSPK_VBO_AT(vbo, struct TRSPK_VertexES3Os235Sailing, index);
 
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -370,7 +546,7 @@ trspk_vbo_write_vertex_es3_os241tfa(
     const float* projector_u,
     const float* projector_v)
 {
-    struct TRSPK_VertexES3Os241Tfa* vertex = &vbo->vertices.as_es3_os241tfa[index];
+    struct TRSPK_VertexES3Os241Tfa* vertex = TRSPK_VBO_AT(vbo, struct TRSPK_VertexES3Os241Tfa, index);
 
     vertex->position[0] = x;
     vertex->position[1] = y;

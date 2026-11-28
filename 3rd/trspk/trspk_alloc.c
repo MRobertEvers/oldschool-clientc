@@ -43,8 +43,29 @@ trspk_libc_free(
 }
 
 struct TRSPK_Allocator g_trspk_allocator = {
-    trspk_libc_malloc, trspk_libc_calloc, trspk_libc_realloc, trspk_libc_free, NULL,
+    trspk_libc_malloc, trspk_libc_calloc, trspk_libc_realloc, trspk_libc_free, NULL, NULL, NULL,
 };
+
+void*
+TRSPK_PageAlloc(size_t size)
+{
+    void* page = g_trspk_allocator.page_alloc_fn
+                     ? g_trspk_allocator.page_alloc_fn(size, g_trspk_allocator.user)
+                     : g_trspk_allocator.malloc_fn(size, g_trspk_allocator.user);
+    assert(page);
+    return page;
+}
+
+void
+TRSPK_PageFree(void* page)
+{
+    if( !page )
+        return;
+    if( g_trspk_allocator.page_free_fn )
+        g_trspk_allocator.page_free_fn(page, g_trspk_allocator.user);
+    else
+        g_trspk_allocator.free_fn(page, g_trspk_allocator.user);
+}
 
 void
 TRSPK_SetAllocator(const struct TRSPK_Allocator* allocator)
@@ -54,6 +75,9 @@ TRSPK_SetAllocator(const struct TRSPK_Allocator* allocator)
     assert(allocator->calloc_fn);
     assert(allocator->realloc_fn);
     assert(allocator->free_fn);
+    /* Both page hooks or neither: a page taken from one and given to the
+     * other is heap corruption. */
+    assert(!allocator->page_alloc_fn == !allocator->page_free_fn);
     g_trspk_allocator = *allocator;
 }
 

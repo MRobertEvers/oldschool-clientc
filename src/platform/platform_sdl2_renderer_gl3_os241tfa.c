@@ -40,7 +40,7 @@ gl3_os241_write_vertex(
     float depth_bias,
     const float* projector)
 {
-    struct TRSPK_VertexOpenGl3Os241Tfa* vertex = &vbo->vertices.as_opengl3_os241tfa[index];
+    struct TRSPK_VertexOpenGl3Os241Tfa* vertex = TRSPK_VBO_AT(vbo, struct TRSPK_VertexOpenGl3Os241Tfa, index);
     vertex->position[0] = x;
     vertex->position[1] = y;
     vertex->position[2] = z;

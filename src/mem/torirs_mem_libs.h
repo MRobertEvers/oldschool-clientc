@@ -29,10 +29,16 @@
 #include "3rd/trspk/trspk_alloc.h"
 
 
+/* trspk's big storage is pages (core/trspk_vbo.h), so it gets the page
+ * hooks too: its vertex and triangle pages come from ToriMem's page pool. */
 static inline void
 ToriMem_InstallTRSPK(void)
 {
-    TORIMEM_INSTALL_LIB(TRSPK, TRSPK_SetAllocator, ToriMem_LibTRSPK);
+    struct TRSPK_Allocator a = {
+        ToriMem_LibMalloc, ToriMem_LibCalloc,    ToriMem_LibRealloc,  ToriMem_LibFree,
+        ToriMem_LibTRSPK(), ToriMem_LibPageAlloc, ToriMem_LibPageFree,
+    };
+    TRSPK_SetAllocator(&a);
 }
 
 /* trspk's blocks belong to the renderer that asked for them: the host points
@@ -44,7 +50,8 @@ static inline void
 ToriMem_PointTRSPK(struct ToriMem_Group* group)
 {
     struct TRSPK_Allocator a = {
-        ToriMem_LibMalloc, ToriMem_LibCalloc, ToriMem_LibRealloc, ToriMem_LibFree, group,
+        ToriMem_LibMalloc, ToriMem_LibCalloc, ToriMem_LibRealloc, ToriMem_LibFree,
+        group,             ToriMem_LibPageAlloc, ToriMem_LibPageFree,
     };
     TRSPK_SetAllocator(&a);
 }

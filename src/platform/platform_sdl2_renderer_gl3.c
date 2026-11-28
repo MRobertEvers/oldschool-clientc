@@ -3156,6 +3156,11 @@ gl3_compact_static_group(struct ToriPlatformSDL2_Renderer_GL3* renderer)
     struct GL3ModelGroup* g = &renderer->groups[TRSPK_VBO_GROUP_STATIC];
     if( !g->arena )
         return;
+    /* The cap on cached poses -- every frame of a region's animated scenery
+     * otherwise stays baked for the region's life -- right before the gc that
+     * reclaims what it evicts (trspk_pose_cache_trim). */
+    trspk_pose_table_tick(&renderer->poses);
+    (void)trspk_pose_cache_trim(&renderer->poses, g->arena, TRSPK_POSE_CACHE_VERTICES);
     if( !trspk_modelarena_gc(g->arena).did_compact )
         return;
     /* Every retained pose was baked into this arena, so the arena is the
@@ -3166,7 +3171,7 @@ gl3_compact_static_group(struct ToriPlatformSDL2_Renderer_GL3* renderer)
         const struct TRSPK_ModelSlot* slot = &g->arena->slots[slot_index];
         if( !trspk_modelslot_is_alive(slot) )
             continue;
-        trspk_pose_table_set(
+        trspk_pose_table_relocate(
             &renderer->poses,
             slot->element_id,
             slot->pose_id % TRSPK_POSE_TRACK_COUNT,
@@ -3239,12 +3244,18 @@ gl3_upload_group(struct GL3ModelGroup* g)
     const GLsizeiptr byte_size =
         (GLsizeiptr)((size_t)(upload_end - upload_from) * trspk_vbo_vertex_size(g->vbo_cpu->format));
     glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
-    glBufferSubData(
-        GL_ARRAY_BUFFER,
-        (GLintptr)((size_t)upload_from * trspk_vbo_vertex_size(g->vbo_cpu->format)),
-        byte_size,
-        (const uint8_t*)g->vbo_cpu->vertices.as_opengl3_os1 +
-            (size_t)upload_from * trspk_vbo_vertex_size(g->vbo_cpu->format));
+    /* A page's run at a time (core/trspk_vbo.h): the buffer holds vertex i at
+     * byte i * stride, so the runs land where one copy would have put them. */
+    for( uint32_t from = upload_from; from < upload_end; )
+    {
+        uint32_t const run = trspk_vbo_run(g->vbo_cpu, from, upload_end);
+        glBufferSubData(
+            GL_ARRAY_BUFFER,
+            (GLintptr)((size_t)from * g->vbo_cpu->stride),
+            (GLsizeiptr)((size_t)run * g->vbo_cpu->stride),
+            trspk_vbo_at(g->vbo_cpu, from));
+        from += run;
+    }
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     /* Counted per group so a steady scene can be asserted to move no static
@@ -3305,9 +3316,10 @@ gl3_write_vertex_os1(
     float uv_mode,
     float depth_bias)
 {
+    struct TRSPK_VertexOpenGl3Os1* const vertex = TRSPK_VBO_AT(vbo, struct TRSPK_VertexOpenGl3Os1, index);
     trspk_vbo_write_vertex_opengl3_os1(vbo, index, x, y, z, color, u, v, tex_id);
-    vbo->vertices.as_opengl3_os1[index].uv_mode = uv_mode;
-    vbo->vertices.as_opengl3_os1[index].position[3] = depth_bias;
+    vertex->uv_mode = uv_mode;
+    vertex->position[3] = depth_bias;
 }
 
 /* One widget-model vertex into the dynamic group, whatever vertex the handle
@@ -3327,8 +3339,7 @@ gl3_write_widget_vertex(
     float uv_mode)
 {
     size_t const stride = trspk_vbo_vertex_size(vbo->format);
-    struct TRSPK_VertexOpenGl3Os1* vertex =
-        (struct TRSPK_VertexOpenGl3Os1*)((uint8_t*)vbo->vertices.as_opengl3_os1 + (size_t)index * stride);
+    struct TRSPK_VertexOpenGl3Os1* vertex = TRSPK_VBO_AT(vbo, struct TRSPK_VertexOpenGl3Os1, index);
     memset(vertex, 0, stride);
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -3913,7 +3924,10 @@ gl3_ev_batch3d_clear(
     /* A scene reset: the retained models went with it. */
     trspk_pose_table_clear(&renderer->poses);
     trspk_anim_track_forget_all(&renderer->anim_tracks);
-    gl3_reset_model_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
+    /* Its pages too (trspk_modelarena_release): the next region is made of
+     * them. */
+    if( renderer->groups[TRSPK_VBO_GROUP_STATIC].arena )
+        trspk_modelarena_release(renderer->groups[TRSPK_VBO_GROUP_STATIC].arena);
     gl3_release_gpu_mesh_buffers(renderer);
 }
 
@@ -5833,6 +5847,9 @@ gl3_renderer_new(
     {
         struct GL3ModelGroup* g = &renderer->groups[gi];
         g->vbo_cpu = trspk_vbo_create(0, renderer->vertex_format);
+        assert(g->vbo_cpu);
+        trspk_vbo_set_label(
+            g->vbo_cpu, gi == TRSPK_VBO_GROUP_DYNAMIC ? "dynamic models" : "static models");
         if( !g->vbo_cpu )
             goto fail;
 

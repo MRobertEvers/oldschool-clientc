@@ -4058,7 +4058,7 @@ d3d9_reclassify_face_range(
     uint32_t vertex_offset;
 
     if( !vbo || vbo->format != TRSPK_VERTEX_FORMAT_D3D9 ||
-        !vbo->vertices.as_d3d9 || !triangles || !triangles->config ||
+        vbo->capacity == 0u || !triangles || triangles->cap == 0u ||
         vertex_count % 3u != 0u || vertex_base > vbo->vertex_count ||
         vertex_count > vbo->vertex_count - vertex_base )
         return false;
@@ -4069,7 +4069,7 @@ d3d9_reclassify_face_range(
         uint32_t triangle_index =
             trspk_triangles_index_from_vertex(vertex_index);
         struct TRSPK_VertexD3D9* first =
-            &vbo->vertices.as_d3d9[vertex_index];
+            TRSPK_VBO_AT(vbo, struct TRSPK_VertexD3D9, vertex_index);
         int baked_tex_id;
         int config;
         uint32_t corner;
@@ -4088,7 +4088,7 @@ d3d9_reclassify_face_range(
             for( corner = 0u; corner < 3u; corner++ )
             {
                 struct TRSPK_VertexD3D9* vertex =
-                    &vbo->vertices.as_d3d9[vertex_index + corner];
+                    TRSPK_VBO_AT(vbo, struct TRSPK_VertexD3D9, vertex_index + corner);
                 vertex->texcoord[0] = (vertex->texcoord[0] - origin_u) / cell;
                 vertex->texcoord[1] = (vertex->texcoord[1] - origin_v) / cell;
                 d3d9_map_animated_uv(&vertex->texcoord[0], &vertex->texcoord[1]);
@@ -4102,7 +4102,7 @@ d3d9_reclassify_face_range(
             for( corner = 0u; corner < 3u; corner++ )
             {
                 struct TRSPK_VertexD3D9* vertex =
-                    &vbo->vertices.as_d3d9[vertex_index + corner];
+                    TRSPK_VBO_AT(vbo, struct TRSPK_VertexD3D9, vertex_index + corner);
                 float mapped_u;
                 float mapped_v;
                 d3d9_map_atlas_uv(
@@ -4161,7 +4161,7 @@ d3d9_reclassify_texture_faces(
         bool changed = false;
         uint32_t slot_index;
 
-        if( !arena || !vbo || !vbo->vertices.as_d3d9 )
+        if( !arena || !vbo || vbo->capacity == 0u )
             continue;
 
         for( slot_index = 0u; slot_index < arena->slot_count; slot_index++ )
@@ -4221,6 +4221,29 @@ d3d9_reclassify_texture_faces(
                     renderer->static_batch_upload_pending = true;
             }
         }
+    }
+}
+
+
+/* Copy a VBO's vertices [first, end) to `dst` end to end, a page's run at a
+ * time (core/trspk_vbo.h): what one memcpy of a contiguous array did. */
+static void
+d3d9_copy_vbo(
+    void* dst,
+    const struct TRSPK_VBO* vbo,
+    uint32_t first,
+    uint32_t end)
+{
+    uint8_t* out = (uint8_t*)dst;
+    assert(dst);
+    assert(vbo);
+    while( first < end )
+    {
+        uint32_t const run = trspk_vbo_run(vbo, first, end);
+        size_t const bytes = (size_t)run * vbo->stride;
+        memcpy(out, trspk_vbo_at(vbo, first), bytes);
+        out += bytes;
+        first += run;
     }
 }
 
@@ -4315,7 +4338,7 @@ d3d9_upload_group(struct ToriPlatformWin32_Renderer_D3D9* renderer, struct D3D9M
             d3d9_log_hr("Lock(vertex buffer)", hr);
             return false;
         }
-        memcpy(locked, &group->vbo_cpu->vertices.as_d3d9[first], byte_count);
+        d3d9_copy_vbo(locked, group->vbo_cpu, first, end);
         IDirect3DVertexBuffer9_Unlock(group->vbo_gpu);
     }
     if( group->reset_each_frame )
@@ -4658,7 +4681,7 @@ d3d9_upload_static_batch_chunk(
             d3d9_log_hr("Lock(static batch vertex buffer)", hr);
             return false;
         }
-        memcpy(locked, &chunk->vbo->vertices.as_d3d9[first], byte_count);
+        d3d9_copy_vbo(locked, chunk->vbo, first, end);
         hr = IDirect3DVertexBuffer9_Unlock(batch->gpu_vbo);
         if( FAILED(hr) )
         {
@@ -4862,7 +4885,7 @@ d3d9_rebuild_static_pose_table(struct ToriPlatformWin32_Renderer_D3D9* renderer)
             continue;
         anim_index = slot->pose_id % TRSPK_POSE_TRACK_COUNT;
         pose_id = slot->pose_id / TRSPK_POSE_TRACK_COUNT;
-        trspk_pose_table_set(
+        trspk_pose_table_relocate(
             &renderer->poses,
             slot->element_id,
             anim_index,
@@ -4883,6 +4906,23 @@ d3d9_compact_static_group(struct ToriPlatformWin32_Renderer_D3D9* renderer)
     result = trspk_modelarena_gc(arena);
     if( result.did_compact )
         d3d9_rebuild_static_pose_table(renderer);
+}
+
+/* The cap on cached poses -- every frame of a region's animated scenery
+ * otherwise stays baked for the region's life -- once a frame, before any
+ * command reads the pose table, and the gc that reclaims what it took
+ * (trspk_pose_cache_trim). */
+static void
+d3d9_trim_static_group(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    struct TRSPK_ModelArena* arena;
+    assert(renderer);
+    arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
+    if( !arena )
+        return;
+    trspk_pose_table_tick(&renderer->poses);
+    if( trspk_pose_cache_trim(&renderer->poses, arena, TRSPK_POSE_CACHE_VERTICES) )
+        d3d9_compact_static_group(renderer);
 }
 
 static bool
@@ -5042,9 +5082,11 @@ d3d9_bake_pose_vertices(
         {
             float const depth_bias =
                 2.0f * (float)model_handle.u.model.model->face_z_offsets[face_index];
-            vbo->vertices.as_d3d9[vertex].texdata[1] = depth_bias;
-            vbo->vertices.as_d3d9[vertex + 1u].texdata[1] = depth_bias;
-            vbo->vertices.as_d3d9[vertex + 2u].texdata[1] = depth_bias;
+            struct TRSPK_VertexD3D9* const corners =
+                (struct TRSPK_VertexD3D9*)trspk_vbo_span(vbo, vertex, 3u);
+            corners[0].texdata[1] = depth_bias;
+            corners[1].texdata[1] = depth_bias;
+            corners[2].texdata[1] = depth_bias;
         }
     }
 
@@ -6004,7 +6046,7 @@ d3d9_build_draw_ranges16(
             if( absolute + 2u >= vbo->vertex_count )
                 return UINT32_MAX;
             triangle = trspk_triangles_index_from_vertex(absolute);
-            if( !triangles->config || triangle >= triangles->cap )
+            if( triangles->cap == 0u || triangle >= triangles->cap )
                 return UINT32_MAX;
             config = trspk_triangles_encode_draw_config(
                 trspk_triangles_get(triangles, triangle));
@@ -7002,7 +7044,10 @@ d3d9_dispatch(
             /* A scene reset: the retained models went with it. */
             trspk_pose_table_clear(&renderer->poses);
             trspk_anim_track_forget_all(&renderer->anim_tracks);
-            d3d9_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
+            /* Its pages too (trspk_modelarena_release): the next region is
+             * made of them. */
+            if( renderer->groups[TRSPK_VBO_GROUP_STATIC].arena )
+                trspk_modelarena_release(renderer->groups[TRSPK_VBO_GROUP_STATIC].arena);
         }
         break;
     case TORIRSRC_DRAW_MODEL:
@@ -7209,6 +7254,9 @@ ToriPlatformWin32_Renderer_D3D9_New(int width, int height)
     {
         struct D3D9ModelGroup* model_group = &renderer->groups[group];
         model_group->vbo_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_D3D9);
+        assert(model_group->vbo_cpu);
+        trspk_vbo_set_label(
+            model_group->vbo_cpu, group == TRSPK_VBO_GROUP_DYNAMIC ? "dynamic models" : "static models");
         if( !model_group->vbo_cpu )
         {
             ToriPlatformWin32_Renderer_D3D9_Free(renderer);
@@ -7879,6 +7927,7 @@ d3d9_frame_begin(
     *out_render_start_us = PlatformWindow_TicksUs();
     if( !d3d9_begin_frame_scene(renderer) )
         return false;
+    d3d9_trim_static_group(renderer);
     renderer->has_3d = false;
     renderer->in3d = false;
     renderer->in2d = false;

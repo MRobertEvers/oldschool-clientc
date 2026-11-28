@@ -5,37 +5,42 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define WORLD_ENTITY_INITIAL_CAPACITY 64
+/* A page of a pool holds a power of two of its entities, at least
+ * TORIMEM_PAGE_MIN_BYTES of them: a shift finds an entity's page. */
+static int
+World_EntityPoolPageShift(int element_size)
+{
+    int shift = 0;
+    assert(element_size > 0);
+    while( ((size_t)1 << shift) * (size_t)element_size < TORIMEM_PAGE_MIN_BYTES )
+        shift++;
+    return shift;
+}
 
-/*
- * Half again, not double. A pool that doubles carries, at the moment it grows,
- * as much dead capacity as it does live entities, and the scenery pool is the
- * client resident set: 380 bytes an entity, 8,216 of them in a Lumbridge scene,
- * and a capacity of 16,384 because the count crossed 8,192 by twenty-four. That
- * is 3.1 MB of the 32-bit budget spent on room for entities that never arrive.
- *
- * Growth stays amortised O(1) -- the copy is still a constant fraction of the
- * array -- and it is not a per-frame cost either way: capacity only moves when
- * the high-water mark does. Three more reallocs across a session buys the space
- * back.
- */
-#define WORLD_ENTITY_GROWTH_NUMERATOR 3
-#define WORLD_ENTITY_GROWTH_DENOMINATOR 2
+static size_t
+World_EntityPoolPageBytes(const struct World_EntityPool* pool)
+{
+    return ((size_t)1 << pool->page_shift) * (size_t)pool->element_size;
+}
 
+/* One more page: the entities already in the pool stay where they are. The
+ * node table, 12 bytes an entity, still grows by realloc; it is a fiftieth of
+ * the size of the scenery it describes. */
 static bool
 World_EntityPoolGrow(struct World_EntityPool* pool)
 {
-    int old_cap = pool->capacity;
-    int new_cap = pool->capacity
-                      ? pool->capacity * WORLD_ENTITY_GROWTH_NUMERATOR /
-                            WORLD_ENTITY_GROWTH_DENOMINATOR
-                      : WORLD_ENTITY_INITIAL_CAPACITY;
+    int const old_cap = pool->capacity;
+    int const new_cap = old_cap + (1 << pool->page_shift);
+    unsigned char** pages;
+    struct World_EntityPoolNode* grown_nodes;
     assert(new_cap > old_cap);
-    void* grown_items =
-        ToriMem_Realloc(ToriMem_Scene(), pool->items, (size_t)new_cap * (size_t)pool->element_size);
-    struct World_EntityPoolNode* grown_nodes = ToriMem_Realloc(
+    pages = ToriMem_Realloc(
+        ToriMem_Scene(), pool->pages, (size_t)(pool->page_count + 1) * sizeof(*pages));
+    pages[pool->page_count] = ToriMem_PageAlloc(ToriMem_Scene(), World_EntityPoolPageBytes(pool));
+    grown_nodes = ToriMem_Realloc(
         ToriMem_Scene(), pool->nodes, (size_t)new_cap * sizeof(struct World_EntityPoolNode));
-    pool->items = grown_items;
+    pool->pages = pages;
+    pool->page_count++;
     pool->nodes = grown_nodes;
     pool->capacity = new_cap;
 
@@ -56,6 +61,7 @@ World_EntityPoolInit(
     assert(pool);
     memset(pool, 0, sizeof(*pool));
     pool->element_size = element_size;
+    pool->page_shift = element_size > 0 ? World_EntityPoolPageShift(element_size) : 0;
     pool->head = WORLD_ENTITY_NIL;
     pool->tail = WORLD_ENTITY_NIL;
     pool->free_head = WORLD_ENTITY_NIL;
@@ -66,7 +72,9 @@ World_EntityPoolFree(struct World_EntityPool* pool)
 {
     if( !pool )
         return;
-    ToriMem_Free(ToriMem_Scene(), pool->items);
+    for( int i = 0; i < pool->page_count; i++ )
+        ToriMem_PageFree(ToriMem_Scene(), pool->pages[i]);
+    ToriMem_Free(ToriMem_Scene(), pool->pages);
     ToriMem_Free(ToriMem_Scene(), pool->nodes);
     memset(pool, 0, sizeof(*pool));
     pool->head = WORLD_ENTITY_NIL;
@@ -82,7 +90,7 @@ World_EntityPoolGet(
     assert(pool);
     if( index < 0 || index >= pool->count )
         return NULL;
-    return (char*)pool->items + (size_t)index * (size_t)pool->element_size;
+    return World_EntityPoolAt(pool, index);
 }
 
 int
@@ -217,17 +225,15 @@ World_EntityPoolReserve(
 
     if( slot_count > pool->count )
     {
-        memset(
-            (char*)pool->items + (size_t)pool->count * (size_t)pool->element_size,
-            0,
-            (size_t)(slot_count - pool->count) * (size_t)pool->element_size);
-        for( int i = pool->count; i < slot_count; i++ )
+        int const first = pool->count;
+        pool->count = slot_count;
+        for( int i = first; i < slot_count; i++ )
         {
+            memset(World_EntityPoolAt(pool, i), 0, (size_t)pool->element_size);
             pool->nodes[i].prev = WORLD_ENTITY_NIL;
             pool->nodes[i].next = WORLD_ENTITY_NIL;
             pool->nodes[i].active = false;
         }
-        pool->count = slot_count;
     }
 
     return true;

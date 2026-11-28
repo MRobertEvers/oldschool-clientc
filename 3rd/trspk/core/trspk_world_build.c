@@ -22,6 +22,7 @@ trspk_world_slot_create_storage(
     {
         w->batch = trspk_batch32_create(build->format);
         assert(w->batch);
+        trspk_vbo_set_label(trspk_batch32_vbo(w->batch), "world build");
     }
 }
 

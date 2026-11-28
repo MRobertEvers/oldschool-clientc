@@ -251,7 +251,7 @@ main(int argc, char** argv)
              * is free to drop all but the last iteration's stores -- each
              * outer pass writes the same vertex slots -- and the bench then
              * measures dead-store elimination instead of the bake. */
-            checksum += vbo->vertices.as_d3d9[vertex].color;
+            checksum += TRSPK_VBO_AT(vbo, struct TRSPK_VertexD3D9, vertex)->color;
         }
         trspk_vbo_set_dirty(vbo);
     }

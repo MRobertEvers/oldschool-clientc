@@ -383,6 +383,84 @@ ToriMem_Adopt(
 struct ToriMem_Group*
 ToriMem_GroupOf(const void* ptr);
 
+/* ---- Pages ----------------------------------------------------------------
+ *
+ * Storage that outgrows one ordinary block comes as PAGES: fixed-size blocks
+ * of a handful of sizes (a renderer's vertex page, its triangle page). A page
+ * of one size is interchangeable with every other page of that size, so a
+ * freed page always fits the next request for one: the heap holds the most
+ * pages ever live at once, never a hole the next request is too big for.
+ *
+ * That is the point. The web heap can grow and never shrink, and one block per
+ * world build -- 75 MB, then 235 MB, then 170 MB, each at a fresh address while
+ * the last was still live -- left holes no later build fit: an iPhone's tab
+ * grew from 768 MB to 1.3 GB with half of it free, and was killed
+ * (2026-11-28). The same bytes in pages are reused exactly.
+ *
+ * A page is charged to the group that took it, like a block: its end checks
+ * every page was given back. A page given back is kept, per size, in the
+ * process's page pool ("pages" in the stats tree) for the next request, and
+ * never returned to malloc: on the web it could not be anyway. With arenas off
+ * (ASan, MEMTRACE) a page is a plain malloc and a give-back frees it, so a
+ * page used after it went back is a heap-use-after-free.
+ *
+ * Sizes: at least TORIMEM_PAGE_MIN_BYTES, and at most TORIMEM_PAGE_CLASSES
+ * distinct sizes per process (a renderer's formats, its triangle table, one
+ * per entity pool kind) -- a caller asking for arbitrary sizes would only
+ * have moved the fragmentation here, so a new size past that aborts.
+ *
+ * And the other half of the rule: no site that keeps making ordinary blocks
+ * over TORIMEM_BIG_BLOCK_BYTES. A table made once and kept is harmless; a site
+ * that makes them again -- a buffer regrown, a build's storage remade -- is
+ * what leaves holes. The first big block from a site prints a
+ * `torimem: big block` line, the second a `torimem: big block CHURN` line
+ * (TORIRS_MEM_STRICT=1 aborts there), every one is counted
+ * (ToriMem_BigBlocks), and TORIRS_MEM_STATS lists the sites at exit. Storage
+ * that is remade at that size belongs in pages.
+ */
+#define TORIMEM_PAGE_MIN_BYTES ((size_t)64 * 1024)
+#define TORIMEM_PAGE_CLASSES 32
+#define TORIMEM_BIG_BLOCK_BYTES ((size_t)4 * 1024 * 1024)
+
+void*
+ToriMem_PageAllocAt(
+    struct ToriMem_Group* group,
+    size_t bytes,
+    const char* file,
+    int line);
+
+#define ToriMem_PageAlloc(group, bytes) ToriMem_PageAllocAt((group), (bytes), TORIMEM_SITE)
+
+/** Give a page back to the pool. NULL is accepted. Aborts on a block that is
+ *  not a page, or a page of another group. */
+void
+ToriMem_PageFree(
+    struct ToriMem_Group* group,
+    void* page);
+
+/** Bytes of free pages the pool holds for reuse. */
+size_t
+ToriMem_PagePoolBytes(void);
+
+/** Ordinary blocks over TORIMEM_BIG_BLOCK_BYTES allocated so far. */
+intptr_t
+ToriMem_BigBlocks(void);
+
+/** Told of each big block ToriMem names (the first from a site, and the
+ *  second: `churn`), after its torimem: line, so a host can send it somewhere
+ *  a console is not -- the web page's black box. `group` is the group's path,
+ *  `site` the site as the line names it. Called on the allocating thread,
+ *  inside the allocation: the hook must not allocate from a group. NULL
+ *  removes it. */
+typedef void (*ToriMem_BigBlockHook)(
+    char const* group,
+    size_t bytes,
+    char const* site,
+    int churn);
+
+void
+ToriMem_SetBigBlockHook(ToriMem_BigBlockHook hook);
+
 /* ---- Scratch inside an ARENA -------------------------------------------- */
 
 /** Marks nest; rewind them innermost first. */
@@ -482,6 +560,19 @@ ToriMem_LibRealloc(
 void
 ToriMem_LibFree(
     void* ptr,
+    void* user);
+
+/* A library's page hooks (trspk's TRSPK_Allocator.page_alloc_fn): a page from
+ * the calling scope's group, else `user`'s; given back through the group in
+ * its header. */
+void*
+ToriMem_LibPageAlloc(
+    size_t bytes,
+    void* user);
+
+void
+ToriMem_LibPageFree(
+    void* page,
     void* user);
 
 /* ---- Audit -------------------------------------------------------------- */

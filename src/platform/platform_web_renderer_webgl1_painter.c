@@ -521,7 +521,8 @@ es2p_emit_model(
             renderer,
             batch,
             placement->entry_index,
-            source_vbo->vertices.as_gles2_os1 + source_base,
+            (const struct TRSPK_VertexGLES2Os1*)trspk_vbo_span(
+                source_vbo, source_base, placement->entry_vertex_count),
             placement->entry_vertex_count);
         if( address != UINT32_MAX )
         {
@@ -545,12 +546,15 @@ es2p_emit_model(
     source_base = placement->binding == ES2_STATIC_PAGE_BINDING
         ? placement->local_base
         : placement->page_base + placement->local_base;
-    if( source_base > source_vbo->vertex_count )
+    if( source_base >= source_vbo->vertex_count )
         return;
     /* The order names faces by their index in the MODEL, which runs past the
      * sorted count -- placement->face_count is that sorted count here, so it
-     * is NOT a bound on face indices. The only bound is the bake itself. */
-    source_face_limit = (source_vbo->vertex_count - source_base) / 3u;
+     * is NOT a bound on face indices. The only bound is the bake itself, and
+     * the page it is in: a pose never crosses one (core/trspk_vbo.h), and
+     * nothing past the page is contiguous with it. */
+    source_face_limit =
+        trspk_vbo_run(source_vbo, source_base, source_vbo->vertex_count) / 3u;
 
     /* A batch entry lives in the resident window: the entry's whole bake is
      * what gets placed, since any of its faces may be named this frame or
@@ -567,7 +571,8 @@ es2p_emit_model(
             renderer,
             &renderer->static_batches[placement->batch_slot],
             placement->entry_index,
-            source_vbo->vertices.as_gles2_os1 + source_base,
+            (const struct TRSPK_VertexGLES2Os1*)trspk_vbo_span(
+                source_vbo, source_base, source_face_limit * 3u),
             source_face_limit * 3u);
         if( address != UINT32_MAX )
         {
@@ -579,10 +584,12 @@ es2p_emit_model(
 gather:
     /* Everything else is gathered into the stream in sorted order. */
     renderer->painter_stat_faces_gathered += face_count;
+    if( face_count == 0u )
+        return;
     first = es2_frame_stream_reserve(renderer, face_count * 3u);
     es2_painter_gather(
-        (struct ES2FaceVertices*)&renderer->frame_stream_cpu->vertices.as_gles2_os1[first],
-        (const struct ES2FaceVertices*)(source_vbo->vertices.as_gles2_os1 + source_base),
+        (struct ES2FaceVertices*)trspk_vbo_span(renderer->frame_stream_cpu, first, face_count * 3u),
+        (const struct ES2FaceVertices*)trspk_vbo_at(source_vbo, source_base),
         source_face_limit,
         face_order,
         face_count);
@@ -1250,7 +1257,7 @@ es2p_dispatch(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderCom
             /* A scene reset: the retained models went with it. */
             trspk_pose_table_clear(&renderer->poses);
             trspk_anim_track_forget_all(&renderer->anim_tracks);
-            es2_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
+            es2_release_group(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC]);
         }
         break;
     case TORIRSRC_DRAW_MODEL:

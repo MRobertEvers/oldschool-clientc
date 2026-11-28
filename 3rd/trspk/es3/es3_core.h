@@ -1448,6 +1448,14 @@ void
 es3_stream_sets_begin_frame(struct TRSPK_Renderer_ES3* renderer);
 void
 es3_reset_group(struct ES3ModelGroup* group);
+/* A scene reset: the group emptied AND its storage given back -- the arena's
+ * pages to the pool, its GPU buffer to ES3_GPU_BUFFER_INIT -- so the next
+ * region is made of them. es3_reset_group keeps the storage, for the
+ * per-frame group. */
+void
+es3_release_group(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ModelGroup* group);
 uint32_t
 es3_stream_set_append(
     struct ES3StreamSet* set,

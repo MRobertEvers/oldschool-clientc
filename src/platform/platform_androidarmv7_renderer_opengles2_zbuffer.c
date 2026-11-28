@@ -1887,7 +1887,7 @@ es2z_dispatch(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderCom
             /* A scene reset: the retained models went with it. */
             trspk_pose_table_clear(&renderer->poses);
             trspk_anim_track_forget_all(&renderer->anim_tracks);
-            es2_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
+            es2_release_group(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC]);
         }
         break;
     case TORIRSRC_DRAW_MODEL:

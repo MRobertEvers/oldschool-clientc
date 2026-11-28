@@ -53,6 +53,9 @@ struct TRSPK_ModelArena
      * gc has to be told (Ocellus phase 2, 2026-10-22: 34M orphaned vertices
      * in GL3's static arena, re-uploaded whole on every dirty frame). */
     uint32_t orphaned_vertices;
+    /* Vertices of the live slots: what the arena holds, holes and padding
+     * left out. A cap on it is a cap on what gc leaves (trspk_pose_cache_trim). */
+    uint64_t live_vertices;
 
     struct TRSPK_VBO* vbo;
     struct TRSPK_VBOChain16* vbo_chain;
@@ -120,6 +123,13 @@ trspk_modelarena_unload_element(
 
 void
 trspk_modelarena_clear(struct TRSPK_ModelArena* arena);
+
+/* trspk_modelarena_clear, and the storage under it given back: the vertex and
+ * triangle pages go to the pool (core/trspk_vbo.h) and the arena grows again
+ * from nothing. For a scene reset, when the next region is made of the pages
+ * this one held; a per-frame group that refills each frame clears instead. */
+void
+trspk_modelarena_release(struct TRSPK_ModelArena* arena);
 
 /**
  * Reclaim unloaded ranges in a flat VBO, packing live slots across pages while

@@ -23,6 +23,16 @@ align_vertex_base(
     return cur;
 }
 
+/* The page a slot must not cross: the lane's, and never more than a VBO
+ * page (core/trspk_vbo.h), whose vertices are contiguous only inside one.
+ * Every lane's page is a power of two of at least TRSPK_PAGE_VERTICES, so
+ * aligning to the smaller keeps both. */
+static uint32_t
+arena_page(const struct TRSPK_ModelArena* arena)
+{
+    return arena->page_size < TRSPK_PAGE_VERTICES ? arena->page_size : TRSPK_PAGE_VERTICES;
+}
+
 static void
 move_vertices(
     struct TRSPK_VBO* vbo,
@@ -33,48 +43,7 @@ move_vertices(
     if( count == 0u || dst == src )
         return;
 
-    switch( vbo->format )
-    {
-    case TRSPK_VERTEX_FORMAT_WEBGL1:
-        memmove(
-            &vbo->vertices.as_webgl1[dst],
-            &vbo->vertices.as_webgl1[src],
-            count * sizeof(struct TRSPK_VertexWebGL1));
-        break;
-    case TRSPK_VERTEX_FORMAT_OPENGL3_OS1:
-        memmove(
-            &vbo->vertices.as_opengl3_os1[dst],
-            &vbo->vertices.as_opengl3_os1[src],
-            count * sizeof(struct TRSPK_VertexOpenGl3Os1));
-        break;
-    case TRSPK_VERTEX_FORMAT_D3D9:
-        memmove(
-            &vbo->vertices.as_d3d9[dst],
-            &vbo->vertices.as_d3d9[src],
-            count * sizeof(struct TRSPK_VertexD3D9));
-        break;
-    case TRSPK_VERTEX_FORMAT_GLES2_OS1:
-        memmove(
-            &vbo->vertices.as_gles2_os1[dst],
-            &vbo->vertices.as_gles2_os1[src],
-            count * sizeof(struct TRSPK_VertexGLES2Os1));
-        break;
-    case TRSPK_VERTEX_FORMAT_ES3_OS235SAILING:
-    case TRSPK_VERTEX_FORMAT_ES3_OS241TFA:
-    case TRSPK_VERTEX_FORMAT_OPENGL3_OS241TFA:
-    {
-        size_t const size = trspk_vbo_vertex_size(vbo->format);
-        memmove(
-            (uint8_t*)vbo->vertices.as_gles2_os1 + (size_t)dst * size,
-            (uint8_t*)vbo->vertices.as_gles2_os1 + (size_t)src * size,
-            count * size);
-        break;
-    }
-    default:
-        assert(false && "Unsupported vertex format");
-        break;
-    }
-
+    trspk_vbo_move(vbo, dst, src, count);
     trspk_vbo_set_dirty(vbo);
 }
 
@@ -88,14 +57,8 @@ move_triangles(
     if( tri_count == 0u || dst_tri == src_tri )
         return;
 
-    assert(tri->config != NULL);
-    assert(dst_tri + tri_count <= tri->cap);
-    assert(src_tri + tri_count <= tri->cap);
-
-    memmove(
-        &tri->config[dst_tri],
-        &tri->config[src_tri],
-        tri_count * sizeof(int));
+    assert(tri->cap > 0u);
+    trspk_triangles_move(tri, dst_tri, src_tri, tri_count);
 }
 
 /*
@@ -260,6 +223,11 @@ free_slot(
     /* Before the flags are cleared: the bucket is derived from the keys,
      * and a dead slot must not stay reachable from the index. */
     lookup_remove(arena, slot_index);
+    if( trspk_modelslot_is_alive(slot) )
+    {
+        assert(arena->live_vertices >= slot->vertex_count);
+        arena->live_vertices -= slot->vertex_count;
+    }
     slot->flags = 0u;
     slot->next_free = arena->free_head;
     arena->free_head = slot_index;
@@ -413,7 +381,8 @@ trspk_modelarena_load(
     {
         assert(arena->vbo != NULL);
 
-        uint32_t base = align_vertex_base(arena->write_cursor, vertex_count, arena->page_size);
+        assert(vertex_count <= TRSPK_POSE_MAX_VERTICES);
+        uint32_t base = align_vertex_base(arena->write_cursor, vertex_count, arena_page(arena));
         if( base > arena->write_cursor )
             trspk_vbo_growby(arena->vbo, base - arena->write_cursor);
 
@@ -431,6 +400,7 @@ trspk_modelarena_load(
     }
 
     slot->vertex_count = vertex_count;
+    arena->live_vertices += vertex_count;
     slot->tri_count = tri_count;
     slot->element_id = element_id;
     slot->pose_id = pose_id;
@@ -523,6 +493,7 @@ trspk_modelarena_clear(struct TRSPK_ModelArena* arena)
     arena->free_head = TRSPK_MODELSLOT_NULL_IDX;
     arena->write_cursor = 0u;
     arena->orphaned_vertices = 0u;
+    arena->live_vertices = 0u;
 
     /* Every bucket head names a slot that no longer exists. Leaving them
      * would let find hand back a slot index from the previous scene. */
@@ -536,6 +507,22 @@ trspk_modelarena_clear(struct TRSPK_ModelArena* arena)
         trspk_vbochain16_reset(arena->vbo_chain);
     else if( arena->vbo != NULL )
         trspk_vbo_reset(arena->vbo);
+}
+
+void
+trspk_modelarena_release(struct TRSPK_ModelArena* arena)
+{
+    assert(arena != NULL);
+    trspk_modelarena_clear(arena);
+    if( arena->vbo_chain != NULL )
+    {
+        for( uint32_t i = 0u; i < arena->vbo_chain->page_count; ++i )
+            trspk_vbo_release(arena->vbo_chain->pages[i]);
+    }
+    else if( arena->vbo != NULL )
+        trspk_vbo_release(arena->vbo);
+    if( arena->tri != NULL )
+        trspk_triangles_free(arena->tri);
 }
 
 struct TRSPK_ModelArenaGCResult
@@ -603,7 +590,7 @@ trspk_modelarena_gc(struct TRSPK_ModelArena* arena)
     {
         struct TRSPK_ModelSlot* slot = alive[i];
         const uint32_t compacted_base = align_vertex_base(
-            write_cursor, slot->vertex_count, arena->page_size);
+            write_cursor, slot->vertex_count, arena_page(arena));
 
         if( slot->vertex_base != compacted_base )
         {

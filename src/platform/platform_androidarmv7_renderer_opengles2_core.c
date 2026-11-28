@@ -101,7 +101,7 @@ es2_bake_ordered_fast(
         face_order,
         written_count,
         world_xyz,
-        &vbo->vertices.as_gles2_os1[vertex_base]);
+        (struct TRSPK_VertexGLES2Os1*)trspk_vbo_span(vbo, vertex_base, written_count * 3u));
     trspk_vbo_mark_dirty_range(vbo, vertex_base, written_count * 3u);
     return true;
 }
@@ -934,8 +934,8 @@ es2_refresh_anim_range(
 
     assert(vbo);
     assert(triangles);
-    if( vbo->format != TRSPK_VERTEX_FORMAT_GLES2_OS1 || !vbo->vertices.as_gles2_os1 ||
-        !triangles->config || vertex_count % 3u != 0u || vertex_base > vbo->vertex_count ||
+    if( vbo->format != TRSPK_VERTEX_FORMAT_GLES2_OS1 || vbo->capacity == 0u ||
+        triangles->cap == 0u || vertex_count % 3u != 0u || vertex_base > vbo->vertex_count ||
         vertex_count > vbo->vertex_count - vertex_base )
         return false;
     for( vertex_offset = 0u; vertex_offset < vertex_count; vertex_offset += 3u )
@@ -948,7 +948,8 @@ es2_refresh_anim_range(
             continue;
         for( corner = 0u; corner < 3u; corner++ )
         {
-            struct TRSPK_VertexGLES2Os1* vertex = &vbo->vertices.as_gles2_os1[vertex_index + corner];
+            struct TRSPK_VertexGLES2Os1* vertex =
+                TRSPK_VBO_AT(vbo, struct TRSPK_VertexGLES2Os1, vertex_index + corner);
             if( vertex->anim_u == anim_u && vertex->anim_v == anim_v )
                 continue;
             vertex->anim_u = anim_u;
@@ -1198,17 +1199,83 @@ es2_stream_set_append(
     glBindBuffer(target, set->buffers[slot]);
     if( offset + bytes > set->capacities[slot] )
     {
-        uint32_t capacity = set->capacities[slot] ? set->capacities[slot] : initial_bytes;
+        uint32_t const capacity = trspk_gpu_capacity_for(
+            set->capacities[slot] ? set->capacities[slot] : initial_bytes, offset + bytes, 64u * 1024u);
         assert(offset == 0u || earlier_appends_drawn);
         (void)earlier_appends_drawn; /* only the assert reads it; NDEBUG builds */
-        while( capacity < offset + bytes )
-            capacity *= 2u;
         glBufferData(target, (GLsizeiptr)capacity, NULL, GL_DYNAMIC_DRAW);
         set->capacities[slot] = capacity;
     }
     glBufferSubData(target, (GLintptr)offset, (GLsizeiptr)bytes, data);
     set->head = offset + ((bytes + 3u) & ~3u);
     return offset;
+}
+
+/* es2_stream_set_append of a VBO's vertices [first, end), a page's run at a
+ * time (core/trspk_vbo.h: there is no one pointer to them). ES 2.0 cannot
+ * copy between buffers, so the store is sized for the whole range first --
+ * by the one growth the single append would have made, under the same
+ * condition -- and the runs are written end to end into it: vertex i is at
+ * the returned offset plus (i - first) * stride, as from one copy. */
+static uint32_t
+es2_stream_set_append_vbo(
+    struct ES2StreamSet* set,
+    uint32_t slot,
+    GLenum target,
+    uint32_t initial_bytes,
+    const struct TRSPK_VBO* vbo,
+    uint32_t first,
+    uint32_t end,
+    bool earlier_appends_drawn)
+{
+    uint32_t const offset = set->head;
+    uint32_t const bytes = (end - first) * vbo->stride;
+    uint32_t at = offset;
+    assert(set->buffers[slot]);
+    assert(first < end);
+    assert(vbo->stride % 4u == 0u);
+    glBindBuffer(target, set->buffers[slot]);
+    if( offset + bytes > set->capacities[slot] )
+    {
+        uint32_t const capacity = trspk_gpu_capacity_for(
+            set->capacities[slot] ? set->capacities[slot] : initial_bytes, offset + bytes, 64u * 1024u);
+        assert(offset == 0u || earlier_appends_drawn);
+        (void)earlier_appends_drawn; /* only the assert reads it; NDEBUG builds */
+        glBufferData(target, (GLsizeiptr)capacity, NULL, GL_DYNAMIC_DRAW);
+        set->capacities[slot] = capacity;
+    }
+    while( first < end )
+    {
+        uint32_t const run = trspk_vbo_run(vbo, first, end);
+        glBufferSubData(target, (GLintptr)at, (GLsizeiptr)(run * vbo->stride), trspk_vbo_at(vbo, first));
+        at += run * vbo->stride;
+        first += run;
+    }
+    set->head = offset + bytes;
+    return offset;
+}
+
+/* glBufferSubData of a VBO's vertices [first, end) into the bound `target`
+ * buffer, vertex i at byte (base_vertex + i) * stride: one call per run. */
+static void
+es2_buffer_sub_vbo(
+    GLenum target,
+    const struct TRSPK_VBO* vbo,
+    uint64_t base_vertex,
+    uint32_t first,
+    uint32_t end)
+{
+    assert(vbo);
+    while( first < end )
+    {
+        uint32_t const run = trspk_vbo_run(vbo, first, end);
+        glBufferSubData(
+            target,
+            (GLintptr)((base_vertex + first) * vbo->stride),
+            (GLsizeiptr)((size_t)run * vbo->stride),
+            trspk_vbo_at(vbo, first));
+        first += run;
+    }
 }
 
 static void
@@ -1256,13 +1323,14 @@ es2_upload_group(struct TRSPK_Renderer_ES2* renderer, struct ES2ModelGroup* grou
          * of the dynamic stream set (see ES2_FRAMES_IN_FLIGHT). */
         uint32_t offset;
         byte_count = (size_t)vertex_count * sizeof(struct TRSPK_VertexGLES2Os1);
-        offset = es2_stream_set_append(
+        offset = es2_stream_set_append_vbo(
             &renderer->dynamic_stream,
             renderer->frame_slot,
             GL_ARRAY_BUFFER,
             ES2_DYNAMIC_STREAM_INIT_BYTES,
-            group->vbo_cpu->vertices.as_gles2_os1,
-            (uint32_t)byte_count,
+            group->vbo_cpu,
+            0u,
+            vertex_count,
             false);
         renderer->bound_array_buffer = group->vbo_gpu;
         group->gpu_base_vertex = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2Os1);
@@ -1276,9 +1344,7 @@ es2_upload_group(struct TRSPK_Renderer_ES2* renderer, struct ES2ModelGroup* grou
 
     if( vertex_count > group->gpu_capacity )
     {
-        uint32_t capacity = group->gpu_capacity ? group->gpu_capacity : ES2_GPU_BUFFER_INIT;
-        while( capacity < vertex_count )
-            capacity *= 2u;
+        uint32_t const capacity = trspk_gpu_capacity_for(ES2_GPU_BUFFER_INIT, vertex_count, 1024u);
         glBufferData(
             GL_ARRAY_BUFFER,
             (GLsizeiptr)((size_t)capacity * sizeof(struct TRSPK_VertexGLES2Os1)),
@@ -1304,11 +1370,7 @@ es2_upload_group(struct TRSPK_Renderer_ES2* renderer, struct ES2ModelGroup* grou
     byte_count = (size_t)(end - first) * sizeof(struct TRSPK_VertexGLES2Os1);
     if( byte_count > 0u )
     {
-        glBufferSubData(
-            GL_ARRAY_BUFFER,
-            (GLintptr)((size_t)first * sizeof(struct TRSPK_VertexGLES2Os1)),
-            (GLsizeiptr)byte_count,
-            &group->vbo_cpu->vertices.as_gles2_os1[first]);
+        es2_buffer_sub_vbo(GL_ARRAY_BUFFER, group->vbo_cpu, 0u, first, end);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOAD_BYTES, (int64_t)byte_count);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOADS, 1);
     }
@@ -1322,6 +1384,30 @@ es2_reset_group(struct ES2ModelGroup* group)
     assert(group);
     if( group->arena )
         trspk_modelarena_clear(group->arena);
+}
+
+void
+es2_release_group(
+    struct TRSPK_Renderer_ES2* renderer,
+    struct ES2ModelGroup* group)
+{
+    assert(renderer);
+    assert(group);
+    if( group->arena )
+        trspk_modelarena_release(group->arena);
+    /* A whole region's animated scenery, every frame of it, can sit in the
+     * static group: kept after the region went, it was the next region's
+     * memory too (2026-11-28, es3_release_group). */
+    if( group->vbo_gpu && renderer->gl_context && group->gpu_capacity > ES2_GPU_BUFFER_INIT )
+    {
+        es2_bind_array_buffer(renderer, group->vbo_gpu);
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            (GLsizeiptr)((size_t)ES2_GPU_BUFFER_INIT * sizeof(struct TRSPK_VertexGLES2Os1)),
+            NULL,
+            GL_STATIC_DRAW);
+        group->gpu_capacity = ES2_GPU_BUFFER_INIT;
+    }
 }
 
 /* ---- static batches (Batch16 pages) ------------------------------------------ */
@@ -1677,12 +1763,8 @@ es2_upload_static_batch_chunk(
     if( byte_count > 0u )
     {
         es2_bind_array_buffer(renderer, batch->gpu_vbo);
-        glBufferSubData(
-            GL_ARRAY_BUFFER,
-            (GLintptr)(((uint64_t)renderer->static_pages[page_id].gpu_offset + first) *
-                       sizeof(struct TRSPK_VertexGLES2Os1)),
-            (GLsizeiptr)byte_count,
-            &chunk->vbo->vertices.as_gles2_os1[first]);
+        es2_buffer_sub_vbo(
+            GL_ARRAY_BUFFER, chunk->vbo, renderer->static_pages[page_id].gpu_offset, first, end);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOAD_BYTES, (int64_t)byte_count);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOADS, 1);
     }
@@ -2136,7 +2218,7 @@ es2_rebuild_static_pose_table(struct TRSPK_Renderer_ES2* renderer)
         const struct TRSPK_ModelSlot* slot = &arena->slots[slot_index];
         if( !trspk_modelslot_is_alive(slot) || slot->element_id < 0 || slot->pose_id < 0 )
             continue;
-        trspk_pose_table_set(
+        trspk_pose_table_relocate(
             &renderer->poses,
             slot->element_id,
             slot->pose_id % TRSPK_POSE_TRACK_COUNT,
@@ -2389,12 +2471,12 @@ es2_bake_pose_vertices(
         struct TRSPK_VertexGLES2Os1* direct = ToriMem_Alloc(ToriMem_Renderer(), bytes ? bytes : 1u);
         /* This renderer's encoder; @see es2_bake_ordered_fast. */
         trspk_toridraw_gles2_untextured_words(full_model, face_order, written_count, world_xyz, direct);
-        if( memcmp(direct, &vbo->vertices.as_gles2_os1[vertex_base], bytes) )
+        if( memcmp(direct, trspk_vbo_span(vbo, vertex_base, written_count * 3u), bytes) )
         {
             fprintf(stderr, "direct bake verification FAILED: %u ordered faces\n", written_count);
             abort();
         }
-        memcpy(&vbo->vertices.as_gles2_os1[vertex_base], direct, bytes);
+        memcpy(trspk_vbo_span(vbo, vertex_base, written_count * 3u), direct, bytes);
         ToriMem_Free(ToriMem_Renderer(), direct);
         static unsigned matched_models, matched_faces;
         matched_faces += written_count;
@@ -3052,8 +3134,8 @@ es2_frame_stream_reserve(struct TRSPK_Renderer_ES2* renderer, uint32_t vertex_co
     uint32_t first;
     assert(renderer);
     assert(renderer->frame_stream_cpu);
-    first = renderer->frame_stream_count;
-    trspk_vbo_ensure_capacity(renderer->frame_stream_cpu, first + vertex_count);
+    /* A model's vertices are one pose: they may start the next page. */
+    first = trspk_vbo_place(renderer->frame_stream_cpu, renderer->frame_stream_count, vertex_count);
     renderer->frame_stream_count = first + vertex_count;
     return first;
 }
@@ -3066,13 +3148,14 @@ es2_frame_stream_upload(struct TRSPK_Renderer_ES2* renderer)
     if( renderer->frame_stream_count == 0u )
         return;
     bytes = renderer->frame_stream_count * (uint32_t)sizeof(struct TRSPK_VertexGLES2Os1);
-    offset = es2_stream_set_append(
+    offset = es2_stream_set_append_vbo(
         &renderer->frame_stream,
         renderer->frame_slot,
         GL_ARRAY_BUFFER,
         ES2_FRAME_STREAM_INIT_BYTES,
-        renderer->frame_stream_cpu->vertices.as_gles2_os1,
-        bytes,
+        renderer->frame_stream_cpu,
+        0u,
+        renderer->frame_stream_count,
         false);
     renderer->bound_array_buffer = renderer->frame_stream_vbo;
     renderer->frame_stream_gpu_base = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2Os1);
@@ -3203,6 +3286,7 @@ TRSPK_Renderer_ES2_New(int width, int height, char const* name)
         renderer->rebuild_log = timing && timing[0] && timing[0] != '0';
     }
     renderer->frame_stream_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2_OS1);
+    trspk_vbo_set_label(renderer->frame_stream_cpu, "frame stream");
     assert(renderer->frame_stream_cpu);
     if( !trspk_atlas_init_grid(
             &renderer->atlas,
@@ -3228,6 +3312,8 @@ TRSPK_Renderer_ES2_New(int width, int height, char const* name)
     {
         struct ES2ModelGroup* model_group = &renderer->groups[group];
         model_group->vbo_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2_OS1);
+        trspk_vbo_set_label(
+            model_group->vbo_cpu, group == TRSPK_VBO_GROUP_DYNAMIC ? "dynamic models" : "static models");
         assert(model_group->vbo_cpu);
         model_group->arena = trspk_modelarena_create(
             model_group->vbo_cpu, &model_group->triangles, ES2_VBO_PAGE, 64u);
@@ -3914,6 +4000,16 @@ es2_frame_surface_begin(struct TRSPK_Renderer_ES2* renderer, bool allow_offscree
     es2_update_letterbox(renderer, allow_offscreen);
     es2_state_reset(renderer);
     es2_stream_sets_begin_frame(renderer);
+    /* The cap on cached poses -- every frame of a region's animated scenery
+     * otherwise stays baked for the region's life -- once a frame, before any
+     * command reads the pose table, and the gc that reclaims what it took. */
+    if( renderer->groups[TRSPK_VBO_GROUP_STATIC].arena )
+    {
+        trspk_pose_table_tick(&renderer->poses);
+        if( trspk_pose_cache_trim(
+                &renderer->poses, renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, TRSPK_POSE_CACHE_LOW_VERTICES) )
+            es2_compact_static_group(renderer);
+    }
     return true;
 }
 

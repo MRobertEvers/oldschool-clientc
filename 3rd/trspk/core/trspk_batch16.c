@@ -357,6 +357,13 @@ trspk_batch16_clear(struct TRSPK_Batch16* batch)
     if( !batch )
         return;
     trspk_batch16_reset_live_counts(batch);
+    /* The chunks stay; their pages go back to the pool, as a Batch32's do
+     * (trspk_batch32_clear): the next build takes them again. */
+    for( uint32_t i = 0u; i < batch->chunk_allocated; i++ )
+    {
+        trspk_vbo_release(batch->chunks[i]->vbo);
+        trspk_triangles_free(&batch->chunks[i]->triangles);
+    }
     batch->building = false;
 }
 

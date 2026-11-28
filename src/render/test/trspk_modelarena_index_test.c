@@ -13,6 +13,7 @@
  *   make test-trspk-modelarena-index
  */
 #include "core/trspk_modelarena.h"
+#include "core/trspk_pose.h"
 #include "core/trspk_triangles.h"
 #include "core/trspk_vbo.h"
 
@@ -24,6 +25,16 @@
 #define POSES 8
 
 static int g_failures = 0;
+
+static void
+check(
+    int ok,
+    const char* what)
+{
+    printf("  %s %s\n", ok ? "ok  " : "FAIL", what);
+    if( !ok )
+        g_failures++;
+}
 
 /* What the old implementation did, kept as the oracle. */
 static uint32_t
@@ -203,6 +214,70 @@ main(void)
     trspk_modelarena_free(arena);
     trspk_triangles_free(&triangles);
     trspk_vbo_free(vbo);
+
+    /* The pose cache's cap (trspk_pose_cache_trim): a region's animated
+     * scenery bakes a pose per frame drawn. Past the cap the least recently
+     * drawn go, slot and table entry both; what was drawn this frame or the
+     * last never does; under the cap nothing is touched; and the order
+     * survives a compaction's relocate. */
+    {
+        struct TRSPK_PoseTable table;
+        struct TRSPK_VBO* pvbo = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_D3D9);
+        struct TRSPK_Triangles ptri;
+        struct TRSPK_ModelArena* parena;
+        uint32_t base;
+        int ok = 1;
+        memset(&ptri, 0, sizeof(ptri));
+        memset(&table, 0, sizeof(table));
+        trspk_pose_table_init(&table);
+        parena = trspk_modelarena_create(pvbo, &ptri, TRSPK_PAGE_VERTICES, 64u);
+        /* 40 frames of one loc, 300 vertices each, one baked per frame drawn. */
+        for( int f = 0; f < 40; f++ )
+        {
+            uint32_t const slot = trspk_modelarena_load(parena, 5, f * TRSPK_POSE_TRACK_COUNT + 1, 300u);
+            trspk_pose_table_set(&table, 5, 1, f, trspk_modelarena_get(parena, slot)->vertex_base);
+            trspk_pose_table_tick(&table);
+        }
+        if( parena->live_vertices != 40u * 300u )
+            ok = 0;
+        if( trspk_pose_cache_trim(&table, parena, 40u * 300u) != 0u )
+            ok = 0;
+        check(ok, "under the cap the cache is left alone");
+
+        /* Frame 3 drawn again now: it is the newest, not the fourth oldest. */
+        ok = trspk_pose_table_get(&table, 5, 1, 3, &base);
+        {
+            uint32_t const evicted = trspk_pose_cache_trim(&table, parena, 20u * 300u);
+            uint64_t const cap = 20u * 300u;
+            ok = ok && evicted > 0u && parena->live_vertices <= cap - cap / 4u;
+        }
+        ok = ok && trspk_pose_table_get(&table, 5, 1, 3, &base);  /* drawn this frame: kept */
+        ok = ok && trspk_pose_table_get(&table, 5, 1, 39, &base); /* the newest bake: kept */
+        ok = ok && !trspk_pose_table_get(&table, 5, 1, 0, &base); /* the oldest: gone */
+        ok = ok && trspk_modelarena_find(parena, 5, 0 * TRSPK_POSE_TRACK_COUNT + 1) == TRSPK_MODELSLOT_NULL_IDX;
+        check(ok, "past the cap the least recently drawn go, slot and pose");
+
+        /* A compaction's relocate keeps each pose's age. */
+        {
+            uint32_t stamp_before = table.elements[5].tracks[1].stamp[39];
+            trspk_modelarena_gc(parena);
+            trspk_pose_table_clear(&table);
+            for( uint32_t i = 0u; i < parena->slot_count; i++ )
+            {
+                const struct TRSPK_ModelSlot* slot = &parena->slots[i];
+                if( trspk_modelslot_is_alive(slot) )
+                    trspk_pose_table_relocate(&table, slot->element_id,
+                        slot->pose_id % TRSPK_POSE_TRACK_COUNT, slot->pose_id / TRSPK_POSE_TRACK_COUNT,
+                        slot->vertex_base);
+            }
+            check(table.elements[5].tracks[1].stamp[39] == stamp_before,
+                  "a compaction's relocate keeps the order");
+        }
+        trspk_modelarena_free(parena);
+        trspk_triangles_free(&ptri);
+        trspk_vbo_free(pvbo);
+        trspk_pose_table_free(&table);
+    }
 
     if( g_failures )
     {

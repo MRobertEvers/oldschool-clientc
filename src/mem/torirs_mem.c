@@ -57,6 +57,7 @@
 #define F_PREFIX 0x1u
 #define F_CHUNK 0x2u
 #define F_FREED 0x4u
+#define F_PAGE 0x8u
 
 #define HDR_MAGIC 0x7A11u
 #define HDR_DEAD 0xDEADu
@@ -912,6 +913,20 @@ report_live_children(struct ToriMem_Group* g)
 /* ---- Allocation --------------------------------------------------------- */
 
 static void
+big_block_note(
+    struct ToriMem_Group* g,
+    size_t size,
+    const char* file,
+    int line);
+
+#define BIG_BLOCK_CHECK(g, size, file, line)                                                        \
+    do                                                                                             \
+    {                                                                                              \
+        if( (size) > TORIMEM_BIG_BLOCK_BYTES )                                                     \
+            big_block_note((g), (size), (file), (line));                                           \
+    } while( 0 )
+
+static void
 check_size(
     size_t size,
     const struct ToriMem_Group* g)
@@ -1055,6 +1070,7 @@ alloc_impl(
     if( g->kind == TORIMEM_POOL )
         die("a pool hands out chunks to its arena children; allocate from a child", g);
     s_any_alloc = 1;
+    BIG_BLOCK_CHECK(g, size, file, line);
     if( group_uses_chunks(g) )
     {
         check_owner(g);
@@ -1173,6 +1189,8 @@ free_block(struct ToriMem_Hdr* h)
 {
     struct ToriMem_Group* g = h->group;
     check_live(g);
+    if( h->flags & F_PAGE )
+        die("a page goes back through ToriMem_PageFree, not a free", g);
     if( h->flags & F_CHUNK )
     {
         check_owner(g);
@@ -1255,6 +1273,9 @@ ToriMem_ReallocAt(
     struct ToriMem_Group* g = h->group;
     check_live(g);
     check_size(size, g);
+    if( h->flags & F_PAGE )
+        die("a page has one size: it cannot be realloc'd", g);
+    BIG_BLOCK_CHECK(g, size, file, line);
     size_t old = h->size;
 
     if( h->flags & F_CHUNK )
@@ -1313,6 +1334,364 @@ ToriMem_ReallocAt(
     return nh + 1;
 }
 
+/* ---- Pages and the big-block census ------------------------------------- */
+
+/*
+ * A page is an ordinary malloc'd block -- [prefix if the group keeps a list]
+ * [hdr][data] -- whose header says F_PAGE, charged to the group that took it.
+ * Given back, it goes on its size class's free list here instead of to free():
+ * the next page of that size is this one. While it waits, its header names
+ * the pool's group and says F_FREED, and its first data word links the list.
+ *
+ * The prefix is decided once per process (s_sites), so every page of a class
+ * has the same layout and any one of them can be handed to any group.
+ */
+struct page_class
+{
+    size_t bytes;
+    unsigned char* free_head; /* base of the first free page, NULL when none */
+    intptr_t live;            /* taken and not given back */
+    intptr_t peak;
+    intptr_t made;            /* malloc'd: the rest were reused */
+};
+
+static struct page_class s_page_classes[TORIMEM_PAGE_CLASSES];
+static int s_page_class_count;
+static int s_page_lock;
+static struct ToriMem_Group s_pages;
+
+static size_t
+page_prefix_bytes(void)
+{
+    return s_sites ? PREFIX_BYTES : (size_t)0;
+}
+
+/* Called with s_page_lock held. */
+static struct page_class*
+page_class_of(
+    size_t bytes,
+    int add,
+    struct ToriMem_Group* g)
+{
+    for( int i = 0; i < s_page_class_count; i++ )
+        if( s_page_classes[i].bytes == bytes )
+            return &s_page_classes[i];
+    if( !add )
+        die("a page of a size the pool never handed out", g);
+    if( s_page_class_count == TORIMEM_PAGE_CLASSES )
+        die("more page sizes than TORIMEM_PAGE_CLASSES: pages are a few fixed sizes, not any size", g);
+    struct page_class* c = &s_page_classes[s_page_class_count++];
+    memset(c, 0, sizeof(*c));
+    c->bytes = bytes;
+    return c;
+}
+
+/* Called with s_page_lock held. */
+static struct ToriMem_Group*
+pages_group(void)
+{
+    if( !s_pages.live )
+        ToriMem_GroupInit(&s_pages, "pages", ToriMem_Process());
+    return &s_pages;
+}
+
+void*
+ToriMem_PageAllocAt(
+    struct ToriMem_Group* group,
+    size_t bytes,
+    const char* file,
+    int line)
+{
+    check_live(group);
+    if( group->kind != TORIMEM_HEAP )
+        die("pages belong to a heap group: an arena's reset would never see them", group);
+    if( bytes < TORIMEM_PAGE_MIN_BYTES )
+        die("a page smaller than TORIMEM_PAGE_MIN_BYTES: allocate a block", group);
+    check_size(bytes, group);
+    s_any_alloc = 1;
+
+    size_t const pre = page_prefix_bytes();
+    unsigned char* base = NULL;
+    if( s_arenas_on )
+    {
+        spin_lock(&s_page_lock);
+        struct page_class* c = page_class_of(bytes, 1, group);
+        if( c->free_head )
+        {
+            base = c->free_head;
+            struct ToriMem_Hdr* fh = (struct ToriMem_Hdr*)(base + pre);
+            c->free_head = *(unsigned char**)(fh + 1);
+            counters_free(pages_group(), bytes);
+        }
+        else
+            c->made++;
+        if( ++c->live > c->peak )
+            c->peak = c->live;
+        spin_unlock(&s_page_lock);
+    }
+    if( !base )
+    {
+        base = malloc(pre + HDR_BYTES + bytes);
+        if( !base )
+            die_oom(group, bytes);
+    }
+
+    struct ToriMem_Hdr* h = (struct ToriMem_Hdr*)(base + pre);
+    h->group = group;
+    h->size = (uint32_t)bytes;
+    h->flags = (uint16_t)(F_PAGE | (pre ? F_PREFIX : 0u));
+    h->magic = HDR_MAGIC;
+    if( pre )
+    {
+        struct ToriMem_Prefix* p = (struct ToriMem_Prefix*)base;
+        p->file = file;
+        p->line = (uint32_t)line;
+        spin_lock(&group->lock);
+        p->seq = group->next_seq++;
+        p->prev = NULL;
+        p->next = group->list;
+        if( group->list )
+            group->list->prev = p;
+        group->list = p;
+        spin_unlock(&group->lock);
+    }
+    counters_alloc(group, bytes);
+    return h + 1;
+}
+
+void
+ToriMem_PageFree(
+    struct ToriMem_Group* group,
+    void* page)
+{
+    if( !page )
+        return;
+    struct ToriMem_Hdr* h = hdr_of(page);
+    if( !(h->flags & F_PAGE) )
+        die("ToriMem_PageFree of a block that is not a page", group);
+    if( h->flags & F_FREED )
+        die("a page given back twice", group);
+    if( h->group != group )
+    {
+        char want[256];
+        char have[256];
+        group_path(group, want, sizeof(want));
+        group_path(h->group, have, sizeof(have));
+        fprintf(stderr, "torimem: page of group %s given back through group %s\n", have, want);
+        violation_end();
+        group = h->group;
+    }
+    check_live(group);
+    size_t const bytes = h->size;
+    counters_free(group, bytes);
+    unsigned char* base = (unsigned char*)h;
+    if( h->flags & F_PREFIX )
+    {
+        struct ToriMem_Prefix* p = prefix_of(h);
+        spin_lock(&group->lock);
+        list_unlink(group, p);
+        spin_unlock(&group->lock);
+        base = (unsigned char*)p;
+    }
+    if( !s_arenas_on )
+    {
+        h->magic = HDR_DEAD;
+        free(base);
+        return;
+    }
+#if TORIMEM_DEBUG
+    memset(page, 0xDD, bytes);
+#endif
+    spin_lock(&s_page_lock);
+    struct page_class* c = page_class_of(bytes, 0, group);
+    struct ToriMem_Group* pool = pages_group();
+    c->live--;
+    h->group = pool;
+    h->flags = (uint16_t)(h->flags | F_FREED);
+    *(unsigned char**)(h + 1) = c->free_head;
+    c->free_head = base;
+    counters_alloc(pool, bytes);
+    spin_unlock(&s_page_lock);
+}
+
+size_t
+ToriMem_PagePoolBytes(void)
+{
+    if( !s_pages.live )
+        return 0u;
+    return (size_t)__atomic_load_n(&s_pages.live_bytes, __ATOMIC_RELAXED);
+}
+
+/* Free every page the pool holds: at exit, so the process's end is clean. */
+static void
+page_pool_release(void)
+{
+    spin_lock(&s_page_lock);
+    size_t const pre = page_prefix_bytes();
+    for( int i = 0; i < s_page_class_count; i++ )
+    {
+        struct page_class* c = &s_page_classes[i];
+        while( c->free_head )
+        {
+            unsigned char* base = c->free_head;
+            struct ToriMem_Hdr* h = (struct ToriMem_Hdr*)(base + pre);
+            c->free_head = *(unsigned char**)(h + 1);
+            counters_free(&s_pages, c->bytes);
+            h->magic = HDR_DEAD;
+            free(base);
+        }
+    }
+    spin_unlock(&s_page_lock);
+}
+
+void*
+ToriMem_LibPageAlloc(
+    size_t bytes,
+    void* user)
+{
+    struct ToriMem_Group* g = s_scope ? s_scope : (struct ToriMem_Group*)user;
+    return ToriMem_PageAllocAt(g, bytes, LIB_SITE(), (int)LIB_SITE_LINE);
+}
+
+void
+ToriMem_LibPageFree(
+    void* page,
+    void* user)
+{
+    (void)user;
+    if( !page )
+        return;
+    ToriMem_PageFree(hdr_of(page)->group, page);
+}
+
+#define BIG_BLOCK_SITES 128
+
+static intptr_t s_big_blocks;
+static int s_big_lock;
+static struct
+{
+    const char* file;
+    int line;
+    intptr_t count;
+    size_t largest;
+} s_big_sites[BIG_BLOCK_SITES];
+static int s_big_site_count;
+static ToriMem_BigBlockHook s_big_hook;
+
+void
+ToriMem_SetBigBlockHook(ToriMem_BigBlockHook hook)
+{
+    __atomic_store_n(&s_big_hook, hook, __ATOMIC_RELEASE);
+}
+
+intptr_t
+ToriMem_BigBlocks(void)
+{
+    return __atomic_load_n(&s_big_blocks, __ATOMIC_RELAXED);
+}
+
+/*
+ * A big block is named the first time its site makes one. That alone is not
+ * the harm: a table made once at boot and kept never leaves a hole. The harm
+ * is CHURN -- the same site making big blocks again, at new sizes, while the
+ * last is live or after it went back -- which is what grew the iPhone's heap
+ * a hole at a time. The second big block from a site is named as churn, and
+ * TORIRS_MEM_STRICT=1 aborts on it. Every one is counted
+ * (ToriMem_BigBlocks), and TORIRS_MEM_STATS prints the sites at exit.
+ */
+static void
+big_block_note(
+    struct ToriMem_Group* g,
+    size_t size,
+    const char* file,
+    int line)
+{
+    __atomic_add_fetch(&s_big_blocks, 1, __ATOMIC_RELAXED);
+    intptr_t count = 0;
+    spin_lock(&s_big_lock);
+    int i;
+    for( i = 0; i < s_big_site_count; i++ )
+        if( s_big_sites[i].file == file && s_big_sites[i].line == line )
+            break;
+    if( i == s_big_site_count && s_big_site_count < BIG_BLOCK_SITES )
+    {
+        s_big_sites[i].file = file;
+        s_big_sites[i].line = line;
+        s_big_sites[i].count = 0;
+        s_big_sites[i].largest = 0;
+        s_big_site_count++;
+    }
+    if( i < s_big_site_count )
+    {
+        count = ++s_big_sites[i].count;
+        if( size > s_big_sites[i].largest )
+            s_big_sites[i].largest = size;
+    }
+    spin_unlock(&s_big_lock);
+    if( count == 1 || count == 2 )
+    {
+        char where[320];
+        char path[256];
+        site_name(file, (uint32_t)line, where, sizeof(where));
+        group_path(g, path, sizeof(path));
+        fprintf(
+            stderr,
+            count == 1 ? "torimem: big block %lu bytes in %s at %s\n"
+                       : "torimem: big block CHURN %lu bytes in %s at %s -- a site that keeps making blocks "
+                         "this big fragments the heap; its storage belongs in pages (ToriMem_PageAlloc)\n",
+            (unsigned long)size,
+            path,
+            where);
+        ToriMem_BigBlockHook const hook = __atomic_load_n(&s_big_hook, __ATOMIC_ACQUIRE);
+        if( hook )
+            hook(path, size, where, count == 2);
+    }
+    if( count >= 2 && s_strict )
+        die("big-block churn under TORIRS_MEM_STRICT (see the torimem: line above)", g);
+}
+
+static void
+page_report(FILE* out)
+{
+    spin_lock(&s_page_lock);
+    for( int i = 0; i < s_page_class_count; i++ )
+    {
+        struct page_class const* c = &s_page_classes[i];
+        fprintf(
+            out,
+            "torimem: pages of %8lu bytes: %5ld live, peak %5ld (%lu MB), %5ld made\n",
+            (unsigned long)c->bytes,
+            (long)c->live,
+            (long)c->peak,
+            (unsigned long)(((size_t)c->peak * c->bytes) >> 20),
+            (long)c->made);
+    }
+    spin_unlock(&s_page_lock);
+}
+
+static void
+big_block_report(FILE* out)
+{
+    spin_lock(&s_big_lock);
+    int n = s_big_site_count;
+    spin_unlock(&s_big_lock);
+    if( n == 0 )
+        return;
+    fprintf(out, "torimem: big blocks (over %lu bytes), by site:\n", (unsigned long)TORIMEM_BIG_BLOCK_BYTES);
+    for( int i = 0; i < n; i++ )
+    {
+        char where[320];
+        site_name(s_big_sites[i].file, (uint32_t)s_big_sites[i].line, where, sizeof(where));
+        fprintf(
+            out,
+            "torimem:   %6ld x  largest %10lu  %s%s\n",
+            (long)s_big_sites[i].count,
+            (unsigned long)s_big_sites[i].largest,
+            where,
+            s_big_sites[i].count > 1 ? "  CHURN" : "");
+    }
+}
+
 /* ---- Move ----------------------------------------------------------------- */
 
 static int
@@ -1339,6 +1718,8 @@ ToriMem_Move(
     if( to->kind == TORIMEM_POOL )
         die("cannot Move a block into a pool", to);
     struct ToriMem_Hdr* h = hdr_of(ptr);
+    if( h->flags & F_PAGE )
+        die("a page stays with the group that took it: give it back and take another", from);
     if( h->group != from )
     {
         fprintf(stderr, "torimem: Move from %s of a block that belongs to %s\n", from->name, h->group->name);
@@ -2063,10 +2444,15 @@ ToriMem_Shutdown(void)
 {
     start_process();
     if( s_stats )
+    {
         ToriMem_DumpTree(stderr);
+        page_report(stderr);
+        big_block_report(stderr);
+    }
     /* From here a heap group's live blocks can never be freed again, so they
      * are reported, not fatal, unless TORIRS_MEM_STRICT is set. */
     s_at_exit = 1;
+    page_pool_release();
     if( s_frame.live )
         ToriMem_GroupEnd(&s_frame);
 

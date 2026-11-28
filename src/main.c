@@ -151,6 +151,8 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #include <bmp.h>
 #include "mem/torirs_mem.h"
 #include "mem/torirs_mem_libs.h"
+#include "3rd/trspk/core/trspk_vbo.h"
+#include "platform/platform_web_telemetry.h"
 #include <rscache.h>
 #include <signal.h>
 #include <stdio.h>
@@ -8257,6 +8259,76 @@ frame_loop_teardown(void)
     PlatformWindow_Free(platform);
 }
 
+/* ---- memory growth, named ------------------------------------------------
+ *
+ * The two ways memory grows that a crash report has to name. ToriMem's big
+ * blocks (the first from a site, and a site's second: churn) and trspk's
+ * paged buffers passing another TRSPK_VBO_REPORT_PAGES. On the web each goes
+ * into the page's black box, which adds the wasm stack of the call
+ * (src/web/torirs_telemetry.js: big_block, cpu_storage); natively ToriMem
+ * prints its own lines and a storage step prints under TORIRS_MEM_STATS.
+ * Both are called inside an allocation: nothing here allocates.
+ */
+static void
+main_json_text(
+    char* out,
+    size_t cap,
+    char const* text)
+{
+    size_t n = 0;
+    assert(out);
+    assert(cap > 0);
+    for( ; text && *text && n + 1 < cap; text++ )
+        out[n++] = (*text == '"' || *text == '\\' || (unsigned char)*text < 0x20) ? '_' : *text;
+    out[n] = '\0';
+}
+
+static void
+main_big_block_seen(
+    char const* group,
+    size_t bytes,
+    char const* site,
+    int churn)
+{
+    char g[160];
+    char where[200];
+    main_json_text(g, sizeof(g), group);
+    main_json_text(where, sizeof(where), site);
+    ToriPlatformWeb_Telemetry(
+        "big_block",
+        "{\"group\":\"%s\",\"bytes\":%llu,\"site\":\"%s\",\"churn\":%d}",
+        g,
+        (unsigned long long)bytes,
+        where,
+        churn);
+}
+
+static void
+main_storage_grew(
+    char const* label,
+    enum TRSPK_VertexFormat format,
+    uint32_t pages,
+    size_t bytes)
+{
+    static int print = -1;
+    if( print < 0 )
+        print = getenv("TORIRS_MEM_STATS") != NULL;
+    if( print )
+        fprintf(
+            stderr,
+            "trspk: %s holds %u pages, %.1f MB\n",
+            label,
+            pages,
+            (double)bytes / (1024.0 * 1024.0));
+    ToriPlatformWeb_Telemetry(
+        "cpu_storage",
+        "{\"label\":\"%s\",\"format\":%d,\"pages\":%u,\"bytes\":%llu}",
+        label,
+        (int)format,
+        pages,
+        (unsigned long long)bytes);
+}
+
 #if defined(__EMSCRIPTEN__)
 /*
  * May the platform step the runner between frames?
@@ -9744,6 +9816,8 @@ main(
     ToriMem_InstallRSProt();
     ToriMem_InstallBZip();
     ToriMem_InstallTRSPK();
+    ToriMem_SetBigBlockHook(main_big_block_seen);
+    TRSPK_SetStorageHook(main_storage_grew);
 
     ToriRS_ExecutorConfig_Init(&executor_cfg);
 

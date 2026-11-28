@@ -38,6 +38,17 @@ did nothing a tap should have done:
                 no packet sent (gpu_world_swap .. gpu_world_baked is the
                 window the relogin losses fell in)
 
+--growth prints, per session, every event that says where memory grew: ToriMem
+big blocks (`big_block`, `churn` marks a site's second), a renderer buffer's
+CPU pages passing another 16 (`cpu_storage`, by label), and a GL buffer that
+raised the context's total to a new high by 16 MB or grew 32 MB at once
+(`gl_buffer_grow`) -- each with the wasm stack of the call that did it. A release module has no names, so a frame reads `#1234`;
+--symbols <torirs.js.symbols> names them. The map is written by the link
+(`--emit-symbol-map`, into the build's object directory) and belongs to that
+one build: the session's `module` event gives the wasm size to match it by.
+
+    tools/web/telemetry_report.py --ua iPhone --growth --symbols src/build_web_opt/torirs.js.symbols DIR
+
 An INCIDENT is one of: the WebGL context lost, the main thread blocked (the
 watchdog's report), a tab that ended without a pagehide while visible (the
 next load's `previous_unclean`), a stall of 2 s or more, a wasm abort, a GL
@@ -209,8 +220,73 @@ def fmt_mem_tree(d):
     return f"[{d.get('why')}] heap {mb(d.get('heap'))}{used}: " + '; '.join(parts)
 
 
+SYMBOLS = {}
+
+
+def load_symbols(path):
+    """function index -> name, from emcc's --emit-symbol-map (`1234:name`)."""
+    names = {}
+    with open(path, encoding='utf-8', errors='replace') as f:
+        for line in f:
+            idx, _, name = line.rstrip('\n').partition(':')
+            if idx.isdigit() and name:
+                names[int(idx)] = name
+    return names
+
+
+def frame_name(frame):
+    if isinstance(frame, str) and frame.startswith('#') and frame[1:].isdigit():
+        return SYMBOLS.get(int(frame[1:]), frame)
+    return frame
+
+
+# The frames a recorded event's own plumbing adds on top of every stack: the
+# telemetry call and the hooks that make it. Dropped from the front.
+PLUMBING = {'ToriPlatformWeb_Telemetry', 'web_telemetry_event', 'main_big_block_seen',
+            'main_storage_grew', 'big_block_note'}
+
+
+def fmt_stack(stack, limit=10):
+    if not isinstance(stack, list) or not stack:
+        return ''
+    names = [frame_name(f) for f in stack]
+    while names and names[0] in PLUMBING:
+        names.pop(0)
+    return ' < '.join(names[:limit])
+
+
+GROWTH_KINDS = ('big_block', 'cpu_storage', 'gl_buffer_grow', 'module', 'heap_grow')
+
+
+def print_growth(s):
+    for ev in s.timeline():
+        k = ev.get('k')
+        if k not in GROWTH_KINDS:
+            continue
+        d = ev.get('d') if isinstance(ev.get('d'), dict) else {}
+        t = f"{ev.get('t', 0) / 1000:9.1f}s"
+        if k == 'module':
+            print(f"    {t}  module     wasm {d.get('wasm_bytes')} bytes ({d.get('url')})")
+        elif k == 'heap_grow':
+            print(f"    {t}  heap       {mb(d.get('from'))} -> {mb(d.get('to'))}")
+        elif k == 'big_block':
+            print(f"    {t}  big block  {mb(d.get('bytes'))} in {d.get('group')} at {d.get('site')}"
+                  f"{'  CHURN' if d.get('churn') else ''}")
+        elif k == 'cpu_storage':
+            print(f"    {t}  cpu pages  {d.get('label')}: {d.get('pages')} pages, {mb(d.get('bytes'))}")
+        else:
+            print(f"    {t}  gl buffer  {mb(d.get('prev'))} -> {mb(d.get('bytes'))} "
+                  f"(context total {mb(d.get('total'))})")
+        stack = fmt_stack(d.get('stack'))
+        if stack:
+            print(f"                 {stack}")
+
+
 def fmt_event(ev):
     d = ev.get('d')
+    if isinstance(d, dict) and isinstance(d.get('stack'), list):
+        d = dict(d)
+        d['stack'] = fmt_stack(d['stack'], 6)
     if ev.get('k') == 'mem_tree' and isinstance(d, dict):
         return f"{ev.get('t', 0) / 1000:9.1f}s  mem_tree  {fmt_mem_tree(d)}"
     if isinstance(d, (dict, list)):
@@ -445,7 +521,12 @@ def main():
     ap.add_argument('--touch', action='store_true', help='one row per finger; lost taps marked')
     ap.add_argument('--reftables', action='store_true',
                     help='per reference table: read, decompress, parse and open times')
+    ap.add_argument('--growth', action='store_true',
+                    help='where memory grew: big blocks, renderer CPU pages, GL buffers, with stacks')
+    ap.add_argument('--symbols', help="the build's torirs.js.symbols, to name a stack's #N frames")
     a = ap.parse_args()
+    if a.symbols:
+        SYMBOLS.update(load_symbols(a.symbols))
 
     sessions = build(load(a.paths))
     rows = sorted(sessions.values(), key=lambda s: s.boot_wall or s.last_wall or 0)
@@ -467,6 +548,8 @@ def main():
             print_touch(s)
         if a.reftables:
             print_reftables(s)
+        if a.growth:
+            print_growth(s)
         if a.incidents and (s.blocked or s.unclean or any(is_incident(ev) for ev in s.timeline())):
             print_timeline(s, around=True)
 

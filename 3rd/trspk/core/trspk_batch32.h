@@ -56,9 +56,11 @@ void
 trspk_batch32_begin(struct TRSPK_Batch32* batch);
 
 /*
- * Reserve one contiguous triangle-list pose. vertex_count must be non-zero and
- * divisible by three. Repeating a key in one build returns the original
- * reservation; repeating it with a different vertex count is a caller bug.
+ * Reserve one contiguous triangle-list pose. vertex_count must be non-zero,
+ * divisible by three and at most TRSPK_POSE_MAX_VERTICES; the pose never
+ * crosses a page (core/trspk_vbo.h), so its base is not always the previous
+ * pose's end. Repeating a key in one build returns the original reservation;
+ * repeating it with a different vertex count is a caller bug.
  */
 /* Room for `vertex_count` vertices of reservations (and their triangles)
  * without growing as they are made. The lanes that defer the world bake
@@ -80,7 +82,8 @@ trspk_batch32_reserve_pose(
 void
 trspk_batch32_end(struct TRSPK_Batch32* batch);
 
-/* Empty the batch without freeing vertex, triangle, entry, or lookup storage. */
+/* Empty the batch. Its vertex and triangle pages go back to the pool (the
+ * next build reserves its own); the entry and lookup tables are kept. */
 void
 trspk_batch32_clear(struct TRSPK_Batch32* batch);
 

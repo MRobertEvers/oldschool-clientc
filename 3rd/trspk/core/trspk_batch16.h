@@ -77,7 +77,8 @@ trspk_batch16_reserve_pose(
 void
 trspk_batch16_end(struct TRSPK_Batch16* batch);
 
-/* Empty the batch without freeing chunk, VBO, triangle, entry, or lookup storage. */
+/* Empty the batch. The chunks, entry and lookup tables are kept; the chunks'
+ * vertex and triangle pages go back to the pool. */
 void
 trspk_batch16_clear(struct TRSPK_Batch16* batch);
 

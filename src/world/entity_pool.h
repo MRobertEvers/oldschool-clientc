@@ -14,9 +14,19 @@ struct World_EntityPoolNode
     bool active;
 };
 
+/*
+ * The entities live in PAGES (mem/torirs_mem.h): page i holds entities
+ * [i << page_shift, (i + 1) << page_shift). A page is one fixed size per pool,
+ * so growing the pool adds a page and never moves one, and a page given back
+ * fits the next pool of that kind exactly. The scenery pool grew by realloc at
+ * 4 and then 6.7 MB a time, a new block each time the high-water moved
+ * (`torimem: big block CHURN` at entity_pool.c, 2026-11-28).
+ */
 struct World_EntityPool
 {
-    void* items;
+    unsigned char** pages;
+    int page_count;
+    int page_shift;
     struct World_EntityPoolNode* nodes;
     int element_size;
     int capacity;
@@ -89,8 +99,9 @@ World_EntityPoolAt(
     assert(pool);
     assert(index >= 0);
     assert(index < pool->count);
-    assert(pool->items);
-    return (char*)pool->items + (size_t)index * (size_t)pool->element_size;
+    assert(pool->pages);
+    return pool->pages[index >> pool->page_shift] +
+           (size_t)(index & ((1 << pool->page_shift) - 1)) * (size_t)pool->element_size;
 }
 
 static inline bool

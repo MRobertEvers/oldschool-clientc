@@ -171,9 +171,9 @@ trspk_batch32_reserve_pose(
     trspk_batch32_ensure_entries(batch, batch->entry_count + 1u);
     trspk_batch32_ensure_lookup(batch, batch->entry_count + 1u);
 
-    const uint32_t vertex_base = batch->vbo->vertex_count;
-    assert(vertex_base <= UINT32_MAX - vertex_count);
-    trspk_vbo_growby(batch->vbo, vertex_count);
+    /* Not necessarily at the end: a pose that would cross a page starts the
+     * next one (core/trspk_vbo.h). */
+    const uint32_t vertex_base = trspk_vbo_append(batch->vbo, vertex_count);
     trspk_triangles_ensure(&batch->triangles, (vertex_base + vertex_count) / 3u);
 
     const uint32_t entry_index = batch->entry_count++;
@@ -213,6 +213,12 @@ trspk_batch32_clear(struct TRSPK_Batch32* batch)
 {
     assert(batch);
     trspk_batch32_reset_live_counts(batch);
+    /* A cleared build's vertices are dropped for good -- the next build is
+     * reserved at its own size -- so their pages go back now, and the next
+     * build (this slot's or the other's) is made of them. Kept, two worlds'
+     * worth sat resident across every swap. */
+    trspk_vbo_release(batch->vbo);
+    trspk_triangles_free(&batch->triangles);
     batch->building = false;
 }
 

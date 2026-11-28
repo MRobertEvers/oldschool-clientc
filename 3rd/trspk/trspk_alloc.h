@@ -21,6 +21,14 @@ struct TRSPK_Allocator
     void* (*realloc_fn)(void* ptr, size_t size, void* user);
     void (*free_fn)(void* ptr, void* user);
     void* user;
+    /* PAGES: the fixed-size blocks big storage is made of (TRSPK_PAGE_BYTES of
+     * a vertex format, TRSPK_TRI_PAGE_BYTES; core/trspk_vbo.h). A host whose
+     * heap cannot give memory back keeps the pages it is given back and hands
+     * them out again: one page of a size fits wherever another did, so a build
+     * of any size reuses the last build's memory exactly. Optional: NULL takes
+     * malloc_fn / free_fn. A page is given back with the size it was asked for. */
+    void* (*page_alloc_fn)(size_t size, void* user);
+    void (*page_free_fn)(void* page, void* user);
 };
 
 extern struct TRSPK_Allocator g_trspk_allocator;
@@ -37,5 +45,12 @@ TRSPK_Strdup(const char* str);
 #define TRSPK_CALLOC(count, size) g_trspk_allocator.calloc_fn((count), (size), g_trspk_allocator.user)
 #define TRSPK_REALLOC(ptr, size) g_trspk_allocator.realloc_fn((ptr), (size), g_trspk_allocator.user)
 #define TRSPK_FREE(ptr) g_trspk_allocator.free_fn((ptr), g_trspk_allocator.user)
+
+/** A page: `size` is one of the few fixed page sizes. */
+void*
+TRSPK_PageAlloc(size_t size);
+
+void
+TRSPK_PageFree(void* page);
 
 #endif /* TRSPK_ALLOC_H */
