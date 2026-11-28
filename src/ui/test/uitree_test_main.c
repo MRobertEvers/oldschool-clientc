@@ -118,6 +118,7 @@ main(void)
     test_block_pool();
     test_id_shortcuts();
     test_child_subid();
+    test_cc_find_dynamic_only();
     test_menu_submenus();
     test_component_params();
     test_inkwell_spec_copy();

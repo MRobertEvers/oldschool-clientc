@@ -2441,6 +2441,22 @@ UITree_FindChildBySubid(
     int parent_component_id,
     int sub_id);
 
+/**
+ * The script's cc_find: the cc_create child of `parent_index` in slot `sub_id`,
+ * or -1. Only dynamic children answer, as in the reference, where cc_find
+ * reads `component.children[sub]` and a static subcomponent is never there.
+ * UITree_FindChildBySubid's static fallback is wrong for a script: a rebuild
+ * that runs before its init has created the rows (chatbox:59, whose static
+ * line boxes 162:60..559 share the row slots' numbers) would write a chat line
+ * into a static box and unhide it, and the line stays drawn under the real
+ * rows from then on.
+ */
+int32_t
+UITree_FindDynamicChildBySubid(
+    struct UITree const* tree,
+    int32_t parent_index,
+    int sub_id);
+
 int32_t
 UITree_CcCreate(
     struct UITree* tree,

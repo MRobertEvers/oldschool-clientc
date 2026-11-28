@@ -800,3 +800,50 @@ test_child_subid(void)
 
     UITree_Free(tree);
 }
+
+/* The script's cc_find answers only from cc_create children. chatbox:59 holds
+ * the 500 static line boxes 162:60..559 and, once chatbox_init has run, 2000
+ * dynamic row children in slots 0..1999; a rebuildchatbox that ran before the
+ * init found the static box for every row slot >= 60, unhid it and wrote a
+ * chat line into it, which then drew under the real rows for the session
+ * (iPhone, 2026-11-28). Forty statics, so the lookups also take the key map. */
+void
+test_cc_find_dynamic_only(void)
+{
+    printf("TEST: cc_find sees only cc_create children\n");
+
+    int const iface = 162;
+    int const parent_id = (iface << 16) | 59;
+    struct UITree* tree = UITree_New(8);
+    TEST_ASSERT(tree != NULL, "UITree_New");
+
+    int32_t parent = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, parent_id, 0, 0, 400, 100);
+    TEST_ASSERT(parent >= 0, "push parent");
+    for( int i = 0; i < 40; i++ )
+        UITree_TestPushXy(tree, parent, UIELEM_RS_TEXT, (iface << 16) | (60 + i), 0, i, 8, 8);
+
+    /* Before the rows exist: every slot misses, including the ones a static
+     * box shares a number with (the general lookup still finds those). */
+    for( int sub = 0; sub < 120; sub++ )
+        TEST_ASSERT(UITree_FindDynamicChildBySubid(tree, parent, sub) < 0, "no row before init");
+    TEST_ASSERT(
+        UITree_FindChildBySubid(tree, parent, parent_id, 60) >= 0,
+        "the general lookup still falls back to the static box");
+
+    int32_t rows[120];
+    for( int sub = 0; sub < 120; sub++ )
+    {
+        rows[sub] = UITree_CcCreate(tree, parent, parent_id, UIELEM_RS_TEXT, sub);
+        TEST_ASSERT(rows[sub] >= 0, "cc_create row");
+    }
+    for( int sub = 0; sub < 120; sub++ )
+        TEST_ASSERT(UITree_FindDynamicChildBySubid(tree, parent, sub) == rows[sub], "row found");
+    TEST_ASSERT(UITree_FindDynamicChildBySubid(tree, parent, 120) < 0, "past the last row");
+    TEST_ASSERT(UITree_FindDynamicChildBySubid(tree, parent, -1) < 0, "negative slot");
+
+    UITree_CcDeleteAll(tree, parent);
+    for( int sub = 0; sub < 120; sub++ )
+        TEST_ASSERT(UITree_FindDynamicChildBySubid(tree, parent, sub) < 0, "no row after deleteall");
+
+    UITree_Free(tree);
+}

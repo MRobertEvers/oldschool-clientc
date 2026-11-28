@@ -332,6 +332,7 @@ void test_id_index(void);
 void test_block_pool(void);
 void test_id_shortcuts(void);
 void test_child_subid(void);
+void test_cc_find_dynamic_only(void);
 void test_menu_submenus(void);
 void test_component_params(void);
 void test_inkwell_spec_copy(void);

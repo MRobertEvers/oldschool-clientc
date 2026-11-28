@@ -4254,6 +4254,59 @@ UITree_FindChildBySubid(
 }
 
 int32_t
+UITree_FindDynamicChildBySubid(
+    struct UITree const* tree,
+    int32_t parent_index,
+    int sub_id)
+{
+    assert(tree);
+    assert(parent_index >= 0 && (uint32_t)parent_index < tree->component_count);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD, 1);
+    /* A slot is never negative; a script can still ask for one. */
+    if( sub_id < 0 )
+        return -1;
+
+    /* The same two caches UITree_FindChildBySubid keeps, read for the dynamic
+     * half only: the ceiling covers every key, and the map's first half is the
+     * dynamic slots. */
+    if( sub_id <= 0xFFFF &&
+        sub_id > uitree_child_key_ceiling((struct UITree*)tree, parent_index) )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_CEIL_MISS, 1);
+        return -1;
+    }
+    {
+        struct UITreeComponent const* parent = &tree->components[parent_index];
+        if( parent->child_key_index && sub_id < parent->child_key_index_cap )
+        {
+            int32_t const hit = parent->child_key_index[sub_id];
+            if( hit >= 0 )
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_HIT, 1);
+            return hit;
+        }
+    }
+
+    int32_t found = -1;
+    int32_t steps = 0;
+    for( int32_t child = tree->components[parent_index].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        steps++;
+        struct UITreeComponent const* c = &tree->components[child];
+        if( c->plugin_owner ) continue;
+        if( c->dynamic && c->dynamic_child_index == sub_id )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_HIT, 1);
+            found = child;
+            break;
+        }
+    }
+    if( steps > UITREE_CHILD_INDEX_MIN_STEPS )
+        uitree_child_index_build((struct UITree*)tree, parent_index);
+    return found;
+}
+
+int32_t
 UITree_CcCreate(
     struct UITree* tree,
     int32_t parent_index,

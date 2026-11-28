@@ -6076,8 +6076,8 @@ exec_cc_find(
     }
     if( parent_idx >= 0 )
     {
-        int32_t child_idx =
-            UITree_FindChildBySubid(tree, parent_idx, parent_id, sub_id);
+        /* cc_find sees only cc_create children (UITree_FindDynamicChildBySubid). */
+        int32_t child_idx = UITree_FindDynamicChildBySubid(tree, parent_idx, sub_id);
         if( child_idx >= 0 )
         {
             rs_cs2_set_cc_target(
